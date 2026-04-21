@@ -227,9 +227,23 @@ export const DELETE = withRouteHandler(
         action: AuditAction.KNOWLEDGE_BASE_DELETED,
         resourceType: AuditResourceType.KNOWLEDGE_BASE,
         resourceId: id,
-        resourceName: accessCheck.knowledgeBase.name,
-        description: `Deleted knowledge base "${accessCheck.knowledgeBase.name || id}"`,
-        request: _request,
+        resourceName: validatedData.name ?? updatedKnowledgeBase.name,
+        description: `Updated knowledge base "${validatedData.name ?? updatedKnowledgeBase.name}"`,
+        metadata: {
+          updatedFields: Object.keys(validatedData).filter(
+            (k) => validatedData[k as keyof typeof validatedData] !== undefined
+          ),
+          ...(validatedData.name && { newName: validatedData.name }),
+          ...(validatedData.description !== undefined && {
+            description: validatedData.description,
+          }),
+          ...(validatedData.chunkingConfig && {
+            chunkMaxSize: validatedData.chunkingConfig.maxSize,
+            chunkMinSize: validatedData.chunkingConfig.minSize,
+            chunkOverlap: validatedData.chunkingConfig.overlap,
+          }),
+        },
+        request: req,
       })
 
       return NextResponse.json({
@@ -241,4 +255,70 @@ export const DELETE = withRouteHandler(
       return NextResponse.json({ error: 'Failed to delete knowledge base' }, { status: 500 })
     }
   }
-)
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const requestId = generateRequestId()
+  const { id } = await params
+
+  try {
+    const auth = await checkSessionOrInternalAuth(_request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized knowledge base delete attempt`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const userId = auth.userId
+
+    const accessCheck = await checkKnowledgeBaseWriteAccess(id, userId)
+
+    if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Knowledge base not found: ${id}`)
+        return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
+      }
+      logger.warn(
+        `[${requestId}] User ${userId} attempted to delete unauthorized knowledge base ${id}`
+      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    await deleteKnowledgeBase(id, requestId)
+
+    try {
+      PlatformEvents.knowledgeBaseDeleted({
+        knowledgeBaseId: id,
+      })
+    } catch {
+      // Telemetry should not fail the operation
+    }
+
+    logger.info(`[${requestId}] Knowledge base deleted: ${id} for user ${userId}`)
+
+    recordAudit({
+      workspaceId: accessCheck.knowledgeBase.workspaceId ?? null,
+      actorId: userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.KNOWLEDGE_BASE_DELETED,
+      resourceType: AuditResourceType.KNOWLEDGE_BASE,
+      resourceId: id,
+      resourceName: accessCheck.knowledgeBase.name,
+      description: `Deleted knowledge base "${accessCheck.knowledgeBase.name || id}"`,
+      metadata: {
+        knowledgeBaseName: accessCheck.knowledgeBase.name,
+      },
+      request: _request,
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: { message: 'Knowledge base deleted successfully' },
+    })
+  } catch (error) {
+    logger.error(`[${requestId}] Error deleting knowledge base`, error)
+    return NextResponse.json({ error: 'Failed to delete knowledge base' }, { status: 500 })
+  }
+}

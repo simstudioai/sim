@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
@@ -84,7 +85,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
     logger.error(`[${requestId}] Image proxy error:`, { error: errorMessage })
 
     return new NextResponse(`Failed to proxy image: ${errorMessage}`, {

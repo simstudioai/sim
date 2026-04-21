@@ -1,11 +1,18 @@
 /**
  * @vitest-environment node
  */
+import {
+  permissionsMock,
+  permissionsMockFns,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import { drizzleOrmMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockAuthorizeWorkflowByWorkspacePermission = vi.fn()
-const mockGetUserEntityPermissions = vi.fn()
+const mockAuthorizeWorkflowByWorkspacePermission =
+  workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 const { mockDb } = vi.hoisted(() => ({
   mockDb: {
@@ -17,39 +24,9 @@ vi.mock('drizzle-orm', () => ({
   ...drizzleOrmMock,
   min: vi.fn((field) => ({ type: 'min', field })),
 }))
-vi.mock('@/lib/workflows/utils', () => ({
-  authorizeWorkflowByWorkspacePermission: (...args: unknown[]) =>
-    mockAuthorizeWorkflowByWorkspacePermission(...args),
-  deduplicateWorkflowName: vi.fn(async (name: string) => name),
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: (...args: unknown[]) => mockGetUserEntityPermissions(...args),
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  workflow: {
-    id: 'id',
-    workspaceId: 'workspaceId',
-    folderId: 'folderId',
-    sortOrder: 'sortOrder',
-    variables: 'variables',
-  },
-  workflowFolder: {
-    workspaceId: 'workspaceId',
-    parentId: 'parentId',
-    sortOrder: 'sortOrder',
-  },
-  workflowBlocks: {
-    workflowId: 'workflowId',
-  },
-  workflowEdges: {
-    workflowId: 'workflowId',
-  },
-  workflowSubflows: {
-    workflowId: 'workflowId',
-  },
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@sim/db', () => ({
   db: mockDb,
@@ -106,6 +83,9 @@ describe('duplicateWorkflow ordering', () => {
     })
 
     mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({ allowed: true })
+    workflowsUtilsMockFns.mockDeduplicateWorkflowName.mockImplementation(
+      async (name: string) => name
+    )
     mockGetUserEntityPermissions.mockResolvedValue('write')
   })
 

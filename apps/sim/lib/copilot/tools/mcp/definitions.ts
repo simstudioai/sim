@@ -58,7 +58,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
     name: 'create_workflow',
     toolId: 'create_workflow',
     description:
-      'Create a new empty workflow. Returns the new workflow ID. Always call this FIRST before sim_build for new workflows. Use workspaceId to place it in a specific workspace.',
+      'Create a new empty workflow. Returns the new workflow ID. Always call this FIRST before sim_workflow for new workflows. Use workspaceId to place it in a specific workspace.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -263,14 +263,15 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
 
 export const SUBAGENT_TOOL_DEFS: SubagentToolDef[] = [
   {
-    name: 'sim_build',
-    agentId: 'build',
-    description: `Build a workflow end-to-end in a single step. This is the fast mode equivalent for headless/MCP usage.
+    name: 'sim_workflow',
+    agentId: 'workflow',
+    description: `Create, modify, test, debug, and organize workflows end-to-end in a single step.
 
 USE THIS WHEN:
 - Building a new workflow from scratch
 - Modifying an existing workflow
-- You want to gather information and build in one pass without separate plan→edit steps
+- You want to gather information and build in one pass
+- Moving, renaming, or organizing workflows and folders
 
 WORKFLOW ID (REQUIRED):
 - For NEW workflows: First call create_workflow to get a workflowId, then pass it here
@@ -282,23 +283,26 @@ CAN DO:
 - Add, modify, or remove blocks
 - Configure block settings and connections
 - Set environment variables and workflow variables
+- Move, rename, delete workflows and folders
+- Run or inspect workflows through the nested run/debug specialists when validation is needed
+- Delegate deployment or auth setup to the nested specialists when needed
 
 CANNOT DO:
-- Run or test workflows (use sim_test separately)
-- Deploy workflows (use sim_deploy separately)
+- Replace dedicated testing flows like sim_test when you want a standalone execution-only pass
+- Replace dedicated deploy flows like sim_deploy when you want deployment as a separate step
 
 WORKFLOW:
 1. Call create_workflow to get a workflowId (for new workflows)
-2. Call sim_build with the request and workflowId
-3. Build agent gathers info and builds in one pass
-4. Call sim_test to verify it works
+2. Call sim_workflow with the request and workflowId
+3. Workflow agent gathers info, builds, and can delegate run/debug/auth/deploy help in one pass
+4. Call sim_test when you want a dedicated execution-only verification pass
 5. Optionally call sim_deploy to make it externally accessible`,
     inputSchema: {
       type: 'object',
       properties: {
         request: {
           type: 'string',
-          description: 'What you want to build or modify in the workflow.',
+          description: 'What you want to build, modify, or organize.',
         },
         workflowId: {
           type: 'string',
@@ -338,77 +342,6 @@ DO NOT USE (use direct tools instead):
     annotations: { readOnlyHint: true },
   },
   {
-    name: 'sim_plan',
-    agentId: 'plan',
-    description: `Plan workflow changes by gathering required information. For most cases, prefer sim_build which combines planning and editing in one step.
-
-USE THIS WHEN:
-- You need fine-grained control over the build process
-- You want to inspect the plan before executing it
-
-WORKFLOW ID (REQUIRED):
-- For NEW workflows: First call create_workflow to get a workflowId, then pass it here
-- For EXISTING workflows: Always pass the workflowId parameter
-
-This tool gathers information about available blocks, credentials, and the current workflow state.
-
-RETURNS: A plan object containing block configurations, connections, and technical details.
-IMPORTANT: Pass the returned plan EXACTLY to sim_edit - do not modify or summarize it.`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        request: {
-          type: 'string',
-          description: 'What you want to build or modify in the workflow.',
-        },
-        workflowId: {
-          type: 'string',
-          description:
-            'REQUIRED. The workflow ID. For new workflows, call create_workflow first to get this.',
-        },
-        context: { type: 'object' },
-      },
-      required: ['request', 'workflowId'],
-    },
-    annotations: { readOnlyHint: true },
-  },
-  {
-    name: 'sim_edit',
-    agentId: 'edit',
-    description: `Execute a workflow plan from sim_plan. For most cases, prefer sim_build which combines planning and editing in one step.
-
-WORKFLOW ID (REQUIRED):
-- You MUST provide the workflowId parameter
-
-PLAN (REQUIRED):
-- Pass the EXACT plan object from sim_plan in the context.plan field
-- Do NOT modify, summarize, or interpret the plan - pass it verbatim
-
-After sim_edit completes, you can test immediately with sim_test, or deploy with sim_deploy to make it accessible externally.`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        message: { type: 'string', description: 'Optional additional instructions for the edit.' },
-        workflowId: {
-          type: 'string',
-          description:
-            'REQUIRED. The workflow ID to edit. Get this from create_workflow for new workflows.',
-        },
-        plan: {
-          type: 'object',
-          description: 'The plan object from sim_plan. Pass it EXACTLY as returned, do not modify.',
-        },
-        context: {
-          type: 'object',
-          description:
-            'Additional context. Put the plan in context.plan if not using the plan field directly.',
-        },
-      },
-      required: ['workflowId'],
-    },
-    annotations: { destructiveHint: false, openWorldHint: true },
-  },
-  {
     name: 'sim_deploy',
     agentId: 'deploy',
     description: `Deploy a workflow to make it accessible externally. Workflows can be tested without deploying, but deployment is needed for API access, chat UIs, or MCP exposure.
@@ -444,7 +377,7 @@ ALSO CAN:
   },
   {
     name: 'sim_test',
-    agentId: 'test',
+    agentId: 'run',
     description: `Run a workflow and verify its outputs. Works on both deployed and undeployed (draft) workflows. Use after building to verify correctness.
 
 Supports full and partial execution:
@@ -465,22 +398,6 @@ Supports full and partial execution:
       required: ['request', 'workflowId'],
     },
     annotations: { destructiveHint: false, openWorldHint: true },
-  },
-  {
-    name: 'sim_debug',
-    agentId: 'debug',
-    description:
-      'Diagnose errors or unexpected workflow behavior. Provide the error message and workflowId. Returns root cause analysis and fix suggestions.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        error: { type: 'string', description: 'The error message or description of the issue.' },
-        workflowId: { type: 'string', description: 'REQUIRED. The workflow ID to debug.' },
-        context: { type: 'object' },
-      },
-      required: ['error', 'workflowId'],
-    },
-    annotations: { readOnlyHint: true },
   },
   {
     name: 'sim_auth',
@@ -561,7 +478,7 @@ Supports full and partial execution:
     name: 'sim_info',
     agentId: 'info',
     description:
-      "Inspect a workflow's blocks, connections, outputs, variables, and metadata. Use for questions about the Sim platform itself — how blocks work, what integrations are available, platform concepts, etc. Always provide workflowId to scope results to a specific workflow.",
+      "Inspect a workflow's blocks, connections, outputs, variables, and metadata. Use for questions about the Sim platform itself — how blocks work, what integrations are available, platform concepts, etc. Provide workflowId when you want results scoped to a specific workflow.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -572,22 +489,6 @@ Supports full and partial execution:
       required: ['request'],
     },
     annotations: { readOnlyHint: true },
-  },
-  {
-    name: 'sim_workflow',
-    agentId: 'workflow',
-    description:
-      'Manage workflow-level configuration: environment variables, settings, scheduling, and deployment status. Use for any data about a specific workflow — its settings, credentials, variables, or deployment state.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        request: { type: 'string' },
-        workflowId: { type: 'string' },
-        context: { type: 'object' },
-      },
-      required: ['request'],
-    },
-    annotations: { destructiveHint: false },
   },
   {
     name: 'sim_research',

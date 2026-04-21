@@ -14,6 +14,21 @@ You are an expert at creating webhook triggers for Sim. You understand the trigg
 3. Create a provider handler if custom auth, formatting, or subscriptions are needed
 4. Register triggers and connect them to the block
 
+## Hard Rule: No Guessed Webhook Payload Schemas
+
+If the service docs do not clearly show the webhook payload JSON for an event, you MUST tell the user instead of guessing trigger outputs or `formatInput` mappings.
+
+- Do NOT invent payload field names
+- Do NOT guess nested event object paths
+- Do NOT infer output fields from the UI or marketing docs
+- Do NOT write `formatInput` against unverified webhook bodies
+
+If the payload shape is unknown, do one of these instead:
+1. Ask the user for sample webhook payloads
+2. Ask the user for a test webhook source so you can inspect a real event
+3. Implement only the event registration/setup portions whose payloads are documented
+4. Leave the trigger unimplemented and explicitly say which payload fields are unknown
+
 ## Directory Structure
 
 ```

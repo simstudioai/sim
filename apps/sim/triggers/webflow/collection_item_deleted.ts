@@ -168,18 +168,6 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
       dependsOn: ['triggerCredentials', 'triggerSiteId'],
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'webflow_collection_item_deleted',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'webflow_collection_item_deleted',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

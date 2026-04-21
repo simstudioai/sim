@@ -1,12 +1,12 @@
 import { db } from '@sim/db'
 import { workflow, workflowDeploymentVersion, workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { validateCronExpression } from '@/lib/workflows/schedules/utils'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
@@ -278,6 +278,25 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       cronExpression,
       timezone,
       lifecycle,
+    })
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.SCHEDULE_CREATED,
+      resourceType: AuditResourceType.SCHEDULE,
+      resourceId: id,
+      resourceName: title.trim(),
+      description: `Created job schedule "${title.trim()}"`,
+      metadata: {
+        cronExpression,
+        timezone,
+        lifecycle,
+        maxRuns: maxRuns ?? null,
+      },
+      request: req,
     })
 
     captureServerEvent(

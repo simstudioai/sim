@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { getBlock } from '@/blocks/registry'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -161,7 +162,7 @@ export function sanitizeAgentToolsInBlocks(blocks: Record<string, BlockState>): 
       // Reassign in case caller uses object identity
       sanitizedBlocks[blockId] = { ...block, subBlocks: { ...subBlocks, tools: toolsSubBlock } }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = toError(err).message
       warnings.push(`Block ${block?.name || blockId}: tools sanitation failed: ${message}`)
     }
   }
@@ -308,7 +309,7 @@ export function validateWorkflowState(
     }
   } catch (err) {
     logger.error('Workflow validation failed with exception', err)
-    errors.push(`Validation failed: ${err instanceof Error ? err.message : String(err)}`)
+    errors.push(`Validation failed: ${toError(err).message}`)
     return { valid: false, errors, warnings }
   }
 }

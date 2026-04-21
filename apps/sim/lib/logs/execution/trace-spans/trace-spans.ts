@@ -744,8 +744,10 @@ function buildContainerChildren(
  *    chain determines the top-level container. Iteration spans are peeled one level at a
  *    time and recursed.
  *
- * Sentinel blocks (parallel/loop containers) do NOT produce BlockLogs, so there are no
- * sentinel spans to anchor grouping. Containers are synthesized from the iteration data.
+ * Container BlockLogs (parallel/loop) are produced on skip (empty collection), error, and
+ * successful completion. When present, they supply the user-configured container name via
+ * `resolveContainerName`; otherwise the container is synthesized from iteration data with a
+ * counter-based fallback name.
  */
 function groupIterationBlocksRecursive(
   spans: TraceSpan[],

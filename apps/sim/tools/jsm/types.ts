@@ -1,9 +1,5 @@
 import type { ToolResponse } from '@/tools/types'
 
-// ---------------------------------------------------------------------------
-// Shared output property constants for JSM tools (following Confluence pattern)
-// ---------------------------------------------------------------------------
-
 /** Reusable date output properties with ISO 8601, friendly, and epoch formats */
 export const DATE_OUTPUT_PROPERTIES = {
   iso8601: { type: 'string', description: 'ISO 8601 formatted date' },
@@ -222,9 +218,43 @@ export const REQUEST_TYPE_FIELD_PROPERTIES = {
   },
 } as const
 
-// ---------------------------------------------------------------------------
-// Data model interfaces
-// ---------------------------------------------------------------------------
+/** Output properties for a FormTemplateIndexEntry (list endpoint) per OpenAPI spec */
+export const FORM_TEMPLATE_PROPERTIES = {
+  id: { type: 'string', description: 'Form template ID (UUID)' },
+  name: { type: 'string', description: 'Form template name' },
+  updated: { type: 'string', description: 'Last updated timestamp (ISO 8601)' },
+  issueCreateIssueTypeIds: {
+    type: 'json',
+    description: 'Issue type IDs that auto-attach this form on issue create',
+  },
+  issueCreateRequestTypeIds: {
+    type: 'json',
+    description: 'Request type IDs that auto-attach this form on issue create',
+  },
+  portalRequestTypeIds: {
+    type: 'json',
+    description: 'Request type IDs that show this form on the customer portal',
+  },
+  recommendedIssueRequestTypeIds: {
+    type: 'json',
+    description: 'Request type IDs that recommend this form',
+  },
+} as const
+
+/** Output properties for a FormIndexEntry (issue forms list endpoint) per OpenAPI spec */
+export const ISSUE_FORM_PROPERTIES = {
+  id: { type: 'string', description: 'Form instance ID (UUID)' },
+  name: { type: 'string', description: 'Form name' },
+  updated: { type: 'string', description: 'Last updated timestamp (ISO 8601)' },
+  submitted: { type: 'boolean', description: 'Whether the form has been submitted' },
+  lock: { type: 'boolean', description: 'Whether the form is locked' },
+  internal: { type: 'boolean', description: 'Whether the form is internal-only', optional: true },
+  formTemplateId: {
+    type: 'string',
+    description: 'Source form template ID (UUID)',
+    optional: true,
+  },
+} as const
 
 /** Common parameters for all JSM API calls */
 export interface JsmBaseParams {
@@ -389,10 +419,6 @@ export interface JsmRequestTypeField {
   jiraSchema: { type: string; system?: string; custom?: string; customId?: number }
 }
 
-// ---------------------------------------------------------------------------
-// Params interfaces
-// ---------------------------------------------------------------------------
-
 export interface JsmGetServiceDesksParams extends JsmBaseParams {
   expand?: string
   start?: number
@@ -411,9 +437,10 @@ export interface JsmGetRequestTypesParams extends JsmBaseParams {
 export interface JsmCreateRequestParams extends JsmBaseParams {
   serviceDeskId: string
   requestTypeId: string
-  summary: string
+  summary?: string
   description?: string
   requestFieldValues?: Record<string, unknown>
+  formAnswers?: Record<string, unknown>
   raiseOnBehalfOf?: string
   requestParticipants?: string[]
   channel?: string
@@ -530,10 +557,6 @@ export interface JsmGetRequestTypeFieldsParams extends JsmBaseParams {
   serviceDeskId: string
   requestTypeId: string
 }
-
-// ---------------------------------------------------------------------------
-// Response interfaces
-// ---------------------------------------------------------------------------
 
 export interface JsmGetServiceDesksResponse extends ToolResponse {
   output: {
@@ -777,9 +800,243 @@ export interface JsmGetRequestTypeFieldsResponse extends ToolResponse {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Union type for all JSM responses
-// ---------------------------------------------------------------------------
+export interface JsmGetFormTemplatesParams extends JsmBaseParams {
+  projectIdOrKey: string
+}
+
+export interface JsmGetFormStructureParams extends JsmBaseParams {
+  projectIdOrKey: string
+  formId: string
+}
+
+export interface JsmGetIssueFormsParams extends JsmBaseParams {
+  issueIdOrKey: string
+}
+
+/** FormQuestion per OpenAPI spec */
+export interface JsmFormQuestion {
+  label: string
+  type: string
+  validation: { rq?: boolean; [key: string]: unknown }
+  choices?: Array<{ id: string; label: string; other?: boolean }>
+  dcId?: string
+  defaultAnswer?: Record<string, unknown>
+  description?: string
+  jiraField?: string
+  questionKey?: string
+}
+
+/** FormTemplateIndexEntry per OpenAPI spec */
+export interface JsmFormTemplate {
+  id: string
+  name: string
+  updated: string
+  issueCreateIssueTypeIds: number[]
+  issueCreateRequestTypeIds: number[]
+  portalRequestTypeIds: number[]
+  recommendedIssueRequestTypeIds: number[]
+}
+
+/** FormIndexEntry (issue form) per OpenAPI spec */
+export interface JsmIssueForm {
+  id: string
+  name: string
+  updated: string
+  submitted: boolean
+  lock: boolean
+  internal?: boolean
+  formTemplateId?: string
+}
+
+export interface JsmGetFormTemplatesResponse extends ToolResponse {
+  output: {
+    ts: string
+    projectIdOrKey: string
+    templates: JsmFormTemplate[]
+    total: number
+  }
+}
+
+export interface JsmGetFormStructureResponse extends ToolResponse {
+  output: {
+    ts: string
+    projectIdOrKey: string
+    formId: string
+    design: {
+      questions: Record<string, JsmFormQuestion>
+      layout: unknown[]
+      conditions: Record<string, unknown>
+      sections: Record<string, unknown>
+      settings: { name: string; submit: { lock: boolean; pdf: boolean }; language?: string }
+    } | null
+    updated: string | null
+    publish: Record<string, unknown> | null
+  }
+}
+
+export interface JsmGetIssueFormsResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    forms: JsmIssueForm[]
+    total: number
+  }
+}
+
+export interface JsmAttachFormParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formTemplateId: string
+}
+
+export interface JsmAttachFormResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    id: string
+    name: string
+    updated: string | null
+    submitted: boolean
+    lock: boolean
+    internal: boolean | null
+    formTemplateId: string | null
+  }
+}
+
+export interface JsmSaveFormAnswersParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+  answers: Record<string, unknown>
+}
+
+export interface JsmSaveFormAnswersResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    state: { status: string } | null
+    updated: string | null
+  }
+}
+
+export interface JsmSubmitFormParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+}
+
+export interface JsmSubmitFormResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    status: string
+  }
+}
+
+export interface JsmGetFormParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+}
+
+export interface JsmGetFormResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    design: Record<string, unknown> | null
+    state: {
+      answers: Record<string, unknown>
+      status: string
+      visibility: string
+    } | null
+    updated: string | null
+  }
+}
+
+export interface JsmDeleteFormParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+}
+
+export interface JsmDeleteFormResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    deleted: boolean
+  }
+}
+
+export interface JsmExternaliseFormParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+}
+
+export interface JsmExternaliseFormResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    visibility: string
+  }
+}
+
+export interface JsmInternaliseFormParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+}
+
+export interface JsmInternaliseFormResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    visibility: string
+  }
+}
+
+export interface JsmCopyFormsParams extends JsmBaseParams {
+  sourceIssueIdOrKey: string
+  targetIssueIdOrKey: string
+  formIds?: string[]
+}
+
+export interface JsmCopyFormsResponse extends ToolResponse {
+  output: {
+    ts: string
+    sourceIssueIdOrKey: string
+    targetIssueIdOrKey: string
+    copiedForms: Array<Record<string, unknown>>
+    errors: Array<Record<string, unknown>>
+  }
+}
+
+export interface JsmGetFormAnswersParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+}
+
+export interface JsmGetFormAnswersResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    answers: Record<string, unknown> | null
+  }
+}
+
+export interface JsmReopenFormParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+}
+
+export interface JsmReopenFormResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    status: string
+  }
+}
 
 /** Union type for all JSM responses */
 export type JsmResponse =
@@ -804,3 +1061,16 @@ export type JsmResponse =
   | JsmGetApprovalsResponse
   | JsmAnswerApprovalResponse
   | JsmGetRequestTypeFieldsResponse
+  | JsmGetFormTemplatesResponse
+  | JsmGetFormStructureResponse
+  | JsmGetIssueFormsResponse
+  | JsmAttachFormResponse
+  | JsmSaveFormAnswersResponse
+  | JsmSubmitFormResponse
+  | JsmGetFormResponse
+  | JsmDeleteFormResponse
+  | JsmExternaliseFormResponse
+  | JsmInternaliseFormResponse
+  | JsmCopyFormsResponse
+  | JsmGetFormAnswersResponse
+  | JsmReopenFormResponse

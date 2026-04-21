@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { Button } from '@/components/emcn'
 import { PanelLeft } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import {
@@ -17,7 +18,7 @@ import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
 import type { ChatContext } from '@/stores/panel'
 import { MothershipChat, MothershipView, TemplatePrompts, UserInput } from './components'
 import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hooks'
-import type { FileAttachmentForApi, MothershipResourceType } from './types'
+import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
 
@@ -33,6 +34,7 @@ export function Home({ chatId }: HomeProps = {}) {
   const { data: session } = useSession()
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
+  posthogRef.current = posthog
   const [initialPrompt, setInitialPrompt] = useState('')
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
@@ -99,23 +101,16 @@ export function Home({ chatId }: HomeProps = {}) {
       return
     }
 
-    // const templateId = LandingTemplateStorage.consume()
-    // if (templateId) {
-    //   logger.info('Retrieved landing page template, redirecting to template detail')
-    //   router.replace(`/workspace/${workspaceId}/templates/${templateId}?use=true`)
-    //   return
-    // }
-
     const prompt = LandingPromptStorage.consume()
     if (prompt) {
       logger.info('Retrieved landing page prompt, populating home input')
       setInitialPrompt(prompt)
     }
-  }, [createWorkflowFromLandingSeed, workspaceId, router])
+  }, [createWorkflowFromLandingSeed])
 
   const wasSendingRef = useRef(false)
 
-  useChatHistory(chatId)
+  const { isPending: isChatHistoryPending } = useChatHistory(chatId)
   const { mutate: markRead } = useMarkTaskRead(workspaceId)
 
   const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize()
@@ -129,10 +124,6 @@ export function Home({ chatId }: HomeProps = {}) {
     clearWidth()
     setIsResourceCollapsed(true)
   }, [clearWidth])
-
-  const expandResource = useCallback(() => {
-    setIsResourceCollapsed(false)
-  }, [])
 
   const handleResourceEvent = useCallback(() => {
     if (isResourceCollapsedRef.current) {
@@ -157,7 +148,7 @@ export function Home({ chatId }: HomeProps = {}) {
     removeFromQueue,
     sendNow,
     editQueuedMessage,
-    streamingFile,
+    previewSession,
     genericResourceData,
   } = useChat(
     workspaceId,
@@ -166,26 +157,6 @@ export function Home({ chatId }: HomeProps = {}) {
       onResourceEvent: handleResourceEvent,
       initialActiveResourceId: initialResourceId,
     })
-  )
-
-  const [editingInputValue, setEditingInputValue] = useState('')
-  const [prevChatId, setPrevChatId] = useState(chatId)
-  const clearEditingValue = useCallback(() => setEditingInputValue(''), [])
-
-  // Clear editing value when navigating to a different chat (guarded render-phase update)
-  if (chatId !== prevChatId) {
-    setPrevChatId(chatId)
-    setEditingInputValue('')
-  }
-
-  const handleEditQueuedMessage = useCallback(
-    (id: string) => {
-      const msg = editQueuedMessage(id)
-      if (msg) {
-        setEditingInputValue(msg.content)
-      }
-    },
-    [editQueuedMessage]
   )
 
   useEffect(() => {
@@ -201,8 +172,13 @@ export function Home({ chatId }: HomeProps = {}) {
 
   useEffect(() => {
     wasSendingRef.current = false
-    if (resolvedChatId) markRead(resolvedChatId)
-  }, [resolvedChatId, markRead])
+    if (resolvedChatId) {
+      markRead(resolvedChatId)
+    } else {
+      clearWidth()
+      setIsResourceCollapsed(true)
+    }
+  }, [resolvedChatId, markRead, clearWidth])
 
   useEffect(() => {
     if (wasSendingRef.current && !isSending && resolvedChatId) {
@@ -220,15 +196,17 @@ export function Home({ chatId }: HomeProps = {}) {
   }, [resources])
 
   useEffect(() => {
-    posthogRef.current = posthog
-  }, [posthog])
+    if (resources.length === 0 && !isResourceCollapsedRef.current) {
+      collapseResource()
+    }
+  }, [resources, collapseResource])
 
   const handleStopGeneration = useCallback(() => {
     captureEvent(posthogRef.current, 'task_generation_aborted', {
       workspace_id: workspaceId,
       view: 'mothership',
     })
-    stopGeneration()
+    void stopGeneration().catch(() => {})
   }, [stopGeneration, workspaceId])
 
   const handleSubmit = useCallback(
@@ -291,15 +269,28 @@ export function Home({ chatId }: HomeProps = {}) {
     [resolveResourceFromContext, addResource, handleResourceEvent]
   )
 
-  const handleContextRemove = useCallback(
+  const handleInitialContextRemove = useCallback(
     (context: ChatContext) => {
       const resolved = resolveResourceFromContext(context)
-      if (resolved) removeResource(resolved.type, resolved.id)
+      if (!resolved) return
+      removeResource(resolved.type, resolved.id)
     },
     [resolveResourceFromContext, removeResource]
   )
 
+  const handleWorkspaceResourceSelect = useCallback(
+    (resource: MothershipResource) => {
+      const wasAdded = addResource(resource)
+      if (!wasAdded) {
+        setActiveResourceId(resource.id)
+      }
+      handleResourceEvent()
+    },
+    [addResource, handleResourceEvent, setActiveResourceId]
+  )
+
   const hasMessages = messages.length > 0
+  const showChatSkeleton = Boolean(chatId) && !hasMessages && isChatHistoryPending
 
   useEffect(() => {
     if (hasMessages) return
@@ -336,7 +327,7 @@ export function Home({ chatId }: HomeProps = {}) {
               onStopGeneration={handleStopGeneration}
               userId={session?.user?.id}
               onContextAdd={handleContextAdd}
-              onContextRemove={handleContextRemove}
+              onContextRemove={handleInitialContextRemove}
             />
           </div>
         </div>
@@ -358,18 +349,17 @@ export function Home({ chatId }: HomeProps = {}) {
           messages={messages}
           isSending={isSending}
           isReconnecting={isReconnecting}
+          isLoading={showChatSkeleton}
           onSubmit={handleSubmit}
           onStopGeneration={handleStopGeneration}
           messageQueue={messageQueue}
           onRemoveQueuedMessage={removeFromQueue}
           onSendQueuedMessage={sendNow}
-          onEditQueuedMessage={handleEditQueuedMessage}
+          onEditQueuedMessage={editQueuedMessage}
           userId={session?.user?.id}
           chatId={resolvedChatId}
           onContextAdd={handleContextAdd}
-          onContextRemove={handleContextRemove}
-          editValue={editingInputValue}
-          onEditValueConsumed={clearEditingValue}
+          onWorkspaceResourceSelect={handleWorkspaceResourceSelect}
           animateInput={isInputEntering}
           onInputAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
           initialScrollBlocked={resources.length > 0 && isResourceCollapsed}
@@ -401,21 +391,23 @@ export function Home({ chatId }: HomeProps = {}) {
         onReorderResources={reorderResources}
         onCollapse={collapseResource}
         isCollapsed={isResourceCollapsed}
-        streamingFile={streamingFile}
-        genericResourceData={genericResourceData}
+        previewSession={previewSession}
+        genericResourceData={genericResourceData ?? undefined}
         className={skipResourceTransition ? '!transition-none' : undefined}
       />
 
       {isResourceCollapsed && (
         <div className='absolute top-[8.5px] right-[16px]'>
-          <button
+          <Button
+            variant='ghost'
+            size={null}
             type='button'
-            onClick={expandResource}
-            className='flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover-hover:bg-[var(--surface-active)]'
+            onClick={() => setIsResourceCollapsed(false)}
+            className='h-[30px] w-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
             aria-label='Expand resource view'
           >
             <PanelLeft className='h-[16px] w-[16px] text-[var(--text-icon)]' />
-          </button>
+          </Button>
         </div>
       )}
     </div>

@@ -1,36 +1,17 @@
 /**
  * @vitest-environment node
  */
+import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
-  createInternalServerErrorResponse,
-  createNotFoundResponse,
-  createRequestTracker,
-  createUnauthorizedResponse,
   getAsyncToolCall,
   getRunSegment,
   upsertAsyncToolCall,
   completeAsyncToolCall,
   publishToolConfirmation,
 } = vi.hoisted(() => ({
-  authenticateCopilotRequestSessionOnly: vi.fn(),
-  createBadRequestResponse: vi.fn((message: string) =>
-    Response.json({ error: message }, { status: 400 })
-  ),
-  createInternalServerErrorResponse: vi.fn((message: string) =>
-    Response.json({ error: message }, { status: 500 })
-  ),
-  createNotFoundResponse: vi.fn((message: string) =>
-    Response.json({ error: message }, { status: 404 })
-  ),
-  createRequestTracker: vi.fn(() => ({ requestId: 'req-1', getDuration: () => 1 })),
-  createUnauthorizedResponse: vi.fn(() =>
-    Response.json({ error: 'Unauthorized' }, { status: 401 })
-  ),
   getAsyncToolCall: vi.fn(),
   getRunSegment: vi.fn(),
   upsertAsyncToolCall: vi.fn(),
@@ -38,14 +19,7 @@ const {
   publishToolConfirmation: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request-helpers', () => ({
-  authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
-  createInternalServerErrorResponse,
-  createNotFoundResponse,
-  createRequestTracker,
-  createUnauthorizedResponse,
-}))
+vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
 
 vi.mock('@/lib/copilot/async-runs/repository', () => ({
   getAsyncToolCall,
@@ -54,7 +28,7 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
   completeAsyncToolCall,
 }))
 
-vi.mock('@/lib/copilot/orchestrator/persistence', () => ({
+vi.mock('@/lib/copilot/persistence/tool-confirm', () => ({
   publishToolConfirmation,
 }))
 
@@ -71,7 +45,7 @@ describe('Copilot Confirm API Route', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    authenticateCopilotRequestSessionOnly.mockResolvedValue({
+    copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
     })
@@ -90,7 +64,7 @@ describe('Copilot Confirm API Route', () => {
   }
 
   it('returns 401 when the session is unauthenticated', async () => {
-    authenticateCopilotRequestSessionOnly.mockResolvedValue({
+    copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: null,
       isAuthenticated: false,
     })
@@ -161,27 +135,33 @@ describe('Copilot Confirm API Route', () => {
     )
   })
 
-  it('uses upsertAsyncToolCall for non-terminal confirmations', async () => {
+  it('accepts primitive terminal confirmation data', async () => {
     const response = await POST(
       createMockPostRequest({
         toolCallId: 'tool-call-123',
-        status: 'accepted',
+        status: 'success',
+        message: 'Tool executed successfully',
+        data: 'done',
       })
     )
 
     expect(response.status).toBe(200)
-    expect(upsertAsyncToolCall).toHaveBeenCalledWith({
-      runId: 'run-1',
-      checkpointId: 'checkpoint-1',
+    expect(completeAsyncToolCall).toHaveBeenCalledWith({
       toolCallId: 'tool-call-123',
-      toolName: 'client_tool',
-      args: { foo: 'bar' },
-      status: 'pending',
+      status: 'completed',
+      result: 'done',
+      error: null,
     })
-    expect(completeAsyncToolCall).not.toHaveBeenCalled()
+    expect(publishToolConfirmation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolCallId: 'tool-call-123',
+        status: 'success',
+        data: 'done',
+      })
+    )
   })
 
-  it('publishes confirmation after a durable non-terminal update', async () => {
+  it('keeps background as a live pending detach confirmation', async () => {
     const response = await POST(
       createMockPostRequest({
         toolCallId: 'tool-call-123',
@@ -190,20 +170,40 @@ describe('Copilot Confirm API Route', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(upsertAsyncToolCall).toHaveBeenCalledWith({
-      runId: 'run-1',
-      checkpointId: 'checkpoint-1',
-      toolCallId: 'tool-call-123',
-      toolName: 'client_tool',
-      args: { foo: 'bar' },
-      status: 'pending',
-    })
+    expect(upsertAsyncToolCall).not.toHaveBeenCalled()
+    expect(completeAsyncToolCall).not.toHaveBeenCalled()
     expect(publishToolConfirmation).toHaveBeenCalledWith(
       expect.objectContaining({
         toolCallId: 'tool-call-123',
         status: 'background',
       })
     )
+  })
+
+  it('rejects unsupported accepted and rejected confirmation statuses', async () => {
+    const acceptedResponse = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'accepted',
+      })
+    )
+
+    expect(acceptedResponse.status).toBe(400)
+    expect(await acceptedResponse.json()).toEqual({
+      error: 'Invalid request data: Invalid notification status',
+    })
+
+    const rejectedResponse = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'rejected',
+      })
+    )
+
+    expect(rejectedResponse.status).toBe(400)
+    expect(await rejectedResponse.json()).toEqual({
+      error: 'Invalid request data: Invalid notification status',
+    })
   })
 
   it('returns 400 when the durable write fails before publish', async () => {

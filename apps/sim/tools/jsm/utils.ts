@@ -1,8 +1,6 @@
 /**
  * Shared utilities for Jira Service Management tools
- * Reuses the getJiraCloudId from the Jira integration since JSM uses the same Atlassian Cloud ID
  */
-export { getJiraCloudId } from '@/tools/jira/utils'
 
 /**
  * Build the base URL for JSM Service Desk API
@@ -11,6 +9,15 @@ export { getJiraCloudId } from '@/tools/jira/utils'
  */
 export function getJsmApiBaseUrl(cloudId: string): string {
   return `https://api.atlassian.com/ex/jira/${cloudId}/rest/servicedeskapi`
+}
+
+/**
+ * Build the base URL for JSM Forms (ProForma) API
+ * @param cloudId - The Jira Cloud ID
+ * @returns The base URL for the JSM Forms API
+ */
+export function getJsmFormsApiBaseUrl(cloudId: string): string {
+  return `https://api.atlassian.com/ex/jira/${cloudId}/forms`
 }
 
 /**

@@ -1,0 +1,128 @@
+---
+title: AWS STS
+description: Connect to AWS Security Token Service
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sts"
+  color="linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[AWS Security Token Service (STS)](https://docs.aws.amazon.com/STS/latest/APIReference/welcome.html) is a web service that enables you to request temporary, limited-privilege credentials for AWS Identity and Access Management (IAM) users or for users that you authenticate (federated users).
+
+With AWS STS, you can:
+
+- **Assume IAM roles**: Request temporary credentials to access AWS resources across accounts or with elevated permissions
+- **Verify identity**: Determine the AWS account, ARN, and user ID associated with the calling credentials
+- **Generate session tokens**: Obtain temporary credentials with optional MFA protection for enhanced security
+- **Audit access keys**: Look up the AWS account that owns a given access key for security investigations
+
+In Sim, the AWS STS integration allows your agents to manage temporary credentials as part of automated workflows. This is useful for cross-account access patterns, credential rotation, identity verification before sensitive operations, and security auditing. Agents can assume roles to interact with other AWS services, verify their own identity, or look up access key ownership without exposing long-lived credentials.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate AWS STS into the workflow. Assume roles, get temporary credentials, verify caller identity, and look up access key information.
+
+
+
+## Tools
+
+### `sts_assume_role`
+
+Assume an IAM role and receive temporary security credentials
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `roleArn` | string | Yes | ARN of the IAM role to assume |
+| `roleSessionName` | string | Yes | Identifier for the assumed role session |
+| `durationSeconds` | number | No | Duration of the session in seconds \(900-43200, default 3600\) |
+| `externalId` | string | No | External ID for cross-account access |
+| `serialNumber` | string | No | MFA device serial number or ARN |
+| `tokenCode` | string | No | MFA token code \(6 digits\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accessKeyId` | string | Temporary access key ID |
+| `secretAccessKey` | string | Temporary secret access key |
+| `sessionToken` | string | Temporary session token |
+| `expiration` | string | Credential expiration timestamp |
+| `assumedRoleArn` | string | ARN of the assumed role |
+| `assumedRoleId` | string | Assumed role ID with session name |
+| `packedPolicySize` | number | Percentage of allowed policy size used |
+
+### `sts_get_caller_identity`
+
+Get details about the IAM user or role whose credentials are used to call the API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | string | AWS account ID |
+| `arn` | string | ARN of the calling entity |
+| `userId` | string | Unique identifier of the calling entity |
+
+### `sts_get_session_token`
+
+Get temporary security credentials for an IAM user, optionally with MFA
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `durationSeconds` | number | No | Duration of the session in seconds \(900-129600, default 43200\) |
+| `serialNumber` | string | No | MFA device serial number or ARN |
+| `tokenCode` | string | No | MFA token code \(6 digits\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accessKeyId` | string | Temporary access key ID |
+| `secretAccessKey` | string | Temporary secret access key |
+| `sessionToken` | string | Temporary session token |
+| `expiration` | string | Credential expiration timestamp |
+
+### `sts_get_access_key_info`
+
+Get the AWS account ID associated with an access key
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `targetAccessKeyId` | string | Yes | The access key ID to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | string | AWS account ID that owns the access key |
+
+

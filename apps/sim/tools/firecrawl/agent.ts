@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import type { AgentParams, AgentResponse } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
@@ -150,7 +151,7 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
           }
         }
 
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+        await sleep(POLL_INTERVAL_MS)
         elapsedTime += POLL_INTERVAL_MS
       } catch (error: any) {
         logger.error('Error polling for agent job status:', {

@@ -113,10 +113,11 @@ Create a new service request in Jira Service Management
 | `cloudId` | string | No | Jira Cloud ID for the instance |
 | `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
 | `requestTypeId` | string | Yes | Request Type ID \(e.g., "10", "15"\) |
-| `summary` | string | Yes | Summary/title for the service request |
+| `summary` | string | No | Summary/title for the service request \(required unless using Form Answers\) |
 | `description` | string | No | Description for the service request |
 | `raiseOnBehalfOf` | string | No | Account ID of customer to raise request on behalf of |
 | `requestFieldValues` | json | No | Request field values as key-value pairs \(overrides summary/description if provided\) |
+| `formAnswers` | json | No | Form answers using numeric form question IDs as keys \(e.g., \{"1": \{"text": "Title"\}, "4": \{"choices": \["5"\]\}\}\). Keys are question IDs from the Jira Form, not Jira field names. |
 | `requestParticipants` | string | No | Comma-separated account IDs to add as request participants |
 | `channel` | string | No | Channel the request originates from \(e.g., portal, email\) |
 
@@ -676,5 +677,316 @@ Get the fields required to create a request of a specific type in Jira Service M
 |   ↳ `presetValues` | json | Pre-populated values |
 |   ↳ `defaultValues` | json | Default values for the field |
 |   ↳ `jiraSchema` | json | Jira field schema with type, system, custom, customId |
+
+### `jsm_get_form_templates`
+
+List forms (ProForma/JSM Forms) in a Jira project to discover form IDs for request types
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `projectIdOrKey` | string | Yes | Jira project ID or key \(e.g., "10001" or "SD"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `projectIdOrKey` | string | Project ID or key |
+| `templates` | array | List of forms in the project |
+|   ↳ `id` | string | Form template ID \(UUID\) |
+|   ↳ `name` | string | Form template name |
+|   ↳ `updated` | string | Last updated timestamp \(ISO 8601\) |
+|   ↳ `issueCreateIssueTypeIds` | json | Issue type IDs that auto-attach this form on issue create |
+|   ↳ `issueCreateRequestTypeIds` | json | Request type IDs that auto-attach this form on issue create |
+|   ↳ `portalRequestTypeIds` | json | Request type IDs that show this form on the customer portal |
+|   ↳ `recommendedIssueRequestTypeIds` | json | Request type IDs that recommend this form |
+| `total` | number | Total number of forms |
+
+### `jsm_get_form_structure`
+
+Get the full structure of a ProForma/JSM form including all questions, field types, choices, layout, and conditions
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `projectIdOrKey` | string | Yes | Jira project ID or key \(e.g., "10001" or "SD"\) |
+| `formId` | string | Yes | Form ID \(UUID from Get Form Templates\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `projectIdOrKey` | string | Project ID or key |
+| `formId` | string | Form ID |
+| `design` | json | Full form design with questions \(field types, labels, choices, validation\), layout \(field ordering\), and conditions |
+| `updated` | string | Last updated timestamp |
+| `publish` | json | Publishing and request type configuration |
+
+### `jsm_get_issue_forms`
+
+List forms (ProForma/JSM Forms) attached to a Jira issue with metadata (name, submitted status, lock)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123", "10001"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `forms` | array | List of forms attached to the issue |
+|   ↳ `id` | string | Form instance ID \(UUID\) |
+|   ↳ `name` | string | Form name |
+|   ↳ `updated` | string | Last updated timestamp \(ISO 8601\) |
+|   ↳ `submitted` | boolean | Whether the form has been submitted |
+|   ↳ `lock` | boolean | Whether the form is locked |
+|   ↳ `internal` | boolean | Whether the form is internal-only |
+|   ↳ `formTemplateId` | string | Source form template ID \(UUID\) |
+| `total` | number | Total number of forms |
+
+### `jsm_attach_form`
+
+Attach a form template to an existing Jira issue or JSM request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key to attach the form to \(e.g., "SD-123"\) |
+| `formTemplateId` | string | Yes | Form template UUID \(from Get Form Templates\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `id` | string | Attached form instance ID \(UUID\) |
+| `name` | string | Form name |
+| `updated` | string | Last updated timestamp |
+| `submitted` | boolean | Whether the form has been submitted |
+| `lock` | boolean | Whether the form is locked |
+| `internal` | boolean | Whether the form is internal only |
+| `formTemplateId` | string | Form template ID |
+
+### `jsm_save_form_answers`
+
+Save answers to a form attached to a Jira issue or JSM request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
+| `formId` | string | Yes | Form instance UUID \(from Attach Form or Get Issue Forms\) |
+| `answers` | json | Yes | Form answers using numeric question IDs as keys \(e.g., \{"1": \{"text": "Title"\}, "4": \{"choices": \["5"\]\}\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `formId` | string | Form instance UUID |
+| `state` | json | Form state with status \(open, submitted, locked\) |
+| `updated` | string | Last updated timestamp |
+
+### `jsm_submit_form`
+
+Submit a form on a Jira issue or JSM request, locking it from further edits
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
+| `formId` | string | Yes | Form instance UUID \(from Attach Form or Get Issue Forms\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `formId` | string | Form instance UUID |
+| `status` | string | Form status after submission \(open, submitted, locked\) |
+
+### `jsm_get_form`
+
+Get a single form with full design, state, and answers from a Jira issue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
+| `formId` | string | Yes | Form instance UUID \(from Attach Form or Get Issue Forms\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `formId` | string | Form instance UUID |
+| `design` | json | Full form design with questions, layout, conditions, sections, settings |
+| `state` | json | Form state with answers map, status \(o=open, s=submitted, l=locked\), visibility \(i=internal, e=external\) |
+| `updated` | string | Last updated timestamp |
+
+### `jsm_get_form_answers`
+
+Get simplified answers from a form attached to a Jira issue or JSM request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
+| `formId` | string | Yes | Form instance UUID \(from Attach Form or Get Issue Forms\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `formId` | string | Form instance UUID |
+| `answers` | json | Simplified form answers as key-value pairs \(question label to answer text/choices\) |
+
+### `jsm_reopen_form`
+
+Reopen a submitted form on a Jira issue or JSM request, allowing further edits
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
+| `formId` | string | Yes | Form instance UUID \(from Get Issue Forms\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `formId` | string | Form instance UUID |
+| `status` | string | Form status after reopening \(open, submitted, locked\) |
+
+### `jsm_delete_form`
+
+Remove a form from a Jira issue or JSM request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
+| `formId` | string | Yes | Form instance UUID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `formId` | string | Deleted form instance UUID |
+| `deleted` | boolean | Whether the form was successfully deleted |
+
+### `jsm_externalise_form`
+
+Make a form visible to customers on a Jira issue or JSM request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
+| `formId` | string | Yes | Form instance UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `formId` | string | Form instance UUID |
+| `visibility` | string | Form visibility after change \(internal or external\) |
+
+### `jsm_internalise_form`
+
+Make a form internal only (not visible to customers) on a Jira issue or JSM request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
+| `formId` | string | Yes | Form instance UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueIdOrKey` | string | Issue ID or key |
+| `formId` | string | Form instance UUID |
+| `visibility` | string | Form visibility after change \(internal or external\) |
+
+### `jsm_copy_forms`
+
+Copy forms from one Jira issue to another
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance |
+| `sourceIssueIdOrKey` | string | Yes | Source issue ID or key to copy forms from \(e.g., "SD-123"\) |
+| `targetIssueIdOrKey` | string | Yes | Target issue ID or key to copy forms to \(e.g., "SD-456"\) |
+| `formIds` | json | No | Optional JSON array of form UUIDs to copy \(e.g., \["uuid1", "uuid2"\]\). If omitted, copies all forms. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `sourceIssueIdOrKey` | string | Source issue ID or key |
+| `targetIssueIdOrKey` | string | Target issue ID or key |
+| `copiedForms` | json | Array of successfully copied forms |
+| `errors` | json | Array of errors encountered during copy |
 
 

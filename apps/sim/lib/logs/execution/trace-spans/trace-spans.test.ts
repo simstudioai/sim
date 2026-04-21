@@ -1970,4 +1970,116 @@ describe('nested subflow grouping via parentIterations', () => {
     expect(nestedP2).toBeDefined()
     expect(nestedP2!.children).toHaveLength(1)
   })
+
+  it.concurrent(
+    'uses the user-configured loop name for the container span when a success BlockLog is present',
+    () => {
+      const result: ExecutionResult = {
+        success: true,
+        output: { content: 'done' },
+        metadata: { duration: 3000, startTime: '2024-01-01T10:00:00.000Z' },
+        logs: [
+          {
+            blockId: 'loop-sbj',
+            blockName: 'LoopGroupA (SBJ)',
+            blockType: 'loop',
+            startedAt: '2024-01-01T10:00:00.000Z',
+            endedAt: '2024-01-01T10:00:03.000Z',
+            durationMs: 3000,
+            success: true,
+            output: { results: [[{ value: 1 }], [{ value: 2 }]] },
+            executionOrder: 10,
+          },
+          {
+            blockId: 'api-1',
+            blockName: 'Send (iteration 0)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:00.000Z',
+            endedAt: '2024-01-01T10:00:01.000Z',
+            durationMs: 1000,
+            success: true,
+            loopId: 'loop-sbj',
+            iterationIndex: 0,
+            executionOrder: 1,
+          },
+          {
+            blockId: 'api-1',
+            blockName: 'Send (iteration 1)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:01.000Z',
+            endedAt: '2024-01-01T10:00:02.000Z',
+            durationMs: 1000,
+            success: true,
+            loopId: 'loop-sbj',
+            iterationIndex: 1,
+            executionOrder: 2,
+          },
+        ],
+      }
+
+      const { traceSpans } = buildTraceSpans(result)
+      const workflow = traceSpans[0]
+      const loop = workflow.children!.find((s) => s.type === 'loop')
+
+      expect(loop).toBeDefined()
+      expect(loop!.name).toBe('LoopGroupA (SBJ)')
+      expect(loop!.children).toHaveLength(2)
+    }
+  )
+
+  it.concurrent(
+    'uses the user-configured parallel name for the container span when a success BlockLog is present',
+    () => {
+      const result: ExecutionResult = {
+        success: true,
+        output: { content: 'done' },
+        metadata: { duration: 2000, startTime: '2024-01-01T10:00:00.000Z' },
+        logs: [
+          {
+            blockId: 'parallel-a',
+            blockName: 'FanOutCalls',
+            blockType: 'parallel',
+            startedAt: '2024-01-01T10:00:00.000Z',
+            endedAt: '2024-01-01T10:00:02.000Z',
+            durationMs: 2000,
+            success: true,
+            output: { results: [[{ v: 1 }], [{ v: 2 }]] },
+            executionOrder: 10,
+          },
+          {
+            blockId: 'api-1',
+            blockName: 'Call (iteration 0)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:00.000Z',
+            endedAt: '2024-01-01T10:00:01.000Z',
+            durationMs: 1000,
+            success: true,
+            parallelId: 'parallel-a',
+            iterationIndex: 0,
+            executionOrder: 1,
+          },
+          {
+            blockId: 'api-1',
+            blockName: 'Call (iteration 1)',
+            blockType: 'api',
+            startedAt: '2024-01-01T10:00:01.000Z',
+            endedAt: '2024-01-01T10:00:02.000Z',
+            durationMs: 1000,
+            success: true,
+            parallelId: 'parallel-a',
+            iterationIndex: 1,
+            executionOrder: 2,
+          },
+        ],
+      }
+
+      const { traceSpans } = buildTraceSpans(result)
+      const workflow = traceSpans[0]
+      const parallel = workflow.children!.find((s) => s.type === 'parallel')
+
+      expect(parallel).toBeDefined()
+      expect(parallel!.name).toBe('FanOutCalls')
+      expect(parallel!.children).toHaveLength(2)
+    }
+  )
 })

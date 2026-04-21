@@ -1,13 +1,11 @@
 import { db } from '@sim/db'
-import { member, subscription, user, userStats } from '@sim/db/schema'
+import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
-import { getUserUsageLimit } from '@/lib/billing/core/usage'
 import {
   getPlanTierCredits,
-  isOrgPlan,
   isPro as isPlanPro,
   isTeam as isPlanTeam,
 } from '@/lib/billing/plan-helpers'
@@ -16,12 +14,9 @@ import {
   checkProPlan,
   checkTeamPlan,
   ENTITLED_SUBSCRIPTION_STATUSES,
-  getFreeTierLimit,
-  getPerUserMinimumLimit,
   hasUsableSubscriptionAccess,
   USABLE_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
-import type { UserSubscriptionState } from '@/lib/billing/types'
 import {
   isAccessControlEnabled,
   isBillingEnabled,
@@ -39,6 +34,10 @@ export { getHighestPrioritySubscription }
 export interface SubscriptionMetadata {
   billingInterval?: 'month' | 'year'
   [key: string]: unknown
+}
+
+export interface HasPaidSubscriptionOptions {
+  onError?: 'assume-active' | 'throw'
 }
 
 /**
@@ -67,12 +66,74 @@ export async function writeBillingInterval(
 }
 
 /**
+ * Sync the subscription's `plan` column to match Stripe. Closes a gap
+ * where plan changes (Pro → Team upgrades, tier swaps) updated price,
+ * seats, and referenceId at Stripe but left the DB plan stale. Returns
+ * `true` if a write was issued, `false` if no change was needed.
+ */
+export async function syncSubscriptionPlan(
+  subscriptionId: string,
+  currentPlan: string | null,
+  planFromStripe: string | null
+): Promise<boolean> {
+  if (!planFromStripe) return false
+  if (currentPlan === planFromStripe) return false
+
+  await db
+    .update(subscription)
+    .set({ plan: planFromStripe })
+    .where(eq(subscription.id, subscriptionId))
+
+  logger.info('Synced subscription plan name from Stripe', {
+    subscriptionId,
+    previousPlan: currentPlan,
+    newPlan: planFromStripe,
+  })
+
+  return true
+}
+
+/**
+ * Get the organization's subscription row when its status is one of
+ * `USABLE_SUBSCRIPTION_STATUSES` (product access — stricter than
+ * `ENTITLED_SUBSCRIPTION_STATUSES` which also includes `past_due`).
+ * Use this for feature-gating ("can this org use the product right
+ * now"). Use `getOrganizationSubscription` (from `core/billing.ts`)
+ * when you need the billing-side entitlement row that includes
+ * past-due subscriptions. Returns `null` when there is no usable sub.
+ */
+export async function getOrganizationSubscriptionUsable(organizationId: string) {
+  try {
+    const [orgSub] = await db
+      .select()
+      .from(subscription)
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
+        )
+      )
+      .limit(1)
+
+    return orgSub ?? null
+  } catch (error) {
+    logger.error('Error getting usable organization subscription', { error, organizationId })
+    return null
+  }
+}
+
+/**
  * Check if a referenceId (user ID or org ID) has a paid subscription row.
  * Used for duplicate subscription prevention and transfer safety.
  *
- * Fails closed: returns true on error to prevent duplicate creation
+ * Fails closed by default: returns true on error to prevent duplicate creation.
  */
-export async function hasPaidSubscription(referenceId: string): Promise<boolean> {
+export async function hasPaidSubscription(
+  referenceId: string,
+  options: HasPaidSubscriptionOptions = {}
+): Promise<boolean> {
+  const { onError = 'assume-active' } = options
+
   try {
     const [activeSub] = await db
       .select({ id: subscription.id })
@@ -88,9 +149,42 @@ export async function hasPaidSubscription(referenceId: string): Promise<boolean>
     return !!activeSub
   } catch (error) {
     logger.error('Error checking active subscription', { error, referenceId })
-    // Fail closed: assume subscription exists to prevent duplicate creation
+
+    if (onError === 'throw') {
+      throw error
+    }
+
     return true
   }
+}
+
+export async function getOrganizationIdForSubscriptionReference(
+  referenceId: string
+): Promise<string | null> {
+  const [referencedOrganization] = await db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, referenceId))
+    .limit(1)
+
+  if (referencedOrganization) {
+    return referencedOrganization.id
+  }
+
+  const [memberRecord] = await db
+    .select({
+      organizationId: member.organizationId,
+      role: member.role,
+    })
+    .from(member)
+    .where(eq(member.userId, referenceId))
+    .limit(1)
+
+  if (memberRecord && (memberRecord.role === 'owner' || memberRecord.role === 'admin')) {
+    return memberRecord.organizationId
+  }
+
+  return null
 }
 
 /**
@@ -203,16 +297,7 @@ export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boole
       return false
     }
 
-    const [orgSub] = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, memberRecord.organizationId),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
+    const orgSub = await getOrganizationSubscriptionUsable(memberRecord.organizationId)
 
     const isEnterprise = orgSub && checkEnterprisePlan(orgSub)
 
@@ -267,16 +352,7 @@ export async function isTeamOrgAdminOrOwner(userId: string): Promise<boolean> {
       return false
     }
 
-    const [orgSub] = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, memberRecord.organizationId),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
+    const orgSub = await getOrganizationSubscriptionUsable(memberRecord.organizationId)
 
     const hasTeamPlan = orgSub && (checkTeamPlan(orgSub) || checkEnterprisePlan(orgSub))
 
@@ -316,16 +392,7 @@ export async function isOrganizationOnTeamOrEnterprisePlan(
       return false
     }
 
-    const [orgSub] = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, organizationId),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
+    const orgSub = await getOrganizationSubscriptionUsable(organizationId)
 
     return !!orgSub && (checkTeamPlan(orgSub) || checkEnterprisePlan(orgSub))
   } catch (error) {
@@ -352,16 +419,7 @@ export async function isOrganizationOnEnterprisePlan(organizationId: string): Pr
       return false
     }
 
-    const [orgSub] = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, organizationId),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
+    const orgSub = await getOrganizationSubscriptionUsable(organizationId)
 
     return !!orgSub && checkEnterprisePlan(orgSub)
   } catch (error) {
@@ -482,145 +540,6 @@ export async function hasLiveSyncAccess(userId: string): Promise<boolean> {
   } catch (error) {
     logger.error('Error checking live sync access', { error, userId })
     return false
-  }
-}
-
-/**
- * Check if user has exceeded their cost limit based on current period usage
- */
-export async function hasExceededCostLimit(userId: string): Promise<boolean> {
-  try {
-    if (!isBillingEnabled) {
-      return false
-    }
-
-    const subscription = await getHighestPrioritySubscription(userId)
-
-    let limit = getFreeTierLimit() // Default free tier limit
-
-    if (subscription) {
-      // Team/Enterprise: Use organization limit
-      if (isOrgPlan(subscription.plan)) {
-        limit = await getUserUsageLimit(userId)
-        logger.info('Using organization limit', {
-          userId,
-          plan: subscription.plan,
-          limit,
-        })
-      } else {
-        // Pro/Free: Use individual limit
-        limit = getPerUserMinimumLimit(subscription)
-        logger.info('Using subscription-based limit', {
-          userId,
-          plan: subscription.plan,
-          limit,
-        })
-      }
-    } else {
-      logger.info('Using free tier limit', { userId, limit })
-    }
-
-    // Get user stats to check current period usage
-    const statsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
-
-    if (statsRecords.length === 0) {
-      return false
-    }
-
-    // Use current period cost instead of total cost for accurate billing period tracking
-    const currentCost = Number.parseFloat(
-      statsRecords[0].currentPeriodCost?.toString() || statsRecords[0].totalCost.toString()
-    )
-
-    logger.info('Checking cost limit', { userId, currentCost, limit })
-
-    return currentCost >= limit
-  } catch (error) {
-    logger.error('Error checking cost limit', { error, userId })
-    return false // Be conservative in case of error
-  }
-}
-
-/**
- * Check if sharing features are enabled for user
- */
-// Removed unused feature flag helpers: isSharingEnabled, isMultiplayerEnabled, isWorkspaceCollaborationEnabled
-
-/**
- * Get comprehensive subscription state for a user
- * Single function to get all subscription information
- */
-export async function getUserSubscriptionState(userId: string): Promise<UserSubscriptionState> {
-  try {
-    // Get subscription and user stats in parallel to minimize DB calls
-    const [subscription, statsRecords] = await Promise.all([
-      getHighestPrioritySubscription(userId),
-      db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
-    ])
-
-    // Determine plan types based on subscription (avoid redundant DB calls)
-    const isPro =
-      !isBillingEnabled ||
-      !!(
-        subscription &&
-        (checkProPlan(subscription) ||
-          checkTeamPlan(subscription) ||
-          checkEnterprisePlan(subscription))
-      )
-    const isTeam =
-      !isBillingEnabled ||
-      !!(subscription && (checkTeamPlan(subscription) || checkEnterprisePlan(subscription)))
-    const isEnterprise = !isBillingEnabled || !!(subscription && checkEnterprisePlan(subscription))
-    const isFree = !isPro && !isTeam && !isEnterprise
-
-    // Determine plan name
-    let planName = 'free'
-    if (isEnterprise) planName = 'enterprise'
-    else if (isTeam) planName = 'team'
-    else if (isPro) planName = 'pro'
-
-    // Check cost limit using already-fetched user stats
-    let hasExceededLimit = false
-    if (isBillingEnabled && statsRecords.length > 0) {
-      let limit = getFreeTierLimit() // Default free tier limit
-      if (subscription) {
-        // Team/Enterprise: Use organization limit
-        if (isOrgPlan(subscription.plan)) {
-          limit = await getUserUsageLimit(userId)
-        } else {
-          // Pro/Free: Use individual limit
-          limit = getPerUserMinimumLimit(subscription)
-        }
-      }
-
-      const currentCost = Number.parseFloat(
-        statsRecords[0].currentPeriodCost?.toString() || statsRecords[0].totalCost.toString()
-      )
-      hasExceededLimit = currentCost >= limit
-    }
-
-    return {
-      isPro,
-      isTeam,
-      isEnterprise,
-      isFree,
-      highestPrioritySubscription: subscription,
-      hasExceededLimit,
-      planName,
-    }
-  } catch (error) {
-    logger.error('Error getting user subscription state', { error, userId })
-
-    // Return safe defaults in case of error
-    return {
-      isPro: false,
-      isTeam: false,
-      isEnterprise: false,
-      isFree: true,
-      highestPrioritySubscription: null,
-      hasExceededLimit: false,
-      planName: 'free',
-    }
   }
 }
 

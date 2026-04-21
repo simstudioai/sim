@@ -9,7 +9,7 @@ export const SixtyfourBlock: BlockConfig = {
     'Find emails, phone numbers, and enrich lead or company data with contact information, social profiles, and detailed research using Sixtyfour AI.',
   docsLink: 'https://docs.sim.ai/tools/sixtyfour',
   category: 'tools',
-  integrationType: IntegrationType.SalesIntelligence,
+  integrationType: IntegrationType.Sales,
   tags: ['enrichment', 'sales-engagement'],
   bgColor: '#000000',
   icon: SixtyfourIcon,

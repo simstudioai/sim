@@ -1,3 +1,4 @@
+import { toError } from '@sim/utils/errors'
 import { NotionIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -345,9 +346,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
             try {
               parsedProperties = JSON.parse(properties)
             } catch (error) {
-              throw new Error(
-                `Invalid JSON for properties: ${error instanceof Error ? error.message : String(error)}`
-              )
+              throw new Error(`Invalid JSON for properties: ${toError(error).message}`)
             }
           } else {
             parsedProperties = properties
@@ -360,9 +359,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
           try {
             parsedFilter = JSON.parse(filter)
           } catch (error) {
-            throw new Error(
-              `Invalid JSON for filter: ${error instanceof Error ? error.message : String(error)}`
-            )
+            throw new Error(`Invalid JSON for filter: ${toError(error).message}`)
           }
         }
 
@@ -372,9 +369,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
           try {
             parsedSorts = JSON.parse(sorts)
           } catch (error) {
-            throw new Error(
-              `Invalid JSON for sorts: ${error instanceof Error ? error.message : String(error)}`
-            )
+            throw new Error(`Invalid JSON for sorts: ${toError(error).message}`)
           }
         }
 

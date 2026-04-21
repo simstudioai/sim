@@ -1,14 +1,13 @@
 import { db } from '@sim/db'
 import { member, organization, permissionGroup, permissionGroupMember, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, count, desc, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -24,7 +23,10 @@ const configSchema = z.object({
   hideKnowledgeBaseTab: z.boolean().optional(),
   hideTablesTab: z.boolean().optional(),
   hideCopilot: z.boolean().optional(),
+  hideIntegrationsTab: z.boolean().optional(),
+  hideSecretsTab: z.boolean().optional(),
   hideApiKeysTab: z.boolean().optional(),
+  hideInboxTab: z.boolean().optional(),
   hideEnvironmentTab: z.boolean().optional(),
   hideFilesTab: z.boolean().optional(),
   disableMcpTools: z.boolean().optional(),
@@ -32,6 +34,7 @@ const configSchema = z.object({
   disableSkills: z.boolean().optional(),
   hideTemplates: z.boolean().optional(),
   disableInvitations: z.boolean().optional(),
+  disablePublicApi: z.boolean().optional(),
   hideDeployApi: z.boolean().optional(),
   hideDeployMcp: z.boolean().optional(),
   hideDeployA2a: z.boolean().optional(),
@@ -168,19 +171,6 @@ export const POST = withRouteHandler(async (req: Request) => {
       ...config,
     }
 
-    // If autoAddNewMembers is true, unset it on any existing groups first
-    if (autoAddNewMembers) {
-      await db
-        .update(permissionGroup)
-        .set({ autoAddNewMembers: false, updatedAt: new Date() })
-        .where(
-          and(
-            eq(permissionGroup.organizationId, organizationId),
-            eq(permissionGroup.autoAddNewMembers, true)
-          )
-        )
-    }
-
     const now = new Date()
     const newGroup = {
       id: generateId(),
@@ -194,7 +184,20 @@ export const POST = withRouteHandler(async (req: Request) => {
       autoAddNewMembers: autoAddNewMembers || false,
     }
 
-    await db.insert(permissionGroup).values(newGroup)
+    await db.transaction(async (tx) => {
+      if (autoAddNewMembers) {
+        await tx
+          .update(permissionGroup)
+          .set({ autoAddNewMembers: false, updatedAt: now })
+          .where(
+            and(
+              eq(permissionGroup.organizationId, organizationId),
+              eq(permissionGroup.autoAddNewMembers, true)
+            )
+          )
+      }
+      await tx.insert(permissionGroup).values(newGroup)
+    })
 
     logger.info('Created permission group', {
       permissionGroupId: newGroup.id,
@@ -212,6 +215,7 @@ export const POST = withRouteHandler(async (req: Request) => {
       actorEmail: session.user.email ?? undefined,
       resourceName: name,
       description: `Created permission group "${name}"`,
+      metadata: { organizationId, autoAddNewMembers: autoAddNewMembers || false },
       request: req,
     })
 

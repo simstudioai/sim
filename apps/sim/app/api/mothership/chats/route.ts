@@ -9,9 +9,8 @@ import {
   createBadRequestResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
-import { taskPubSub } from '@/lib/copilot/task-events'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/copilot/request/http'
+import { taskPubSub } from '@/lib/copilot/tasks'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -40,7 +39,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         id: copilotChats.id,
         title: copilotChats.title,
         updatedAt: copilotChats.updatedAt,
-        conversationId: copilotChats.conversationId,
+        activeStreamId: copilotChats.conversationId,
         lastSeenAt: copilotChats.lastSeenAt,
       })
       .from(copilotChats)

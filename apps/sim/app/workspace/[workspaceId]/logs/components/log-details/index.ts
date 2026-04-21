@@ -1,1 +1,1 @@
-export { LogDetails } from './log-details'
+export { LogDetails, WorkflowOutputSection } from './log-details'

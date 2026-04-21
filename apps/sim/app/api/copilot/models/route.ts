@@ -1,8 +1,15 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
-import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
-import type { AvailableModel } from '@/lib/copilot/types'
+import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
+
+interface AvailableModel {
+  id: string
+  friendlyName: string
+  provider: string
+}
+
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -71,7 +78,7 @@ export const GET = withRouteHandler(async (_req: NextRequest) => {
     return NextResponse.json({ success: true, models })
   } catch (error) {
     logger.error('Error fetching available models', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return NextResponse.json(
       {

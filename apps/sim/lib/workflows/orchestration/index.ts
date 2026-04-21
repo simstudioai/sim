@@ -7,15 +7,19 @@ export {
   performChatUndeploy,
 } from './chat-deploy'
 export {
+  notifySocketDeploymentChanged,
   type PerformActivateVersionParams,
   type PerformActivateVersionResult,
   type PerformFullDeployParams,
   type PerformFullDeployResult,
   type PerformFullUndeployParams,
   type PerformFullUndeployResult,
+  type PerformRevertToVersionParams,
+  type PerformRevertToVersionResult,
   performActivateVersion,
   performFullDeploy,
   performFullUndeploy,
+  performRevertToVersion,
 } from './deploy'
 export {
   type PerformDeleteFolderParams,

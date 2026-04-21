@@ -2,6 +2,7 @@ import { ServiceNowIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { ServiceNowResponse } from '@/tools/servicenow/types'
+import { getTrigger } from '@/triggers'
 
 export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
   type: 'servicenow',
@@ -215,6 +216,11 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       condition: { field: 'operation', value: 'servicenow_delete_record' },
       required: true,
     },
+    ...getTrigger('servicenow_incident_created').subBlocks,
+    ...getTrigger('servicenow_incident_updated').subBlocks,
+    ...getTrigger('servicenow_change_request_created').subBlocks,
+    ...getTrigger('servicenow_change_request_updated').subBlocks,
+    ...getTrigger('servicenow_webhook').subBlocks,
   ],
   tools: {
     access: [
@@ -261,5 +267,15 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     records: { type: 'json', description: 'Array of ServiceNow records' },
     success: { type: 'boolean', description: 'Operation success status' },
     metadata: { type: 'json', description: 'Operation metadata' },
+  },
+  triggers: {
+    enabled: true,
+    available: [
+      'servicenow_incident_created',
+      'servicenow_incident_updated',
+      'servicenow_change_request_created',
+      'servicenow_change_request_updated',
+      'servicenow_webhook',
+    ],
   },
 }

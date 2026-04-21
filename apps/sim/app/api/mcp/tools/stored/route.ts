@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -71,11 +72,7 @@ export const GET = withRouteHandler(withMcpAuth('read'))(
       return createMcpSuccessResponse({ tools: storedTools })
     } catch (error) {
       logger.error(`[${requestId}] Error fetching stored MCP tools:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to fetch stored MCP tools'),
-        'Failed to fetch stored MCP tools',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to fetch stored MCP tools', 500)
     }
   }
 )

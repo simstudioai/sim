@@ -1,0 +1,51 @@
+---
+title: Slack
+description: Available Slack triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="slack"
+  color="#611f69"
+/>
+
+Slack provides 1 trigger for automating workflows based on events.
+
+## Triggers
+
+### Slack Webhook
+
+Trigger workflow from Slack events like mentions, messages, and reactions
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | The signing secret from your Slack app to validate request authenticity. |
+| `botToken` | string | No | The bot token from your Slack app. Required for downloading files attached to messages. |
+| `includeFiles` | boolean | No | Download and include file attachments from messages. Requires a bot token with files:read scope. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | Slack event data |
+|   ↳ `event_type` | string | Type of Slack event \(e.g., app_mention, message\) |
+|   ↳ `subtype` | string | Message subtype \(e.g., channel_join, channel_leave, bot_message, file_share\). Null for regular user messages |
+|   ↳ `channel` | string | Slack channel ID where the event occurred |
+|   ↳ `channel_name` | string | Human-readable channel name |
+|   ↳ `channel_type` | string | Type of channel \(e.g., channel, group, im, mpim\). Useful for distinguishing DMs from public channels |
+|   ↳ `user` | string | User ID who triggered the event |
+|   ↳ `user_name` | string | Username who triggered the event |
+|   ↳ `bot_id` | string | Bot ID if the message was sent by a bot. Null for human users |
+|   ↳ `text` | string | Message text content |
+|   ↳ `timestamp` | string | Message timestamp from the triggering event |
+|   ↳ `thread_ts` | string | Parent thread timestamp \(if message is in a thread\) |
+|   ↳ `team_id` | string | Slack workspace/team ID |
+|   ↳ `event_id` | string | Unique event identifier |
+|   ↳ `reaction` | string | Emoji reaction name \(e.g., thumbsup\). Present for reaction_added/reaction_removed events |
+|   ↳ `item_user` | string | User ID of the original message author. Present for reaction_added/reaction_removed events |
+|   ↳ `hasFiles` | boolean | Whether the message has file attachments |
+|   ↳ `files` | file[] | File attachments downloaded from the message \(if includeFiles is enabled and bot token is provided\) |
+

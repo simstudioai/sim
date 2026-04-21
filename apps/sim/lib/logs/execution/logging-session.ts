@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { eq, sql } from 'drizzle-orm'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { executionLogger } from '@/lib/logs/execution/logger'
@@ -194,7 +195,7 @@ export class LoggingSession {
       )
     } catch (error) {
       logger.error(`Failed to persist last started block for execution ${this.executionId}:`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -209,7 +210,7 @@ export class LoggingSession {
       )
     } catch (error) {
       logger.error(`Failed to persist last completed block for execution ${this.executionId}:`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -355,7 +356,7 @@ export class LoggingSession {
       this.costFlushed = true
     } catch (error) {
       logger.error(`Failed to flush accumulated cost for execution ${this.executionId}:`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -384,7 +385,7 @@ export class LoggingSession {
       }
     } catch (error) {
       logger.error(`Failed to load existing cost for execution ${this.executionId}:`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -507,7 +508,7 @@ export class LoggingSession {
         requestId: this.requestId,
         workflowId: this.workflowId,
         executionId: this.executionId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         stack: error instanceof Error ? error.stack : undefined,
       })
       throw error
@@ -555,7 +556,7 @@ export class LoggingSession {
               models: {},
             }
 
-      const message = error?.message || 'Execution failed before starting blocks'
+      const message = error?.message || 'Run failed before starting blocks'
 
       const errorSpan: TraceSpan = {
         id: 'workflow-error-root',
@@ -626,7 +627,7 @@ export class LoggingSession {
         requestId: this.requestId,
         workflowId: this.workflowId,
         executionId: this.executionId,
-        error: enhancedError instanceof Error ? enhancedError.message : String(enhancedError),
+        error: toError(enhancedError).message,
         stack: enhancedError instanceof Error ? enhancedError.stack : undefined,
       })
       throw enhancedError
@@ -713,7 +714,7 @@ export class LoggingSession {
         requestId: this.requestId,
         workflowId: this.workflowId,
         executionId: this.executionId,
-        error: cancelError instanceof Error ? cancelError.message : String(cancelError),
+        error: toError(cancelError).message,
         stack: cancelError instanceof Error ? cancelError.stack : undefined,
       })
       throw cancelError
@@ -800,7 +801,7 @@ export class LoggingSession {
         requestId: this.requestId,
         workflowId: this.workflowId,
         executionId: this.executionId,
-        error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+        error: toError(pauseError).message,
         stack: pauseError instanceof Error ? pauseError.stack : undefined,
       })
       throw pauseError
@@ -927,7 +928,7 @@ export class LoggingSession {
       await this.drainPendingProgressWrites()
       await this.complete(params)
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error)
+      const errorMsg = toError(error).message
       logger.warn(
         `[${this.requestId || 'unknown'}] Complete failed for execution ${this.executionId}, attempting fallback`,
         { error: errorMsg }
@@ -953,7 +954,7 @@ export class LoggingSession {
       await this.drainPendingProgressWrites()
       await this.completeWithError(params)
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error)
+      const errorMsg = toError(error).message
       logger.warn(
         `[${this.requestId || 'unknown'}] CompleteWithError failed for execution ${this.executionId}, attempting fallback`,
         { error: errorMsg }
@@ -985,7 +986,7 @@ export class LoggingSession {
       await this.drainPendingProgressWrites()
       await this.completeWithCancellation(params)
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error)
+      const errorMsg = toError(error).message
       logger.warn(
         `[${this.requestId || 'unknown'}] CompleteWithCancellation failed for execution ${this.executionId}, attempting fallback`,
         { error: errorMsg }
@@ -994,7 +995,7 @@ export class LoggingSession {
         traceSpans: params?.traceSpans,
         endedAt: params?.endedAt,
         totalDurationMs: params?.totalDurationMs,
-        errorMessage: 'Execution was cancelled',
+        errorMessage: 'Run was cancelled',
         isError: false,
         finalizationPath: 'cancelled',
         finalOutput: { cancelled: true },
@@ -1012,7 +1013,7 @@ export class LoggingSession {
       await this.drainPendingProgressWrites()
       await this.completeWithPause(params)
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error)
+      const errorMsg = toError(error).message
       logger.warn(
         `[${this.requestId || 'unknown'}] CompleteWithPause failed for execution ${this.executionId}, attempting fallback`,
         { error: errorMsg }
@@ -1021,7 +1022,7 @@ export class LoggingSession {
         traceSpans: params?.traceSpans,
         endedAt: params?.endedAt,
         totalDurationMs: params?.totalDurationMs,
-        errorMessage: 'Execution paused but failed to store full trace spans',
+        errorMessage: 'Run paused but failed to store full trace spans',
         isError: false,
         finalizationPath: 'paused',
         finalOutput: { paused: true },
@@ -1041,7 +1042,7 @@ export class LoggingSession {
     requestId?: string
   ): Promise<void> {
     try {
-      const message = errorMessage || 'Execution failed'
+      const message = errorMessage || 'Run failed'
       await db
         .update(workflowExecutionLogs)
         .set({
@@ -1066,7 +1067,7 @@ export class LoggingSession {
       logger.info(`[${requestId || 'unknown'}] Marked execution ${executionId} as failed`)
     } catch (error) {
       logger.error(`Failed to mark execution ${executionId} as failed:`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -1147,7 +1148,7 @@ export class LoggingSession {
       this.completionAttemptFailed = true
       logger.error(
         `[${this.requestId || 'unknown'}] Cost-only fallback also failed for execution ${this.executionId}:`,
-        { error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError) }
+        { error: toError(fallbackError).message }
       )
     }
   }

@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { WorkflowsCreateParams, WorkflowsCreateResponse } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('IncidentIOCreate')
 
 export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCreateResponse> = {
   id: 'incidentio_workflows_create',
@@ -125,7 +128,7 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
         try {
           return JSON.parse(jsonString)
         } catch (error) {
-          console.warn(`Failed to parse JSON parameter: ${jsonString}`, error)
+          logger.warn(`Failed to parse JSON parameter: ${jsonString}`, error)
           return defaultValue
         }
       }

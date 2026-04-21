@@ -2,7 +2,7 @@
  * Converters for transforming between UI builder state and API filter/sort objects.
  */
 
-import { generateShortId } from '@/lib/core/utils/uuid'
+import { generateShortId } from '@sim/utils/id'
 import type { Filter, FilterRule, JsonValue, Sort, SortDirection, SortRule } from '../types'
 
 /** Converts UI filter rules to a Filter object for API queries. */

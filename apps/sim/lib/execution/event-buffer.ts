@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { getRedisClient } from '@/lib/core/config/redis'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 
@@ -67,7 +68,7 @@ export async function setExecutionMeta(
   } catch (error) {
     logger.warn('Failed to update execution meta', {
       executionId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
 }
@@ -86,7 +87,7 @@ export async function getExecutionMeta(executionId: string): Promise<ExecutionSt
   } catch (error) {
     logger.warn('Failed to read execution meta', {
       executionId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return null
   }
@@ -112,7 +113,7 @@ export async function readExecutionEvents(
   } catch (error) {
     logger.warn('Failed to read execution events', {
       executionId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return []
   }
@@ -181,7 +182,7 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
       logger.warn('Failed to flush execution events', {
         executionId,
         batchSize: batch.length,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         stack: error instanceof Error ? error.stack : undefined,
       })
       pending = batch.concat(pending)

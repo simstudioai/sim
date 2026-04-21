@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
@@ -441,10 +441,13 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
     []
   )
 
-  useEffect(() => {
-    setSelectedSegments((prev) => (Object.keys(prev).length > 0 ? {} : prev))
-    setLastAnchorIndices((prev) => (Object.keys(prev).length > 0 ? {} : prev))
-  }, [stats, timeRange, workflowIds, searchQuery])
+  const resetKey = `${JSON.stringify(stats?.workflows?.map((w) => w.workflowId))}-${timeRange}-${workflowIds.join(',')}-${searchQuery}`
+  const prevResetKeyRef = useRef(resetKey)
+  if (resetKey !== prevResetKeyRef.current) {
+    prevResetKeyRef.current = resetKey
+    if (Object.keys(selectedSegments).length > 0) setSelectedSegments({})
+    if (Object.keys(lastAnchorIndices).length > 0) setLastAnchorIndices({})
+  }
 
   if (isLoading) {
     return <DashboardSkeleton />

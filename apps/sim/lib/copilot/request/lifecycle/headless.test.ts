@@ -1,0 +1,181 @@
+/**
+ * @vitest-environment node
+ */
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
+import type { OrchestratorResult } from '@/lib/copilot/request/types'
+
+const { runCopilotLifecycle } = vi.hoisted(() => ({
+  runCopilotLifecycle: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/request/lifecycle/run', () => ({
+  runCopilotLifecycle,
+}))
+
+import { runHeadlessCopilotLifecycle } from './headless'
+
+function createLifecycleResult(overrides?: Partial<OrchestratorResult>): OrchestratorResult {
+  return {
+    success: true,
+    content: 'done',
+    contentBlocks: [],
+    toolCalls: [],
+    chatId: 'chat-1',
+    ...overrides,
+  }
+}
+
+describe('runHeadlessCopilotLifecycle', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(null, {
+          status: 200,
+        })
+      )
+    )
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('reports a successful headless trace', async () => {
+    runCopilotLifecycle.mockResolvedValueOnce(
+      createLifecycleResult({
+        usage: { prompt: 10, completion: 5 },
+        cost: { input: 1, output: 2, total: 3 },
+      })
+    )
+
+    const result = await runHeadlessCopilotLifecycle(
+      {
+        message: 'hello',
+        messageId: 'req-1',
+      },
+      {
+        userId: 'user-1',
+        chatId: 'chat-1',
+        workflowId: 'workflow-1',
+        goRoute: '/api/mothership/execute',
+        interactive: false,
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(runCopilotLifecycle).toHaveBeenCalledWith(
+      expect.objectContaining({ messageId: 'req-1' }),
+      expect.objectContaining({
+        simRequestId: 'req-1',
+        trace: expect.any(Object),
+        chatId: 'chat-1',
+      })
+    )
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+    expect(url).toContain('/api/traces')
+    const body = JSON.parse(String(init.body))
+    expect(body).toEqual(
+      expect.objectContaining({
+        simRequestId: 'req-1',
+        outcome: RequestTraceV1Outcome.success,
+        chatId: 'chat-1',
+        usage: {
+          inputTokens: 10,
+          outputTokens: 5,
+        },
+        cost: {
+          rawTotalCost: 3,
+          billedTotalCost: 3,
+        },
+      })
+    )
+  })
+
+  it('reports an error trace when the lifecycle result is unsuccessful', async () => {
+    runCopilotLifecycle.mockResolvedValueOnce(
+      createLifecycleResult({
+        success: false,
+        error: 'failed',
+      })
+    )
+
+    const result = await runHeadlessCopilotLifecycle(
+      {
+        message: 'hello',
+        messageId: 'req-2',
+      },
+      {
+        userId: 'user-1',
+        chatId: 'chat-1',
+        workflowId: 'workflow-1',
+        goRoute: '/api/mothership/execute',
+        interactive: false,
+      }
+    )
+
+    expect(result.success).toBe(false)
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(init.body))
+    expect(body.outcome).toBe(RequestTraceV1Outcome.error)
+  })
+
+  it('prefers an explicit simRequestId over the payload messageId', async () => {
+    runCopilotLifecycle.mockResolvedValueOnce(createLifecycleResult())
+
+    await runHeadlessCopilotLifecycle(
+      {
+        message: 'hello',
+        messageId: 'message-req-id',
+      },
+      {
+        userId: 'user-1',
+        chatId: 'chat-1',
+        workflowId: 'workflow-1',
+        simRequestId: 'workflow-request-id',
+        goRoute: '/api/mothership/execute',
+        interactive: false,
+      }
+    )
+
+    expect(runCopilotLifecycle).toHaveBeenCalledWith(
+      expect.objectContaining({ messageId: 'message-req-id' }),
+      expect.objectContaining({
+        simRequestId: 'workflow-request-id',
+      })
+    )
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(init.body))
+    expect(body.simRequestId).toBe('workflow-request-id')
+  })
+
+  it('reports an error trace when the lifecycle throws', async () => {
+    runCopilotLifecycle.mockRejectedValueOnce(new Error('kaboom'))
+
+    await expect(
+      runHeadlessCopilotLifecycle(
+        {
+          message: 'hello',
+          messageId: 'req-3',
+        },
+        {
+          userId: 'user-1',
+          chatId: 'chat-1',
+          workflowId: 'workflow-1',
+          goRoute: '/api/mothership/execute',
+          interactive: false,
+        }
+      )
+    ).rejects.toThrow('kaboom')
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(init.body))
+    expect(body.outcome).toBe(RequestTraceV1Outcome.error)
+  })
+})

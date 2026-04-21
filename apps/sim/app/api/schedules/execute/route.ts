@@ -1,14 +1,12 @@
 import { db, workflowDeploymentVersion, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, lt, lte, ne, not, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
-import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import {
   executeJobInline,
   executeScheduleJob,
@@ -76,8 +74,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         cronExpression: workflowSchedule.cronExpression,
         failedCount: workflowSchedule.failedCount,
         lastQueuedAt: workflowSchedule.lastQueuedAt,
-        sourceWorkspaceId: workflowSchedule.sourceWorkspaceId,
-        sourceUserId: workflowSchedule.sourceUserId,
         sourceType: workflowSchedule.sourceType,
       })
 
@@ -87,6 +83,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
 
     const jobQueue = await getJobQueue()
+
+    const workflowUtils =
+      dueSchedules.length > 0 ? await import('@/lib/workflows/utils') : undefined
 
     const schedulePromises = dueSchedules.map(async (schedule) => {
       const queueTime = schedule.lastQueuedAt ?? queuedAt
@@ -116,44 +115,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
 
       try {
-        const { getWorkflowById } = await import('@/lib/workflows/utils')
         const resolvedWorkflow = schedule.workflowId
-          ? await getWorkflowById(schedule.workflowId)
+          ? await workflowUtils?.getWorkflowById(schedule.workflowId)
           : null
         const resolvedWorkspaceId = resolvedWorkflow?.workspaceId
 
-        let jobId: string
-        if (isBullMQEnabled()) {
-          if (!resolvedWorkspaceId) {
-            throw new Error(
-              `Missing workspace for scheduled workflow ${schedule.workflowId}; refusing to bypass workspace admission`
-            )
-          }
-
-          jobId = await enqueueWorkspaceDispatch({
-            id: executionId,
-            workspaceId: resolvedWorkspaceId,
-            lane: 'runtime',
-            queueName: 'schedule-execution',
-            bullmqJobName: 'schedule-execution',
-            bullmqPayload: createBullMQJobData(payload, {
-              workflowId: schedule.workflowId ?? undefined,
-              correlation,
-            }),
-            metadata: {
-              workflowId: schedule.workflowId ?? undefined,
-              correlation,
-            },
-          })
-        } else {
-          jobId = await jobQueue.enqueue('schedule-execution', payload, {
-            metadata: {
-              workflowId: schedule.workflowId ?? undefined,
-              workspaceId: resolvedWorkspaceId ?? undefined,
-              correlation,
-            },
-          })
-        }
+        const jobId = await jobQueue.enqueue('schedule-execution', payload, {
+          metadata: {
+            workflowId: schedule.workflowId ?? undefined,
+            workspaceId: resolvedWorkspaceId ?? undefined,
+            correlation,
+          },
+        })
         logger.info(
           `[${requestId}] Queued schedule execution task ${jobId} for workflow ${schedule.workflowId}`
         )
@@ -164,7 +137,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             const output = await executeScheduleJob(payload)
             await jobQueue.completeJob(jobId, output)
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage = toError(error).message
             logger.error(
               `[${requestId}] Schedule execution failed for workflow ${schedule.workflowId}`,
               {
@@ -205,7 +178,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
     })
 
-    // Mothership jobs use BullMQ when available, otherwise direct inline execution.
+    // Mothership jobs are executed inline directly.
     const jobPromises = dueJobs.map(async (job) => {
       const queueTime = job.lastQueuedAt ?? queuedAt
       const payload = {
@@ -216,27 +189,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
 
       try {
-        if (isBullMQEnabled()) {
-          if (!job.sourceWorkspaceId || !job.sourceUserId) {
-            throw new Error(`Mothership job ${job.id} is missing workspace/user ownership`)
-          }
-
-          await enqueueWorkspaceDispatch({
-            workspaceId: job.sourceWorkspaceId!,
-            lane: 'runtime',
-            queueName: 'mothership-job-execution',
-            bullmqJobName: 'mothership-job-execution',
-            bullmqPayload: createBullMQJobData(payload),
-            metadata: {
-              userId: job.sourceUserId,
-            },
-          })
-        } else {
-          await executeJobInline(payload)
-        }
+        await executeJobInline(payload)
       } catch (error) {
         logger.error(`[${requestId}] Job execution failed for ${job.id}`, {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         await releaseScheduleLock(
           job.id,

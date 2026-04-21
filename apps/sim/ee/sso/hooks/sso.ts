@@ -14,8 +14,11 @@ export const ssoKeys = {
 /**
  * Fetch SSO providers
  */
-async function fetchSSOProviders() {
-  const response = await fetch('/api/auth/sso/providers')
+async function fetchSSOProviders(signal: AbortSignal, organizationId?: string) {
+  const url = organizationId
+    ? `/api/auth/sso/providers?organizationId=${encodeURIComponent(organizationId)}`
+    : '/api/auth/sso/providers'
+  const response = await fetch(url, { signal })
   if (!response.ok) {
     throw new Error('Failed to fetch SSO providers')
   }
@@ -25,25 +28,25 @@ async function fetchSSOProviders() {
 /**
  * Hook to fetch SSO providers
  */
-export function useSSOProviders() {
+interface UseSSOProvidersOptions {
+  enabled?: boolean
+  organizationId?: string
+}
+
+export function useSSOProviders({ enabled = true, organizationId }: UseSSOProvidersOptions = {}) {
   return useQuery({
-    queryKey: ssoKeys.providers(),
-    queryFn: fetchSSOProviders,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryKey: [...ssoKeys.providers(), organizationId ?? ''],
+    queryFn: ({ signal }) => fetchSSOProviders(signal, organizationId),
+    staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
+    enabled,
   })
 }
 
 /**
  * Configure SSO provider mutation
  */
-interface ConfigureSSOParams {
-  provider: string
-  domain: string
-  clientId: string
-  clientSecret: string
-  orgId?: string
-}
+type ConfigureSSOParams = Record<string, unknown>
 
 export function useConfigureSSO() {
   const queryClient = useQueryClient()
@@ -58,21 +61,18 @@ export function useConfigureSSO() {
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.message || 'Failed to configure SSO')
+        throw new Error(error.error || error.details || 'Failed to configure SSO')
       }
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: ssoKeys.providers() })
 
-      if (variables.orgId) {
-        queryClient.invalidateQueries({
-          queryKey: organizationKeys.detail(variables.orgId),
-        })
-        queryClient.invalidateQueries({
-          queryKey: organizationKeys.lists(),
-        })
+      const orgId = typeof variables.orgId === 'string' ? variables.orgId : undefined
+      if (orgId) {
+        queryClient.invalidateQueries({ queryKey: organizationKeys.detail(orgId) })
+        queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
       }
     },
   })

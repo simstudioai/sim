@@ -128,10 +128,33 @@ export const DELETE = withRouteHandler(
         request: req,
       })
 
-      return NextResponse.json({ success: true })
-    } catch (error) {
-      logger.error('Error removing workspace member:', error)
-      return NextResponse.json({ error: 'Failed to remove workspace member' }, { status: 500 })
-    }
+    captureServerEvent(
+      session.user.id,
+      'workspace_member_removed',
+      { workspace_id: workspaceId, is_self_removal: isSelf },
+      { groups: { workspace: workspaceId } }
+    )
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.MEMBER_REMOVED,
+      resourceType: AuditResourceType.WORKSPACE,
+      resourceId: workspaceId,
+      description: isSelf ? 'Left the workspace' : `Removed member ${userId} from the workspace`,
+      metadata: {
+        removedUserId: userId,
+        removedUserRole: userPermission.permissionType,
+        selfRemoval: isSelf,
+      },
+      request: req,
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    logger.error('Error removing workspace member:', error)
+    return NextResponse.json({ error: 'Failed to remove workspace member' }, { status: 500 })
   }
 )

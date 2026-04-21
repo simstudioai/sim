@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
@@ -31,6 +32,16 @@ function getExtension(filename: string): string {
   return dot >= 0 ? filename.slice(dot + 1).toLowerCase() : ''
 }
 
+function detectImageMime(buf: Buffer, claimed: string): string {
+  if (buf.length < 12) return claimed
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg'
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'image/png'
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/gif'
+  if (buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50)
+    return 'image/webp'
+  return claimed
+}
+
 export interface FileReadResult {
   content: string
   totalLines: number
@@ -59,14 +70,15 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
         }
       }
       const buffer = await downloadWorkspaceFile(record)
+      const mime = detectImageMime(buffer, record.type)
       return {
-        content: `Image: ${record.name} (${(record.size / 1024).toFixed(1)}KB, ${record.type})`,
+        content: `Image: ${record.name} (${(record.size / 1024).toFixed(1)}KB, ${mime})`,
         totalLines: 1,
         attachment: {
           type: 'image',
           source: {
             type: 'base64',
-            media_type: record.type,
+            media_type: mime,
             data: buffer.toString('base64'),
           },
         },
@@ -98,7 +110,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
         logger.warn('Failed to parse document', {
           fileName: record.name,
           ext,
-          error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+          error: toError(parseErr).message,
         })
         return {
           content: `[Could not parse ${record.name} (${record.type}, ${record.size} bytes)]`,
@@ -114,7 +126,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
   } catch (err) {
     logger.warn('Failed to read workspace file', {
       fileName: record.name,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
     return null
   }

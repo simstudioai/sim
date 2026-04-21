@@ -9,8 +9,7 @@ import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { performChatUndeploy } from '@/lib/workflows/orchestration'
+import { notifySocketDeploymentChanged, performChatUndeploy } from '@/lib/workflows/orchestration'
 import { deployWorkflow } from '@/lib/workflows/persistence/utils'
 import { checkChatAccess } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -121,17 +120,16 @@ export const PATCH = withRouteHandler(
 
         const existingChat = [existingChatRecord]
 
-        const {
-          workflowId,
-          identifier,
-          title,
-          description,
-          customizations,
-          authType,
-          password,
-          allowedEmails,
-          outputConfigs,
-        } = validatedData
+      if (!deployResult.success) {
+        logger.warn(
+          `Failed to redeploy workflow for chat update: ${deployResult.error}, continuing with chat update`
+        )
+      } else {
+        logger.info(
+          `Redeployed workflow ${existingChat[0].workflowId} for chat update (v${deployResult.version})`
+        )
+        await notifySocketDeploymentChanged(existingChat[0].workflowId)
+      }
 
         if (identifier && identifier !== existingChat[0].identifier) {
           const existingIdentifier = await db
@@ -254,9 +252,67 @@ export const PATCH = withRouteHandler(
         }
         throw validationError
       }
-    } catch (error: any) {
-      logger.error('Error updating chat deployment:', error)
-      return createErrorResponse(error.message || 'Failed to update chat deployment', 500)
+
+      if (encryptedPassword) {
+        updateData.password = encryptedPassword
+      }
+
+      if (allowedEmails) {
+        updateData.allowedEmails = allowedEmails
+      }
+
+      if (outputConfigs) {
+        updateData.outputConfigs = outputConfigs
+      }
+
+      logger.info('Updating chat deployment with values:', {
+        chatId,
+        authType: updateData.authType,
+        hasPassword: updateData.password !== undefined,
+        emailCount: updateData.allowedEmails?.length,
+        outputConfigsCount: updateData.outputConfigs ? updateData.outputConfigs.length : undefined,
+      })
+
+      await db.update(chat).set(updateData).where(eq(chat.id, chatId))
+
+      const updatedIdentifier = identifier || existingChat[0].identifier
+
+      const baseDomain = getEmailDomain()
+      const protocol = isDev ? 'http' : 'https'
+      const chatUrl = `${protocol}://${baseDomain}/chat/${updatedIdentifier}`
+
+      logger.info(`Chat "${chatId}" updated successfully`)
+
+      recordAudit({
+        workspaceId: chatWorkspaceId || null,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.CHAT_UPDATED,
+        resourceType: AuditResourceType.CHAT,
+        resourceId: chatId,
+        resourceName: title || existingChatRecord.title,
+        description: `Updated chat deployment "${title || existingChatRecord.title}"`,
+        metadata: {
+          identifier: updatedIdentifier,
+          authType: updateData.authType || existingChatRecord.authType,
+          workflowId: workflowId || existingChatRecord.workflowId,
+          chatUrl,
+        },
+        request,
+      })
+
+      return createSuccessResponse({
+        id: chatId,
+        chatUrl,
+        message: 'Chat deployment updated successfully',
+      })
+    } catch (validationError) {
+      if (validationError instanceof z.ZodError) {
+        const errorMessage = validationError.errors[0]?.message || 'Invalid request data'
+        return createErrorResponse(errorMessage, 400, 'VALIDATION_ERROR')
+      }
+      throw validationError
     }
   }
 )

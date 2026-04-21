@@ -1,19 +1,20 @@
 /**
  * @vitest-environment node
  */
-import { auditMock, databaseMock, drizzleOrmMock, loggerMock } from '@sim/testing'
+import {
+  auditMock,
+  dbChainMock,
+  dbChainMockFns,
+  requestUtilsMockFns,
+  resetDbChainMock,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => ({
-  ...databaseMock,
+  ...dbChainMock,
   auditLog: { id: 'id', workspaceId: 'workspace_id' },
 }))
-vi.mock('@sim/db/schema', () => ({
-  user: { id: 'id', name: 'name', email: 'email' },
-}))
-vi.mock('drizzle-orm', () => drizzleOrmMock)
-vi.mock('@sim/logger', () => loggerMock)
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/utils/id', () => ({
   generateId: () => 'test-uuid-123',
   generateShortId: () => 'test-id-123',
   isValidUuid: (v: string) =>
@@ -55,23 +56,15 @@ describe('AuditResourceType', () => {
 })
 
 describe('recordAudit', () => {
-  const mockInsert = databaseMock.db.insert
-  const mockSelect = databaseMock.db.select
-  let mockValues: ReturnType<typeof vi.fn>
-  let mockLimit: ReturnType<typeof vi.fn>
-
   beforeEach(() => {
     vi.clearAllMocks()
-    mockValues = vi.fn(() => Promise.resolve())
-    mockInsert.mockReturnValue({ values: mockValues })
-    mockLimit = vi.fn(() => Promise.resolve([]))
-    mockSelect.mockReturnValue({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: mockLimit,
-        })),
-      })),
-    })
+    resetDbChainMock()
+    requestUtilsMockFns.mockGetClientIp.mockImplementation(
+      (request: { headers: { get(name: string): string | null } }) =>
+        request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+        request.headers.get('x-real-ip')?.trim() ||
+        'unknown'
+    )
   })
 
   afterEach(() => {
@@ -91,8 +84,8 @@ describe('recordAudit', () => {
 
     await flush()
 
-    expect(mockInsert).toHaveBeenCalledTimes(1)
-    expect(mockValues).toHaveBeenCalledWith(
+    expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'test-id-123',
         workspaceId: 'ws-1',
@@ -120,7 +113,7 @@ describe('recordAudit', () => {
 
     await flush()
 
-    expect(mockValues).toHaveBeenCalledWith(
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
         actorName: 'Waleed',
         actorEmail: 'waleed@example.com',
@@ -150,7 +143,7 @@ describe('recordAudit', () => {
 
     await flush()
 
-    expect(mockValues).toHaveBeenCalledWith(
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
         ipAddress: '1.2.3.4',
         userAgent: 'TestAgent/1.0',
@@ -175,7 +168,7 @@ describe('recordAudit', () => {
 
     await flush()
 
-    expect(mockValues).toHaveBeenCalledWith(
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
         ipAddress: '10.0.0.1',
         userAgent: undefined,
@@ -195,7 +188,7 @@ describe('recordAudit', () => {
 
     await flush()
 
-    expect(mockValues).toHaveBeenCalledWith(expect.objectContaining({ metadata: {} }))
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ metadata: {} }))
   })
 
   it('passes through metadata when provided', async () => {
@@ -211,7 +204,7 @@ describe('recordAudit', () => {
 
     await flush()
 
-    expect(mockValues).toHaveBeenCalledWith(
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: { provider: 'github', workflowId: 'wf-1' },
       })
@@ -219,7 +212,7 @@ describe('recordAudit', () => {
   })
 
   it('does not throw when the database insert fails', async () => {
-    mockValues.mockImplementation(() => Promise.reject(new Error('DB connection lost')))
+    dbChainMockFns.values.mockImplementation(() => Promise.reject(new Error('DB connection lost')))
 
     expect(() => {
       recordAudit({
@@ -250,7 +243,9 @@ describe('recordAudit', () => {
 
   describe('lazy actor resolution', () => {
     it('looks up user when actorName and actorEmail are both undefined', async () => {
-      mockLimit.mockResolvedValue([{ name: 'Resolved Name', email: 'resolved@example.com' }])
+      dbChainMockFns.limit.mockResolvedValue([
+        { name: 'Resolved Name', email: 'resolved@example.com' },
+      ])
 
       recordAudit({
         workspaceId: 'ws-1',
@@ -262,8 +257,8 @@ describe('recordAudit', () => {
 
       await flush()
 
-      expect(mockSelect).toHaveBeenCalledTimes(1)
-      expect(mockValues).toHaveBeenCalledWith(
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
         expect.objectContaining({
           actorName: 'Resolved Name',
           actorEmail: 'resolved@example.com',
@@ -283,7 +278,7 @@ describe('recordAudit', () => {
 
       await flush()
 
-      expect(mockSelect).not.toHaveBeenCalled()
+      expect(dbChainMockFns.select).not.toHaveBeenCalled()
     })
 
     it('skips lookup when actorName and actorEmail are provided', async () => {
@@ -298,8 +293,8 @@ describe('recordAudit', () => {
 
       await flush()
 
-      expect(mockSelect).not.toHaveBeenCalled()
-      expect(mockValues).toHaveBeenCalledWith(
+      expect(dbChainMockFns.select).not.toHaveBeenCalled()
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
         expect.objectContaining({
           actorName: 'Already Known',
           actorEmail: 'known@example.com',
@@ -308,7 +303,7 @@ describe('recordAudit', () => {
     })
 
     it('inserts without actor info when lookup fails', async () => {
-      mockLimit.mockRejectedValue(new Error('DB down'))
+      dbChainMockFns.limit.mockRejectedValue(new Error('DB down'))
 
       recordAudit({
         workspaceId: 'ws-1',
@@ -319,8 +314,8 @@ describe('recordAudit', () => {
 
       await flush()
 
-      expect(mockSelect).toHaveBeenCalledTimes(1)
-      expect(mockValues).toHaveBeenCalledWith(
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
         expect.objectContaining({
           actorId: 'user-1',
           actorName: undefined,
@@ -330,7 +325,7 @@ describe('recordAudit', () => {
     })
 
     it('sets actor info to null when user is not found', async () => {
-      mockLimit.mockResolvedValue([])
+      dbChainMockFns.limit.mockResolvedValue([])
 
       recordAudit({
         workspaceId: 'ws-1',
@@ -341,8 +336,8 @@ describe('recordAudit', () => {
 
       await flush()
 
-      expect(mockSelect).toHaveBeenCalledTimes(1)
-      expect(mockValues).toHaveBeenCalledWith(
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
         expect.objectContaining({
           actorId: 'deleted-user',
           actorName: undefined,

@@ -1,11 +1,12 @@
 import { db } from '@sim/db'
 import { idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { sleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
+import { eq, lt } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
-import { generateId } from '@/lib/core/utils/uuid'
 import { extractProviderIdentifierFromBody } from '@/lib/webhooks/providers'
 
 const logger = createLogger('IdempotencyService')
@@ -13,6 +14,22 @@ const logger = createLogger('IdempotencyService')
 export interface IdempotencyConfig {
   ttlSeconds?: number
   namespace?: string
+  /** When true, failed keys are deleted rather than stored so the operation is retried on the next attempt. */
+  retryFailures?: boolean
+  /**
+   * Force a specific storage backend regardless of the environment's
+   * auto-detection. Use `'database'` for correctness-critical flows
+   * (money, billing, compliance) where the claim + operation should
+   * fate-share with the Postgres transaction — this closes the narrow
+   * window where the operation commits to DB but `storeResult` to Redis
+   * fails and the retry re-runs the operation. Latency cost is 1–5ms
+   * per call, imperceptible on webhook code paths.
+   *
+   * Leave unset (or set `'redis'`) for latency-sensitive, high-volume
+   * flows like app webhook triggers where the scale benefits of Redis
+   * outweigh the narrow durability window.
+   */
+  forceStorage?: StorageMethod
 }
 
 export interface IdempotencyResult {
@@ -47,21 +64,24 @@ const POLL_INTERVAL_MS = 1000
  * that need duplicate prevention.
  *
  * Storage is determined once based on configuration:
- * - If REDIS_URL is set → Redis
- * - If REDIS_URL is not set → PostgreSQL
+ * - If `forceStorage` is set → that backend unconditionally
+ * - Else if `REDIS_URL` is set → Redis
+ * - Else → PostgreSQL
  */
 export class IdempotencyService {
-  private config: Required<IdempotencyConfig>
+  private config: Required<Omit<IdempotencyConfig, 'forceStorage'>>
   private storageMethod: StorageMethod
 
   constructor(config: IdempotencyConfig = {}) {
     this.config = {
       ttlSeconds: config.ttlSeconds ?? DEFAULT_TTL,
       namespace: config.namespace ?? 'default',
+      retryFailures: config.retryFailures ?? false,
     }
-    this.storageMethod = getStorageMethod()
+    this.storageMethod = config.forceStorage ?? getStorageMethod()
     logger.info(`IdempotencyService using ${this.storageMethod} storage`, {
       namespace: this.config.namespace,
+      forced: Boolean(config.forceStorage),
     })
   }
 
@@ -216,15 +236,31 @@ export class IdempotencyService {
     normalizedKey: string,
     inProgressResult: ProcessingResult
   ): Promise<AtomicClaimResult> {
+    const now = new Date()
+    const expiredBefore = new Date(now.getTime() - this.config.ttlSeconds * 1000)
+
+    // `ON CONFLICT DO UPDATE WHERE created_at < expiredBefore` steals the
+    // claim when the existing row has outlived the TTL (e.g. a prior
+    // holder crashed mid-operation and never wrote `completed`/`failed`
+    // or released the key). RETURNING yields a row in two cases:
+    //   (1) fresh INSERT — no prior row existed;
+    //   (2) UPDATE of an expired row — WHERE matched.
+    // An empty RETURNING means conflict with an unexpired row; the
+    // existing holder is still live and we must not steal.
     const insertResult = await db
       .insert(idempotencyKey)
       .values({
         key: normalizedKey,
         result: inProgressResult,
-        createdAt: new Date(),
+        createdAt: now,
       })
-      .onConflictDoNothing({
+      .onConflictDoUpdate({
         target: [idempotencyKey.key],
+        set: {
+          result: inProgressResult,
+          createdAt: now,
+        },
+        setWhere: lt(idempotencyKey.createdAt, expiredBefore),
       })
       .returning({ key: idempotencyKey.key })
 
@@ -290,7 +326,7 @@ export class IdempotencyService {
         throw new Error(currentResult.error || 'Previous operation failed')
       }
 
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+      await sleep(POLL_INTERVAL_MS)
     }
 
     throw new Error(`Timeout waiting for idempotency operation to complete: ${normalizedKey}`)
@@ -340,6 +376,25 @@ export class IdempotencyService {
     logger.debug(`Stored idempotency result in database: ${normalizedKey}`)
   }
 
+  async release(normalizedKey: string, storageMethod: 'redis' | 'database'): Promise<void> {
+    return this.deleteKey(normalizedKey, storageMethod)
+  }
+
+  private async deleteKey(
+    normalizedKey: string,
+    storageMethod: 'redis' | 'database'
+  ): Promise<void> {
+    if (storageMethod === 'redis') {
+      const redis = getRedisClient()
+      if (redis) await redis.del(`${REDIS_KEY_PREFIX}${normalizedKey}`).catch(() => {})
+    } else {
+      await db
+        .delete(idempotencyKey)
+        .where(eq(idempotencyKey.key, normalizedKey))
+        .catch(() => {})
+    }
+  }
+
   async executeWithIdempotency<T>(
     provider: string,
     identifier: string,
@@ -360,6 +415,10 @@ export class IdempotencyService {
       }
 
       if (existingResult?.status === 'failed') {
+        if (this.config.retryFailures) {
+          await this.deleteKey(claimResult.normalizedKey, claimResult.storageMethod)
+          return this.executeWithIdempotency(provider, identifier, operation, additionalContext)
+        }
         logger.info(`Previous operation failed for: ${claimResult.normalizedKey}`)
         throw new Error(existingResult.error || 'Previous operation failed')
       }
@@ -391,11 +450,15 @@ export class IdempotencyService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 
-      await this.storeResult(
-        claimResult.normalizedKey,
-        { success: false, error: errorMessage, status: 'failed' },
-        claimResult.storageMethod
-      )
+      if (this.config.retryFailures) {
+        await this.deleteKey(claimResult.normalizedKey, claimResult.storageMethod)
+      } else {
+        await this.storeResult(
+          claimResult.normalizedKey,
+          { success: false, error: errorMessage, status: 'failed' },
+          claimResult.storageMethod
+        )
+      }
 
       logger.warn(`Operation failed: ${claimResult.normalizedKey} - ${errorMessage}`)
       throw error
@@ -424,6 +487,7 @@ export class IdempotencyService {
       normalizedHeaders?.['linear-delivery'] ||
       normalizedHeaders?.['greenhouse-event-id'] ||
       normalizedHeaders?.['x-zm-request-id'] ||
+      normalizedHeaders?.['x-atlassian-webhook-identifier'] ||
       normalizedHeaders?.['idempotency-key']
 
     if (webhookIdHeader) {
@@ -454,4 +518,21 @@ export const webhookIdempotency = new IdempotencyService({
 export const pollingIdempotency = new IdempotencyService({
   namespace: 'polling',
   ttlSeconds: 60 * 60 * 24 * 3, // 3 days
+  retryFailures: true,
+})
+
+/**
+ * Used by the internal `/api/billing/update-cost` endpoint (copilot,
+ * workspace-chat, MCP, mothership) to dedupe cost-recording calls. Storage
+ * is forced to Postgres: the operation writes AI cost to `user_stats`,
+ * and if Redis evicts the dedup key under memory pressure (high call
+ * volume) or drops it on restart, a retry would double-record usage —
+ * real money. DB storage fate-shares with `user_stats` and is
+ * eviction-proof; ~1-5ms added latency is invisible against LLM call
+ * latency.
+ */
+export const billingIdempotency = new IdempotencyService({
+  namespace: 'billing',
+  ttlSeconds: 60 * 60, // 1 hour
+  forceStorage: 'database',
 })

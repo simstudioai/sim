@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { DEFAULTS, LOOP, PARALLEL, REFERENCE } from '@/executor/constants'
 import type { ContextExtensions } from '@/executor/execution/types'
 import { type BlockLog, type ExecutionContext, getNextExecutionOrder } from '@/executor/types'
@@ -216,14 +217,15 @@ export function resolveArrayInput(
         if (typeof resolved === 'object' && resolved !== null) {
           return Object.entries(resolved)
         }
+        if (resolved === null) {
+          return []
+        }
         throw new Error(`Reference "${items}" did not resolve to an array or object`)
       } catch (error) {
         if (error instanceof Error && error.message.startsWith('Reference "')) {
           throw error
         }
-        throw new Error(
-          `Failed to resolve reference "${items}": ${error instanceof Error ? error.message : String(error)}`
-        )
+        throw new Error(`Failed to resolve reference "${items}": ${toError(error).message}`)
       }
     }
 
@@ -256,9 +258,7 @@ export function resolveArrayInput(
       if (error instanceof Error && error.message.startsWith('Resolved items')) {
         throw error
       }
-      throw new Error(
-        `Failed to resolve items: ${error instanceof Error ? error.message : String(error)}`
-      )
+      throw new Error(`Failed to resolve items: ${toError(error).message}`)
     }
   }
 
@@ -305,7 +305,7 @@ export async function addSubflowErrorLog(
       logger.warn('Subflow error start callback failed', {
         blockId,
         blockType,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -324,7 +324,7 @@ export async function addSubflowErrorLog(
       logger.warn('Subflow error completion callback failed', {
         blockId,
         blockType,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -367,7 +367,7 @@ export async function emitEmptySubflowEvents(
       logger.warn('Empty subflow start callback failed', {
         blockId,
         blockType,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -391,7 +391,64 @@ export async function emitEmptySubflowEvents(
       logger.warn('Empty subflow completion callback failed', {
         blockId,
         blockType,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
+      })
+    }
+  }
+}
+
+/**
+ * Emits the BlockLog + onBlockComplete callback for a loop/parallel container that
+ * finished successfully with at least one iteration. Without this, successful container
+ * runs produce no top-level BlockLog, which forces the trace-span builder to fall back
+ * to generic counter-based names ("Loop 1", "Parallel 1") instead of the user-configured
+ * block name.
+ */
+export async function emitSubflowSuccessEvents(
+  ctx: ExecutionContext,
+  blockId: string,
+  blockType: 'loop' | 'parallel',
+  output: { results: any[] },
+  contextExtensions: ContextExtensions | null
+): Promise<void> {
+  const now = new Date().toISOString()
+  const executionOrder = getNextExecutionOrder(ctx)
+  const block = ctx.workflow?.blocks.find((b) => b.id === blockId)
+  const blockName = block?.metadata?.name ?? blockType
+  const iterationContext = buildContainerIterationContext(ctx, blockId)
+
+  ctx.blockLogs.push({
+    blockId,
+    blockName,
+    blockType,
+    startedAt: now,
+    endedAt: now,
+    durationMs: DEFAULTS.EXECUTION_TIME,
+    success: true,
+    output,
+    executionOrder,
+  })
+
+  if (contextExtensions?.onBlockComplete) {
+    try {
+      await contextExtensions.onBlockComplete(
+        blockId,
+        blockName,
+        blockType,
+        {
+          output,
+          executionTime: DEFAULTS.EXECUTION_TIME,
+          startedAt: now,
+          executionOrder,
+          endedAt: now,
+        },
+        iterationContext
+      )
+    } catch (error) {
+      logger.warn('Subflow success completion callback failed', {
+        blockId,
+        blockType,
+        error: toError(error).message,
       })
     }
   }

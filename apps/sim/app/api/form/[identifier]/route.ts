@@ -1,15 +1,15 @@
 import { db } from '@sim/db'
 import { form, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { addCorsHeaders, validateAuthToken } from '@/lib/core/security/deployment'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
@@ -180,93 +180,126 @@ export const POST = withRouteHandler(
       const preprocessResult = await preprocessExecution({
         workflowId: deployment.workflowId,
         userId: deployment.userId,
-        triggerType: 'form',
-        executionId,
-        requestId,
-        checkRateLimit: true,
-        checkDeployment: true,
-        loggingSession,
+        workspaceId,
+        variables: {},
       })
 
-      if (!preprocessResult.success) {
-        logger.warn(`[${requestId}] Preprocessing failed: ${preprocessResult.error?.message}`)
-        return addCorsHeaders(
-          createErrorResponse(
-            preprocessResult.error?.message || 'Failed to process request',
-            preprocessResult.error?.statusCode || 500
+      await loggingSession.safeCompleteWithError({
+        error: {
+          message: 'This form is currently unavailable. The form has been disabled.',
+          stackTrace: undefined,
+        },
+        traceSpans: [],
+      })
+
+      return addCorsHeaders(createErrorResponse('This form is currently unavailable', 403), request)
+    }
+
+    const authResult = await validateFormAuth(requestId, deployment, request, parsedBody)
+    if (!authResult.authorized) {
+      return addCorsHeaders(
+        createErrorResponse(authResult.error || 'Authentication required', 401),
+        request
+      )
+    }
+
+    const { formData, password, email } = parsedBody
+
+    // If only authentication credentials provided (no form data), just return authenticated
+    if ((password || email) && !formData) {
+      const response = addCorsHeaders(createSuccessResponse({ authenticated: true }), request)
+      setFormAuthCookie(response, deployment.id, deployment.authType, deployment.password)
+      return response
+    }
+
+    if (!formData || Object.keys(formData).length === 0) {
+      return addCorsHeaders(createErrorResponse('No form data provided', 400), request)
+    }
+
+    const executionId = generateId()
+    const loggingSession = new LoggingSession(deployment.workflowId, executionId, 'form', requestId)
+
+    const preprocessResult = await preprocessExecution({
+      workflowId: deployment.workflowId,
+      userId: deployment.userId,
+      triggerType: 'form',
+      executionId,
+      requestId,
+      checkRateLimit: true,
+      checkDeployment: true,
+      loggingSession,
+    })
+
+    if (!preprocessResult.success) {
+      logger.warn(`[${requestId}] Preprocessing failed: ${preprocessResult.error?.message}`)
+      return addCorsHeaders(
+        createErrorResponse(
+          preprocessResult.error?.message || 'Failed to process request',
+          preprocessResult.error?.statusCode || 500
+        ),
+        request
+      )
+    }
+
+    const { actorUserId, workflowRecord } = preprocessResult
+    const workspaceOwnerId = actorUserId!
+    const workspaceId = workflowRecord?.workspaceId
+    if (!workspaceId) {
+      logger.error(`[${requestId}] Workflow ${deployment.workflowId} has no workspaceId`)
+      return addCorsHeaders(
+        createErrorResponse('Workflow has no associated workspace', 500),
+        request
+      )
+    }
+
+    try {
+      const workflowForExecution = {
+        id: deployment.workflowId,
+        userId: deployment.userId,
+        workspaceId,
+        isDeployed: workflowRecord?.isDeployed ?? false,
+        variables: (workflowRecord?.variables ?? {}) as Record<string, unknown>,
+      }
+
+      // Pass form data as the workflow input
+      const workflowInput = {
+        input: formData,
+        ...formData, // Spread form fields at top level for convenience
+      }
+
+      const stream = await createStreamingResponse({
+        requestId,
+        streamConfig: {
+          selectedOutputs: [],
+          isSecureMode: true,
+          workflowTriggerType: 'api',
+        },
+        executionId,
+        executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
+          executeWorkflow(
+            workflowForExecution,
+            requestId,
+            workflowInput,
+            workspaceOwnerId,
+            {
+              enabled: true,
+              selectedOutputs: [],
+              isSecureMode: true,
+              workflowTriggerType: 'api',
+              onStream,
+              onBlockComplete,
+              skipLoggingComplete: true,
+              abortSignal,
+              executionMode: 'sync',
+            },
+            executionId
           ),
-          request
-        )
-      }
+      })
 
-      const { actorUserId, workflowRecord } = preprocessResult
-      const workspaceOwnerId = actorUserId!
-      const workspaceId = workflowRecord?.workspaceId
-      if (!workspaceId) {
-        logger.error(`[${requestId}] Workflow ${deployment.workflowId} has no workspaceId`)
-        return addCorsHeaders(
-          createErrorResponse('Workflow has no associated workspace', 500),
-          request
-        )
-      }
-
+      const reader = stream.getReader()
       try {
-        const workflowForExecution = {
-          id: deployment.workflowId,
-          userId: deployment.userId,
-          workspaceId,
-          isDeployed: workflowRecord?.isDeployed ?? false,
-          variables: (workflowRecord?.variables ?? {}) as Record<string, unknown>,
-        }
-
-        // Pass form data as the workflow input
-        const workflowInput = {
-          input: formData,
-          ...formData, // Spread form fields at top level for convenience
-        }
-
-        // Execute workflow using streaming (for consistency with chat)
-        const stream = await createStreamingResponse({
-          requestId,
-          workflow: workflowForExecution,
-          input: workflowInput,
-          executingUserId: workspaceOwnerId,
-          streamConfig: {
-            selectedOutputs: [],
-            isSecureMode: true,
-            workflowTriggerType: 'api', // Use 'api' type since form is similar
-          },
-          executionId,
-        })
-
-        // For forms, we don't stream back - we wait for completion and return success
-        // Consume the stream to wait for completion
-        const reader = stream.getReader()
-        let lastOutput: any = null
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-
-            // Parse SSE data if present
-            const text = new TextDecoder().decode(value)
-            const lines = text.split('\n')
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.slice(6))
-                  if (data.type === 'complete' || data.output) {
-                    lastOutput = data.output || data
-                  }
-                } catch {
-                  // Ignore parse errors
-                }
-              }
-            }
-          }
-        } finally {
-          reader.releaseLock()
+        while (!(await reader.read()).done) {
+          /* drain to let the workflow run to completion */
         }
 
         logger.info(`[${requestId}] Form submission successful for ${identifier}`)

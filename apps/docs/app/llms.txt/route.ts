@@ -1,9 +1,10 @@
 import { source } from '@/lib/source'
+import { DOCS_BASE_URL } from '@/lib/urls'
 
 export const revalidate = false
 
 export async function GET() {
-  const baseUrl = 'https://docs.sim.ai'
+  const baseUrl = DOCS_BASE_URL
 
   try {
     const pages = source.getPages().filter((page) => {
@@ -37,9 +38,9 @@ export async function GET() {
 
     const manifest = `# Sim Documentation
 
-> The open-source platform to build AI agents and run your agentic workforce.
+> The open-source AI workspace where teams build, deploy, and manage AI agents.
 
-Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs. Trusted by over 100,000 builders.
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work — visually, conversationally, or with code. Trusted by over 100,000 builders.
 
 ## Documentation Overview
 
@@ -61,7 +62,7 @@ ${Object.entries(sections)
 
 - Full documentation content: ${baseUrl}/llms-full.txt
 - Individual page content: ${baseUrl}/llms.mdx/[page-path]
-- API documentation: ${baseUrl}/sdks/
+- API documentation: ${baseUrl}/api-reference/
 - Tool integrations: ${baseUrl}/tools/
 
 ## Statistics

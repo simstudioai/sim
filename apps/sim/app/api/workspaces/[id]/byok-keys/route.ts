@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -8,8 +9,6 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateShortId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
@@ -229,6 +228,20 @@ export const POST = withRouteHandler(
         resourceId: newKey.id,
         resourceName: providerId,
         description: `Added BYOK key for ${providerId}`,
+        metadata: { providerId },
+        request,
+      })
+
+      recordAudit({
+        workspaceId,
+        actorId: userId,
+        actorName: session?.user?.name,
+        actorEmail: session?.user?.email,
+        action: AuditAction.BYOK_KEY_UPDATED,
+        resourceType: AuditResourceType.BYOK_KEY,
+        resourceId: existingKey[0].id,
+        resourceName: providerId,
+        description: `Updated BYOK key for ${providerId}`,
         metadata: { providerId },
         request,
       })

@@ -6,12 +6,11 @@ import {
   organization,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 
 const logger = createLogger('CredentialSetInviteToken')
@@ -187,18 +186,23 @@ export const POST = withRouteHandler(
         userId: session.user.id,
       })
 
-      recordAudit({
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.CREDENTIAL_SET_INVITATION_ACCEPTED,
-        resourceType: AuditResourceType.CREDENTIAL_SET,
-        resourceId: invitation.credentialSetId,
-        resourceName: invitation.credentialSetName,
-        description: `Accepted credential set invitation`,
-        metadata: { invitationId: invitation.id },
-        request: req,
-      })
+    recordAudit({
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CREDENTIAL_SET_INVITATION_ACCEPTED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
+      resourceId: invitation.credentialSetId,
+      resourceName: invitation.credentialSetName,
+      description: `Accepted credential set invitation`,
+      metadata: {
+        invitationId: invitation.id,
+        credentialSetId: invitation.credentialSetId,
+        providerId: invitation.providerId,
+        credentialSetName: invitation.credentialSetName,
+      },
+      request: req,
+    })
 
       return NextResponse.json({
         success: true,

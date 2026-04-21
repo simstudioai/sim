@@ -11,7 +11,7 @@ export const describeLogStreamsTool: ToolConfig<
   id: 'cloudwatch_describe_log_streams',
   name: 'CloudWatch Describe Log Streams',
   description: 'List log streams within a CloudWatch log group',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

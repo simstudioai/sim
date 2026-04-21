@@ -1,12 +1,24 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
+import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import type { UserTableArgs, UserTableResult } from '@/lib/copilot/tools/shared/schemas'
-import { generateId } from '@/lib/core/utils/uuid'
-import { COLUMN_TYPES } from '@/lib/table/constants'
+import {
+  buildAutoMapping,
+  COLUMN_TYPES,
+  CSV_MAX_BATCH_SIZE,
+  type CsvHeaderMapping,
+  CsvImportValidationError,
+  coerceRowsForTable,
+  inferSchemaFromCsv,
+  parseCsvBuffer,
+  sanitizeName,
+  validateMapping,
+} from '@/lib/table'
 import {
   addTableColumn,
   batchInsertRows,
@@ -24,12 +36,13 @@ import {
   queryRows,
   renameColumn,
   renameTable,
+  replaceTableRows,
   updateColumnConstraints,
   updateColumnType,
   updateRow,
   updateRowsByFilter,
 } from '@/lib/table/service'
-import type { ColumnDefinition, RowData, TableDefinition } from '@/lib/table/types'
+import type { RowData, TableDefinition } from '@/lib/table/types'
 import {
   downloadWorkspaceFile,
   resolveWorkspaceFileReference,
@@ -37,22 +50,38 @@ import {
 
 const logger = createLogger('UserTableServerTool')
 
-const MAX_BATCH_SIZE = 1000
-const SCHEMA_SAMPLE_SIZE = 100
-
-type ColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
-
-function sanitizeColumnName(raw: string): string {
-  let name = raw
-    .trim()
-    .replace(/[^a-zA-Z0-9_]/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '')
-  if (!name || /^\d/.test(name)) name = `col_${name}`
-  return name
+type UserTableArgs = {
+  operation: string
+  args?: Record<string, any>
 }
 
-function sanitizeHeaders(
+type UserTableResult = {
+  success: boolean
+  message: string
+  data?: any
+}
+
+const MAX_BATCH_SIZE = CSV_MAX_BATCH_SIZE
+
+async function resolveWorkspaceFile(
+  fileReference: string,
+  workspaceId: string
+): Promise<{ buffer: Buffer; name: string; type: string }> {
+  const record = await resolveWorkspaceFileReference(workspaceId, fileReference)
+  if (!record) {
+    throw new Error(
+      `File not found: "${fileReference}". Use glob("files/by-id/*/meta.json") to list canonical file IDs.`
+    )
+  }
+  const buffer = await downloadWorkspaceFile(record)
+  return { buffer, name: record.name, type: record.type }
+}
+
+/**
+ * Sanitizes raw JSON headers/rows so they conform to the same rules as CSV
+ * imports (so `inferSchemaFromCsv` and friends can be reused).
+ */
+function sanitizeJsonHeaders(
   headers: string[],
   rows: Record<string, unknown>[]
 ): { headers: string[]; rows: Record<string, unknown>[] } {
@@ -60,7 +89,7 @@ function sanitizeHeaders(
   const seen = new Set<string>()
 
   for (const raw of headers) {
-    let safe = sanitizeColumnName(raw)
+    let safe = sanitizeName(raw)
     while (seen.has(safe)) safe = `${safe}_`
     seen.add(safe)
     renamed.set(raw, safe)
@@ -81,35 +110,6 @@ function sanitizeHeaders(
   }
 }
 
-async function resolveWorkspaceFile(
-  fileReference: string,
-  workspaceId: string
-): Promise<{ buffer: Buffer; name: string; type: string }> {
-  const record = await resolveWorkspaceFileReference(workspaceId, fileReference)
-  if (!record) {
-    throw new Error(
-      `File not found: "${fileReference}". Use glob("files/by-id/*/meta.json") to list canonical file IDs.`
-    )
-  }
-  const buffer = await downloadWorkspaceFile(record)
-  return { buffer, name: record.name, type: record.type }
-}
-
-function parseFileRows(
-  buffer: Buffer,
-  fileName: string,
-  contentType: string
-): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
-  const ext = fileName.split('.').pop()?.toLowerCase()
-  if (ext === 'json' || contentType === 'application/json') {
-    return parseJsonRows(buffer)
-  }
-  if (ext === 'csv' || ext === 'tsv' || contentType === 'text/csv') {
-    return parseCsvRows(buffer)
-  }
-  throw new Error(`Unsupported file format: "${ext}". Supported: csv, tsv, json`)
-}
-
 async function parseJsonRows(
   buffer: Buffer
 ): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
@@ -127,98 +127,23 @@ async function parseJsonRows(
     }
     for (const key of Object.keys(row)) headerSet.add(key)
   }
-  return sanitizeHeaders([...headerSet], parsed)
+  return sanitizeJsonHeaders([...headerSet], parsed)
 }
 
-async function parseCsvRows(
-  buffer: Buffer
+async function parseFileRows(
+  buffer: Buffer,
+  fileName: string,
+  contentType: string
 ): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
-  const { parse } = await import('csv-parse/sync')
-  const parsed = parse(buffer.toString('utf-8'), {
-    columns: true,
-    skip_empty_lines: true,
-    trim: true,
-    relax_column_count: true,
-    relax_quotes: true,
-    skip_records_with_error: true,
-    cast: false,
-  }) as Record<string, unknown>[]
-  if (parsed.length === 0) {
-    throw new Error('CSV file has no data rows')
+  const ext = fileName.split('.').pop()?.toLowerCase()
+  if (ext === 'json' || contentType === 'application/json') {
+    return parseJsonRows(buffer)
   }
-  const headers = Object.keys(parsed[0])
-  if (headers.length === 0) {
-    throw new Error('CSV file has no headers')
+  if (ext === 'csv' || ext === 'tsv' || contentType === 'text/csv') {
+    const delimiter = ext === 'tsv' ? '\t' : ','
+    return parseCsvBuffer(buffer, delimiter)
   }
-  return sanitizeHeaders(headers, parsed)
-}
-
-function inferColumnType(values: unknown[]): ColumnType {
-  const nonEmpty = values.filter((v) => v !== null && v !== undefined && v !== '')
-  if (nonEmpty.length === 0) return 'string'
-
-  const allNumber = nonEmpty.every((v) => {
-    const n = Number(v)
-    return !Number.isNaN(n) && String(v).trim() !== ''
-  })
-  if (allNumber) return 'number'
-
-  const allBoolean = nonEmpty.every((v) => {
-    const s = String(v).toLowerCase()
-    return s === 'true' || s === 'false'
-  })
-  if (allBoolean) return 'boolean'
-
-  const isoDatePattern = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?/
-  const allDate = nonEmpty.every((v) => {
-    const s = String(v)
-    return isoDatePattern.test(s) && !Number.isNaN(Date.parse(s))
-  })
-  if (allDate) return 'date'
-
-  return 'string'
-}
-
-function inferSchema(headers: string[], rows: Record<string, unknown>[]): ColumnDefinition[] {
-  const sample = rows.slice(0, SCHEMA_SAMPLE_SIZE)
-  return headers.map((name) => ({
-    name,
-    type: inferColumnType(sample.map((r) => r[name])),
-  }))
-}
-
-function coerceValue(value: unknown, colType: ColumnType): string | number | boolean | null {
-  if (value === null || value === undefined || value === '') return null
-  switch (colType) {
-    case 'number': {
-      const n = Number(value)
-      return Number.isNaN(n) ? null : n
-    }
-    case 'boolean': {
-      const s = String(value).toLowerCase()
-      return s === 'true'
-    }
-    case 'date':
-      return new Date(String(value)).toISOString()
-    default:
-      return String(value)
-  }
-}
-
-function coerceRows(
-  rows: Record<string, unknown>[],
-  columns: ColumnDefinition[],
-  columnMap: Map<string, ColumnDefinition>
-): RowData[] {
-  return rows.map((row) => {
-    const coerced: RowData = {}
-    for (const col of columns) {
-      if (row[col.name] !== undefined) {
-        coerced[col.name] = coerceValue(row[col.name], col.type as ColumnType)
-      }
-    }
-    return coerced
-  })
+  throw new Error(`Unsupported file format: "${ext}". Supported: csv, tsv, json`)
 }
 
 async function batchInsertAll(
@@ -229,20 +154,26 @@ async function batchInsertAll(
   context?: ServerToolContext
 ): Promise<number> {
   let inserted = 0
+  const userId = context?.userId
   for (let i = 0; i < rows.length; i += MAX_BATCH_SIZE) {
     assertServerToolNotAborted(context, 'Request aborted before table mutation could be applied.')
     const batch = rows.slice(i, i + MAX_BATCH_SIZE)
     const requestId = generateId().slice(0, 8)
-    const result = await batchInsertRows({ tableId, rows: batch, workspaceId }, table, requestId)
+    const result = await batchInsertRows(
+      { tableId, rows: batch, workspaceId, userId },
+      table,
+      requestId
+    )
     inserted += result.length
   }
   return inserted
 }
 
 export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult> = {
-  name: 'user_table',
+  name: UserTable.id,
   async execute(params: UserTableArgs, context?: ServerToolContext): Promise<UserTableResult> {
-    const reqLogger = logger.withMetadata({ messageId: context?.messageId })
+    const withMessageId = (message: string) =>
+      context?.messageId ? `${message} [messageId:${context.messageId}]` : message
 
     if (!context?.userId) {
       logger.error('Unauthorized attempt to access user table - no authenticated user context')
@@ -323,28 +254,33 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
         }
 
         case 'delete': {
-          if (!args.tableId) {
-            return { success: false, message: 'Table ID is required' }
+          const tableIds: string[] = args.tableIds ?? (args.tableId ? [args.tableId] : [])
+          if (tableIds.length === 0) {
+            return { success: false, message: 'tableId or tableIds is required' }
           }
           if (!workspaceId) {
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const table = await getTableById(args.tableId)
-          if (!table) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-          if (table.workspaceId !== workspaceId) {
-            return { success: false, message: 'Table not found' }
-          }
+          const deleted: string[] = []
+          const failed: string[] = []
 
-          const requestId = generateId().slice(0, 8)
-          assertNotAborted()
-          await deleteTable(args.tableId, requestId)
+          for (const tableId of tableIds) {
+            const table = await getTableById(tableId)
+            if (!table || table.workspaceId !== workspaceId) {
+              failed.push(tableId)
+              continue
+            }
+
+            const requestId = generateId().slice(0, 8)
+            assertNotAborted()
+            await deleteTable(tableId, requestId)
+            deleted.push(tableId)
+          }
 
           return {
-            success: true,
-            message: `Deleted table ${args.tableId}`,
+            success: deleted.length > 0,
+            message: `Deleted ${deleted.length} table(s)${failed.length > 0 ? `, ${failed.length} not found` : ''}`,
           }
         }
 
@@ -367,7 +303,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const row = await insertRow(
-            { tableId: args.tableId, data: args.data, workspaceId },
+            { tableId: args.tableId, data: args.data, workspaceId, userId: context.userId },
             table,
             requestId
           )
@@ -398,7 +334,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const rows = await batchInsertRows(
-            { tableId: args.tableId, rows: args.rows, workspaceId },
+            { tableId: args.tableId, rows: args.rows, workspaceId, userId: context.userId },
             table,
             requestId
           )
@@ -707,7 +643,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'File contains no data rows' }
           }
 
-          const columns = inferSchema(headers, rows)
+          const { columns, headerToColumn } = inferSchemaFromCsv(headers, rows)
           const tableName = args.name || file.name.replace(/\.[^.]+$/, '')
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
@@ -722,11 +658,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             requestId
           )
 
-          const columnMap = new Map(columns.map((c) => [c.name, c]))
-          const coerced = coerceRows(rows, columns, columnMap)
+          const coerced = coerceRowsForTable(rows, { columns }, headerToColumn)
           const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
 
-          reqLogger.info('Table created from file', {
+          logger.info('Table created from file', {
             tableId: table.id,
             fileName: file.name,
             columns: columns.length,
@@ -752,6 +687,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const filePath = (args as Record<string, unknown>).filePath as string | undefined
           const tableId = (args as Record<string, unknown>).tableId as string | undefined
           const fileReference = fileId || filePath
+          const rawMode = (args as Record<string, unknown>).mode as string | undefined
+          const rawMapping = (args as Record<string, unknown>).mapping as
+            | CsvHeaderMapping
+            | undefined
           if (!fileReference) {
             return {
               success: false,
@@ -765,10 +704,20 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!workspaceId) {
             return { success: false, message: 'Workspace ID is required' }
           }
+          if (rawMode && rawMode !== 'append' && rawMode !== 'replace') {
+            return {
+              success: false,
+              message: `Invalid mode "${rawMode}". Must be "append" or "replace".`,
+            }
+          }
+          const mode: 'append' | 'replace' = rawMode === 'replace' ? 'replace' : 'append'
 
           const table = await getTableById(tableId)
-          if (!table) {
+          if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${tableId}` }
+          }
+          if (table.archivedAt) {
+            return { success: false, message: `Table is archived: ${tableId}` }
           }
 
           const file = await resolveWorkspaceFile(fileReference, workspaceId)
@@ -777,47 +726,86 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'File contains no data rows' }
           }
 
-          const tableColumns = table.schema.columns as ColumnDefinition[]
-          const tableColNames = new Set(tableColumns.map((c) => c.name))
-          const mappedHeaders = headers.filter((h) => tableColNames.has(h))
-          if (mappedHeaders.length === 0) {
+          const mapping: CsvHeaderMapping = rawMapping ?? buildAutoMapping(headers, table.schema)
+
+          let validation: ReturnType<typeof validateMapping>
+          try {
+            validation = validateMapping({
+              csvHeaders: headers,
+              mapping,
+              tableSchema: table.schema,
+            })
+          } catch (err) {
+            if (err instanceof CsvImportValidationError) {
+              return { success: false, message: err.message }
+            }
+            throw err
+          }
+
+          if (validation.mappedHeaders.length === 0) {
             return {
               success: false,
-              message: `No matching columns between file (${headers.join(', ')}) and table (${tableColumns.map((c) => c.name).join(', ')})`,
+              message: `No matching columns between file (${headers.join(', ')}) and table (${table.schema.columns.map((c) => c.name).join(', ')})`,
             }
           }
 
-          const requiredMissing = tableColumns
-            .filter((c) => c.required && !headers.includes(c.name))
-            .map((c) => c.name)
-          if (requiredMissing.length > 0) {
+          const coerced = coerceRowsForTable(rows, table.schema, validation.effectiveMap)
+
+          if (mode === 'replace') {
+            assertNotAborted()
+            const requestId = generateId().slice(0, 8)
+            const result = await replaceTableRows(
+              { tableId: table.id, rows: coerced, workspaceId, userId: context.userId },
+              table,
+              requestId
+            )
+
+            logger.info('Rows replaced from file', {
+              tableId: table.id,
+              fileName: file.name,
+              mode,
+              matchedColumns: validation.mappedHeaders.length,
+              deleted: result.deletedCount,
+              inserted: result.insertedCount,
+              userId: context.userId,
+            })
+
             return {
-              success: false,
-              message: `File is missing required columns: ${requiredMissing.join(', ')}`,
+              success: true,
+              message: `Replaced rows in "${table.name}" from "${file.name}": deleted ${result.deletedCount}, inserted ${result.insertedCount}`,
+              data: {
+                tableId: table.id,
+                tableName: table.name,
+                mode,
+                matchedColumns: validation.mappedHeaders,
+                skippedColumns: validation.skippedHeaders,
+                deletedCount: result.deletedCount,
+                insertedCount: result.insertedCount,
+                sourceFile: file.name,
+              },
             }
           }
 
-          const columnMap = new Map(tableColumns.map((c) => [c.name, c]))
-          const matchedColumns = tableColumns.filter((c) => headers.includes(c.name))
-          const coerced = coerceRows(rows, matchedColumns, columnMap)
           const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
 
-          reqLogger.info('Rows imported from file', {
+          logger.info('Rows imported from file', {
             tableId: table.id,
             fileName: file.name,
-            matchedColumns: mappedHeaders.length,
+            mode,
+            matchedColumns: validation.mappedHeaders.length,
             rows: inserted,
             userId: context.userId,
           })
 
           return {
             success: true,
-            message: `Imported ${inserted} rows into "${table.name}" from "${file.name}" (${mappedHeaders.length} columns matched)`,
+            message: `Imported ${inserted} rows into "${table.name}" from "${file.name}" (${validation.mappedHeaders.length} columns matched)`,
             data: {
               tableId: table.id,
               tableName: table.name,
-              matchedColumns: mappedHeaders,
-              skippedColumns: headers.filter((h) => !tableColNames.has(h)),
+              mode,
+              matchedColumns: validation.mappedHeaders,
+              skippedColumns: validation.skippedHeaders,
               rowCount: inserted,
               sourceFile: file.name,
             },
@@ -993,14 +981,9 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return { success: false, message: `Unknown operation: ${operation}` }
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      const cause =
-        error instanceof Error && error.cause
-          ? error.cause instanceof Error
-            ? error.cause.message
-            : String(error.cause)
-          : undefined
-      reqLogger.error('Table operation failed', {
+      const errorMessage = toError(error).message
+      const cause = error instanceof Error && error.cause ? toError(error.cause).message : undefined
+      logger.error('Table operation failed', {
         operation,
         error: errorMessage,
         cause,

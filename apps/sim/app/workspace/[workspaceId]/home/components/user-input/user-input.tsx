@@ -1,7 +1,16 @@
 'use client'
 
 import type React from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useParams } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
@@ -26,6 +35,7 @@ import {
 import type {
   FileAttachmentForApi,
   MothershipResource,
+  QueuedMessage,
 } from '@/app/workspace/[workspaceId]/home/types'
 import {
   useContextManagement,
@@ -39,6 +49,7 @@ import {
   extractContextTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSpeechToText } from '@/hooks/use-speech-to-text'
 import type { ChatContext } from '@/stores/panel'
 
@@ -90,8 +101,6 @@ function getCaretAnchor(
 
 interface UserInputProps {
   defaultValue?: string
-  editValue?: string
-  onEditValueConsumed?: () => void
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
@@ -103,23 +112,31 @@ interface UserInputProps {
   userId?: string
   onContextAdd?: (context: ChatContext) => void
   onContextRemove?: (context: ChatContext) => void
-  onEnterWhileEmpty?: () => boolean
+  onSendQueuedHead?: () => void
+  onEditQueuedTail?: () => void
 }
 
-export function UserInput({
-  defaultValue = '',
-  editValue,
-  onEditValueConsumed,
-  onSubmit,
-  isSending,
-  onStopGeneration,
-  isInitialView = true,
-  userId,
-  onContextAdd,
-  onContextRemove,
-  onEnterWhileEmpty,
-}: UserInputProps) {
+export interface UserInputHandle {
+  loadQueuedMessage: (msg: QueuedMessage) => void
+}
+
+export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
+  {
+    defaultValue = '',
+    onSubmit,
+    isSending,
+    onStopGeneration,
+    isInitialView = true,
+    userId,
+    onContextAdd,
+    onContextRemove,
+    onSendQueuedHead,
+    onEditQueuedTail,
+  },
+  ref
+) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { navigateToSettings } = useSettingsNavigation()
   const { data: workflowsById = {} } = useWorkflowMap(workspaceId)
   const { data: session } = useSession()
   const [value, setValue] = useState(defaultValue)
@@ -134,18 +151,6 @@ export function UserInput({
     setPrevDefaultValue(defaultValue)
   }
 
-  const [prevEditValue, setPrevEditValue] = useState(editValue)
-  if (editValue && editValue !== prevEditValue) {
-    setPrevEditValue(editValue)
-    setValue(editValue)
-  } else if (!editValue && prevEditValue) {
-    setPrevEditValue(editValue)
-  }
-
-  useEffect(() => {
-    if (editValue) onEditValueConsumed?.()
-  }, [editValue, onEditValueConsumed])
-
   const files = useFileAttachments({
     userId: userId || session?.user?.id,
     workspaceId,
@@ -153,6 +158,7 @@ export function UserInput({
     isLoading: isSending,
   })
   const hasFiles = files.attachedFiles.some((f) => !f.uploading && f.key)
+  const hasUploadingFiles = files.attachedFiles.some((f) => f.uploading)
 
   const contextManagement = useContextManagement({ message: value })
 
@@ -227,9 +233,10 @@ export function UserInput({
     setSelectedContexts: contextManagement.setSelectedContexts,
   })
 
-  const canSubmit = (value.trim().length > 0 || hasFiles) && !isSending
+  const canSubmit = (value.trim().length > 0 || hasFiles) && !isSending && !hasUploadingFiles
 
   const valueRef = useRef(value)
+  valueRef.current = value
   const sttPrefixRef = useRef('')
 
   const handleTranscript = useCallback((text: string) => {
@@ -239,12 +246,19 @@ export function UserInput({
     valueRef.current = newVal
   }, [])
 
+  const handleUsageLimitExceeded = useCallback(() => {
+    navigateToSettings({ section: 'subscription' })
+  }, [navigateToSettings])
+
   const {
     isListening,
     isSupported: isSttSupported,
     toggleListening: rawToggle,
     resetTranscript,
-  } = useSpeechToText({ onTranscript: handleTranscript })
+  } = useSpeechToText({
+    onTranscript: handleTranscript,
+    onUsageLimitExceeded: handleUsageLimitExceeded,
+  })
 
   const toggleListening = useCallback(() => {
     if (!isListening) {
@@ -257,19 +271,45 @@ export function UserInput({
   filesRef.current = files
   const contextRef = useRef(contextManagement)
   contextRef.current = contextManagement
-  const onEnterWhileEmptyRef = useRef(onEnterWhileEmpty)
-  onEnterWhileEmptyRef.current = onEnterWhileEmpty
+  const onSendQueuedHeadRef = useRef(onSendQueuedHead)
+  onSendQueuedHeadRef.current = onSendQueuedHead
+  const onEditQueuedTailRef = useRef(onEditQueuedTail)
+  onEditQueuedTailRef.current = onEditQueuedTail
   const isSendingRef = useRef(isSending)
   isSendingRef.current = isSending
-
-  useEffect(() => {
-    valueRef.current = value
-  }, [value])
 
   const textareaRef = mentionMenu.textareaRef
   const wasSendingRef = useRef(false)
   const atInsertPosRef = useRef<number | null>(null)
   const pendingCursorRef = useRef<number | null>(null)
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      loadQueuedMessage: (msg: QueuedMessage) => {
+        setValue(msg.content)
+        const restored: AttachedFile[] = (msg.fileAttachments ?? []).map((a) => ({
+          id: a.id,
+          name: a.filename,
+          size: a.size,
+          type: a.media_type,
+          path: a.path ?? '',
+          key: a.key,
+          uploading: false,
+        }))
+        files.restoreAttachedFiles(restored)
+        contextManagement.setSelectedContexts(msg.contexts ?? [])
+        requestAnimationFrame(() => {
+          const textarea = textareaRef.current
+          if (!textarea) return
+          textarea.focus()
+          const end = textarea.value.length
+          textarea.setSelectionRange(end, end)
+        })
+      },
+    }),
+    [files.restoreAttachedFiles, contextManagement.setSelectedContexts, textareaRef]
+  )
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current
@@ -349,9 +389,8 @@ export function UserInput({
           }
           // Reset after batch so the next non-drop insert uses the cursor position
           atInsertPosRef.current = null
-        } catch {
-          // Invalid JSON — ignore
-        }
+        } catch {}
+        textareaRef.current?.focus()
         return
       }
       const resourceJson = e.dataTransfer.getData(SIM_RESOURCE_DRAG_TYPE)
@@ -362,14 +401,14 @@ export function UserInput({
           const resource = JSON.parse(resourceJson) as MothershipResource
           handleResourceSelect(resource)
           atInsertPosRef.current = null
-        } catch {
-          // Invalid JSON — ignore
-        }
+        } catch {}
+        textareaRef.current?.focus()
         return
       }
       filesRef.current.handleDrop(e)
+      requestAnimationFrame(() => textareaRef.current?.focus())
     },
-    [handleResourceSelect]
+    [handleResourceSelect, textareaRef]
   )
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -392,16 +431,27 @@ export function UserInput({
 
   useEffect(() => {
     if (wasSendingRef.current && !isSending) {
-      textareaRef.current?.focus()
+      const active = document.activeElement
+      const isEditingElsewhere =
+        active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement
+      if (!isEditingElsewhere) {
+        textareaRef.current?.focus()
+      }
     }
     wasSendingRef.current = isSending
   }, [isSending, textareaRef])
 
   useEffect(() => {
-    if (isInitialView) {
-      textareaRef.current?.focus()
-    }
-  }, [isInitialView, textareaRef])
+    const raf = window.requestAnimationFrame(() => {
+      const active = document.activeElement
+      const isEditingElsewhere =
+        active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement
+      if (!isEditingElsewhere) {
+        textareaRef.current?.focus()
+      }
+    })
+    return () => window.cancelAnimationFrame(raf)
+  }, [textareaRef])
 
   const handleContainerClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -424,6 +474,7 @@ export function UserInput({
         filename: f.name,
         media_type: f.type,
         size: f.size,
+        ...(f.path ? { path: f.path } : {}),
       }))
 
     onSubmit(
@@ -436,6 +487,7 @@ export function UserInput({
     sttPrefixRef.current = ''
     resetTranscript()
     currentFiles.clearAttachedFiles()
+    prevSelectedContextsRef.current = []
     currentContext.clearContexts()
 
     if (textareaRef.current) {
@@ -445,10 +497,26 @@ export function UserInput({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'ArrowUp' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const isEmpty = valueRef.current.length === 0 && filesRef.current.attachedFiles.length === 0
+        if (isEmpty && onEditQueuedTailRef.current) {
+          e.preventDefault()
+          onEditQueuedTailRef.current()
+          return
+        }
+      }
+
       if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
         e.preventDefault()
-        if (isSendingRef.current && !valueRef.current.trim()) {
-          onEnterWhileEmptyRef.current?.()
+        // Mirror canSubmit's uploading guard; Enter reads refs, not rendered state.
+        if (filesRef.current.attachedFiles.some((f) => f.uploading)) return
+        const hasSubmitPayload =
+          valueRef.current.trim().length > 0 ||
+          filesRef.current.attachedFiles.some((file) => !file.uploading && file.key)
+        if (!hasSubmitPayload) {
+          if (isSendingRef.current) {
+            onSendQueuedHeadRef.current?.()
+          }
           return
         }
         handleSubmit()
@@ -751,4 +819,4 @@ export function UserInput({
       {files.isDragging && <DropOverlay />}
     </div>
   )
-}
+})

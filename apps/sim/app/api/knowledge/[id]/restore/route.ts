@@ -76,5 +76,37 @@ export const POST = withRouteHandler(
         { status: 500 }
       )
     }
+
+    await restoreKnowledgeBase(id, requestId)
+
+    logger.info(`[${requestId}] Restored knowledge base ${id}`)
+
+    recordAudit({
+      workspaceId: kb.workspaceId,
+      actorId: auth.userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.KNOWLEDGE_BASE_RESTORED,
+      resourceType: AuditResourceType.KNOWLEDGE_BASE,
+      resourceId: id,
+      resourceName: kb.name,
+      description: `Restored knowledge base "${kb.name}"`,
+      metadata: {
+        knowledgeBaseName: kb.name,
+      },
+      request,
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    if (error instanceof KnowledgeBaseConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
+
+    logger.error(`[${requestId}] Error restoring knowledge base ${id}`, error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    )
   }
 )

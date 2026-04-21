@@ -1,17 +1,17 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, environment, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import {
+  deleteWorkspaceEnvCredentials,
   syncPersonalEnvCredentialsForUser,
-  syncWorkspaceEnvCredentials,
 } from '@/lib/credentials/environment'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -170,17 +170,31 @@ export const PUT = withRouteHandler(
       updates.updatedAt = new Date()
       await db.update(credential).set(updates).where(eq(credential.id, id))
 
-      const row = await getCredentialResponse(id, session.user.id)
-      return NextResponse.json({ credential: row }, { status: 200 })
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('unique')) {
-        return NextResponse.json(
-          { error: 'A service account credential with this name already exists in the workspace' },
-          { status: 409 }
-        )
-      }
-      logger.error('Failed to update credential', error)
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    recordAudit({
+      workspaceId: access.credential.workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CREDENTIAL_UPDATED,
+      resourceType: AuditResourceType.CREDENTIAL,
+      resourceId: id,
+      resourceName: access.credential.displayName,
+      description: `Updated ${access.credential.type} credential "${access.credential.displayName}"`,
+      metadata: {
+        credentialType: access.credential.type,
+        updatedFields: Object.keys(updates).filter((k) => k !== 'updatedAt'),
+      },
+      request,
+    })
+
+    const row = await getCredentialResponse(id, session.user.id)
+    return NextResponse.json({ credential: row }, { status: 200 })
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('unique')) {
+      return NextResponse.json(
+        { error: 'A service account credential with this name already exists in the workspace' },
+        { status: 409 }
+      )
     }
   }
 )
@@ -252,7 +266,51 @@ export const DELETE = withRouteHandler(
           { groups: { workspace: access.credential.workspaceId } }
         )
 
-        return NextResponse.json({ success: true }, { status: 200 })
+      captureServerEvent(
+        session.user.id,
+        'credential_deleted',
+        {
+          credential_type: 'env_personal',
+          provider_id: access.credential.envKey,
+          workspace_id: access.credential.workspaceId,
+        },
+        { groups: { workspace: access.credential.workspaceId } }
+      )
+
+      recordAudit({
+        workspaceId: access.credential.workspaceId,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.CREDENTIAL_DELETED,
+        resourceType: AuditResourceType.CREDENTIAL,
+        resourceId: id,
+        resourceName: access.credential.displayName,
+        description: `Deleted personal env credential "${access.credential.envKey}"`,
+        metadata: { credentialType: 'env_personal', envKey: access.credential.envKey },
+        request,
+      })
+
+      return NextResponse.json({ success: true }, { status: 200 })
+    }
+
+    if (access.credential.type === 'env_workspace' && access.credential.envKey) {
+      const [workspaceRow] = await db
+        .select({
+          id: workspaceEnvironment.id,
+          createdAt: workspaceEnvironment.createdAt,
+          variables: workspaceEnvironment.variables,
+        })
+        .from(workspaceEnvironment)
+        .where(eq(workspaceEnvironment.workspaceId, access.credential.workspaceId))
+        .limit(1)
+
+      const current = ((workspaceRow?.variables as Record<string, string> | null) ?? {}) as Record<
+        string,
+        string
+      >
+      if (access.credential.envKey in current) {
+        delete current[access.credential.envKey]
       }
 
       if (access.credential.type === 'env_workspace' && access.credential.envKey) {
@@ -292,21 +350,10 @@ export const DELETE = withRouteHandler(
           actingUserId: session.user.id,
         })
 
-        captureServerEvent(
-          session.user.id,
-          'credential_deleted',
-          {
-            credential_type: 'env_workspace',
-            provider_id: access.credential.envKey,
-            workspace_id: access.credential.workspaceId,
-          },
-          { groups: { workspace: access.credential.workspaceId } }
-        )
-
-        return NextResponse.json({ success: true }, { status: 200 })
-      }
-
-      await db.delete(credential).where(eq(credential.id, id))
+      await deleteWorkspaceEnvCredentials({
+        workspaceId: access.credential.workspaceId,
+        removedKeys: [access.credential.envKey],
+      })
 
       captureServerEvent(
         session.user.id,
@@ -319,10 +366,59 @@ export const DELETE = withRouteHandler(
         { groups: { workspace: access.credential.workspaceId } }
       )
 
+      recordAudit({
+        workspaceId: access.credential.workspaceId,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.CREDENTIAL_DELETED,
+        resourceType: AuditResourceType.CREDENTIAL,
+        resourceId: id,
+        resourceName: access.credential.displayName,
+        description: `Deleted workspace env credential "${access.credential.envKey}"`,
+        metadata: { credentialType: 'env_workspace', envKey: access.credential.envKey },
+        request,
+      })
+
       return NextResponse.json({ success: true }, { status: 200 })
     } catch (error) {
       logger.error('Failed to delete credential', error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
+
+    await db.delete(credential).where(eq(credential.id, id))
+
+    captureServerEvent(
+      session.user.id,
+      'credential_deleted',
+      {
+        credential_type: access.credential.type as 'oauth' | 'service_account',
+        provider_id: access.credential.providerId ?? id,
+        workspace_id: access.credential.workspaceId,
+      },
+      { groups: { workspace: access.credential.workspaceId } }
+    )
+
+    recordAudit({
+      workspaceId: access.credential.workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CREDENTIAL_DELETED,
+      resourceType: AuditResourceType.CREDENTIAL,
+      resourceId: id,
+      resourceName: access.credential.displayName,
+      description: `Deleted ${access.credential.type} credential "${access.credential.displayName}"`,
+      metadata: {
+        credentialType: access.credential.type,
+        providerId: access.credential.providerId,
+      },
+      request,
+    })
+
+    return NextResponse.json({ success: true }, { status: 200 })
+  } catch (error) {
+    logger.error('Failed to delete credential', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 )

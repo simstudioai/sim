@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { OutputConfig } from '@/stores/chat/types'
 import { deploymentKeys } from './deployments'
 
@@ -12,12 +12,184 @@ export const chatKeys = {
   all: ['chats'] as const,
   status: deploymentKeys.chatStatus,
   detail: deploymentKeys.chatDetail,
+  configs: () => [...chatKeys.all, 'config'] as const,
+  config: (identifier?: string) => [...chatKeys.configs(), identifier ?? ''] as const,
 }
 
 /**
  * Auth types for chat access control
  */
 export type AuthType = 'public' | 'password' | 'email' | 'sso'
+
+/**
+ * Deployed chat configuration returned from the public chat endpoint
+ */
+export interface DeployedChatConfig {
+  id: string
+  title: string
+  description: string
+  customizations: {
+    primaryColor?: string
+    logoUrl?: string
+    imageUrl?: string
+    welcomeMessage?: string
+    headerText?: string
+  }
+  authType?: AuthType
+  outputConfigs?: Array<{ blockId: string; path?: string }>
+}
+
+/**
+ * Result of loading a deployed chat's configuration.
+ * When the endpoint responds 401 with an auth_required_* error, the query
+ * succeeds with `kind: 'auth'` so consumers can render the auth form without
+ * treating it as a fetch error.
+ */
+export type DeployedChatConfigResult =
+  | { kind: 'config'; config: DeployedChatConfig }
+  | { kind: 'auth'; authType: 'password' | 'email' | 'sso' }
+
+const AUTH_ERROR_MAP: Record<string, 'password' | 'email' | 'sso'> = {
+  auth_required_password: 'password',
+  auth_required_email: 'email',
+  auth_required_sso: 'sso',
+}
+
+async function fetchDeployedChatConfig(
+  identifier: string,
+  signal?: AbortSignal
+): Promise<DeployedChatConfigResult> {
+  const response = await fetch(`/api/chat/${identifier}`, {
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    signal,
+  })
+
+  if (response.status === 401) {
+    const errorData = await response.json().catch(() => ({}))
+    const authType = AUTH_ERROR_MAP[errorData?.error]
+    if (authType) {
+      return { kind: 'auth', authType }
+    }
+    throw new Error('Unauthorized')
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to load chat configuration: ${response.status}`)
+  }
+
+  const config = (await response.json()) as DeployedChatConfig
+  return { kind: 'config', config }
+}
+
+/**
+ * Loads the public chat configuration for a deployed chat identifier.
+ * Resolves to `{ kind: 'auth', authType }` when the chat requires
+ * password/email/SSO gating so the consumer can render the appropriate form.
+ */
+export function useDeployedChatConfig(identifier: string) {
+  return useQuery({
+    queryKey: chatKeys.config(identifier),
+    queryFn: ({ signal }) => fetchDeployedChatConfig(identifier, signal),
+    enabled: Boolean(identifier),
+    staleTime: 60 * 1000,
+    retry: false,
+  })
+}
+
+async function postChatAuth(
+  identifier: string,
+  body: Record<string, unknown>
+): Promise<DeployedChatConfig> {
+  const response = await fetch(`/api/chat/${identifier}`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData?.error || 'Authentication failed')
+  }
+
+  return (await response.json()) as DeployedChatConfig
+}
+
+/**
+ * Authenticates against a password-gated deployed chat. On success, seeds the
+ * config query cache with the returned chat config so the consumer can render
+ * the chat immediately without a follow-up GET.
+ */
+export function useChatPasswordAuth(identifier: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ password }: { password: string }) => postChatAuth(identifier, { password }),
+    onSuccess: (config) => {
+      queryClient.setQueryData<DeployedChatConfigResult>(chatKeys.config(identifier), {
+        kind: 'config',
+        config,
+      })
+    },
+  })
+}
+
+/**
+ * Requests a one-time passcode for an email-gated deployed chat.
+ * Used for both the initial send and resend flows.
+ */
+export function useChatEmailOtpRequest(identifier: string) {
+  return useMutation({
+    mutationFn: async ({ email }: { email: string }) => {
+      const response = await fetch(`/api/chat/${identifier}/otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ email }),
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData?.error || 'Failed to send verification code')
+      }
+    },
+  })
+}
+
+/**
+ * Verifies a one-time passcode for an email-gated deployed chat. On success,
+ * seeds the config query cache with the returned chat config.
+ */
+export function useChatEmailOtpVerify(identifier: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ email, otp }: { email: string; otp: string }) => {
+      const response = await fetch(`/api/chat/${identifier}/otp`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ email, otp }),
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData?.error || 'Invalid verification code')
+      }
+      return (await response.json()) as DeployedChatConfig
+    },
+    onSuccess: (config) => {
+      queryClient.setQueryData<DeployedChatConfigResult>(chatKeys.config(identifier), {
+        kind: 'config',
+        config,
+      })
+    },
+  })
+}
 
 /**
  * Form data for creating/updating a chat

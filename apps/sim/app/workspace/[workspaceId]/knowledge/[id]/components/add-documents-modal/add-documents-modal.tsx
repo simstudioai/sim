@@ -263,7 +263,8 @@ export function AddDocumentsModal({
                       {isDragging ? 'Drop files here' : 'Drop files here or click to browse'}
                     </span>
                     <span className='text-[var(--text-tertiary)] text-xs'>
-                      PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max 100MB each)
+                      PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB
+                      each)
                     </span>
                   </div>
                 </Button>

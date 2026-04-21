@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   McpDnsResolutionError,
   McpDomainNotAllowedError,
@@ -45,11 +45,7 @@ export const GET = withRouteHandler(withMcpAuth('read'))(
       return createMcpSuccessResponse({ servers })
     } catch (error) {
       logger.error(`[${requestId}] Error listing MCP servers:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to list MCP servers'),
-        'Failed to list MCP servers',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to list MCP servers', 500)
     }
   }
 )
@@ -207,18 +203,21 @@ export const POST = withRouteHandler(withMcpAuth('write'))(
         resourceId: serverId,
         resourceName: body.name,
         description: `Added MCP server "${body.name}"`,
-        metadata: { serverName: body.name, transport: body.transport },
+        metadata: {
+          serverName: body.name,
+          transport: body.transport,
+          url: body.url,
+          timeout: body.timeout || 30000,
+          retries: body.retries || 3,
+          source: source,
+        },
         request,
       })
 
       return createMcpSuccessResponse({ serverId }, 201)
     } catch (error) {
       logger.error(`[${requestId}] Error registering MCP server:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to register MCP server'),
-        'Failed to register MCP server',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to register MCP server', 500)
     }
   }
 )
@@ -279,17 +278,19 @@ export const DELETE = withRouteHandler(withMcpAuth('admin'))(
         resourceId: serverId!,
         resourceName: deletedServer.name,
         description: `Removed MCP server "${deletedServer.name}"`,
+        metadata: {
+          serverName: deletedServer.name,
+          transport: deletedServer.transport,
+          url: deletedServer.url,
+          source,
+        },
         request,
       })
 
       return createMcpSuccessResponse({ message: `Server ${serverId} deleted successfully` })
     } catch (error) {
       logger.error(`[${requestId}] Error deleting MCP server:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to delete MCP server'),
-        'Failed to delete MCP server',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to delete MCP server', 500)
     }
   }
 )

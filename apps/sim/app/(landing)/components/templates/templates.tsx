@@ -9,6 +9,7 @@ import { Badge, ChevronDown } from '@/components/emcn'
 import { LandingWorkflowSeedStorage } from '@/lib/core/utils/browser-storage'
 import { cn } from '@/lib/core/utils/cn'
 import { TEMPLATE_WORKFLOWS } from '@/app/(landing)/components/templates/template-workflows'
+import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 
 const logger = createLogger('LandingTemplates')
 
@@ -297,6 +298,11 @@ export default function Templates() {
       })
     } finally {
       setIsPreparingTemplate(false)
+      trackLandingCta({
+        label: activeWorkflow.name,
+        section: 'templates',
+        destination: '/signup',
+      })
       router.push('/signup')
     }
   }, [
@@ -464,7 +470,7 @@ export default function Templates() {
                 aria-labelledby={`template-tab-${activeIndex}`}
                 className='relative hidden flex-1 lg:block'
               >
-                <div aria-hidden='true' className='h-full'>
+                <div aria-hidden='true' inert className='h-full'>
                   <LandingPreviewWorkflow
                     key={activeIndex}
                     workflow={activeWorkflow}

@@ -28,7 +28,8 @@ import { subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
+import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -103,44 +104,31 @@ export const DELETE = withRouteHandler(
           cancel_at_period_end: true,
         })
 
-        // Update DB (webhooks don't sync cancelAtPeriodEnd)
-        await db
+    if (atPeriodEnd) {
+      await db.transaction(async (tx) => {
+        await tx
           .update(subscription)
           .set({ cancelAtPeriodEnd: true })
           .where(eq(subscription.id, subscriptionId))
 
-        logger.info('Admin API: Scheduled subscription cancellation at period end', {
+        await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+          stripeSubscriptionId: existing.stripeSubscriptionId,
+          subscriptionId: existing.id,
+          reason: reason ?? 'admin-cancel-at-period-end',
+        })
+      })
+
+      logger.info(
+        'Admin API: Scheduled subscription cancellation at period end (DB committed, Stripe queued)',
+        {
           subscriptionId,
           stripeSubscriptionId: existing.stripeSubscriptionId,
           plan: existing.plan,
           referenceId: existing.referenceId,
           periodEnd: existing.periodEnd,
           reason,
-        })
-
-        return singleResponse({
-          success: true,
-          message: 'Subscription scheduled to cancel at period end.',
-          subscriptionId,
-          stripeSubscriptionId: existing.stripeSubscriptionId,
-          atPeriodEnd: true,
-          periodEnd: existing.periodEnd?.toISOString() ?? null,
-        })
-      }
-
-      // Immediate cancellation
-      await stripe.subscriptions.cancel(existing.stripeSubscriptionId, {
-        prorate: true,
-        invoice_now: true,
-      })
-
-      logger.info('Admin API: Triggered immediate subscription cancellation on Stripe', {
-        subscriptionId,
-        stripeSubscriptionId: existing.stripeSubscriptionId,
-        plan: existing.plan,
-        referenceId: existing.referenceId,
-        reason,
-      })
+        }
+      )
 
       return singleResponse({
         success: true,
@@ -153,5 +141,35 @@ export const DELETE = withRouteHandler(
       logger.error('Admin API: Failed to cancel subscription', { error, subscriptionId })
       return internalErrorResponse('Failed to cancel subscription')
     }
-  })
-)
+
+    // Immediate cancellation — stays synchronous. Stripe's
+    // `customer.subscription.deleted` webhook triggers full cleanup
+    // (overage bill, usage reset, Pro restore, org delete) via
+    // `handleSubscriptionDeleted`, so no outbox needed here.
+    const stripe = requireStripeClient()
+    await stripe.subscriptions.cancel(
+      existing.stripeSubscriptionId,
+      { prorate: true, invoice_now: true },
+      { idempotencyKey: `admin-cancel:${existing.stripeSubscriptionId}` }
+    )
+
+    logger.info('Admin API: Triggered immediate subscription cancellation on Stripe', {
+      subscriptionId,
+      stripeSubscriptionId: existing.stripeSubscriptionId,
+      plan: existing.plan,
+      referenceId: existing.referenceId,
+      reason,
+    })
+
+    return singleResponse({
+      success: true,
+      message: 'Subscription cancellation triggered. Webhook will complete cleanup.',
+      subscriptionId,
+      stripeSubscriptionId: existing.stripeSubscriptionId,
+      atPeriodEnd: false,
+    })
+  } catch (error) {
+    logger.error('Admin API: Failed to cancel subscription', { error, subscriptionId })
+    return internalErrorResponse('Failed to cancel subscription')
+  }
+})

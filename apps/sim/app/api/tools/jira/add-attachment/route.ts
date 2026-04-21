@@ -6,7 +6,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
-import { getJiraCloudId } from '@/tools/jira/utils'
+import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('JiraAddAttachmentAPI')
 
@@ -78,7 +78,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json(
         {
           success: false,
-          error: `Failed to upload attachments: ${response.statusText}`,
+          error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
         },
         { status: response.status }
       )

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import {
   AirtableIcon,
   AsanaIcon,
@@ -33,6 +34,7 @@ import {
   MicrosoftPlannerIcon,
   MicrosoftSharepointIcon,
   MicrosoftTeamsIcon,
+  MondayIcon,
   NotionIcon,
   OutlookIcon,
   PipedriveIcon,
@@ -612,6 +614,29 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'linear',
+  },
+  monday: {
+    name: 'Monday.com',
+    icon: MondayIcon,
+    services: {
+      monday: {
+        name: 'Monday.com',
+        description: 'Manage boards, items, and groups in Monday.com.',
+        providerId: 'monday',
+        icon: MondayIcon,
+        baseProviderIcon: MondayIcon,
+        scopes: [
+          'boards:read',
+          'boards:write',
+          'updates:read',
+          'updates:write',
+          'webhooks:read',
+          'webhooks:write',
+          'me:read',
+        ],
+      },
+    },
+    defaultService: 'monday',
   },
   box: {
     name: 'Box',
@@ -1386,6 +1411,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         supportsRefreshTokenRotation: false,
       }
     }
+    case 'monday': {
+      const { clientId, clientSecret } = getCredentials(
+        env.MONDAY_CLIENT_ID,
+        env.MONDAY_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://auth.monday.com/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: false,
+      }
+    }
     default:
       throw new Error(`Unsupported provider: ${provider}`)
   }
@@ -1526,7 +1564,7 @@ export async function refreshOAuthToken(
     }
   } catch (error) {
     logger.error('Error refreshing token:', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return null
   }

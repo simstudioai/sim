@@ -63,6 +63,7 @@ export interface MicrosoftExcelWorksheetAddResponse extends ToolResponse {
 export interface MicrosoftExcelToolParams {
   accessToken: string
   spreadsheetId: string
+  driveId?: string
   range?: string
   values?: ExcelCellValue[][]
   valueInputOption?: 'RAW' | 'USER_ENTERED'
@@ -75,6 +76,7 @@ export interface MicrosoftExcelToolParams {
 export interface MicrosoftExcelTableToolParams {
   accessToken: string
   spreadsheetId: string
+  driveId?: string
   tableName: string
   values: ExcelCellValue[][]
   rowIndex?: number
@@ -83,6 +85,7 @@ export interface MicrosoftExcelTableToolParams {
 export interface MicrosoftExcelWorksheetToolParams {
   accessToken: string
   spreadsheetId: string
+  driveId?: string
   worksheetName: string
 }
 
@@ -96,6 +99,7 @@ export type MicrosoftExcelResponse =
 export interface MicrosoftExcelV2ToolParams {
   accessToken: string
   spreadsheetId: string
+  driveId?: string
   sheetName: string
   cellRange?: string
   values?: ExcelCellValue[][]

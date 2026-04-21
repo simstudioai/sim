@@ -1,8 +1,23 @@
 import { vi } from 'vitest'
 
 /**
- * Mock module for @/lib/audit/log.
- * Use with vi.mock() to replace the real audit logger in tests.
+ * Controllable mock functions for `@/lib/audit/log`.
+ * Exposes `mockRecordAudit` so tests can assert or override behavior per test.
+ *
+ * @example
+ * ```ts
+ * import { auditMockFns } from '@sim/testing'
+ *
+ * expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(...)
+ * auditMockFns.mockRecordAudit.mockRejectedValueOnce(new Error('audit failed'))
+ * ```
+ */
+export const auditMockFns = {
+  mockRecordAudit: vi.fn(),
+}
+
+/**
+ * Static mock module for `@/lib/audit/log`.
  *
  * @example
  * ```ts
@@ -10,7 +25,7 @@ import { vi } from 'vitest'
  * ```
  */
 export const auditMock = {
-  recordAudit: vi.fn(),
+  recordAudit: auditMockFns.mockRecordAudit,
   AuditAction: {
     API_KEY_CREATED: 'api_key.created',
     API_KEY_UPDATED: 'api_key.updated',
@@ -18,10 +33,13 @@ export const auditMock = {
     PERSONAL_API_KEY_CREATED: 'personal_api_key.created',
     PERSONAL_API_KEY_REVOKED: 'personal_api_key.revoked',
     BYOK_KEY_CREATED: 'byok_key.created',
+    BYOK_KEY_UPDATED: 'byok_key.updated',
     BYOK_KEY_DELETED: 'byok_key.deleted',
     CHAT_DEPLOYED: 'chat.deployed',
     CHAT_UPDATED: 'chat.updated',
     CHAT_DELETED: 'chat.deleted',
+    CREDENTIAL_CREATED: 'credential.created',
+    CREDENTIAL_UPDATED: 'credential.updated',
     CREDENTIAL_DELETED: 'credential.deleted',
     CREDENTIAL_RENAMED: 'credential.renamed',
     CREDIT_PURCHASED: 'credit.purchased',
@@ -43,6 +61,7 @@ export const auditMock = {
     DOCUMENT_UPDATED: 'document.updated',
     DOCUMENT_DELETED: 'document.deleted',
     ENVIRONMENT_UPDATED: 'environment.updated',
+    ENVIRONMENT_DELETED: 'environment.deleted',
     FILE_UPLOADED: 'file.uploaded',
     FILE_UPDATED: 'file.updated',
     FILE_DELETED: 'file.deleted',
@@ -55,7 +74,10 @@ export const auditMock = {
     FORM_UPDATED: 'form.updated',
     FORM_DELETED: 'form.deleted',
     INVITATION_ACCEPTED: 'invitation.accepted',
+    INVITATION_REJECTED: 'invitation.rejected',
+    INVITATION_RESENT: 'invitation.resent',
     INVITATION_REVOKED: 'invitation.revoked',
+    INVITATION_UPDATED: 'invitation.updated',
     CONNECTOR_CREATED: 'connector.created',
     CONNECTOR_UPDATED: 'connector.updated',
     CONNECTOR_DELETED: 'connector.deleted',
@@ -75,22 +97,27 @@ export const auditMock = {
     NOTIFICATION_DELETED: 'notification.deleted',
     OAUTH_DISCONNECTED: 'oauth.disconnected',
     PASSWORD_RESET: 'password.reset',
+    PASSWORD_RESET_REQUESTED: 'password.reset_requested',
     ORGANIZATION_CREATED: 'organization.created',
     ORGANIZATION_UPDATED: 'organization.updated',
     ORG_MEMBER_ADDED: 'org_member.added',
     ORG_MEMBER_REMOVED: 'org_member.removed',
     ORG_MEMBER_ROLE_CHANGED: 'org_member.role_changed',
     ORG_INVITATION_CREATED: 'org_invitation.created',
+    ORG_INVITATION_UPDATED: 'org_invitation.updated',
     ORG_INVITATION_ACCEPTED: 'org_invitation.accepted',
     ORG_INVITATION_REJECTED: 'org_invitation.rejected',
     ORG_INVITATION_CANCELLED: 'org_invitation.cancelled',
     ORG_INVITATION_REVOKED: 'org_invitation.revoked',
+    ORG_INVITATION_RESENT: 'org_invitation.resent',
     PERMISSION_GROUP_CREATED: 'permission_group.created',
     PERMISSION_GROUP_UPDATED: 'permission_group.updated',
     PERMISSION_GROUP_DELETED: 'permission_group.deleted',
     PERMISSION_GROUP_MEMBER_ADDED: 'permission_group_member.added',
     PERMISSION_GROUP_MEMBER_REMOVED: 'permission_group_member.removed',
+    SCHEDULE_CREATED: 'schedule.created',
     SCHEDULE_UPDATED: 'schedule.updated',
+    SCHEDULE_DELETED: 'schedule.deleted',
     SKILL_CREATED: 'skill.created',
     SKILL_UPDATED: 'skill.updated',
     SKILL_DELETED: 'skill.deleted',
@@ -115,6 +142,7 @@ export const auditMock = {
     WORKFLOW_DEPLOYMENT_REVERTED: 'workflow.deployment_reverted',
     WORKFLOW_VARIABLES_UPDATED: 'workflow.variables_updated',
     WORKSPACE_CREATED: 'workspace.created',
+    WORKSPACE_UPDATED: 'workspace.updated',
     WORKSPACE_DELETED: 'workspace.deleted',
     WORKSPACE_DUPLICATED: 'workspace.duplicated',
   },
@@ -124,6 +152,7 @@ export const auditMock = {
     BYOK_KEY: 'byok_key',
     CHAT: 'chat',
     CONNECTOR: 'connector',
+    CREDENTIAL: 'credential',
     CREDENTIAL_SET: 'credential_set',
     CUSTOM_TOOL: 'custom_tool',
     DOCUMENT: 'document',

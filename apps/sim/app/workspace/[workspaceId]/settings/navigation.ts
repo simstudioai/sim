@@ -1,6 +1,8 @@
 import {
   Card,
+  ClipboardList,
   Connections,
+  Database,
   HexSimple,
   Key,
   KeySquare,
@@ -27,10 +29,11 @@ export type SettingsSection =
   | 'template-profile'
   | 'credential-sets'
   | 'access-control'
+  | 'audit-logs'
   | 'apikeys'
   | 'byok'
   | 'subscription'
-  | 'team'
+  | 'organization'
   | 'sso'
   | 'whitelabeling'
   | 'copilot'
@@ -40,6 +43,8 @@ export type SettingsSection =
   | 'workflow-mcp-servers'
   | 'inbox'
   | 'admin'
+  | 'data-retention'
+  | 'mothership'
   | 'recently-deleted'
 
 export type NavigationSection =
@@ -72,6 +77,8 @@ const isSSOEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
 const isCredentialSetsEnabled = isTruthy(getEnv('NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED'))
 const isAccessControlEnabled = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
 const isInboxEnabled = isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED'))
+const isWhitelabelingEnabled = isTruthy(getEnv('NEXT_PUBLIC_WHITELABELING_ENABLED'))
+const isAuditLogsEnabled = isTruthy(getEnv('NEXT_PUBLIC_AUDIT_LOGS_ENABLED'))
 
 export const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 export { isCredentialSetsEnabled }
@@ -98,6 +105,15 @@ export const allNavigationItems: NavigationItem[] = [
     selfHostedOverride: isAccessControlEnabled,
   },
   {
+    id: 'audit-logs',
+    label: 'Audit Logs',
+    icon: ClipboardList,
+    section: 'enterprise',
+    requiresHosted: true,
+    requiresEnterprise: true,
+    selfHostedOverride: isAuditLogsEnabled,
+  },
+  {
     id: 'subscription',
     label: 'Subscription',
     icon: Card,
@@ -105,8 +121,8 @@ export const allNavigationItems: NavigationItem[] = [
     hideWhenBillingDisabled: true,
   },
   {
-    id: 'team',
-    label: 'Team',
+    id: 'organization',
+    label: 'Organization',
     icon: Users,
     section: 'subscription',
     hideWhenBillingDisabled: true,
@@ -165,18 +181,34 @@ export const allNavigationItems: NavigationItem[] = [
     selfHostedOverride: isSSOEnabled,
   },
   {
+    id: 'data-retention',
+    label: 'Data Retention',
+    icon: Database,
+    section: 'enterprise',
+    requiresHosted: true,
+    requiresEnterprise: true,
+    showWhenLocked: true,
+  },
+  {
     id: 'whitelabeling',
     label: 'Whitelabeling',
     icon: Palette,
     section: 'enterprise',
     requiresHosted: true,
     requiresEnterprise: true,
-    selfHostedOverride: isBillingEnabled,
+    selfHostedOverride: isWhitelabelingEnabled,
   },
   {
     id: 'admin',
     label: 'Admin',
     icon: Lock,
+    section: 'superuser',
+    requiresAdminRole: true,
+  },
+  {
+    id: 'mothership',
+    label: 'Mothership',
+    icon: Server,
     section: 'superuser',
     requiresAdminRole: true,
   },

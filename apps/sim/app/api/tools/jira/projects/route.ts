@@ -2,8 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getJiraCloudId } from '@/tools/jira/utils'
+import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,16 +60,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     logger.info(`Response status: ${response.status} ${response.statusText}`)
 
     if (!response.ok) {
-      logger.error(`Jira API error: ${response.status} ${response.statusText}`)
-      let errorMessage
-      try {
-        const errorData = await response.json()
-        logger.error('Error details:', errorData)
-        errorMessage = errorData.message || `Failed to fetch projects (${response.status})`
-      } catch (_e) {
-        errorMessage = `Failed to fetch projects: ${response.status} ${response.statusText}`
-      }
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      const errorText = await response.text()
+      logger.error('Jira API error:', { status: response.status, error: errorText })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
     const data = await response.json()
@@ -149,10 +144,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
-      logger.error('Error details:', errorData)
+      const errorText = await response.text()
+      logger.error('Jira API error:', { status: response.status, error: errorText })
       return NextResponse.json(
-        { error: errorData.message || `Failed to fetch project (${response.status})` },
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
         { status: response.status }
       )
     }

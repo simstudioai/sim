@@ -59,5 +59,48 @@ export const POST = withRouteHandler(
         { status: 500 }
       )
     }
+
+    const table = await getTableById(tableId, { includeArchived: true })
+    if (!table) {
+      return NextResponse.json({ error: 'Table not found' }, { status: 404 })
+    }
+
+    const permission = await getUserEntityPermissions(auth.userId, 'workspace', table.workspaceId)
+    if (permission !== 'admin' && permission !== 'write') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
+
+    await restoreTable(tableId, requestId)
+
+    logger.info(`[${requestId}] Restored table ${tableId}`)
+
+    recordAudit({
+      workspaceId: table.workspaceId,
+      actorId: auth.userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.TABLE_RESTORED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: tableId,
+      resourceName: table.name,
+      description: `Restored table "${table.name}"`,
+      metadata: {
+        tableName: table.name,
+        workspaceId: table.workspaceId,
+      },
+      request,
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    if (error instanceof TableConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
+
+    logger.error(`[${requestId}] Error restoring table ${tableId}`, error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    )
   }
 )

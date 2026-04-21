@@ -14,12 +14,11 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
-  getEffectiveBlockOutputPaths,
   getEffectiveBlockOutputType,
   getOutputPathsFromSchema,
 } from '@/lib/workflows/blocks/block-outputs'
+import { getBlockReferenceTags } from '@/lib/workflows/blocks/block-reference-tags'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
-import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import { KeyboardNavigationHandler } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/components/keyboard-navigation-handler'
 import type {
   BlockTagGroup,
@@ -175,17 +174,6 @@ const ensureRootTag = (tags: string[], rootTag: string): string[] => {
   if (!rootTag) return tags
   if (tags.includes(rootTag)) return tags
   return [rootTag, ...tags]
-}
-
-/**
- * Gets a subblock value from the store.
- *
- * @param blockId - The block identifier
- * @param property - The property name to retrieve
- * @returns The value from the subblock store
- */
-const getSubBlockValue = (blockId: string, property: string): any => {
-  return useSubBlockStore.getState().getValue(blockId, property)
 }
 
 /**
@@ -1055,53 +1043,19 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         return { tags: [], variableInfoMap: emptyVariableInfoMap, blockTagGroups: [] }
       }
 
-      const blockName = sourceBlock.name || sourceBlock.type
-      const normalizedBlockName = normalizeName(blockName)
-
       const mergedSubBlocks = getMergedSubBlocks(activeSourceBlockId)
-      let blockTags: string[]
-
-      if (sourceBlock.type === 'variables') {
-        const variablesValue = getSubBlockValue(activeSourceBlockId, 'variables')
-
-        if (variablesValue && Array.isArray(variablesValue) && variablesValue.length > 0) {
-          const validAssignments = variablesValue.filter((assignment: { variableName?: string }) =>
-            assignment?.variableName?.trim()
-          )
-          blockTags = validAssignments.map(
-            (assignment: { variableName: string }) =>
-              `${normalizedBlockName}.${assignment.variableName.trim()}`
-          )
-        } else {
-          blockTags = [normalizedBlockName]
-        }
-      } else {
-        const sourceBlockConfig = getBlock(sourceBlock.type)
-        const isTriggerCapable = sourceBlockConfig ? hasTriggerCapability(sourceBlockConfig) : false
-        const effectiveTriggerMode = Boolean(sourceBlock.triggerMode && isTriggerCapable)
-        const outputPaths = getEffectiveBlockOutputPaths(sourceBlock.type, mergedSubBlocks, {
-          triggerMode: effectiveTriggerMode,
-          preferToolOutputs: !effectiveTriggerMode,
-        })
-        const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-
-        if (sourceBlock.type === 'human_in_the_loop' && activeSourceBlockId === blockId) {
-          blockTags = allTags.filter(
-            (tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint')
-          )
-        } else if (allTags.length === 0) {
-          blockTags = [normalizedBlockName]
-        } else {
-          blockTags = allTags
-        }
-      }
-
-      blockTags = ensureRootTag(blockTags, normalizedBlockName)
-      const shouldShowRootTag =
-        sourceBlock.type === TRIGGER_TYPES.GENERIC_WEBHOOK || sourceBlock.type === 'start_trigger'
-      if (!shouldShowRootTag) {
-        blockTags = blockTags.filter((tag) => tag !== normalizedBlockName)
-      }
+      const blockName = sourceBlock.name || sourceBlock.type
+      const blockTags = getBlockReferenceTags({
+        block: {
+          id: activeSourceBlockId,
+          type: sourceBlock.type,
+          name: sourceBlock.name,
+          triggerMode: sourceBlock.triggerMode,
+          subBlocks: mergedSubBlocks,
+        },
+        currentBlockId: blockId,
+        subBlocks: mergedSubBlocks,
+      })
 
       const blockTagGroups: BlockTagGroup[] = [
         {
@@ -1331,57 +1285,19 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         continue
       }
 
-      const blockName = accessibleBlock.name || accessibleBlock.type
-      const normalizedBlockName = normalizeName(blockName)
-
       const mergedSubBlocks = getMergedSubBlocks(accessibleBlockId)
-
-      let blockTags: string[]
-
-      if (accessibleBlock.type === 'variables') {
-        const variablesValue = getSubBlockValue(accessibleBlockId, 'variables')
-
-        if (variablesValue && Array.isArray(variablesValue) && variablesValue.length > 0) {
-          const validAssignments = variablesValue.filter((assignment: { variableName?: string }) =>
-            assignment?.variableName?.trim()
-          )
-          blockTags = validAssignments.map(
-            (assignment: { variableName: string }) =>
-              `${normalizedBlockName}.${assignment.variableName.trim()}`
-          )
-        } else {
-          blockTags = [normalizedBlockName]
-        }
-      } else {
-        const accessibleBlockConfig = getBlock(accessibleBlock.type)
-        const isTriggerCapable = accessibleBlockConfig
-          ? hasTriggerCapability(accessibleBlockConfig)
-          : false
-        const effectiveTriggerMode = Boolean(accessibleBlock.triggerMode && isTriggerCapable)
-        const outputPaths = getEffectiveBlockOutputPaths(accessibleBlock.type, mergedSubBlocks, {
-          triggerMode: effectiveTriggerMode,
-          preferToolOutputs: !effectiveTriggerMode,
-        })
-        const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-
-        if (accessibleBlock.type === 'human_in_the_loop' && accessibleBlockId === blockId) {
-          blockTags = allTags.filter(
-            (tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint')
-          )
-        } else if (allTags.length === 0) {
-          blockTags = [normalizedBlockName]
-        } else {
-          blockTags = allTags
-        }
-      }
-
-      blockTags = ensureRootTag(blockTags, normalizedBlockName)
-      const shouldShowRootTag =
-        accessibleBlock.type === TRIGGER_TYPES.GENERIC_WEBHOOK ||
-        accessibleBlock.type === 'start_trigger'
-      if (!shouldShowRootTag) {
-        blockTags = blockTags.filter((tag) => tag !== normalizedBlockName)
-      }
+      const blockName = accessibleBlock.name || accessibleBlock.type
+      const blockTags = getBlockReferenceTags({
+        block: {
+          id: accessibleBlockId,
+          type: accessibleBlock.type,
+          name: accessibleBlock.name,
+          triggerMode: accessibleBlock.triggerMode,
+          subBlocks: mergedSubBlocks,
+        },
+        currentBlockId: blockId,
+        subBlocks: mergedSubBlocks,
+      })
 
       blockTagGroups.push({
         blockName,

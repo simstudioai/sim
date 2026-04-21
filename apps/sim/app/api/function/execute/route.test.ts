@@ -3,12 +3,16 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import {
+  createMockRequest,
+  featureFlagsMock,
+  hybridAuthMockFns,
+  workflowsUtilsMock,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckInternalAuth, mockExecuteInE2B, mockExecuteInIsolatedVM } = vi.hoisted(() => ({
-  mockCheckInternalAuth: vi.fn(),
+const { mockExecuteInE2B, mockExecuteInIsolatedVM } = vi.hoisted(() => ({
   mockExecuteInE2B: vi.fn(),
   mockExecuteInIsolatedVM: vi.fn(),
 }))
@@ -17,22 +21,30 @@ vi.mock('@/lib/execution/isolated-vm', () => ({
   executeInIsolatedVM: mockExecuteInIsolatedVM,
 }))
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkInternalAuth: mockCheckInternalAuth,
-}))
-
 vi.mock('@/lib/execution/e2b', () => ({
   executeInE2B: mockExecuteInE2B,
+  executeShellInE2B: vi.fn(),
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isHosted: false,
-  isE2bEnabled: false,
-  isProd: false,
-  isDev: false,
-  isTest: true,
+vi.mock('@/lib/copilot/request/tools/files', () => ({
+  FORMAT_TO_CONTENT_TYPE: {
+    json: 'application/json',
+    csv: 'text/csv',
+    txt: 'text/plain',
+    md: 'text/markdown',
+    html: 'text/html',
+  },
+  normalizeOutputWorkspaceFileName: vi.fn((p: string) => p.replace(/^files\//, '')),
+  resolveOutputFormat: vi.fn(() => 'json'),
 }))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  uploadWorkspaceFile: vi.fn(),
+}))
+
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
+
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { validateProxyUrl } from '@/lib/core/security/input-validation'
 import { POST } from '@/app/api/function/execute/route'
@@ -125,7 +137,7 @@ describe('Function Execute API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockCheckInternalAuth.mockResolvedValue({
+    hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-123',
       authType: 'internal_jwt',
@@ -142,7 +154,7 @@ describe('Function Execute API Route', () => {
 
   describe('Security Tests', () => {
     it('should reject unauthorized requests', async () => {
-      mockCheckInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValueOnce({
         success: false,
         error: 'Unauthorized',
       })

@@ -1,14 +1,13 @@
 import { db } from '@sim/db'
 import { workflow, workspaceNotificationSubscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { MAX_EMAIL_RECIPIENTS, MAX_NOTIFICATIONS_PER_TYPE, MAX_WORKFLOW_IDS } from './constants'
@@ -285,30 +284,53 @@ export const POST = withRouteHandler(
         request,
       })
 
-      return NextResponse.json({
-        data: {
-          id: subscription.id,
-          notificationType: subscription.notificationType,
-          workflowIds: subscription.workflowIds,
-          allWorkflows: subscription.allWorkflows,
-          levelFilter: subscription.levelFilter,
-          triggerFilter: subscription.triggerFilter,
-          includeFinalOutput: subscription.includeFinalOutput,
-          includeTraceSpans: subscription.includeTraceSpans,
-          includeRateLimits: subscription.includeRateLimits,
-          includeUsageData: subscription.includeUsageData,
-          webhookConfig: subscription.webhookConfig,
-          emailRecipients: subscription.emailRecipients,
-          slackConfig: subscription.slackConfig,
-          alertConfig: subscription.alertConfig,
-          active: subscription.active,
-          createdAt: subscription.createdAt,
-          updatedAt: subscription.updatedAt,
-        },
-      })
-    } catch (error) {
-      logger.error('Error creating notification', { error })
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-    }
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      action: AuditAction.NOTIFICATION_CREATED,
+      resourceType: AuditResourceType.NOTIFICATION,
+      resourceId: subscription.id,
+      resourceName: data.notificationType,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Created ${data.notificationType} notification subscription`,
+      metadata: {
+        notificationType: data.notificationType,
+        allWorkflows: data.allWorkflows,
+        workflowCount: data.workflowIds.length,
+        levelFilter: data.levelFilter,
+        alertRule: data.alertConfig?.rule ?? null,
+        ...(data.notificationType === 'email' && {
+          recipientCount: data.emailRecipients?.length ?? 0,
+        }),
+        ...(data.notificationType === 'slack' && { channelName: data.slackConfig?.channelName }),
+      },
+      request,
+    })
+
+    return NextResponse.json({
+      data: {
+        id: subscription.id,
+        notificationType: subscription.notificationType,
+        workflowIds: subscription.workflowIds,
+        allWorkflows: subscription.allWorkflows,
+        levelFilter: subscription.levelFilter,
+        triggerFilter: subscription.triggerFilter,
+        includeFinalOutput: subscription.includeFinalOutput,
+        includeTraceSpans: subscription.includeTraceSpans,
+        includeRateLimits: subscription.includeRateLimits,
+        includeUsageData: subscription.includeUsageData,
+        webhookConfig: subscription.webhookConfig,
+        emailRecipients: subscription.emailRecipients,
+        slackConfig: subscription.slackConfig,
+        alertConfig: subscription.alertConfig,
+        active: subscription.active,
+        createdAt: subscription.createdAt,
+        updatedAt: subscription.updatedAt,
+      },
+    })
+  } catch (error) {
+    logger.error('Error creating notification', { error })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 )

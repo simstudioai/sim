@@ -76,5 +76,45 @@ export const POST = withRouteHandler(
         { status: 500 }
       )
     }
+
+    const result = await restoreWorkflow(workflowId, { requestId })
+
+    if (!result.restored) {
+      return NextResponse.json({ error: 'Workflow is not archived' }, { status: 400 })
+    }
+
+    logger.info(`[${requestId}] Restored workflow ${workflowId}`)
+
+    recordAudit({
+      workspaceId: workflowData.workspaceId,
+      actorId: auth.userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.WORKFLOW_RESTORED,
+      resourceType: AuditResourceType.WORKFLOW,
+      resourceId: workflowId,
+      resourceName: workflowData.name,
+      description: `Restored workflow "${workflowData.name}"`,
+      metadata: {
+        workflowName: workflowData.name,
+        workspaceId: workflowData.workspaceId || undefined,
+      },
+      request,
+    })
+
+    captureServerEvent(
+      auth.userId,
+      'workflow_restored',
+      { workflow_id: workflowId, workspace_id: workflowData.workspaceId ?? '' },
+      workflowData.workspaceId ? { groups: { workspace: workflowData.workspaceId } } : undefined
+    )
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    logger.error(`[${requestId}] Error restoring workflow ${workflowId}`, error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    )
   }
 )

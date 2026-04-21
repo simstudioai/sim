@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import { workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -83,11 +83,7 @@ export const GET = withRouteHandler(withMcpAuth('read'))(
       return createMcpSuccessResponse({ servers: serversWithToolNames })
     } catch (error) {
       logger.error(`[${requestId}] Error listing workflow MCP servers:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to list workflow MCP servers'),
-        'Failed to list workflow MCP servers',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to list workflow MCP servers', 500)
     }
   }
 )
@@ -209,17 +205,20 @@ export const POST = withRouteHandler(withMcpAuth('write'))(
         resourceId: serverId,
         resourceName: body.name.trim(),
         description: `Published workflow MCP server "${body.name.trim()}" with ${addedTools.length} tool(s)`,
+        metadata: {
+          serverName: body.name.trim(),
+          isPublic: body.isPublic ?? false,
+          toolCount: addedTools.length,
+          toolNames: addedTools.map((t) => t.toolName),
+          workflowIds: addedTools.map((t) => t.workflowId),
+        },
         request,
       })
 
       return createMcpSuccessResponse({ server, addedTools }, 201)
     } catch (error) {
       logger.error(`[${requestId}] Error creating workflow MCP server:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to create workflow MCP server'),
-        'Failed to create workflow MCP server',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to create workflow MCP server', 500)
     }
   }
 )

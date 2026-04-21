@@ -1,4 +1,5 @@
 import type { Edge } from 'reactflow'
+import { getBlockMetrics } from '@/lib/workflows/autolayout/utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 interface TargetedLayoutChangeSetOptions {
@@ -8,18 +9,21 @@ interface TargetedLayoutChangeSetOptions {
 
 export interface TargetedLayoutImpact {
   layoutBlockIds: string[]
+  resizedBlockIds: string[]
   shiftSourceBlockIds: string[]
 }
 
 /**
- * Computes the minimal structural change set that should be reopened for
- * targeted layout after a workflow edit.
+ * Computes the minimal change set that should be reopened for targeted layout
+ * after a workflow edit. `layoutBlockIds` are fully repositioned, while
+ * `resizedBlockIds` keep their existing position and only shift neighbors.
  */
 export function getTargetedLayoutImpact({
   before,
   after,
 }: TargetedLayoutChangeSetOptions): TargetedLayoutImpact {
   const layoutBlockIds = new Set<string>()
+  const resizedBlockIds = new Set<string>()
   const afterBlockIds = new Set(Object.keys(after.blocks || {}))
   const beforeBlockIds = new Set(Object.keys(before.blocks || {}))
 
@@ -40,6 +44,9 @@ export function getTargetedLayoutImpact({
     const previousParentId = before.blocks[blockId]?.data?.parentId ?? null
     const currentParentId = after.blocks[blockId]?.data?.parentId ?? null
     if (previousParentId === currentParentId) {
+      if (hasLayoutRelevantSizeChange(before.blocks[blockId], after.blocks[blockId])) {
+        resizedBlockIds.add(blockId)
+      }
       continue
     }
 
@@ -57,6 +64,7 @@ export function getTargetedLayoutImpact({
   if (addedEdges.length === 0) {
     return {
       layoutBlockIds: Array.from(layoutBlockIds),
+      resizedBlockIds: Array.from(resizedBlockIds),
       shiftSourceBlockIds: [],
     }
   }
@@ -94,6 +102,7 @@ export function getTargetedLayoutImpact({
 
   return {
     layoutBlockIds: Array.from(layoutBlockIds),
+    resizedBlockIds: Array.from(resizedBlockIds),
     shiftSourceBlockIds: Array.from(shiftSourceBlockIds),
   }
 }
@@ -121,6 +130,24 @@ function getBlocksWithInvalidPositions(
       (!beforeBlockIds.has(blockId) && position.x === 0 && position.y === 0)
     )
   })
+}
+
+/**
+ * Returns true when a persisted block changed size enough that anchored layout
+ * should reopen its column and shift affected siblings.
+ */
+function hasLayoutRelevantSizeChange(
+  beforeBlock: WorkflowState['blocks'][string] | undefined,
+  afterBlock: WorkflowState['blocks'][string] | undefined
+): boolean {
+  if (!beforeBlock || !afterBlock) {
+    return false
+  }
+
+  const beforeMetrics = getBlockMetrics(beforeBlock)
+  const afterMetrics = getBlockMetrics(afterBlock)
+
+  return beforeMetrics.height !== afterMetrics.height || beforeMetrics.width !== afterMetrics.width
 }
 
 /**

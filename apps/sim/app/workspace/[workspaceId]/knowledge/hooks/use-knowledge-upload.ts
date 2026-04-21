@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import { useQueryClient } from '@tanstack/react-query'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
@@ -110,11 +111,6 @@ const calculateUploadTimeoutMs = (fileSize: number) => {
   const dynamicBudget = UPLOAD_CONFIG.BASE_TIMEOUT_MS + sizeInMb * UPLOAD_CONFIG.TIMEOUT_PER_MB_MS
   return Math.min(dynamicBudget, UPLOAD_CONFIG.MAX_TIMEOUT_MS)
 }
-
-/**
- * Delays execution for the specified duration
- */
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
  * Gets high resolution timestamp for performance measurements

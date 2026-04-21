@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { AlertTriangle, LibraryBig, MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
@@ -17,6 +17,7 @@ import { ChevronDown } from '@/components/emcn/icons'
 import { Trash } from '@/components/emcn/icons/trash'
 import { filterButtonClass } from '@/app/workspace/[workspaceId]/knowledge/components/constants'
 import { useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
+import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('KnowledgeHeader')
 
@@ -48,52 +49,18 @@ interface KnowledgeHeaderProps {
   options?: KnowledgeHeaderOptions
 }
 
-interface Workspace {
-  id: string
-  name: string
-  permissions: 'admin' | 'write' | 'read'
-}
-
 export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) {
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false)
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(false)
+
+  const { data: allWorkspaces = [], isLoading: isLoadingWorkspaces } = useWorkspacesQuery(
+    !!options?.knowledgeBaseId
+  )
+  const workspaces = allWorkspaces.filter(
+    (ws) => ws.permissions === 'write' || ws.permissions === 'admin'
+  )
 
   const updateKnowledgeBase = useUpdateKnowledgeBase()
-
-  useEffect(() => {
-    if (!options?.knowledgeBaseId) return
-
-    const fetchWorkspaces = async () => {
-      try {
-        setIsLoadingWorkspaces(true)
-
-        const response = await fetch('/api/workspaces')
-        if (!response.ok) {
-          throw new Error('Failed to fetch workspaces')
-        }
-
-        const data = await response.json()
-
-        const availableWorkspaces = data.workspaces
-          .filter((ws: any) => ws.permissions === 'write' || ws.permissions === 'admin')
-          .map((ws: any) => ({
-            id: ws.id,
-            name: ws.name,
-            permissions: ws.permissions,
-          }))
-
-        setWorkspaces(availableWorkspaces)
-      } catch (err) {
-        logger.error('Error fetching workspaces:', err)
-      } finally {
-        setIsLoadingWorkspaces(false)
-      }
-    }
-
-    fetchWorkspaces()
-  }, [options?.knowledgeBaseId])
 
   const handleWorkspaceChange = async (workspaceId: string | null) => {
     if (updateKnowledgeBase.isPending || !options?.knowledgeBaseId) return

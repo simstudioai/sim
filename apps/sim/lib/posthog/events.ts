@@ -16,8 +16,31 @@ export interface PostHogEventMap {
 
   landing_cta_clicked: {
     label: string
-    section: 'hero' | 'navbar' | 'footer_cta' | 'pricing'
-    destination: string
+    section:
+      | 'hero'
+      | 'navbar'
+      | 'footer_cta'
+      | 'pricing'
+      | 'features'
+      | 'collaboration'
+      | 'templates'
+      | 'landing_preview'
+      | 'integrations'
+    destination: 'auth_modal' | 'demo_modal' | '/signup' | '/login' | '/workspace' | (string & {})
+  }
+
+  auth_modal_opened: {
+    view: 'login' | 'signup'
+    source:
+      | 'hero'
+      | 'navbar'
+      | 'mobile_navbar'
+      | 'footer_cta'
+      | 'pricing'
+      | 'features'
+      | 'collaboration'
+      | 'landing_preview'
+      | 'integrations'
   }
 
   landing_demo_request_submitted: {
@@ -25,6 +48,8 @@ export interface PostHogEventMap {
   }
 
   landing_prompt_submitted: Record<string, never>
+
+  login_page_viewed: Record<string, never>
 
   signup_page_viewed: Record<string, never>
 
@@ -52,6 +77,8 @@ export interface PostHogEventMap {
   workspace_created: {
     workspace_id: string
     name: string
+    workspace_mode?: string
+    organization_id?: string | null
   }
 
   workspace_member_invited: {
@@ -467,6 +494,12 @@ export interface PostHogEventMap {
 
   scheduled_task_deleted: {
     workspace_id: string
+  }
+
+  workspace_logo_uploaded: {
+    workspace_id: string
+    file_name: string
+    file_size: number
   }
 }
 

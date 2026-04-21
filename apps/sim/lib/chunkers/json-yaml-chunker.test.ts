@@ -2,11 +2,8 @@
  * @vitest-environment node
  */
 
-import { loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 import { JsonYamlChunker } from './json-yaml-chunker'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/tokenization', () => ({
   getAccurateTokenCount: (text: string) => Math.ceil(text.length / 4),
@@ -30,14 +27,11 @@ describe('JsonYamlChunker', () => {
       expect(JsonYamlChunker.isStructuredData('key: value\nother: data')).toBe(true)
     })
 
-    it('should return true for YAML-like plain text', () => {
-      // Note: js-yaml is permissive and parses plain text as valid YAML (scalar value)
-      // This is expected behavior of the YAML parser
-      expect(JsonYamlChunker.isStructuredData('Hello, this is plain text.')).toBe(true)
+    it('should return false for plain text parsed as YAML scalar', () => {
+      expect(JsonYamlChunker.isStructuredData('Hello, this is plain text.')).toBe(false)
     })
 
     it('should return false for invalid JSON/YAML with unbalanced braces', () => {
-      // Only truly malformed content that fails YAML parsing returns false
       expect(JsonYamlChunker.isStructuredData('{invalid: json: content: {{')).toBe(false)
     })
 
@@ -61,7 +55,6 @@ describe('JsonYamlChunker', () => {
       const json = '{}'
       const chunks = await chunker.chunk(json)
 
-      // Empty object is valid JSON, should return at least metadata
       expect(chunks.length).toBeGreaterThanOrEqual(0)
     })
 
@@ -204,7 +197,6 @@ server:
       const json = '[]'
       const chunks = await chunker.chunk(json)
 
-      // Empty array should not produce chunks with meaningful content
       expect(chunks.length).toBeGreaterThanOrEqual(0)
     })
 
@@ -272,7 +264,6 @@ server:
 
     it.concurrent('should fall back to text chunking for invalid JSON', async () => {
       const chunker = new JsonYamlChunker({ chunkSize: 100, minCharactersPerChunk: 10 })
-      // Create content that fails YAML parsing and is long enough to produce chunks
       const invalidJson = `{this is not valid json: content: {{${' more content here '.repeat(10)}`
       const chunks = await chunker.chunk(invalidJson)
 
@@ -377,9 +368,7 @@ server:
       const json = JSON.stringify({ a: 1, b: 2, c: 3 })
       const chunks = await chunker.chunk(json)
 
-      // Should produce chunks that are valid
       expect(chunks.length).toBeGreaterThan(0)
-      // The entire small object fits in one chunk
       expect(chunks[0].text.length).toBeGreaterThan(0)
     })
   })

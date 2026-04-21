@@ -12,7 +12,7 @@ export const GongBlock: BlockConfig<GongResponse> = {
     'Integrate Gong into your workflow. Access call recordings, transcripts, user data, activity stats, scorecards, trackers, library content, coaching metrics, and more via the Gong API.',
   docsLink: 'https://docs.sim.ai/tools/gong',
   category: 'tools',
-  integrationType: IntegrationType.SalesIntelligence,
+  integrationType: IntegrationType.Sales,
   tags: ['meeting', 'sales-engagement', 'speech-to-text'],
   bgColor: '#8039DF',
   icon: GongIcon,

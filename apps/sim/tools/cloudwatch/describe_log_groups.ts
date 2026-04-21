@@ -11,7 +11,7 @@ export const describeLogGroupsTool: ToolConfig<
   id: 'cloudwatch_describe_log_groups',
   name: 'CloudWatch Describe Log Groups',
   description: 'List available CloudWatch log groups',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
@@ -6,8 +7,8 @@ import {
   validateJiraCloudId,
   validateJiraIssueKey,
 } from '@/lib/core/security/input-validation'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
+import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
+import { getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +33,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       description,
       raiseOnBehalfOf,
       requestFieldValues,
+      formAnswers,
       requestParticipants,
       channel,
       expand,
@@ -56,7 +58,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
-    const isCreateOperation = serviceDeskId && requestTypeId && summary
+    const isCreateOperation = serviceDeskId && requestTypeId && (summary || formAnswers)
 
     if (isCreateOperation) {
       const serviceDeskIdValidation = validateAlphanumericId(serviceDeskId, 'serviceDeskId')
@@ -70,15 +72,37 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
       const url = `${baseUrl}/request`
 
-      logger.info('Creating request at:', url)
+      logger.info('Creating request at:', { url, serviceDeskId, requestTypeId })
 
       const requestBody: Record<string, unknown> = {
         serviceDeskId,
         requestTypeId,
-        requestFieldValues: requestFieldValues || {
-          summary,
-          ...(description && { description }),
-        },
+      }
+
+      if (formAnswers && typeof formAnswers === 'object') {
+        // When form answers are provided, use them as the primary data source.
+        // Per Atlassian docs, fields linked to form questions must NOT also appear
+        // in requestFieldValues — doing so causes a 400 error.
+        requestBody.form = { answers: formAnswers }
+
+        // Only include explicit requestFieldValues if the caller provided them
+        // (they know which fields are safe to include alongside form answers).
+        if (requestFieldValues && typeof requestFieldValues === 'object') {
+          requestBody.requestFieldValues = requestFieldValues
+        }
+      } else if (summary || description || requestFieldValues) {
+        const fieldValues =
+          requestFieldValues && typeof requestFieldValues === 'object'
+            ? {
+                ...(!requestFieldValues.summary && summary ? { summary } : {}),
+                ...(!requestFieldValues.description && description ? { description } : {}),
+                ...requestFieldValues,
+              }
+            : {
+                ...(summary && { summary }),
+                ...(description && { description }),
+              }
+        requestBody.requestFieldValues = fieldValues
       }
 
       if (raiseOnBehalfOf) {
@@ -113,7 +137,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
 
         return NextResponse.json(
-          { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+          {
+            error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
+            details: errorText,
+          },
           { status: response.status }
         )
       }
@@ -179,7 +206,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
 
       return NextResponse.json(
-        { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+        {
+          error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
+          details: errorText,
+        },
         { status: response.status }
       )
     }
@@ -221,7 +251,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
   } catch (error) {
     logger.error('Error with request operation:', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
 

@@ -1,13 +1,12 @@
 import { db } from '@sim/db'
 import { permissions, user, workspace, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
@@ -233,5 +232,44 @@ export const PATCH = withRouteHandler(
       logger.error('Error updating workspace permissions:', error)
       return NextResponse.json({ error: 'Failed to update workspace permissions' }, { status: 500 })
     }
+
+    const updatedUsers = await getUsersWithPermissions(workspaceId)
+
+    for (const update of body.updates) {
+      captureServerEvent(
+        session.user.id,
+        'workspace_member_role_changed',
+        { workspace_id: workspaceId, new_role: update.permissions },
+        { groups: { workspace: workspaceId } }
+      )
+
+      recordAudit({
+        workspaceId,
+        actorId: session.user.id,
+        action: AuditAction.MEMBER_ROLE_CHANGED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: workspaceId,
+        resourceName: permLookup.get(update.userId)?.email ?? update.userId,
+        actorName: session.user.name ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        description: `Changed permissions for ${permLookup.get(update.userId)?.email ?? update.userId} from ${permLookup.get(update.userId)?.permission ?? 'none'} to ${update.permissions}`,
+        metadata: {
+          targetUserId: update.userId,
+          targetEmail: permLookup.get(update.userId)?.email ?? undefined,
+          previousRole: permLookup.get(update.userId)?.permission ?? null,
+          newRole: update.permissions,
+        },
+        request,
+      })
+    }
+
+    return NextResponse.json({
+      message: 'Permissions updated successfully',
+      users: updatedUsers,
+      total: updatedUsers.length,
+    })
+  } catch (error) {
+    logger.error('Error updating workspace permissions:', error)
+    return NextResponse.json({ error: 'Failed to update workspace permissions' }, { status: 500 })
   }
 )

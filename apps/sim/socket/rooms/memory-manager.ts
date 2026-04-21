@@ -238,4 +238,21 @@ export class MemoryRoomManager implements IRoomManager {
 
     logger.info(`Notified ${room.users.size} users about workflow update: ${workflowId}`)
   }
+
+  async handleWorkflowDeployed(workflowId: string): Promise<void> {
+    logger.info(`Handling workflow deployed notification for ${workflowId}`)
+
+    const room = this.workflowRooms.get(workflowId)
+    if (!room) {
+      logger.debug(`No active room found for deployed workflow ${workflowId}`)
+      return
+    }
+
+    this._io.to(workflowId).emit('workflow-deployed', {
+      workflowId,
+      timestamp: Date.now(),
+    })
+
+    logger.info(`Notified ${room.users.size} users about workflow deployment change: ${workflowId}`)
+  }
 }

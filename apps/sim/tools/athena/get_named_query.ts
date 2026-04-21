@@ -6,7 +6,7 @@ export const getNamedQueryTool: ToolConfig<AthenaGetNamedQueryParams, AthenaGetN
     id: 'athena_get_named_query',
     name: 'Athena Get Named Query',
     description: 'Get details of a saved/named query in AWS Athena',
-    version: '1.0',
+    version: '1.0.0',
 
     params: {
       awsRegion: {

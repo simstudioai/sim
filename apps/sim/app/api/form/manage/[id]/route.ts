@@ -256,8 +256,14 @@ export const DELETE = withRouteHandler(
         resourceId: id,
         actorName: session.user.name ?? undefined,
         actorEmail: session.user.email ?? undefined,
-        resourceName: formRecord.title ?? undefined,
-        description: `Deleted form "${formRecord.title}"`,
+        resourceName: (title || formRecord.title) ?? undefined,
+        description: `Updated form "${title || formRecord.title}"`,
+        metadata: {
+          identifier: identifier || formRecord.identifier,
+          workflowId: formRecord.workflowId,
+          authType: authType || formRecord.authType,
+          updatedFields: Object.keys(updateData).filter((k) => k !== 'updatedAt'),
+        },
         request,
       })
 
@@ -269,4 +275,54 @@ export const DELETE = withRouteHandler(
       return createErrorResponse(error.message || 'Failed to delete form', 500)
     }
   }
-)
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSession()
+
+    if (!session) {
+      return createErrorResponse('Unauthorized', 401)
+    }
+
+    const { id } = await params
+
+    const {
+      hasAccess,
+      form: formRecord,
+      workspaceId: formWorkspaceId,
+    } = await checkFormAccess(id, session.user.id)
+
+    if (!hasAccess || !formRecord) {
+      return createErrorResponse('Form not found or access denied', 404)
+    }
+
+    await db.delete(form).where(eq(form.id, id))
+
+    logger.info(`Form ${id} deleted (soft delete)`)
+
+    recordAudit({
+      workspaceId: formWorkspaceId ?? null,
+      actorId: session.user.id,
+      action: AuditAction.FORM_DELETED,
+      resourceType: AuditResourceType.FORM,
+      resourceId: id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: formRecord.title ?? undefined,
+      description: `Deleted form "${formRecord.title}"`,
+      metadata: { identifier: formRecord.identifier, workflowId: formRecord.workflowId },
+      request,
+    })
+
+    return createSuccessResponse({
+      message: 'Form deleted successfully',
+    })
+  } catch (error: any) {
+    logger.error('Error deleting form:', error)
+    return createErrorResponse(error.message || 'Failed to delete form', 500)
+  }
+}

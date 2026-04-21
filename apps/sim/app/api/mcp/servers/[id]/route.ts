@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -142,5 +143,45 @@ export const PATCH =
           500
         )
       }
+
+      const shouldClearCache =
+        (body.url !== undefined && currentServer?.url !== body.url) ||
+        body.enabled !== undefined ||
+        body.headers !== undefined ||
+        body.timeout !== undefined ||
+        body.retries !== undefined
+
+      if (shouldClearCache) {
+        await mcpService.clearCache(workspaceId)
+        logger.info(`[${requestId}] Cleared MCP cache after server lifecycle update`)
+      }
+
+      logger.info(`[${requestId}] Successfully updated MCP server: ${serverId}`)
+
+      recordAudit({
+        workspaceId,
+        actorId: userId,
+        actorName: userName,
+        actorEmail: userEmail,
+        action: AuditAction.MCP_SERVER_UPDATED,
+        resourceType: AuditResourceType.MCP_SERVER,
+        resourceId: serverId,
+        resourceName: updatedServer.name || serverId,
+        description: `Updated MCP server "${updatedServer.name || serverId}"`,
+        metadata: {
+          serverName: updatedServer.name,
+          transport: updatedServer.transport,
+          url: updatedServer.url,
+          updatedFields: Object.keys(updateData).filter(
+            (k) => k !== 'workspaceId' && k !== 'updatedAt'
+          ),
+        },
+        request,
+      })
+
+      return createMcpSuccessResponse({ server: updatedServer })
+    } catch (error) {
+      logger.error(`[${requestId}] Error updating MCP server:`, error)
+      return createMcpErrorResponse(toError(error), 'Failed to update MCP server', 500)
     }
   )

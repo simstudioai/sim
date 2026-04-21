@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
@@ -110,7 +111,7 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
     })
   } catch (error) {
     logger.error('Failed to get usage logs', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
 
     return NextResponse.json(

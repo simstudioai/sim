@@ -261,8 +261,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   data: 'Access Wealthbox data',
 
   // Linear scopes
-  read: 'Read access to workspace',
-  write: 'Write access to Linear workspace',
+  read: 'Read access to connected account data',
+  write: 'Write access to connected account data',
 
   // Slack scopes
   'channels:read': 'View public channels',
@@ -337,7 +337,6 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'mail:full': 'Full access to manage Pipedrive emails',
   'projects:read': 'Read Pipedrive projects',
   'projects:full': 'Full access to manage Pipedrive projects',
-  'webhooks:read': 'Read Pipedrive webhooks',
   'webhooks:full': 'Full access to manage Pipedrive webhooks',
 
   // LinkedIn scopes
@@ -414,6 +413,15 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'comment:read-write': 'Read and write comments and threads',
   'user_management:read': 'View workspace members',
   'webhook:read-write': 'Manage webhooks',
+
+  // Monday.com scopes
+  'boards:read': 'Read boards, items, and columns',
+  'boards:write': 'Create and modify boards, items, and groups',
+  'updates:read': 'Read updates and comments',
+  'updates:write': 'Create and edit updates and comments',
+  'webhooks:read': 'Read webhook subscriptions',
+  'webhooks:write': 'Create and manage webhook subscriptions',
+  'me:read': 'Read your user profile',
 }
 
 /**

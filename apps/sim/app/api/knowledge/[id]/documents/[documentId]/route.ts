@@ -220,13 +220,43 @@ export const PUT = withRouteHandler(
           logger.warn(`[${requestId}] Invalid document update data`, {
             errors: validationError.errors,
             documentId,
-          })
-          return NextResponse.json(
-            { error: 'Invalid request data', details: validationError.errors },
-            { status: 400 }
-          )
-        }
-        throw validationError
+            status: result.status,
+            message: result.message,
+          },
+        })
+      } else {
+        const updatedDocument = await updateDocument(documentId, validatedData, requestId)
+
+        logger.info(
+          `[${requestId}] Document updated: ${documentId} in knowledge base ${knowledgeBaseId}`
+        )
+
+        recordAudit({
+          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
+          actorId: userId,
+          actorName: auth.userName,
+          actorEmail: auth.userEmail,
+          action: AuditAction.DOCUMENT_UPDATED,
+          resourceType: AuditResourceType.DOCUMENT,
+          resourceId: documentId,
+          resourceName: validatedData.filename ?? accessCheck.document?.filename,
+          description: `Updated document "${validatedData.filename ?? accessCheck.document?.filename}" in knowledge base "${knowledgeBaseId}"`,
+          metadata: {
+            knowledgeBaseId,
+            knowledgeBaseName: accessCheck.knowledgeBase?.name,
+            fileName: validatedData.filename ?? accessCheck.document?.filename,
+            updatedFields: Object.keys(validatedData).filter(
+              (k) => validatedData[k as keyof typeof validatedData] !== undefined
+            ),
+            ...(validatedData.enabled !== undefined && { enabled: validatedData.enabled }),
+          },
+          request: req,
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: updatedDocument,
+        })
       }
     } catch (error) {
       logger.error(`[${requestId}] Error updating document ${documentId}`, error)
@@ -299,5 +329,47 @@ export const DELETE = withRouteHandler(
       logger.error(`[${requestId}] Error deleting document`, error)
       return NextResponse.json({ error: 'Failed to delete document' }, { status: 500 })
     }
+
+    const result = await deleteDocument(documentId, requestId)
+
+    logger.info(
+      `[${requestId}] Document deleted: ${documentId} from knowledge base ${knowledgeBaseId}`
+    )
+
+    recordAudit({
+      workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
+      actorId: userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.DOCUMENT_DELETED,
+      resourceType: AuditResourceType.DOCUMENT,
+      resourceId: documentId,
+      resourceName: accessCheck.document?.filename,
+      description: `Deleted document "${accessCheck.document?.filename}" from knowledge base "${knowledgeBaseId}"`,
+      metadata: {
+        knowledgeBaseId,
+        knowledgeBaseName: accessCheck.knowledgeBase?.name,
+        fileName: accessCheck.document?.filename,
+        fileSize: accessCheck.document?.fileSize,
+        mimeType: accessCheck.document?.mimeType,
+      },
+      request: req,
+    })
+
+    const kbWorkspaceId = accessCheck.knowledgeBase?.workspaceId ?? ''
+    captureServerEvent(
+      userId,
+      'knowledge_base_document_deleted',
+      { knowledge_base_id: knowledgeBaseId, workspace_id: kbWorkspaceId },
+      kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : undefined
+    )
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+    })
+  } catch (error) {
+    logger.error(`[${requestId}] Error deleting document`, error)
+    return NextResponse.json({ error: 'Failed to delete document' }, { status: 500 })
   }
 )

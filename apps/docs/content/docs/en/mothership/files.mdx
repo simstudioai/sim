@@ -1,0 +1,120 @@
+---
+title: Files & Documents
+description: Upload, create, edit, and generate files — documents, presentations, images, and more.
+---
+
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
+
+<Video src="mothership/files-pipeline-deals-summarizer.mp4" width={700} height={450} />
+
+Describe a document, presentation, image, or visualization and Mothership creates it — streaming the content live into the resource panel as it writes. Attach any file to your message and Mothership reads it, processes it, and saves it to your workspace.
+
+## Uploading Files to the Workspace
+
+Attach any file directly to your Mothership message — drag it into the input, paste it, or click the attachment icon. Mothership reads the file as context and saves it to your workspace.
+
+Use this to:
+- Hand Mothership a document and ask it to process, summarize, or extract data from it
+- Upload a CSV and have it create a table from it
+- Drop in a PDF and ask Mothership to turn it into a knowledge base document
+- Attach a design mockup and ask Mothership to describe it or generate code from it
+
+Uploaded files appear in the Files panel in the sidebar and are accessible to all workflows in the workspace. Mothership can also fetch a file directly from a URL and save it for you: "Download the JSON at [URL] and save it to the workspace."
+
+## Creating Documents
+
+Mothership can write any text-based file — markdown, plain text, code files, CSV, JSON, or any other format:
+
+- "Write a technical spec for the new auth system as a markdown file"
+- "Create a CSV of our test accounts with columns for name, email, and plan tier"
+- "Write a Python script that calls our workflow API and processes the response"
+- "Draft a postmortem for the outage last Tuesday and save it as a markdown file"
+- "Write a personalized outbound email for Acme Corp based on their recent funding announcement"
+- "Draft a weekly ops digest summarizing workflow run counts, errors, and top failures for the past 7 days"
+
+Files are saved to your workspace and accessible from the Files panel in the sidebar.
+
+## Editing Existing Files
+
+Open a file using `@filename` or the **+** menu, then describe the change:
+
+- "Update the pricing section to reflect the new tiers"
+- "Refactor this Python script to use async/await"
+- "Add a section on error handling to this spec"
+- "Rewrite the introduction of this report to be more concise"
+
+## Presentations
+
+<Image src="/static/mothership/pptx-example.png" alt="Mothership resource panel showing a generated Mothership-Use-Cases.pptx file open with the title slide and first use case slide visible" width={900} height={500} />
+
+Mothership can generate `.pptx` files:
+
+- "Create a pitch deck for Q3 review — 8 slides covering growth, retention, and roadmap"
+- "Turn this research report into a 10-slide presentation"
+- "Build a deck that walks through our API onboarding flow"
+- "Build a battle card deck for our top 3 competitors — one slide each covering positioning, pricing, and how we win"
+- "Create an account plan for Acme Corp — their priorities, our solution fit, and proposed next steps"
+
+The file is saved to your workspace and can be downloaded.
+
+## Images
+
+Mothership can generate images using AI, and can use an existing image as a reference to guide the output:
+
+**Generating images:**
+- "Generate a banner image for the new feature announcement — dark background, clean typography"
+- "Create a diagram showing the data flow through our webhook pipeline"
+- "Make a social card for the blog post with the title and author name"
+
+**Using a reference image:**
+- Attach an existing image to your message, then describe what you want: "Generate a new version of this banner with a blue color scheme instead of green"
+- "Create a variation of this diagram with the boxes rearranged horizontally [attach image]"
+
+<Image src="/static/mothership/image-example.png" alt="Mothership resource panel showing a generated hero image of a Mothership-branded blimp flying over San Francisco at golden hour, alongside the chat response linking the file" width={900} height={500} />
+
+Generated images are saved as workspace files.
+
+## Charts and Visualizations
+
+Mothership can generate charts and data visualizations from data you describe or reference:
+
+- "Plot the workflow run counts from the metrics table as a bar chart grouped by week"
+- "Create a line chart of token usage over the past 30 days from this data [paste data]"
+- "Generate a pie chart showing the distribution of lead sources from the leads table"
+
+<Image src="/static/mothership/chart-example.png" alt="Mothership resource panel showing a generated chart file with bar charts for backend 5xx errors and error rate over time" width={900} height={500} />
+
+Visualizations are saved as files and rendered in the resource panel.
+
+## Calculations & Data Processing
+
+For one-off calculations and data transformations, describe what you need and Mothership runs it directly in the chat:
+
+- "Parse this JSON and extract all records where status is 'failed'"
+- "Calculate the p95 latency from these timing values: [paste values]"
+- "Convert these Unix timestamps to ISO 8601"
+- "Deduplicate this list of emails, case-insensitive"
+
+Results come back directly in the chat. Ask Mothership to save the output as a file if you need it.
+
+## File Viewer Modes
+
+When a file opens in the resource panel, you can switch between three views:
+
+<Video src="mothership/toggle-file-view.mp4" width={700} height={450} />
+
+| Mode | What it shows |
+|------|--------------|
+| **Editor** | Raw editable text |
+| **Preview** | Rendered output (markdown, HTML) |
+| **Split** | Editor and preview side by side |
+
+<FAQ items={[
+  { question: "Where are uploaded and generated files stored?", answer: "All files — uploaded, created, or generated — go to your workspace's Files section. They're accessible from the sidebar and can be referenced in any workflow." },
+  { question: "Can I use files created in Mothership in workflows?", answer: "Yes. Workspace files can be referenced in workflows using the File block or by passing them as inputs." },
+  { question: "What file types can I upload to Mothership?", answer: "You can attach images, PDFs, text files, JSON, XML, and other document formats directly to a Mothership message." },
+  { question: "What can Mothership calculate or process?", answer: "Anything expressible as a short script — parsing JSON, number crunching, string transformations, deduplication, format conversions. Results come back in the chat." },
+  { question: "Is there a file size limit for generated files?", answer: "There is no hard limit on generated file size, but very large files may take longer to stream." },
+]} />

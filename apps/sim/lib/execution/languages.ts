@@ -4,6 +4,7 @@
 export enum CodeLanguage {
   JavaScript = 'javascript',
   Python = 'python',
+  Shell = 'shell',
 }
 
 /**
@@ -22,6 +23,8 @@ export function getLanguageDisplayName(language: CodeLanguage): string {
       return 'JavaScript'
     case CodeLanguage.Python:
       return 'Python'
+    case CodeLanguage.Shell:
+      return 'Shell'
     default:
       return language
   }

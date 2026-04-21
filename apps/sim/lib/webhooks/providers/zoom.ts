@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { db, webhook, workflow } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -83,7 +84,7 @@ async function resolveZoomChallengeSecrets(
         return { secretToken }
       } catch (error) {
         logger.warn(`[${requestId}] Failed to resolve Zoom webhook secret for challenge`, {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
           path,
         })
         return { secretToken: '' }

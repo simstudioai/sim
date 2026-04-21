@@ -1,10 +1,9 @@
 'use client'
 
-import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { noop } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
-import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 import {
   ChatErrorState,
   ChatHeader,
@@ -19,28 +18,29 @@ import {
 import { CHAT_ERROR_MESSAGES, CHAT_REQUEST_TIMEOUT_MS } from '@/app/chat/constants'
 import { useAudioStreaming, useChatStreaming } from '@/app/chat/hooks'
 import SSOAuth from '@/ee/sso/components/sso-auth'
+import { useDeployedChatConfig } from '@/hooks/queries/chats'
+import { useGitHubStars } from '@/hooks/queries/github-stars'
+import { useVoiceSettings } from '@/hooks/queries/voice-settings'
 
 const logger = createLogger('ChatClient')
-
-interface ChatConfig {
-  id: string
-  title: string
-  description: string
-  customizations: {
-    primaryColor?: string
-    logoUrl?: string
-    imageUrl?: string
-    welcomeMessage?: string
-    headerText?: string
-  }
-  authType?: 'public' | 'password' | 'email' | 'sso'
-  outputConfigs?: Array<{ blockId: string; path?: string }>
-}
 
 interface AudioStreamingOptions {
   voiceId: string
   chatId?: string
   onError: (error: Error) => void
+}
+
+interface ChatRequestFile {
+  name: string
+  size: number
+  type: string
+  data: string
+}
+
+interface ChatRequestPayload {
+  input: string
+  conversationId: string
+  files?: ChatRequestFile[]
 }
 
 const DEFAULT_VOICE_SETTINGS = {
@@ -86,55 +86,46 @@ function createAudioStreamHandler(
   }
 }
 
-function throttle<T extends (...args: any[]) => any>(func: T, delay: number): T {
-  let timeoutId: NodeJS.Timeout | null = null
-  let lastExecTime = 0
-
-  return ((...args: Parameters<T>) => {
-    const currentTime = Date.now()
-
-    if (currentTime - lastExecTime > delay) {
-      func(...args)
-      lastExecTime = currentTime
-    } else {
-      if (timeoutId) clearTimeout(timeoutId)
-      timeoutId = setTimeout(
-        () => {
-          func(...args)
-          lastExecTime = Date.now()
-        },
-        delay - (currentTime - lastExecTime)
-      )
-    }
-  }) as T
-}
-
 export default function ChatClient({ identifier }: { identifier: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [chatConfig, setChatConfig] = useState<ChatConfig | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const [starCount, setStarCount] = useState('25.8k')
-  const [conversationId, setConversationId] = useState('')
+  const [conversationId] = useState(() => generateId())
 
   const [showScrollButton, setShowScrollButton] = useState(false)
   const [userHasScrolled, setUserHasScrolled] = useState(false)
   const isUserScrollingRef = useRef(false)
 
-  const [authRequired, setAuthRequired] = useState<'password' | 'email' | 'sso' | null>(null)
-
   const [isVoiceFirstMode, setIsVoiceFirstMode] = useState(false)
-  const [sttAvailable, setSttAvailable] = useState(false)
 
-  useEffect(() => {
-    fetch('/api/settings/voice')
-      .then((r) => (r.ok ? r.json() : { sttAvailable: false }))
-      .then((data) => setSttAvailable(data.sttAvailable === true))
-      .catch(() => setSttAvailable(false))
-  }, [])
+  const { data: chatConfigResult, error: chatConfigError } = useDeployedChatConfig(identifier)
+  const { data: voiceSettings } = useVoiceSettings()
+  const { data: starCount } = useGitHubStars()
+
+  const sttAvailable = voiceSettings?.sttAvailable === true
+  const authRequired = chatConfigResult?.kind === 'auth' ? chatConfigResult.authType : null
+  const chatConfig = chatConfigResult?.kind === 'config' ? chatConfigResult.config : null
+
+  const welcomeMessage = chatConfig?.customizations?.welcomeMessage
+  const welcomeChatMessage = useMemo<ChatMessage | null>(
+    () =>
+      welcomeMessage
+        ? {
+            id: 'welcome',
+            content: welcomeMessage,
+            type: 'assistant',
+            timestamp: new Date(),
+            isInitialMessage: true,
+          }
+        : null,
+    [welcomeMessage]
+  )
+  const displayMessages: ChatMessage[] = welcomeChatMessage
+    ? [welcomeChatMessage, ...messages]
+    : messages
+
   const { isStreamingResponse, abortControllerRef, stopStreaming, handleStreamedResponse } =
     useChatStreaming()
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -174,29 +165,26 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     [messagesContainerRef]
   )
 
-  const handleScroll = useCallback(
-    throttle(() => {
-      const container = messagesContainerRef.current
-      if (!container) return
-
-      const { scrollTop, scrollHeight, clientHeight } = container
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-      setShowScrollButton(distanceFromBottom > 100)
-
-      if (isStreamingResponse && !isUserScrollingRef.current) {
-        setUserHasScrolled(true)
-      }
-    }, 100),
-    [isStreamingResponse]
-  )
+  const isStreamingResponseRef = useRef(isStreamingResponse)
+  isStreamingResponseRef.current = isStreamingResponse
 
   useEffect(() => {
     const container = messagesContainerRef.current
     if (!container) return
 
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+      setShowScrollButton(distanceFromBottom > 100)
+
+      if (isStreamingResponseRef.current && !isUserScrollingRef.current) {
+        setUserHasScrolled(true)
+      }
+    }
+
     container.addEventListener('scroll', handleScroll, { passive: true })
     return () => container.removeEventListener('scroll', handleScroll)
-  }, [handleScroll])
+  }, [chatConfig, isVoiceFirstMode, authRequired])
 
   useEffect(() => {
     if (isStreamingResponse) {
@@ -208,83 +196,6 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       }, 1000)
     }
   }, [isStreamingResponse])
-
-  const fetchChatConfig = async () => {
-    try {
-      const response = await fetch(`/api/chat/${identifier}`, {
-        credentials: 'same-origin',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-      })
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          const errorData = await response.json()
-
-          if (errorData.error === 'auth_required_password') {
-            setAuthRequired('password')
-            return
-          }
-          if (errorData.error === 'auth_required_email') {
-            setAuthRequired('email')
-            return
-          }
-          if (errorData.error === 'auth_required_sso') {
-            setAuthRequired('sso')
-            return
-          }
-        }
-
-        throw new Error(`Failed to load chat configuration: ${response.status}`)
-      }
-
-      setAuthRequired(null)
-
-      const data = await response.json()
-
-      setChatConfig(data)
-
-      if (data?.customizations?.welcomeMessage) {
-        setMessages([
-          {
-            id: 'welcome',
-            content: data.customizations.welcomeMessage,
-            type: 'assistant',
-            timestamp: new Date(),
-            isInitialMessage: true,
-          },
-        ])
-      }
-    } catch (error) {
-      logger.error('Error fetching chat config:', error)
-      setError(CHAT_ERROR_MESSAGES.CHAT_UNAVAILABLE)
-    }
-  }
-
-  useEffect(() => {
-    fetchChatConfig()
-    setConversationId(generateId())
-
-    getFormattedGitHubStars()
-      .then((formattedStars) => {
-        setStarCount(formattedStars)
-      })
-      .catch((err) => {
-        logger.error('Failed to fetch GitHub stars:', err)
-      })
-  }, [identifier])
-
-  const refreshChat = () => {
-    fetchChatConfig()
-  }
-
-  const handleAuthSuccess = () => {
-    setAuthRequired(null)
-    setTimeout(() => {
-      refreshChat()
-    }, 800)
-  }
 
   const handleSendMessage = async (
     messageParam?: string,
@@ -338,23 +249,25 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     }, CHAT_REQUEST_TIMEOUT_MS)
 
     try {
-      const payload: any = {
+      const payloadFiles =
+        files && files.length > 0
+          ? await Promise.all(
+              files.map(async (file) => ({
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                data: file.dataUrl || (await fileToBase64(file.file)),
+              }))
+            )
+          : undefined
+
+      const payload: ChatRequestPayload = {
         input:
           typeof userMessage.content === 'string'
             ? userMessage.content
             : JSON.stringify(userMessage.content),
         conversationId,
-      }
-
-      if (files && files.length > 0) {
-        payload.files = await Promise.all(
-          files.map(async (file) => ({
-            name: file.name,
-            size: file.size,
-            type: file.type,
-            data: file.dataUrl || (await fileToBase64(file.file)),
-          }))
-        )
+        ...(payloadFiles ? { files: payloadFiles } : {}),
       }
 
       logger.info('API payload:', {
@@ -412,10 +325,10 @@ export default function ChatClient({ identifier }: { identifier: string }) {
           outputConfigs: chatConfig?.outputConfigs,
         }
       )
-    } catch (error: any) {
+    } catch (error) {
       clearTimeout(timeoutId)
 
-      if (error.name === 'AbortError') {
+      if (error instanceof Error && error.name === 'AbortError') {
         logger.info('Request aborted by user or timeout')
         setIsLoading(false)
         return
@@ -468,20 +381,17 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     [handleSendMessage]
   )
 
-  if (error) {
-    return <ChatErrorState error={error} />
+  if (chatConfigError) {
+    logger.error('Error fetching chat config:', chatConfigError)
+    return <ChatErrorState error={CHAT_ERROR_MESSAGES.CHAT_UNAVAILABLE} />
   }
 
   if (authRequired) {
-    // const title = new URLSearchParams(window.location.search).get('title') || 'chat'
-    // const primaryColor =
-    //   new URLSearchParams(window.location.search).get('color') || 'var(--brand-hover)'
-
     if (authRequired === 'password') {
-      return <PasswordAuth identifier={identifier} onAuthSuccess={handleAuthSuccess} />
+      return <PasswordAuth identifier={identifier} />
     }
     if (authRequired === 'email') {
-      return <EmailAuth identifier={identifier} onAuthSuccess={handleAuthSuccess} />
+      return <EmailAuth identifier={identifier} />
     }
     if (authRequired === 'sso') {
       return <SSOAuth identifier={identifier} />
@@ -504,7 +414,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
         isPlayingAudio={isPlayingAudio}
         audioContextRef={audioContextRef}
         chatId={chatConfig?.id}
-        messages={messages.map((msg) => ({
+        messages={displayMessages.map((msg) => ({
           content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
           type: msg.type,
         }))}
@@ -519,7 +429,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
 
       {/* Message Container component */}
       <ChatMessageContainer
-        messages={messages}
+        messages={displayMessages}
         isLoading={isLoading}
         showScrollButton={showScrollButton}
         messagesContainerRef={messagesContainerRef as RefObject<HTMLDivElement>}

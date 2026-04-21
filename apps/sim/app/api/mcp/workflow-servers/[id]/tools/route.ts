@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import { workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -73,11 +73,7 @@ export const GET = withRouteHandler(withMcpAuth<RouteParams>('read'))(
       return createMcpSuccessResponse({ tools })
     } catch (error) {
       logger.error(`[${requestId}] Error listing tools:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to list tools'),
-        'Failed to list tools',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to list tools', 500)
     }
   }
 )
@@ -225,18 +221,20 @@ export const POST = withRouteHandler(withMcpAuth<RouteParams>('write'))(
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
         description: `Added tool "${toolName}" to MCP server`,
-        metadata: { toolId, toolName, workflowId: body.workflowId },
+        metadata: {
+          toolId,
+          toolName,
+          toolDescription,
+          workflowId: body.workflowId,
+          workflowName: workflowRecord.name,
+        },
         request,
       })
 
       return createMcpSuccessResponse({ tool }, 201)
     } catch (error) {
       logger.error(`[${requestId}] Error adding tool:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to add tool'),
-        'Failed to add tool',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to add tool', 500)
     }
   }
 )

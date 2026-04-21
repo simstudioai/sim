@@ -1,4 +1,20 @@
 import { createLogger } from '@sim/logger'
+import { z } from 'zod'
+import {
+  CreateFile,
+  DeleteFile,
+  DownloadToWorkspaceFile,
+  GenerateImage,
+  GenerateVisualization,
+  KnowledgeBase,
+  ManageCredential,
+  ManageCustomTool,
+  ManageMcpTool,
+  ManageSkill,
+  RenameFile,
+  UserTable,
+  WorkspaceFile,
+} from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -7,12 +23,16 @@ import {
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
+import { createFileServerTool } from '@/lib/copilot/tools/server/files/create-file'
+import { deleteFileServerTool } from '@/lib/copilot/tools/server/files/delete-file'
 import { downloadToWorkspaceFileServerTool } from '@/lib/copilot/tools/server/files/download-to-workspace-file'
+import { editContentServerTool } from '@/lib/copilot/tools/server/files/edit-content'
+import { renameFileServerTool } from '@/lib/copilot/tools/server/files/rename-file'
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
+import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
 import { getJobLogsServerTool } from '@/lib/copilot/tools/server/jobs/get-job-logs'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
-import { makeApiRequestServerTool } from '@/lib/copilot/tools/server/other/make-api-request'
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
 import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
@@ -21,15 +41,19 @@ import { generateVisualizationServerTool } from '@/lib/copilot/tools/server/visu
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { getExecutionSummaryServerTool } from '@/lib/copilot/tools/server/workflow/get-execution-summary'
 import { getWorkflowLogsServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-logs'
-import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
 
 export { ExecuteResponseSuccessSchema }
 export type ExecuteResponseSuccess = (typeof ExecuteResponseSuccessSchema)['_type']
 
+const ExecuteResponseSuccessSchema = z.object({
+  success: z.literal(true),
+  result: z.unknown(),
+})
+
 const logger = createLogger('ServerToolRouter')
 
 const WRITE_ACTIONS: Record<string, string[]> = {
-  knowledge_base: [
+  [KnowledgeBase.id]: [
     'create',
     'add_file',
     'update',
@@ -44,7 +68,7 @@ const WRITE_ACTIONS: Record<string, string[]> = {
     'delete_connector',
     'sync_connector',
   ],
-  user_table: [
+  [UserTable.id]: [
     'create',
     'create_from_file',
     'import_file',
@@ -60,14 +84,18 @@ const WRITE_ACTIONS: Record<string, string[]> = {
     'delete_column',
     'update_column',
   ],
-  manage_custom_tool: ['add', 'edit', 'delete'],
-  manage_mcp_tool: ['add', 'edit', 'delete'],
-  manage_skill: ['add', 'edit', 'delete'],
-  manage_credential: ['rename', 'delete'],
-  workspace_file: ['write', 'update', 'delete', 'rename', 'patch'],
-  download_to_workspace_file: ['*'],
-  generate_visualization: ['generate'],
-  generate_image: ['generate'],
+  [ManageCustomTool.id]: ['add', 'edit', 'delete'],
+  [ManageMcpTool.id]: ['add', 'edit', 'delete'],
+  [ManageSkill.id]: ['add', 'edit', 'delete'],
+  [ManageCredential.id]: ['rename', 'delete'],
+  [WorkspaceFile.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
+  [editContentServerTool.name]: ['*'],
+  [CreateFile.id]: ['*'],
+  [RenameFile.id]: ['*'],
+  [DeleteFile.id]: ['*'],
+  [DownloadToWorkspaceFile.id]: ['*'],
+  [GenerateVisualization.id]: ['generate'],
+  [GenerateImage.id]: ['generate'],
 }
 
 function isWritePermission(userPermission: string): boolean {
@@ -99,19 +127,22 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [searchOnlineServerTool.name]: searchOnlineServerTool,
   [setEnvironmentVariablesServerTool.name]: setEnvironmentVariablesServerTool,
   [getCredentialsServerTool.name]: getCredentialsServerTool,
-  [makeApiRequestServerTool.name]: makeApiRequestServerTool,
   [knowledgeBaseServerTool.name]: knowledgeBaseServerTool,
   [userTableServerTool.name]: userTableServerTool,
   [workspaceFileServerTool.name]: workspaceFileServerTool,
+  [editContentServerTool.name]: editContentServerTool,
+  [createFileServerTool.name]: createFileServerTool,
+  [renameFileServerTool.name]: renameFileServerTool,
+  [deleteFileServerTool.name]: deleteFileServerTool,
   [downloadToWorkspaceFileServerTool.name]: downloadToWorkspaceFileServerTool,
   [generateVisualizationServerTool.name]: generateVisualizationServerTool,
   [generateImageServerTool.name]: generateImageServerTool,
 }
 
-/**
- * Route a tool execution request to the appropriate server tool.
- * Validates input/output using the tool's declared Zod schemas if present.
- */
+export function getRegisteredServerToolNames(): string[] {
+  return Object.keys(serverToolRegistry)
+}
+
 export async function routeExecution(
   toolName: string,
   payload: unknown,
@@ -122,9 +153,10 @@ export async function routeExecution(
     throw new Error(`Unknown server tool: ${toolName}`)
   }
 
-  logger.withMetadata({ messageId: context?.messageId }).debug('Routing to tool', {
-    toolName,
-  })
+  logger.debug(
+    context?.messageId ? `Routing to tool [messageId:${context.messageId}]` : 'Routing to tool',
+    { toolName }
+  )
 
   // Action-level permission enforcement for mixed read/write tools
   if (context?.userPermission && WRITE_ACTIONS[toolName]) {
@@ -138,16 +170,39 @@ export async function routeExecution(
     }
   }
 
-  assertServerToolNotAborted(context)
+  assertServerToolNotAborted(
+    context,
+    `User stop signal aborted ${toolName} before payload normalization`
+  )
 
-  // Validate input if tool declares a schema
-  const args = tool.inputSchema ? tool.inputSchema.parse(payload ?? {}) : (payload ?? {})
+  // Go injects chatId/workspaceId and may wrap the model's args inside a
+  // nested "args" object. Unwrap that before validation so the generated
+  // JSON Schema sees the flat tool contract shape.
+  let normalizedPayload = payload ?? {}
+  if (
+    normalizedPayload &&
+    typeof normalizedPayload === 'object' &&
+    !Array.isArray(normalizedPayload)
+  ) {
+    const raw = normalizedPayload as Record<string, unknown>
+    if (raw.args && typeof raw.args === 'object' && !raw.operation) {
+      const nested = raw.args as Record<string, unknown>
+      normalizedPayload = { ...nested, ...raw, args: undefined }
+    }
+  }
 
-  assertServerToolNotAborted(context)
+  const args = tool.inputSchema
+    ? tool.inputSchema.parse(normalizedPayload)
+    : validateGeneratedToolPayload(toolName, 'parameters', normalizedPayload)
+
+  assertServerToolNotAborted(context, `User stop signal aborted ${toolName} after validation`)
 
   // Execute
   const result = await tool.execute(args, context)
 
-  // Validate output if tool declares a schema
-  return tool.outputSchema ? tool.outputSchema.parse(result) : result
+  // Validate output if tool declares a schema; otherwise fall back to the
+  // generated JSON schema contract emitted from Go.
+  return tool.outputSchema
+    ? tool.outputSchema.parse(result)
+    : validateGeneratedToolPayload(toolName, 'resultSchema', result)
 }

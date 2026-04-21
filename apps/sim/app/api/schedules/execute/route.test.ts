@@ -3,6 +3,14 @@
  *
  * @vitest-environment node
  */
+import {
+  dbChainMock,
+  dbChainMockFns,
+  requestUtilsMockFns,
+  resetDbChainMock,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,43 +19,25 @@ const {
   mockExecuteScheduleJob,
   mockExecuteJobInline,
   mockFeatureFlags,
-  mockDbReturning,
-  mockDbUpdate,
   mockEnqueue,
-  mockEnqueueWorkspaceDispatch,
   mockStartJob,
   mockCompleteJob,
   mockMarkJobFailed,
-} = vi.hoisted(() => {
-  const mockDbReturning = vi.fn().mockReturnValue([])
-  const mockDbWhere = vi.fn().mockReturnValue({ returning: mockDbReturning })
-  const mockDbSet = vi.fn().mockReturnValue({ where: mockDbWhere })
-  const mockDbUpdate = vi.fn().mockReturnValue({ set: mockDbSet })
-  const mockEnqueue = vi.fn().mockResolvedValue('job-id-1')
-  const mockEnqueueWorkspaceDispatch = vi.fn().mockResolvedValue('job-id-1')
-  const mockStartJob = vi.fn().mockResolvedValue(undefined)
-  const mockCompleteJob = vi.fn().mockResolvedValue(undefined)
-  const mockMarkJobFailed = vi.fn().mockResolvedValue(undefined)
-
-  return {
-    mockVerifyCronAuth: vi.fn().mockReturnValue(null),
-    mockExecuteScheduleJob: vi.fn().mockResolvedValue(undefined),
-    mockExecuteJobInline: vi.fn().mockResolvedValue(undefined),
-    mockFeatureFlags: {
-      isTriggerDevEnabled: false,
-      isHosted: false,
-      isProd: false,
-      isDev: true,
-    },
-    mockDbReturning,
-    mockDbUpdate,
-    mockEnqueue,
-    mockEnqueueWorkspaceDispatch,
-    mockStartJob,
-    mockCompleteJob,
-    mockMarkJobFailed,
-  }
-})
+} = vi.hoisted(() => ({
+  mockVerifyCronAuth: vi.fn().mockReturnValue(null),
+  mockExecuteScheduleJob: vi.fn().mockResolvedValue(undefined),
+  mockExecuteJobInline: vi.fn().mockResolvedValue(undefined),
+  mockFeatureFlags: {
+    isTriggerDevEnabled: false,
+    isHosted: false,
+    isProd: false,
+    isDev: true,
+  },
+  mockEnqueue: vi.fn().mockResolvedValue('job-id-1'),
+  mockStartJob: vi.fn().mockResolvedValue(undefined),
+  mockCompleteJob: vi.fn().mockResolvedValue(undefined),
+  mockMarkJobFailed: vi.fn().mockResolvedValue(undefined),
+}))
 
 vi.mock('@/lib/auth/internal', () => ({
   verifyCronAuth: mockVerifyCronAuth,
@@ -61,10 +51,6 @@ vi.mock('@/background/schedule-execution', () => ({
 
 vi.mock('@/lib/core/config/feature-flags', () => mockFeatureFlags)
 
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('test-request-id'),
-}))
-
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({
     enqueue: mockEnqueue,
@@ -75,21 +61,7 @@ vi.mock('@/lib/core/async-jobs', () => ({
   shouldExecuteInline: vi.fn().mockReturnValue(false),
 }))
 
-vi.mock('@/lib/core/bullmq', () => ({
-  isBullMQEnabled: vi.fn().mockReturnValue(true),
-  createBullMQJobData: vi.fn((payload: unknown) => ({ payload })),
-}))
-
-vi.mock('@/lib/core/workspace-dispatch', () => ({
-  enqueueWorkspaceDispatch: mockEnqueueWorkspaceDispatch,
-}))
-
-vi.mock('@/lib/workflows/utils', () => ({
-  getWorkflowById: vi.fn().mockResolvedValue({
-    id: 'workflow-1',
-    workspaceId: 'workspace-1',
-  }),
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
@@ -104,9 +76,7 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 vi.mock('@sim/db', () => ({
-  db: {
-    update: mockDbUpdate,
-  },
+  ...dbChainMock,
   workflowSchedule: {
     id: 'id',
     workflowId: 'workflowId',
@@ -132,7 +102,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn(() => 'schedule-execution-1'),
   generateShortId: vi.fn(() => 'mock-short-id'),
   isValidUuid: vi.fn((v: string) =>
@@ -175,8 +145,6 @@ const SINGLE_JOB = [
     cronExpression: '0 * * * *',
     failedCount: 0,
     lastQueuedAt: undefined,
-    sourceUserId: 'user-1',
-    sourceWorkspaceId: 'workspace-1',
     sourceType: 'job',
   },
 ]
@@ -198,15 +166,21 @@ function createMockRequest(): NextRequest {
 describe('Scheduled Workflow Execution API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('test-request-id')
+    workflowsUtilsMockFns.mockGetWorkflowById.mockResolvedValue({
+      id: 'workflow-1',
+      workspaceId: 'workspace-1',
+    })
     mockFeatureFlags.isTriggerDevEnabled = false
     mockFeatureFlags.isHosted = false
     mockFeatureFlags.isProd = false
     mockFeatureFlags.isDev = true
-    mockDbReturning.mockReturnValue([])
+    dbChainMockFns.returning.mockReturnValue([])
   })
 
   it('should execute scheduled workflows with Trigger.dev disabled', async () => {
-    mockDbReturning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
@@ -219,7 +193,7 @@ describe('Scheduled Workflow Execution API Route', () => {
 
   it('should queue schedules to Trigger.dev when enabled', async () => {
     mockFeatureFlags.isTriggerDevEnabled = true
-    mockDbReturning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
@@ -230,7 +204,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should handle case with no due schedules', async () => {
-    mockDbReturning.mockReturnValueOnce([]).mockReturnValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce([]).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
@@ -241,7 +215,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should execute multiple schedules in parallel', async () => {
-    mockDbReturning.mockReturnValueOnce(MULTIPLE_SCHEDULES).mockReturnValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce(MULTIPLE_SCHEDULES).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
@@ -250,56 +224,48 @@ describe('Scheduled Workflow Execution API Route', () => {
     expect(data).toHaveProperty('executedCount', 2)
   })
 
-  it('should queue mothership jobs to BullMQ when available', async () => {
-    mockDbReturning.mockReturnValueOnce([]).mockReturnValueOnce(SINGLE_JOB)
+  it('should execute mothership jobs inline', async () => {
+    dbChainMockFns.returning.mockReturnValueOnce([]).mockReturnValueOnce(SINGLE_JOB)
 
     const response = await GET(createMockRequest())
 
     expect(response.status).toBe(200)
-    expect(mockEnqueueWorkspaceDispatch).toHaveBeenCalledWith(
+    expect(mockExecuteJobInline).toHaveBeenCalledWith(
       expect.objectContaining({
-        workspaceId: 'workspace-1',
-        lane: 'runtime',
-        queueName: 'mothership-job-execution',
-        bullmqJobName: 'mothership-job-execution',
-        bullmqPayload: {
-          payload: {
-            scheduleId: 'job-1',
-            cronExpression: '0 * * * *',
-            failedCount: 0,
-            now: expect.any(String),
-          },
-        },
+        scheduleId: 'job-1',
+        cronExpression: '0 * * * *',
+        failedCount: 0,
+        now: expect.any(String),
       })
     )
-    expect(mockExecuteJobInline).not.toHaveBeenCalled()
   })
 
-  it('should enqueue preassigned correlation metadata for schedules', async () => {
-    mockDbReturning.mockReturnValue(SINGLE_SCHEDULE)
+  it('should enqueue schedule with correlation metadata via job queue', async () => {
+    dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
     expect(response.status).toBe(200)
-    expect(mockEnqueueWorkspaceDispatch).toHaveBeenCalledWith(
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'schedule-execution',
       expect.objectContaining({
-        id: 'schedule-execution-1',
-        workspaceId: 'workspace-1',
-        lane: 'runtime',
-        queueName: 'schedule-execution',
-        bullmqJobName: 'schedule-execution',
-        metadata: {
+        scheduleId: 'schedule-1',
+        workflowId: 'workflow-1',
+        executionId: 'schedule-execution-1',
+        requestId: 'test-request-id',
+      }),
+      expect.objectContaining({
+        metadata: expect.objectContaining({
           workflowId: 'workflow-1',
-          correlation: {
+          workspaceId: 'workspace-1',
+          correlation: expect.objectContaining({
             executionId: 'schedule-execution-1',
             requestId: 'test-request-id',
             source: 'schedule',
             workflowId: 'workflow-1',
             scheduleId: 'schedule-1',
-            triggerType: 'schedule',
-            scheduledFor: '2025-01-01T00:00:00.000Z',
-          },
-        },
+          }),
+        }),
       })
     )
   })

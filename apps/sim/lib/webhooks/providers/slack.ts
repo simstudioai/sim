@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
 import {
@@ -47,7 +48,7 @@ async function resolveSlackFileInfo(
   } catch (error) {
     logger.error('Error calling Slack files.info', {
       fileId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return null
   }
@@ -137,7 +138,7 @@ async function downloadSlackFiles(
     } catch (error) {
       logger.error('Error downloading Slack file, skipping', {
         fileId: f.id,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -174,7 +175,7 @@ async function fetchSlackMessageText(
     logger.warn('Error fetching Slack message text', {
       channel,
       messageTs,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return ''
   }

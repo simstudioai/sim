@@ -153,13 +153,32 @@ export const PUT = withRouteHandler(
         request: req,
       })
 
-      return NextResponse.json({ credentialSet: updated })
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
-      }
-      logger.error('Error updating credential set', error)
-      return NextResponse.json({ error: 'Failed to update credential set' }, { status: 500 })
+    const [updated] = await db.select().from(credentialSet).where(eq(credentialSet.id, id)).limit(1)
+
+    recordAudit({
+      workspaceId: null,
+      actorId: session.user.id,
+      action: AuditAction.CREDENTIAL_SET_UPDATED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
+      resourceId: id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: updated?.name ?? result.set.name,
+      description: `Updated credential set "${updated?.name ?? result.set.name}"`,
+      metadata: {
+        organizationId: result.set.organizationId,
+        providerId: result.set.providerId,
+        updatedFields: Object.keys(updates).filter(
+          (k) => updates[k as keyof typeof updates] !== undefined
+        ),
+      },
+      request: req,
+    })
+
+    return NextResponse.json({ credentialSet: updated })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
     }
   }
 )
@@ -186,9 +205,19 @@ export const DELETE = withRouteHandler(
     try {
       const result = await getCredentialSetWithAccess(id, session.user.id)
 
-      if (!result) {
-        return NextResponse.json({ error: 'Credential set not found' }, { status: 404 })
-      }
+    recordAudit({
+      workspaceId: null,
+      actorId: session.user.id,
+      action: AuditAction.CREDENTIAL_SET_DELETED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
+      resourceId: id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: result.set.name,
+      description: `Deleted credential set "${result.set.name}"`,
+      metadata: { organizationId: result.set.organizationId, providerId: result.set.providerId },
+      request: req,
+    })
 
       if (result.role !== 'admin' && result.role !== 'owner') {
         return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })

@@ -1,12 +1,12 @@
 # Add Trigger
 
-You are an expert at creating webhook triggers for Sim. You understand the trigger system, the generic `buildTriggerSubBlocks` helper, and how triggers connect to blocks.
+You are an expert at creating webhook and polling triggers for Sim. You understand the trigger system, the generic `buildTriggerSubBlocks` helper, polling infrastructure, and how triggers connect to blocks.
 
 ## Your Task
 
-1. Research what webhook events the service supports
-2. Create the trigger files using the generic builder
-3. Create a provider handler if custom auth, formatting, or subscriptions are needed
+1. Research what webhook events the service supports — if the service lacks reliable webhooks, use polling
+2. Create the trigger files using the generic builder (webhook) or manual config (polling)
+3. Create a provider handler (webhook) or polling handler (polling)
 4. Register triggers and connect them to the block
 
 ## Directory Structure
@@ -141,22 +141,36 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
 
 ### Block file (`apps/sim/blocks/blocks/{service}.ts`)
 
+Wire triggers into the block so the trigger UI appears and `generate-docs.ts` discovers them. Two changes are needed:
+
+1. **Spread trigger subBlocks** at the end of the block's `subBlocks` array
+2. **Add `triggers` property** after `outputs` with `enabled: true` and `available: [...]`
+
 ```typescript
 import { getTrigger } from '@/triggers'
 
 export const {Service}Block: BlockConfig = {
   // ...
-  triggers: {
-    enabled: true,
-    available: ['{service}_event_a', '{service}_event_b'],
-  },
   subBlocks: [
     // Regular tool subBlocks first...
     ...getTrigger('{service}_event_a').subBlocks,
     ...getTrigger('{service}_event_b').subBlocks,
   ],
+  // ... tools, inputs, outputs ...
+  triggers: {
+    enabled: true,
+    available: ['{service}_event_a', '{service}_event_b'],
+  },
 }
 ```
+
+**Versioned blocks (V1 + V2):** Many integrations have a hidden V1 block and a visible V2 block. Where you add the trigger wiring depends on how V2 inherits from V1:
+
+- **V2 uses `...V1Block` spread** (e.g., Google Calendar): Add trigger to V1 — V2 inherits both `subBlocks` and `triggers` automatically.
+- **V2 defines its own `subBlocks`** (e.g., Google Sheets): Add trigger to V2 (the visible block). V1 is hidden and doesn't need it.
+- **Single block, no V2** (e.g., Google Drive): Add trigger directly.
+
+`generate-docs.ts` deduplicates by base type (first match wins). If V1 is processed first without triggers, the V2 triggers won't appear in `integrations.json`. Always verify by checking the output after running the script.
 
 ## Provider Handler
 
@@ -322,6 +336,121 @@ export function buildOutputs(): Record<string, TriggerOutput> {
 }
 ```
 
+## Polling Triggers
+
+Use polling when the service lacks reliable webhooks (e.g., Google Sheets, Google Drive, Google Calendar, Gmail, RSS, IMAP). Polling triggers do NOT use `buildTriggerSubBlocks` — they define subBlocks manually.
+
+### Directory Structure
+
+```
+apps/sim/triggers/{service}/
+├── index.ts              # Barrel export
+└── poller.ts             # TriggerConfig with polling: true
+
+apps/sim/lib/webhooks/polling/
+└── {service}.ts           # PollingProviderHandler implementation
+```
+
+### Polling Handler (`apps/sim/lib/webhooks/polling/{service}.ts`)
+
+```typescript
+import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
+import { markWebhookFailed, markWebhookSuccess, resolveOAuthCredential, updateWebhookProviderConfig } from '@/lib/webhooks/polling/utils'
+import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
+
+export const {service}PollingHandler: PollingProviderHandler = {
+  provider: '{service}',
+  label: '{Service}',
+
+  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
+    const { webhookData, workflowData, requestId, logger } = ctx
+    const webhookId = webhookData.id
+
+    try {
+      // For OAuth services:
+      const accessToken = await resolveOAuthCredential(webhookData, '{service}', requestId, logger)
+      const config = webhookData.providerConfig as unknown as {Service}WebhookConfig
+
+      // First poll: seed state, emit nothing
+      if (!config.lastCheckedTimestamp) {
+        await updateWebhookProviderConfig(webhookId, { lastCheckedTimestamp: new Date().toISOString() }, logger)
+        await markWebhookSuccess(webhookId, logger)
+        return 'success'
+      }
+
+      // Fetch changes since last poll, process with idempotency
+      // ...
+
+      await markWebhookSuccess(webhookId, logger)
+      return 'success'
+    } catch (error) {
+      logger.error(`[${requestId}] Error processing {service} webhook ${webhookId}:`, error)
+      await markWebhookFailed(webhookId, logger)
+      return 'failure'
+    }
+  },
+}
+```
+
+**Key patterns:**
+- First poll seeds state and emits nothing (avoids flooding with existing data)
+- Use `pollingIdempotency.executeWithIdempotency(provider, key, callback)` for dedup
+- Use `processPolledWebhookEvent(webhookData, workflowData, payload, requestId)` to fire the workflow
+- Use `updateWebhookProviderConfig(webhookId, partialConfig, logger)` for read-merge-write on state
+- Use the latest server-side timestamp from API responses (not wall clock) to avoid clock skew
+
+### Trigger Config (`apps/sim/triggers/{service}/poller.ts`)
+
+```typescript
+import { {Service}Icon } from '@/components/icons'
+import type { TriggerConfig } from '@/triggers/types'
+
+export const {service}PollingTrigger: TriggerConfig = {
+  id: '{service}_poller',
+  name: '{Service} Trigger',
+  provider: '{service}',
+  description: 'Triggers when ...',
+  version: '1.0.0',
+  icon: {Service}Icon,
+  polling: true,               // REQUIRED — routes to polling infrastructure
+
+  subBlocks: [
+    { id: 'triggerCredentials', type: 'oauth-input', title: 'Credentials', serviceId: '{service}', requiredScopes: [], required: true, mode: 'trigger', supportsCredentialSets: true },
+    // ... service-specific config fields (dropdowns, inputs, switches) ...
+    { id: 'triggerInstructions', type: 'text', title: 'Setup Instructions', hideFromPreview: true, mode: 'trigger', defaultValue: '...' },
+  ],
+
+  outputs: {
+    // Must match the payload shape from processPolledWebhookEvent
+  },
+}
+```
+
+### Registration (3 places)
+
+1. **`apps/sim/triggers/constants.ts`** — add provider to `POLLING_PROVIDERS` Set
+2. **`apps/sim/lib/webhooks/polling/registry.ts`** — import handler, add to `POLLING_HANDLERS`
+3. **`apps/sim/triggers/registry.ts`** — import trigger config, add to `TRIGGER_REGISTRY`
+
+### Helm Cron Job
+
+Add to `helm/sim/values.yaml` under the existing polling cron jobs:
+
+```yaml
+{service}WebhookPoll:
+  schedule: "*/1 * * * *"
+  concurrencyPolicy: Forbid
+  url: "http://sim:3000/api/webhooks/poll/{service}"
+```
+
+### Reference Implementations
+
+- Simple: `apps/sim/lib/webhooks/polling/rss.ts` + `apps/sim/triggers/rss/poller.ts`
+- Complex (OAuth, attachments): `apps/sim/lib/webhooks/polling/gmail.ts` + `apps/sim/triggers/gmail/poller.ts`
+- Cursor-based (changes API): `apps/sim/lib/webhooks/polling/google-drive.ts`
+- Timestamp-based: `apps/sim/lib/webhooks/polling/google-calendar.ts`
+
 ## Checklist
 
 ### Trigger Definition
@@ -347,7 +476,17 @@ export function buildOutputs(): Record<string, TriggerOutput> {
 - [ ] NO changes to `route.ts`, `provider-subscriptions.ts`, or `deploy.ts`
 - [ ] API key field uses `password: true`
 
+### Polling Trigger (if applicable)
+- [ ] Handler implements `PollingProviderHandler` at `lib/webhooks/polling/{service}.ts`
+- [ ] Trigger config has `polling: true` and defines subBlocks manually (no `buildTriggerSubBlocks`)
+- [ ] Provider string matches across: trigger config, handler, `POLLING_PROVIDERS`, polling registry
+- [ ] First poll seeds state and emits nothing
+- [ ] Added provider to `POLLING_PROVIDERS` in `triggers/constants.ts`
+- [ ] Added handler to `POLLING_HANDLERS` in `lib/webhooks/polling/registry.ts`
+- [ ] Added cron job to `helm/sim/values.yaml`
+- [ ] Payload shape matches trigger `outputs` schema
+
 ### Testing
 - [ ] `bun run type-check` passes
-- [ ] Manually verify `formatInput` output keys match trigger `outputs` keys
+- [ ] Manually verify output keys match trigger `outputs` keys
 - [ ] Trigger UI shows correctly in the block

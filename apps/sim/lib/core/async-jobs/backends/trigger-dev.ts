@@ -19,6 +19,10 @@ const JOB_TYPE_TO_TASK_ID: Record<JobType, string> = {
   'workflow-execution': 'workflow-execution',
   'schedule-execution': 'schedule-execution',
   'webhook-execution': 'webhook-execution',
+  'resume-execution': 'resume-execution',
+  'cleanup-logs': 'cleanup-logs',
+  'cleanup-soft-deletes': 'cleanup-soft-deletes',
+  'cleanup-tasks': 'cleanup-tasks',
 }
 
 /**

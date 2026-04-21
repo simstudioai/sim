@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -38,5 +38,5 @@ jobs:
       - name: Apply migrations
         working-directory: ./packages/db
         env:
-          DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.DATABASE_URL || secrets.STAGING_DATABASE_URL }}
+          DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.DATABASE_URL || github.ref == 'refs/heads/dev' && secrets.DEV_DATABASE_URL || secrets.STAGING_DATABASE_URL }}
         run: bunx drizzle-kit migrate --config=./drizzle.config.ts

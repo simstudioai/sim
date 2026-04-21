@@ -94,17 +94,6 @@ export const hubspotDealMergedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_deal_merged',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_deal_merged',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',

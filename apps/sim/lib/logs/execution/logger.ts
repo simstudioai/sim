@@ -7,6 +7,7 @@ import {
   workflowExecutionLogs,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
@@ -16,12 +17,10 @@ import {
   maybeSendUsageThresholdEmail,
 } from '@/lib/billing/core/usage'
 import { type ModelUsageMetadata, recordUsage } from '@/lib/billing/core/usage-log'
-import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
-import { generateId } from '@/lib/core/utils/uuid'
 import { emitWorkflowExecutionCompleted } from '@/lib/logs/events'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import type {
@@ -415,9 +414,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
           const costDelta = costSummary.totalCost
 
           const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
+          const { isOrgScopedSubscription } = await import('@/lib/billing/subscriptions/utils')
           const planName = getDisplayPlanName(sub?.plan)
-          const scope: 'user' | 'organization' =
-            sub && isOrgPlan(sub.plan) ? 'organization' : 'user'
+          const scope: 'user' | 'organization' = isOrgScopedSubscription(sub, usr.id)
+            ? 'organization'
+            : 'user'
 
           if (scope === 'user') {
             const before = await checkUsageStatus(usr.id)

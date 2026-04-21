@@ -1,6 +1,7 @@
 import { asyncJobs, db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
@@ -74,7 +75,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         cleaned++
       } catch (error) {
         logger.error(`Failed to clean up execution ${execution.executionId}:`, {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         failed++
       }
@@ -105,7 +106,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
     } catch (error) {
       logger.error('Failed to clean up stale async jobs:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
 
@@ -132,7 +133,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
     } catch (error) {
       logger.error('Failed to clean up stale pending jobs:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
 
@@ -159,7 +160,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
     } catch (error) {
       logger.error('Failed to delete old async jobs:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
 

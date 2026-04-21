@@ -1,13 +1,14 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import {
   loadWorkflowFromNormalizedTables,
@@ -155,6 +156,33 @@ export const GET = withRouteHandler(
       })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
+
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId: auth.userId,
+      action: 'read',
+    })
+    if (!authorization.allowed) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const normalized = await loadWorkflowFromNormalizedTables(workflowId)
+    if (!normalized) {
+      return NextResponse.json({ error: 'Workflow state not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      blocks: normalized.blocks,
+      edges: normalized.edges,
+      loops: normalized.loops || {},
+      parallels: normalized.parallels || {},
+    })
+  } catch (error) {
+    logger.error('Failed to fetch workflow state', {
+      workflowId,
+      error: toError(error).message,
+    })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 )
 
@@ -179,10 +207,24 @@ export const PUT = withRouteHandler(
       const body = await request.json()
       const state = WorkflowStateSchema.parse(body)
 
-      const authorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId,
-        userId,
-        action: 'write',
+    // If variables are provided in the state, update them in the workflow record
+    if (state.variables !== undefined) {
+      updateData.variables = state.variables
+    }
+
+    await db.update(workflow).set(updateData).where(eq(workflow.id, workflowId))
+
+    const elapsed = Date.now() - startTime
+    logger.info(`[${requestId}] Successfully saved workflow ${workflowId} state in ${elapsed}ms`)
+
+    try {
+      const notifyResponse = await fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': env.INTERNAL_API_SECRET,
+        },
+        body: JSON.stringify({ workflowId }),
       })
       const workflowData = authorization.workflow
 

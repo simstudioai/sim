@@ -13,12 +13,6 @@ const PROVIDER_PREFIXES: Record<string, string[]> = {
   vllm: ['vllm/'],
 }
 
-const PROVIDER_NAME_OVERRIDES: Record<string, string> = {
-  deepseek: 'DeepSeek',
-  vllm: 'vLLM',
-  xai: 'xAI',
-}
-
 const TOKEN_REPLACEMENTS: Record<string, string> = {
   ai: 'AI',
   aws: 'AWS',
@@ -108,6 +102,7 @@ export interface CatalogModel {
   providerName: string
   providerSlug: string
   contextWindow: number | null
+  releaseDate: string | null
   pricing: PricingInfo
   capabilities: ModelCapabilities
   capabilityTags: string[]
@@ -126,6 +121,8 @@ export interface CatalogProvider {
   defaultModel: string
   defaultModelDisplayName: string
   icon?: ComponentType<{ className?: string }>
+  color?: string
+  isReseller: boolean
   contextInformationAvailable: boolean
   providerCapabilityTags: string[]
   modelCount: number
@@ -418,10 +415,6 @@ function buildModelSummary(
   return parts.filter(Boolean).join(' ')
 }
 
-function getProviderDisplayName(providerId: string, providerName: string): string {
-  return PROVIDER_NAME_OVERRIDES[providerId] ?? providerName
-}
-
 function computeModelRelevanceScore(model: CatalogModel): number {
   return (
     (model.capabilities.reasoningEffort ? 10 : 0) +
@@ -438,7 +431,7 @@ function compareModelsByRelevance(a: CatalogModel, b: CatalogModel): number {
 
 const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
   const providerSlug = slugify(provider.id)
-  const providerDisplayName = getProviderDisplayName(provider.id, provider.name)
+  const providerDisplayName = provider.name
   const providerCapabilityTags = buildCapabilityTags(provider.capabilities ?? {})
 
   const models: CatalogModel[] = provider.models.map((model) => {
@@ -464,6 +457,7 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
       providerName: providerDisplayName,
       providerSlug,
       contextWindow: model.contextWindow ?? null,
+      releaseDate: model.releaseDate ?? null,
       pricing: model.pricing,
       capabilities: mergedCapabilities,
       capabilityTags,
@@ -507,6 +501,8 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
     defaultModel: provider.defaultModel,
     defaultModelDisplayName,
     icon: provider.icon,
+    color: provider.color,
+    isReseller: provider.isReseller ?? false,
     contextInformationAvailable: provider.contextInformationAvailable !== false,
     providerCapabilityTags,
     modelCount: models.length,
@@ -514,7 +510,6 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
     featuredModels,
     searchText: [
       provider.name,
-      providerDisplayName,
       provider.id,
       provider.description,
       provider.defaultModel,
@@ -557,7 +552,7 @@ assertUniqueGeneratedRoutes(rawProviders)
 
 export const MODEL_CATALOG_PROVIDERS: CatalogProvider[] = rawProviders
 export const MODEL_PROVIDERS_WITH_CATALOGS = MODEL_CATALOG_PROVIDERS.filter(
-  (provider) => provider.models.length > 0
+  (provider) => provider.models.length > 0 && !provider.isReseller
 )
 export const MODEL_PROVIDERS_WITH_DYNAMIC_CATALOGS = MODEL_CATALOG_PROVIDERS.filter(
   (provider) => provider.models.length === 0
@@ -631,7 +626,13 @@ export function buildProviderFaqs(provider: CatalogProvider): CatalogFaq[] {
   const cheapestModel = getCheapestProviderModel(provider)
   const largestContextModel = getLargestContextProviderModel(provider)
 
-  return [
+  const toolUseModels = provider.models.filter(
+    (m) =>
+      m.capabilities.toolUsageControl !== undefined ||
+      provider.providerCapabilityTags.includes('Tool Use')
+  )
+
+  const faqs: CatalogFaq[] = [
     {
       question: `What ${provider.name} models are available in Sim?`,
       answer: `Sim currently tracks ${provider.modelCount} ${provider.name} model${provider.modelCount === 1 ? '' : 's'} including ${provider.models
@@ -662,10 +663,27 @@ export function buildProviderFaqs(provider: CatalogProvider): CatalogFaq[] {
         : `Context window details are not fully available for every ${provider.name} model in the public catalog.`,
     },
   ]
+
+  if (toolUseModels.length > 0) {
+    faqs.push({
+      question: `Which ${provider.name} models support tool use and function calling in Sim?`,
+      answer:
+        toolUseModels.length === provider.modelCount
+          ? `All ${provider.name} models in Sim support tool use and function calling, allowing agents to invoke external APIs, query databases, and run custom actions.`
+          : `${toolUseModels
+              .slice(0, 5)
+              .map((m) => m.displayName)
+              .join(
+                ', '
+              )}${toolUseModels.length > 5 ? ', and others' : ''} support tool use and function calling in Sim, enabling agents to invoke external APIs and run custom actions.`,
+    })
+  }
+
+  return faqs
 }
 
 export function buildModelFaqs(provider: CatalogProvider, model: CatalogModel): CatalogFaq[] {
-  return [
+  const faqs: CatalogFaq[] = [
     {
       question: `What is ${model.displayName}?`,
       answer: `${model.displayName} is a ${provider.name} model available in Sim. ${model.summary}`,
@@ -677,17 +695,26 @@ export function buildModelFaqs(provider: CatalogProvider, model: CatalogModel): 
     {
       question: `What is the context window for ${model.displayName}?`,
       answer: model.contextWindow
-        ? `${model.displayName} supports a listed context window of ${formatTokenCount(model.contextWindow)} tokens in Sim.`
+        ? `${model.displayName} supports a context window of ${formatTokenCount(model.contextWindow)} tokens in Sim. In an agent, this determines how much conversation history, tool outputs, and retrieved documents the model can hold in a single call.`
         : `A public context window value is not currently tracked for ${model.displayName}.`,
     },
     {
       question: `What capabilities does ${model.displayName} support?`,
       answer:
         model.capabilityTags.length > 0
-          ? `${model.displayName} supports ${model.capabilityTags.join(', ')}.`
-          : `${model.displayName} is available in Sim, but no extra public capability flags are currently tracked for this model.`,
+          ? `${model.displayName} supports the following capabilities in Sim: ${model.capabilityTags.join(', ')}.`
+          : `${model.displayName} supports standard text generation in Sim. No additional capability flags such as tool use or structured outputs are currently tracked for this model.`,
     },
   ]
+
+  if (model.bestFor) {
+    faqs.push({
+      question: `What is ${model.displayName} best used for?`,
+      answer: `${model.bestFor} When used in a Sim workflow, it can be selected in any Agent block from the model picker.`,
+    })
+  }
+
+  return faqs
 }
 
 export function buildModelCapabilityFacts(model: CatalogModel): CapabilityFact[] {

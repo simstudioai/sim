@@ -39,6 +39,7 @@ type ScheduleRow = {
   timezone: string | null
   sourceType: string | null
   sourceWorkspaceId: string | null
+  jobTitle: string | null
 }
 
 async function fetchAndAuthorize(
@@ -56,6 +57,7 @@ async function fetchAndAuthorize(
       timezone: workflowSchedule.timezone,
       sourceType: workflowSchedule.sourceType,
       sourceWorkspaceId: workflowSchedule.sourceWorkspaceId,
+      jobTitle: workflowSchedule.jobTitle,
     })
     .from(workflowSchedule)
     .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
@@ -121,8 +123,35 @@ export const PUT = withRouteHandler(
       const body = await request.json()
       const validation = scheduleUpdateSchema.safeParse(body)
 
-      if (!validation.success) {
-        return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+      logger.info(`[${requestId}] Disabled schedule: ${scheduleId}`)
+
+      recordAudit({
+        workspaceId,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.SCHEDULE_UPDATED,
+        resourceType: AuditResourceType.SCHEDULE,
+        resourceId: scheduleId,
+        resourceName: schedule.jobTitle ?? undefined,
+        description: `Disabled schedule "${schedule.jobTitle ?? scheduleId}"`,
+        metadata: {
+          operation: 'disable',
+          sourceType: schedule.sourceType,
+          previousStatus: schedule.status,
+        },
+        request,
+      })
+
+      return NextResponse.json({ message: 'Schedule disabled successfully' })
+    }
+
+    if (action === 'update') {
+      if (schedule.sourceType !== 'job') {
+        return NextResponse.json(
+          { error: 'Only standalone job schedules can be edited' },
+          { status: 400 }
+        )
       }
 
       const result = await fetchAndAuthorize(requestId, scheduleId, session.user.id, 'write')
@@ -248,55 +277,17 @@ export const PUT = withRouteHandler(
       recordAudit({
         workspaceId,
         actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
         action: AuditAction.SCHEDULE_UPDATED,
         resourceType: AuditResourceType.SCHEDULE,
         resourceId: scheduleId,
-        actorName: session.user.name ?? undefined,
-        actorEmail: session.user.email ?? undefined,
-        description: `Reactivated schedule ${scheduleId}`,
-        metadata: { cronExpression: schedule.cronExpression, timezone: schedule.timezone },
-        request,
-      })
-
-      return NextResponse.json({ message: 'Schedule activated successfully', nextRunAt })
-    } catch (error) {
-      logger.error(`[${requestId}] Error updating schedule`, error)
-      return NextResponse.json({ error: 'Failed to update schedule' }, { status: 500 })
-    }
-  }
-)
-
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-
-    try {
-      const { id: scheduleId } = await params
-
-      const session = await getSession()
-      if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized schedule delete attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const result = await fetchAndAuthorize(requestId, scheduleId, session.user.id, 'write')
-      if (result instanceof NextResponse) return result
-      const { schedule, workspaceId } = result
-
-      await db.delete(workflowSchedule).where(eq(workflowSchedule.id, scheduleId))
-
-      logger.info(`[${requestId}] Deleted schedule: ${scheduleId}`)
-
-      recordAudit({
-        workspaceId,
-        actorId: session.user.id,
-        action: AuditAction.SCHEDULE_UPDATED,
-        resourceType: AuditResourceType.SCHEDULE,
-        resourceId: scheduleId,
-        actorName: session.user.name ?? undefined,
-        actorEmail: session.user.email ?? undefined,
-        description: `Deleted ${schedule.sourceType === 'job' ? 'job' : 'schedule'} ${scheduleId}`,
-        metadata: {},
+        resourceName: schedule.jobTitle ?? undefined,
+        description: `Updated job schedule "${schedule.jobTitle ?? scheduleId}"`,
+        metadata: {
+          operation: 'update',
+          updatedFields: Object.keys(setFields).filter((k) => k !== 'updatedAt'),
+        },
         request,
       })
 
@@ -312,5 +303,110 @@ export const DELETE = withRouteHandler(
       logger.error(`[${requestId}] Error deleting schedule`, error)
       return NextResponse.json({ error: 'Failed to delete schedule' }, { status: 500 })
     }
+
+    // reactivate
+    if (schedule.status === 'active') {
+      return NextResponse.json({ message: 'Schedule is already active' })
+    }
+
+    if (!schedule.cronExpression) {
+      logger.error(`[${requestId}] Schedule has no cron expression: ${scheduleId}`)
+      return NextResponse.json({ error: 'Schedule has no cron expression' }, { status: 400 })
+    }
+
+    const cronResult = validateCronExpression(schedule.cronExpression, schedule.timezone || 'UTC')
+    if (!cronResult.isValid || !cronResult.nextRun) {
+      logger.error(`[${requestId}] Invalid cron expression for schedule: ${scheduleId}`)
+      return NextResponse.json({ error: 'Schedule has invalid cron expression' }, { status: 400 })
+    }
+
+    const now = new Date()
+    const nextRunAt = cronResult.nextRun
+
+    await db
+      .update(workflowSchedule)
+      .set({ status: 'active', failedCount: 0, updatedAt: now, nextRunAt })
+      .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
+
+    logger.info(`[${requestId}] Reactivated schedule: ${scheduleId}`)
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.SCHEDULE_UPDATED,
+      resourceType: AuditResourceType.SCHEDULE,
+      resourceId: scheduleId,
+      resourceName: schedule.jobTitle ?? undefined,
+      description: `Reactivated schedule "${schedule.jobTitle ?? scheduleId}"`,
+      metadata: {
+        operation: 'reactivate',
+        sourceType: schedule.sourceType,
+        cronExpression: schedule.cronExpression,
+        timezone: schedule.timezone,
+      },
+      request,
+    })
+
+    return NextResponse.json({ message: 'Schedule activated successfully', nextRunAt })
+  } catch (error) {
+    logger.error(`[${requestId}] Error updating schedule`, error)
+    return NextResponse.json({ error: 'Failed to update schedule' }, { status: 500 })
   }
-)
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const requestId = generateRequestId()
+
+  try {
+    const { id: scheduleId } = await params
+
+    const session = await getSession()
+    if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized schedule delete attempt`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const result = await fetchAndAuthorize(requestId, scheduleId, session.user.id, 'write')
+    if (result instanceof NextResponse) return result
+    const { schedule, workspaceId } = result
+
+    await db.delete(workflowSchedule).where(eq(workflowSchedule.id, scheduleId))
+
+    logger.info(`[${requestId}] Deleted schedule: ${scheduleId}`)
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.SCHEDULE_DELETED,
+      resourceType: AuditResourceType.SCHEDULE,
+      resourceId: scheduleId,
+      resourceName: schedule.jobTitle ?? undefined,
+      description: `Deleted ${schedule.sourceType === 'job' ? 'job' : 'schedule'} "${schedule.jobTitle ?? scheduleId}"`,
+      metadata: {
+        sourceType: schedule.sourceType,
+        cronExpression: schedule.cronExpression,
+        timezone: schedule.timezone,
+      },
+      request,
+    })
+
+    captureServerEvent(
+      session.user.id,
+      'scheduled_task_deleted',
+      { workspace_id: workspaceId ?? '' },
+      workspaceId ? { groups: { workspace: workspaceId } } : undefined
+    )
+
+    return NextResponse.json({ message: 'Schedule deleted successfully' })
+  } catch (error) {
+    logger.error(`[${requestId}] Error deleting schedule`, error)
+    return NextResponse.json({ error: 'Failed to delete schedule' }, { status: 500 })
+  }
+}

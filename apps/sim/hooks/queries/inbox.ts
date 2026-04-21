@@ -1,5 +1,5 @@
+import { generateId } from '@sim/utils/id'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { generateId } from '@/lib/core/utils/uuid'
 import type { InboxTaskStatus } from '@/lib/mothership/inbox/types'
 
 export const inboxKeys = {

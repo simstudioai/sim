@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { getCostMultiplier } from '@/lib/core/config/feature-flags'
 import type { StreamingExecution } from '@/executor/types'
@@ -122,7 +123,7 @@ export async function executeProviderRequest(
       logger.error('Failed to resolve API key:', {
         provider: providerId,
         model: request.model,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       throw error
     }

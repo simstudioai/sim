@@ -3,12 +3,16 @@
  *
  * @vitest-environment node
  */
-import { databaseMock, loggerMock, requestUtilsMock } from '@sim/testing'
+import {
+  encryptionMock,
+  encryptionMockFns,
+  loggingSessionMock,
+  workflowsUtilsMock,
+} from '@sim/testing'
 import type { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockDecryptSecret,
   mockMergeSubblockStateWithValues,
   mockMergeSubBlockValues,
   mockValidateAuthToken,
@@ -16,7 +20,6 @@ const {
   mockAddCorsHeaders,
   mockIsEmailAllowed,
 } = vi.hoisted(() => ({
-  mockDecryptSecret: vi.fn(),
   mockMergeSubblockStateWithValues: vi.fn().mockReturnValue({}),
   mockMergeSubBlockValues: vi.fn().mockReturnValue({}),
   mockValidateAuthToken: vi.fn().mockReturnValue(false),
@@ -25,16 +28,9 @@ const {
   mockIsEmailAllowed: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => databaseMock)
-vi.mock('@sim/logger', () => loggerMock)
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
 
-vi.mock('@/lib/logs/execution/logging-session', () => ({
-  LoggingSession: vi.fn().mockImplementation(() => ({
-    safeStart: vi.fn().mockResolvedValue(undefined),
-    safeComplete: vi.fn().mockResolvedValue(undefined),
-    safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
-  })),
-}))
+vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
 vi.mock('@/executor', () => ({
   Executor: vi.fn(),
@@ -49,11 +45,7 @@ vi.mock('@/lib/workflows/subblocks', () => ({
   mergeSubBlockValues: mockMergeSubBlockValues,
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-}))
-
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/core/security/deployment', () => ({
   validateAuthToken: mockValidateAuthToken,
@@ -68,9 +60,7 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isProd: false,
 }))
 
-vi.mock('@/lib/workflows/utils', () => ({
-  authorizeWorkflowByWorkspacePermission: vi.fn(),
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { setChatAuthCookie, validateChatAuth } from '@/app/api/chat/utils'

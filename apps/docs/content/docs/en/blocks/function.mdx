@@ -2,10 +2,12 @@
 title: Function
 ---
 
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 import { FAQ } from '@/components/ui/faq'
 
-The Function block executes custom JavaScript or TypeScript code in your workflows. Transform data, perform calculations, or implement custom logic.
+The Function block executes custom JavaScript, TypeScript, or Python code in your workflows. Transform data, perform calculations, or implement custom logic.
 
 <div className="flex justify-center">
   <Image
@@ -41,6 +43,8 @@ Input → Function (Validate & Sanitize) → API (Save to Database)
 
 ### Example: Loyalty Score Calculator
 
+<Tabs items={['JavaScript', 'Python']}>
+  <Tab value="JavaScript">
 ```javascript title="loyalty-calculator.js"
 // Process customer data and calculate loyalty score
 const { purchaseHistory, accountAge, supportTickets } = <agent>;
@@ -64,6 +68,120 @@ return {
   metrics: { spendScore, frequencyScore, supportScore }
 };
 ```
+  </Tab>
+  <Tab value="Python">
+```python title="loyalty-calculator.py"
+import json
+
+# Reference outputs from other blocks using angle bracket syntax
+data = json.loads('<agent>')
+purchase_history = data["purchaseHistory"]
+account_age = data["accountAge"]
+support_tickets = data["supportTickets"]
+
+# Calculate metrics
+total_spent = sum(p["amount"] for p in purchase_history)
+purchase_frequency = len(purchase_history) / (account_age / 365)
+ticket_ratio = support_tickets["resolved"] / support_tickets["total"]
+
+# Calculate loyalty score (0-100)
+spend_score = min(total_spent / 1000 * 30, 30)
+frequency_score = min(purchase_frequency * 20, 40)
+support_score = ticket_ratio * 30
+
+loyalty_score = round(spend_score + frequency_score + support_score)
+
+tier = "Platinum" if loyalty_score >= 80 else "Gold" if loyalty_score >= 60 else "Silver"
+
+result = {
+    "customer": data["name"],
+    "loyaltyScore": loyalty_score,
+    "loyaltyTier": tier,
+    "metrics": {
+        "spendScore": spend_score,
+        "frequencyScore": frequency_score,
+        "supportScore": support_score
+    }
+}
+print(json.dumps(result))
+```
+  </Tab>
+</Tabs>
+
+## Python Support
+
+The Function block supports Python as an alternative to JavaScript. Python code runs in a secure [E2B](https://e2b.dev) cloud sandbox.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/function-python.png"
+    alt="Function block with Python selected"
+    width={400}
+    height={500}
+    className="my-6"
+  />
+</div>
+
+### Enabling Python
+
+Select **Python** from the language dropdown in the Function block. Python execution requires E2B to be enabled on your Sim instance.
+
+<Callout type="warn">
+If you don't see Python as an option in the language dropdown, E2B is not enabled. This only applies to self-hosted instances — E2B is enabled by default on sim.ai.
+</Callout>
+
+<Callout type="info">
+Python code always runs in the E2B sandbox, even for simple scripts without imports. This ensures a secure, isolated execution environment.
+</Callout>
+
+### Returning Results
+
+In Python, print your result as JSON to stdout. The Function block captures stdout and makes it available via `<function.result>`:
+
+```python title="example.py"
+import json
+
+data = {"status": "processed", "count": 42}
+print(json.dumps(data))
+```
+
+### Available Libraries
+
+The E2B sandbox includes the Python standard library (`json`, `re`, `datetime`, `math`, `os`, `collections`, etc.) and common packages like `matplotlib` for visualization. Charts generated with matplotlib are captured as images automatically.
+
+<Callout type="info">
+  The exact set of pre-installed packages depends on the E2B sandbox configuration. If a package you need isn't available, consider calling an external API from your code instead.
+</Callout>
+
+### Matplotlib Charts
+
+When your Python code generates matplotlib figures, they are automatically captured and returned as base64-encoded PNG images in the output:
+
+```python title="chart.py"
+import matplotlib.pyplot as plt
+import json
+
+data = json.loads('<api.data>')
+
+plt.figure(figsize=(10, 6))
+plt.bar(data["labels"], data["values"])
+plt.title("Monthly Revenue")
+plt.xlabel("Month")
+plt.ylabel("Revenue ($)")
+plt.savefig("chart.png")
+plt.show()
+```
+
+{/* TODO: Screenshot of Python code execution output in the logs panel */}
+
+### JavaScript vs. Python
+
+| | JavaScript | Python |
+|--|-----------|--------|
+| **Execution** | Local VM (fast) or E2B sandbox (with imports) | Always E2B sandbox |
+| **Returning results** | `return { ... }` | `print(json.dumps({ ... }))` |
+| **HTTP requests** | `fetch()` built-in | `requests` or `httpx` |
+| **Best for** | Quick transforms, JSON manipulation | Data science, charting, complex math |
 
 ## Best Practices
 

@@ -1,0 +1,293 @@
+---
+title: Cal.com
+description: Available Cal.com triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="calcom"
+  color="#FFFFFE"
+/>
+
+Cal.com provides 9 triggers for automating workflows based on events.
+
+## Triggers
+
+### CalCom Booking Cancelled
+
+Trigger workflow when a booking is cancelled in Cal.com
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Used to verify webhook requests via X-Cal-Signature-256 header. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | object | payload output from the tool |
+|   ↳ `title` | string | Booking title |
+|   ↳ `description` | string | Booking description |
+|   ↳ `eventTypeId` | number | Event type ID |
+|   ↳ `startTime` | string | Booking start time \(ISO 8601\) |
+|   ↳ `endTime` | string | Booking end time \(ISO 8601\) |
+|   ↳ `uid` | string | Unique booking identifier |
+|   ↳ `bookingId` | number | Numeric booking ID |
+|   ↳ `status` | string | Booking status |
+|   ↳ `location` | string | Meeting location or URL |
+|   ↳ `cancellationReason` | string | Reason for cancellation |
+|   ↳ `responses` | json | Booking form responses |
+|   ↳ `metadata` | json | Custom metadata attached to the booking |
+
+
+---
+
+### CalCom Booking Created
+
+Trigger workflow when a new booking is created in Cal.com
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Used to verify webhook requests via X-Cal-Signature-256 header. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | object | payload output from the tool |
+|   ↳ `title` | string | Booking title |
+|   ↳ `description` | string | Booking description |
+|   ↳ `eventTypeId` | number | Event type ID |
+|   ↳ `startTime` | string | Booking start time \(ISO 8601\) |
+|   ↳ `endTime` | string | Booking end time \(ISO 8601\) |
+|   ↳ `uid` | string | Unique booking identifier |
+|   ↳ `bookingId` | number | Numeric booking ID |
+|   ↳ `status` | string | Booking status |
+|   ↳ `location` | string | Meeting location or URL |
+|   ↳ `responses` | json | Booking form responses \(dynamic - fields depend on your event type configuration\) |
+|   ↳ `metadata` | json | Custom metadata attached to the booking \(dynamic - user-defined key-value pairs\) |
+|   ↳ `videoCallData` | json | Video call details \(structure varies by provider\) |
+
+
+---
+
+### CalCom Booking Paid
+
+Trigger workflow when payment is completed for a paid booking
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Used to verify webhook requests via X-Cal-Signature-256 header. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type \(BOOKING_PAID\) |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | object | payload output from the tool |
+|   ↳ `title` | string | Booking title |
+|   ↳ `description` | string | Booking description |
+|   ↳ `eventTypeId` | number | Event type ID |
+|   ↳ `startTime` | string | Booking start time \(ISO 8601\) |
+|   ↳ `endTime` | string | Booking end time \(ISO 8601\) |
+|   ↳ `uid` | string | Unique booking identifier |
+|   ↳ `bookingId` | number | Numeric booking ID |
+|   ↳ `status` | string | Booking status |
+|   ↳ `location` | string | Meeting location or URL |
+|   ↳ `payment` | object | Payment details |
+|     ↳ `id` | string | Payment ID |
+|     ↳ `amount` | number | Payment amount |
+|     ↳ `currency` | string | Payment currency |
+|     ↳ `success` | boolean | Whether payment succeeded |
+|   ↳ `metadata` | json | Custom metadata attached to the booking |
+
+
+---
+
+### CalCom Booking Rejected
+
+Trigger workflow when a booking request is rejected by the host
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Used to verify webhook requests via X-Cal-Signature-256 header. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type \(BOOKING_REJECTED\) |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | object | payload output from the tool |
+|   ↳ `title` | string | Booking title |
+|   ↳ `description` | string | Booking description |
+|   ↳ `eventTypeId` | number | Event type ID |
+|   ↳ `startTime` | string | Requested start time \(ISO 8601\) |
+|   ↳ `endTime` | string | Requested end time \(ISO 8601\) |
+|   ↳ `uid` | string | Unique booking identifier |
+|   ↳ `bookingId` | number | Numeric booking ID |
+|   ↳ `status` | string | Booking status \(rejected\) |
+|   ↳ `rejectionReason` | string | Reason for rejection provided by host |
+|   ↳ `metadata` | json | Custom metadata attached to the booking |
+
+
+---
+
+### CalCom Booking Requested
+
+Trigger workflow when a booking request is submitted (pending confirmation)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Used to verify webhook requests via X-Cal-Signature-256 header. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type \(BOOKING_REQUESTED\) |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | object | payload output from the tool |
+|   ↳ `title` | string | Booking title |
+|   ↳ `description` | string | Booking description |
+|   ↳ `eventTypeId` | number | Event type ID |
+|   ↳ `startTime` | string | Requested start time \(ISO 8601\) |
+|   ↳ `endTime` | string | Requested end time \(ISO 8601\) |
+|   ↳ `uid` | string | Unique booking identifier |
+|   ↳ `bookingId` | number | Numeric booking ID |
+|   ↳ `status` | string | Booking status \(pending\) |
+|   ↳ `location` | string | Meeting location or URL |
+|   ↳ `responses` | json | Booking form responses |
+|   ↳ `metadata` | json | Custom metadata attached to the booking |
+
+
+---
+
+### CalCom Booking Rescheduled
+
+Trigger workflow when a booking is rescheduled in Cal.com
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Used to verify webhook requests via X-Cal-Signature-256 header. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | object | payload output from the tool |
+|   ↳ `title` | string | Booking title |
+|   ↳ `description` | string | Booking description |
+|   ↳ `eventTypeId` | number | Event type ID |
+|   ↳ `startTime` | string | New booking start time \(ISO 8601\) |
+|   ↳ `endTime` | string | New booking end time \(ISO 8601\) |
+|   ↳ `uid` | string | Unique booking identifier |
+|   ↳ `bookingId` | number | Numeric booking ID |
+|   ↳ `status` | string | Booking status |
+|   ↳ `location` | string | Meeting location or URL |
+|   ↳ `rescheduleId` | number | Previous booking ID |
+|   ↳ `rescheduleUid` | string | Previous booking UID |
+|   ↳ `rescheduleStartTime` | string | Original start time \(ISO 8601\) |
+|   ↳ `rescheduleEndTime` | string | Original end time \(ISO 8601\) |
+|   ↳ `responses` | json | Booking form responses |
+|   ↳ `metadata` | json | Custom metadata attached to the booking |
+
+
+---
+
+### CalCom Meeting Ended
+
+Trigger workflow when a Cal.com meeting ends
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Used to verify webhook requests via X-Cal-Signature-256 header. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type \(MEETING_ENDED\) |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | object | payload output from the tool |
+|   ↳ `title` | string | Meeting title |
+|   ↳ `eventTypeId` | number | Event type ID |
+|   ↳ `startTime` | string | Meeting start time \(ISO 8601\) |
+|   ↳ `endTime` | string | Meeting end time \(ISO 8601\) |
+|   ↳ `uid` | string | Unique booking identifier |
+|   ↳ `bookingId` | number | Numeric booking ID |
+|   ↳ `duration` | number | Actual meeting duration in minutes |
+|   ↳ `videoCallData` | json | Video call details |
+
+
+---
+
+### CalCom Recording Ready
+
+Trigger workflow when a meeting recording is ready for download
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Used to verify webhook requests via X-Cal-Signature-256 header. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type \(RECORDING_READY\) |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | object | payload output from the tool |
+|   ↳ `title` | string | Meeting title |
+|   ↳ `eventTypeId` | number | Event type ID |
+|   ↳ `startTime` | string | Meeting start time \(ISO 8601\) |
+|   ↳ `endTime` | string | Meeting end time \(ISO 8601\) |
+|   ↳ `uid` | string | Unique booking identifier |
+|   ↳ `bookingId` | number | Numeric booking ID |
+|   ↳ `recordingUrl` | string | URL to download the recording |
+|   ↳ `transcription` | string | Meeting transcription text \(if available\) |
+
+
+---
+
+### CalCom Webhook (All Events)
+
+Trigger workflow on any Cal.com webhook event (configure event types in Cal.com)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Used to verify webhook requests via X-Cal-Signature-256 header. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type \(e.g., BOOKING_CREATED, MEETING_ENDED\) |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | json | Complete webhook payload \(structure varies by event type\) |
+

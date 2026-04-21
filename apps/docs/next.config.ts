@@ -5,6 +5,9 @@ const withMDX = createMDX()
 
 const config: NextConfig = {
   reactStrictMode: true,
+  images: {
+    unoptimized: true,
+  },
   experimental: {
     webpackMemoryOptimizations: true,
     webpackBuildWorker: true,

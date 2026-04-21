@@ -1,11 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { presentDispatchOrJobStatus } from '@/lib/core/workspace-dispatch/status'
-import { getDispatchJobRecord } from '@/lib/core/workspace-dispatch/store'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('TaskStatusAPI')
@@ -24,15 +22,14 @@ export const GET = withRouteHandler(
 
       const authenticatedUserId = authResult.userId
 
-      const dispatchJob = await getDispatchJobRecord(taskId)
-      const jobQueue = await getJobQueue()
-      const job = dispatchJob ? null : await jobQueue.getJob(taskId)
+    const jobQueue = await getJobQueue()
+    const job = await jobQueue.getJob(taskId)
 
-      if (!job && !dispatchJob) {
-        return createErrorResponse('Task not found', 404)
-      }
+    if (!job) {
+      return createErrorResponse('Task not found', 404)
+    }
 
-      const metadataToCheck = dispatchJob?.metadata ?? job?.metadata
+    const metadataToCheck = job.metadata
 
       if (metadataToCheck?.workflowId) {
         const { verifyWorkflowAccess } = await import('@/socket/middleware/permissions')
@@ -84,5 +81,26 @@ export const GET = withRouteHandler(
 
       return createErrorResponse('Failed to fetch task status', 500)
     }
+
+    const response: Record<string, unknown> = {
+      success: true,
+      taskId,
+      status: job.status,
+      metadata: job.metadata,
+    }
+
+    if (job.output !== undefined) response.output = job.output
+    if (job.error !== undefined) response.error = job.error
+
+    return NextResponse.json(response)
+  } catch (error: unknown) {
+    const errorMessage = toError(error).message
+    logger.error(`[${requestId}] Error fetching task status:`, error)
+
+    if (errorMessage?.includes('not found')) {
+      return createErrorResponse('Task not found', 404)
+    }
+
+    return createErrorResponse('Failed to fetch task status', 500)
   }
 )

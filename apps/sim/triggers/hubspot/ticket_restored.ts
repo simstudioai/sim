@@ -94,17 +94,6 @@ export const hubspotTicketRestoredTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_ticket_restored',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_ticket_restored',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',

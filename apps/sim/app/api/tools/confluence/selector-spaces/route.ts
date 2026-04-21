@@ -6,6 +6,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
+import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('ConfluenceSelectorSpacesAPI')
 
@@ -68,15 +69,16 @@ export const POST = withRouteHandler(async (request: Request) => {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
-      logger.error('Confluence API error:', {
+      const errorText = await response.text()
+      logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: errorData,
+        error: errorText,
       })
-      const errorMessage =
-        errorData?.message || `Failed to list Confluence spaces (${response.status})`
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
     const data = await response.json()

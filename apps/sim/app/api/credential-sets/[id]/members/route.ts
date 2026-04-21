@@ -1,13 +1,12 @@
 import { db } from '@sim/db'
 import { account, credentialSet, credentialSetMember, member, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 
 const logger = createLogger('CredentialSetMembers')
@@ -115,7 +114,42 @@ export const GET = withRouteHandler(
       credentials: credentialsByUser[m.userId] || [],
     }))
 
-    return NextResponse.json({ members: membersWithCredentials })
+      const syncResult = await syncAllWebhooksForCredentialSet(id, requestId, tx)
+      logger.info('Synced webhooks after member removed', {
+        credentialSetId: id,
+        ...syncResult,
+      })
+    })
+
+    logger.info('Removed member from credential set', {
+      credentialSetId: id,
+      memberId,
+      userId: session.user.id,
+    })
+
+    recordAudit({
+      workspaceId: null,
+      actorId: session.user.id,
+      action: AuditAction.CREDENTIAL_SET_MEMBER_REMOVED,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
+      resourceId: id,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: result.set.name,
+      description: `Removed member from credential set "${result.set.name}"`,
+      metadata: {
+        memberId,
+        memberUserId: memberToRemove.userId,
+        targetEmail: memberToRemove.email ?? undefined,
+        providerId: result.set.providerId,
+      },
+      request: req,
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    logger.error('Error removing member from credential set', error)
+    return NextResponse.json({ error: 'Failed to remove member' }, { status: 500 })
   }
 )
 

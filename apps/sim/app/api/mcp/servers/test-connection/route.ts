@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { McpClient } from '@/lib/mcp/client'
@@ -221,11 +222,7 @@ export const POST = withRouteHandler(withMcpAuth('write'))(
       return createMcpSuccessResponse(result, result.success ? 200 : 400)
     } catch (error) {
       logger.error(`[${requestId}] Error testing MCP server connection:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to test server connection'),
-        'Failed to test server connection',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to test server connection', 500)
     }
   }
 )

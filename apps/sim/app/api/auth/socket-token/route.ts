@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
@@ -37,7 +38,7 @@ export const POST = withRouteHandler(async () => {
     }
 
     logger.error('Failed to generate socket token', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
     return NextResponse.json({ error: 'Failed to generate token' }, { status: 500 })

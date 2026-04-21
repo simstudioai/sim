@@ -1317,6 +1317,41 @@
       "when": 1775666653692,
       "tag": "0188_short_luke_cage",
       "breakpoints": true
+    },
+    {
+      "idx": 189,
+      "version": "7",
+      "when": 1776102772705,
+      "tag": "0189_daily_rumiko_fujikawa",
+      "breakpoints": true
+    },
+    {
+      "idx": 190,
+      "version": "7",
+      "when": 1776114737326,
+      "tag": "0190_shocking_karma",
+      "breakpoints": true
+    },
+    {
+      "idx": 191,
+      "version": "7",
+      "when": 1776502306122,
+      "tag": "0191_unusual_mongu",
+      "breakpoints": true
+    },
+    {
+      "idx": 192,
+      "version": "7",
+      "when": 1776538528385,
+      "tag": "0192_invitation_unification",
+      "breakpoints": true
+    },
+    {
+      "idx": 193,
+      "version": "7",
+      "when": 1776725749082,
+      "tag": "0193_lying_rocket_racer",
+      "breakpoints": true
     }
   ]
 }

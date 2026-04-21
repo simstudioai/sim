@@ -44,10 +44,32 @@ export const POST = withRouteHandler(
       }
       const userId = auth.userId
 
-      const authorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId,
-        userId,
-        action: 'write',
+      // Variables are already in Record format - use directly
+      // The frontend is the source of truth for what variables should exist
+      await db
+        .update(workflow)
+        .set({
+          variables,
+          updatedAt: new Date(),
+        })
+        .where(eq(workflow.id, workflowId))
+
+      recordAudit({
+        workspaceId: workflowData.workspaceId ?? null,
+        actorId: userId,
+        actorName: auth.userName,
+        actorEmail: auth.userEmail,
+        action: AuditAction.WORKFLOW_VARIABLES_UPDATED,
+        resourceType: AuditResourceType.WORKFLOW,
+        resourceId: workflowId,
+        resourceName: workflowData.name ?? undefined,
+        description: `Updated workflow variables`,
+        metadata: {
+          variableCount: Object.keys(variables).length,
+          variableNames: Object.values(variables).map((v) => v.name),
+          workflowName: workflowData.name ?? undefined,
+        },
+        request: req,
       })
       const workflowData = authorization.workflow
 

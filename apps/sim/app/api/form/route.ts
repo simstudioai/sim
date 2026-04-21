@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { form } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
@@ -9,8 +10,7 @@ import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { notifySocketDeploymentChanged } from '@/lib/workflows/orchestration'
 import { deployWorkflow } from '@/lib/workflows/persistence/utils'
 import {
   checkWorkflowAccessForFormCreation,
@@ -153,6 +153,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         `${workflowRecord.isDeployed ? 'Redeployed' : 'Auto-deployed'} workflow ${workflowId} for form (v${result.version})`
       )
 
+      await notifySocketDeploymentChanged(workflowId)
+
       let encryptedPassword = null
       if (authType === 'password' && password) {
         const { encrypted } = await encryptSecret(password)
@@ -209,6 +211,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         actorEmail: session.user.email ?? undefined,
         resourceName: title,
         description: `Created form "${title}" for workflow ${workflowId}`,
+        metadata: { identifier, workflowId, authType, formUrl, showBranding },
         request,
       })
 

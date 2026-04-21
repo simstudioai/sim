@@ -8,7 +8,12 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
-import { ASYNC_TOOL_STATUS, isDeliveredAsyncStatus, isTerminalAsyncStatus } from './lifecycle'
+import {
+  ASYNC_TOOL_STATUS,
+  type AsyncCompletionData,
+  isDeliveredAsyncStatus,
+  isTerminalAsyncStatus,
+} from './lifecycle'
 
 const logger = createLogger('CopilotAsyncRunsRepo')
 
@@ -203,7 +208,7 @@ export async function markAsyncToolStatus(
   updates: {
     claimedBy?: string | null
     claimedAt?: Date | null
-    result?: Record<string, unknown> | null
+    result?: AsyncCompletionData | null
     error?: string | null
     completedAt?: Date | null
   } = {}
@@ -239,7 +244,7 @@ export async function markAsyncToolRunning(toolCallId: string, claimedBy: string
 export async function completeAsyncToolCall(input: {
   toolCallId: string
   status: Extract<CopilotAsyncToolStatus, 'completed' | 'failed' | 'cancelled'>
-  result?: Record<string, unknown> | null
+  result?: AsyncCompletionData | null
   error?: string | null
 }) {
   const existing = await getAsyncToolCall(input.toolCallId)

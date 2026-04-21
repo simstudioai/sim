@@ -102,15 +102,6 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  mcpServers: {
-    id: 'id',
-    workspaceId: 'workspaceId',
-    connectionStatus: 'connectionStatus',
-    deletedAt: 'deletedAt',
-  },
-}))
-
 const mockGetCustomToolById = vi.fn()
 
 vi.mock('@/lib/workflows/custom-tools/operations', () => ({
@@ -667,6 +658,7 @@ describe('AgentBlockHandler', () => {
       expect(result).toEqual({
         result: 'Success',
         score: 0.95,
+        model: 'mock-model',
         tokens: { input: 10, output: 20, total: 30 },
         toolCalls: { list: [], count: 0 },
         providerTiming: { total: 100 },

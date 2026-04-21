@@ -1,13 +1,12 @@
 import { db } from '@sim/db'
 import { document } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createDocumentRecords,
   deleteDocument,
@@ -49,12 +48,28 @@ export const POST = withRouteHandler(
         filename: body.filename,
       })
 
-      const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Authentication failed: ${auth.error || 'Unauthorized'}`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-      const userId = auth.userId
+    recordAudit({
+      workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
+      actorId: userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: isUpdate ? AuditAction.DOCUMENT_UPDATED : AuditAction.DOCUMENT_UPLOADED,
+      resourceType: AuditResourceType.DOCUMENT,
+      resourceId: knowledgeBaseId,
+      resourceName: validatedData.filename,
+      description: isUpdate
+        ? `Upserted (replaced) document "${validatedData.filename}" in knowledge base "${knowledgeBaseId}"`
+        : `Upserted (created) document "${validatedData.filename}" in knowledge base "${knowledgeBaseId}"`,
+      metadata: {
+        knowledgeBaseName: accessCheck.knowledgeBase?.name,
+        fileName: validatedData.filename,
+        fileType: validatedData.mimeType,
+        fileSize: validatedData.fileSize,
+        previousDocumentId: existingDocumentId,
+        isUpdate,
+      },
+      request: req,
+    })
 
       const validatedData = UpsertDocumentSchema.parse(body)
 

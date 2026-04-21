@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -9,8 +10,6 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateShortId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
@@ -39,10 +38,19 @@ export const GET = withRouteHandler(
 
       const userId = session.user.id
 
-      const ws = await getWorkspaceById(workspaceId)
-      if (!ws) {
-        return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-      }
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      actorName: session?.user?.name,
+      actorEmail: session?.user?.email,
+      action: AuditAction.API_KEY_CREATED,
+      resourceType: AuditResourceType.API_KEY,
+      resourceId: newKey.id,
+      resourceName: name,
+      description: `Created API key "${name}"`,
+      metadata: { keyName: name, keyType: 'workspace', source: source ?? 'settings' },
+      request,
+    })
 
       const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
       if (!permission) {
@@ -84,6 +92,30 @@ export const GET = withRouteHandler(
         { status: 500 }
       )
     }
+
+    logger.info(
+      `[${requestId}] Deleted ${deletedCount} workspace API keys from workspace ${workspaceId}`
+    )
+
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      actorName: session?.user?.name,
+      actorEmail: session?.user?.email,
+      action: AuditAction.API_KEY_REVOKED,
+      resourceType: AuditResourceType.API_KEY,
+      description: `Revoked ${deletedCount} workspace API key(s)`,
+      metadata: { keyIds: keys, deletedCount, keyType: 'workspace' },
+      request,
+    })
+
+    return NextResponse.json({ success: true, deletedCount })
+  } catch (error: unknown) {
+    logger.error(`[${requestId}] Workspace API key DELETE error`, error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to delete workspace API keys' },
+      { status: 500 }
+    )
   }
 )
 

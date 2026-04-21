@@ -98,7 +98,7 @@ export function CredentialSelector({
   )
   const provider = effectiveProviderId
 
-  const isTriggerMode = subBlock.mode === 'trigger'
+  const isTriggerMode = subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced'
 
   const {
     data: rawCredentials = [],

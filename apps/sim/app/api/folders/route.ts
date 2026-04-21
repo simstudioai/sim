@@ -1,13 +1,12 @@
 import { db } from '@sim/db'
 import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, asc, eq, isNotNull, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -169,7 +168,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       resourceId: id,
       resourceName: name.trim(),
       description: `Created folder "${name.trim()}"`,
-      metadata: { name: name.trim() },
+      metadata: {
+        name: name.trim(),
+        workspaceId,
+        parentId: parentId || undefined,
+        color: color || '#6B7280',
+        sortOrder: newFolder.sortOrder,
+      },
       request,
     })
 

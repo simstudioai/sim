@@ -11,7 +11,7 @@ export const listNamedQueriesTool: ToolConfig<
   id: 'athena_list_named_queries',
   name: 'Athena List Named Queries',
   description: 'List saved/named query IDs in AWS Athena',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

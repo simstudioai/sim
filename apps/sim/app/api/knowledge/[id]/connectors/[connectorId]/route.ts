@@ -269,7 +269,16 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       resourceId: connectorId,
       resourceName: updatedData.connectorType,
       description: `Updated connector for knowledge base "${writeCheck.knowledgeBase.name}"`,
-      metadata: { knowledgeBaseId, updatedFields: Object.keys(parsed.data) },
+      metadata: {
+        knowledgeBaseId,
+        knowledgeBaseName: writeCheck.knowledgeBase.name,
+        connectorType: updatedData.connectorType,
+        updatedFields: Object.keys(parsed.data),
+        ...(parsed.data.syncIntervalMinutes !== undefined && {
+          syncIntervalMinutes: parsed.data.syncIntervalMinutes,
+        }),
+        ...(parsed.data.status !== undefined && { newStatus: parsed.data.status }),
+      },
       request,
     })
 
@@ -400,6 +409,9 @@ export const DELETE = withRouteHandler(async (request: NextRequest, { params }: 
       description: `Deleted connector from knowledge base "${writeCheck.knowledgeBase.name}"`,
       metadata: {
         knowledgeBaseId,
+        knowledgeBaseName: writeCheck.knowledgeBase.name,
+        connectorType: existingConnector[0].connectorType,
+        deleteDocuments,
         documentsDeleted: deleteDocuments ? docCount : 0,
         documentsKept: deleteDocuments ? 0 : docCount,
       },

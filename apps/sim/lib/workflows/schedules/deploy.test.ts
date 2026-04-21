@@ -3,7 +3,6 @@
  *
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -60,8 +59,6 @@ vi.mock('drizzle-orm', () => ({
 vi.mock('@/lib/webhooks/deploy', () => ({
   cleanupWebhooksForWorkflow: vi.fn().mockResolvedValue(undefined),
 }))
-
-vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('./utils', async (importOriginal) => {
   const original = await importOriginal<typeof import('./utils')>()

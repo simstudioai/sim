@@ -66,18 +66,6 @@ export const jiraIssueCreatedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'jira_issue_created',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_created',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

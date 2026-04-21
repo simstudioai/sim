@@ -263,6 +263,14 @@ export const PUT = withRouteHandler(async (request: NextRequest, { params }: Rou
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
       description: `Updated ${subscription.notificationType} notification subscription`,
+      metadata: {
+        notificationType: subscription.notificationType,
+        updatedFields: Object.keys(data).filter(
+          (k) => (data as Record<string, unknown>)[k] !== undefined
+        ),
+        ...(data.active !== undefined && { active: data.active }),
+        ...(data.alertConfig !== undefined && { alertRule: data.alertConfig?.rule ?? null }),
+      },
       request,
     })
 
@@ -341,6 +349,9 @@ export const DELETE = withRouteHandler(async (request: NextRequest, { params }: 
       actorEmail: session.user.email ?? undefined,
       resourceName: deletedSubscription.notificationType,
       description: `Deleted ${deletedSubscription.notificationType} notification subscription`,
+      metadata: {
+        notificationType: deletedSubscription.notificationType,
+      },
       request,
     })
 

@@ -177,16 +177,97 @@ export const DELETE = withRouteHandler(
         request,
       })
 
-      logger.info(
-        `[${requestId}] Deleted workspace API key: ${keyId} from workspace ${workspaceId}`
-      )
-      return NextResponse.json({ success: true })
-    } catch (error: unknown) {
-      logger.error(`[${requestId}] Workspace API key DELETE error`, error)
-      return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to delete workspace API key' },
-        { status: 500 }
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: AuditAction.API_KEY_UPDATED,
+      resourceType: AuditResourceType.API_KEY,
+      resourceId: keyId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: name,
+      description: `Renamed workspace API key from "${existingKey[0].name}" to "${name}"`,
+      metadata: {
+        keyType: 'workspace',
+        previousName: existingKey[0].name,
+        newName: name,
+      },
+      request,
+    })
+
+    logger.info(`[${requestId}] Updated workspace API key: ${keyId} in workspace ${workspaceId}`)
+    return NextResponse.json({ key: updatedKey })
+  } catch (error: unknown) {
+    logger.error(`[${requestId}] Workspace API key PUT error`, error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to update workspace API key' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; keyId: string }> }
+) {
+  const requestId = generateRequestId()
+  const { id: workspaceId, keyId } = await params
+
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized workspace API key deletion attempt`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const userId = session.user.id
+
+    const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+    if (permission !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const deletedRows = await db
+      .delete(apiKey)
+      .where(
+        and(eq(apiKey.workspaceId, workspaceId), eq(apiKey.id, keyId), eq(apiKey.type, 'workspace'))
       )
     }
+
+    const deletedKey = deletedRows[0]
+
+    captureServerEvent(
+      userId,
+      'api_key_revoked',
+      { workspace_id: workspaceId, key_name: deletedKey.name },
+      { groups: { workspace: workspaceId } }
+    )
+
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: AuditAction.API_KEY_REVOKED,
+      resourceType: AuditResourceType.API_KEY,
+      resourceId: keyId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: deletedKey.name,
+      description: `Revoked workspace API key: ${deletedKey.name}`,
+      metadata: {
+        keyType: 'workspace',
+        keyName: deletedKey.name,
+        lastUsed: deletedKey.lastUsed?.toISOString() ?? null,
+      },
+      request,
+    })
+
+    logger.info(`[${requestId}] Deleted workspace API key: ${keyId} from workspace ${workspaceId}`)
+    return NextResponse.json({ success: true })
+  } catch (error: unknown) {
+    logger.error(`[${requestId}] Workspace API key DELETE error`, error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to delete workspace API key' },
+      { status: 500 }
+    )
   }
 )

@@ -1,0 +1,34 @@
+---
+title: Fireflies
+description: Available Fireflies triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="fireflies"
+  color="#100730"
+/>
+
+Fireflies provides 1 trigger for automating workflows based on events.
+
+## Triggers
+
+### Fireflies Transcription Complete
+
+Trigger workflow when a Fireflies meeting transcription is complete
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Secret key for HMAC signature verification \(set in Fireflies dashboard\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meetingId` | string | The ID of the transcribed meeting |
+| `eventType` | string | The type of event \(Transcription completed\) |
+| `clientReferenceId` | string | Custom reference ID if set during upload |
+

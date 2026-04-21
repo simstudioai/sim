@@ -168,5 +168,58 @@ export const POST = withRouteHandler(
         { status: isDuplicate ? 409 : 500 }
       )
     }
+
+    const buffer = Buffer.from(await rawFile.arrayBuffer())
+
+    const userFile = await uploadWorkspaceFile(
+      workspaceId,
+      session.user.id,
+      buffer,
+      fileName,
+      rawFile.type || 'application/octet-stream'
+    )
+
+    logger.info(`[${requestId}] Uploaded workspace file: ${fileName}`)
+
+    captureServerEvent(
+      session.user.id,
+      'file_uploaded',
+      { workspace_id: workspaceId, file_type: rawFile.type || 'application/octet-stream' },
+      { groups: { workspace: workspaceId } }
+    )
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.FILE_UPLOADED,
+      resourceType: AuditResourceType.FILE,
+      resourceId: userFile.id,
+      resourceName: fileName,
+      description: `Uploaded file "${fileName}"`,
+      metadata: { fileSize: rawFile.size, fileType: rawFile.type || 'application/octet-stream' },
+      request,
+    })
+
+    return NextResponse.json({
+      success: true,
+      file: userFile,
+    })
+  } catch (error) {
+    logger.error(`[${requestId}] Error uploading workspace file:`, error)
+
+    const errorMessage = error instanceof Error ? error.message : 'Failed to upload file'
+    const isDuplicate =
+      error instanceof FileConflictError || errorMessage.includes('already exists')
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: errorMessage,
+        isDuplicate,
+      },
+      { status: isDuplicate ? 409 : 500 }
+    )
   }
 )

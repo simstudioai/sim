@@ -6,6 +6,7 @@ import {
   type SupabaseIntrospectResponse,
   type SupabaseTableSchema,
 } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SupabaseIntrospect')
@@ -335,7 +336,7 @@ export const introspectTool: ToolConfig<SupabaseIntrospectParams, SupabaseIntros
 
   request: {
     url: (params) => {
-      return `https://${params.projectId}.supabase.co/rest/v1/rpc/`
+      return `${supabaseBaseUrl(params.projectId)}/rest/v1/rpc/`
     },
     method: 'POST',
     headers: (params) => ({
@@ -353,8 +354,9 @@ export const introspectTool: ToolConfig<SupabaseIntrospectParams, SupabaseIntros
 
     try {
       const sqlQuery = schema ? getSchemaFilteredSQL(schema) : INTROSPECTION_SQL
+      const baseUrl = supabaseBaseUrl(projectId)
 
-      const response = await fetch(`https://${projectId}.supabase.co/rest/v1/rpc/`, {
+      const response = await fetch(`${baseUrl}/rest/v1/rpc/`, {
         method: 'POST',
         headers: {
           apikey: apiKey,
@@ -373,7 +375,7 @@ export const introspectTool: ToolConfig<SupabaseIntrospectParams, SupabaseIntros
           status: response.status,
         })
 
-        const pgResponse = await fetch(`https://${projectId}.supabase.co/rest/v1/?select=*`, {
+        const pgResponse = await fetch(`${baseUrl}/rest/v1/?select=*`, {
           method: 'GET',
           headers: {
             apikey: apiKey,

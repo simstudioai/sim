@@ -10,10 +10,10 @@
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, count, eq, gt, gte, inArray, isNull, sql } from 'drizzle-orm'
-import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
-import { generateId } from '@/lib/core/utils/uuid'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import type {
@@ -30,6 +30,8 @@ import type {
   QueryOptions,
   QueryResult,
   RenameColumnData,
+  ReplaceRowsData,
+  ReplaceRowsResult,
   RowData,
   TableDefinition,
   TableMetadata,
@@ -777,6 +779,120 @@ export async function batchInsertRows(
 }
 
 /**
+ * Replaces all rows in a table with a new set of rows. Deletes existing rows
+ * and inserts the provided rows inside a single transaction so the table is
+ * never observed in an empty intermediate state by other readers.
+ *
+ * Validates each row against the schema, enforces unique constraints within the
+ * new rows (existing rows are deleted, so DB-side checks are unnecessary), and
+ * enforces `maxRows` before the replace executes.
+ *
+ * @param data - Replace data (rows to install)
+ * @param table - Table definition
+ * @param requestId - Request ID for logging
+ * @returns Count of rows deleted and inserted
+ * @throws Error if validation fails or capacity exceeded
+ */
+export async function replaceTableRows(
+  data: ReplaceRowsData,
+  table: TableDefinition,
+  requestId: string
+): Promise<ReplaceRowsResult> {
+  if (data.tableId !== table.id) {
+    throw new Error(`Table ID mismatch: ${data.tableId} vs ${table.id}`)
+  }
+  if (data.workspaceId !== table.workspaceId) {
+    throw new Error(`Workspace ID mismatch: ${data.workspaceId} does not own table ${data.tableId}`)
+  }
+  if (data.rows.length > table.maxRows) {
+    throw new Error(
+      `Cannot replace: ${data.rows.length} rows exceeds table row limit (${table.maxRows})`
+    )
+  }
+
+  for (let i = 0; i < data.rows.length; i++) {
+    const row = data.rows[i]
+
+    const sizeValidation = validateRowSize(row)
+    if (!sizeValidation.valid) {
+      throw new Error(`Row ${i + 1}: ${sizeValidation.errors.join(', ')}`)
+    }
+
+    const schemaValidation = validateRowAgainstSchema(row, table.schema)
+    if (!schemaValidation.valid) {
+      throw new Error(`Row ${i + 1}: ${schemaValidation.errors.join(', ')}`)
+    }
+  }
+
+  const uniqueColumns = getUniqueColumns(table.schema)
+  if (uniqueColumns.length > 0 && data.rows.length > 0) {
+    const seen = new Map<string, Map<string, number>>()
+    for (const col of uniqueColumns) {
+      seen.set(col.name, new Map())
+    }
+    for (let i = 0; i < data.rows.length; i++) {
+      const row = data.rows[i]
+      for (const col of uniqueColumns) {
+        const value = row[col.name]
+        if (value === null || value === undefined) continue
+        const normalized = typeof value === 'string' ? value.toLowerCase() : JSON.stringify(value)
+        const map = seen.get(col.name)!
+        if (map.has(normalized)) {
+          throw new Error(
+            `Row ${i + 1}: Column "${col.name}" must be unique. Value "${String(value)}" duplicates row ${map.get(normalized)! + 1} in batch`
+          )
+        }
+        map.set(normalized, i)
+      }
+    }
+  }
+
+  const now = new Date()
+
+  const result = await db.transaction(async (trx) => {
+    await trx.execute(
+      sql`SELECT 1 FROM user_table_definitions WHERE id = ${data.tableId} FOR UPDATE`
+    )
+
+    const deletedRows = await trx
+      .delete(userTableRows)
+      .where(eq(userTableRows.tableId, data.tableId))
+      .returning({ id: userTableRows.id })
+
+    let insertedCount = 0
+    if (data.rows.length > 0) {
+      const rowsToInsert = data.rows.map((rowData, i) => ({
+        id: `row_${generateId().replace(/-/g, '')}`,
+        tableId: data.tableId,
+        workspaceId: data.workspaceId,
+        data: rowData,
+        position: i,
+        createdAt: now,
+        updatedAt: now,
+        ...(data.userId ? { createdBy: data.userId } : {}),
+      }))
+
+      const batchSize = TABLE_LIMITS.MAX_BATCH_INSERT_SIZE
+      for (let i = 0; i < rowsToInsert.length; i += batchSize) {
+        const chunk = rowsToInsert.slice(i, i + batchSize)
+        const inserted = await trx.insert(userTableRows).values(chunk).returning({
+          id: userTableRows.id,
+        })
+        insertedCount += inserted.length
+      }
+    }
+
+    return { deletedCount: deletedRows.length, insertedCount }
+  })
+
+  logger.info(
+    `[${requestId}] Replaced rows in table ${data.tableId}: deleted ${result.deletedCount}, inserted ${result.insertedCount}`
+  )
+
+  return result
+}
+
+/**
  * Upserts a row: updates an existing row if a match is found on the conflict target
  * column, otherwise inserts a new row.
  *
@@ -1091,14 +1207,20 @@ export async function updateRow(
     throw new Error('Row not found')
   }
 
+  // Merge partial update with existing row data so callers can pass only changed fields
+  const mergedData = {
+    ...(existingRow.data as RowData),
+    ...data.data,
+  }
+
   // Validate size
-  const sizeValidation = validateRowSize(data.data)
+  const sizeValidation = validateRowSize(mergedData)
   if (!sizeValidation.valid) {
     throw new Error(sizeValidation.errors.join(', '))
   }
 
   // Validate against schema
-  const schemaValidation = validateRowAgainstSchema(data.data, table.schema)
+  const schemaValidation = validateRowAgainstSchema(mergedData, table.schema)
   if (!schemaValidation.valid) {
     throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
   }
@@ -1108,7 +1230,7 @@ export async function updateRow(
   if (uniqueColumns.length > 0) {
     const uniqueValidation = await checkUniqueConstraintsDb(
       data.tableId,
-      data.data,
+      mergedData,
       table.schema,
       data.rowId // Exclude current row
     )
@@ -1121,14 +1243,14 @@ export async function updateRow(
 
   await db
     .update(userTableRows)
-    .set({ data: data.data, updatedAt: now })
+    .set({ data: mergedData, updatedAt: now })
     .where(eq(userTableRows.id, data.rowId))
 
   logger.info(`[${requestId}] Updated row ${data.rowId} in table ${data.tableId}`)
 
   return {
     id: data.rowId,
-    data: data.data,
+    data: mergedData,
     position: existingRow.position,
     createdAt: existingRow.createdAt,
     updatedAt: now,

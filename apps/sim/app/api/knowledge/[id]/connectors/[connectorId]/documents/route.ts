@@ -195,7 +195,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
         resourceType: AuditResourceType.CONNECTOR,
         resourceId: connectorId,
         description: `Restored ${updated.length} excluded document(s) for knowledge base "${writeCheck.knowledgeBase.name}"`,
-        metadata: { knowledgeBaseId, documentCount: updated.length },
+        metadata: {
+          knowledgeBaseId,
+          knowledgeBaseName: writeCheck.knowledgeBase.name,
+          operation: 'restore',
+          documentCount: updated.length,
+          documentIds: updated.map((d) => d.id),
+        },
         request,
       })
 
@@ -230,7 +236,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       resourceType: AuditResourceType.CONNECTOR,
       resourceId: connectorId,
       description: `Excluded ${updated.length} document(s) from knowledge base "${writeCheck.knowledgeBase.name}"`,
-      metadata: { knowledgeBaseId, documentCount: updated.length },
+      metadata: {
+        knowledgeBaseId,
+        knowledgeBaseName: writeCheck.knowledgeBase.name,
+        operation: 'exclude',
+        documentCount: updated.length,
+        documentIds: updated.map((d) => d.id),
+      },
       request,
     })
 

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Badge } from '@/components/emcn'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { buildCollectionPageJsonLd } from '@/lib/blog/seo'
+import { SITE_URL } from '@/lib/core/utils/urls'
 
 export async function generateMetadata({
   searchParams,
@@ -19,14 +20,14 @@ export async function generateMetadata({
   const title = titleParts.join(' — ')
 
   const description = tag
-    ? `Sim blog posts tagged "${tag}" — insights and guides for building AI agent workflows.`
-    : 'Announcements, insights, and guides for building AI agent workflows.'
+    ? `Sim blog posts tagged "${tag}" — insights and guides for building AI agents.`
+    : 'Announcements, insights, and guides for building AI agents.'
 
   const canonicalParams = new URLSearchParams()
   if (tag) canonicalParams.set('tag', tag)
   if (pageNum > 1) canonicalParams.set('page', String(pageNum))
   const qs = canonicalParams.toString()
-  const canonical = `https://sim.ai/blog${qs ? `?${qs}` : ''}`
+  const canonical = `${SITE_URL}/blog${qs ? `?${qs}` : ''}`
 
   return {
     title,
@@ -41,7 +42,7 @@ export async function generateMetadata({
       type: 'website',
       images: [
         {
-          url: 'https://sim.ai/logo/primary/medium.png',
+          url: `${SITE_URL}/logo/primary/medium.png`,
           width: 1200,
           height: 630,
           alt: 'Sim Blog',
@@ -110,7 +111,7 @@ export default async function BlogIndex({
           <h1 className='text-balance font-[430] font-season text-[28px] text-white leading-[100%] tracking-[-0.02em] lg:text-[40px]'>
             Latest from Sim
           </h1>
-          <p className='max-w-[360px] font-[430] font-season text-[#F6F6F0]/50 text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
+          <p className='max-w-[540px] font-[430] font-season text-[var(--landing-text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
             Announcements, insights, and guides for building AI agent workflows.
           </p>
         </div>
@@ -152,7 +153,7 @@ export default async function BlogIndex({
                     <h3 className='font-[430] font-season text-lg text-white leading-tight tracking-[-0.01em]'>
                       {p.title}
                     </h3>
-                    <p className='line-clamp-2 text-[#F6F6F0]/50 text-sm leading-[150%]'>
+                    <p className='line-clamp-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
                       {p.description}
                     </p>
                   </div>
@@ -191,7 +192,7 @@ export default async function BlogIndex({
                 <h3 className='font-[430] font-season text-base text-white leading-tight tracking-[-0.01em] lg:text-lg'>
                   {p.title}
                 </h3>
-                <p className='line-clamp-2 text-[#F6F6F0]/40 text-sm leading-[150%]'>
+                <p className='line-clamp-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
                   {p.description}
                 </p>
               </div>

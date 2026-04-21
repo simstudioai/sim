@@ -55,14 +55,17 @@ export function useTriggerConfigAggregation(
   let hasAnyValue = false
 
   triggerDef.subBlocks
-    .filter((sb) => sb.mode === 'trigger' && !SYSTEM_SUBBLOCK_IDS.includes(sb.id))
+    .filter(
+      (sb) =>
+        (sb.mode === 'trigger' || sb.mode === 'trigger-advanced') &&
+        !SYSTEM_SUBBLOCK_IDS.includes(sb.id)
+    )
     .forEach((subBlock) => {
       const fieldValue = subBlockStore.getValue(blockId, subBlock.id)
 
       let valueToUse = fieldValue
       if (
         (fieldValue === null || fieldValue === undefined || fieldValue === '') &&
-        subBlock.required &&
         subBlock.defaultValue !== undefined
       ) {
         valueToUse = subBlock.defaultValue
@@ -117,7 +120,11 @@ export function populateTriggerFieldsFromConfig(
   const subBlockStore = useSubBlockStore.getState()
 
   triggerDef.subBlocks
-    .filter((sb) => sb.mode === 'trigger' && !SYSTEM_SUBBLOCK_IDS.includes(sb.id))
+    .filter(
+      (sb) =>
+        (sb.mode === 'trigger' || sb.mode === 'trigger-advanced') &&
+        !SYSTEM_SUBBLOCK_IDS.includes(sb.id)
+    )
     .forEach((subBlock) => {
       let configValue: any
 

@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { History, Plus, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -224,7 +225,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const [copilotChatId, setCopilotChatId] = useState<string | undefined>(undefined)
   const [copilotChatTitle, setCopilotChatTitle] = useState<string | null>(null)
   const [copilotChatList, setCopilotChatList] = useState<
-    { id: string; title: string | null; updatedAt: string; conversationId: string | null }[]
+    { id: string; title: string | null; updatedAt: string; activeStreamId: string | null }[]
   >([])
   const [isCopilotHistoryOpen, setIsCopilotHistoryOpen] = useState(false)
 
@@ -244,7 +245,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
           id: string
           title: string | null
           updatedAt: string
-          conversationId: string | null
+          activeStreamId: string | null
         }>
         setCopilotChatList(filtered)
 
@@ -320,7 +321,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         })
         .catch((err) => {
           logger.error('Failed to fetch/apply edit_workflow state', {
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
             workflowId,
           })
         })
@@ -392,17 +393,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     wasCopilotSendingRef.current = copilotIsSending
   }, [copilotIsSending, loadCopilotChats])
 
-  const [copilotEditingInputValue, setCopilotEditingInputValue] = useState('')
-  const clearCopilotEditingValue = useCallback(() => setCopilotEditingInputValue(''), [])
-
-  const handleCopilotEditQueuedMessage = useCallback(
-    (id: string) => {
-      const msg = copilotEditQueuedMessage(id)
-      if (msg) setCopilotEditingInputValue(msg.content)
-    },
-    [copilotEditQueuedMessage]
-  )
-
   const handleCopilotStopGeneration = useCallback(() => {
     captureEvent(posthogRef.current, 'task_generation_aborted', {
       workspace_id: workspaceId,
@@ -438,6 +428,17 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     window.addEventListener('mothership-send-message', handler)
     return () => window.removeEventListener('mothership-send-message', handler)
   }, [setActiveTab, copilotSendMessage])
+
+  useEffect(() => {
+    if (activeTab !== 'copilot') return
+    const id = window.setTimeout(() => {
+      const textarea = document.querySelector<HTMLTextAreaElement>(
+        "[data-tab-content='copilot'] textarea"
+      )
+      textarea?.focus()
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [activeTab])
 
   /**
    * Handles tab click events
@@ -813,7 +814,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                                   >
                                     <ConversationListItem
                                       title={chat.title || 'New Chat'}
-                                      isActive={Boolean(chat.conversationId)}
+                                      isActive={Boolean(chat.activeStreamId)}
                                       titleClassName='text-[13px]'
                                       actions={
                                         <div
@@ -854,11 +855,9 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   messageQueue={copilotMessageQueue}
                   onRemoveQueuedMessage={copilotRemoveFromQueue}
                   onSendQueuedMessage={copilotSendNow}
-                  onEditQueuedMessage={handleCopilotEditQueuedMessage}
+                  onEditQueuedMessage={copilotEditQueuedMessage}
                   userId={session?.user?.id}
                   chatId={copilotResolvedChatId}
-                  editValue={copilotEditingInputValue}
-                  onEditValueConsumed={clearCopilotEditingValue}
                   layout='copilot-view'
                 />
               </div>

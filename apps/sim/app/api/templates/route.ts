@@ -7,14 +7,13 @@ import {
   workflowDeploymentVersion,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { canAccessTemplate, verifyEffectiveSuperUser } from '@/lib/templates/permissions'
 import {
   extractRequiredCredentials,
@@ -347,6 +346,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       resourceId: templateId,
       resourceName: data.name,
       description: `Created template "${data.name}"`,
+      metadata: {
+        templateName: data.name,
+        workflowId: data.workflowId,
+        creatorId: data.creatorId,
+        tags: data.tags,
+        tagline: data.details?.tagline || undefined,
+        status: 'pending',
+      },
       request,
     })
 

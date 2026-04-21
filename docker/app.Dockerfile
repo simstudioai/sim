@@ -18,18 +18,18 @@ FROM base AS deps
 WORKDIR /app
 
 COPY package.json bun.lock turbo.json ./
-RUN mkdir -p apps packages/db packages/testing packages/logger packages/tsconfig
+RUN mkdir -p apps packages/db packages/testing packages/logger packages/tsconfig packages/utils
 COPY apps/sim/package.json ./apps/sim/package.json
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/testing/package.json ./packages/testing/package.json
 COPY packages/logger/package.json ./packages/logger/package.json
 COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
+COPY packages/utils/package.json ./packages/utils/package.json
 
-# Install turbo globally, then dependencies, then rebuild isolated-vm for Node.js
+# Install dependencies, then rebuild isolated-vm for Node.js
 # Use --linker=hoisted for flat node_modules layout (required for Docker multi-stage builds)
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
     --mount=type=cache,id=npm-cache,target=/root/.npm \
-    bun install -g turbo && \
     HUSKY=0 bun install --omit=dev --ignore-scripts --linker=hoisted && \
     cd node_modules/isolated-vm && npx node-gyp rebuild --release
 
@@ -52,6 +52,7 @@ COPY apps/sim/package.json ./apps/sim/package.json
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/testing/package.json ./packages/testing/package.json
 COPY packages/logger/package.json ./packages/logger/package.json
+COPY packages/utils/package.json ./packages/utils/package.json
 
 # Copy workspace configuration files (needed for turbo)
 COPY apps/sim/next.config.ts ./apps/sim/next.config.ts
@@ -105,11 +106,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/public ./apps/sim/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/static ./apps/sim/.next/static
 
-# Copy the full dependency tree and app source so the BullMQ worker can run from source.
-# The standalone server continues to use server.js; the worker uses bun on worker/index.ts.
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nextjs:nodejs /app/apps/sim ./apps/sim
-COPY --from=builder --chown=nextjs:nodejs /app/packages ./packages
+# Copy blog/author content for runtime filesystem reads (not part of the JS bundle)
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/content ./apps/sim/content
 
 # Copy isolated-vm native module (compiled for Node.js in deps stage)
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modules/isolated-vm
@@ -117,8 +115,10 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modu
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
 
-# Copy the bundled PPTX worker artifact
-COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/dist/pptx-worker.cjs ./apps/sim/dist/pptx-worker.cjs
+# Copy the pre-built sandbox library bundles (pptxgenjs, docx, pdf-lib) that
+# run inside the V8 isolate. Committed into the repo; see
+# apps/sim/lib/execution/sandbox/bundles/build.ts to regenerate.
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/sandbox/bundles ./apps/sim/lib/execution/sandbox/bundles
 
 # Guardrails setup with pip caching
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/requirements.txt ./apps/sim/lib/guardrails/requirements.txt

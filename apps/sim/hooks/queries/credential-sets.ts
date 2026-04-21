@@ -157,7 +157,7 @@ export function useAcceptCredentialSetInvitation() {
       }
       return response.json()
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() })
       queryClient.invalidateQueries({ queryKey: credentialSetKeys.invitations() })
     },
@@ -187,7 +187,7 @@ export function useCreateCredentialSet() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: credentialSetKeys.list(variables.organizationId) })
     },
   })
@@ -209,7 +209,7 @@ export function useCreateCredentialSetInvitation() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: credentialSetKeys.detailInvitations(variables.credentialSetId),
       })
@@ -264,7 +264,7 @@ export function useRemoveCredentialSetMember() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: credentialSetKeys.detailMembers(variables.credentialSetId),
       })
@@ -288,7 +288,7 @@ export function useLeaveCredentialSet() {
       }
       return response.json()
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() })
     },
   })
@@ -313,7 +313,7 @@ export function useDeleteCredentialSet() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: credentialSetKeys.list(variables.organizationId),
       })
@@ -370,7 +370,7 @@ export function useCancelCredentialSetInvitation() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: credentialSetKeys.detailInvitations(variables.credentialSetId),
       })
@@ -393,7 +393,7 @@ export function useResendCredentialSetInvitation() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: credentialSetKeys.detailInvitations(variables.credentialSetId),
       })

@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowUp } from 'lucide-react'
-import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Blimp, BubbleChatPreview, ChevronDown, MoreHorizontal, Play } from '@/components/emcn'
@@ -19,6 +19,12 @@ import {
   TYPE_INTERVAL_MS,
   TYPE_START_BUFFER_MS,
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
+import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+
+const AuthModal = dynamic(
+  () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
+  { loading: () => null }
+)
 
 type PanelTab = 'copilot' | 'editor'
 
@@ -44,6 +50,11 @@ export function useLandingSubmit() {
       const trimmed = text.trim()
       if (!trimmed) return
       LandingPromptStorage.store(trimmed)
+      trackLandingCta({
+        label: 'Prompt submit',
+        section: 'landing_preview',
+        destination: '/signup',
+      })
       router.push('/signup')
     },
     [router]
@@ -175,20 +186,29 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel({
               <BubbleChatPreview className='h-[14px] w-[14px] text-[#e6e6e6]' />
             </div>
           </div>
-          <Link
-            href='/signup'
-            className='flex gap-1.5'
-            onMouseMove={(e) => setCursorPos({ x: e.clientX, y: e.clientY })}
-            onMouseLeave={() => setCursorPos(null)}
-          >
-            <div className='flex h-[30px] items-center rounded-[5px] bg-[#33C482] px-2.5 transition-colors hover:bg-[#2DAC72]'>
-              <span className='font-medium text-[#1b1b1b] text-[12px]'>Deploy</span>
-            </div>
-            <div className='flex h-[30px] items-center gap-2 rounded-[5px] bg-[#33C482] px-2.5 transition-colors hover:bg-[#2DAC72]'>
-              <Play className='h-[11.5px] w-[11.5px] text-[#1b1b1b]' />
-              <span className='font-medium text-[#1b1b1b] text-[12px]'>Run</span>
-            </div>
-          </Link>
+          <AuthModal defaultView='signup' source='landing_preview'>
+            <button
+              type='button'
+              className='flex gap-1.5'
+              onMouseMove={(e) => setCursorPos({ x: e.clientX, y: e.clientY })}
+              onMouseLeave={() => setCursorPos(null)}
+              onClick={() =>
+                trackLandingCta({
+                  label: 'Deploy',
+                  section: 'landing_preview',
+                  destination: 'auth_modal',
+                })
+              }
+            >
+              <div className='flex h-[30px] items-center rounded-[5px] bg-[#33C482] px-2.5 transition-colors hover:bg-[#2DAC72]'>
+                <span className='font-medium text-[#1b1b1b] text-[12px]'>Deploy</span>
+              </div>
+              <div className='flex h-[30px] items-center gap-2 rounded-[5px] bg-[#33C482] px-2.5 transition-colors hover:bg-[#2DAC72]'>
+                <Play className='h-[11.5px] w-[11.5px] text-[#1b1b1b]' />
+                <span className='font-medium text-[#1b1b1b] text-[12px]'>Run</span>
+              </div>
+            </button>
+          </AuthModal>
           {cursorPos &&
             createPortal(
               <div

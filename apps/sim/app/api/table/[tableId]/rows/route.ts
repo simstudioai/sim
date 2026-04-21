@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -182,7 +183,7 @@ async function handleBatchInsert(
       },
     })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
 
     if (
       errorMessage.includes('row limit') ||
@@ -306,6 +307,21 @@ export const POST = withRouteHandler(
       logger.error(`[${requestId}] Error inserting row:`, error)
       return NextResponse.json({ error: 'Failed to insert row' }, { status: 500 })
     }
+
+    const errorMessage = toError(error).message
+
+    if (
+      errorMessage.includes('row limit') ||
+      errorMessage.includes('Insufficient capacity') ||
+      errorMessage.includes('Schema validation') ||
+      errorMessage.includes('must be unique') ||
+      errorMessage.includes('Row size exceeds')
+    ) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
+    }
+
+    logger.error(`[${requestId}] Error inserting row:`, error)
+    return NextResponse.json({ error: 'Failed to insert row' }, { status: 500 })
   }
 )
 
@@ -540,6 +556,38 @@ export const PUT = withRouteHandler(
       logger.error(`[${requestId}] Error updating rows by filter:`, error)
       return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })
     }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        message: 'Rows updated successfully',
+        updatedCount: result.affectedCount,
+        updatedRowIds: result.affectedRowIds,
+      },
+    })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Validation error', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    const errorMessage = toError(error).message
+
+    if (
+      errorMessage.includes('Row size exceeds') ||
+      errorMessage.includes('Schema validation') ||
+      errorMessage.includes('must be unique') ||
+      errorMessage.includes('Unique constraint violation') ||
+      errorMessage.includes('Cannot set unique column') ||
+      errorMessage.includes('Filter is required')
+    ) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
+    }
+
+    logger.error(`[${requestId}] Error updating rows by filter:`, error)
+    return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })
   }
 )
 
@@ -635,6 +683,44 @@ export const DELETE = withRouteHandler(
       logger.error(`[${requestId}] Error deleting rows:`, error)
       return NextResponse.json({ error: 'Failed to delete rows' }, { status: 500 })
     }
+
+    const result = await deleteRowsByFilter(
+      {
+        tableId,
+        filter: validated.filter as Filter,
+        limit: validated.limit,
+        workspaceId: validated.workspaceId,
+      },
+      requestId
+    )
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        message:
+          result.affectedCount === 0
+            ? 'No rows matched the filter criteria'
+            : 'Rows deleted successfully',
+        deletedCount: result.affectedCount,
+        deletedRowIds: result.affectedRowIds,
+      },
+    })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Validation error', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    const errorMessage = toError(error).message
+
+    if (errorMessage.includes('Filter is required')) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
+    }
+
+    logger.error(`[${requestId}] Error deleting rows:`, error)
+    return NextResponse.json({ error: 'Failed to delete rows' }, { status: 500 })
   }
 )
 
@@ -717,5 +803,51 @@ export const PATCH = withRouteHandler(
       logger.error(`[${requestId}] Error batch updating rows:`, error)
       return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })
     }
+
+    const result = await batchUpdateRows(
+      {
+        tableId,
+        updates: validated.updates as Array<{ rowId: string; data: RowData }>,
+        workspaceId: validated.workspaceId,
+      },
+      table,
+      requestId
+    )
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        message: 'Rows updated successfully',
+        updatedCount: result.affectedCount,
+        updatedRowIds: result.affectedRowIds,
+      },
+    })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Validation error', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    const errorMessage = toError(error).message
+
+    if (
+      errorMessage.includes('Row size exceeds') ||
+      errorMessage.includes('Schema validation') ||
+      errorMessage.includes('must be valid') ||
+      errorMessage.includes('must be string') ||
+      errorMessage.includes('must be number') ||
+      errorMessage.includes('must be boolean') ||
+      errorMessage.includes('must be unique') ||
+      errorMessage.includes('Unique constraint violation') ||
+      errorMessage.includes('Cannot set unique column') ||
+      errorMessage.includes('Rows not found')
+    ) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
+    }
+
+    logger.error(`[${requestId}] Error batch updating rows:`, error)
+    return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })
   }
 )

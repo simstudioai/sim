@@ -104,11 +104,14 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         recordAudit({
           workspaceId,
           actorId: userId,
+          actorName: authResult.userName ?? undefined,
+          actorEmail: authResult.userEmail ?? undefined,
           action: AuditAction.SKILL_CREATED,
           resourceType: AuditResourceType.SKILL,
           resourceId: skill.id,
           resourceName: skill.name,
           description: `Created/updated skill "${skill.name}"`,
+          metadata: { source },
         })
         captureServerEvent(
           userId,
@@ -186,10 +189,13 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
     recordAudit({
       workspaceId,
       actorId: authResult.userId,
+      actorName: authResult.userName ?? undefined,
+      actorEmail: authResult.userEmail ?? undefined,
       action: AuditAction.SKILL_DELETED,
       resourceType: AuditResourceType.SKILL,
       resourceId: skillId,
       description: `Deleted skill`,
+      metadata: { source },
     })
 
     captureServerEvent(

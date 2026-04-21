@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -64,11 +65,7 @@ export const GET = withRouteHandler(withMcpAuth<RouteParams>('read'))(
       return createMcpSuccessResponse({ tool })
     } catch (error) {
       logger.error(`[${requestId}] Error getting tool:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to get tool'),
-        'Failed to get tool',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to get tool', 500)
     }
   }
 )
@@ -153,18 +150,19 @@ export const PATCH = withRouteHandler(withMcpAuth<RouteParams>('write'))(
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
         description: `Updated tool "${updatedTool.toolName}" in MCP server`,
-        metadata: { toolId, toolName: updatedTool.toolName },
+        metadata: {
+          toolId,
+          toolName: updatedTool.toolName,
+          workflowId: updatedTool.workflowId,
+          updatedFields: Object.keys(updateData).filter((k) => k !== 'updatedAt'),
+        },
         request,
       })
 
       return createMcpSuccessResponse({ tool: updatedTool })
     } catch (error) {
       logger.error(`[${requestId}] Error updating tool:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to update tool'),
-        'Failed to update tool',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to update tool', 500)
     }
   }
 )
@@ -221,18 +219,14 @@ export const DELETE = withRouteHandler(withMcpAuth<RouteParams>('write'))(
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
         description: `Removed tool "${deletedTool.toolName}" from MCP server`,
-        metadata: { toolId, toolName: deletedTool.toolName },
+        metadata: { toolId, toolName: deletedTool.toolName, workflowId: deletedTool.workflowId },
         request,
       })
 
       return createMcpSuccessResponse({ message: `Tool ${toolId} deleted successfully` })
     } catch (error) {
       logger.error(`[${requestId}] Error deleting tool:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to delete tool'),
-        'Failed to delete tool',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to delete tool', 500)
     }
   }
 )

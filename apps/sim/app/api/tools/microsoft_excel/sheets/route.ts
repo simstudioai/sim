@@ -4,6 +4,7 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { getItemBasePath } from '@/tools/microsoft_excel/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,6 +32,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
     const spreadsheetId = searchParams.get('spreadsheetId')
+    const driveId = searchParams.get('driveId') || undefined
     const workflowId = searchParams.get('workflowId') || undefined
 
     if (!credentialId) {
@@ -62,17 +64,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       `[${requestId}] Fetching worksheets from Microsoft Graph API for workbook ${spreadsheetId}`
     )
 
-    // Fetch worksheets from Microsoft Graph API
-    const worksheetsResponse = await fetch(
-      `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}/workbook/worksheets`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    )
+    let basePath: string
+    try {
+      basePath = getItemBasePath(spreadsheetId, driveId)
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Invalid parameters' },
+        { status: 400 }
+      )
+    }
+
+    const worksheetsResponse = await fetch(`${basePath}/workbook/worksheets`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
 
     if (!worksheetsResponse.ok) {
       const errorData = await worksheetsResponse

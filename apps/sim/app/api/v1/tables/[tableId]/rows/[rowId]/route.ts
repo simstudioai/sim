@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -137,33 +138,11 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Fetch existing row to merge partial update
-    const [existingRow] = await db
-      .select({ data: userTableRows.data })
-      .from(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.id, rowId),
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, validated.workspaceId)
-        )
-      )
-      .limit(1)
-
-    if (!existingRow) {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
-    }
-
-    const mergedData = {
-      ...(existingRow.data as RowData),
-      ...(validated.data as RowData),
-    }
-
     const updatedRow = await updateRow(
       {
         tableId,
         rowId,
-        data: mergedData,
+        data: validated.data as RowData,
         workspaceId: validated.workspaceId,
       },
       table,
@@ -197,7 +176,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       )
     }
 
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
 
     if (errorMessage === 'Row not found') {
       return NextResponse.json({ error: errorMessage }, { status: 404 })

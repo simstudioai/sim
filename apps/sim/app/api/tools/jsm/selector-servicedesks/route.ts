@@ -5,7 +5,8 @@ import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
+import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
+import { getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 const logger = createLogger('JsmSelectorServiceDesksAPI')
 
@@ -73,7 +74,7 @@ export const POST = withRouteHandler(async (request: Request) => {
         error: errorText,
       })
       return NextResponse.json(
-        { error: `JSM API error: ${response.status} ${response.statusText}` },
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
         { status: response.status }
       )
     }

@@ -1,13 +1,13 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { formatDuration } from '@sim/utils/formatting'
 import { ArrowUpRight, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { List, type RowComponentProps, useListRef } from 'react-window'
 import { Badge, buttonVariants } from '@/components/emcn'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
-import { formatDuration } from '@/lib/core/utils/formatting'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   DELETED_WORKFLOW_COLOR,
@@ -58,19 +58,14 @@ const LogRow = memo(
         ? DELETED_WORKFLOW_COLOR
         : log.workflow?.color
 
-    const handleClick = useCallback(() => onClick(log), [onClick, log])
-
-    const handleMouseEnter = useCallback(() => onHover?.(log), [onHover, log])
-
-    const handleContextMenu = useCallback(
-      (e: React.MouseEvent) => {
-        if (onContextMenu) {
-          e.preventDefault()
-          onContextMenu(e, log)
-        }
-      },
-      [onContextMenu, log]
-    )
+    const handleClick = () => onClick(log)
+    const handleMouseEnter = () => onHover?.(log)
+    const handleContextMenu = (e: React.MouseEvent) => {
+      if (onContextMenu) {
+        e.preventDefault()
+        onContextMenu(e, log)
+      }
+    }
 
     return (
       <div

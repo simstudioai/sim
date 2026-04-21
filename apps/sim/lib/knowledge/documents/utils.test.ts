@@ -1,12 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
-}))
-
+import { describe, expect, it } from 'vitest'
 import { isRetryableError } from './utils'
 
 describe('isRetryableError', () => {

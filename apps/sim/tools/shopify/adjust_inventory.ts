@@ -1,10 +1,13 @@
-import type { ShopifyAdjustInventoryParams, ShopifyInventoryResponse } from '@/tools/shopify/types'
+import type {
+  ShopifyAdjustInventoryParams,
+  ShopifyInventoryAdjustmentResponse,
+} from '@/tools/shopify/types'
 import { INVENTORY_ADJUSTMENT_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const shopifyAdjustInventoryTool: ToolConfig<
   ShopifyAdjustInventoryParams,
-  ShopifyInventoryResponse
+  ShopifyInventoryAdjustmentResponse
 > = {
   id: 'shopify_adjust_inventory',
   name: 'Shopify Adjust Inventory',
@@ -101,8 +104,8 @@ export const shopifyAdjustInventoryTool: ToolConfig<
             name: 'available',
             changes: [
               {
-                inventoryItemId: params.inventoryItemId,
-                locationId: params.locationId,
+                inventoryItemId: params.inventoryItemId.trim(),
+                locationId: params.locationId.trim(),
                 delta: params.delta,
               },
             ],

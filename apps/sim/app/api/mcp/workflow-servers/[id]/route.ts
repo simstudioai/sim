@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -64,11 +65,7 @@ export const GET = withRouteHandler(withMcpAuth<RouteParams>('read'))(
       return createMcpSuccessResponse({ server, tools })
     } catch (error) {
       logger.error(`[${requestId}] Error getting workflow MCP server:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to get workflow MCP server'),
-        'Failed to get workflow MCP server',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to get workflow MCP server', 500)
     }
   }
 )
@@ -136,17 +133,18 @@ export const PATCH = withRouteHandler(withMcpAuth<RouteParams>('write'))(
         resourceId: serverId,
         resourceName: updatedServer.name,
         description: `Updated workflow MCP server "${updatedServer.name}"`,
+        metadata: {
+          serverName: updatedServer.name,
+          isPublic: updatedServer.isPublic,
+          updatedFields: Object.keys(updateData).filter((k) => k !== 'updatedAt'),
+        },
         request,
       })
 
       return createMcpSuccessResponse({ server: updatedServer })
     } catch (error) {
       logger.error(`[${requestId}] Error updating workflow MCP server:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to update workflow MCP server'),
-        'Failed to update workflow MCP server',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to update workflow MCP server', 500)
     }
   }
 )
@@ -190,17 +188,14 @@ export const DELETE = withRouteHandler(withMcpAuth<RouteParams>('admin'))(
         resourceId: serverId,
         resourceName: deletedServer.name,
         description: `Unpublished workflow MCP server "${deletedServer.name}"`,
+        metadata: { serverName: deletedServer.name },
         request,
       })
 
       return createMcpSuccessResponse({ message: `Server ${serverId} deleted successfully` })
     } catch (error) {
       logger.error(`[${requestId}] Error deleting workflow MCP server:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to delete workflow MCP server'),
-        'Failed to delete workflow MCP server',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to delete workflow MCP server', 500)
     }
   }
 )

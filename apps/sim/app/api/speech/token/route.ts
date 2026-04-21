@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { hasExceededCostLimit } from '@/lib/billing/core/subscription'
+import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
@@ -110,11 +110,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (billingUserId && isBillingEnabled) {
-      const exceeded = await hasExceededCostLimit(billingUserId)
-      if (exceeded) {
+    if (billingUserId) {
+      const usageCheck = await checkServerSideUsageLimits(billingUserId)
+      if (usageCheck.isExceeded) {
         return NextResponse.json(
-          { error: 'Usage limit exceeded. Please upgrade your plan to continue.' },
+          {
+            error:
+              usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+          },
           { status: 402 }
         )
       }

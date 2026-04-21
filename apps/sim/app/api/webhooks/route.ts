@@ -1,14 +1,13 @@
 import { db } from '@sim/db'
 import { permissions, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId, generateShortId } from '@sim/utils/id'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId, generateShortId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
@@ -688,7 +687,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         resourceId: savedWebhook.id,
         resourceName: provider || 'generic',
         description: `Created ${provider || 'generic'} webhook`,
-        metadata: { provider, workflowId },
+        metadata: {
+          provider: provider || 'generic',
+          workflowId,
+          webhookPath: finalPath,
+          blockId: blockId || undefined,
+        },
         request,
       })
 

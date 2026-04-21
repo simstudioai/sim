@@ -8,6 +8,7 @@ import {
 } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
+import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('ConfluenceSpacePropertiesAPI')
 
@@ -100,15 +101,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
+        const errorText = await response.text()
         logger.error('Confluence API error response:', {
           status: response.status,
           statusText: response.statusText,
-          error: JSON.stringify(errorData, null, 2),
+          error: errorText,
         })
-        const errorMessage =
-          errorData?.message || `Failed to delete space property (${response.status})`
-        return NextResponse.json({ error: errorMessage }, { status: response.status })
+        return NextResponse.json(
+          { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+          { status: response.status }
+        )
       }
 
       return NextResponse.json({ spaceId, propertyId, deleted: true })
@@ -129,15 +131,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
+        const errorText = await response.text()
         logger.error('Confluence API error response:', {
           status: response.status,
           statusText: response.statusText,
-          error: JSON.stringify(errorData, null, 2),
+          error: errorText,
         })
-        const errorMessage =
-          errorData?.message || `Failed to create space property (${response.status})`
-        return NextResponse.json({ error: errorMessage }, { status: response.status })
+        return NextResponse.json(
+          { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+          { status: response.status }
+        )
       }
 
       const data = await response.json()
@@ -174,15 +177,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
+      const errorText = await response.text()
       logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: JSON.stringify(errorData, null, 2),
+        error: errorText,
       })
-      const errorMessage =
-        errorData?.message || `Failed to list space properties (${response.status})`
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
     const data = await response.json()

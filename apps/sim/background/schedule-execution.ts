@@ -1,11 +1,12 @@
 import { db, jobExecutionLogs, workflow, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { task } from '@trigger.dev/sdk'
 import { Cron } from 'croner'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
-import { generateId } from '@/lib/core/utils/uuid'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -270,7 +271,7 @@ async function runWorkflowExecution({
 
     await loggingSession.safeCompleteWithError({
       error: {
-        message: error instanceof Error ? error.message : String(error),
+        message: toError(error).message,
         stackTrace: error instanceof Error ? error.stack : undefined,
       },
       traceSpans,
@@ -597,7 +598,7 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
         `Error updating schedule ${payload.scheduleId} after failure`
       )
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = toError(error).message
 
       if (errorMessage.includes('Service overloaded')) {
         logger.warn(`[${requestId}] Service overloaded, retrying schedule in 5 minutes`)
@@ -833,7 +834,7 @@ async function createJobLogEntry(params: {
     })
   } catch (error) {
     logger.error('Failed to create job log entry', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
 }
@@ -1009,7 +1010,7 @@ export async function executeJobInline(payload: JobExecutionPayload) {
       `Error updating job ${payload.scheduleId} after success`
     )
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
     logger.error(`[${requestId}] Job execution failed`, {
       scheduleId: payload.scheduleId,
       error: errorMessage,

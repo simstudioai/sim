@@ -1,14 +1,14 @@
 import { db } from '@sim/db'
 import { account, credential, credentialMember, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getWorkspaceMemberUserIds } from '@/lib/credentials/environment'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
@@ -612,6 +612,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         setOnce: { first_credential_connected_at: new Date().toISOString() },
       }
     )
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CREDENTIAL_CREATED,
+      resourceType: AuditResourceType.CREDENTIAL,
+      resourceId: credentialId,
+      resourceName: resolvedDisplayName,
+      description: `Created ${type} credential "${resolvedDisplayName}"`,
+      metadata: {
+        credentialType: type,
+        providerId: resolvedProviderId,
+      },
+      request,
+    })
 
     return NextResponse.json({ credential: created }, { status: 201 })
   } catch (error: any) {

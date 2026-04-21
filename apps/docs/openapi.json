@@ -26,6 +26,10 @@
       "description": "Execute workflows and manage workflow resources"
     },
     {
+      "name": "Human in the Loop",
+      "description": "Manage paused workflow executions and resume them with input"
+    },
+    {
       "name": "Logs",
       "description": "Query execution logs and retrieve details"
     },
@@ -231,6 +235,544 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/workflows/{id}/paused": {
+      "get": {
+        "operationId": "listPausedExecutions",
+        "summary": "List Paused Executions",
+        "description": "List all paused executions for a workflow. Workflows pause at Human in the Loop blocks and wait for input before continuing. Use this endpoint to discover which executions need attention.",
+        "tags": ["Human in the Loop"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/workflows/{id}/paused?status=paused\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the workflow.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1a2b3c4d5e"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter paused executions by status.",
+            "schema": {
+              "type": "string",
+              "example": "paused"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of paused executions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pausedExecutions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PausedExecutionSummary"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "pausedExecutions": [
+                    {
+                      "id": "pe_abc123",
+                      "workflowId": "wf_1a2b3c4d5e",
+                      "executionId": "exec_9f8e7d6c5b",
+                      "status": "paused",
+                      "totalPauseCount": 1,
+                      "resumedCount": 0,
+                      "pausedAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z",
+                      "expiresAt": null,
+                      "metadata": null,
+                      "triggerIds": [],
+                      "pausePoints": [
+                        {
+                          "contextId": "ctx_xyz789",
+                          "blockId": "block_hitl_1",
+                          "registeredAt": "2026-01-15T10:30:00Z",
+                          "resumeStatus": "paused",
+                          "snapshotReady": true,
+                          "resumeLinks": {
+                            "apiUrl": "https://www.sim.ai/api/resume/wf_1a2b3c4d5e/exec_9f8e7d6c5b/ctx_xyz789",
+                            "uiUrl": "https://www.sim.ai/resume/wf_1a2b3c4d5e/exec_9f8e7d6c5b",
+                            "contextId": "ctx_xyz789",
+                            "executionId": "exec_9f8e7d6c5b",
+                            "workflowId": "wf_1a2b3c4d5e"
+                          },
+                          "response": {
+                            "displayData": {
+                              "title": "Approval Required",
+                              "message": "Please review this request"
+                            },
+                            "formFields": []
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/workflows/{id}/paused/{executionId}": {
+      "get": {
+        "operationId": "getPausedExecution",
+        "summary": "Get Paused Execution",
+        "description": "Get detailed information about a specific paused execution, including its pause points, execution snapshot, and resume queue. Use this to inspect the state before resuming.",
+        "tags": ["Human in the Loop"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/workflows/{id}/paused/{executionId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the workflow.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1a2b3c4d5e"
+            }
+          },
+          {
+            "name": "executionId",
+            "in": "path",
+            "required": true,
+            "description": "The execution ID of the paused execution.",
+            "schema": {
+              "type": "string",
+              "example": "exec_9f8e7d6c5b"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paused execution details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PausedExecutionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/resume/{workflowId}/{executionId}": {
+      "get": {
+        "operationId": "getPausedExecutionByResumePath",
+        "summary": "Get Paused Execution (Resume Path)",
+        "description": "Get detailed information about a specific paused execution using the resume URL path. Returns the same data as the workflow paused execution detail endpoint.",
+        "tags": ["Human in the Loop"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/resume/{workflowId}/{executionId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the workflow.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1a2b3c4d5e"
+            }
+          },
+          {
+            "name": "executionId",
+            "in": "path",
+            "required": true,
+            "description": "The execution ID of the paused execution.",
+            "schema": {
+              "type": "string",
+              "example": "exec_9f8e7d6c5b"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paused execution details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PausedExecutionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resume/{workflowId}/{executionId}/{contextId}": {
+      "get": {
+        "operationId": "getPauseContext",
+        "summary": "Get Pause Context",
+        "description": "Get detailed information about a specific pause context within a paused execution. Returns the pause point details, resume queue state, and any active resume entry.",
+        "tags": ["Human in the Loop"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/resume/{workflowId}/{executionId}/{contextId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the workflow.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1a2b3c4d5e"
+            }
+          },
+          {
+            "name": "executionId",
+            "in": "path",
+            "required": true,
+            "description": "The execution ID of the paused execution.",
+            "schema": {
+              "type": "string",
+              "example": "exec_9f8e7d6c5b"
+            }
+          },
+          {
+            "name": "contextId",
+            "in": "path",
+            "required": true,
+            "description": "The pause context ID to retrieve details for.",
+            "schema": {
+              "type": "string",
+              "example": "ctx_xyz789"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pause context details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PauseContextDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "operationId": "resumeExecution",
+        "summary": "Resume Execution",
+        "description": "Resume a paused workflow execution by providing input for a specific pause context. The execution continues from where it paused, using the provided input. Supports synchronous, asynchronous, and streaming modes (determined by the original execution's configuration).",
+        "tags": ["Human in the Loop"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/resume/{workflowId}/{executionId}/{contextId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"input\": {\n      \"approved\": true,\n      \"comment\": \"Looks good to me\"\n    }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the workflow.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1a2b3c4d5e"
+            }
+          },
+          {
+            "name": "executionId",
+            "in": "path",
+            "required": true,
+            "description": "The execution ID of the paused execution.",
+            "schema": {
+              "type": "string",
+              "example": "exec_9f8e7d6c5b"
+            }
+          },
+          {
+            "name": "contextId",
+            "in": "path",
+            "required": true,
+            "description": "The pause context ID to resume. Found in the pause point's contextId field or resumeLinks.",
+            "schema": {
+              "type": "string",
+              "example": "ctx_xyz789"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Input data for the resumed execution. The structure depends on the workflow's Human in the Loop block configuration.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "object",
+                    "description": "Key-value pairs to pass as input to the resumed execution. If omitted, the entire request body is used as input.",
+                    "additionalProperties": true
+                  }
+                }
+              },
+              "example": {
+                "input": {
+                  "approved": true,
+                  "comment": "Looks good to me"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resume execution completed synchronously, or resume was queued behind another in-progress resume.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ResumeResult"
+                    },
+                    {
+                      "type": "object",
+                      "description": "Resume has been queued behind another in-progress resume.",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": ["queued"],
+                          "description": "Indicates the resume is queued."
+                        },
+                        "executionId": {
+                          "type": "string",
+                          "description": "The execution ID assigned to this resume."
+                        },
+                        "queuePosition": {
+                          "type": "integer",
+                          "description": "Position in the resume queue."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Human-readable status message."
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "description": "Resume execution started (non-API-key callers). The execution runs asynchronously.",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": ["started"],
+                          "description": "Indicates the resume execution has started."
+                        },
+                        "executionId": {
+                          "type": "string",
+                          "description": "The execution ID for the resumed workflow."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Human-readable status message."
+                        }
+                      }
+                    }
+                  ]
+                },
+                "examples": {
+                  "sync": {
+                    "summary": "Synchronous completion",
+                    "value": {
+                      "success": true,
+                      "status": "completed",
+                      "executionId": "exec_new123",
+                      "output": {
+                        "result": "Approved and processed"
+                      },
+                      "error": null,
+                      "metadata": {
+                        "duration": 850,
+                        "startTime": "2026-01-15T10:35:00Z",
+                        "endTime": "2026-01-15T10:35:01Z"
+                      }
+                    }
+                  },
+                  "queued": {
+                    "summary": "Queued behind another resume",
+                    "value": {
+                      "status": "queued",
+                      "executionId": "exec_new123",
+                      "queuePosition": 2,
+                      "message": "Resume queued. It will run after current resumes finish."
+                    }
+                  },
+                  "started": {
+                    "summary": "Execution started (fire and forget)",
+                    "value": {
+                      "status": "started",
+                      "executionId": "exec_new123",
+                      "message": "Resume execution started."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Resume execution has been queued for asynchronous processing. Poll the statusUrl for results.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsyncExecutionResult"
+                },
+                "example": {
+                  "success": true,
+                  "async": true,
+                  "jobId": "job_4a3b2c1d0e",
+                  "executionId": "exec_new123",
+                  "message": "Resume execution queued",
+                  "statusUrl": "https://www.sim.ai/api/jobs/job_4a3b2c1d0e"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "Failed to queue the resume execution. Retry the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Error message."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -5786,6 +6328,346 @@
               }
             ],
             "description": "Upper bound value for 'between' operator."
+          }
+        }
+      },
+      "PausedExecutionSummary": {
+        "type": "object",
+        "description": "Summary of a paused workflow execution.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the paused execution record."
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "The workflow this execution belongs to."
+          },
+          "executionId": {
+            "type": "string",
+            "description": "The execution that was paused."
+          },
+          "status": {
+            "type": "string",
+            "description": "Current status of the paused execution.",
+            "example": "paused"
+          },
+          "totalPauseCount": {
+            "type": "integer",
+            "description": "Total number of pause points in this execution."
+          },
+          "resumedCount": {
+            "type": "integer",
+            "description": "Number of pause points that have been resumed."
+          },
+          "pausedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the execution was paused."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the paused execution record was last updated."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the paused execution will expire and be cleaned up."
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true,
+            "description": "Additional metadata associated with the paused execution.",
+            "additionalProperties": true
+          },
+          "triggerIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "IDs of triggers that initiated the original execution."
+          },
+          "pausePoints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PausePoint"
+            },
+            "description": "List of pause points in the execution."
+          }
+        }
+      },
+      "PausePoint": {
+        "type": "object",
+        "description": "A point in the workflow where execution has been paused awaiting human input.",
+        "properties": {
+          "contextId": {
+            "type": "string",
+            "description": "Unique identifier for this pause context. Used when resuming execution."
+          },
+          "blockId": {
+            "type": "string",
+            "description": "The block ID where execution paused."
+          },
+          "response": {
+            "description": "Data returned by the block before pausing, including display data and form fields."
+          },
+          "registeredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this pause point was registered."
+          },
+          "resumeStatus": {
+            "type": "string",
+            "enum": ["paused", "resumed", "failed", "queued", "resuming"],
+            "description": "Current status of this pause point."
+          },
+          "snapshotReady": {
+            "type": "boolean",
+            "description": "Whether the execution snapshot is ready for resumption."
+          },
+          "resumeLinks": {
+            "type": "object",
+            "description": "Links for resuming this pause point.",
+            "properties": {
+              "apiUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "API endpoint URL to POST resume input to."
+              },
+              "uiUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "UI URL for a human to review and approve."
+              },
+              "contextId": {
+                "type": "string",
+                "description": "The context ID for this pause point."
+              },
+              "executionId": {
+                "type": "string",
+                "description": "The execution ID."
+              },
+              "workflowId": {
+                "type": "string",
+                "description": "The workflow ID."
+              }
+            }
+          },
+          "queuePosition": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Position in the resume queue, if queued."
+          },
+          "latestResumeEntry": {
+            "$ref": "#/components/schemas/ResumeQueueEntry",
+            "nullable": true,
+            "description": "The most recent resume queue entry for this pause point."
+          },
+          "parallelScope": {
+            "type": "object",
+            "description": "Scope information when the pause occurs inside a parallel branch.",
+            "properties": {
+              "parallelId": {
+                "type": "string",
+                "description": "Identifier of the parallel execution group."
+              },
+              "branchIndex": {
+                "type": "integer",
+                "description": "Index of the branch within the parallel group."
+              },
+              "branchTotal": {
+                "type": "integer",
+                "description": "Total number of branches in the parallel group."
+              }
+            }
+          },
+          "loopScope": {
+            "type": "object",
+            "description": "Scope information when the pause occurs inside a loop.",
+            "properties": {
+              "loopId": {
+                "type": "string",
+                "description": "Identifier of the loop."
+              },
+              "iteration": {
+                "type": "integer",
+                "description": "Current loop iteration number."
+              }
+            }
+          }
+        }
+      },
+      "ResumeQueueEntry": {
+        "type": "object",
+        "description": "An entry in the resume execution queue.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for this queue entry."
+          },
+          "pausedExecutionId": {
+            "type": "string",
+            "description": "The paused execution this entry belongs to."
+          },
+          "parentExecutionId": {
+            "type": "string",
+            "description": "The original execution that was paused."
+          },
+          "newExecutionId": {
+            "type": "string",
+            "description": "The new execution ID created for the resume."
+          },
+          "contextId": {
+            "type": "string",
+            "description": "The pause context ID being resumed."
+          },
+          "resumeInput": {
+            "description": "The input provided when resuming."
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of this queue entry (e.g., pending, claimed, completed, failed)."
+          },
+          "queuedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the entry was added to the queue."
+          },
+          "claimedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When execution started processing this entry."
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When execution completed."
+          },
+          "failureReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Reason for failure, if the resume failed."
+          }
+        }
+      },
+      "PausedExecutionDetail": {
+        "type": "object",
+        "description": "Detailed information about a paused execution, including the execution snapshot and resume queue.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PausedExecutionSummary"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "executionSnapshot": {
+                "type": "object",
+                "description": "Serialized execution state for resumption.",
+                "properties": {
+                  "snapshot": {
+                    "type": "string",
+                    "description": "Serialized execution snapshot data."
+                  },
+                  "triggerIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Trigger IDs from the snapshot."
+                  }
+                }
+              },
+              "queue": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ResumeQueueEntry"
+                },
+                "description": "Resume queue entries for this execution."
+              }
+            }
+          }
+        ]
+      },
+      "PauseContextDetail": {
+        "type": "object",
+        "description": "Detailed information about a specific pause context within a paused execution.",
+        "properties": {
+          "execution": {
+            "$ref": "#/components/schemas/PausedExecutionSummary",
+            "description": "Summary of the parent paused execution."
+          },
+          "pausePoint": {
+            "$ref": "#/components/schemas/PausePoint",
+            "description": "The specific pause point for this context."
+          },
+          "queue": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResumeQueueEntry"
+            },
+            "description": "Resume queue entries for this context."
+          },
+          "activeResumeEntry": {
+            "$ref": "#/components/schemas/ResumeQueueEntry",
+            "nullable": true,
+            "description": "The currently active resume entry, if any."
+          }
+        }
+      },
+      "ResumeResult": {
+        "type": "object",
+        "description": "Result of a synchronous resume execution.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the resume execution completed successfully."
+          },
+          "status": {
+            "type": "string",
+            "description": "Execution status.",
+            "enum": ["completed", "failed", "paused", "cancelled"],
+            "example": "completed"
+          },
+          "executionId": {
+            "type": "string",
+            "description": "The new execution ID for the resumed workflow."
+          },
+          "output": {
+            "type": "object",
+            "description": "Workflow output from the resumed execution.",
+            "additionalProperties": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Error message if the execution failed."
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Execution timing metadata.",
+            "properties": {
+              "duration": {
+                "type": "integer",
+                "description": "Total execution duration in milliseconds."
+              },
+              "startTime": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When the resume execution started."
+              },
+              "endTime": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When the resume execution completed."
+              }
+            }
           }
         }
       }

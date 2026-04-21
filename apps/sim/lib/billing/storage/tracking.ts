@@ -8,7 +8,7 @@ import { db } from '@sim/db'
 import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
-import { isOrgPlan } from '@/lib/billing/plan-helpers'
+import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('StorageTracking')
@@ -24,11 +24,11 @@ export async function incrementStorageUsage(userId: string, bytes: number): Prom
   }
 
   try {
-    // Check if user is in a team/enterprise org
     const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
     const sub = await getHighestPrioritySubscription(userId)
 
-    if (sub && isOrgPlan(sub.plan)) {
+    // Org-scoped subs pool at the org level; personal plans per-user.
+    if (isOrgScopedSubscription(sub, userId) && sub) {
       await db
         .update(organization)
         .set({
@@ -38,7 +38,6 @@ export async function incrementStorageUsage(userId: string, bytes: number): Prom
 
       logger.info(`Incremented org storage: ${bytes} bytes for org ${sub.referenceId}`)
     } else {
-      // Update user stats storage
       await db
         .update(userStats)
         .set({
@@ -65,11 +64,10 @@ export async function decrementStorageUsage(userId: string, bytes: number): Prom
   }
 
   try {
-    // Check if user is in a team/enterprise org
     const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
     const sub = await getHighestPrioritySubscription(userId)
 
-    if (sub && isOrgPlan(sub.plan)) {
+    if (isOrgScopedSubscription(sub, userId) && sub) {
       await db
         .update(organization)
         .set({
@@ -79,7 +77,6 @@ export async function decrementStorageUsage(userId: string, bytes: number): Prom
 
       logger.info(`Decremented org storage: ${bytes} bytes for org ${sub.referenceId}`)
     } else {
-      // Update user stats storage
       await db
         .update(userStats)
         .set({

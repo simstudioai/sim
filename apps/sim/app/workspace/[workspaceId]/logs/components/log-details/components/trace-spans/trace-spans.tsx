@@ -2,6 +2,7 @@
 
 import type React from 'react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { formatDuration } from '@sim/utils/formatting'
 import { ArrowDown, ArrowUp, Check, Clipboard, Search, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
@@ -19,7 +20,6 @@ import {
 import { Copy as CopyIcon, Search as SearchIcon } from '@/components/emcn/icons'
 import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { formatDuration } from '@/lib/core/utils/formatting'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getBlock, getBlockByToolName } from '@/blocks'

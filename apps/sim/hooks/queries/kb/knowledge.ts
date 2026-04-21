@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
+import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import type {
   ChunkData,
   ChunksPagination,
@@ -338,10 +339,7 @@ export interface DocumentChunkSearchParams {
   search: string
 }
 
-/**
- * Fetches all chunks matching a search query by paginating through results.
- * This is used for search functionality where we need all matching chunks.
- */
+/** Paginates through all matching chunks rather than returning a single page. */
 export async function fetchAllDocumentChunks(
   { knowledgeBaseId, documentId, search }: DocumentChunkSearchParams,
   signal?: AbortSignal
@@ -376,10 +374,6 @@ export const serializeSearchParams = (params: DocumentChunkSearchParams) =>
     search: params.search,
   })
 
-/**
- * Hook to search for chunks in a document.
- * Fetches all matching chunks and returns them for client-side pagination.
- */
 export function useDocumentChunkSearchQuery(
   params: DocumentChunkSearchParams,
   options?: {
@@ -707,6 +701,8 @@ export interface CreateKnowledgeBaseParams {
     maxSize: number
     minSize: number
     overlap: number
+    strategy?: ChunkingStrategy
+    strategyOptions?: StrategyOptions
   }
 }
 

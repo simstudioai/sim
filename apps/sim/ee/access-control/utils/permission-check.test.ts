@@ -1,7 +1,6 @@
 /**
  * @vitest-environment node
  */
-import { databaseMock, drizzleOrmMock, loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -17,7 +16,10 @@ const {
     hideKnowledgeBaseTab: false,
     hideTablesTab: false,
     hideCopilot: false,
+    hideIntegrationsTab: false,
+    hideSecretsTab: false,
     hideApiKeysTab: false,
+    hideInboxTab: false,
     hideEnvironmentTab: false,
     hideFilesTab: false,
     disableMcpTools: false,
@@ -25,6 +27,7 @@ const {
     disableSkills: false,
     hideTemplates: false,
     disableInvitations: false,
+    disablePublicApi: false,
     hideDeployApi: false,
     hideDeployMcp: false,
     hideDeployA2a: false,
@@ -36,10 +39,6 @@ const {
   mockGetProviderFromModel: vi.fn<(model: string) => string>(),
 }))
 
-vi.mock('@sim/db', () => databaseMock)
-vi.mock('@sim/db/schema', () => ({}))
-vi.mock('@sim/logger', () => loggerMock)
-vi.mock('drizzle-orm', () => drizzleOrmMock)
 vi.mock('@/lib/billing', () => ({
   isOrganizationOnEnterprisePlan: mockIsOrganizationOnEnterprisePlan,
 }))

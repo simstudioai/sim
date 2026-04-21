@@ -4,12 +4,11 @@ import { useMemo, useState } from 'react'
 import { Input } from '@/components/emcn'
 import { blockTypeToIconMap } from '@/app/(landing)/integrations/data/icon-mapping'
 import type { Integration } from '@/app/(landing)/integrations/data/types'
-import { IntegrationCard } from './integration-card'
+import { IntegrationRow } from './integration-card'
 
 const CATEGORY_LABELS: Record<string, string> = {
   ai: 'AI',
   analytics: 'Analytics',
-  automation: 'Automation',
   communication: 'Communication',
   crm: 'CRM',
   'customer-support': 'Customer Support',
@@ -21,12 +20,10 @@ const CATEGORY_LABELS: Record<string, string> = {
   email: 'Email',
   'file-storage': 'File Storage',
   hr: 'HR',
-  media: 'Media',
   productivity: 'Productivity',
-  'sales-intelligence': 'Sales Intelligence',
+  sales: 'Sales',
   search: 'Search',
   security: 'Security',
-  social: 'Social',
   other: 'Other',
 } as const
 
@@ -41,8 +38,10 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
   const availableCategories = useMemo(() => {
     const counts = new Map<string, number>()
     for (const i of integrations) {
-      if (i.integrationType) {
-        counts.set(i.integrationType, (counts.get(i.integrationType) || 0) + 1)
+      if (i.integrationTypes) {
+        for (const t of i.integrationTypes) {
+          counts.set(t, (counts.get(t) || 0) + 1)
+        }
       }
     }
     return Array.from(counts.entries())
@@ -54,7 +53,7 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
     let results = integrations
 
     if (activeCategory) {
-      results = results.filter((i) => i.integrationType === activeCategory)
+      results = results.filter((i) => i.integrationTypes?.includes(activeCategory))
     }
 
     const q = query.trim().toLowerCase()
@@ -75,7 +74,7 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
 
   return (
     <div>
-      <div className='mb-6 flex flex-col gap-4 sm:flex-row sm:items-center'>
+      <div className='mb-6 flex flex-col gap-4 px-6 sm:flex-row sm:items-center'>
         <div className='relative max-w-[480px] flex-1'>
           <svg
             aria-hidden='true'
@@ -99,14 +98,14 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
         </div>
       </div>
 
-      <div className='mb-8 flex flex-wrap gap-2'>
+      <div className='mb-6 flex flex-wrap gap-2 px-6'>
         <button
           type='button'
           onClick={() => setActiveCategory(null)}
-          className={`rounded-md border px-3 py-1 text-[12px] transition-colors ${
+          className={`rounded-[5px] border px-[9px] py-0.5 text-[13.5px] transition-colors ${
             activeCategory === null
-              ? 'border-[#555] bg-[#333] text-[var(--landing-text)]'
-              : 'border-[var(--landing-border)] bg-transparent text-[var(--landing-text-muted)] hover:border-[var(--landing-border-strong)] hover:text-[var(--landing-text)]'
+              ? 'border-[var(--landing-border-strong)] bg-[var(--landing-bg-elevated)] text-[var(--landing-text)]'
+              : 'border-[var(--landing-border-strong)] text-[var(--landing-text)] hover:bg-[var(--landing-bg-elevated)]'
           }`}
         >
           All
@@ -116,10 +115,10 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
             key={cat}
             type='button'
             onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
-            className={`rounded-md border px-3 py-1 text-[12px] transition-colors ${
+            className={`rounded-[5px] border px-[9px] py-0.5 text-[13.5px] transition-colors ${
               activeCategory === cat
-                ? 'border-[#555] bg-[#333] text-[var(--landing-text)]'
-                : 'border-[var(--landing-border)] bg-transparent text-[var(--landing-text-muted)] hover:border-[var(--landing-border-strong)] hover:text-[var(--landing-text)]'
+                ? 'border-[var(--landing-border-strong)] bg-[var(--landing-bg-elevated)] text-[var(--landing-text)]'
+                : 'border-[var(--landing-border-strong)] text-[var(--landing-text)] hover:bg-[var(--landing-bg-elevated)]'
             }`}
           >
             {CATEGORY_LABELS[cat] || cat}
@@ -127,16 +126,18 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
         ))}
       </div>
 
+      <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+
       {filtered.length === 0 ? (
-        <p className='py-12 text-center text-[#555] text-[15px]'>
+        <p className='py-12 text-center text-[15px] text-[var(--landing-text-subtle)]'>
           No integrations found
           {query ? <> for &ldquo;{query}&rdquo;</> : null}
           {activeCategory ? <> in {CATEGORY_LABELS[activeCategory] || activeCategory}</> : null}
         </p>
       ) : (
-        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'>
+        <div>
           {filtered.map((integration) => (
-            <IntegrationCard
+            <IntegrationRow
               key={integration.type}
               integration={integration}
               IconComponent={blockTypeToIconMap[integration.type]}

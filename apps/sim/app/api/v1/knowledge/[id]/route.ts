@@ -107,16 +107,17 @@ export const PUT = withRouteHandler(
 
       const updatedKb = await updateKnowledgeBase(id, updates, requestId)
 
-      recordAudit({
-        workspaceId,
-        actorId: userId,
-        action: AuditAction.KNOWLEDGE_BASE_UPDATED,
-        resourceType: AuditResourceType.KNOWLEDGE_BASE,
-        resourceId: id,
-        resourceName: updatedKb.name,
-        description: `Updated knowledge base "${updatedKb.name}" via API`,
-        request,
-      })
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: AuditAction.KNOWLEDGE_BASE_UPDATED,
+      resourceType: AuditResourceType.KNOWLEDGE_BASE,
+      resourceId: id,
+      resourceName: updatedKb.name,
+      description: `Updated knowledge base "${updatedKb.name}" via API`,
+      metadata: { updatedFields: Object.keys(updates) },
+      request,
+    })
 
       return NextResponse.json({
         success: true,

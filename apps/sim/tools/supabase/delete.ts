@@ -1,4 +1,5 @@
 import type { SupabaseDeleteParams, SupabaseDeleteResponse } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse> = {
@@ -44,7 +45,7 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
   request: {
     url: (params) => {
       // Construct the URL for the Supabase REST API with select to return deleted data
-      let url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`
+      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=*`
 
       // Add filters (required for delete) - using PostgREST syntax
       if (params.filter?.trim()) {

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
@@ -310,7 +311,7 @@ export const fireworksProvider: ProviderConfig = {
           } catch (error) {
             const toolCallEndTime = Date.now()
             logger.error('Error processing tool call (Fireworks):', {
-              error: error instanceof Error ? error.message : String(error),
+              error: toError(error).message,
               toolName,
             })
 
@@ -600,7 +601,7 @@ export const fireworksProvider: ProviderConfig = {
       const totalDuration = providerEndTime - providerStartTime
 
       const errorDetails: Record<string, any> = {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         duration: totalDuration,
       }
       if (error && typeof error === 'object') {
@@ -613,7 +614,7 @@ export const fireworksProvider: ProviderConfig = {
       }
 
       logger.error('Error in Fireworks request:', errorDetails)
-      throw new ProviderError(error instanceof Error ? error.message : String(error), {
+      throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,

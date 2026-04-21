@@ -102,7 +102,9 @@ export function useEditorSubblockLayout(
     const subBlocksForCanonical = displayTriggerMode
       ? (config.subBlocks || []).filter(
           (subBlock) =>
-            subBlock.mode === 'trigger' || subBlock.type === ('trigger-config' as SubBlockType)
+            subBlock.mode === 'trigger' ||
+            subBlock.mode === 'trigger-advanced' ||
+            subBlock.type === ('trigger-config' as SubBlockType)
         )
       : config.subBlocks || []
     const canonicalIndex = buildCanonicalIndex(subBlocksForCanonical)
@@ -137,12 +139,12 @@ export function useEditorSubblockLayout(
       }
 
       // Filter by mode if specified
-      if (block.mode === 'trigger') {
+      if (block.mode === 'trigger' || block.mode === 'trigger-advanced') {
         if (!displayTriggerMode) return false
       }
 
-      // When in trigger mode, hide blocks that don't have mode: 'trigger'
-      if (displayTriggerMode && block.mode !== 'trigger') {
+      // When in trigger mode, hide blocks that don't have mode: 'trigger' or 'trigger-advanced'
+      if (displayTriggerMode && block.mode !== 'trigger' && block.mode !== 'trigger-advanced') {
         return false
       }
 

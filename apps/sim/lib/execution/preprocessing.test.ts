@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 
+import { loggingSessionMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
 const { mockGetWorkspaceBilledAccountUserId } = vi.hoisted(() => ({
@@ -9,15 +10,6 @@ const { mockGetWorkspaceBilledAccountUserId } = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/db', () => ({ db: {} }))
-vi.mock('@sim/db/schema', () => ({ workflow: {} }))
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
 vi.mock('drizzle-orm', () => ({ eq: vi.fn() }))
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
   checkServerSideUsageLimits: vi.fn(),
@@ -31,9 +23,7 @@ vi.mock('@/lib/core/execution-limits', () => ({
 vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
   RateLimiter: vi.fn(),
 }))
-vi.mock('@/lib/logs/execution/logging-session', () => ({
-  LoggingSession: vi.fn(),
-}))
+vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 vi.mock('@/lib/workspaces/utils', () => ({
   getWorkspaceBilledAccountUserId: mockGetWorkspaceBilledAccountUserId,
 }))

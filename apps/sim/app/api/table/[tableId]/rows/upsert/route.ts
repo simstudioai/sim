@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
@@ -107,5 +108,23 @@ export const POST = withRouteHandler(
       logger.error(`[${requestId}] Error upserting row:`, error)
       return NextResponse.json({ error: 'Failed to upsert row' }, { status: 500 })
     }
+
+    const errorMessage = toError(error).message
+
+    // Service layer throws descriptive errors for validation/capacity issues
+    if (
+      errorMessage.includes('unique column') ||
+      errorMessage.includes('Unique constraint violation') ||
+      errorMessage.includes('conflictTarget') ||
+      errorMessage.includes('row limit') ||
+      errorMessage.includes('Schema validation') ||
+      errorMessage.includes('Upsert requires') ||
+      errorMessage.includes('Row size exceeds')
+    ) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 })
+    }
+
+    logger.error(`[${requestId}] Error upserting row:`, error)
+    return NextResponse.json({ error: 'Failed to upsert row' }, { status: 500 })
   }
 )

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { z } from 'zod'
@@ -224,7 +225,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     logger.error(`[${requestId}] Error sending email via SMTP:`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       code: isNodeError(error) ? error.code : undefined,
       responseCode: hasResponseCode(error) ? error.responseCode : undefined,
     })

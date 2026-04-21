@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
@@ -93,7 +94,7 @@ async function fetchWithDNSPinning(
     return response
   } catch (error) {
     logger.error(`[${requestId}] Error fetching URL with DNS pinning`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       url: sanitizeUrlForLog(url),
     })
     return null

@@ -19,7 +19,6 @@ export type BlockCategory = 'blocks' | 'tools' | 'triggers'
 export enum IntegrationType {
   AI = 'ai',
   Analytics = 'analytics',
-  Automation = 'automation',
   Communication = 'communication',
   CRM = 'crm',
   CustomerSupport = 'customer-support',
@@ -31,13 +30,11 @@ export enum IntegrationType {
   Email = 'email',
   FileStorage = 'file-storage',
   HR = 'hr',
-  Media = 'media',
   Other = 'other',
   Productivity = 'productivity',
-  SalesIntelligence = 'sales-intelligence',
+  Sales = 'sales',
   Search = 'search',
   Security = 'security',
-  Social = 'social',
 }
 
 export type IntegrationTag =
@@ -156,10 +153,6 @@ export type SubBlockType =
   | 'response-format' // Response structure format
   | 'filter-builder' // Filter conditions builder
   | 'sort-builder' // Sort conditions builder
-  /**
-   * @deprecated Legacy trigger save subblock type.
-   */
-  | 'trigger-save' // Trigger save button with validation
   | 'file-upload' // File uploader
   | 'input-mapping' // Map parent variables to child workflow input schema
   | 'variables-input' // Variable assignments for updating workflow variables
@@ -169,6 +162,7 @@ export type SubBlockType =
   | 'text' // Read-only text display
   | 'router-input' // Router route definitions with descriptions
   | 'table-selector' // Table selector with link to view table
+  | 'modal' // Launches a modal component resolved via the client-side modal registry
 
 /**
  * Selector types that require display name hydration
@@ -275,7 +269,7 @@ export interface SubBlockConfig {
   id: string
   title?: string
   type: SubBlockType
-  mode?: 'basic' | 'advanced' | 'both' | 'trigger' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode
+  mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode. 'trigger-advanced' is for advanced canonical pair members shown in trigger mode
   canonicalParamId?: string
   /** Controls parameter visibility in agent/tool-input context */
   paramVisibility?: 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden'
@@ -309,6 +303,8 @@ export interface SubBlockConfig {
         icon?: React.ComponentType<{ className?: string }>
         group?: string
         hidden?: boolean
+        defaultChecked?: boolean
+        description?: string
       }[]
     | (() => {
         label: string
@@ -316,6 +312,8 @@ export interface SubBlockConfig {
         icon?: React.ComponentType<{ className?: string }>
         group?: string
         hidden?: boolean
+        defaultChecked?: boolean
+        description?: string
       }[])
   min?: number
   max?: number
@@ -332,6 +330,7 @@ export interface SubBlockConfig {
   hideWhenEnvSet?: string // Hide this subblock when the named NEXT_PUBLIC_ env var is truthy
   description?: string
   tooltip?: string // Tooltip text displayed via info icon next to the title
+  modalId?: string // Registry key when type is 'modal'; see sub-block/components/modal-registry.ts
   value?: (params: Record<string, any>) => string
   grouped?: boolean
   scrollable?: boolean
@@ -417,8 +416,6 @@ export interface SubBlockConfig {
   dependsOn?: string[] | { all?: string[]; any?: string[] }
   // Copyable-text specific: Use webhook URL from webhook management hook
   useWebhookUrl?: boolean
-  // Trigger-save specific: The trigger ID for validation and saving
-  triggerId?: string
   // Dropdown/Combobox: Function to fetch options dynamically
   // Works with both 'dropdown' (select-only) and 'combobox' (editable with expression support)
   fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { member, organization, subscription } from '@sim/db/schema'
+import { invitation, member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, count, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -13,6 +13,8 @@ import {
   hasUsableSubscriptionStatus,
   USABLE_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
+import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
+import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -166,19 +168,36 @@ export const PUT = withRouteHandler(
         userId: session.user.id,
       })
 
-      // Update the subscription item quantity using Stripe's recommended approach
-      // This will automatically prorate the billing
-      const updatedSubscription = await stripe.subscriptions.update(
-        orgSubscription.stripeSubscriptionId,
+    if (!orgSubscription.stripeSubscriptionId) {
+      return NextResponse.json(
+        { error: 'No Stripe subscription found for this organization' },
+        { status: 400 }
+      )
+    }
+
+    const [memberCountRow] = await db
+      .select({ count: count() })
+      .from(member)
+      .where(eq(member.organizationId, organizationId))
+
+    const [pendingCountRow] = await db
+      .select({ count: count() })
+      .from(invitation)
+      .where(and(eq(invitation.organizationId, organizationId), eq(invitation.status, 'pending')))
+
+    const memberCount = memberCountRow?.count ?? 0
+    const pendingCount = pendingCountRow?.count ?? 0
+    const occupiedSeats = memberCount + pendingCount
+
+    if (newSeatCount < occupiedSeats) {
+      return NextResponse.json(
         {
-          items: [
-            {
-              id: subscriptionItem.id,
-              quantity: newSeatCount,
-            },
-          ],
-          proration_behavior: 'always_invoice',
-        }
+          error: `Cannot reduce seats below current occupancy (${memberCount} member${memberCount === 1 ? '' : 's'} + ${pendingCount} pending invite${pendingCount === 1 ? '' : 's'}). Cancel pending invites first or remove members.`,
+          currentMembers: memberCount,
+          pendingInvitations: pendingCount,
+          occupiedSeats,
+        },
+        { status: 400 }
       )
 
       // Update our local database to reflect the change
@@ -248,12 +267,126 @@ export const PUT = withRouteHandler(
     } catch (error) {
       const { id: organizationId } = await params
 
-      // Handle Stripe-specific errors
-      if (error instanceof Error && 'type' in error) {
-        const stripeError = error as any
-        logger.error('Stripe error updating seats', {
-          organizationId,
-          type: stripeError.type,
+    const stripe = requireStripeClient()
+
+    // Get the Stripe subscription to find the subscription item ID
+    const stripeSubscription = await stripe.subscriptions.retrieve(
+      orgSubscription.stripeSubscriptionId
+    )
+
+    if (!hasUsableSubscriptionStatus(stripeSubscription.status)) {
+      return NextResponse.json({ error: 'Stripe subscription is not active' }, { status: 400 })
+    }
+
+    // Find the subscription item (there should be only one for team plans)
+    const subscriptionItem = stripeSubscription.items.data[0]
+
+    if (!subscriptionItem) {
+      return NextResponse.json(
+        { error: 'No subscription item found in Stripe subscription' },
+        { status: 500 }
+      )
+    }
+
+    logger.info('Updating Stripe subscription quantity', {
+      organizationId,
+      stripeSubscriptionId: orgSubscription.stripeSubscriptionId,
+      subscriptionItemId: subscriptionItem.id,
+      currentSeats,
+      newSeatCount,
+      userId: session.user.id,
+    })
+
+    const updatedSubscription = await stripe.subscriptions.update(
+      orgSubscription.stripeSubscriptionId,
+      {
+        items: [
+          {
+            id: subscriptionItem.id,
+            quantity: newSeatCount,
+          },
+        ],
+        proration_behavior: 'always_invoice',
+      },
+      { idempotencyKey: `seats-update:${orgSubscription.stripeSubscriptionId}:${newSeatCount}` }
+    )
+
+    await syncSeatsFromStripeQuantity(
+      orgSubscription.id,
+      orgSubscription.seats,
+      updatedSubscription.items.data[0]?.quantity ?? newSeatCount
+    )
+
+    const { basePrice } = getPlanPricing(orgSubscription.plan)
+    const newMinimumLimit = newSeatCount * basePrice
+
+    const orgData = await db
+      .select({ orgUsageLimit: organization.orgUsageLimit })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .limit(1)
+
+    const currentOrgLimit =
+      orgData.length > 0 && orgData[0].orgUsageLimit
+        ? toNumber(toDecimal(orgData[0].orgUsageLimit))
+        : 0
+
+    // Update if new minimum is higher than current limit
+    if (newMinimumLimit > currentOrgLimit) {
+      await db
+        .update(organization)
+        .set({
+          orgUsageLimit: newMinimumLimit.toFixed(2),
+          updatedAt: new Date(),
+        })
+        .where(eq(organization.id, organizationId))
+
+      logger.info('Updated organization usage limit for seat change', {
+        organizationId,
+        newSeatCount,
+        newMinimumLimit,
+        previousLimit: currentOrgLimit,
+      })
+    }
+
+    logger.info('Successfully updated seat count', {
+      organizationId,
+      stripeSubscriptionId: orgSubscription.stripeSubscriptionId,
+      oldSeats: currentSeats,
+      newSeats: newSeatCount,
+      updatedBy: session.user.id,
+      prorationBehavior: 'always_invoice',
+    })
+
+    return NextResponse.json({
+      success: true,
+      message:
+        newSeatCount > currentSeats
+          ? `Added ${newSeatCount - currentSeats} seat(s). Your billing has been adjusted.`
+          : `Removed ${currentSeats - newSeatCount} seat(s). You'll receive a prorated credit.`,
+      data: {
+        seats: newSeatCount,
+        previousSeats: currentSeats,
+        stripeSubscriptionId: updatedSubscription.id,
+        stripeStatus: updatedSubscription.status,
+      },
+    })
+  } catch (error) {
+    const { id: organizationId } = await params
+
+    // Handle Stripe-specific errors
+    if (error instanceof Error && 'type' in error) {
+      const stripeError = error as any
+      logger.error('Stripe error updating seats', {
+        organizationId,
+        type: stripeError.type,
+        code: stripeError.code,
+        message: stripeError.message,
+      })
+
+      return NextResponse.json(
+        {
+          error: stripeError.message || 'Failed to update seats in Stripe',
           code: stripeError.code,
           message: stripeError.message,
         })

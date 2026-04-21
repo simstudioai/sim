@@ -39,18 +39,6 @@ export const grainHighlightCreatedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'grain_highlight_created',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'grain_highlight_created',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

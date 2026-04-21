@@ -20,6 +20,12 @@ import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, inArray } from 'drizzle-orm'
+import {
+  ensureOrganizationSlugAvailable,
+  OrganizationSlugInvalidError,
+  OrganizationSlugTakenError,
+  validateOrganizationSlugOrThrow,
+} from '@/lib/billing/organizations/create-organization'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -142,5 +148,49 @@ export const PATCH = withRouteHandler(
       logger.error('Admin API: Failed to update organization', { error, organizationId })
       return internalErrorResponse('Failed to update organization')
     }
-  })
-)
+
+    if (body.slug !== undefined) {
+      if (typeof body.slug !== 'string' || body.slug.trim().length === 0) {
+        return badRequestResponse('slug must be a non-empty string')
+      }
+      const nextSlug = body.slug.trim()
+      validateOrganizationSlugOrThrow(nextSlug)
+      await ensureOrganizationSlugAvailable({
+        slug: nextSlug,
+        excludeOrganizationId: organizationId,
+      })
+      updateData.slug = nextSlug
+    }
+
+    if (Object.keys(updateData).length === 1) {
+      return badRequestResponse(
+        'No valid fields to update. Use /billing endpoint for orgUsageLimit.'
+      )
+    }
+
+    const [updated] = await db
+      .update(organization)
+      .set(updateData)
+      .where(eq(organization.id, organizationId))
+      .returning()
+
+    logger.info(`Admin API: Updated organization ${organizationId}`, {
+      fields: Object.keys(updateData).filter((k) => k !== 'updatedAt'),
+    })
+
+    return singleResponse(toAdminOrganization(updated))
+  } catch (error) {
+    if (error instanceof OrganizationSlugInvalidError) {
+      return badRequestResponse(
+        'Organization slug can only contain lowercase letters, numbers, hyphens, and underscores.'
+      )
+    }
+
+    if (error instanceof OrganizationSlugTakenError) {
+      return badRequestResponse('This slug is already taken')
+    }
+
+    logger.error('Admin API: Failed to update organization', { error, organizationId })
+    return internalErrorResponse('Failed to update organization')
+  }
+})

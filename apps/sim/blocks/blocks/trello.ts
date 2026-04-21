@@ -2,23 +2,63 @@ import { TrelloIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ToolResponse } from '@/tools/types'
+import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
+import type { TrelloResponse } from '@/tools/trello'
+
+function getTrimmedString(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+function parseStringArray(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) {
+    const items = value
+      .flatMap((item) => (typeof item === 'string' ? [item.trim()] : []))
+      .filter((item) => item.length > 0)
+
+    return items.length > 0 ? items : undefined
+  }
+
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  const trimmed = value.trim()
+  if (trimmed.length === 0) {
+    return undefined
+  }
+
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      return parseStringArray(parsed)
+    } catch {
+      return undefined
+    }
+  }
+
+  const items = trimmed
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+  return items.length > 0 ? items : undefined
+}
 
 /**
- * Trello Block
- *
- * Note: Trello uses OAuth 1.0a authentication with a unique credential ID format
- * (non-UUID strings like CUID2). This is different from most OAuth 2.0 providers
- * that use UUID-based credential IDs. The OAuth credentials API has been updated
- * to accept both UUID and non-UUID credential ID formats to support Trello.
+ * Trello uses a custom token flow and non-UUID credential IDs, so the block keeps
+ * the normal OAuth block UX while relying on the custom Trello auth routes.
  */
-export const TrelloBlock: BlockConfig<ToolResponse> = {
+export const TrelloBlock: BlockConfig<TrelloResponse> = {
   type: 'trello',
   name: 'Trello',
-  description: 'Manage Trello boards and cards',
+  description: 'Manage Trello lists, cards, and activity',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate with Trello to manage boards and cards. List boards, list cards, create cards, update cards, get actions, and add comments.',
+    'Integrate with Trello to list board lists, list cards, create cards, update cards, review activity, and add comments.',
   docsLink: 'https://docs.sim.ai/tools/trello',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
@@ -60,7 +100,6 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-
     {
       id: 'boardSelector',
       title: 'Board',
@@ -74,241 +113,183 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       mode: 'basic',
       condition: {
         field: 'operation',
-        value: [
-          'trello_list_lists',
-          'trello_list_cards',
-          'trello_create_card',
-          'trello_get_actions',
-        ],
+        value: ['trello_list_lists', 'trello_list_cards', 'trello_get_actions'],
       },
       required: {
         field: 'operation',
-        value: ['trello_list_lists', 'trello_list_cards', 'trello_create_card'],
+        value: 'trello_list_lists',
       },
     },
     {
-      id: 'boardId',
+      id: 'manualBoardId',
       title: 'Board ID',
       type: 'short-input',
       canonicalParamId: 'boardId',
-      placeholder: 'Enter board ID',
+      placeholder: 'Enter Trello board ID',
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: [
-          'trello_list_lists',
-          'trello_list_cards',
-          'trello_create_card',
-          'trello_get_actions',
-        ],
+        value: ['trello_list_lists', 'trello_list_cards', 'trello_get_actions'],
       },
       required: {
         field: 'operation',
-        value: ['trello_list_lists', 'trello_list_cards', 'trello_create_card'],
+        value: 'trello_list_lists',
       },
     },
     {
       id: 'listId',
-      title: 'List (Optional)',
+      title: 'List ID',
       type: 'short-input',
-      placeholder: 'Enter list ID to filter cards by list',
+      placeholder: 'Enter Trello list ID',
       condition: {
         field: 'operation',
-        value: 'trello_list_cards',
+        value: ['trello_list_cards', 'trello_create_card'],
       },
-    },
-    {
-      id: 'listId',
-      title: 'List',
-      type: 'short-input',
-      placeholder: 'Enter list ID or search for a list',
-      condition: {
-        field: 'operation',
-        value: 'trello_create_card',
-      },
-      required: true,
-    },
-
-    {
-      id: 'name',
-      title: 'Card Name',
-      type: 'short-input',
-      placeholder: 'Enter card name/title',
-      condition: {
-        field: 'operation',
-        value: 'trello_create_card',
-      },
-      required: true,
-    },
-
-    {
-      id: 'desc',
-      title: 'Description',
-      type: 'long-input',
-      placeholder: 'Enter card description (optional)',
-      condition: {
+      required: {
         field: 'operation',
         value: 'trello_create_card',
       },
     },
-
-    {
-      id: 'pos',
-      title: 'Position',
-      type: 'dropdown',
-      options: [
-        { label: 'Top', id: 'top' },
-        { label: 'Bottom', id: 'bottom' },
-      ],
-      condition: {
-        field: 'operation',
-        value: 'trello_create_card',
-      },
-    },
-
-    {
-      id: 'due',
-      title: 'Due Date',
-      type: 'short-input',
-      placeholder: 'YYYY-MM-DD or ISO 8601',
-      condition: {
-        field: 'operation',
-        value: 'trello_create_card',
-      },
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate a date or timestamp based on the user's description.
-The timestamp should be in ISO 8601 format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
-Examples:
-- "tomorrow" -> Calculate tomorrow's date in YYYY-MM-DD format
-- "next Friday" -> Calculate the next Friday in YYYY-MM-DD format
-- "in 3 days" -> Calculate 3 days from now in YYYY-MM-DD format
-- "end of month" -> Calculate the last day of the current month
-- "next week at 3pm" -> Calculate next week's date at 15:00:00Z
-
-Return ONLY the date/timestamp string - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe the due date (e.g., "next Friday", "in 2 weeks")...',
-        generationType: 'timestamp',
-      },
-    },
-
-    {
-      id: 'labels',
-      title: 'Labels',
-      type: 'short-input',
-      placeholder: 'Comma-separated label IDs (optional)',
-      condition: {
-        field: 'operation',
-        value: 'trello_create_card',
-      },
-    },
-
-    {
-      id: 'cardId',
-      title: 'Card',
-      type: 'short-input',
-      placeholder: 'Enter card ID or search for a card',
-      condition: {
-        field: 'operation',
-        value: 'trello_update_card',
-      },
-      required: true,
-    },
-
-    {
-      id: 'name',
-      title: 'New Card Name',
-      type: 'short-input',
-      placeholder: 'Enter new card name (leave empty to keep current)',
-      condition: {
-        field: 'operation',
-        value: 'trello_update_card',
-      },
-    },
-
-    {
-      id: 'desc',
-      title: 'New Description',
-      type: 'long-input',
-      placeholder: 'Enter new description (leave empty to keep current)',
-      condition: {
-        field: 'operation',
-        value: 'trello_update_card',
-      },
-    },
-
-    {
-      id: 'closed',
-      title: 'Archive Card',
-      type: 'switch',
-      condition: {
-        field: 'operation',
-        value: 'trello_update_card',
-      },
-    },
-
-    {
-      id: 'dueComplete',
-      title: 'Mark Due Date Complete',
-      type: 'switch',
-      condition: {
-        field: 'operation',
-        value: 'trello_update_card',
-      },
-    },
-
-    {
-      id: 'idList',
-      title: 'Move to List',
-      type: 'short-input',
-      placeholder: 'Enter list ID to move card',
-      condition: {
-        field: 'operation',
-        value: 'trello_update_card',
-      },
-    },
-
-    {
-      id: 'due',
-      title: 'Due Date',
-      type: 'short-input',
-      placeholder: 'YYYY-MM-DD or ISO 8601',
-      condition: {
-        field: 'operation',
-        value: 'trello_update_card',
-      },
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate a date or timestamp based on the user's description.
-The timestamp should be in ISO 8601 format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
-Examples:
-- "tomorrow" -> Calculate tomorrow's date in YYYY-MM-DD format
-- "next Friday" -> Calculate the next Friday in YYYY-MM-DD format
-- "in 3 days" -> Calculate 3 days from now in YYYY-MM-DD format
-- "end of month" -> Calculate the last day of the current month
-- "next week at 3pm" -> Calculate next week's date at 15:00:00Z
-
-Return ONLY the date/timestamp string - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe the due date (e.g., "next Friday", "in 2 weeks")...',
-        generationType: 'timestamp',
-      },
-    },
-
     {
       id: 'cardId',
       title: 'Card ID',
       type: 'short-input',
-      placeholder: 'Enter card ID to get card actions',
+      placeholder: 'Enter Trello card ID',
       condition: {
         field: 'operation',
-        value: 'trello_get_actions',
+        value: ['trello_update_card', 'trello_get_actions', 'trello_add_comment'],
+      },
+      required: {
+        field: 'operation',
+        value: ['trello_update_card', 'trello_add_comment'],
+      },
+    },
+    {
+      id: 'name',
+      title: 'Card Name',
+      type: 'short-input',
+      placeholder: 'Enter card name',
+      condition: {
+        field: 'operation',
+        value: ['trello_create_card', 'trello_update_card'],
+      },
+      required: {
+        field: 'operation',
+        value: 'trello_create_card',
+      },
+    },
+    {
+      id: 'desc',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Enter card description',
+      condition: {
+        field: 'operation',
+        value: ['trello_create_card', 'trello_update_card'],
+      },
+    },
+    {
+      id: 'pos',
+      title: 'Position',
+      type: 'short-input',
+      placeholder: 'top, bottom, or a positive float',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_create_card',
+      },
+    },
+    {
+      id: 'due',
+      title: 'Due Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD or ISO 8601 timestamp',
+      condition: {
+        field: 'operation',
+        value: ['trello_create_card', 'trello_update_card'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date or timestamp based on the user's description.
+The timestamp should be in ISO 8601 format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ.
+Examples:
+- "tomorrow" -> Calculate tomorrow's date in YYYY-MM-DD format
+- "next Friday" -> Calculate the next Friday in YYYY-MM-DD format
+- "in 3 days" -> Calculate 3 days from now in YYYY-MM-DD format
+- "end of month" -> Calculate the last day of the current month
+- "next week at 3pm" -> Calculate next week's date at 15:00:00Z
+
+Return ONLY the date/timestamp string - no explanations, no extra text.`,
+        placeholder: 'Describe the due date (e.g. "next Friday", "in 2 weeks")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'dueComplete',
+      title: 'Due Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave Unset', id: '' },
+        { label: 'Complete', id: 'true' },
+        { label: 'Incomplete', id: 'false' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['trello_create_card', 'trello_update_card'],
+      },
+    },
+    {
+      id: 'labelIds',
+      title: 'Label IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated label IDs',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_create_card',
+      },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of Trello label IDs. Return ONLY the comma-separated values - no explanations, no extra text.',
+        placeholder: 'Describe the label IDs to include...',
+      },
+    },
+    {
+      id: 'closed',
+      title: 'Archive Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave Unchanged', id: '' },
+        { label: 'Archive Card', id: 'true' },
+        { label: 'Reopen Card', id: 'false' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_update_card',
+      },
+    },
+    {
+      id: 'idList',
+      title: 'Move to List ID',
+      type: 'short-input',
+      placeholder: 'Enter Trello list ID',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'trello_update_card',
       },
     },
     {
       id: 'filter',
       title: 'Action Filter',
       type: 'short-input',
-      placeholder: 'e.g., commentCard,updateCard',
+      placeholder: 'commentCard,updateCard,createCard or all',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: 'trello_get_actions',
@@ -316,26 +297,26 @@ Return ONLY the date/timestamp string - no explanations, no quotes, no extra tex
     },
     {
       id: 'limit',
-      title: 'Limit',
+      title: 'Board Action Limit',
       type: 'short-input',
-      placeholder: '50',
+      placeholder: 'Maximum number of board actions',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: 'trello_get_actions',
       },
     },
     {
-      id: 'cardId',
-      title: 'Card',
+      id: 'page',
+      title: 'Action Page',
       type: 'short-input',
-      placeholder: 'Enter card ID or search for a card',
+      placeholder: 'Page number for board or card actions',
+      mode: 'advanced',
       condition: {
         field: 'operation',
-        value: 'trello_add_comment',
+        value: 'trello_get_actions',
       },
-      required: true,
     },
-
     {
       id: 'text',
       title: 'Comment',
@@ -358,99 +339,190 @@ Return ONLY the date/timestamp string - no explanations, no quotes, no extra tex
       'trello_add_comment',
     ],
     config: {
-      tool: (params) => {
-        switch (params.operation) {
-          case 'trello_list_lists':
-            return 'trello_list_lists'
-          case 'trello_list_cards':
-            return 'trello_list_cards'
-          case 'trello_create_card':
-            return 'trello_create_card'
-          case 'trello_update_card':
-            return 'trello_update_card'
-          case 'trello_get_actions':
-            return 'trello_get_actions'
-          case 'trello_add_comment':
-            return 'trello_add_comment'
-          default:
-            return 'trello_list_lists'
-        }
-      },
+      tool: (params) => getTrimmedString(params.operation) ?? 'trello_list_lists',
       params: (params) => {
-        const { operation, limit, closed, dueComplete, ...rest } = params
-
-        const result: Record<string, any> = { ...rest }
-
-        if (limit && operation === 'trello_get_actions') {
-          result.limit = Number.parseInt(limit, 10)
+        const operation = getTrimmedString(params.operation) ?? 'trello_list_lists'
+        const baseParams: Record<string, unknown> = {
+          oauthCredential: params.oauthCredential,
         }
 
-        if (closed !== undefined && operation === 'trello_update_card') {
-          if (typeof closed === 'string') {
-            result.closed = closed.toLowerCase() === 'true' || closed === '1'
-          } else if (typeof closed === 'number') {
-            result.closed = closed !== 0
-          } else {
-            result.closed = Boolean(closed)
+        switch (operation) {
+          case 'trello_list_lists': {
+            const boardId = getTrimmedString(params.boardId)
+
+            if (!boardId) {
+              throw new Error('Board ID is required.')
+            }
+
+            return {
+              ...baseParams,
+              boardId,
+            }
           }
-        }
 
-        if (dueComplete !== undefined && operation === 'trello_update_card') {
-          if (typeof dueComplete === 'string') {
-            result.dueComplete = dueComplete.toLowerCase() === 'true' || dueComplete === '1'
-          } else if (typeof dueComplete === 'number') {
-            result.dueComplete = dueComplete !== 0
-          } else {
-            result.dueComplete = Boolean(dueComplete)
+          case 'trello_list_cards': {
+            const boardId = getTrimmedString(params.boardId)
+            const listId = getTrimmedString(params.listId)
+
+            if (boardId && listId) {
+              throw new Error('Provide either a board ID or list ID, not both.')
+            }
+
+            if (!boardId && !listId) {
+              throw new Error('Provide either a board ID or list ID.')
+            }
+
+            return {
+              ...baseParams,
+              boardId,
+              listId,
+            }
           }
-        }
 
-        return result
+          case 'trello_create_card': {
+            const listId = getTrimmedString(params.listId)
+            const name = getTrimmedString(params.name)
+
+            if (!listId) {
+              throw new Error('List ID is required.')
+            }
+
+            if (!name) {
+              throw new Error('Card name is required.')
+            }
+
+            return {
+              ...baseParams,
+              listId,
+              name,
+              desc: getTrimmedString(params.desc),
+              pos: getTrimmedString(params.pos),
+              due: getTrimmedString(params.due),
+              dueComplete: parseOptionalBooleanInput(params.dueComplete),
+              labelIds: parseStringArray(params.labelIds),
+            }
+          }
+
+          case 'trello_update_card': {
+            const cardId = getTrimmedString(params.cardId)
+
+            if (!cardId) {
+              throw new Error('Card ID is required.')
+            }
+
+            return {
+              ...baseParams,
+              cardId,
+              name: getTrimmedString(params.name),
+              desc: getTrimmedString(params.desc),
+              closed: parseOptionalBooleanInput(params.closed),
+              idList: getTrimmedString(params.idList),
+              due: getTrimmedString(params.due),
+              dueComplete: parseOptionalBooleanInput(params.dueComplete),
+            }
+          }
+
+          case 'trello_get_actions': {
+            const boardId = getTrimmedString(params.boardId)
+            const cardId = getTrimmedString(params.cardId)
+
+            if (boardId && cardId) {
+              throw new Error('Provide either a board ID or card ID, not both.')
+            }
+
+            if (!boardId && !cardId) {
+              throw new Error('Provide either a board ID or card ID.')
+            }
+
+            return {
+              ...baseParams,
+              boardId,
+              cardId,
+              filter: getTrimmedString(params.filter),
+              limit: parseOptionalNumberInput(params.limit, 'limit'),
+              page: parseOptionalNumberInput(params.page, 'page'),
+            }
+          }
+
+          case 'trello_add_comment': {
+            const cardId = getTrimmedString(params.cardId)
+            const text = getTrimmedString(params.text)
+
+            if (!cardId) {
+              throw new Error('Card ID is required.')
+            }
+
+            if (!text) {
+              throw new Error('Comment text is required.')
+            }
+
+            return {
+              ...baseParams,
+              cardId,
+              text,
+            }
+          }
+
+          default:
+            return baseParams
+        }
       },
     },
   },
   inputs: {
     operation: { type: 'string', description: 'Trello operation to perform' },
     oauthCredential: { type: 'string', description: 'Trello OAuth credential' },
-    boardId: { type: 'string', description: 'Board ID' },
-    listId: { type: 'string', description: 'List ID' },
-    cardId: { type: 'string', description: 'Card ID' },
-    name: { type: 'string', description: 'Card name/title' },
-    desc: { type: 'string', description: 'Card or board description' },
-    pos: { type: 'string', description: 'Card position (top, bottom, or number)' },
+    boardId: { type: 'string', description: 'Trello board ID' },
+    listId: { type: 'string', description: 'Trello list ID' },
+    cardId: { type: 'string', description: 'Trello card ID' },
+    name: { type: 'string', description: 'Card name' },
+    desc: { type: 'string', description: 'Card description' },
+    pos: { type: 'string', description: 'Card position (top, bottom, or positive float)' },
     due: { type: 'string', description: 'Due date in ISO 8601 format' },
-    labels: { type: 'string', description: 'Comma-separated label IDs' },
-    closed: { type: 'boolean', description: 'Archive/close status' },
-    idList: { type: 'string', description: 'ID of list to move card to' },
-    dueComplete: { type: 'boolean', description: 'Mark due date as complete' },
-    filter: { type: 'string', description: 'Action type filter' },
-    limit: { type: 'number', description: 'Maximum number of results' },
+    dueComplete: { type: 'boolean', description: 'Whether the due date is complete' },
+    labelIds: {
+      type: 'json',
+      description: 'Label IDs as an array or comma-separated string',
+    },
+    closed: { type: 'boolean', description: 'Whether the card should be archived or reopened' },
+    idList: { type: 'string', description: 'List ID to move the card to' },
+    filter: { type: 'string', description: 'Trello action filter' },
+    limit: { type: 'number', description: 'Maximum number of board actions to return' },
+    page: { type: 'number', description: 'Page number for action results' },
     text: { type: 'string', description: 'Comment text' },
   },
   outputs: {
     lists: {
-      type: 'array',
-      description: 'Array of list objects (for list_lists operation)',
+      type: 'json',
+      description: 'Board lists (id, name, closed, pos, idBoard)',
     },
     cards: {
-      type: 'array',
-      description: 'Array of card objects (for list_cards operation)',
+      type: 'json',
+      description:
+        'Cards (id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete)',
     },
     card: {
       type: 'json',
-      description: 'Card object (for create_card and update_card operations)',
+      description:
+        'Created or updated card (id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete)',
     },
     actions: {
-      type: 'array',
-      description: 'Array of action objects (for get_actions operation)',
+      type: 'json',
+      description:
+        'Actions (id, type, date, idMemberCreator, text, memberCreator, card, board, list)',
     },
     comment: {
       type: 'json',
-      description: 'Comment object (for add_comment operation)',
+      description:
+        'Created comment action (id, type, date, idMemberCreator, text, memberCreator, card, board, list)',
     },
     count: {
       type: 'number',
-      description: 'Number of items returned (lists, cards, actions)',
+      description: 'Number of returned lists, cards, or actions',
+    },
+    error: {
+      type: 'string',
+      description: 'Error message when the Trello operation fails',
     },
   },
 }

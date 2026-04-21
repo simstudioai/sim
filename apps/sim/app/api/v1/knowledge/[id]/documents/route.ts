@@ -215,23 +215,33 @@ export const POST = withRouteHandler(
         request,
       })
 
-      return NextResponse.json({
-        success: true,
-        data: {
-          document: {
-            id: newDocument.id,
-            knowledgeBaseId,
-            filename: newDocument.filename,
-            fileSize: newDocument.fileSize,
-            mimeType: newDocument.mimeType,
-            processingStatus: 'pending',
-            chunkCount: 0,
-            tokenCount: 0,
-            characterCount: 0,
-            enabled: newDocument.enabled,
-            createdAt: serializeDate(newDocument.uploadedAt),
-          },
-          message: 'Document uploaded successfully. Processing will begin shortly.',
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: AuditAction.DOCUMENT_UPLOADED,
+      resourceType: AuditResourceType.DOCUMENT,
+      resourceId: newDocument.id,
+      resourceName: file.name,
+      description: `Uploaded document "${file.name}" to knowledge base via API`,
+      metadata: { knowledgeBaseId, fileSize: file.size, mimeType: contentType },
+      request,
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        document: {
+          id: newDocument.id,
+          knowledgeBaseId,
+          filename: newDocument.filename,
+          fileSize: newDocument.fileSize,
+          mimeType: newDocument.mimeType,
+          processingStatus: 'pending',
+          chunkCount: 0,
+          tokenCount: 0,
+          characterCount: 0,
+          enabled: newDocument.enabled,
+          createdAt: serializeDate(newDocument.uploadedAt),
         },
       })
     } catch (error) {

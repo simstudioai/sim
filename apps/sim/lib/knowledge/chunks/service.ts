@@ -2,8 +2,8 @@ import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 import type {
   BatchOperationResult,
   ChunkData,

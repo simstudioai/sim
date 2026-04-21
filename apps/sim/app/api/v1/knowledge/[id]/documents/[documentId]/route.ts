@@ -183,5 +183,28 @@ export const DELETE = withRouteHandler(
     } catch (error) {
       return handleError(requestId, error, 'Failed to delete document')
     }
+
+    await deleteDocument(documentId, requestId)
+
+    recordAudit({
+      workspaceId: validation.data.workspaceId,
+      actorId: userId,
+      action: AuditAction.DOCUMENT_DELETED,
+      resourceType: AuditResourceType.DOCUMENT,
+      resourceId: documentId,
+      resourceName: docs[0].filename,
+      description: `Deleted document "${docs[0].filename}" from knowledge base via API`,
+      metadata: { knowledgeBaseId },
+      request,
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        message: 'Document deleted successfully',
+      },
+    })
+  } catch (error) {
+    return handleError(requestId, error, 'Failed to delete document')
   }
 )

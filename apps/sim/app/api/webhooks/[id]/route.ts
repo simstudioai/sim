@@ -299,5 +299,46 @@ export const DELETE = withRouteHandler(
       })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
+
+    recordAudit({
+      workspaceId: webhookData.workflow.workspaceId || null,
+      actorId: userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.WEBHOOK_DELETED,
+      resourceType: AuditResourceType.WEBHOOK,
+      resourceId: id,
+      resourceName: foundWebhook.provider || 'generic',
+      description: `Deleted ${foundWebhook.provider || 'generic'} webhook`,
+      metadata: {
+        provider: foundWebhook.provider || 'generic',
+        workflowId: webhookData.workflow.id,
+        webhookPath: foundWebhook.path || undefined,
+        blockId: foundWebhook.blockId || undefined,
+        credentialSetId: credentialSetId || undefined,
+      },
+      request,
+    })
+
+    const wsId = webhookData.workflow.workspaceId || undefined
+    captureServerEvent(
+      userId,
+      'webhook_trigger_deleted',
+      {
+        webhook_id: id,
+        workflow_id: webhookData.workflow.id,
+        provider: foundWebhook.provider || 'generic',
+        workspace_id: wsId ?? '',
+      },
+      wsId ? { groups: { workspace: wsId } } : undefined
+    )
+
+    return NextResponse.json({ success: true }, { status: 200 })
+  } catch (error: any) {
+    logger.error(`[${requestId}] Error deleting webhook`, {
+      error: error.message,
+      stack: error.stack,
+    })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 )

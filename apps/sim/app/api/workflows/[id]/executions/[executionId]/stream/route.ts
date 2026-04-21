@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
@@ -48,20 +50,14 @@ export const GET = withRouteHandler(
         )
       }
 
-      const meta = await getExecutionMeta(executionId)
-      if (!meta) {
-        return NextResponse.json(
-          { error: 'Execution buffer not found or expired' },
-          { status: 404 }
-        )
-      }
+    const meta = await getExecutionMeta(executionId)
+    if (!meta) {
+      return NextResponse.json({ error: 'Run buffer not found or expired' }, { status: 404 })
+    }
 
-      if (meta.workflowId && meta.workflowId !== workflowId) {
-        return NextResponse.json(
-          { error: 'Execution does not belong to this workflow' },
-          { status: 403 }
-        )
-      }
+    if (meta.workflowId && meta.workflowId !== workflowId) {
+      return NextResponse.json({ error: 'Run does not belong to this workflow' }, { status: 403 })
+    }
 
       const fromParam = req.nextUrl.searchParams.get('from')
       const parsed = fromParam ? Number.parseInt(fromParam, 10) : 0
@@ -93,8 +89,34 @@ export const GET = withRouteHandler(
           }
 
           try {
-            const events = await readExecutionEvents(executionId, lastEventId)
-            for (const entry of events) {
+            controller.enqueue(encoder.encode(text))
+          } catch {
+            closed = true
+          }
+        }
+
+        try {
+          const events = await readExecutionEvents(executionId, lastEventId)
+          for (const entry of events) {
+            if (closed) return
+            entry.event.eventId = entry.eventId
+            enqueue(formatSSEEvent(entry.event))
+            lastEventId = entry.eventId
+          }
+
+          const currentMeta = await getExecutionMeta(executionId)
+          if (!currentMeta || isTerminalStatus(currentMeta.status)) {
+            enqueue('data: [DONE]\n\n')
+            if (!closed) controller.close()
+            return
+          }
+
+          while (!closed && Date.now() < pollDeadline) {
+            await sleep(POLL_INTERVAL_MS)
+            if (closed) return
+
+            const newEvents = await readExecutionEvents(executionId, lastEventId)
+            for (const entry of newEvents) {
               if (closed) return
               entry.event.eventId = entry.eventId
               enqueue(formatSSEEvent(entry.event))
@@ -158,22 +180,44 @@ export const GET = withRouteHandler(
         },
       })
 
-      return new NextResponse(stream, {
-        headers: {
-          ...SSE_HEADERS,
-          'X-Execution-Id': executionId,
-        },
-      })
-    } catch (error: any) {
-      logger.error('Failed to start reconnection stream', {
-        workflowId,
-        executionId,
-        error: error.message,
-      })
-      return NextResponse.json(
-        { error: error.message || 'Failed to start reconnection stream' },
-        { status: 500 }
-      )
-    }
+          if (!closed) {
+            logger.warn('Reconnection stream poll deadline reached', { executionId })
+            enqueue('data: [DONE]\n\n')
+            controller.close()
+          }
+        } catch (error) {
+          logger.error('Error in reconnection stream', {
+            executionId,
+            error: toError(error).message,
+          })
+          if (!closed) {
+            try {
+              controller.close()
+            } catch {}
+          }
+        }
+      },
+      cancel() {
+        closed = true
+        logger.info('Client disconnected from reconnection stream', { executionId })
+      },
+    })
+
+    return new NextResponse(stream, {
+      headers: {
+        ...SSE_HEADERS,
+        'X-Execution-Id': executionId,
+      },
+    })
+  } catch (error: any) {
+    logger.error('Failed to start reconnection stream', {
+      workflowId,
+      executionId,
+      error: error.message,
+    })
+    return NextResponse.json(
+      { error: error.message || 'Failed to start reconnection stream' },
+      { status: 500 }
+    )
   }
 )

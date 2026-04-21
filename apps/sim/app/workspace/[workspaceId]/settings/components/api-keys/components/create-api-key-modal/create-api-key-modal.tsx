@@ -168,7 +168,6 @@ export function CreateApiKeyModal({
                   }}
                   placeholder='e.g., Development, Production'
                   className='h-9'
-                  autoFocus
                   name='api_key_label'
                   autoComplete='off'
                   autoCorrect='off'

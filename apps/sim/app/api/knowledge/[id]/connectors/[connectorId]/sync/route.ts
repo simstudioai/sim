@@ -79,7 +79,13 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       resourceId: connectorId,
       resourceName: connectorRows[0].connectorType,
       description: `Triggered manual sync for connector on knowledge base "${writeCheck.knowledgeBase.name}"`,
-      metadata: { knowledgeBaseId },
+      metadata: {
+        knowledgeBaseId,
+        knowledgeBaseName: writeCheck.knowledgeBase.name,
+        connectorType: connectorRows[0].connectorType,
+        connectorStatus: connectorRows[0].status,
+        syncType: 'manual',
+      },
       request,
     })
 

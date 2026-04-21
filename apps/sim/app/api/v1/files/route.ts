@@ -156,6 +156,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       resourceId: userFile.id,
       resourceName: file.name,
       description: `Uploaded file "${file.name}" via API`,
+      metadata: { fileSize: file.size, fileType: file.type || 'application/octet-stream' },
       request,
     })
 

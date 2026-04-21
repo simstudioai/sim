@@ -1,6 +1,8 @@
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
@@ -455,7 +457,7 @@ export class AgentBlockHandler implements BlockHandler {
             logger.warn(
               `[AgentHandler] Session error discovering tools from ${serverId}, retrying (attempt ${attempt + 1})`
             )
-            await new Promise((r) => setTimeout(r, 100))
+            await sleep(100)
             continue
           }
           throw new Error(`Failed to discover tools: ${response.status} ${errorText}`)
@@ -468,13 +470,13 @@ export class AgentBlockHandler implements BlockHandler {
 
         return data.data.tools
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error)
+        const errorMsg = toError(error).message
         if (this.isRetryableError(errorMsg) && attempt < maxAttempts - 1) {
           logger.warn(
             `[AgentHandler] Retryable error discovering tools from ${serverId} (attempt ${attempt + 1}):`,
             error
           )
-          await new Promise((r) => setTimeout(r, 100))
+          await sleep(100)
           continue
         }
         throw error
@@ -1070,19 +1072,20 @@ export class AgentBlockHandler implements BlockHandler {
   private processStandardResponse(result: any): BlockOutput {
     return {
       content: result.content,
-      model: result.model,
       ...this.createResponseMetadata(result),
       ...(result.interactionId && { interactionId: result.interactionId }),
     }
   }
 
   private createResponseMetadata(result: {
+    model?: string
     tokens?: { input?: number; output?: number; total?: number }
     toolCalls?: Array<any>
     timing?: any
     cost?: any
   }) {
     return {
+      model: result.model,
       tokens: result.tokens || {
         input: DEFAULTS.TOKENS.PROMPT,
         output: DEFAULTS.TOKENS.COMPLETION,

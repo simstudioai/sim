@@ -157,5 +157,48 @@ export const DELETE = withRouteHandler(
       logger.error(`[${requestId}] Error deleting file:`, error)
       return NextResponse.json({ error: 'Failed to delete file' }, { status: 500 })
     }
+
+    const { workspaceId } = validation.data
+
+    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+    if (scopeError) return scopeError
+
+    const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+    if (permission === null || permission === 'read') {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+    if (!fileRecord) {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 })
+    }
+
+    await deleteWorkspaceFile(workspaceId, fileId)
+
+    logger.info(
+      `[${requestId}] Archived file: ${fileRecord.name} (${fileId}) from workspace ${workspaceId}`
+    )
+
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: AuditAction.FILE_DELETED,
+      resourceType: AuditResourceType.FILE,
+      resourceId: fileId,
+      resourceName: fileRecord.name,
+      description: `Archived file "${fileRecord.name}" via API`,
+      metadata: { fileSize: fileRecord.size, fileType: fileRecord.type },
+      request,
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        message: 'File archived successfully',
+      },
+    })
+  } catch (error) {
+    logger.error(`[${requestId}] Error deleting file:`, error)
+    return NextResponse.json({ error: 'Failed to delete file' }, { status: 500 })
   }
 )

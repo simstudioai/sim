@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { createLogger } from '@sim/logger'
-import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
+import { toError } from '@sim/utils/errors'
+import { z } from 'zod'
+import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot/tools/shared/schemas'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/feature-flags'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { registry as blockRegistry } from '@/blocks/registry'
@@ -100,17 +101,20 @@ export interface CopilotBlockMetadata {
   yamlDocumentation?: string
 }
 
+const GetBlocksMetadataInputSchema = z.object({ blockIds: z.array(z.string()).min(1) })
+const GetBlocksMetadataResultSchema = z.object({ metadata: z.record(z.any()) })
+
 export const getBlocksMetadataServerTool: BaseServerTool<
-  ReturnType<typeof GetBlocksMetadataInput.parse>,
-  ReturnType<typeof GetBlocksMetadataResult.parse>
+  z.infer<typeof GetBlocksMetadataInputSchema>,
+  z.infer<typeof GetBlocksMetadataResultSchema>
 > = {
   name: 'get_blocks_metadata',
-  inputSchema: GetBlocksMetadataInput,
-  outputSchema: GetBlocksMetadataResult,
+  inputSchema: GetBlocksMetadataInputSchema,
+  outputSchema: GetBlocksMetadataResultSchema,
   async execute(
-    { blockIds }: ReturnType<typeof GetBlocksMetadataInput.parse>,
+    { blockIds }: z.infer<typeof GetBlocksMetadataInputSchema>,
     context?: { userId: string }
-  ): Promise<ReturnType<typeof GetBlocksMetadataResult.parse>> {
+  ): Promise<z.infer<typeof GetBlocksMetadataResultSchema>> {
     const logger = createLogger('GetBlocksMetadataServerTool')
     logger.debug('Executing get_blocks_metadata', { count: blockIds?.length })
 
@@ -185,7 +189,10 @@ export const getBlocksMetadataServerTool: BaseServerTool<
 
           const configFields: Record<string, any> = {}
           for (const subBlock of trig.subBlocks) {
-            if (subBlock.mode === 'trigger' && !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)) {
+            if (
+              (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') &&
+              !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)
+            ) {
               const fieldDef: any = {
                 type: subBlock.type,
                 required: subBlock.required || false,
@@ -227,7 +234,9 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         const blockInputs = computeBlockLevelInputs(blockConfig)
         const { commonParameters, operationParameters } = splitParametersByOperation(
           Array.isArray(blockConfig.subBlocks)
-            ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger')
+            ? blockConfig.subBlocks.filter(
+                (sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced'
+              )
             : [],
           blockInputs
         )
@@ -305,7 +314,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         }
       } catch (error) {
         logger.warn('Failed to read YAML documentation file', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
 
@@ -319,7 +328,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
       transformedResult[blockId] = transformBlockMetadata(metadata)
     }
 
-    return GetBlocksMetadataResult.parse({ metadata: transformedResult })
+    return GetBlocksMetadataResultSchema.parse({ metadata: transformedResult })
   },
 }
 
@@ -424,7 +433,7 @@ function extractInputs(metadata: CopilotBlockMetadata): {
 
   for (const schema of metadata.inputSchema || []) {
     // Skip trigger subBlocks - they're handled separately in triggers.configFields
-    if (schema.mode === 'trigger') {
+    if (schema.mode === 'trigger' || schema.mode === 'trigger-advanced') {
       continue
     }
 
@@ -910,7 +919,7 @@ function splitParametersByOperation(
 function computeBlockLevelInputs(blockConfig: BlockConfig): Record<string, any> {
   const inputs = blockConfig.inputs || {}
   const subBlocks: any[] = Array.isArray(blockConfig.subBlocks)
-    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger')
+    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced')
     : []
 
   const byParamKey: Record<string, any[]> = {}
@@ -945,7 +954,7 @@ function computeOperationLevelInputs(
 ): Record<string, Record<string, any>> {
   const inputs = blockConfig.inputs || {}
   const subBlocks = Array.isArray(blockConfig.subBlocks)
-    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger')
+    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced')
     : []
 
   const opInputs: Record<string, Record<string, any>> = {}
@@ -992,7 +1001,7 @@ function resolveToolIdForOperation(blockConfig: BlockConfig, opId: string): stri
   } catch (error) {
     const toolLogger = createLogger('GetBlocksMetadataServerTool')
     toolLogger.warn('Failed to resolve tool ID for operation', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
   return undefined

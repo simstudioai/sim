@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { generateId } from '@/lib/core/utils/uuid'
+import { generateId } from '@sim/utils/id'
 import {
   type ExportWorkflowState,
   sanitizeForExport,
@@ -48,7 +48,7 @@ export interface WorkspaceExportStructure {
  * Sanitizes a string for use as a path segment in a ZIP file.
  */
 export function sanitizePathSegment(name: string): string {
-  return name.replace(/[^a-z0-9-_]/gi, '-')
+  return name.replace(/[^\p{L}\p{N}\-_]/gu, '-').replace(/-+/g, '-')
 }
 
 /**

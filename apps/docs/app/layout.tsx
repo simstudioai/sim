@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Viewport } from 'next'
+import { DOCS_BASE_URL } from '@/lib/urls'
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return children
@@ -12,31 +13,29 @@ export const viewport: Viewport = {
 }
 
 export const metadata = {
-  metadataBase: new URL('https://docs.sim.ai'),
+  metadataBase: new URL(DOCS_BASE_URL),
   title: {
-    default: 'Sim Documentation — Build AI Agents & Run Your Agentic Workforce',
+    default: 'Sim Documentation — The AI Workspace for Teams',
     template: '%s | Sim Docs',
   },
   description:
-    'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.',
+    'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM.',
   applicationName: 'Sim Docs',
   generator: 'Next.js',
   referrer: 'origin-when-cross-origin' as const,
   keywords: [
+    'AI workspace',
+    'AI agent builder',
     'AI agents',
-    'agentic workforce',
-    'AI agent platform',
+    'build AI agents',
     'open-source AI agents',
-    'agentic workflows',
     'LLM orchestration',
     'AI integrations',
     'knowledge base',
     'AI automation',
-    'workflow builder',
-    'AI workflow orchestration',
+    'visual workflow builder',
     'enterprise AI',
     'AI agent deployment',
-    'intelligent automation',
     'AI tools',
   ],
   authors: [{ name: 'Sim Team', url: 'https://sim.ai' }],
@@ -63,14 +62,14 @@ export const metadata = {
     type: 'website',
     locale: 'en_US',
     alternateLocale: ['es_ES', 'fr_FR', 'de_DE', 'ja_JP', 'zh_CN'],
-    url: 'https://docs.sim.ai',
+    url: DOCS_BASE_URL,
     siteName: 'Sim Documentation',
-    title: 'Sim Documentation — Build AI Agents & Run Your Agentic Workforce',
+    title: 'Sim Documentation — The AI Workspace for Teams',
     description:
-      'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.',
+      'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM.',
     images: [
       {
-        url: 'https://docs.sim.ai/api/og?title=Sim%20Documentation',
+        url: `${DOCS_BASE_URL}/api/og?title=Sim%20Documentation`,
         width: 1200,
         height: 630,
         alt: 'Sim Documentation',
@@ -79,12 +78,12 @@ export const metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Sim Documentation — Build AI Agents & Run Your Agentic Workforce',
+    title: 'Sim Documentation — The AI Workspace for Teams',
     description:
-      'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.',
+      'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM.',
     creator: '@simdotai',
     site: '@simdotai',
-    images: ['https://docs.sim.ai/api/og?title=Sim%20Documentation'],
+    images: [`${DOCS_BASE_URL}/api/og?title=Sim%20Documentation`],
   },
   robots: {
     index: true,
@@ -98,15 +97,15 @@ export const metadata = {
     },
   },
   alternates: {
-    canonical: 'https://docs.sim.ai',
+    canonical: DOCS_BASE_URL,
     languages: {
-      'x-default': 'https://docs.sim.ai',
-      en: 'https://docs.sim.ai',
-      es: 'https://docs.sim.ai/es',
-      fr: 'https://docs.sim.ai/fr',
-      de: 'https://docs.sim.ai/de',
-      ja: 'https://docs.sim.ai/ja',
-      zh: 'https://docs.sim.ai/zh',
+      'x-default': DOCS_BASE_URL,
+      en: DOCS_BASE_URL,
+      es: `${DOCS_BASE_URL}/es`,
+      fr: `${DOCS_BASE_URL}/fr`,
+      de: `${DOCS_BASE_URL}/de`,
+      ja: `${DOCS_BASE_URL}/ja`,
+      zh: `${DOCS_BASE_URL}/zh`,
     },
   },
 }

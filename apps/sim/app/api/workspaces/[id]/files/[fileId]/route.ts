@@ -79,6 +79,44 @@ export const PATCH = withRouteHandler(
         { status: error instanceof FileConflictError ? 409 : 500 }
       )
     }
+
+    const body = await request.json()
+    const { name } = body
+
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+    }
+
+    const updatedFile = await renameWorkspaceFile(workspaceId, fileId, name)
+
+    logger.info(`[${requestId}] Renamed workspace file: ${fileId} to "${updatedFile.name}"`)
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.FILE_UPDATED,
+      resourceType: AuditResourceType.FILE,
+      resourceId: fileId,
+      resourceName: updatedFile.name,
+      description: `Renamed file to "${updatedFile.name}"`,
+      request,
+    })
+
+    return NextResponse.json({
+      success: true,
+      file: updatedFile,
+    })
+  } catch (error) {
+    logger.error(`[${requestId}] Error renaming workspace file:`, error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to rename file',
+      },
+      { status: error instanceof FileConflictError ? 409 : 500 }
+    )
   }
 )
 

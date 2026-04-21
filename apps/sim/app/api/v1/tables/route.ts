@@ -207,6 +207,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       resourceId: table.id,
       resourceName: table.name,
       description: `Created table "${table.name}" via API`,
+      metadata: { columnCount: params.schema.columns.length },
       request,
     })
 

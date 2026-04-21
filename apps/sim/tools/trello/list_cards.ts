@@ -1,11 +1,16 @@
 import { env } from '@/lib/core/config/env'
+import {
+  extractTrelloErrorMessage,
+  mapTrelloCard,
+  TRELLO_API_BASE_URL,
+} from '@/tools/trello/shared'
 import type { TrelloListCardsParams, TrelloListCardsResponse } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const trelloListCardsTool: ToolConfig<TrelloListCardsParams, TrelloListCardsResponse> = {
   id: 'trello_list_cards',
   name: 'Trello List Cards',
-  description: 'List all cards on a Trello board',
+  description: 'List cards from a Trello board or list',
   version: '1.0.0',
   oauth: {
     required: true,
@@ -21,30 +26,42 @@ export const trelloListCardsTool: ToolConfig<TrelloListCardsParams, TrelloListCa
     },
     boardId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Trello board ID (24-character hex string)',
+      description: 'Trello board ID to list open cards from. Provide either boardId or listId',
     },
     listId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Trello list ID to filter cards (24-character hex string)',
+      description: 'Trello list ID to list cards from. Provide either boardId or listId',
     },
   },
 
   request: {
     url: (params) => {
-      if (!params.boardId) {
-        throw new Error('Board ID is required')
+      const apiKey = env.TRELLO_API_KEY
+
+      if (!apiKey) {
+        throw new Error('TRELLO_API_KEY environment variable is not set')
       }
-      const apiKey = env.TRELLO_API_KEY || ''
-      const token = params.accessToken
-      let url = `https://api.trello.com/1/boards/${params.boardId}/cards?key=${apiKey}&token=${token}&fields=id,name,desc,url,idBoard,idList,closed,labels,due,dueComplete`
-      if (params.listId) {
-        url += `&list=${params.listId}`
+
+      if (params.boardId && params.listId) {
+        throw new Error('Provide either a board ID or list ID, not both')
       }
-      return url
+
+      if (!params.listId && !params.boardId) {
+        throw new Error('Either a board ID or list ID is required')
+      }
+
+      const path = params.listId
+        ? `/lists/${params.listId.trim()}/cards`
+        : `/boards/${params.boardId?.trim()}/cards`
+      const url = new URL(`${TRELLO_API_BASE_URL}${path}`)
+      url.searchParams.set('key', apiKey)
+      url.searchParams.set('token', params.accessToken)
+
+      return url.toString()
     },
     method: 'GET',
     headers: () => ({
@@ -53,34 +70,111 @@ export const trelloListCardsTool: ToolConfig<TrelloListCardsParams, TrelloListCa
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
+    const data = await response.json().catch(() => null)
 
-    if (!Array.isArray(data)) {
+    if (!response.ok) {
+      const error = extractTrelloErrorMessage(response, data, 'Failed to list Trello cards')
+
       return {
         success: false,
         output: {
           cards: [],
           count: 0,
-          error: 'Invalid response from Trello API',
+          error,
         },
-        error: 'Invalid response from Trello API',
+        error,
       }
     }
 
-    return {
-      success: true,
-      output: {
-        cards: data,
-        count: data.length,
-      },
+    if (!Array.isArray(data)) {
+      const error = 'Trello returned an invalid card collection'
+
+      return {
+        success: false,
+        output: {
+          cards: [],
+          count: 0,
+          error,
+        },
+        error,
+      }
+    }
+
+    try {
+      const cards = data.map((item) => mapTrelloCard(item))
+
+      return {
+        success: true,
+        output: {
+          cards,
+          count: cards.length,
+        },
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to parse Trello cards'
+
+      return {
+        success: false,
+        output: {
+          cards: [],
+          count: 0,
+          error: message,
+        },
+        error: message,
+      }
     }
   },
 
   outputs: {
     cards: {
       type: 'array',
-      description:
-        'Array of card objects with id, name, desc, url, board/list IDs, labels, and due date',
+      description: 'Cards returned from the selected Trello board or list',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Card ID' },
+          name: { type: 'string', description: 'Card name' },
+          desc: { type: 'string', description: 'Card description' },
+          url: { type: 'string', description: 'Full card URL' },
+          idBoard: { type: 'string', description: 'Board ID containing the card' },
+          idList: { type: 'string', description: 'List ID containing the card' },
+          closed: { type: 'boolean', description: 'Whether the card is archived' },
+          labelIds: {
+            type: 'array',
+            description: 'Label IDs applied to the card',
+            items: {
+              type: 'string',
+              description: 'A Trello label ID',
+            },
+          },
+          labels: {
+            type: 'array',
+            description: 'Labels applied to the card',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'Label ID' },
+                name: { type: 'string', description: 'Label name' },
+                color: {
+                  type: 'string',
+                  description: 'Label color',
+                  optional: true,
+                },
+              },
+            },
+          },
+          due: {
+            type: 'string',
+            description: 'Card due date in ISO 8601 format',
+            optional: true,
+          },
+          dueComplete: {
+            type: 'boolean',
+            description: 'Whether the due date is complete',
+            optional: true,
+          },
+        },
+      },
     },
     count: { type: 'number', description: 'Number of cards returned' },
   },

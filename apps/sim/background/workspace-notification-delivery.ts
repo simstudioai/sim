@@ -6,6 +6,9 @@ import {
   workspaceNotificationSubscription,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { formatDuration } from '@sim/utils/formatting'
+import { generateId } from '@sim/utils/id'
 import { task } from '@trigger.dev/sdk'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
 import {
@@ -16,15 +19,10 @@ import {
 import { checkUsageStatus } from '@/lib/billing/calculations/usage-monitor'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
-import { acquireLock } from '@/lib/core/config/redis'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
-import { formatDuration } from '@/lib/core/utils/formatting'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
-import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import type { AlertConfig } from '@/lib/notifications/alert-rules'
@@ -35,8 +33,6 @@ const logger = createLogger('WorkspaceNotificationDelivery')
 
 const MAX_ATTEMPTS = 5
 const RETRY_DELAYS = [5 * 1000, 15 * 1000, 60 * 1000, 3 * 60 * 1000, 10 * 60 * 1000]
-const NOTIFICATION_DISPATCH_LOCK_TTL_SECONDS = 3
-
 function getRetryDelayWithJitter(baseDelay: number): number {
   const jitter = Math.random() * 0.1 * baseDelay
   return Math.floor(baseDelay + jitter)
@@ -230,7 +226,7 @@ async function deliverWebhook(
     }
   } catch (error: unknown) {
     logger.warn('Webhook delivery failed', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       webhookUrl: webhookConfig.url,
     })
     return {
@@ -534,42 +530,14 @@ async function buildRetryLog(params: NotificationDeliveryParams): Promise<Workfl
 }
 
 export async function enqueueNotificationDeliveryDispatch(
-  params: NotificationDeliveryParams
+  _params: NotificationDeliveryParams
 ): Promise<boolean> {
-  if (!isBullMQEnabled()) {
-    return false
-  }
-
-  const lockAcquired = await acquireLock(
-    `workspace-notification-dispatch:${params.deliveryId}`,
-    params.deliveryId,
-    NOTIFICATION_DISPATCH_LOCK_TTL_SECONDS
-  )
-  if (!lockAcquired) {
-    return false
-  }
-
-  await enqueueWorkspaceDispatch({
-    workspaceId: params.workspaceId,
-    lane: 'lightweight',
-    queueName: 'workspace-notification-delivery',
-    bullmqJobName: 'workspace-notification-delivery',
-    bullmqPayload: createBullMQJobData(params),
-    metadata: {
-      workflowId: params.log.workflowId ?? undefined,
-    },
-  })
-
-  return true
+  return false
 }
 
 const STUCK_IN_PROGRESS_THRESHOLD_MS = 5 * 60 * 1000
 
 export async function sweepPendingNotificationDeliveries(limit = 50): Promise<number> {
-  if (!isBullMQEnabled()) {
-    return 0
-  }
-
   const stuckThreshold = new Date(Date.now() - STUCK_IN_PROGRESS_THRESHOLD_MS)
 
   await db

@@ -94,5 +94,46 @@ export const PUT = withRouteHandler(
 
       return NextResponse.json({ success: false, error: errorMessage }, { status })
     }
+
+    const updatedFile = await updateWorkspaceFileContent(
+      workspaceId,
+      fileId,
+      session.user.id,
+      buffer
+    )
+
+    logger.info(`[${requestId}] Updated content for workspace file: ${updatedFile.name}`)
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.FILE_UPDATED,
+      resourceType: AuditResourceType.FILE,
+      resourceId: fileId,
+      resourceName: updatedFile.name,
+      description: `Updated content of file "${updatedFile.name}"`,
+      metadata: { contentSize: buffer.length },
+      request,
+    })
+
+    return NextResponse.json({
+      success: true,
+      file: updatedFile,
+    })
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to update file content'
+    const isNotFound = errorMessage.includes('File not found')
+    const isQuotaExceeded = errorMessage.includes('Storage limit exceeded')
+    const status = isNotFound ? 404 : isQuotaExceeded ? 402 : 500
+
+    if (status === 500) {
+      logger.error(`[${requestId}] Error updating file content:`, error)
+    } else {
+      logger.warn(`[${requestId}] ${errorMessage}`)
+    }
+
+    return NextResponse.json({ success: false, error: errorMessage }, { status })
   }
 )

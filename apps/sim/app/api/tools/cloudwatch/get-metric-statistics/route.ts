@@ -54,7 +54,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           }))
         }
       } catch {
-        throw new Error('Invalid dimensions JSON')
+        return NextResponse.json({ error: 'Invalid dimensions JSON format' }, { status: 400 })
       }
     }
 

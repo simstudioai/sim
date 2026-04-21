@@ -1,14 +1,13 @@
 import { db } from '@sim/db'
 import { permissions, workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
@@ -297,7 +296,14 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       resourceId: workflowId,
       resourceName: name,
       description: `Created workflow "${name}"`,
-      metadata: { name },
+      metadata: {
+        name,
+        description: description || undefined,
+        color,
+        workspaceId,
+        folderId: folderId || undefined,
+        sortOrder,
+      },
       request: req,
     })
 

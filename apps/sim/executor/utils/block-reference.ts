@@ -2,7 +2,18 @@ import { USER_FILE_ACCESSIBLE_PROPERTIES } from '@/lib/workflows/types'
 import { normalizeName } from '@/executor/constants'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
 
-export type OutputSchema = Record<string, { type?: string; description?: string } | unknown>
+/**
+ * A single schema node encountered while walking an `OutputSchema`. Captures
+ * only the fields this module inspects — not a full schema type.
+ */
+interface SchemaNode {
+  type?: string
+  description?: string
+  properties?: unknown
+  items?: unknown
+}
+
+export type OutputSchema = Record<string, SchemaNode | unknown>
 
 export interface BlockReferenceContext {
   blockNameMapping: Record<string, string>
@@ -29,25 +40,26 @@ export class InvalidFieldError extends Error {
   }
 }
 
+function asSchemaNode(value: unknown): SchemaNode | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  return value as SchemaNode
+}
+
 function isFileType(value: unknown): boolean {
-  if (typeof value !== 'object' || value === null) return false
-  const typed = value as { type?: string }
-  return typed.type === 'file' || typed.type === 'file[]'
+  const node = asSchemaNode(value)
+  return node?.type === 'file' || node?.type === 'file[]'
 }
 
 function isArrayType(value: unknown): value is { type: 'array'; items?: unknown } {
-  if (typeof value !== 'object' || value === null) return false
-  return (value as { type?: string }).type === 'array'
+  return asSchemaNode(value)?.type === 'array'
 }
 
 function getArrayItems(schema: unknown): unknown {
-  if (typeof schema !== 'object' || schema === null) return undefined
-  return (schema as { items?: unknown }).items
+  return asSchemaNode(schema)?.items
 }
 
 function getProperties(schema: unknown): Record<string, unknown> | undefined {
-  if (typeof schema !== 'object' || schema === null) return undefined
-  const props = (schema as { properties?: unknown }).properties
+  const props = asSchemaNode(schema)?.properties
   return typeof props === 'object' && props !== null
     ? (props as Record<string, unknown>)
     : undefined
@@ -69,6 +81,19 @@ function lookupField(schema: unknown, fieldName: string): unknown | undefined {
   return undefined
 }
 
+function isOpaqueSchemaNode(value: unknown): boolean {
+  const node = asSchemaNode(value)
+  if (!node) return false
+  // A schema node whose nested shape isn't enumerated. Any path beneath it
+  // is accepted because there's no declared structure to validate against.
+  // `object` / `json` with declared `properties` are walked via lookupField.
+  if (node.type === 'any') return true
+  if ((node.type === 'json' || node.type === 'object') && node.properties === undefined) {
+    return true
+  }
+  return false
+}
+
 function isPathInSchema(schema: OutputSchema | undefined, pathParts: string[]): boolean {
   if (!schema || pathParts.length === 0) {
     return true
@@ -81,6 +106,10 @@ function isPathInSchema(schema: OutputSchema | undefined, pathParts: string[]): 
 
     if (current === null || current === undefined) {
       return false
+    }
+
+    if (isOpaqueSchemaNode(current)) {
+      return true
     }
 
     if (/^\d+$/.test(part)) {
@@ -183,14 +212,12 @@ export function resolveBlockReference(
   }
 
   const blockOutput = context.blockData[blockId]
-  const schema = context.blockOutputSchemas?.[blockId]
 
+  // When the block has not produced any output (e.g. it lives on a branched
+  // path that wasn't taken), resolve the reference to undefined without
+  // validating against the declared schema. Callers map this to an empty
+  // value so that references to skipped blocks don't fail the workflow.
   if (blockOutput === undefined) {
-    if (schema && pathParts.length > 0) {
-      if (!isPathInSchema(schema, pathParts)) {
-        throw new InvalidFieldError(blockName, pathParts.join('.'), getSchemaFieldNames(schema))
-      }
-    }
     return { value: undefined, blockId }
   }
 
@@ -200,6 +227,7 @@ export function resolveBlockReference(
 
   const value = navigatePath(blockOutput, pathParts)
 
+  const schema = context.blockOutputSchemas?.[blockId]
   if (value === undefined && schema) {
     if (!isPathInSchema(schema, pathParts)) {
       throw new InvalidFieldError(blockName, pathParts.join('.'), getSchemaFieldNames(schema))

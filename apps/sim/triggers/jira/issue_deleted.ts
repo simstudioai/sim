@@ -57,18 +57,6 @@ export const jiraIssueDeletedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'jira_issue_deleted',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_deleted',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

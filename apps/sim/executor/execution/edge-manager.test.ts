@@ -1,11 +1,8 @@
-import { loggerMock } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { DAGEdge } from '@/executor/dag/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { EdgeManager } from './edge-manager'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 function createMockBlock(id: string): SerializedBlock {
   return {
@@ -599,6 +596,171 @@ describe('EdgeManager', () => {
         selectedOption: 'if',
       })
       expect(readyNodes).toContain(function1Id)
+    })
+
+    /**
+     * Regression for the substring-match bug in clearDeactivatedEdgesForNodes.
+     *
+     * Reproduces the real workflow pattern where an empty upstream loop (e.g. KG) cascade
+     * deactivates its `loop_exit` edge into the next loop's sentinel-start (e.g. SBJ). When
+     * SBJ iterates and resets its state between iterations, the old buggy `includes(\`-${nodeId}-\`)`
+     * check matched edge keys where the sentinel was the TARGET (not the source), wrongly
+     * reactivating that external edge. That made countActiveIncomingEdges see a phantom pending
+     * upstream and SBJ's sentinel-start stopped being ready, stalling the loop after iteration 1.
+     */
+    it('should not re-activate external cascade-deactivated edges pointing INTO a loop node', () => {
+      const externalNodeId = 'external-node'
+      const sbjSentinelStartId = 'loop-sbj-sentinel-start'
+      const sbjSentinelEndId = 'loop-sbj-sentinel-end'
+      const bodyNodeId = 'body-node'
+
+      const externalNode = createMockNode(externalNodeId, [
+        { target: sbjSentinelStartId, sourceHandle: 'condition-if' },
+      ])
+      const sbjSentinelStartNode = createMockNode(
+        sbjSentinelStartId,
+        [{ target: bodyNodeId }],
+        [externalNodeId]
+      )
+      const bodyNode = createMockNode(
+        bodyNodeId,
+        [{ target: sbjSentinelEndId }],
+        [sbjSentinelStartId]
+      )
+      const sbjSentinelEndNode = createMockNode(sbjSentinelEndId, [], [bodyNodeId])
+
+      const nodes = new Map<string, DAGNode>([
+        [externalNodeId, externalNode],
+        [sbjSentinelStartId, sbjSentinelStartNode],
+        [bodyNodeId, bodyNode],
+        [sbjSentinelEndId, sbjSentinelEndNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      edgeManager.processOutgoingEdges(externalNode, { selectedOption: 'else' })
+
+      expect(edgeManager.isNodeReady(sbjSentinelStartNode)).toBe(true)
+
+      edgeManager.clearDeactivatedEdgesForNodes(
+        new Set([sbjSentinelStartId, sbjSentinelEndId, bodyNodeId])
+      )
+
+      expect(edgeManager.isNodeReady(sbjSentinelStartNode)).toBe(true)
+    })
+
+    /**
+     * End-to-end regression: after a loop reset while an external edge is cascade-deactivated,
+     * the backwards `loop_continue` edge from sentinel-end must still mark sentinel-start as
+     * ready. The old code removed the external edge's deactivation entry, leaving a phantom
+     * active incoming and producing the exact "loop stops after 1 iteration" symptom the user
+     * hit on the Group A workflow.
+     */
+    it('should leave sbjSentinelStart ready after loop reset when external edge is cascade-deactivated', () => {
+      const externalNodeId = 'external-node'
+      const sbjSentinelStartId = 'loop-sbj-sentinel-start'
+      const sbjSentinelEndId = 'loop-sbj-sentinel-end'
+      const bodyNodeId = 'body-node'
+
+      const externalNode = createMockNode(externalNodeId, [
+        { target: sbjSentinelStartId, sourceHandle: 'condition-if' },
+      ])
+      const sbjSentinelStartNode = createMockNode(
+        sbjSentinelStartId,
+        [{ target: bodyNodeId }],
+        [externalNodeId]
+      )
+      const bodyNode = createMockNode(
+        bodyNodeId,
+        [{ target: sbjSentinelEndId }],
+        [sbjSentinelStartId]
+      )
+      const sbjSentinelEndNode = createMockNode(
+        sbjSentinelEndId,
+        [{ target: sbjSentinelStartId, sourceHandle: 'loop_continue' }],
+        [bodyNodeId]
+      )
+
+      const nodes = new Map<string, DAGNode>([
+        [externalNodeId, externalNode],
+        [sbjSentinelStartId, sbjSentinelStartNode],
+        [bodyNodeId, bodyNode],
+        [sbjSentinelEndId, sbjSentinelEndNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      edgeManager.processOutgoingEdges(externalNode, { selectedOption: 'else' })
+
+      edgeManager.clearDeactivatedEdgesForNodes(
+        new Set([sbjSentinelStartId, sbjSentinelEndId, bodyNodeId])
+      )
+
+      const readyNodes = edgeManager.processOutgoingEdges(sbjSentinelEndNode, {
+        selectedRoute: 'loop_continue',
+      })
+
+      expect(readyNodes).toContain(sbjSentinelStartId)
+    })
+
+    /**
+     * Guard against an overly narrow fix: edges whose SOURCE is inside the loop (e.g. a body
+     * node that deactivated its outgoing edge during the previous iteration) must still be
+     * cleared on reset so the next iteration can traverse them.
+     */
+    it('should re-activate internal loop edges (source inside loop) when resetting loop state', () => {
+      const sbjSentinelStartId = 'loop-sbj-sentinel-start'
+      const sbjSentinelEndId = 'loop-sbj-sentinel-end'
+      const conditionInLoopId = 'condition-in-loop'
+      const thenBranchId = 'then-branch'
+
+      const sbjSentinelStartNode = createMockNode(sbjSentinelStartId, [
+        { target: conditionInLoopId },
+      ])
+      const conditionInLoopNode = createMockNode(
+        conditionInLoopId,
+        [
+          { target: thenBranchId, sourceHandle: 'condition-if' },
+          { target: sbjSentinelEndId, sourceHandle: 'condition-else' },
+        ],
+        [sbjSentinelStartId]
+      )
+      const thenBranchNode = createMockNode(
+        thenBranchId,
+        [{ target: sbjSentinelEndId }],
+        [conditionInLoopId]
+      )
+      const sbjSentinelEndNode = createMockNode(
+        sbjSentinelEndId,
+        [],
+        [conditionInLoopId, thenBranchId]
+      )
+
+      const nodes = new Map<string, DAGNode>([
+        [sbjSentinelStartId, sbjSentinelStartNode],
+        [conditionInLoopId, conditionInLoopNode],
+        [thenBranchId, thenBranchNode],
+        [sbjSentinelEndId, sbjSentinelEndNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      edgeManager.processOutgoingEdges(conditionInLoopNode, { selectedOption: 'else' })
+
+      edgeManager.clearDeactivatedEdgesForNodes(
+        new Set([sbjSentinelStartId, sbjSentinelEndId, conditionInLoopId, thenBranchId])
+      )
+
+      thenBranchNode.incomingEdges.add(conditionInLoopId)
+
+      const readyNodes = edgeManager.processOutgoingEdges(conditionInLoopNode, {
+        selectedOption: 'if',
+      })
+
+      expect(readyNodes).toContain(thenBranchId)
     })
   })
 

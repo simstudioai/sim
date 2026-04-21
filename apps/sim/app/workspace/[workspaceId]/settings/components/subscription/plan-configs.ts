@@ -2,6 +2,7 @@ import {
   Clock,
   HardDrive,
   HeadphonesIcon,
+  LayoutGrid,
   Server,
   ShieldCheck,
   Table2,
@@ -15,17 +16,19 @@ import type { PlanFeature } from '@/app/workspace/[workspaceId]/settings/compone
 export const PRO_PLAN_FEATURES: PlanFeature[] = [
   { icon: Zap, text: '150 runs/min (sync)' },
   { icon: Clock, text: '1,000 runs/min (async)' },
-  { icon: Timer, text: '50 min sync execution limit' },
+  { icon: Timer, text: '50 min sync run limit' },
   { icon: HardDrive, text: '50GB file storage' },
   { icon: Table2, text: '25 tables · 5,000 rows each' },
+  { icon: LayoutGrid, text: 'Up to 3 personal workspaces' },
 ]
 
 export const MAX_PLAN_FEATURES: PlanFeature[] = [
   { icon: Zap, text: '300 runs/min (sync)' },
   { icon: Clock, text: '2,500 runs/min (async)' },
-  { icon: Timer, text: '50 min sync execution limit' },
+  { icon: Timer, text: '50 min sync run limit' },
   { icon: HardDrive, text: '500GB file storage' },
   { icon: Table2, text: '25 tables · 5,000 rows each' },
+  { icon: LayoutGrid, text: 'Up to 10 personal workspaces' },
 ]
 
 export const TEAM_INLINE_FEATURES: PlanFeature[] = [
@@ -33,12 +36,14 @@ export const TEAM_INLINE_FEATURES: PlanFeature[] = [
   { icon: Zap, text: 'Max plan rate limits' },
   { icon: HardDrive, text: 'Max plan file storage' },
   { icon: Table2, text: '100 tables · 10,000 rows each' },
+  { icon: LayoutGrid, text: 'Unlimited shared workspaces' },
   { icon: ShieldCheck, text: 'Access controls' },
   { icon: SlackMonoIcon, text: 'Dedicated Slack channel' },
 ]
 
 export const ENTERPRISE_PLAN_FEATURES: PlanFeature[] = [
   { icon: Zap, text: 'Custom infra limits' },
+  { icon: LayoutGrid, text: 'Unlimited shared workspaces' },
   { icon: Server, text: 'SSO' },
   { icon: ShieldCheck, text: 'SOC2' },
   { icon: HardDrive, text: 'Self hosting' },

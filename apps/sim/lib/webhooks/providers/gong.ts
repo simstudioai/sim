@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import * as jose from 'jose'
 import { NextResponse } from 'next/server'
 import type {
@@ -84,7 +85,7 @@ export async function verifyGongJwtAuth(ctx: AuthContext): Promise<NextResponse 
     payload = verified.payload
   } catch (error) {
     logger.warn(`[${requestId}] Gong JWT verification failed`, {
-      message: error instanceof Error ? error.message : String(error),
+      message: toError(error).message,
     })
     return new NextResponse('Unauthorized - Invalid Gong JWT', { status: 401 })
   }

@@ -76,18 +76,6 @@ export const githubPRMergedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'github_pr_merged',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'github_pr_merged',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

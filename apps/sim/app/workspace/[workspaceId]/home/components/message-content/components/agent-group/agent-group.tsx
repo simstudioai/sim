@@ -21,7 +21,13 @@ interface AgentGroupProps {
 }
 
 function isToolDone(status: ToolCallData['status']): boolean {
-  return status === 'success' || status === 'error' || status === 'cancelled'
+  return (
+    status === 'success' ||
+    status === 'error' ||
+    status === 'cancelled' ||
+    status === 'skipped' ||
+    status === 'rejected'
+  )
 }
 
 export function AgentGroup({
@@ -111,6 +117,7 @@ export function AgentGroup({
                     toolName={item.data.toolName}
                     displayTitle={item.data.displayTitle}
                     status={item.data.status}
+                    streamingArgs={item.data.streamingArgs}
                   />
                 ) : (
                   <span

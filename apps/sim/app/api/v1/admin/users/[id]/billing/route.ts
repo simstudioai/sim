@@ -21,11 +21,10 @@
 import { db } from '@sim/db'
 import { member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { eq, or } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { isOrgPlan } from '@/lib/billing/plan-helpers'
-import { generateShortId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -60,8 +59,120 @@ export const GET = withRouteHandler(
         .where(eq(user.id, userId))
         .limit(1)
 
-      if (!userData) {
-        return notFoundResponse('User')
+    if (!userData) {
+      return notFoundResponse('User')
+    }
+
+    const [stats] = await db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1)
+
+    const memberOrgs = await db
+      .select({
+        organizationId: member.organizationId,
+        organizationName: organization.name,
+        role: member.role,
+      })
+      .from(member)
+      .innerJoin(organization, eq(member.organizationId, organization.id))
+      .where(eq(member.userId, userId))
+
+    const orgIds = memberOrgs.map((m) => m.organizationId)
+
+    const subscriptions = await db
+      .select()
+      .from(subscription)
+      .where(
+        orgIds.length > 0
+          ? or(
+              eq(subscription.referenceId, userId),
+              ...orgIds.map((orgId) => eq(subscription.referenceId, orgId))
+            )
+          : eq(subscription.referenceId, userId)
+      )
+
+    const data: AdminUserBillingWithSubscription = {
+      userId: userData.id,
+      userName: userData.name,
+      userEmail: userData.email,
+      stripeCustomerId: userData.stripeCustomerId,
+      totalManualExecutions: stats?.totalManualExecutions ?? 0,
+      totalApiCalls: stats?.totalApiCalls ?? 0,
+      totalWebhookTriggers: stats?.totalWebhookTriggers ?? 0,
+      totalScheduledExecutions: stats?.totalScheduledExecutions ?? 0,
+      totalChatExecutions: stats?.totalChatExecutions ?? 0,
+      totalMcpExecutions: stats?.totalMcpExecutions ?? 0,
+      totalA2aExecutions: stats?.totalA2aExecutions ?? 0,
+      totalTokensUsed: stats?.totalTokensUsed ?? 0,
+      totalCost: stats?.totalCost ?? '0',
+      currentUsageLimit: stats?.currentUsageLimit ?? null,
+      currentPeriodCost: stats?.currentPeriodCost ?? '0',
+      lastPeriodCost: stats?.lastPeriodCost ?? null,
+      billedOverageThisPeriod: stats?.billedOverageThisPeriod ?? '0',
+      storageUsedBytes: stats?.storageUsedBytes ?? 0,
+      lastActive: stats?.lastActive?.toISOString() ?? null,
+      billingBlocked: stats?.billingBlocked ?? false,
+      totalCopilotCost: stats?.totalCopilotCost ?? '0',
+      currentPeriodCopilotCost: stats?.currentPeriodCopilotCost ?? '0',
+      lastPeriodCopilotCost: stats?.lastPeriodCopilotCost ?? null,
+      totalCopilotTokens: stats?.totalCopilotTokens ?? 0,
+      totalCopilotCalls: stats?.totalCopilotCalls ?? 0,
+      subscriptions: subscriptions.map(toAdminSubscription),
+      organizationMemberships: memberOrgs.map((m) => ({
+        organizationId: m.organizationId,
+        organizationName: m.organizationName,
+        role: m.role,
+      })),
+    }
+
+    logger.info(`Admin API: Retrieved billing for user ${userId}`)
+
+    return singleResponse(data)
+  } catch (error) {
+    logger.error('Admin API: Failed to get user billing', { error, userId })
+    return internalErrorResponse('Failed to get user billing')
+  }
+})
+
+export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) => {
+  const { id: userId } = await context.params
+
+  try {
+    const body = await request.json()
+    const reason = body.reason || 'Admin update (no reason provided)'
+
+    const [userData] = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1)
+
+    if (!userData) {
+      return notFoundResponse('User')
+    }
+
+    const [existingStats] = await db
+      .select()
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
+      .limit(1)
+
+    const userSubscription = await getHighestPrioritySubscription(userId)
+    const isOrgScopedMember = isOrgScopedSubscription(userSubscription, userId)
+
+    const [orgMembership] = await db
+      .select({ organizationId: member.organizationId })
+      .from(member)
+      .where(eq(member.userId, userId))
+      .limit(1)
+
+    const updateData: Record<string, unknown> = {}
+    const updated: string[] = []
+    const warnings: string[] = []
+
+    if (body.currentUsageLimit !== undefined) {
+      if (isOrgScopedMember && orgMembership) {
+        warnings.push(
+          'User is on an org-scoped subscription. Individual limits are ignored in favor of organization limits.'
+        )
       }
 
       const [stats] = await db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1)

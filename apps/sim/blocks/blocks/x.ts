@@ -12,7 +12,7 @@ export const XBlock: BlockConfig = {
     'Integrate X into the workflow. Search tweets, manage bookmarks, follow/block/mute users, like and retweet, view trends, and more.',
   docsLink: 'https://docs.sim.ai/tools/x',
   category: 'tools',
-  integrationType: IntegrationType.Social,
+  integrationType: IntegrationType.Communication,
   tags: ['marketing', 'messaging'],
   bgColor: '#000000',
   icon: xIcon,

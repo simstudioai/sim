@@ -132,10 +132,55 @@ export const POST = withRouteHandler(
         executionId,
       })
 
-      return createSuccessResponse({ message: 'Logs persisted successfully' })
-    } catch (error: any) {
-      logger.error(`[${requestId}] Error persisting logs for workflow: ${id}`, error)
-      return createErrorResponse(error.message || 'Failed to persist logs', 500)
+      const isChatExecution = result.metadata?.source === 'chat'
+
+      const triggerType = isChatExecution ? 'chat' : 'manual'
+      const loggingSession = new LoggingSession(id, executionId, triggerType, requestId)
+
+      const workspaceId = accessValidation.workflow.workspaceId
+      if (!workspaceId) {
+        logger.error(`[${requestId}] Workflow ${id} has no workspaceId`)
+        return createErrorResponse('Workflow has no associated workspace', 500)
+      }
+      const billedAccountUserId = await getWorkspaceBilledAccountUserId(workspaceId)
+      if (!billedAccountUserId) {
+        logger.error(`[${requestId}] Unable to resolve billed account for workspace ${workspaceId}`)
+        return createErrorResponse('Unable to resolve billing account for this workspace', 500)
+      }
+
+      await loggingSession.safeStart({
+        userId: billedAccountUserId,
+        workspaceId,
+        variables: {},
+      })
+
+      const resultWithOutput = {
+        ...result,
+        output: result.output ?? {},
+      }
+
+      const { traceSpans, totalDuration } = buildTraceSpans(resultWithOutput as ExecutionResult)
+
+      if (result.success === false) {
+        const message = result.error || 'Workflow run failed'
+        await loggingSession.safeCompleteWithError({
+          endedAt: new Date().toISOString(),
+          totalDurationMs: totalDuration || result.metadata?.duration || 0,
+          error: { message },
+          traceSpans,
+        })
+      } else {
+        await loggingSession.safeComplete({
+          endedAt: new Date().toISOString(),
+          totalDurationMs: totalDuration || result.metadata?.duration || 0,
+          finalOutput: result.output || {},
+          traceSpans,
+        })
+      }
+
+      return createSuccessResponse({
+        message: 'Run logs persisted successfully',
+      })
     }
   }
 )

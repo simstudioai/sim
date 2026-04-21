@@ -184,11 +184,14 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         recordAudit({
           workspaceId,
           actorId: userId,
+          actorName: authResult.userName ?? undefined,
+          actorEmail: authResult.userEmail ?? undefined,
           action: AuditAction.CUSTOM_TOOL_CREATED,
           resourceType: AuditResourceType.CUSTOM_TOOL,
           resourceId: tool.id,
           resourceName: tool.title,
           description: `Created/updated custom tool "${tool.title}"`,
+          metadata: { source },
         })
       }
 
@@ -305,10 +308,14 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
     recordAudit({
       workspaceId: tool.workspaceId || undefined,
       actorId: userId,
+      actorName: authResult.userName ?? undefined,
+      actorEmail: authResult.userEmail ?? undefined,
       action: AuditAction.CUSTOM_TOOL_DELETED,
       resourceType: AuditResourceType.CUSTOM_TOOL,
       resourceId: toolId,
-      description: `Deleted custom tool`,
+      resourceName: tool.title,
+      description: `Deleted custom tool "${tool.title}"`,
+      metadata: { source },
     })
 
     logger.info(`[${requestId}] Deleted tool: ${toolId}`)

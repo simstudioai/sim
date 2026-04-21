@@ -173,5 +173,35 @@ export const POST = withRouteHandler(
       logger.error('Error resending invitation', error)
       return NextResponse.json({ error: 'Failed to resend invitation' }, { status: 500 })
     }
+
+    logger.info('Resent credential set invitation', {
+      credentialSetId: id,
+      invitationId,
+      userId: session.user.id,
+    })
+
+    recordAudit({
+      workspaceId: null,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CREDENTIAL_SET_INVITATION_RESENT,
+      resourceType: AuditResourceType.CREDENTIAL_SET,
+      resourceId: id,
+      resourceName: result.set.name,
+      description: `Resent credential set invitation to ${invitation.email}`,
+      metadata: {
+        invitationId,
+        targetEmail: invitation.email,
+        providerId: result.set.providerId,
+        credentialSetName: result.set.name,
+      },
+      request: req,
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    logger.error('Error resending invitation', error)
+    return NextResponse.json({ error: 'Failed to resend invitation' }, { status: 500 })
   }
 )

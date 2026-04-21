@@ -2,8 +2,9 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { sanitizeFileName } from '@/executor/constants'
 import '@/lib/uploads/core/setup.server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
@@ -65,7 +66,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     // Context must be explicitly provided
     if (!contextParam) {
       throw new InvalidRequestError(
-        'Upload requires explicit context parameter (knowledge-base, workspace, execution, copilot, chat, or profile-pictures)'
+        'Upload requires explicit context parameter (knowledge-base, workspace, execution, copilot, chat, profile-pictures, or workspace-logos)'
       )
     }
 
@@ -283,11 +284,33 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         continue
       }
 
-      if (context === 'copilot' || context === 'chat' || context === 'profile-pictures') {
+      if (
+        context === 'copilot' ||
+        context === 'chat' ||
+        context === 'profile-pictures' ||
+        context === 'workspace-logos'
+      ) {
         if (context !== 'copilot' && !isImageFileType(file.type)) {
           throw new InvalidRequestError(
             `Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for ${context} uploads`
           )
+        }
+
+        if (context === 'workspace-logos') {
+          if (!workspaceId) {
+            throw new InvalidRequestError('workspace-logos context requires workspaceId parameter')
+          }
+          const permission = await getUserEntityPermissions(
+            session.user.id,
+            'workspace',
+            workspaceId
+          )
+          if (permission !== 'admin') {
+            return NextResponse.json(
+              { error: 'Admin access required for workspace logo uploads' },
+              { status: 403 }
+            )
+          }
         }
 
         if (context === 'chat' && workspaceId) {
@@ -347,13 +370,40 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
 
         logger.info(`Successfully uploaded ${context} file: ${fileInfo.key}`)
+
+        if (context === 'workspace-logos' && workspaceId) {
+          recordAudit({
+            workspaceId,
+            actorId: session.user.id,
+            actorName: session.user.name,
+            actorEmail: session.user.email,
+            action: AuditAction.FILE_UPLOADED,
+            resourceType: AuditResourceType.WORKSPACE,
+            resourceId: workspaceId,
+            description: `Uploaded workspace logo "${originalName}"`,
+            metadata: {
+              fileName: originalName,
+              fileKey: fileInfo.key,
+              fileSize: buffer.length,
+              fileType: file.type,
+            },
+            request,
+          })
+
+          captureServerEvent(session.user.id, 'workspace_logo_uploaded', {
+            workspace_id: workspaceId,
+            file_name: originalName,
+            file_size: buffer.length,
+          })
+        }
+
         uploadResults.push(uploadResult)
         continue
       }
 
       // Unknown context
       throw new InvalidRequestError(
-        `Unsupported context: ${context}. Use knowledge-base, workspace, execution, copilot, chat, or profile-pictures`
+        `Unsupported context: ${context}. Use knowledge-base, workspace, execution, copilot, chat, profile-pictures, or workspace-logos`
       )
     }
 

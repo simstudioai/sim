@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { mcpServers, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -251,10 +252,6 @@ export const POST =
       })
     } catch (error) {
       logger.error(`[${requestId}] Error refreshing MCP server:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to refresh MCP server'),
-        'Failed to refresh MCP server',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to refresh MCP server', 500)
     }
   })

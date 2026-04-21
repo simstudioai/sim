@@ -235,16 +235,67 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
       return null
     }
 
-    const callbackUrl = process.env.SSO_SAML_CALLBACK_URL || `${issuer}/callback`
+    const appBaseUrl = (
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.BETTER_AUTH_URL ||
+      ''
+    ).replace(/\/$/, '')
+
+    const escapeXml = (str: string) =>
+      str.replace(/[<>&"']/g, (c) => {
+        switch (c) {
+          case '<':
+            return '&lt;'
+          case '>':
+            return '&gt;'
+          case '&':
+            return '&amp;'
+          case '"':
+            return '&quot;'
+          case "'":
+            return '&apos;'
+          default:
+            return c
+        }
+      })
+
+    const callbackUrl =
+      process.env.SSO_SAML_CALLBACK_URL || `${appBaseUrl}/api/auth/sso/saml2/callback/${providerId}`
 
     let spMetadata = process.env.SSO_SAML_SP_METADATA
     if (!spMetadata) {
       spMetadata = `<?xml version="1.0" encoding="UTF-8"?>
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${issuer}">
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(appBaseUrl)}">
   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${callbackUrl}" index="1"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${escapeXml(callbackUrl)}" index="1"/>
   </md:SPSSODescriptor>
 </md:EntityDescriptor>`
+    }
+
+    const idpMetadataXml = process.env.SSO_SAML_IDP_METADATA
+    let computedIdpMetadata: string
+    if (idpMetadataXml) {
+      computedIdpMetadata = idpMetadataXml
+    } else {
+      const certBase64 = cert
+        .replace(/-----BEGIN CERTIFICATE-----/g, '')
+        .replace(/-----END CERTIFICATE-----/g, '')
+        .replace(/\s/g, '')
+      const escapedEntryPoint = escapeXml(entryPoint)
+      computedIdpMetadata = `<?xml version="1.0"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(issuer)}">
+  <IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <KeyDescriptor use="signing">
+      <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+        <ds:X509Data>
+          <ds:X509Certificate>${certBase64}</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </KeyDescriptor>
+    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${escapedEntryPoint}"/>
+    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${escapedEntryPoint}"/>
+  </IDPSSODescriptor>
+</EntityDescriptor>`
     }
 
     config.samlConfig = {
@@ -259,14 +310,11 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
       identifierFormat: process.env.SSO_SAML_IDENTIFIER_FORMAT,
       spMetadata: {
         metadata: spMetadata,
-        entityID: issuer,
+        entityID: appBaseUrl,
       },
-    }
-    const idpMetadata = process.env.SSO_SAML_IDP_METADATA
-    if (idpMetadata) {
-      config.samlConfig.idpMetadata = {
-        metadata: idpMetadata,
-      }
+      idpMetadata: {
+        metadata: computedIdpMetadata,
+      },
     }
   }
 
@@ -393,6 +441,17 @@ async function registerSSOProvider(): Promise<boolean> {
       new URL(ssoConfig.issuer)
     } catch {
       logger.error('Invalid issuer. Must be a valid URL:', ssoConfig.issuer)
+      return false
+    }
+
+    if (
+      ssoConfig.providerType === 'saml' &&
+      !process.env.NEXT_PUBLIC_APP_URL &&
+      !process.env.BETTER_AUTH_URL
+    ) {
+      logger.error(
+        'NEXT_PUBLIC_APP_URL or BETTER_AUTH_URL is required for SAML — it is used as the SP entity ID in SP metadata. Set one of these env vars.'
+      )
       return false
     }
 
@@ -579,8 +638,13 @@ async function registerSSOProvider(): Promise<boolean> {
 
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_URL || process.env.BETTER_AUTH_URL || 'https://your-domain.com'
-    const callbackUrl = `${baseUrl}/api/auth/sso/callback/${ssoConfig.providerId}`
-    logger.info(`📋 Callback URL (configure this in your identity provider): ${callbackUrl}`)
+    const callbackPath =
+      ssoConfig.providerType === 'saml'
+        ? `api/auth/sso/saml2/callback/${ssoConfig.providerId}`
+        : `api/auth/sso/callback/${ssoConfig.providerId}`
+    logger.info(
+      `📋 Callback URL (configure this in your identity provider): ${baseUrl}/${callbackPath}`
+    )
 
     return true
   } catch (error) {

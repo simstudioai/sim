@@ -1,12 +1,11 @@
 import { db } from '@sim/db'
 import { credentialSet, credentialSetMember, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 
 const logger = createLogger('CredentialSetMemberships')
@@ -117,6 +116,7 @@ export const DELETE = withRouteHandler(async (req: NextRequest) => {
       resourceType: AuditResourceType.CREDENTIAL_SET,
       resourceId: credentialSetId,
       description: `Left credential set`,
+      metadata: { credentialSetId },
       request: req,
     })
 

@@ -4,6 +4,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
+import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('ConfluencePagesAPI')
 
@@ -67,26 +68,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     logger.info('Response status:', response.status, response.statusText)
 
     if (!response.ok) {
-      logger.error(`Confluence API error: ${response.status} ${response.statusText}`)
-      let errorMessage
-
-      try {
-        const errorData = await response.json()
-        logger.error('Error details:', JSON.stringify(errorData, null, 2))
-        errorMessage = errorData.message || `Failed to fetch Confluence pages (${response.status})`
-      } catch (e) {
-        logger.error('Could not parse error response as JSON:', e)
-
-        try {
-          const text = await response.text()
-          logger.error('Response text:', text)
-          errorMessage = `Failed to fetch Confluence pages: ${response.status} ${response.statusText}`
-        } catch (_textError) {
-          errorMessage = `Failed to fetch Confluence pages: ${response.status} ${response.statusText}`
-        }
-      }
-
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      const errorText = await response.text()
+      logger.error('Confluence API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+      })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
     const data = await response.json()

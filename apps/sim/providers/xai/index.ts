@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
@@ -284,7 +285,7 @@ export const xAIProvider: ProviderConfig = {
             } catch (error) {
               const toolCallEndTime = Date.now()
               logger.error('XAI Provider - Error processing tool call:', {
-                error: error instanceof Error ? error.message : String(error),
+                error: toError(error).message,
                 toolCall: toolCall.function.name,
               })
 
@@ -462,7 +463,7 @@ export const xAIProvider: ProviderConfig = {
         }
       } catch (error) {
         logger.error('XAI Provider - Error in tool processing loop:', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
           iterationCount,
         })
       }
@@ -599,13 +600,13 @@ export const xAIProvider: ProviderConfig = {
       const totalDuration = providerEndTime - providerStartTime
 
       logger.error('XAI Provider - Request failed:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         duration: totalDuration,
         hasTools: !!tools?.length,
         hasResponseFormat: !!request.responseFormat,
       })
 
-      throw new ProviderError(error instanceof Error ? error.message : String(error), {
+      throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,

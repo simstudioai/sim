@@ -4,6 +4,7 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleDriveResponse } from '@/tools/google_drive/types'
+import { getTrigger } from '@/triggers'
 
 export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   type: 'google_drive',
@@ -315,6 +316,7 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       title: 'Export Format',
       type: 'dropdown',
       options: [
+        { label: 'Auto (best format for file type)', id: 'auto' },
         { label: 'Plain Text (text/plain)', id: 'text/plain' },
         { label: 'HTML (text/html)', id: 'text/html' },
         { label: 'PDF (application/pdf)', id: 'application/pdf' },
@@ -332,7 +334,8 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
         },
         { label: 'CSV (text/csv)', id: 'text/csv' },
       ],
-      placeholder: 'Optional: Choose export format for Google Docs/Sheets/Slides',
+      value: () => 'auto',
+      placeholder: 'Export format for Google Docs/Sheets/Slides',
       condition: { field: 'operation', value: 'download' },
     },
     {
@@ -719,6 +722,7 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
       required: true,
     },
     // Get Drive Info has no additional fields (just needs credential)
+    ...getTrigger('google_drive_poller').subBlocks,
   ],
   tools: {
     access: [
@@ -865,7 +869,7 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
           destinationFolderId: effectiveDestinationFolderId,
           file: normalizedFile,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
-          mimeType: mimeType,
+          mimeType: mimeType === 'auto' ? undefined : mimeType,
           type: shareType, // Map shareType to type for share tool
           starred: starredValue,
           sendNotification: sendNotificationValue,
@@ -938,5 +942,9 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
     maxUploadSize: { type: 'string', description: 'Maximum upload size in bytes' },
     deleted: { type: 'boolean', description: 'Whether file was deleted' },
     removed: { type: 'boolean', description: 'Whether permission was removed' },
+  },
+  triggers: {
+    enabled: true,
+    available: ['google_drive_poller'],
   },
 }

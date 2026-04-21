@@ -3,69 +3,35 @@
  *
  * @vitest-environment node
  */
+import {
+  dbChainMock,
+  dbChainMockFns,
+  hybridAuthMockFns,
+  resetDbChainMock,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckSessionOrInternalAuth,
-  mockAuthorizeWorkflowByWorkspacePermission,
-  mockDbSelect,
-  mockDbFrom,
-  mockDbWhere,
-  mockDbLimit,
-} = vi.hoisted(() => ({
-  mockCheckSessionOrInternalAuth: vi.fn(),
-  mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
-  mockDbSelect: vi.fn(),
-  mockDbFrom: vi.fn(),
-  mockDbWhere: vi.fn(),
-  mockDbLimit: vi.fn(),
-}))
-
+vi.mock('@sim/db', () => dbChainMock)
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
   eq: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockDbSelect,
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  form: {
-    id: 'id',
-    identifier: 'identifier',
-    title: 'title',
-    workflowId: 'workflowId',
-    isActive: 'isActive',
-  },
-}))
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-}))
-
-vi.mock('@/lib/workflows/utils', () => ({
-  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { GET } from '@/app/api/workflows/[id]/form/status/route'
 
 describe('Workflow Form Status Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    mockDbSelect.mockReturnValue({ from: mockDbFrom })
-    mockDbFrom.mockReturnValue({ where: mockDbWhere })
-    mockDbWhere.mockReturnValue({ limit: mockDbLimit })
-    mockDbLimit.mockResolvedValue([])
+    resetDbChainMock()
   })
 
   it('returns 401 when unauthenticated', async () => {
-    mockCheckSessionOrInternalAuth.mockResolvedValueOnce({ success: false })
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({ success: false })
 
     const req = new NextRequest('http://localhost:3000/api/workflows/wf-1/form/status')
     const response = await GET(req, { params: Promise.resolve({ id: 'wf-1' }) })
@@ -74,12 +40,12 @@ describe('Workflow Form Status Route', () => {
   })
 
   it('returns 403 when user lacks workspace access', async () => {
-    mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
       success: true,
       userId: 'user-1',
       authType: 'session',
     })
-    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
       allowed: false,
       status: 403,
       message: 'Access denied',
@@ -94,18 +60,18 @@ describe('Workflow Form Status Route', () => {
   })
 
   it('returns deployed form when authorized', async () => {
-    mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
       success: true,
       userId: 'user-1',
       authType: 'session',
     })
-    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
       allowed: true,
       status: 200,
       workflow: { id: 'wf-1', workspaceId: 'ws-1' },
       workspacePermission: 'read',
     })
-    mockDbLimit.mockResolvedValueOnce([
+    dbChainMockFns.limit.mockResolvedValueOnce([
       {
         id: 'form-1',
         identifier: 'feedback-form',

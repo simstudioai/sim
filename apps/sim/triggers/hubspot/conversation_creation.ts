@@ -94,17 +94,6 @@ export const hubspotConversationCreationTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_conversation_creation',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_conversation_creation',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',

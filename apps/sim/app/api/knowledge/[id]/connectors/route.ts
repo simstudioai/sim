@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { knowledgeBase, knowledgeBaseTagDefinitions, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -9,8 +10,6 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { hasLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
 import { createTagDefinition } from '@/lib/knowledge/tags/service'
@@ -319,8 +318,92 @@ export const POST = withRouteHandler(
       if (error instanceof Error && error.message === 'Knowledge base not found') {
         return NextResponse.json({ error: 'Not found' }, { status: 404 })
       }
-      logger.error(`[${requestId}] Error creating connector`, error)
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+
+      for (const [semanticId, slot] of Object.entries(newTagSlots)) {
+        const td = connectorConfig.tagDefinitions!.find((d) => d.id === semanticId)!
+        await createTagDefinition(
+          {
+            knowledgeBaseId,
+            tagSlot: slot,
+            displayName: td.displayName,
+            fieldType: td.fieldType,
+          },
+          requestId,
+          tx
+        )
+      }
+
+      await tx.insert(knowledgeConnector).values({
+        id: connectorId,
+        knowledgeBaseId,
+        connectorType,
+        credentialId: resolvedCredentialId,
+        encryptedApiKey: resolvedEncryptedApiKey,
+        sourceConfig: finalSourceConfig,
+        syncIntervalMinutes,
+        status: 'active',
+        nextSyncAt,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+
+    logger.info(`[${requestId}] Created connector ${connectorId} for KB ${knowledgeBaseId}`)
+
+    const kbWorkspaceId = writeCheck.knowledgeBase.workspaceId ?? ''
+    captureServerEvent(
+      auth.userId,
+      'knowledge_base_connector_added',
+      {
+        knowledge_base_id: knowledgeBaseId,
+        workspace_id: kbWorkspaceId,
+        connector_type: connectorType,
+        sync_interval_minutes: syncIntervalMinutes,
+      },
+      {
+        groups: kbWorkspaceId ? { workspace: kbWorkspaceId } : undefined,
+        setOnce: { first_connector_added_at: new Date().toISOString() },
+      }
+    )
+
+    recordAudit({
+      workspaceId: writeCheck.knowledgeBase.workspaceId,
+      actorId: auth.userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.CONNECTOR_CREATED,
+      resourceType: AuditResourceType.CONNECTOR,
+      resourceId: connectorId,
+      resourceName: connectorType,
+      description: `Created ${connectorType} connector for knowledge base "${writeCheck.knowledgeBase.name}"`,
+      metadata: {
+        knowledgeBaseId,
+        knowledgeBaseName: writeCheck.knowledgeBase.name,
+        connectorType,
+        syncIntervalMinutes,
+        authMode: connectorConfig.auth.mode,
+      },
+      request,
+    })
+
+    dispatchSync(connectorId, { requestId }).catch((error) => {
+      logger.error(
+        `[${requestId}] Failed to dispatch initial sync for connector ${connectorId}`,
+        error
+      )
+    })
+
+    const created = await db
+      .select()
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, connectorId))
+      .limit(1)
+
+    const { encryptedApiKey: _, ...createdData } = created[0]
+    return NextResponse.json({ success: true, data: createdData }, { status: 201 })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Knowledge base not found') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
   }
 )

@@ -1,3 +1,4 @@
+import type { WorkspaceMode } from '@sim/db/schema'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 /**
@@ -25,16 +26,38 @@ export interface Workspace {
   id: string
   name: string
   color?: string
+  logoUrl?: string | null
   ownerId: string
+  organizationId: string | null
+  workspaceMode: WorkspaceMode
   role?: string
   membershipId?: string
   permissions?: 'admin' | 'write' | 'read' | null
+  billedAccountUserId?: string | null
+  inviteMembersEnabled?: boolean
+  inviteDisabledReason?: string | null
+  inviteUpgradeRequired?: boolean
+}
+
+export interface WorkspaceCreationPolicy {
+  canCreate: boolean
+  workspaceMode: WorkspaceMode
+  organizationId: string | null
+  maxWorkspaces: number | null
+  currentWorkspaceCount: number
+  reason: string | null
+}
+
+interface WorkspacesResponse {
+  workspaces: Workspace[]
+  lastActiveWorkspaceId: string | null
+  creationPolicy: WorkspaceCreationPolicy | null
 }
 
 async function fetchWorkspaces(
   scope: WorkspaceQueryScope = 'active',
   signal?: AbortSignal
-): Promise<Workspace[]> {
+): Promise<WorkspacesResponse> {
   const response = await fetch(`/api/workspaces?scope=${scope}`, { signal })
 
   if (!response.ok) {
@@ -42,20 +65,67 @@ async function fetchWorkspaces(
   }
 
   const data = await response.json()
-  return data.workspaces || []
+  return {
+    workspaces:
+      data.workspaces?.map((workspace: Workspace) => ({
+        ...workspace,
+        organizationId: workspace.organizationId ?? null,
+        workspaceMode: workspace.workspaceMode ?? 'grandfathered_shared',
+        inviteMembersEnabled: workspace.inviteMembersEnabled ?? false,
+        inviteDisabledReason: workspace.inviteDisabledReason ?? null,
+        inviteUpgradeRequired: workspace.inviteUpgradeRequired ?? false,
+      })) || [],
+    lastActiveWorkspaceId:
+      typeof data.lastActiveWorkspaceId === 'string' ? data.lastActiveWorkspaceId : null,
+    creationPolicy: data.creationPolicy
+      ? {
+          ...data.creationPolicy,
+          organizationId: data.creationPolicy.organizationId ?? null,
+          reason: data.creationPolicy.reason ?? null,
+          workspaceMode: data.creationPolicy.workspaceMode ?? 'personal',
+        }
+      : null,
+  }
 }
+
+const selectWorkspaces = (data: WorkspacesResponse): Workspace[] => data.workspaces
 
 /**
  * Fetches the current user's workspaces.
- * @param enabled - Whether the query should execute (defaults to true)
+ * Returns only the workspace array. Use `useWorkspacesWithMetadata` when
+ * you also need `lastActiveWorkspaceId`.
  */
 export function useWorkspacesQuery(enabled = true, scope: WorkspaceQueryScope = 'active') {
   return useQuery({
     queryKey: workspaceKeys.list(scope),
     queryFn: ({ signal }) => fetchWorkspaces(scope, signal),
+    select: selectWorkspaces,
     enabled,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Fetches workspaces with the user's last active workspace ID.
+ * Used by the redirect page to determine which workspace to open.
+ */
+export function useWorkspacesWithMetadata(enabled = true) {
+  return useQuery({
+    queryKey: workspaceKeys.list('active'),
+    queryFn: ({ signal }) => fetchWorkspaces('active', signal),
+    enabled,
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useWorkspaceCreationPolicy(enabled = true) {
+  return useQuery({
+    queryKey: workspaceKeys.list('active'),
+    queryFn: ({ signal }) => fetchWorkspaces('active', signal),
+    select: (data) => data.creationPolicy,
+    enabled,
+    staleTime: 30 * 1000,
   })
 }
 
@@ -88,14 +158,14 @@ export function useCreateWorkspace() {
       return data.workspace as Workspace
     },
     onSuccess: (newWorkspace) => {
-      queryClient.setQueryData<Workspace[]>(workspaceKeys.list('active'), (previous) => {
-        if (!previous?.length) {
-          return [newWorkspace]
+      queryClient.setQueryData<WorkspacesResponse>(workspaceKeys.list('active'), (previous) => {
+        if (!previous) {
+          return { workspaces: [newWorkspace], lastActiveWorkspaceId: null, creationPolicy: null }
         }
-        if (previous.some((w) => w.id === newWorkspace.id)) {
+        if (previous.workspaces.some((w) => w.id === newWorkspace.id)) {
           return previous
         }
-        return [newWorkspace, ...previous]
+        return { ...previous, workspaces: [newWorkspace, ...previous.workspaces] }
       })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.adminLists() })
@@ -141,6 +211,7 @@ interface UpdateWorkspaceParams {
   workspaceId: string
   name?: string
   color?: string
+  logoUrl?: string | null
 }
 
 /**
@@ -333,10 +404,13 @@ export interface AdminWorkspace {
   isOwner: boolean
   ownerId?: string
   canInvite: boolean
+  organizationId: string | null
+  workspaceMode: WorkspaceMode
 }
 
 async function fetchAdminWorkspaces(
   userId: string | undefined,
+  organizationId: string | undefined,
   signal?: AbortSignal
 ): Promise<AdminWorkspace[]> {
   if (!userId) {
@@ -349,66 +423,41 @@ async function fetchAdminWorkspaces(
   }
 
   const workspacesData = await workspacesResponse.json()
-  const allUserWorkspaces = workspacesData.workspaces || []
+  const allUserWorkspaces = (workspacesData.workspaces || []).map((workspace: Workspace) => ({
+    ...workspace,
+    organizationId: workspace.organizationId ?? null,
+    workspaceMode: workspace.workspaceMode ?? 'grandfathered_shared',
+    inviteMembersEnabled: workspace.inviteMembersEnabled ?? false,
+    inviteDisabledReason: workspace.inviteDisabledReason ?? null,
+    inviteUpgradeRequired: workspace.inviteUpgradeRequired ?? false,
+  }))
 
-  const permissionPromises = allUserWorkspaces.map(
-    async (workspace: { id: string; name: string; isOwner?: boolean; ownerId?: string }) => {
-      try {
-        const permissionResponse = await fetch(`/api/workspaces/${workspace.id}/permissions`, {
-          signal,
-        })
-        if (!permissionResponse.ok) {
-          return null
-        }
-        const permissionData = await permissionResponse.json()
-        return { workspace, permissionData }
-      } catch (_error) {
-        return null
-      }
-    }
-  )
-
-  const results = await Promise.all(permissionPromises)
-
-  const adminWorkspaces: AdminWorkspace[] = []
-  for (const result of results) {
-    if (!result) continue
-
-    const { workspace, permissionData } = result
-    let hasAdminAccess = false
-
-    if (permissionData.users) {
-      const currentUserPermission = permissionData.users.find(
-        (user: { id: string; userId?: string; permissionType: string }) =>
-          user.id === userId || user.userId === userId
-      )
-      hasAdminAccess = currentUserPermission?.permissionType === 'admin'
-    }
-
-    const isOwner = workspace.isOwner || workspace.ownerId === userId
-
-    if (hasAdminAccess || isOwner) {
-      adminWorkspaces.push({
-        id: workspace.id,
-        name: workspace.name,
-        isOwner,
-        ownerId: workspace.ownerId,
-        canInvite: true,
-      })
-    }
-  }
-
-  return adminWorkspaces
+  return allUserWorkspaces
+    .filter((workspace: Workspace) => workspace.permissions === 'admin')
+    .filter((workspace: Workspace) =>
+      organizationId
+        ? workspace.organizationId === organizationId && workspace.workspaceMode === 'organization'
+        : true
+    )
+    .map((workspace: Workspace) => ({
+      id: workspace.id,
+      name: workspace.name,
+      isOwner: workspace.ownerId === userId,
+      ownerId: workspace.ownerId,
+      canInvite: workspace.inviteMembersEnabled ?? false,
+      organizationId: workspace.organizationId,
+      workspaceMode: workspace.workspaceMode,
+    }))
 }
 
 /**
  * Fetches workspaces where the user has admin access.
  * @param userId - The user ID to check admin access for
  */
-export function useAdminWorkspaces(userId: string | undefined) {
+export function useAdminWorkspaces(userId: string | undefined, organizationId?: string) {
   return useQuery({
-    queryKey: workspaceKeys.adminList(userId),
-    queryFn: ({ signal }) => fetchAdminWorkspaces(userId, signal),
+    queryKey: [...workspaceKeys.adminList(userId), organizationId ?? ''] as const,
+    queryFn: ({ signal }) => fetchAdminWorkspaces(userId, organizationId, signal),
     enabled: Boolean(userId),
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,

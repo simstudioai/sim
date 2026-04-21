@@ -56,19 +56,26 @@ import {
 import {
   confluenceAttachmentCreatedTrigger,
   confluenceAttachmentRemovedTrigger,
+  confluenceAttachmentUpdatedTrigger,
   confluenceBlogCreatedTrigger,
   confluenceBlogRemovedTrigger,
+  confluenceBlogRestoredTrigger,
   confluenceBlogUpdatedTrigger,
   confluenceCommentCreatedTrigger,
   confluenceCommentRemovedTrigger,
+  confluenceCommentUpdatedTrigger,
   confluenceLabelAddedTrigger,
   confluenceLabelRemovedTrigger,
   confluencePageCreatedTrigger,
   confluencePageMovedTrigger,
+  confluencePagePermissionsUpdatedTrigger,
   confluencePageRemovedTrigger,
+  confluencePageRestoredTrigger,
   confluencePageUpdatedTrigger,
   confluenceSpaceCreatedTrigger,
+  confluenceSpaceRemovedTrigger,
   confluenceSpaceUpdatedTrigger,
+  confluenceUserCreatedTrigger,
   confluenceWebhookTrigger,
 } from '@/triggers/confluence'
 import { fathomNewMeetingTrigger, fathomWebhookTrigger } from '@/triggers/fathom'
@@ -90,6 +97,9 @@ import {
 } from '@/triggers/github'
 import { gmailPollingTrigger } from '@/triggers/gmail'
 import { gongCallCompletedTrigger, gongWebhookTrigger } from '@/triggers/gong'
+import { googleCalendarPollingTrigger } from '@/triggers/google-calendar'
+import { googleDrivePollingTrigger } from '@/triggers/google-drive'
+import { googleSheetsPollingTrigger } from '@/triggers/google-sheets'
 import { googleFormsWebhookTrigger } from '@/triggers/googleforms'
 import {
   grainHighlightCreatedTrigger,
@@ -150,13 +160,29 @@ import {
   intercomWebhookTrigger,
 } from '@/triggers/intercom'
 import {
+  jiraCommentDeletedTrigger,
+  jiraCommentUpdatedTrigger,
   jiraIssueCommentedTrigger,
   jiraIssueCreatedTrigger,
   jiraIssueDeletedTrigger,
   jiraIssueUpdatedTrigger,
+  jiraProjectCreatedTrigger,
+  jiraSprintClosedTrigger,
+  jiraSprintCreatedTrigger,
+  jiraSprintStartedTrigger,
+  jiraVersionReleasedTrigger,
   jiraWebhookTrigger,
   jiraWorklogCreatedTrigger,
+  jiraWorklogDeletedTrigger,
+  jiraWorklogUpdatedTrigger,
 } from '@/triggers/jira'
+import {
+  jsmRequestCommentedTrigger,
+  jsmRequestCreatedTrigger,
+  jsmRequestResolvedTrigger,
+  jsmRequestUpdatedTrigger,
+  jsmWebhookTrigger,
+} from '@/triggers/jsm'
 import {
   lemlistEmailBouncedTrigger,
   lemlistEmailClickedTrigger,
@@ -205,6 +231,17 @@ import {
   microsoftTeamsWebhookTrigger,
 } from '@/triggers/microsoftteams'
 import {
+  mondayColumnChangedTrigger,
+  mondayItemArchivedTrigger,
+  mondayItemCreatedTrigger,
+  mondayItemDeletedTrigger,
+  mondayItemMovedTrigger,
+  mondayItemNameChangedTrigger,
+  mondayStatusChangedTrigger,
+  mondaySubitemCreatedTrigger,
+  mondayUpdateCreatedTrigger,
+} from '@/triggers/monday'
+import {
   notionCommentCreatedTrigger,
   notionDatabaseCreatedTrigger,
   notionDatabaseDeletedTrigger,
@@ -235,6 +272,13 @@ import {
   salesforceRecordUpdatedTrigger,
   salesforceWebhookTrigger,
 } from '@/triggers/salesforce'
+import {
+  servicenowChangeRequestCreatedTrigger,
+  servicenowChangeRequestUpdatedTrigger,
+  servicenowIncidentCreatedTrigger,
+  servicenowIncidentUpdatedTrigger,
+  servicenowWebhookTrigger,
+} from '@/triggers/servicenow'
 import { slackWebhookTrigger } from '@/triggers/slack'
 import { stripeWebhookTrigger } from '@/triggers/stripe'
 import { telegramWebhookTrigger } from '@/triggers/telegram'
@@ -327,6 +371,13 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   confluence_space_updated: confluenceSpaceUpdatedTrigger,
   confluence_label_added: confluenceLabelAddedTrigger,
   confluence_label_removed: confluenceLabelRemovedTrigger,
+  confluence_comment_updated: confluenceCommentUpdatedTrigger,
+  confluence_attachment_updated: confluenceAttachmentUpdatedTrigger,
+  confluence_page_restored: confluencePageRestoredTrigger,
+  confluence_blog_restored: confluenceBlogRestoredTrigger,
+  confluence_space_removed: confluenceSpaceRemovedTrigger,
+  confluence_page_permissions_updated: confluencePagePermissionsUpdatedTrigger,
+  confluence_user_created: confluenceUserCreatedTrigger,
   generic_webhook: genericWebhookTrigger,
   greenhouse_candidate_hired: greenhouseCandidateHiredTrigger,
   greenhouse_new_application: greenhouseNewApplicationTrigger,
@@ -352,6 +403,9 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   fathom_new_meeting: fathomNewMeetingTrigger,
   fathom_webhook: fathomWebhookTrigger,
   gmail_poller: gmailPollingTrigger,
+  google_calendar_poller: googleCalendarPollingTrigger,
+  google_drive_poller: googleDrivePollingTrigger,
+  google_sheets_poller: googleSheetsPollingTrigger,
   gong_call_completed: gongCallCompletedTrigger,
   gong_webhook: gongWebhookTrigger,
   grain_webhook: grainWebhookTrigger,
@@ -370,7 +424,21 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   jira_issue_updated: jiraIssueUpdatedTrigger,
   jira_issue_deleted: jiraIssueDeletedTrigger,
   jira_issue_commented: jiraIssueCommentedTrigger,
+  jira_comment_updated: jiraCommentUpdatedTrigger,
+  jira_comment_deleted: jiraCommentDeletedTrigger,
   jira_worklog_created: jiraWorklogCreatedTrigger,
+  jira_worklog_updated: jiraWorklogUpdatedTrigger,
+  jira_worklog_deleted: jiraWorklogDeletedTrigger,
+  jira_sprint_created: jiraSprintCreatedTrigger,
+  jira_sprint_started: jiraSprintStartedTrigger,
+  jira_sprint_closed: jiraSprintClosedTrigger,
+  jira_project_created: jiraProjectCreatedTrigger,
+  jira_version_released: jiraVersionReleasedTrigger,
+  jsm_request_created: jsmRequestCreatedTrigger,
+  jsm_request_updated: jsmRequestUpdatedTrigger,
+  jsm_request_commented: jsmRequestCommentedTrigger,
+  jsm_request_resolved: jsmRequestResolvedTrigger,
+  jsm_webhook: jsmWebhookTrigger,
   lemlist_webhook: lemlistWebhookTrigger,
   lemlist_email_replied: lemlistEmailRepliedTrigger,
   lemlist_email_opened: lemlistEmailOpenedTrigger,
@@ -410,6 +478,15 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   linear_project_update_created_v2: linearProjectUpdateCreatedV2Trigger,
   linear_customer_request_created_v2: linearCustomerRequestCreatedV2Trigger,
   linear_customer_request_updated_v2: linearCustomerRequestUpdatedV2Trigger,
+  monday_item_created: mondayItemCreatedTrigger,
+  monday_column_changed: mondayColumnChangedTrigger,
+  monday_status_changed: mondayStatusChangedTrigger,
+  monday_item_name_changed: mondayItemNameChangedTrigger,
+  monday_item_archived: mondayItemArchivedTrigger,
+  monday_item_deleted: mondayItemDeletedTrigger,
+  monday_item_moved: mondayItemMovedTrigger,
+  monday_subitem_created: mondaySubitemCreatedTrigger,
+  monday_update_created: mondayUpdateCreatedTrigger,
   microsoftteams_webhook: microsoftTeamsWebhookTrigger,
   microsoftteams_chat_subscription: microsoftTeamsChatSubscriptionTrigger,
   notion_page_created: notionPageCreatedTrigger,
@@ -437,6 +514,11 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   salesforce_opportunity_stage_changed: salesforceOpportunityStageChangedTrigger,
   salesforce_case_status_changed: salesforceCaseStatusChangedTrigger,
   salesforce_webhook: salesforceWebhookTrigger,
+  servicenow_incident_created: servicenowIncidentCreatedTrigger,
+  servicenow_incident_updated: servicenowIncidentUpdatedTrigger,
+  servicenow_change_request_created: servicenowChangeRequestCreatedTrigger,
+  servicenow_change_request_updated: servicenowChangeRequestUpdatedTrigger,
+  servicenow_webhook: servicenowWebhookTrigger,
   stripe_webhook: stripeWebhookTrigger,
   telegram_webhook: telegramWebhookTrigger,
   typeform_webhook: typeformWebhookTrigger,

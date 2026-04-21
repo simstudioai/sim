@@ -55,14 +55,46 @@ export const POST = withRouteHandler(
         newWorkflowId: newId,
       })
 
-      try {
-        PlatformEvents.workflowDuplicated({
-          sourceWorkflowId,
-          newWorkflowId: result.id,
-          workspaceId,
-        })
-      } catch {
-        // Telemetry should not fail the operation
+    captureServerEvent(
+      userId,
+      'workflow_duplicated',
+      {
+        source_workflow_id: sourceWorkflowId,
+        new_workflow_id: result.id,
+        workspace_id: workspaceId ?? '',
+      },
+      workspaceId ? { groups: { workspace: workspaceId } } : undefined
+    )
+
+    const elapsed = Date.now() - startTime
+    logger.info(
+      `[${requestId}] Successfully duplicated workflow ${sourceWorkflowId} to ${result.id} in ${elapsed}ms`
+    )
+
+    recordAudit({
+      workspaceId: workspaceId || null,
+      actorId: userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.WORKFLOW_DUPLICATED,
+      resourceType: AuditResourceType.WORKFLOW,
+      resourceId: result.id,
+      resourceName: result.name,
+      description: `Duplicated workflow from ${sourceWorkflowId}`,
+      metadata: {
+        sourceWorkflowId,
+        newWorkflowId: result.id,
+        folderId: folderId || undefined,
+      },
+      request: req,
+    })
+
+    return NextResponse.json(result, { status: 201 })
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Source workflow not found') {
+        logger.warn(`[${requestId}] Source workflow ${sourceWorkflowId} not found`)
+        return NextResponse.json({ error: 'Source workflow not found' }, { status: 404 })
       }
 
       captureServerEvent(

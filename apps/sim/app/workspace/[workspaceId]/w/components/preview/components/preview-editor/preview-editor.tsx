@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { formatDuration } from '@sim/utils/formatting'
 import {
   ArrowDown,
   ArrowUp,
@@ -28,7 +29,6 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { formatDuration } from '@/lib/core/utils/formatting'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndex,
@@ -1153,8 +1153,10 @@ function PreviewEditorContent({
     if (subBlock.type === ('trigger-config' as SubBlockType)) {
       return effectiveTrigger || isPureTriggerBlock
     }
-    if (subBlock.mode === 'trigger' && !effectiveTrigger) return false
-    if (effectiveTrigger && subBlock.mode !== 'trigger') return false
+    if ((subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') && !effectiveTrigger)
+      return false
+    if (effectiveTrigger && subBlock.mode !== 'trigger' && subBlock.mode !== 'trigger-advanced')
+      return false
     if (!isSubBlockFeatureEnabled(subBlock)) return false
     if (
       !isSubBlockVisibleForMode(

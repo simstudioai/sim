@@ -7,8 +7,7 @@
  * Auth is handled via session cookies (EventSource sends cookies automatically).
  */
 
-import { taskPubSub } from '@/lib/copilot/task-events'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { taskPubSub } from '@/lib/copilot/tasks'
 import { createWorkspaceSSE } from '@/lib/events/sse-endpoint'
 
 export const dynamic = 'force-dynamic'

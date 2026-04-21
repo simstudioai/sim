@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { generateId } from '@/lib/core/utils/uuid'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -15,6 +16,7 @@ export interface ExecuteWorkflowOptions {
   selectedOutputs?: string[]
   isSecureMode?: boolean
   workflowTriggerType?: 'api' | 'chat' | 'copilot'
+  triggerBlockId?: string
   onStream?: (streamingExec: StreamingExecution) => Promise<void>
   onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
   skipLoggingComplete?: boolean
@@ -30,6 +32,7 @@ export interface ExecuteWorkflowOptions {
     startBlockId: string
     sourceSnapshot: SerializableExecutionState
   }
+  executionMode?: 'sync' | 'stream' | 'async'
 }
 
 export interface WorkflowInfo {
@@ -67,9 +70,11 @@ export async function executeWorkflow(
       userId: actorUserId,
       workflowUserId: workflow.userId,
       triggerType,
+      triggerBlockId: streamConfig?.triggerBlockId,
       useDraftState: streamConfig?.useDraftState ?? false,
       startTime: new Date().toISOString(),
       isClientSession: false,
+      executionMode: streamConfig?.executionMode,
     }
 
     const snapshot = new ExecutionSnapshot(
@@ -150,7 +155,7 @@ export async function executeWorkflow(
         workflow_id: workflow.id,
         workspace_id: workspaceId,
         trigger_type: streamConfig?.workflowTriggerType || 'api',
-        error_message: error instanceof Error ? error.message : String(error),
+        error_message: toError(error).message,
       },
       { groups: { workspace: workspaceId } }
     )
