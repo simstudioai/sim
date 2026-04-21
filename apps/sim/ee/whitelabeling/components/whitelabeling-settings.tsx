@@ -328,27 +328,29 @@ export function WhitelabelingSettings() {
               label='Logo'
               description='Shown in the collapsed sidebar. Square image recommended (PNG, JPEG, or SVG, max 5MB).'
             >
-              <DropZone onDrop={logoUpload.handleFileDrop} className='flex items-center gap-4'>
-                <button
-                  type='button'
-                  onClick={logoUpload.handleThumbnailClick}
-                  disabled={logoUpload.isUploading}
-                  className='group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
-                >
-                  {logoUpload.isUploading ? (
-                    <Loader2 className='h-5 w-5 animate-spin text-[var(--text-muted)]' />
-                  ) : logoUpload.previewUrl ? (
-                    <Image
-                      src={logoUpload.previewUrl}
-                      alt='Logo'
-                      fill
-                      className='object-contain p-1'
-                      unoptimized
-                    />
-                  ) : (
-                    <span className='text-[11px] text-[var(--text-muted)]'>Logo</span>
-                  )}
-                </button>
+              <div className='flex items-center gap-4'>
+                <DropZone onDrop={logoUpload.handleFileDrop}>
+                  <button
+                    type='button'
+                    onClick={logoUpload.handleThumbnailClick}
+                    disabled={logoUpload.isUploading}
+                    className='group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                  >
+                    {logoUpload.isUploading ? (
+                      <Loader2 className='h-5 w-5 animate-spin text-[var(--text-muted)]' />
+                    ) : logoUpload.previewUrl ? (
+                      <Image
+                        src={logoUpload.previewUrl}
+                        alt='Logo'
+                        fill
+                        className='object-contain p-1'
+                        unoptimized
+                      />
+                    ) : (
+                      <span className='text-[11px] text-[var(--text-muted)]'>Logo</span>
+                    )}
+                  </button>
+                </DropZone>
                 <div className='flex gap-2'>
                   <Button
                     variant='outline'
@@ -377,34 +379,36 @@ export function WhitelabelingSettings() {
                   onChange={logoUpload.handleFileChange}
                   className='hidden'
                 />
-              </DropZone>
+              </div>
             </SettingRow>
 
             <SettingRow
               label='Wordmark'
               description='Shown in the expanded sidebar. Wide image recommended (PNG, JPEG, or SVG, max 5MB).'
             >
-              <DropZone onDrop={wordmarkUpload.handleFileDrop} className='flex items-center gap-4'>
-                <button
-                  type='button'
-                  onClick={wordmarkUpload.handleThumbnailClick}
-                  disabled={wordmarkUpload.isUploading}
-                  className='group relative flex h-16 w-40 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
-                >
-                  {wordmarkUpload.isUploading ? (
-                    <Loader2 className='h-5 w-5 animate-spin text-[var(--text-muted)]' />
-                  ) : wordmarkUpload.previewUrl ? (
-                    <Image
-                      src={wordmarkUpload.previewUrl}
-                      alt='Wordmark'
-                      fill
-                      className='object-contain p-2'
-                      unoptimized
-                    />
-                  ) : (
-                    <span className='text-[11px] text-[var(--text-muted)]'>Wordmark</span>
-                  )}
-                </button>
+              <div className='flex items-center gap-4'>
+                <DropZone onDrop={wordmarkUpload.handleFileDrop}>
+                  <button
+                    type='button'
+                    onClick={wordmarkUpload.handleThumbnailClick}
+                    disabled={wordmarkUpload.isUploading}
+                    className='group relative flex h-16 w-40 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                  >
+                    {wordmarkUpload.isUploading ? (
+                      <Loader2 className='h-5 w-5 animate-spin text-[var(--text-muted)]' />
+                    ) : wordmarkUpload.previewUrl ? (
+                      <Image
+                        src={wordmarkUpload.previewUrl}
+                        alt='Wordmark'
+                        fill
+                        className='object-contain p-2'
+                        unoptimized
+                      />
+                    ) : (
+                      <span className='text-[11px] text-[var(--text-muted)]'>Wordmark</span>
+                    )}
+                  </button>
+                </DropZone>
                 <div className='flex gap-2'>
                   <Button
                     variant='outline'
@@ -433,7 +437,7 @@ export function WhitelabelingSettings() {
                   onChange={wordmarkUpload.handleFileChange}
                   className='hidden'
                 />
-              </DropZone>
+              </div>
             </SettingRow>
           </div>
 
