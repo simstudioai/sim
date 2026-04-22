@@ -10,9 +10,10 @@ import {
   isJSONRPCRequest,
   type JSONRPCError,
   type JSONRPCMessage,
-  type JSONRPCResponse,
+  type JSONRPCResultResponse,
   type ListToolsResult,
   type RequestId,
+  type Tool,
 } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
 import { workflow, workflowMcpServer, workflowMcpTool, workspace } from '@sim/db/schema'
@@ -41,11 +42,11 @@ interface ExecuteAuthContext {
   apiKey?: string | null
 }
 
-function createResponse(id: RequestId, result: unknown): JSONRPCResponse {
+function createResponse(id: RequestId, result: unknown): JSONRPCResultResponse {
   return {
     jsonrpc: '2.0',
     id,
-    result: result as JSONRPCResponse['result'],
+    result: result as JSONRPCResultResponse['result'],
   }
 }
 
@@ -235,11 +236,7 @@ async function handleToolsList(id: RequestId, serverId: string): Promise<NextRes
 
     const result: ListToolsResult = {
       tools: tools.map((tool) => {
-        const schema = tool.parameterSchema as {
-          type?: string
-          properties?: Record<string, unknown>
-          required?: string[]
-        } | null
+        const schema = tool.parameterSchema as Partial<Tool['inputSchema']> | null
         return {
           name: tool.toolName,
           description: tool.toolDescription || `Execute workflow: ${tool.toolName}`,
