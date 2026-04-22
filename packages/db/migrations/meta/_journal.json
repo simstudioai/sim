@@ -1359,6 +1359,13 @@
       "when": 1776800382630,
       "tag": "0194_careless_pete_wisdom",
       "breakpoints": true
+    },
+    {
+      "idx": 195,
+      "version": "7",
+      "when": 1776883116756,
+      "tag": "0195_normal_white_queen",
+      "breakpoints": true
     }
   ]
 }

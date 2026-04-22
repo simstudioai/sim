@@ -5,6 +5,7 @@ import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
+import { hashApiKey } from '@/lib/api-key/crypto'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -102,6 +103,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         workspaceId: null,
         name,
         key: encryptedKey,
+        keyHash: hashApiKey(plainKey),
         type: 'personal',
         createdAt: new Date(),
         updatedAt: new Date(),

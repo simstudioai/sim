@@ -6,6 +6,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
+import { hashApiKey } from '@/lib/api-key/crypto'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -145,6 +146,7 @@ export const POST = withRouteHandler(
           createdBy: userId,
           name,
           key: encryptedKey,
+          keyHash: hashApiKey(plainKey),
           type: 'workspace',
           createdAt: new Date(),
           updatedAt: new Date(),
