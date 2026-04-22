@@ -132,15 +132,13 @@ export function AgentGroup({
                       ? item.endedAt - item.startedAt
                       : undefined
                   if (elapsedMs !== undefined && elapsedMs <= 3000) return null
-                  // "Active" thinking is defined by the block itself, not by
-                  // the group's `isDelegating` flag — subagent_thinking blocks
-                  // explicitly clear isDelegating in parseBlocks, so keying
-                  // off it here would lock the label to "Thought" forever.
                   return (
                     <div key={`thinking-${idx}`} className='pl-6'>
                       <ThinkingBlock
                         content={item.content}
-                        isActive={idx === items.length - 1 && item.endedAt === undefined}
+                        isActive={
+                          isStreaming && idx === items.length - 1 && item.endedAt === undefined
+                        }
                         isStreaming={isStreaming}
                         startedAt={item.startedAt}
                         endedAt={item.endedAt}
