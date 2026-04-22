@@ -677,6 +677,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         activeOtelRoot.context
       )
       if (branch instanceof NextResponse) {
+        // Non-actionable 4xx (400 bad-request from resolveBranch): stamp
+        // outcome=error for dashboards but leave span status UNSET so
+        // error alerts don't fire on normal validation rejections.
+        activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, branch.status)
+        activeOtelRoot.finish('error')
         return branch
       }
 
@@ -711,6 +716,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           : []
 
         if (body.chatId && !currentChat) {
+          activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, 404)
+          activeOtelRoot.finish('error')
           return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
         }
       }
@@ -733,6 +740,14 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         pendingStreamWaitMs = Date.now() - lockStart
         if (!chatStreamLockAcquired) {
           const activeStreamId = await getPendingChatStreamId(actualChatId)
+          // 409 is in the actionable set (see `isActionableErrorStatus`);
+          // pass a synthesized Error so the span escalates to ERROR status
+          // and surfaces on pending-stream-collision dashboards.
+          activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, 409)
+          activeOtelRoot.finish(
+            'error',
+            new Error('A response is already in progress for this chat.')
+          )
           return NextResponse.json(
             {
               error: 'A response is already in progress for this chat.',
