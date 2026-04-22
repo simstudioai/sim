@@ -8,9 +8,10 @@ import { handleRunEvent } from './run'
 import { handleSessionEvent } from './session'
 import { handleSpanEvent } from './span'
 import { handleTextEvent } from './text'
-import { handleToolEvent } from './tool'
+import { handleToolEvent, prePersistClientExecutableToolCall } from './tool'
 import type { StreamHandler } from './types'
 
+export { prePersistClientExecutableToolCall }
 export type { StreamHandler, ToolScope } from './types'
 
 const logger = createLogger('CopilotHandlerRouting')

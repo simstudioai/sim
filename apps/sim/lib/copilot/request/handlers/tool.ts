@@ -55,6 +55,52 @@ function applyToolDisplay(
 }
 
 /**
+ * Upsert the durable `async_tool_calls` row before the authoritative tool-call
+ * SSE frame is forwarded to the client, so `/api/copilot/confirm` can never
+ * race ahead of the row that identifies the call. This is the sole
+ * persistence point for client-executable tools; gating mirrors the
+ * client-wait branch in `dispatchToolExecution`.
+ */
+export async function prePersistClientExecutableToolCall(
+  event: StreamEvent,
+  context: StreamingContext
+): Promise<void> {
+  if (event.type !== 'tool') return
+  if (!isToolCallStreamEvent(event)) return
+
+  const data = event.payload
+  const isGenerating = data.status === TOOL_CALL_STATUS.generating
+  const isPartial = data.partial === true || isGenerating
+  if (isPartial) return
+
+  const ui = getToolCallUI(data)
+  if (!ui.clientExecutable) return
+
+  const catalogEntry = getToolEntry(data.toolName)
+  const isInternal = ui.internal === true || catalogEntry?.internal === true
+  if (isInternal) return
+
+  const delegateWorkflowRunToClient = isWorkflowToolName(data.toolName)
+  if (isSimExecuted(data.toolName) && !delegateWorkflowRunToClient) return
+
+  if (!context.runId) return
+
+  await upsertAsyncToolCall({
+    runId: context.runId,
+    toolCallId: data.toolCallId,
+    toolName: data.toolName,
+    args: data.arguments,
+    status: MothershipStreamV1AsyncToolRecordStatus.running,
+  }).catch((err) => {
+    logger.warn('Failed to pre-persist async tool row before forwarding call frame', {
+      toolCallId: data.toolCallId,
+      toolName: data.toolName,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  })
+}
+
+/**
  * Unified tool event handler for both main and subagent scopes.
  *
  * The main vs subagent differences are:
@@ -365,11 +411,6 @@ async function dispatchToolExecution(
       }
     } else {
       toolCall.status = 'executing'
-      // Span covers the entire "wait for browser/client to execute this
-      // tool and report back" window — typically the single largest
-      // non-LLM latency contributor for mothership requests that use
-      // client-side tools. Before this, the wait was uninstrumented and
-      // only visible as a gap in the waterfall.
       const pendingPromise = withCopilotSpan(
         TraceSpan.CopilotToolWaitForClientResult,
         {
@@ -379,22 +420,6 @@ async function dispatchToolExecution(
           ...(context.runId ? { [TraceAttr.RunId]: context.runId } : {}),
         },
         async (span) => {
-          await upsertAsyncToolCall({
-            runId: context.runId,
-            toolCallId,
-            toolName,
-            args,
-            status: MothershipStreamV1AsyncToolRecordStatus.running,
-          }).catch((err) => {
-            logger.warn(
-              `Failed to persist async tool row for client-executable ${scopeLabel}tool`,
-              {
-                toolCallId,
-                toolName,
-                error: err instanceof Error ? err.message : String(err),
-              }
-            )
-          })
           const completion = await waitForToolCompletion(
             toolCallId,
             options.timeout || STREAM_TIMEOUT_MS,

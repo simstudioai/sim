@@ -25,6 +25,7 @@ import {
   MothershipStreamV1SpanPayloadKind,
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
+  MothershipStreamV1ToolStatus,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   CrawlWebsite,
@@ -2258,7 +2259,9 @@ export function useChat(
               }
 
               const name = payload.toolName
-              const isPartial = payload.partial === true
+              const isPartial =
+                payload.partial === true ||
+                payload.status === MothershipStreamV1ToolStatus.generating
               if (name === ToolSearchToolRegex.id || isToolHiddenInUi(name)) {
                 break
               }

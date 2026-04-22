@@ -20,6 +20,7 @@ import {
 import { FatalSseEventError, processSSEStream } from '@/lib/copilot/request/go/parser'
 import {
   handleSubagentRouting,
+  prePersistClientExecutableToolCall,
   sseHandlers,
   subAgentHandlers,
 } from '@/lib/copilot/request/handlers'
@@ -309,6 +310,8 @@ export async function runStreamLoop(
           options,
           state: filePreviewAdapterState,
         })
+
+        await prePersistClientExecutableToolCall(streamEvent, context)
 
         try {
           await options.onEvent?.(streamEvent)
