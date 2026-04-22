@@ -93,10 +93,7 @@ function resolveToolState(block: ContentBlock): PersistedToolState {
  * metadata that drives the `Thought for Ns` chip survives the full
  * persist → normalize → display round-trip — and one rule lives in one place.
  */
-export function withBlockTiming<T>(
-  target: T,
-  src: { timestamp?: number; endedAt?: number }
-): T {
+export function withBlockTiming<T>(target: T, src: { timestamp?: number; endedAt?: number }): T {
   const writable = target as { timestamp?: number; endedAt?: number }
   if (typeof src.timestamp === 'number') writable.timestamp = src.timestamp
   if (typeof src.endedAt === 'number') writable.endedAt = src.endedAt
