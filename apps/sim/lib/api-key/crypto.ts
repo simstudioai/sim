@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
 
@@ -130,4 +130,17 @@ export function isEncryptedApiKeyFormat(apiKey: string): boolean {
  */
 export function isLegacyApiKeyFormat(apiKey: string): boolean {
   return apiKey.startsWith('sim_') && !apiKey.startsWith('sk-sim-')
+}
+
+/**
+ * Deterministically hashes a plain-text API key for indexed lookup. The hash
+ * column has a unique index so authentication can match an incoming key via a
+ * single `WHERE key_hash = $hash` lookup instead of scanning and decrypting
+ * every stored encrypted key.
+ *
+ * @param plainKey - The plain-text API key as presented by the client
+ * @returns The hex-encoded SHA-256 digest
+ */
+export function hashApiKey(plainKey: string): string {
+  return createHash('sha256').update(plainKey, 'utf8').digest('hex')
 }

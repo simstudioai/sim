@@ -331,6 +331,7 @@ export const schemaMock = {
     createdBy: 'createdBy',
     name: 'name',
     key: 'key',
+    keyHash: 'keyHash',
     type: 'type',
     lastUsed: 'lastUsed',
     createdAt: 'createdAt',

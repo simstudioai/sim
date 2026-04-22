@@ -8,6 +8,7 @@ import {
   encryptApiKey,
   generateApiKey,
   generateEncryptedApiKey,
+  hashApiKey,
   isEncryptedApiKeyFormat,
   isLegacyApiKeyFormat,
 } from '@/lib/api-key/crypto'
@@ -256,6 +257,7 @@ export async function createWorkspaceApiKey(params: {
       createdBy: params.userId,
       name: params.name,
       key: encryptedKey,
+      keyHash: hashApiKey(plainKey),
       type: 'workspace',
       createdAt: new Date(),
       updatedAt: new Date(),
