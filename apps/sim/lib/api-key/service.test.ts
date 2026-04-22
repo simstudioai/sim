@@ -126,9 +126,7 @@ describe('authenticateApiKeyFromHeader', () => {
 
   it('falls back to the decrypt loop when no row matches the hash, and warns on success', async () => {
     const record = personalKeyRecord()
-    dbChainMockFns.where
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([record])
+    dbChainMockFns.where.mockResolvedValueOnce([]).mockResolvedValueOnce([record])
     mockAuthenticateApiKey.mockResolvedValueOnce(true)
 
     const result = await authenticateApiKeyFromHeader('sk-sim-plain-key', {
@@ -153,9 +151,7 @@ describe('authenticateApiKeyFromHeader', () => {
   })
 
   it('returns invalid when the hash lookup misses and the fallback scan also misses', async () => {
-    dbChainMockFns.where
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
+    dbChainMockFns.where.mockResolvedValueOnce([]).mockResolvedValueOnce([])
 
     const result = await authenticateApiKeyFromHeader('sk-sim-plain-key', {
       userId: 'user-1',
@@ -169,9 +165,7 @@ describe('authenticateApiKeyFromHeader', () => {
 
   it('returns invalid when the hash lookup misses and every fallback candidate fails decrypt comparison', async () => {
     const record = personalKeyRecord()
-    dbChainMockFns.where
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([record])
+    dbChainMockFns.where.mockResolvedValueOnce([]).mockResolvedValueOnce([record])
     mockAuthenticateApiKey.mockResolvedValueOnce(false)
 
     const result = await authenticateApiKeyFromHeader('sk-sim-plain-key', {

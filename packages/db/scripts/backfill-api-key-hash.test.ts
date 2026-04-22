@@ -9,11 +9,7 @@
  */
 import { createCipheriv } from 'crypto'
 import { describe, expect, it } from 'vitest'
-import {
-  deriveKeyHashForStoredKey,
-  hashApiKey,
-  isEncryptedKey,
-} from './backfill-api-key-hash'
+import { deriveKeyHashForStoredKey, hashApiKey, isEncryptedKey } from './backfill-api-key-hash'
 
 const FIXED_ENCRYPTION_KEY = '0'.repeat(64)
 

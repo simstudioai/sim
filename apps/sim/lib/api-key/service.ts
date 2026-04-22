@@ -5,10 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { authenticateApiKey } from '@/lib/api-key/auth'
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import {
-  getWorkspaceBillingSettings,
-  type WorkspaceBillingSettings,
-} from '@/lib/workspaces/utils'
+import { getWorkspaceBillingSettings, type WorkspaceBillingSettings } from '@/lib/workspaces/utils'
 
 const logger = createLogger('ApiKeyService')
 
@@ -221,7 +218,11 @@ async function applyHashGates(
   if (options.keyTypes?.length && !options.keyTypes.includes(keyType)) return INVALID
   if (record.expiresAt && record.expiresAt < new Date()) return INVALID
 
-  if (options.workspaceId && keyType === 'workspace' && record.workspaceId !== options.workspaceId) {
+  if (
+    options.workspaceId &&
+    keyType === 'workspace' &&
+    record.workspaceId !== options.workspaceId
+  ) {
     return INVALID
   }
 
