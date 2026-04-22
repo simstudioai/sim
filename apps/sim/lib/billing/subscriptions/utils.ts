@@ -93,7 +93,15 @@ export function getEffectiveSeats(subscription: any): number {
     return 0
   }
 
+  // Mirrors the Stripe subscription's `quantity`. For personal Pro this
+  // is null in practice, so `?? 0` returns 0. For Team, fall back to 1
+  // while the seat value has not yet been synced from Stripe so invite
+  // and seat-validation flows don't transiently read as zero seats.
   if (isTeam(subscription.plan)) {
+    return subscription.seats ?? (hasPaidSubscriptionStatus(subscription.status) ? 1 : 0)
+  }
+
+  if (isPro(subscription.plan)) {
     return subscription.seats ?? 0
   }
 
@@ -109,9 +117,27 @@ export function checkTeamPlan(subscription: any): boolean {
 }
 
 /**
- * Get the minimum usage limit for an individual user (used for validation)
- * Only applicable for plans with individual limits (Free/Pro)
- * Team and Enterprise plans use organization-level limits instead
+ * True when the subscription's `referenceId` is an org (i.e. not the
+ * caller's own `userId`). Prefer this over plan-name checks for scope
+ * decisions — a `pro_*` sub attached to an org is org-scoped even though
+ * `isTeam` / `isOrgPlan` return false.
+ */
+export function isOrgScopedSubscription(
+  subscription: { referenceId?: string | null } | null | undefined,
+  userId: string
+): boolean {
+  if (!subscription?.referenceId) return false
+  return subscription.referenceId !== userId
+}
+
+/**
+ * Get the minimum usage limit for an individual user (used for validation).
+ *
+ * Callers should only invoke this for **personally-scoped** subscriptions —
+ * any org-scoped subscription (team, enterprise, or `pro_*` attached to an
+ * organization) uses the organization-level limit instead. Callers are
+ * responsible for gating with `isOrgScopedSubscription` before calling.
+ *
  * @param subscription The subscription object
  * @returns The per-user minimum limit in dollars
  */
@@ -127,9 +153,6 @@ export function getPerUserMinimumLimit(subscription: any): number {
   }
 
   if (isOrgPlan(subscription.plan)) {
-    // Team and Enterprise don't have individual limits - they use organization limits
-    // This function should not be called for these plans
-    // Returning 0 to indicate no individual minimum
     return 0
   }
 

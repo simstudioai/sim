@@ -26,16 +26,18 @@
 import { db } from '@sim/db'
 import { organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { addCredits } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
-import { isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
+import { isPaid } from '@/lib/billing/plan-helpers'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   getEffectiveSeats,
+  isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
-import { generateShortId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -46,175 +48,178 @@ import {
 
 const logger = createLogger('AdminCreditsAPI')
 
-export const POST = withAdminAuth(async (request) => {
-  try {
-    const body = await request.json()
-    const { userId, email, amount, reason } = body
+export const POST = withRouteHandler(
+  withAdminAuth(async (request) => {
+    try {
+      const body = await request.json()
+      const { userId, email, amount, reason } = body
 
-    if (!userId && !email) {
-      return badRequestResponse('Either userId or email is required')
-    }
-
-    if (userId && typeof userId !== 'string') {
-      return badRequestResponse('userId must be a string')
-    }
-
-    if (email && typeof email !== 'string') {
-      return badRequestResponse('email must be a string')
-    }
-
-    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
-      return badRequestResponse('amount must be a positive number')
-    }
-
-    let resolvedUserId: string
-    let userEmail: string | null = null
-
-    if (userId) {
-      const [userData] = await db
-        .select({ id: user.id, email: user.email })
-        .from(user)
-        .where(eq(user.id, userId))
-        .limit(1)
-
-      if (!userData) {
-        return notFoundResponse('User')
-      }
-      resolvedUserId = userData.id
-      userEmail = userData.email
-    } else {
-      const normalizedEmail = email.toLowerCase().trim()
-      const [userData] = await db
-        .select({ id: user.id, email: user.email })
-        .from(user)
-        .where(eq(user.email, normalizedEmail))
-        .limit(1)
-
-      if (!userData) {
-        return notFoundResponse('User with email')
-      }
-      resolvedUserId = userData.id
-      userEmail = userData.email
-    }
-
-    const userSubscription = await getHighestPrioritySubscription(resolvedUserId)
-
-    if (!userSubscription || !isPaid(userSubscription.plan)) {
-      return badRequestResponse(
-        'User must have an active Pro, Team, or Enterprise subscription to receive credits'
-      )
-    }
-
-    let entityType: 'user' | 'organization'
-    let entityId: string
-    const plan = userSubscription.plan
-    let seats: number | null = null
-
-    if (isOrgPlan(plan)) {
-      entityType = 'organization'
-      entityId = userSubscription.referenceId
-
-      const [orgExists] = await db
-        .select({ id: organization.id })
-        .from(organization)
-        .where(eq(organization.id, entityId))
-        .limit(1)
-
-      if (!orgExists) {
-        return notFoundResponse('Organization')
+      if (!userId && !email) {
+        return badRequestResponse('Either userId or email is required')
       }
 
-      const [subData] = await db
-        .select()
-        .from(subscription)
-        .where(
-          and(
-            eq(subscription.referenceId, entityId),
-            inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
-          )
+      if (userId && typeof userId !== 'string') {
+        return badRequestResponse('userId must be a string')
+      }
+
+      if (email && typeof email !== 'string') {
+        return badRequestResponse('email must be a string')
+      }
+
+      if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+        return badRequestResponse('amount must be a positive number')
+      }
+
+      let resolvedUserId: string
+      let userEmail: string | null = null
+
+      if (userId) {
+        const [userData] = await db
+          .select({ id: user.id, email: user.email })
+          .from(user)
+          .where(eq(user.id, userId))
+          .limit(1)
+
+        if (!userData) {
+          return notFoundResponse('User')
+        }
+        resolvedUserId = userData.id
+        userEmail = userData.email
+      } else {
+        const normalizedEmail = email.toLowerCase().trim()
+        const [userData] = await db
+          .select({ id: user.id, email: user.email })
+          .from(user)
+          .where(eq(user.email, normalizedEmail))
+          .limit(1)
+
+        if (!userData) {
+          return notFoundResponse('User with email')
+        }
+        resolvedUserId = userData.id
+        userEmail = userData.email
+      }
+
+      const userSubscription = await getHighestPrioritySubscription(resolvedUserId)
+
+      if (!userSubscription || !isPaid(userSubscription.plan)) {
+        return badRequestResponse(
+          'User must have an active Pro, Team, or Enterprise subscription to receive credits'
         )
-        .limit(1)
-
-      seats = getEffectiveSeats(subData)
-    } else {
-      entityType = 'user'
-      entityId = resolvedUserId
-
-      const [existingStats] = await db
-        .select({ id: userStats.id })
-        .from(userStats)
-        .where(eq(userStats.userId, entityId))
-        .limit(1)
-
-      if (!existingStats) {
-        await db.insert(userStats).values({
-          id: generateShortId(),
-          userId: entityId,
-        })
       }
+
+      let entityType: 'user' | 'organization'
+      let entityId: string
+      const plan = userSubscription.plan
+      let seats: number | null = null
+
+      // Route admin credits to the subscription's entity (org if org-scoped).
+      if (isOrgScopedSubscription(userSubscription, resolvedUserId)) {
+        entityType = 'organization'
+        entityId = userSubscription.referenceId
+
+        const [orgExists] = await db
+          .select({ id: organization.id })
+          .from(organization)
+          .where(eq(organization.id, entityId))
+          .limit(1)
+
+        if (!orgExists) {
+          return notFoundResponse('Organization')
+        }
+
+        const [subData] = await db
+          .select()
+          .from(subscription)
+          .where(
+            and(
+              eq(subscription.referenceId, entityId),
+              inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+            )
+          )
+          .limit(1)
+
+        seats = getEffectiveSeats(subData)
+      } else {
+        entityType = 'user'
+        entityId = resolvedUserId
+
+        const [existingStats] = await db
+          .select({ id: userStats.id })
+          .from(userStats)
+          .where(eq(userStats.userId, entityId))
+          .limit(1)
+
+        if (!existingStats) {
+          await db.insert(userStats).values({
+            id: generateShortId(),
+            userId: entityId,
+          })
+        }
+      }
+
+      await addCredits(entityType, entityId, amount)
+
+      let newCreditBalance: number
+      if (entityType === 'organization') {
+        const [orgData] = await db
+          .select({ creditBalance: organization.creditBalance })
+          .from(organization)
+          .where(eq(organization.id, entityId))
+          .limit(1)
+        newCreditBalance = Number.parseFloat(orgData?.creditBalance || '0')
+      } else {
+        const [stats] = await db
+          .select({ creditBalance: userStats.creditBalance })
+          .from(userStats)
+          .where(eq(userStats.userId, entityId))
+          .limit(1)
+        newCreditBalance = Number.parseFloat(stats?.creditBalance || '0')
+      }
+
+      await setUsageLimitForCredits(entityType, entityId, plan, seats, newCreditBalance)
+
+      let newUsageLimit: number
+      if (entityType === 'organization') {
+        const [orgData] = await db
+          .select({ orgUsageLimit: organization.orgUsageLimit })
+          .from(organization)
+          .where(eq(organization.id, entityId))
+          .limit(1)
+        newUsageLimit = Number.parseFloat(orgData?.orgUsageLimit || '0')
+      } else {
+        const [stats] = await db
+          .select({ currentUsageLimit: userStats.currentUsageLimit })
+          .from(userStats)
+          .where(eq(userStats.userId, entityId))
+          .limit(1)
+        newUsageLimit = Number.parseFloat(stats?.currentUsageLimit || '0')
+      }
+
+      logger.info('Admin API: Issued credits', {
+        resolvedUserId,
+        userEmail,
+        entityType,
+        entityId,
+        amount,
+        newCreditBalance,
+        newUsageLimit,
+        reason: reason || 'No reason provided',
+      })
+
+      return singleResponse({
+        success: true,
+        userId: resolvedUserId,
+        userEmail,
+        entityType,
+        entityId,
+        amount,
+        newCreditBalance,
+        newUsageLimit,
+      })
+    } catch (error) {
+      logger.error('Admin API: Failed to issue credits', { error })
+      return internalErrorResponse('Failed to issue credits')
     }
-
-    await addCredits(entityType, entityId, amount)
-
-    let newCreditBalance: number
-    if (entityType === 'organization') {
-      const [orgData] = await db
-        .select({ creditBalance: organization.creditBalance })
-        .from(organization)
-        .where(eq(organization.id, entityId))
-        .limit(1)
-      newCreditBalance = Number.parseFloat(orgData?.creditBalance || '0')
-    } else {
-      const [stats] = await db
-        .select({ creditBalance: userStats.creditBalance })
-        .from(userStats)
-        .where(eq(userStats.userId, entityId))
-        .limit(1)
-      newCreditBalance = Number.parseFloat(stats?.creditBalance || '0')
-    }
-
-    await setUsageLimitForCredits(entityType, entityId, plan, seats, newCreditBalance)
-
-    let newUsageLimit: number
-    if (entityType === 'organization') {
-      const [orgData] = await db
-        .select({ orgUsageLimit: organization.orgUsageLimit })
-        .from(organization)
-        .where(eq(organization.id, entityId))
-        .limit(1)
-      newUsageLimit = Number.parseFloat(orgData?.orgUsageLimit || '0')
-    } else {
-      const [stats] = await db
-        .select({ currentUsageLimit: userStats.currentUsageLimit })
-        .from(userStats)
-        .where(eq(userStats.userId, entityId))
-        .limit(1)
-      newUsageLimit = Number.parseFloat(stats?.currentUsageLimit || '0')
-    }
-
-    logger.info('Admin API: Issued credits', {
-      resolvedUserId,
-      userEmail,
-      entityType,
-      entityId,
-      amount,
-      newCreditBalance,
-      newUsageLimit,
-      reason: reason || 'No reason provided',
-    })
-
-    return singleResponse({
-      success: true,
-      userId: resolvedUserId,
-      userEmail,
-      entityType,
-      entityId,
-      amount,
-      newCreditBalance,
-      newUsageLimit,
-    })
-  } catch (error) {
-    logger.error('Admin API: Failed to issue credits', { error })
-    return internalErrorResponse('Failed to issue credits')
-  }
-})
+  })
+)

@@ -334,6 +334,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
               type='button'
               onClick={handleSubmit}
               disabled={isEmpty}
+              aria-label='Submit message'
               className='flex h-[28px] w-[28px] items-center justify-center rounded-full border-0 p-0 transition-colors'
               style={{
                 background: isEmpty ? '#808080' : '#e0e0e0',

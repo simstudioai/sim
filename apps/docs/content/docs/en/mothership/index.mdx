@@ -1,0 +1,73 @@
+---
+title: Mothership
+description: Your AI command center. Build and manage your entire workspace in natural language.
+---
+
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
+
+<Video src="mothership/create-workflow.mp4" width={700} height={450} />
+
+Describe what you want and Mothership handles it. Build a workflow, run research, generate a presentation, query a table, schedule a recurring job, send a Slack message — Mothership knows your entire workspace and takes action directly.
+
+## What You Can Do
+
+| Area | What Mothership can do |
+|------|-----------------------|
+| **[Workflows](/mothership/workflows)** | Build, edit, run, debug, deploy, and organize workflows |
+| **[Research](/mothership/research)** | Search the web, read pages, crawl sites, produce research reports |
+| **[Files & Documents](/mothership/files)** | Upload, create, edit, and generate documents, presentations, and images |
+| **[Tables](/mothership/tables)** | Create, query, update, and export workspace tables |
+| **[Automation & Configuration](/mothership/tasks)** | Schedule jobs, take immediate actions, connect integrations, manage tools |
+| **[Knowledge Bases](/mothership/knowledge)** | Create knowledge bases, add documents, and query content in plain language |
+
+## How It Works
+
+Mothership receives a snapshot of your entire workspace with every message — all workflows, tables, knowledge bases, files, credentials, jobs, and integrations. This is why you can refer to things by name without specifying IDs or paths:
+
+- "Run the invoice workflow"
+- "Add a row to the leads table"
+- "Deploy the summarizer as a chat"
+
+No configuration, no context-setting. Just describe what you want:
+
+- "Build a lead enrichment workflow that scores inbound signups and writes the results to the leads table"
+- "Research our top 5 competitors and save a battle card for each one"
+- "Schedule a daily job that checks for new high-fit prospects and posts them to #outbound in Slack"
+- "Create a workflow that takes a contract PDF, extracts the key terms, and emails a summary to legal"
+
+For complex tasks, Mothership delegates to specialized subagents automatically. You'll see them appear as collapsible sections in the chat while they work — building, researching, writing files, executing actions.
+
+{/* TODO: Screenshot of the Mothership chat showing a subagent section expanded mid-task — e.g., the Build or Research subagent actively working, with its collapsible header and steps visible in the thread. */}
+
+## Adding Context
+
+Bring any workspace object into the conversation via the **+** menu, `@`-mentions, or drag-and-drop from the sidebar. Mothership also opens resources automatically when it creates or modifies them.
+
+<Video src="mothership/context-menu.mp4" width={700} height={450} />
+
+{/* TODO: Screenshot of the resource panel with multiple tabs open — a workflow tab, a table tab, and a file tab — showing different resource types side by side. */}
+
+| What to add | How it appears |
+|-------------|---------------|
+| **Workflow** | Interactive canvas in the resource panel |
+| **Table** | Full table editor in the resource panel |
+| **File** | File viewer with editor, split, and preview modes |
+| **Knowledge Base** | Knowledge base management UI |
+| **Folder** | Folder contents |
+| **Past task** | A previous Mothership conversation |
+
+## Layout
+
+Mothership has two panes. On the left: the chat thread, where your messages and Mothership's responses appear. On the right: the resource panel, where workflows, tables, files, and knowledge bases open as tabs. The panel is resizable; tabs are draggable and closeable.
+
+<Video src="mothership/split-view.mp4" width={700} height={450} />
+
+<FAQ items={[
+  { question: "How is Mothership different from Copilot?", answer: "Copilot is scoped to a single workflow — it helps you build and edit that workflow. Mothership has access to your entire workspace and can build workflows, manage data, run research, schedule jobs, take actions across integrations, and more." },
+  { question: "What model does Mothership use?", answer: "Mothership always uses Claude Opus 4.6. There is no model selector." },
+  { question: "How do I reference an existing workflow or table?", answer: "Type @ followed by the name in the input, use the + menu, or drag the item from the sidebar into the chat." },
+  { question: "How long can a Mothership task run?", answer: "Up to one hour. For tasks that exceed that, set up a scheduled job or break the work into steps." },
+  { question: "Can Mothership work on multiple things at once?", answer: "Mothership processes one message at a time. You can queue messages — they will be processed in order." },
+]} />

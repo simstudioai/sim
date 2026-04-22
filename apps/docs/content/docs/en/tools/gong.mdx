@@ -409,7 +409,7 @@ Retrieve interaction statistics for users by date range from Gong. Only includes
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `peopleInteractionStats` | array | Email address of the Gong user |
+| `peopleInteractionStats` | array | Interaction statistics per user. Applicable stat names: 'Longest Monologue', 'Longest Customer Story', 'Interactivity', 'Patience', 'Question Rate'. |
 |   ↳ `userId` | string | Gong's unique numeric identifier for the user |
 |   ↳ `userEmailAddress` | string | Email address of the Gong user |
 |   ↳ `personInteractionStats` | array | List of interaction stat measurements for this user |
@@ -656,7 +656,7 @@ Retrieve coaching metrics for a manager from Gong.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `requestId` | string | A Gong request reference ID for troubleshooting purposes |
-| `coachingData` | array | The manager user information |
+| `coachingData` | array | A list of coaching data entries, one per manager's team |
 |   ↳ `manager` | object | The manager user information |
 |     ↳ `id` | string | Gong unique numeric identifier for the user |
 |     ↳ `emailAddress` | string | Email address of the Gong user |

@@ -57,9 +57,12 @@ Run a CloudWatch Log Insights query against one or more log groups
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | array | Query result rows |
-| `statistics` | object | Query statistics \(bytesScanned, recordsMatched, recordsScanned\) |
-| `status` | string | Query completion status |
+| `results` | array | Query result rows \(each row is a key/value map of field name to value\) |
+| `statistics` | object | Query statistics |
+|   ↳ `bytesScanned` | number | Total bytes of log data scanned |
+|   ↳ `recordsMatched` | number | Number of log records that matched the query |
+|   ↳ `recordsScanned` | number | Total log records scanned |
+| `status` | string | Query completion status \(Complete, Failed, Cancelled, or Timeout\) |
 
 ### `cloudwatch_describe_log_groups`
 
@@ -80,6 +83,11 @@ List available CloudWatch log groups
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `logGroups` | array | List of CloudWatch log groups with metadata |
+|   ↳ `logGroupName` | string | Log group name |
+|   ↳ `arn` | string | Log group ARN |
+|   ↳ `storedBytes` | number | Total stored bytes |
+|   ↳ `retentionInDays` | number | Retention period in days \(if set\) |
+|   ↳ `creationTime` | number | Creation time in epoch milliseconds |
 
 ### `cloudwatch_get_log_events`
 
@@ -103,6 +111,9 @@ Retrieve log events from a specific CloudWatch log stream
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `events` | array | Log events with timestamp, message, and ingestion time |
+|   ↳ `timestamp` | number | Event timestamp in epoch milliseconds |
+|   ↳ `message` | string | Log event message |
+|   ↳ `ingestionTime` | number | Ingestion time in epoch milliseconds |
 
 ### `cloudwatch_describe_log_streams`
 
@@ -123,7 +134,12 @@ List log streams within a CloudWatch log group
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `logStreams` | array | List of log streams with metadata |
+| `logStreams` | array | List of log streams with metadata, sorted by last event time \(most recent first\) unless a prefix filter is applied |
+|   ↳ `logStreamName` | string | Log stream name |
+|   ↳ `lastEventTimestamp` | number | Timestamp of the last log event in epoch milliseconds |
+|   ↳ `firstEventTimestamp` | number | Timestamp of the first log event in epoch milliseconds |
+|   ↳ `creationTime` | number | Stream creation time in epoch milliseconds |
+|   ↳ `storedBytes` | number | Total stored bytes |
 
 ### `cloudwatch_list_metrics`
 
@@ -146,6 +162,9 @@ List available CloudWatch metrics
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `metrics` | array | List of metrics with namespace, name, and dimensions |
+|   ↳ `namespace` | string | Metric namespace \(e.g., AWS/EC2\) |
+|   ↳ `metricName` | string | Metric name \(e.g., CPUUtilization\) |
+|   ↳ `dimensions` | array | Array of name/value dimension pairs |
 
 ### `cloudwatch_get_metric_statistics`
 
@@ -170,8 +189,15 @@ Get statistics for a CloudWatch metric over a time range
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `label` | string | Metric label |
-| `datapoints` | array | Datapoints with timestamp and statistics values |
+| `label` | string | Metric label returned by CloudWatch |
+| `datapoints` | array | Datapoints sorted by timestamp with statistics values |
+|   ↳ `timestamp` | number | Datapoint timestamp in epoch milliseconds |
+|   ↳ `average` | number | Average statistic value |
+|   ↳ `sum` | number | Sum statistic value |
+|   ↳ `minimum` | number | Minimum statistic value |
+|   ↳ `maximum` | number | Maximum statistic value |
+|   ↳ `sampleCount` | number | Sample count statistic value |
+|   ↳ `unit` | string | Unit of the metric |
 
 ### `cloudwatch_put_metric_data`
 
@@ -222,5 +248,13 @@ List and filter CloudWatch alarms
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `alarms` | array | List of CloudWatch alarms with state and configuration |
+|   ↳ `alarmName` | string | Alarm name |
+|   ↳ `alarmArn` | string | Alarm ARN |
+|   ↳ `stateValue` | string | Current state \(OK, ALARM, INSUFFICIENT_DATA\) |
+|   ↳ `stateReason` | string | Human-readable reason for the state |
+|   ↳ `metricName` | string | Metric name \(MetricAlarm only\) |
+|   ↳ `namespace` | string | Metric namespace \(MetricAlarm only\) |
+|   ↳ `threshold` | number | Threshold value \(MetricAlarm only\) |
+|   ↳ `stateUpdatedTimestamp` | number | Epoch ms when state last changed |
 
 

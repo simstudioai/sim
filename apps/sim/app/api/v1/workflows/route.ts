@@ -1,10 +1,11 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, asc, eq, gt, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
@@ -40,7 +41,7 @@ function decodeCursor(cursor: string): CursorData | null {
   }
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   try {
@@ -175,4 +176,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Workflows fetch error`, { error: message })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

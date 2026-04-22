@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
@@ -10,6 +11,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import {
@@ -169,10 +171,6 @@ function parseS3Uri(s3Uri: string): { bucket: string; key: string } {
   return { bucket, key }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 async function callTextractAsync(
   host: string,
   amzTarget: string,
@@ -311,7 +309,7 @@ async function pollForJobCompletion(
   )
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -656,4 +654,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

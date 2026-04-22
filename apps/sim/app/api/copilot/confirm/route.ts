@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import {
@@ -26,6 +27,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotConfirmAPI')
 
@@ -110,7 +112,7 @@ async function updateToolCallStatus(
     logger.error('Failed to update tool call status', {
       toolCallId,
       status,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return false
   }
@@ -119,7 +121,7 @@ async function updateToolCallStatus(
 // POST /api/copilot/confirm — delivery path for client-executed tool
 // results. Correlate via `toolCallId` when the awaiting chat stream
 // stalls.
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler((req: NextRequest) => {
   const tracker = createRequestTracker()
 
   return withIncomingGoSpan(
@@ -224,4 +226,4 @@ export async function POST(req: NextRequest) {
       }
     }
   )
-}
+})

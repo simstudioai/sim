@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 
 const logger = createLogger('CopilotSseParser')
 
@@ -59,7 +60,7 @@ export async function processSSEStream(
             parsed = JSON.parse(jsonStr)
           } catch (error) {
             const preview = jsonStr.slice(0, 200)
-            const detail = error instanceof Error ? error.message : String(error)
+            const detail = toError(error).message
             throw createParseFailure(`Failed to parse SSE event JSON: ${detail}`, preview)
           }
 
@@ -74,7 +75,7 @@ export async function processSSEStream(
             }
             logger.warn('Failed to handle SSE event', {
               preview: jsonStr.slice(0, 200),
-              error: error instanceof Error ? error.message : String(error),
+              error: toError(error).message,
             })
           }
         }
@@ -102,7 +103,7 @@ export async function processSSEStream(
         parsed = JSON.parse(jsonStr)
       } catch (error) {
         const preview = normalizedBuffer.slice(0, 200)
-        const detail = error instanceof Error ? error.message : String(error)
+        const detail = toError(error).message
         throw createParseFailure(`Failed to parse final SSE buffer JSON: ${detail}`, preview)
       }
 
@@ -114,7 +115,7 @@ export async function processSSEStream(
         }
         logger.warn('Failed to handle final SSE event', {
           preview: normalizedBuffer.slice(0, 200),
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     }

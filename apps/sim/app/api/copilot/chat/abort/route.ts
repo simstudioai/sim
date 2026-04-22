@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { CopilotAbortOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
@@ -10,6 +10,7 @@ import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/htt
 import { withCopilotSpan, withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { abortActiveStream, waitForPendingChatStream } from '@/lib/copilot/request/session'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatAbortAPI')
 const GO_EXPLICIT_ABORT_TIMEOUT_MS = 3000
@@ -17,8 +18,8 @@ const STREAM_ABORT_SETTLE_TIMEOUT_MS = 8000
 
 // POST /api/copilot/chat/abort — fires on user Stop; marks the Go
 // side aborted then waits for the prior stream to settle.
-export async function POST(request: Request) {
-  return withIncomingGoSpan(
+export const POST = withRouteHandler((request: NextRequest) =>
+  withIncomingGoSpan(
     request.headers,
     TraceSpan.CopilotChatAbortStream,
     undefined,
@@ -147,4 +148,4 @@ export async function POST(request: Request) {
       return NextResponse.json({ aborted })
     }
   )
-}
+)

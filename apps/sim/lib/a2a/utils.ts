@@ -16,8 +16,9 @@ import {
   ClientFactoryOptions,
 } from '@a2a-js/sdk/client'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
-import { generateId } from '@/lib/core/utils/uuid'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { A2A_TERMINAL_STATES } from './constants'
 
@@ -74,7 +75,7 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
   } catch (standardError) {
     logger.debug('Standard agent card path failed, trying root URL', {
       agentUrl,
-      error: standardError instanceof Error ? standardError.message : String(standardError),
+      error: toError(standardError).message,
     })
   }
 

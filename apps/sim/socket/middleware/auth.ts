@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { Socket } from 'socket.io'
 import { auth } from '@/lib/auth'
 import { ANONYMOUS_USER, ANONYMOUS_USER_ID } from '@/lib/auth/constants'
@@ -75,7 +76,7 @@ export async function authenticateSocket(socket: AuthenticatedSocket, next: (err
 
       next()
     } catch (tokenError) {
-      const errorMessage = tokenError instanceof Error ? tokenError.message : String(tokenError)
+      const errorMessage = toError(tokenError).message
       const errorStack = tokenError instanceof Error ? tokenError.stack : undefined
 
       logger.warn(`Token validation failed for socket ${socket.id}:`, {

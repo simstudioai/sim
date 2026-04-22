@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { Client, SFTPWrapper, Stats } from 'ssh2'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createSSHConnection,
   getFileType,
@@ -36,7 +37,7 @@ function getSFTP(client: Client): Promise<SFTPWrapper> {
   })
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   try {
@@ -137,4 +138,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

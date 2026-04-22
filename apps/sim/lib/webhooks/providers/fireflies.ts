@@ -45,11 +45,23 @@ function validateFirefliesSignature(secret: string, signature: string, body: str
 export const firefliesHandler: WebhookProviderHandler = {
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
+
+    // Fireflies V2 webhooks use snake_case field names and "event" instead of "eventType".
+    // Both meeting_id and event are required in every V2 payload, so AND is the correct check.
+    const isV2 = typeof b.meeting_id === 'string' && typeof b.event === 'string'
+
+    const meetingId = ((isV2 ? b.meeting_id : b.meetingId) || '') as string
+    const eventType = ((isV2 ? b.event : b.eventType) || 'Transcription completed') as string
+    const clientReferenceId = ((isV2 ? b.client_reference_id : b.clientReferenceId) || '') as string
+    const rawTimestamp = b.timestamp != null ? Number(b.timestamp) : null
+    const timestamp = rawTimestamp !== null && Number.isFinite(rawTimestamp) ? rawTimestamp : null
+
     return {
       input: {
-        meetingId: (b.meetingId || '') as string,
-        eventType: (b.eventType || 'Transcription completed') as string,
-        clientReferenceId: (b.clientReferenceId || '') as string,
+        meetingId,
+        eventType,
+        clientReferenceId,
+        ...(timestamp !== null ? { timestamp } : {}),
       },
     }
   },

@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
@@ -32,7 +34,7 @@ const RequestSchema = z.object({
  * - If exactly one workflow is available, uses that workflow as context
  * - Otherwise requires workflowId or workflowName to disambiguate
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   let messageId: string | undefined
   const auth = await authenticateV1Request(req)
   if (!auth.authenticated || !auth.userId) {
@@ -136,9 +138,9 @@ export async function POST(req: NextRequest) {
         ? `Headless copilot request failed [messageId:${messageId}]`
         : 'Headless copilot request failed',
       {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       }
     )
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
-}
+})

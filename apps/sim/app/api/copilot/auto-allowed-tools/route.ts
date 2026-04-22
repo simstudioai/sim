@@ -5,6 +5,7 @@ import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotAutoAllowedToolsAPI')
 
@@ -22,7 +23,7 @@ function copilotHeaders(): Record<string, string> {
 /**
  * GET - Fetch user's auto-allowed integration tools
  */
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   try {
     const session = await getSession()
 
@@ -54,12 +55,12 @@ export async function GET() {
     logger.error('Failed to fetch auto-allowed tools', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 /**
  * POST - Add a tool to the auto-allowed list
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
 
@@ -97,12 +98,12 @@ export async function POST(request: NextRequest) {
     logger.error('Failed to add auto-allowed tool', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 /**
  * DELETE - Remove a tool from the auto-allowed list
  */
-export async function DELETE(request: NextRequest) {
+export const DELETE = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
 
@@ -143,4 +144,4 @@ export async function DELETE(request: NextRequest) {
     logger.error('Failed to remove auto-allowed tool', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

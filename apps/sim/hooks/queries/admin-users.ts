@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { isValidUuid } from '@sim/utils/id'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/auth/auth-client'
-import { isValidUuid } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('AdminUsersQuery')
 

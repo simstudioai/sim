@@ -11,6 +11,7 @@
     "tools",
     "connections",
     "---Features---",
+    "mothership",
     "mcp",
     "copilot",
     "mailer",
@@ -18,12 +19,13 @@
     "knowledgebase",
     "tables",
     "variables",
+    "integrations",
     "credentials",
     "---Platform---",
     "execution",
     "permissions",
     "self-hosting",
-    "./enterprise/index",
+    "enterprise",
     "./keyboard-shortcuts/index"
   ],
   "defaultOpen": false

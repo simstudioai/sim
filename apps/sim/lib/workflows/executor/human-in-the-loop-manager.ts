@@ -1,10 +1,11 @@
 import { db } from '@sim/db'
 import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, asc, desc, eq, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
-import { generateId } from '@/lib/core/utils/uuid'
 import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/event-buffer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -355,11 +356,11 @@ export class PauseResumeManager {
           } catch (pauseError) {
             logger.error('Failed to persist pause result for resumed execution', {
               resumeExecutionId,
-              error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+              error: toError(pauseError).message,
             })
             await LoggingSession.markExecutionAsFailed(
               effectiveExecutionId,
-              `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
+              `Failed to persist pause state: ${toError(pauseError).message}`
             )
           }
         }
@@ -985,7 +986,7 @@ export class PauseResumeManager {
           logger.error('Error streaming block content during resume', {
             resumeExecutionId,
             blockId,
-            error: streamError instanceof Error ? streamError.message : String(streamError),
+            error: toError(streamError).message,
           })
         } finally {
           try {
@@ -1081,7 +1082,7 @@ export class PauseResumeManager {
         executionId: resumeExecutionId,
         workflowId,
         data: {
-          error: execError instanceof Error ? execError.message : String(execError),
+          error: toError(execError).message,
           duration: 0,
         },
       } as ExecutionEvent)
@@ -1094,7 +1095,7 @@ export class PauseResumeManager {
       } catch (closeError) {
         logger.warn('Failed to close event writer for resume', {
           resumeExecutionId,
-          error: closeError instanceof Error ? closeError.message : String(closeError),
+          error: toError(closeError).message,
         })
       }
       setExecutionMeta(resumeExecutionId, { status: finalMetaStatus }).catch(() => {})

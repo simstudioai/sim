@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 // import { useParams } from 'next/navigation'
 import { createLogger } from '@sim/logger'
+import { formatDate } from '@sim/utils/formatting'
 import { Check, Copy, Plus, Search } from 'lucide-react'
 import {
   Button,
@@ -15,7 +16,6 @@ import {
   // Switch,
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
-import { formatDate } from '@/lib/core/utils/formatting'
 // import { useMcpServers, useUpdateMcpServer } from '@/hooks/queries/mcp'
 import { CopilotKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/copilot/copilot-skeleton'
 import {

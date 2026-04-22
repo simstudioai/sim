@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import {
@@ -13,7 +14,7 @@ const logger = createLogger('AuditLogsAPI')
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: Request) {
+export const GET = withRouteHandler(async (request: Request) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -68,4 +69,4 @@ export async function GET(request: Request) {
     logger.error('Audit logs fetch error', { error: message })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

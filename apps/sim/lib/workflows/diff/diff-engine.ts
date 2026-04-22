@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import type { Edge } from 'reactflow'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getTargetedLayoutImpact } from '@/lib/workflows/autolayout'
 import type { BlockWithDiff } from '@/lib/workflows/diff/types'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
@@ -179,7 +180,7 @@ export class WorkflowDiffEngine {
         })
       } catch (mergeError) {
         logger.warn('Failed to merge subblock values into baseline; proceeding with raw state', {
-          error: mergeError instanceof Error ? mergeError.message : String(mergeError),
+          error: toError(mergeError).message,
         })
       }
 
@@ -337,7 +338,7 @@ export class WorkflowDiffEngine {
           })
         } catch (mergeError) {
           logger.warn('Failed to merge subblock values into baseline; proceeding with raw state', {
-            error: mergeError instanceof Error ? mergeError.message : String(mergeError),
+            error: toError(mergeError).message,
           })
         }
       } else {
@@ -515,7 +516,7 @@ export class WorkflowDiffEngine {
         transferBlockHeights(mergedBaseline.blocks, finalBlocks)
       } catch (error) {
         logger.warn('Failed to transfer block heights', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
 
@@ -595,7 +596,7 @@ export class WorkflowDiffEngine {
         }
       } catch (layoutError) {
         logger.warn('Error applying autolayout, using default positions', {
-          error: layoutError instanceof Error ? layoutError.message : String(layoutError),
+          error: toError(layoutError).message,
         })
       }
 

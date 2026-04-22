@@ -60,7 +60,23 @@ export function createMockFormDataRequest(
 }
 
 /**
- * Pre-configured mock for @/lib/core/utils/request module.
+ * Controllable mock functions for `@/lib/core/utils/request`.
+ *
+ * @example
+ * ```ts
+ * import { requestUtilsMockFns } from '@sim/testing'
+ *
+ * requestUtilsMockFns.mockGenerateRequestId.mockReturnValueOnce('test-req-42')
+ * requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce('10.0.0.5')
+ * ```
+ */
+export const requestUtilsMockFns = {
+  mockGenerateRequestId: vi.fn(() => 'mock-request-id'),
+  mockGetClientIp: vi.fn(() => '127.0.0.1'),
+}
+
+/**
+ * Static mock module for `@/lib/core/utils/request`.
  *
  * @example
  * ```ts
@@ -68,6 +84,7 @@ export function createMockFormDataRequest(
  * ```
  */
 export const requestUtilsMock = {
-  generateRequestId: vi.fn(() => 'mock-request-id'),
-  noop: vi.fn(),
+  generateRequestId: requestUtilsMockFns.mockGenerateRequestId,
+  getClientIp: requestUtilsMockFns.mockGetClientIp,
+  noop: () => {},
 }

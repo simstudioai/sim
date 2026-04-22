@@ -1,11 +1,12 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialMembersAPI')
@@ -40,7 +41,7 @@ async function requireWorkspaceAdminMembership(credentialId: string, userId: str
   return membership
 }
 
-export async function GET(_request: NextRequest, context: RouteContext) {
+export const GET = withRouteHandler(async (_request: NextRequest, context: RouteContext) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -87,14 +88,14 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     logger.error('Failed to fetch credential members', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 const addMemberSchema = z.object({
   userId: z.string().min(1),
   role: z.enum(['admin', 'member']).default('member'),
 })
 
-export async function POST(request: NextRequest, context: RouteContext) {
+export const POST = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -150,9 +151,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     logger.error('Failed to add credential member', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function DELETE(request: NextRequest, context: RouteContext) {
+export const DELETE = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -224,4 +225,4 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     logger.error('Failed to remove credential member', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

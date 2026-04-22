@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
@@ -88,7 +91,6 @@ import {
 } from '@/lib/copilot/tools/client/run-tool-execution'
 import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-context'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
@@ -2533,7 +2535,7 @@ export function useChat(
       } catch (error) {
         logger.warn('Failed to load chat history while recovering stream', {
           chatId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         return null
       }
@@ -2777,7 +2779,7 @@ export function useChat(
           if (isStaleReconnect()) return true
 
           setTransportReconnecting()
-          await new Promise((resolve) => setTimeout(resolve, delayMs))
+          await sleep(delayMs)
           if (streamGenRef.current !== gen) {
             if (!sendingRef.current) {
               setTransportIdle()
@@ -2847,7 +2849,7 @@ export function useChat(
           logger.warn('Reconnect attempt failed', {
             streamId,
             attempt: attempt + 1,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         }
       }

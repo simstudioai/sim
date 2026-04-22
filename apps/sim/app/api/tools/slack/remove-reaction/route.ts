@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +12,7 @@ const SlackRemoveReactionSchema = z.object({
   name: z.string().min(1, 'Emoji name is required'),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
@@ -84,4 +85,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

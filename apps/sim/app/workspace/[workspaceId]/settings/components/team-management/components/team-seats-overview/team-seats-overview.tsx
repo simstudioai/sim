@@ -1,3 +1,4 @@
+import { useParams, useRouter } from 'next/navigation'
 import { Badge, Button, Skeleton } from '@/components/emcn'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { cn } from '@/lib/core/utils/cn'
@@ -18,8 +19,6 @@ interface TeamSeatsOverviewProps {
   totalSeats: number
   usedSeats: number
   isLoading: boolean
-  onConfirmTeamUpgrade: (seats: number) => Promise<void>
-  onReduceSeats: () => Promise<void>
   onAddSeatDialog: () => void
 }
 
@@ -50,10 +49,12 @@ export function TeamSeatsOverview({
   totalSeats,
   usedSeats,
   isLoading,
-  onConfirmTeamUpgrade,
-  onReduceSeats,
   onAddSeatDialog,
 }: TeamSeatsOverviewProps) {
+  const router = useRouter()
+  const params = useParams<{ workspaceId: string }>()
+  const workspaceId = params?.workspaceId
+
   if (isLoadingSubscription) {
     return <TeamSeatsSkeleton />
   }
@@ -64,20 +65,22 @@ export function TeamSeatsOverview({
         <div className='flex flex-col items-center gap-3 px-3.5 py-4 text-center'>
           <div className='flex flex-col gap-1'>
             <p className='font-medium text-[var(--text-primary)] text-base'>
-              No Team Subscription Found
+              No active Team subscription
             </p>
             <p className='text-[var(--text-muted)] text-small'>
-              Your subscription may need to be transferred to this organization.
+              Purchase a Team plan to invite members and manage seats for this organization.
             </p>
           </div>
           <Button
             variant='primary'
             onClick={() => {
-              onConfirmTeamUpgrade(2)
+              if (workspaceId) {
+                router.push(`/workspace/${workspaceId}/settings/subscription`)
+              }
             }}
-            disabled={isLoading}
+            disabled={isLoading || !workspaceId}
           >
-            Set Up Team Subscription
+            Go to subscription settings
           </Button>
         </div>
       </div>
@@ -85,15 +88,26 @@ export function TeamSeatsOverview({
   }
 
   const isEnterprise = checkEnterprisePlan(subscriptionData)
+  const isSeatDataPending = !isEnterprise && totalSeats === 0
+  const isOverLimit = totalSeats > 0 && usedSeats > totalSeats
+  const pillCount = Math.max(totalSeats, usedSeats)
+
+  if (isSeatDataPending) {
+    return <TeamSeatsSkeleton />
+  }
 
   return (
     <div className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
       <div className='flex flex-col gap-2 px-3.5 py-3'>
-        {/* Top row - matching UsageHeader */}
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
             <span className='font-medium text-[var(--text-primary)] text-base'>Seats</span>
-            {!isEnterprise && (
+            {isOverLimit && (
+              <Badge variant='amber' size='sm'>
+                Over limit
+              </Badge>
+            )}
+            {!isEnterprise && !isOverLimit && (
               <Badge
                 variant='blue-secondary'
                 size='sm'
@@ -115,27 +129,44 @@ export function TeamSeatsOverview({
           </div>
         </div>
 
-        {/* Pills row - one pill per seat */}
         <div className='flex items-center gap-1'>
-          {Array.from({ length: totalSeats }).map((_, i) => {
+          {Array.from({ length: pillCount }).map((_, i) => {
             const isFilled = i < usedSeats
+            const isOverage = i >= totalSeats
             return (
               <div
                 key={i}
                 className={cn(
                   'h-[6px] flex-1 rounded-full transition-colors',
-                  isFilled ? 'bg-[var(--indicator-seat-filled)]' : 'bg-[var(--border)]'
+                  isOverage
+                    ? 'bg-[var(--badge-amber-text)]'
+                    : isFilled
+                      ? 'bg-[var(--indicator-seat-filled)]'
+                      : 'bg-[var(--border)]'
                 )}
               />
             )
           })}
         </div>
 
-        {/* Enterprise message */}
+        {isOverLimit && !isEnterprise && (
+          <div className='flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between'>
+            <p className='text-[var(--text-muted)] text-small'>
+              You have more members than seats. New invites are paused until you add seats or remove
+              members.
+            </p>
+            <Button variant='default' size='sm' onClick={onAddSeatDialog} disabled={isLoading}>
+              Add seats
+            </Button>
+          </div>
+        )}
+
         {isEnterprise && (
           <div className='pt-1 text-center'>
             <p className='text-[var(--text-muted)] text-small'>
-              Contact support for enterprise usage limit changes
+              {isOverLimit
+                ? 'You have more members than seats. Contact support to adjust your enterprise seat count.'
+                : 'Contact support for enterprise usage limit changes'}
             </p>
           </div>
         )}

@@ -1,10 +1,12 @@
 import { db } from '@sim/db'
 import { templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 
 const logger = createLogger('TemplatesSanitizedAPI')
@@ -16,7 +18,7 @@ export const revalidate = 0
  * Returns all approved templates with their sanitized JSONs, names, and descriptions
  * Requires internal API secret authentication via X-API-Key header
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -97,7 +99,7 @@ export async function GET(request: NextRequest) {
           }
         } catch (error) {
           logger.error(`[${requestId}] Error sanitizing template ${template.id}`, {
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           })
           return null
         }
@@ -112,7 +114,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response)
   } catch (error) {
     logger.error(`[${requestId}] Error fetching approved sanitized templates`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
     return NextResponse.json(
@@ -123,10 +125,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 // Add a helpful OPTIONS handler for CORS preflight
-export async function OPTIONS(request: NextRequest) {
+export const OPTIONS = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] OPTIONS request received for /api/templates/approved/sanitized`)
 
@@ -137,4 +139,4 @@ export async function OPTIONS(request: NextRequest) {
       'Access-Control-Allow-Headers': 'X-API-Key, Content-Type',
     },
   })
-}
+})

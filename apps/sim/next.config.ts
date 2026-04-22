@@ -94,8 +94,7 @@ const nextConfig: NextConfig = {
     '/*': [
       './node_modules/sharp/**/*',
       './node_modules/@img/**/*',
-      './dist/pptx-worker.cjs',
-      './dist/doc-worker.cjs',
+      './lib/execution/sandbox/bundles/*.cjs',
     ],
   },
   experimental: {

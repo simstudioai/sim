@@ -9,6 +9,7 @@ import {
   workflow,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 
 const logger = createLogger('SelectorValidator')
@@ -253,7 +254,7 @@ export async function validateSelectorIds(
   } catch (error) {
     // On DB error, skip validation rather than failing the edit
     logger.error(`Failed to validate selector IDs for type "${selectorType}"`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       selectorType,
       idCount: idsArray.length,
     })

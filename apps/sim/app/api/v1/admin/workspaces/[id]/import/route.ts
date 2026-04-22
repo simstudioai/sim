@@ -26,9 +26,10 @@
 import { db } from '@sim/db'
 import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   extractWorkflowName,
   extractWorkflowsFromZip,
@@ -63,115 +64,117 @@ interface ParsedWorkflow {
   folderPath: string[]
 }
 
-export const POST = withAdminAuthParams<RouteParams>(async (request, context) => {
-  const { id: workspaceId } = await context.params
-  const url = new URL(request.url)
-  const createFolders = url.searchParams.get('createFolders') !== 'false'
-  const rootFolderName = url.searchParams.get('rootFolderName')
+export const POST = withRouteHandler(
+  withAdminAuthParams<RouteParams>(async (request, context) => {
+    const { id: workspaceId } = await context.params
+    const url = new URL(request.url)
+    const createFolders = url.searchParams.get('createFolders') !== 'false'
+    const rootFolderName = url.searchParams.get('rootFolderName')
 
-  try {
-    const workspaceData = await getWorkspaceWithOwner(workspaceId)
+    try {
+      const workspaceData = await getWorkspaceWithOwner(workspaceId)
 
-    if (!workspaceData) {
-      return notFoundResponse('Workspace')
-    }
-
-    const contentType = request.headers.get('content-type') || ''
-    let workflowsToImport: ParsedWorkflow[] = []
-
-    if (contentType.includes('application/json')) {
-      const body = (await request.json()) as WorkspaceImportRequest
-
-      if (!body.workflows || !Array.isArray(body.workflows)) {
-        return badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
+      if (!workspaceData) {
+        return notFoundResponse('Workspace')
       }
 
-      workflowsToImport = body.workflows.map((w) => ({
-        content: typeof w.content === 'string' ? w.content : JSON.stringify(w.content),
-        name: w.name || 'Imported Workflow',
-        folderPath: w.folderPath || [],
-      }))
-    } else if (
-      contentType.includes('application/zip') ||
-      contentType.includes('multipart/form-data')
-    ) {
-      let zipBuffer: ArrayBuffer
+      const contentType = request.headers.get('content-type') || ''
+      let workflowsToImport: ParsedWorkflow[] = []
 
-      if (contentType.includes('multipart/form-data')) {
-        const formData = await request.formData()
-        const file = formData.get('file') as File | null
+      if (contentType.includes('application/json')) {
+        const body = (await request.json()) as WorkspaceImportRequest
 
-        if (!file) {
-          return badRequestResponse('No file provided in form data. Use field name "file".')
+        if (!body.workflows || !Array.isArray(body.workflows)) {
+          return badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
         }
 
-        zipBuffer = await file.arrayBuffer()
+        workflowsToImport = body.workflows.map((w) => ({
+          content: typeof w.content === 'string' ? w.content : JSON.stringify(w.content),
+          name: w.name || 'Imported Workflow',
+          folderPath: w.folderPath || [],
+        }))
+      } else if (
+        contentType.includes('application/zip') ||
+        contentType.includes('multipart/form-data')
+      ) {
+        let zipBuffer: ArrayBuffer
+
+        if (contentType.includes('multipart/form-data')) {
+          const formData = await request.formData()
+          const file = formData.get('file') as File | null
+
+          if (!file) {
+            return badRequestResponse('No file provided in form data. Use field name "file".')
+          }
+
+          zipBuffer = await file.arrayBuffer()
+        } else {
+          zipBuffer = await request.arrayBuffer()
+        }
+
+        const blob = new Blob([zipBuffer], { type: 'application/zip' })
+        const file = new File([blob], 'import.zip', { type: 'application/zip' })
+
+        const { workflows } = await extractWorkflowsFromZip(file)
+        workflowsToImport = workflows
       } else {
-        zipBuffer = await request.arrayBuffer()
+        return badRequestResponse(
+          'Unsupported Content-Type. Use application/json or application/zip.'
+        )
       }
 
-      const blob = new Blob([zipBuffer], { type: 'application/zip' })
-      const file = new File([blob], 'import.zip', { type: 'application/zip' })
-
-      const { workflows } = await extractWorkflowsFromZip(file)
-      workflowsToImport = workflows
-    } else {
-      return badRequestResponse(
-        'Unsupported Content-Type. Use application/json or application/zip.'
-      )
-    }
-
-    if (workflowsToImport.length === 0) {
-      return badRequestResponse('No workflows found to import')
-    }
-
-    let rootFolderId: string | undefined
-    if (rootFolderName && createFolders) {
-      rootFolderId = generateId()
-      await db.insert(workflowFolder).values({
-        id: rootFolderId,
-        name: rootFolderName,
-        userId: workspaceData.ownerId,
-        workspaceId,
-        parentId: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-    }
-
-    const folderMap = new Map<string, string>()
-    const results: ImportResult[] = []
-
-    for (const wf of workflowsToImport) {
-      const result = await importSingleWorkflow(
-        wf,
-        workspaceId,
-        workspaceData.ownerId,
-        createFolders,
-        rootFolderId,
-        folderMap
-      )
-      results.push(result)
-
-      if (result.success) {
-        logger.info(`Admin API: Imported workflow ${result.workflowId} (${result.name})`)
-      } else {
-        logger.warn(`Admin API: Failed to import workflow ${result.name}: ${result.error}`)
+      if (workflowsToImport.length === 0) {
+        return badRequestResponse('No workflows found to import')
       }
+
+      let rootFolderId: string | undefined
+      if (rootFolderName && createFolders) {
+        rootFolderId = generateId()
+        await db.insert(workflowFolder).values({
+          id: rootFolderId,
+          name: rootFolderName,
+          userId: workspaceData.ownerId,
+          workspaceId,
+          parentId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+      }
+
+      const folderMap = new Map<string, string>()
+      const results: ImportResult[] = []
+
+      for (const wf of workflowsToImport) {
+        const result = await importSingleWorkflow(
+          wf,
+          workspaceId,
+          workspaceData.ownerId,
+          createFolders,
+          rootFolderId,
+          folderMap
+        )
+        results.push(result)
+
+        if (result.success) {
+          logger.info(`Admin API: Imported workflow ${result.workflowId} (${result.name})`)
+        } else {
+          logger.warn(`Admin API: Failed to import workflow ${result.name}: ${result.error}`)
+        }
+      }
+
+      const imported = results.filter((r) => r.success).length
+      const failed = results.filter((r) => !r.success).length
+
+      logger.info(`Admin API: Import complete - ${imported} succeeded, ${failed} failed`)
+
+      const response: WorkspaceImportResponse = { imported, failed, results }
+      return NextResponse.json(response)
+    } catch (error) {
+      logger.error('Admin API: Failed to import into workspace', { error, workspaceId })
+      return internalErrorResponse('Failed to import workflows')
     }
-
-    const imported = results.filter((r) => r.success).length
-    const failed = results.filter((r) => !r.success).length
-
-    logger.info(`Admin API: Import complete - ${imported} succeeded, ${failed} failed`)
-
-    const response: WorkspaceImportResponse = { imported, failed, results }
-    return NextResponse.json(response)
-  } catch (error) {
-    logger.error('Admin API: Failed to import into workspace', { error, workspaceId })
-    return internalErrorResponse('Failed to import workflows')
-  }
-})
+  })
+)
 
 async function importSingleWorkflow(
   wf: ParsedWorkflow,

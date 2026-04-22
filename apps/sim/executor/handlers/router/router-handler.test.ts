@@ -1,15 +1,9 @@
 import '@sim/testing/mocks/executor'
 
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-vi.mock('@/app/api/auth/oauth/utils', () => ({
-  resolveOAuthAccountId: vi
-    .fn()
-    .mockResolvedValue({ accountId: 'test-vertex-credential-id', usedCredentialTable: false }),
-  refreshTokenIfNeeded: vi
-    .fn()
-    .mockResolvedValue({ accessToken: 'mock-access-token', refreshed: false }),
-}))
+vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
 
 import { generateRouterPrompt, generateRouterV2Prompt } from '@/blocks/blocks/router'
 import { BlockType } from '@/executor/constants'
@@ -85,6 +79,14 @@ describe('RouterBlockHandler', () => {
 
     vi.clearAllMocks()
 
+    authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValue({
+      accountId: 'test-vertex-credential-id',
+      usedCredentialTable: false,
+    })
+    authOAuthUtilsMockFns.mockRefreshTokenIfNeeded.mockResolvedValue({
+      accessToken: 'mock-access-token',
+      refreshed: false,
+    })
     mockGetProviderFromModel.mockReturnValue('openai')
     mockGenerateRouterPrompt.mockReturnValue('Generated System Prompt')
 
@@ -375,6 +377,14 @@ describe('RouterBlockHandler V2', () => {
 
     vi.clearAllMocks()
 
+    authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValue({
+      accountId: 'test-vertex-credential-id',
+      usedCredentialTable: false,
+    })
+    authOAuthUtilsMockFns.mockRefreshTokenIfNeeded.mockResolvedValue({
+      accessToken: 'mock-access-token',
+      refreshed: false,
+    })
     mockGetProviderFromModel.mockReturnValue('openai')
     mockGenerateRouterV2Prompt.mockReturnValue('Generated V2 System Prompt')
   })

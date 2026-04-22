@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
@@ -65,7 +67,7 @@ async function withRedisRetry<T>(
   for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
     const delay = RETRY_DELAYS_MS[attempt]
     if (delay > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delay))
+      await sleep(delay)
     }
 
     try {
@@ -76,7 +78,7 @@ async function withRedisRetry<T>(
         operation: metadata.operation,
         streamId: metadata.streamId,
         attempt: attempt + 1,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -126,7 +128,7 @@ export async function scheduleBufferCleanup(
     logger.warn('Failed to shorten stream buffer TTL during cleanup', {
       streamId,
       ttlSeconds,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
 }

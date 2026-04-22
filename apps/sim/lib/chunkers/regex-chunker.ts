@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { Chunk, RegexChunkerOptions } from '@/lib/chunkers/types'
 import {
   addOverlap,
@@ -62,9 +63,7 @@ export class RegexChunker {
       if (error instanceof Error && error.message.includes('catastrophic')) {
         throw error
       }
-      throw new Error(
-        `Invalid regex pattern "${pattern}": ${error instanceof Error ? error.message : String(error)}`
-      )
+      throw new Error(`Invalid regex pattern "${pattern}": ${toError(error).message}`)
     }
   }
 

@@ -1,3 +1,4 @@
+import { toError } from '@sim/utils/errors'
 import { TableIcon } from '@/components/icons'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/converters'
@@ -20,7 +21,7 @@ function parseJSON(value: string | unknown, fieldName: string): unknown {
   try {
     return JSON.parse(value)
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error)
+    const errorMsg = toError(error).message
 
     // Check if the error might be due to unquoted string values
     // This happens when users write {"field": <ref>} instead of {"field": "<ref>"}

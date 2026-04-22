@@ -74,12 +74,12 @@ export const agiloftSelectRecordsTool: ToolConfig<
           }
         }
 
-        const data = await response.json()
-        const result = data.result ?? data
+        const data = (await response.json()) as Record<string, unknown>
+        const result = (data.result ?? data) as Record<string, unknown>
         const recordIds: string[] = []
 
         if (Array.isArray(result)) {
-          for (const item of result) {
+          for (const item of result as Record<string, unknown>[]) {
             const id = item.id ?? item.ID ?? item
             recordIds.push(String(id))
           }

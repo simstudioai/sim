@@ -1,13 +1,14 @@
 import { db } from '@sim/db'
 import { permissions, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId, generateShortId } from '@sim/utils/id'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId, generateShortId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
@@ -56,7 +57,7 @@ async function revertSavedWebhook(
 }
 
 // Get all webhooks for the current user
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -168,10 +169,10 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching webhooks`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 // Create or Update a webhook
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   const session = await getSession()
   const userId = session?.user?.id
@@ -719,4 +720,4 @@ export async function POST(request: NextRequest) {
     })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -11,7 +12,7 @@ import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { taskPubSub } from '@/lib/copilot/tasks'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatStopAPI')
 
@@ -66,8 +67,8 @@ const StopSchema = z.object({
 // POST /api/copilot/chat/stop — persists partial assistant content
 // when the user stops mid-stream. Lock release is handled by the
 // aborted server stream unwinding, not this handler.
-export async function POST(req: NextRequest) {
-  return withIncomingGoSpan(
+export const POST = withRouteHandler((req: NextRequest) =>
+  withIncomingGoSpan(
     req.headers,
     TraceSpan.CopilotChatStopStream,
     undefined,
@@ -180,4 +181,4 @@ export async function POST(req: NextRequest) {
       }
     }
   )
-}
+)

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { deleteSkill, listSkills, upsertSkills } from '@/lib/workflows/skills/operations'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -28,7 +29,7 @@ const SkillSchema = z.object({
 })
 
 /** GET - Fetch all skills for a workspace */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   const searchParams = request.nextUrl.searchParams
   const workspaceId = searchParams.get('workspaceId')
@@ -60,10 +61,10 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching skills:`, error)
     return NextResponse.json({ error: 'Failed to fetch skills' }, { status: 500 })
   }
-}
+})
 
 /** POST - Create or update skills */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -140,10 +141,10 @@ export async function POST(req: NextRequest) {
     logger.error(`[${requestId}] Error updating skills`, error)
     return NextResponse.json({ error: 'Failed to update skills' }, { status: 500 })
   }
-}
+})
 
 /** DELETE - Delete a skill by ID */
-export async function DELETE(request: NextRequest) {
+export const DELETE = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   const searchParams = request.nextUrl.searchParams
   const skillId = searchParams.get('id')
@@ -210,4 +211,4 @@ export async function DELETE(request: NextRequest) {
     logger.error(`[${requestId}] Error deleting skill:`, error)
     return NextResponse.json({ error: 'Failed to delete skill' }, { status: 500 })
   }
-}
+})

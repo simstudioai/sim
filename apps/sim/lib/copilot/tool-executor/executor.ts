@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { executeTool as executeAppTool } from '@/tools'
 import { isKnownTool, isSimExecuted } from './router'
 import type {
@@ -58,7 +59,7 @@ export async function executeTool(
   try {
     return await handler(params, context)
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = toError(error).message
     logger.error('Tool execution failed', {
       toolId,
       error: message,

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { SearchOnline } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/core/config/env'
@@ -84,7 +85,7 @@ export const searchOnlineServerTool: BaseServerTool<OnlineSearchParams, SearchRe
         logger.debug('exa_search returned no results, falling back to Serper')
       } catch (exaError) {
         logger.warn('exa_search failed, falling back to Serper', {
-          error: exaError instanceof Error ? exaError.message : String(exaError),
+          error: toError(exaError).message,
         })
       }
     }

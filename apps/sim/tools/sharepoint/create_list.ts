@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type {
   SharepointCreateListResponse,
   SharepointList,
@@ -93,7 +94,7 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
               columns = (parsed as any).columns
           } catch (error) {
             logger.warn('Invalid JSON in pageContent for create list; ignoring', {
-              error: error instanceof Error ? error.message : String(error),
+              error: toError(error).message,
             })
           }
         } else if (typeof params.pageContent === 'object') {

@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
               logger.warn('Failed to read preview sessions for copilot chat', {
                 chatId,
                 conversationId: chat.conversationId,
-                error: error instanceof Error ? error.message : String(error),
+                error: toError(error).message,
               })
               return []
             }),
@@ -90,7 +91,7 @@ export async function GET(req: NextRequest) {
               logger.warn('Failed to fetch latest run for copilot chat snapshot', {
                 chatId,
                 conversationId: chat.conversationId,
-                error: error instanceof Error ? error.message : String(error),
+                error: toError(error).message,
               })
               return null
             }),
@@ -110,7 +111,7 @@ export async function GET(req: NextRequest) {
           logger.warn('Failed to load copilot chat stream snapshot', {
             chatId,
             conversationId: chat.conversationId,
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           })
         }
       }

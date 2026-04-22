@@ -6,6 +6,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotTrainingExamplesAPI')
 
@@ -19,7 +20,7 @@ const TrainingExampleSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
   if (!isAuthenticated || !userId) {
     return createUnauthorizedResponse()
@@ -89,4 +90,4 @@ export async function POST(request: NextRequest) {
     logger.error('Failed to send workflow example', { error: err })
     return NextResponse.json({ error: errorMessage }, { status: 502 })
   }
-}
+})

@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
 import { usageLog, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, desc, eq, gte, lte, type SQL, sql } from 'drizzle-orm'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
-import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('UsageLog')
 
@@ -304,7 +305,7 @@ export async function getUserUsageLogs(
     }
   } catch (error) {
     logger.error('Failed to get usage logs', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       userId,
       options,
     })

@@ -2,13 +2,16 @@
  * @vitest-environment node
  */
 
-import { databaseMock } from '@sim/testing'
+import {
+  databaseMock,
+  hybridAuthMockFns,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockCheckHybridAuth,
-  mockAuthorizeWorkflowByWorkspacePermission,
   mockMarkExecutionCancelled,
   mockAbortManualExecution,
   mockCancelPausedExecution,
@@ -16,18 +19,12 @@ const {
   mockWriteEvent,
   mockCloseWriter,
 } = vi.hoisted(() => ({
-  mockCheckHybridAuth: vi.fn(),
-  mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
   mockMarkExecutionCancelled: vi.fn(),
   mockAbortManualExecution: vi.fn(),
   mockCancelPausedExecution: vi.fn(),
   mockSetExecutionMeta: vi.fn(),
   mockWriteEvent: vi.fn(),
   mockCloseWriter: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  checkHybridAuth: (...args: unknown[]) => mockCheckHybridAuth(...args),
 }))
 
 vi.mock('@/lib/execution/cancellation', () => ({
@@ -44,10 +41,7 @@ vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
   },
 }))
 
-vi.mock('@/lib/workflows/utils', () => ({
-  authorizeWorkflowByWorkspacePermission: (params: unknown) =>
-    mockAuthorizeWorkflowByWorkspacePermission(params),
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: vi.fn(),
@@ -73,8 +67,10 @@ const makeParams = () => ({ params: Promise.resolve({ id: 'wf-1', executionId: '
 describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckHybridAuth.mockResolvedValue({ success: true, userId: 'user-1' })
-    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({ allowed: true })
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({ success: true, userId: 'user-1' })
+    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      allowed: true,
+    })
     mockAbortManualExecution.mockReturnValue(false)
     mockCancelPausedExecution.mockResolvedValue(false)
     mockSetExecutionMeta.mockResolvedValue(undefined)
@@ -185,7 +181,10 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
   })
 
   it('returns 401 when auth fails', async () => {
-    mockCheckHybridAuth.mockResolvedValue({ success: false, error: 'Unauthorized' })
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
+      success: false,
+      error: 'Unauthorized',
+    })
 
     const response = await POST(makeRequest(), makeParams())
 
@@ -194,7 +193,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
 
   it('returns 403 when workflow access is denied', async () => {
     mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
-    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: false,
       message: 'Access denied',
       status: 403,

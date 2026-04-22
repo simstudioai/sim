@@ -37,6 +37,8 @@ export function createMockLogger() {
 export const loggerMock = {
   createLogger: vi.fn(() => createMockLogger()),
   logger: createMockLogger(),
+  runWithRequestContext: vi.fn(<T>(_ctx: unknown, fn: () => T): T => fn()),
+  getRequestContext: vi.fn(() => undefined),
 }
 
 /**

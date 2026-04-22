@@ -46,6 +46,7 @@ export interface FileAttachmentForApi {
   filename: string
   media_type: string
   size: number
+  path?: string
 }
 
 export interface QueuedMessage {

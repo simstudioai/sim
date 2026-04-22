@@ -28,9 +28,9 @@ export const getUserTool: ToolConfig<IAMGetUserParams, IAMGetUserResponse> = {
     },
     userName: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The name of the IAM user to retrieve',
+      description: 'The name of the IAM user to retrieve (defaults to the caller if omitted)',
     },
   },
 
@@ -42,7 +42,7 @@ export const getUserTool: ToolConfig<IAMGetUserParams, IAMGetUserResponse> = {
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
-      userName: params.userName,
+      ...(params.userName ? { userName: params.userName } : {}),
     }),
   },
 

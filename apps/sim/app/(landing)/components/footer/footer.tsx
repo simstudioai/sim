@@ -31,6 +31,7 @@ const RESOURCES_LINKS: FooterItem[] = [
   { label: 'Partners', href: '/partners' },
   { label: 'Careers', href: 'https://jobs.ashbyhq.com/sim', external: true, externalArrow: true },
   { label: 'Changelog', href: '/changelog' },
+  { label: 'Contact', href: '/contact' },
 ]
 
 const BLOCK_LINKS: FooterItem[] = [
@@ -38,7 +39,7 @@ const BLOCK_LINKS: FooterItem[] = [
   { label: 'Router', href: 'https://docs.sim.ai/blocks/router', external: true },
   { label: 'Function', href: 'https://docs.sim.ai/blocks/function', external: true },
   { label: 'Condition', href: 'https://docs.sim.ai/blocks/condition', external: true },
-  { label: 'API', href: 'https://docs.sim.ai/blocks/api', external: true },
+  { label: 'API Block', href: 'https://docs.sim.ai/blocks/api', external: true },
   { label: 'Workflow', href: 'https://docs.sim.ai/blocks/workflow', external: true },
   { label: 'Parallel', href: 'https://docs.sim.ai/blocks/parallel', external: true },
   { label: 'Guardrails', href: 'https://docs.sim.ai/blocks/guardrails', external: true },
@@ -194,7 +195,7 @@ export default function Footer({ hideCTA }: FooterProps) {
               <Link href='/' aria-label='Sim home'>
                 <Image
                   src='/logo/sim-landing.svg'
-                  alt='Sim'
+                  alt=''
                   width={85}
                   height={26}
                   className='h-[26.4px] w-auto'

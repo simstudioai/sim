@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { parse as csvParse } from 'csv-parse/sync'
 import { eq } from 'drizzle-orm'
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -137,18 +138,18 @@ export async function maybeWriteOutputToTable(
         logger.warn('Failed to write tool output to table', {
           toolName,
           outputTable,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
         span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.Failed)
         span.addEvent(TraceEvent.CopilotTableError, {
-          [TraceAttr.ErrorMessage]: (err instanceof Error ? err.message : String(err)).slice(
+          [TraceAttr.ErrorMessage]: (toError(err).message).slice(
             0,
             500
           ),
         })
         return {
           success: false,
-          error: `Failed to write to table: ${err instanceof Error ? err.message : String(err)}`,
+          error: `Failed to write to table: ${toError(err).message}`,
         }
       }
     }
@@ -287,18 +288,18 @@ export async function maybeWriteReadCsvToTable(
         logger.warn('Failed to write read output to table', {
           toolName,
           outputTable,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
         span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.Failed)
         span.addEvent(TraceEvent.CopilotTableError, {
-          [TraceAttr.ErrorMessage]: (err instanceof Error ? err.message : String(err)).slice(
+          [TraceAttr.ErrorMessage]: (toError(err).message).slice(
             0,
             500
           ),
         })
         return {
           success: false,
-          error: `Failed to import into table: ${err instanceof Error ? err.message : String(err)}`,
+          error: `Failed to import into table: ${toError(err).message}`,
         }
       }
     }

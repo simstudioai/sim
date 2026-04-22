@@ -1,0 +1,52 @@
+---
+title: Gmail
+description: Available Gmail triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="gmail"
+  color="#E0E0E0"
+/>
+
+Gmail provides 1 trigger for automating workflows based on events.
+
+All triggers below are **polling-based** — they check for new data on a schedule rather than receiving push notifications.
+
+## Triggers
+
+### Gmail Email Trigger
+
+Triggers when new emails are received in Gmail (requires Gmail credentials)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | This trigger requires google email credentials to access your account. |
+| `labelIds` | string | No | Choose which Gmail labels to monitor. Leave empty to monitor all emails. |
+| `labelFilterBehavior` | string | Yes | Include only emails with selected labels, or exclude emails with selected labels |
+| `searchQuery` | string | No | Optional Gmail search query to filter emails. Use the same format as Gmail search box \(e.g.,  |
+| `markAsRead` | boolean | No | Automatically mark emails as read after processing |
+| `includeAttachments` | boolean | No | Download and include email attachments in the trigger payload |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | object | email output from the tool |
+|   ↳ `id` | string | Gmail message ID |
+|   ↳ `threadId` | string | Gmail thread ID |
+|   ↳ `subject` | string | Email subject line |
+|   ↳ `from` | string | Sender email address |
+|   ↳ `to` | string | Recipient email address |
+|   ↳ `cc` | string | CC recipients |
+|   ↳ `date` | string | Email date in ISO format |
+|   ↳ `bodyText` | string | Plain text email body |
+|   ↳ `bodyHtml` | string | HTML email body |
+|   ↳ `labels` | string | Email labels array |
+|   ↳ `hasAttachments` | boolean | Whether email has attachments |
+|   ↳ `attachments` | file[] | Array of email attachments as files \(if includeAttachments is enabled\) |
+| `timestamp` | string | Event timestamp |
+

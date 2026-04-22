@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
@@ -66,7 +67,7 @@ export async function handleResourceSideEffects(
           removeChatResources(chatId, deleted).catch((err) => {
             logger.warn('Failed to remove chat resources after deletion', {
               chatId,
-              error: err instanceof Error ? err.message : String(err),
+              error: toError(err).message,
             })
           })
 
@@ -101,7 +102,7 @@ export async function handleResourceSideEffects(
           persistChatResources(chatId, resources).catch((err) => {
             logger.warn('Failed to persist chat resources', {
               chatId,
-              error: err instanceof Error ? err.message : String(err),
+              error: toError(err).message,
             })
           })
 

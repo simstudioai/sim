@@ -3,11 +3,17 @@
  *
  * @vitest-environment node
  */
-import { auditMock, createMockRequest } from '@sim/testing'
+import {
+  auditMock,
+  authMockFns,
+  createMockRequest,
+  permissionsMock,
+  permissionsMockFns,
+} from '@sim/testing'
 import { drizzleOrmMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGetUserEntityPermissions, mockLogger } = vi.hoisted(() => {
+const { mockLogger } = vi.hoisted(() => {
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -18,26 +24,23 @@ const { mockGetSession, mockGetUserEntityPermissions, mockLogger } = vi.hoisted(
     child: vi.fn(),
   }
   return {
-    mockGetSession: vi.fn(),
-    mockGetUserEntityPermissions: vi.fn(),
     mockLogger: logger,
   }
 })
+
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 vi.mock('@/lib/audit/log', () => auditMock)
 vi.mock('drizzle-orm', () => ({
   ...drizzleOrmMock,
   min: vi.fn((field) => ({ type: 'min', field })),
 }))
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
 vi.mock('@sim/logger', () => ({
   createLogger: vi.fn().mockReturnValue(mockLogger),
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
+  getRequestContext: () => undefined,
 }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { db } from '@sim/db'
 import { GET, POST } from '@/app/api/folders/route'
@@ -131,11 +134,11 @@ describe('Folders API Route', () => {
   const mockTransaction = mockDb.transaction
 
   function mockAuthenticatedUser() {
-    mockGetSession.mockResolvedValue({ user: defaultMockUser })
+    authMockFns.mockGetSession.mockResolvedValue({ user: defaultMockUser })
   }
 
   function mockUnauthenticated() {
-    mockGetSession.mockResolvedValue(null)
+    authMockFns.mockGetSession.mockResolvedValue(null)
   }
 
   beforeEach(() => {

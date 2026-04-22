@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { z } from 'zod'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
@@ -112,12 +113,15 @@ export const getBlocksMetadataServerTool: BaseServerTool<
   outputSchema: GetBlocksMetadataResultSchema,
   async execute(
     { blockIds }: z.infer<typeof GetBlocksMetadataInputSchema>,
-    context?: { userId: string }
+    context?: { userId: string; workspaceId?: string }
   ): Promise<z.infer<typeof GetBlocksMetadataResultSchema>> {
     const logger = createLogger('GetBlocksMetadataServerTool')
     logger.debug('Executing get_blocks_metadata', { count: blockIds?.length })
 
-    const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
+    const permissionConfig =
+      context?.userId && context?.workspaceId
+        ? await getUserPermissionConfig(context.userId, context.workspaceId)
+        : null
     const allowedIntegrations =
       permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
 
@@ -313,7 +317,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         }
       } catch (error) {
         logger.warn('Failed to read YAML documentation file', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
 
@@ -1000,7 +1004,7 @@ function resolveToolIdForOperation(blockConfig: BlockConfig, opId: string): stri
   } catch (error) {
     const toolLogger = createLogger('GetBlocksMetadataServerTool')
     toolLogger.warn('Failed to resolve tool ID for operation', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
   return undefined

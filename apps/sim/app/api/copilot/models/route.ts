@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
@@ -11,6 +12,7 @@ interface AvailableModel {
 }
 
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotModelsAPI')
 
@@ -30,7 +32,7 @@ function isRawAvailableModel(item: unknown): item is RawAvailableModel {
   )
 }
 
-export async function GET(_req: NextRequest) {
+export const GET = withRouteHandler(async (_req: NextRequest) => {
   const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
   if (!isAuthenticated || !userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -79,7 +81,7 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({ success: true, models })
   } catch (error) {
     logger.error('Error fetching available models', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return NextResponse.json(
       {
@@ -90,4 +92,4 @@ export async function GET(_req: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

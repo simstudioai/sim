@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
@@ -6,7 +8,7 @@ import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
@@ -44,7 +46,7 @@ function isAbortError(error: unknown): boolean {
  * Called by the executor via internal JWT auth, not by the browser directly.
  * Consumes the Go SSE stream internally and returns a single JSON response.
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   let messageId: string | undefined
   let requestId: string | undefined
 
@@ -80,7 +82,7 @@ export async function POST(req: NextRequest) {
     })
     const [workspaceContext, integrationTools, userPermission] = await Promise.all([
       generateWorkspaceContext(workspaceId, userId),
-      buildIntegrationToolSchemas(userId, messageId),
+      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
       getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
     ])
 
@@ -110,7 +112,7 @@ export async function POST(req: NextRequest) {
         chatId: effectiveChatId,
       }).catch((error) => {
         reqLogger.warn('Failed to send explicit abort for mothership execution', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       })
     }
@@ -221,4 +223,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

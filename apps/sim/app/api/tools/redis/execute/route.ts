@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('RedisAPI')
 
@@ -13,7 +14,7 @@ const RequestSchema = z.object({
   args: z.array(z.union([z.string(), z.number()])).default([]),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   let client: Redis | null = null
 
   try {
@@ -65,4 +66,4 @@ export async function POST(request: NextRequest) {
       }
     }
   }
-}
+})

@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
+import { generateId } from '@sim/utils/id'
 import type { ComboboxOption } from '@/components/emcn'
-import { generateId } from '@/lib/core/utils/uuid'
 import { useTableColumns } from '@/lib/table/hooks'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { useFilterBuilder } from '@/lib/table/query-builder/use-query-builder'

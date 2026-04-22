@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, ne } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialAccess')

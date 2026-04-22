@@ -1,5 +1,6 @@
 import { GoogleGenAI, type Part } from '@google/genai'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { GenerateImage } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -111,7 +112,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
           } catch (err) {
             logger.warn('Failed to load reference image, skipping', {
               fileId,
-              error: err instanceof Error ? err.message : String(err),
+              error: toError(err).message,
             })
           }
         }

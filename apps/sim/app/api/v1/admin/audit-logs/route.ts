@@ -22,6 +22,7 @@ import { db } from '@sim/db'
 import { auditLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, desc } from 'drizzle-orm'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -38,54 +39,56 @@ import { buildFilterConditions } from '@/app/api/v1/audit-logs/query'
 
 const logger = createLogger('AdminAuditLogsAPI')
 
-export const GET = withAdminAuth(async (request) => {
-  const url = new URL(request.url)
-  const { limit, offset } = parsePaginationParams(url)
+export const GET = withRouteHandler(
+  withAdminAuth(async (request) => {
+    const url = new URL(request.url)
+    const { limit, offset } = parsePaginationParams(url)
 
-  const startDate = url.searchParams.get('startDate') || undefined
-  const endDate = url.searchParams.get('endDate') || undefined
+    const startDate = url.searchParams.get('startDate') || undefined
+    const endDate = url.searchParams.get('endDate') || undefined
 
-  if (startDate && Number.isNaN(Date.parse(startDate))) {
-    return badRequestResponse('Invalid startDate format. Use ISO 8601.')
-  }
-  if (endDate && Number.isNaN(Date.parse(endDate))) {
-    return badRequestResponse('Invalid endDate format. Use ISO 8601.')
-  }
+    if (startDate && Number.isNaN(Date.parse(startDate))) {
+      return badRequestResponse('Invalid startDate format. Use ISO 8601.')
+    }
+    if (endDate && Number.isNaN(Date.parse(endDate))) {
+      return badRequestResponse('Invalid endDate format. Use ISO 8601.')
+    }
 
-  try {
-    const conditions = buildFilterConditions({
-      action: url.searchParams.get('action') || undefined,
-      resourceType: url.searchParams.get('resourceType') || undefined,
-      resourceId: url.searchParams.get('resourceId') || undefined,
-      workspaceId: url.searchParams.get('workspaceId') || undefined,
-      actorId: url.searchParams.get('actorId') || undefined,
-      actorEmail: url.searchParams.get('actorEmail') || undefined,
-      startDate,
-      endDate,
-    })
+    try {
+      const conditions = buildFilterConditions({
+        action: url.searchParams.get('action') || undefined,
+        resourceType: url.searchParams.get('resourceType') || undefined,
+        resourceId: url.searchParams.get('resourceId') || undefined,
+        workspaceId: url.searchParams.get('workspaceId') || undefined,
+        actorId: url.searchParams.get('actorId') || undefined,
+        actorEmail: url.searchParams.get('actorEmail') || undefined,
+        startDate,
+        endDate,
+      })
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
-    const [countResult, logs] = await Promise.all([
-      db.select({ total: count() }).from(auditLog).where(whereClause),
-      db
-        .select()
-        .from(auditLog)
-        .where(whereClause)
-        .orderBy(desc(auditLog.createdAt))
-        .limit(limit)
-        .offset(offset),
-    ])
+      const [countResult, logs] = await Promise.all([
+        db.select({ total: count() }).from(auditLog).where(whereClause),
+        db
+          .select()
+          .from(auditLog)
+          .where(whereClause)
+          .orderBy(desc(auditLog.createdAt))
+          .limit(limit)
+          .offset(offset),
+      ])
 
-    const total = countResult[0].total
-    const data: AdminAuditLog[] = logs.map(toAdminAuditLog)
-    const pagination = createPaginationMeta(total, limit, offset)
+      const total = countResult[0].total
+      const data: AdminAuditLog[] = logs.map(toAdminAuditLog)
+      const pagination = createPaginationMeta(total, limit, offset)
 
-    logger.info(`Admin API: Listed ${data.length} audit logs (total: ${total})`)
+      logger.info(`Admin API: Listed ${data.length} audit logs (total: ${total})`)
 
-    return listResponse(data, pagination)
-  } catch (error) {
-    logger.error('Admin API: Failed to list audit logs', { error })
-    return internalErrorResponse('Failed to list audit logs')
-  }
-})
+      return listResponse(data, pagination)
+    } catch (error) {
+      logger.error('Admin API: Failed to list audit logs', { error })
+      return internalErrorResponse('Failed to list audit logs')
+    }
+  })
+)

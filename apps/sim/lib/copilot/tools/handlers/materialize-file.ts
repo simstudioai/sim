@@ -1,11 +1,12 @@
 import { db } from '@sim/db'
 import { workflow, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getServePathPrefix } from '@/lib/uploads'
 import { downloadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
@@ -219,7 +220,7 @@ export async function executeMaterializeFile(
         fileName,
         operation,
         chatId: context.chatId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       failed.push({
         fileName,

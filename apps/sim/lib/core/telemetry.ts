@@ -18,6 +18,7 @@
 
 import { context, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import type { TraceSpan } from '@/lib/logs/types'
 
@@ -419,7 +420,7 @@ export async function traceBlockExecution<T>(
           code: SpanStatusCode.ERROR,
           message: error instanceof Error ? error.message : 'Block execution failed',
         })
-        span.recordException(error instanceof Error ? error : new Error(String(error)))
+        span.recordException(toError(error))
         throw error
       } finally {
         span.end()

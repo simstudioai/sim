@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/feature-flags'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('TelemetryAPI')
 
@@ -176,7 +177,7 @@ async function forwardToCollector(data: any): Promise<boolean> {
 /**
  * Endpoint that receives telemetry events and forwards them to OpenTelemetry collector
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
     let eventData
     try {
@@ -202,4 +203,4 @@ export async function POST(req: NextRequest) {
     logger.error('Error processing telemetry event', error)
     return NextResponse.json({ error: 'Failed to process telemetry event' }, { status: 500 })
   }
-}
+})

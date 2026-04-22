@@ -1,5 +1,5 @@
+import { generateId } from '@sim/utils/id'
 import type { Edge } from 'reactflow'
-import { generateId } from '@/lib/core/utils/uuid'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'

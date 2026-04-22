@@ -10,6 +10,7 @@ import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotApiKeysValidate')
 
@@ -17,12 +18,12 @@ const ValidateApiKeySchema = z.object({
   userId: z.string().min(1, 'userId is required'),
 })
 
-export async function POST(req: NextRequest) {
-  // Incoming-from-Go: extracts traceparent so this handler's work shows
-  // up as a child of the Go-side `sim.validate_api_key` span in the same
-  // trace. If there's no traceparent (manual curl / browser), the helper
-  // falls back to a new root span.
-  return withIncomingGoSpan(
+// Incoming-from-Go: extracts traceparent so this handler's work shows
+// up as a child of the Go-side `sim.validate_api_key` span in the same
+// trace. If there's no traceparent (manual curl / browser), the helper
+// falls back to a new root span.
+export const POST = withRouteHandler((req: NextRequest) =>
+  withIncomingGoSpan(
     req.headers,
     TraceSpan.CopilotAuthValidateApiKey,
     {
@@ -100,4 +101,4 @@ export async function POST(req: NextRequest) {
       }
     }
   )
-}
+)

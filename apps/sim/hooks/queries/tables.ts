@@ -5,7 +5,15 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
-import type { Filter, RowData, Sort, TableDefinition, TableMetadata, TableRow } from '@/lib/table'
+import type {
+  CsvHeaderMapping,
+  Filter,
+  RowData,
+  Sort,
+  TableDefinition,
+  TableMetadata,
+  TableRow,
+} from '@/lib/table'
 
 const logger = createLogger('TableQueries')
 
@@ -668,6 +676,9 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
 
       return res.json()
     },
+    onError: (error) => {
+      toast.error(error.message, { duration: 5000 })
+    },
     onSettled: () => {
       invalidateTableSchema(queryClient, workspaceId, tableId)
     },
@@ -776,6 +787,76 @@ export function useUploadCsvToTable() {
     },
     onError: (error) => {
       logger.error('Failed to upload CSV:', error)
+    },
+  })
+}
+
+export type CsvImportMode = 'append' | 'replace'
+
+interface ImportCsvIntoTableParams {
+  workspaceId: string
+  tableId: string
+  file: File
+  mode: CsvImportMode
+  mapping?: CsvHeaderMapping
+}
+
+interface ImportCsvIntoTableResponse {
+  success: boolean
+  data?: {
+    tableId: string
+    mode: CsvImportMode
+    insertedCount?: number
+    deletedCount?: number
+    mappedColumns?: string[]
+    skippedHeaders?: string[]
+    unmappedColumns?: string[]
+    sourceFile?: string
+  }
+}
+
+/**
+ * Upload a CSV file to an existing table in append or replace mode. Supports
+ * an optional explicit header-to-column mapping; when omitted the server
+ * auto-maps headers by sanitized name.
+ */
+export function useImportCsvIntoTable() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      workspaceId,
+      tableId,
+      file,
+      mode,
+      mapping,
+    }: ImportCsvIntoTableParams): Promise<ImportCsvIntoTableResponse> => {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('workspaceId', workspaceId)
+      formData.append('mode', mode)
+      if (mapping) {
+        formData.append('mapping', JSON.stringify(mapping))
+      }
+
+      const response = await fetch(`/api/table/${tableId}/import-csv`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'CSV import failed')
+      }
+
+      return response.json()
+    },
+    onSettled: (_data, _error, variables) => {
+      if (!variables) return
+      invalidateRowCount(queryClient, variables.workspaceId, variables.tableId)
+    },
+    onError: (error) => {
+      logger.error('Failed to import CSV into table:', error)
     },
   })
 }

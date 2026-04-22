@@ -20,9 +20,10 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import {
@@ -59,7 +60,7 @@ const QueryParamsSchema = z.object({
   cursor: z.string().optional(),
 })
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   try {
@@ -125,4 +126,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Audit logs fetch error`, { error: message })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

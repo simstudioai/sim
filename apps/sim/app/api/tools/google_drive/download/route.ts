@@ -7,6 +7,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { GoogleDriveFile, GoogleDriveRevision } from '@/tools/google_drive/types'
 import {
   ALL_FILE_FIELDS,
@@ -43,7 +44,7 @@ const GoogleDriveDownloadSchema = z.object({
   includeRevisions: z.boolean().optional().default(true),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -276,4 +277,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

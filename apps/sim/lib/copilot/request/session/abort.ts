@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { AbortBackend } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
@@ -70,7 +72,7 @@ export async function waitForPendingChatStream(
         logger.warn('Failed to inspect chat stream lock while waiting', {
           chatId,
           expectedStreamId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     } else if (!localPending) {
@@ -80,7 +82,7 @@ export async function waitForPendingChatStream(
     if (Date.now() >= deadline) {
       return false
     }
-    await new Promise((resolve) => setTimeout(resolve, 200))
+    await sleep(200)
   }
 }
 
@@ -100,7 +102,7 @@ export async function getPendingChatStreamId(chatId: string): Promise<string | n
   } catch (error) {
     logger.warn('Failed to load chat stream lock owner', {
       chatId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return null
   }
@@ -113,7 +115,7 @@ export async function releasePendingChatStream(chatId: string, streamId: string)
     logger.warn('Failed to release chat stream lock', {
       chatId,
       streamId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   } finally {
     resolvePendingChatStream(chatId, streamId)
@@ -166,7 +168,7 @@ export async function acquirePendingChatStream(
             logger.warn('Failed to acquire chat stream lock', {
               chatId,
               streamId,
-              error: error instanceof Error ? error.message : String(error),
+              error: toError(error).message,
             })
           }
 
@@ -175,7 +177,7 @@ export async function acquirePendingChatStream(
             span.setAttribute(TraceAttr.LockTimedOut, true)
             return false
           }
-          await new Promise((resolve) => setTimeout(resolve, 200))
+          await sleep(200)
         }
       }
 
@@ -280,7 +282,7 @@ export function startAbortPoller(
         logger.warn('Failed to poll stream abort marker', {
           streamId,
           ...(requestId ? { requestId } : {}),
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       } finally {
         pollingStreams.delete(streamId)
@@ -295,7 +297,7 @@ export async function cleanupAbortMarker(streamId: string): Promise<void> {
   } catch (error) {
     logger.warn('Failed to clear stream abort marker during cleanup', {
       streamId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
 }

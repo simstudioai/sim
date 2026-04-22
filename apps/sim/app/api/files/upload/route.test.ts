@@ -3,19 +3,15 @@
  *
  * @vitest-environment node
  */
+import { authMockFns, hybridAuthMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
-  const mockGetSession = vi.fn()
-  const mockCheckHybridAuth = vi.fn()
-  const mockCheckSessionOrInternalAuth = vi.fn()
-  const mockCheckInternalAuth = vi.fn()
   const mockVerifyFileAccess = vi.fn()
   const mockVerifyWorkspaceFileAccess = vi.fn()
   const mockVerifyKBFileAccess = vi.fn()
   const mockVerifyCopilotFileAccess = vi.fn()
-  const mockGetUserEntityPermissions = vi.fn()
   const mockUploadWorkspaceFile = vi.fn()
   const mockGetStorageProvider = vi.fn()
   const mockIsUsingCloudStorage = vi.fn()
@@ -24,15 +20,10 @@ const mocks = vi.hoisted(() => {
   const mockStorageUploadFile = vi.fn()
 
   return {
-    mockGetSession,
-    mockCheckHybridAuth,
-    mockCheckSessionOrInternalAuth,
-    mockCheckInternalAuth,
     mockVerifyFileAccess,
     mockVerifyWorkspaceFileAccess,
     mockVerifyKBFileAccess,
     mockVerifyCopilotFileAccess,
-    mockGetUserEntityPermissions,
     mockUploadWorkspaceFile,
     mockGetStorageProvider,
     mockIsUsingCloudStorage,
@@ -41,30 +32,6 @@ const mocks = vi.hoisted(() => {
     mockStorageUploadFile,
   }
 })
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  workflowFolder: {
-    id: 'id',
-    userId: 'userId',
-    parentId: 'parentId',
-    updatedAt: 'updatedAt',
-    workspaceId: 'workspaceId',
-    sortOrder: 'sortOrder',
-    createdAt: 'createdAt',
-  },
-  workflow: { id: 'id', folderId: 'folderId', userId: 'userId', updatedAt: 'updatedAt' },
-  account: { userId: 'userId', providerId: 'providerId' },
-  user: { email: 'email', id: 'id' },
-}))
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
@@ -91,23 +58,12 @@ vi.mock('drizzle-orm', () => ({
   sql: vi.fn((strings: unknown, ...values: unknown[]) => ({ type: 'sql', sql: strings, values })),
 }))
 
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn(() => 'test-uuid'),
   generateShortId: vi.fn(() => 'mock-short-id'),
   isValidUuid: vi.fn((v: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
   ),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  getSession: mocks.mockGetSession,
-}))
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkHybridAuth: mocks.mockCheckHybridAuth,
-  checkSessionOrInternalAuth: mocks.mockCheckSessionOrInternalAuth,
-  checkInternalAuth: mocks.mockCheckInternalAuth,
 }))
 
 vi.mock('@/app/api/files/authorization', () => ({
@@ -117,9 +73,7 @@ vi.mock('@/app/api/files/authorization', () => ({
   verifyCopilotFileAccess: mocks.mockVerifyCopilotFileAccess,
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mocks.mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   uploadWorkspaceFile: mocks.mockUploadWorkspaceFile,
@@ -160,12 +114,12 @@ function setupFileApiMocks(
   })
 
   if (authenticated) {
-    mocks.mockGetSession.mockResolvedValue({ user: { id: 'test-user-id' } })
+    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'test-user-id' } })
   } else {
-    mocks.mockGetSession.mockResolvedValue(null)
+    authMockFns.mockGetSession.mockResolvedValue(null)
   }
 
-  mocks.mockCheckHybridAuth.mockResolvedValue({
+  hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
     success: authenticated,
     userId: authenticated ? 'test-user-id' : undefined,
     error: authenticated ? undefined : 'Unauthorized',
@@ -176,7 +130,7 @@ function setupFileApiMocks(
   mocks.mockVerifyKBFileAccess.mockResolvedValue(true)
   mocks.mockVerifyCopilotFileAccess.mockResolvedValue(true)
 
-  mocks.mockGetUserEntityPermissions.mockResolvedValue('admin')
+  permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
 
   mocks.mockUploadWorkspaceFile.mockResolvedValue({
     id: 'test-file-id',
@@ -367,7 +321,7 @@ describe('File Upload Security Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mocks.mockGetSession.mockResolvedValue({
+    authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'test-user-id' },
     })
 
@@ -529,7 +483,7 @@ describe('File Upload Security Tests', () => {
 
   describe('Authentication Requirements', () => {
     it('should reject uploads without authentication', async () => {
-      mocks.mockGetSession.mockResolvedValue(null)
+      authMockFns.mockGetSession.mockResolvedValue(null)
 
       const formData = new FormData()
       const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })

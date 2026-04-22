@@ -1,23 +1,24 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
-import { generateId } from '@/lib/core/utils/uuid'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OneDriveFilesAPI')
 
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { MicrosoftGraphDriveItem } from '@/tools/onedrive/types'
 
 /**
  * Get files (not folders) from Microsoft OneDrive
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
   logger.info(`[${requestId}] OneDrive files request received`)
 
@@ -187,4 +188,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching files from OneDrive`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

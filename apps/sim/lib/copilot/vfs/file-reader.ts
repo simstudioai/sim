@@ -1,5 +1,6 @@
 import { type Span, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import {
   CopilotVfsOutcome,
   CopilotVfsReadOutcome,
@@ -106,7 +107,7 @@ async function prepareImageForVision(
         } catch (err) {
           logger.warn('Failed to load sharp for image preparation', {
             mediaType,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
           span.setAttribute(TraceAttr.CopilotVfsSharpLoadFailed, true)
           const fitsWithoutSharp = buffer.length <= MAX_IMAGE_READ_BYTES
@@ -123,7 +124,7 @@ async function prepareImageForVision(
         } catch (err) {
           logger.warn('Failed to read image metadata for VFS read', {
             mediaType,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
           span.setAttribute(TraceAttr.CopilotVfsMetadataFailed, true)
           const fitsWithoutSharp = buffer.length <= MAX_IMAGE_READ_BYTES
@@ -228,13 +229,13 @@ async function prepareImageForVision(
                 mediaType,
                 dimension,
                 quality,
-                error: err instanceof Error ? err.message : String(err),
+                error: toError(err).message,
               })
               span.addEvent(TraceEvent.CopilotVfsResizeAttemptFailed, {
                 [TraceAttr.CopilotVfsResizeDimension]: dimension,
                 [TraceAttr.CopilotVfsResizeQuality]: quality,
                 [TraceAttr.ErrorMessage]:
-                  err instanceof Error ? err.message : String(err).slice(0, 500),
+                  toError(err).message.slice(0, 500),
               })
             }
           }
@@ -375,11 +376,11 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
             logger.warn('Failed to parse document', {
               fileName: record.name,
               ext,
-              error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+              error: toError(parseErr).message,
             })
             span.addEvent(TraceEvent.CopilotVfsParseFailed, {
               [TraceAttr.ErrorMessage]:
-                parseErr instanceof Error ? parseErr.message : String(parseErr).slice(0, 500),
+                toError(parseErr).message.slice(0, 500),
             })
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ParseFailed)
             return {
@@ -400,7 +401,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
       } catch (err) {
         logger.warn('Failed to read workspace file', {
           fileName: record.name,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
         recordSpanError(span, err)
         span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ReadFailed)

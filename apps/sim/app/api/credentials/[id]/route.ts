@@ -1,17 +1,18 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, environment, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import {
+  deleteWorkspaceEnvCredentials,
   syncPersonalEnvCredentialsForUser,
-  syncWorkspaceEnvCredentials,
 } from '@/lib/credentials/environment'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -64,271 +65,300 @@ async function getCredentialResponse(credentialId: string, userId: string) {
   return row ?? null
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const { id } = await params
-
-  try {
-    const access = await getCredentialActorContext(id, session.user.id)
-    if (!access.credential) {
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-    }
-    if (!access.hasWorkspaceAccess || !access.member) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+export const GET = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const row = await getCredentialResponse(id, session.user.id)
-    return NextResponse.json({ credential: row }, { status: 200 })
-  } catch (error) {
-    logger.error('Failed to fetch credential', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
+    const { id } = await params
 
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const { id } = await params
-
-  try {
-    const parseResult = updateCredentialSchema.safeParse(await request.json())
-    if (!parseResult.success) {
-      return NextResponse.json({ error: parseResult.error.errors[0]?.message }, { status: 400 })
-    }
-
-    const access = await getCredentialActorContext(id, session.user.id)
-    if (!access.credential) {
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-    }
-    if (!access.hasWorkspaceAccess || !access.isAdmin) {
-      return NextResponse.json({ error: 'Credential admin permission required' }, { status: 403 })
-    }
-
-    const updates: Record<string, unknown> = {}
-
-    if (parseResult.data.description !== undefined) {
-      updates.description = parseResult.data.description ?? null
-    }
-
-    if (
-      parseResult.data.displayName !== undefined &&
-      (access.credential.type === 'oauth' || access.credential.type === 'service_account')
-    ) {
-      updates.displayName = parseResult.data.displayName
-    }
-
-    if (
-      parseResult.data.serviceAccountJson !== undefined &&
-      access.credential.type === 'service_account'
-    ) {
-      let parsed: Record<string, unknown>
-      try {
-        parsed = JSON.parse(parseResult.data.serviceAccountJson)
-      } catch {
-        return NextResponse.json({ error: 'Invalid JSON format' }, { status: 400 })
+    try {
+      const access = await getCredentialActorContext(id, session.user.id)
+      if (!access.credential) {
+        return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
       }
+      if (!access.hasWorkspaceAccess || !access.member) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
+      const row = await getCredentialResponse(id, session.user.id)
+      return NextResponse.json({ credential: row }, { status: 200 })
+    } catch (error) {
+      logger.error('Failed to fetch credential', error)
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    }
+  }
+)
+
+export const PUT = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { id } = await params
+
+    try {
+      const parseResult = updateCredentialSchema.safeParse(await request.json())
+      if (!parseResult.success) {
+        return NextResponse.json({ error: parseResult.error.errors[0]?.message }, { status: 400 })
+      }
+
+      const access = await getCredentialActorContext(id, session.user.id)
+      if (!access.credential) {
+        return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+      }
+      if (!access.hasWorkspaceAccess || !access.isAdmin) {
+        return NextResponse.json({ error: 'Credential admin permission required' }, { status: 403 })
+      }
+
+      const updates: Record<string, unknown> = {}
+
+      if (parseResult.data.description !== undefined) {
+        updates.description = parseResult.data.description ?? null
+      }
+
       if (
-        parsed.type !== 'service_account' ||
-        typeof parsed.client_email !== 'string' ||
-        typeof parsed.private_key !== 'string' ||
-        typeof parsed.project_id !== 'string'
+        parseResult.data.displayName !== undefined &&
+        (access.credential.type === 'oauth' || access.credential.type === 'service_account')
       ) {
-        return NextResponse.json({ error: 'Invalid service account JSON key' }, { status: 400 })
+        updates.displayName = parseResult.data.displayName
       }
-      const { encrypted } = await encryptSecret(parseResult.data.serviceAccountJson)
-      updates.encryptedServiceAccountKey = encrypted
-    }
 
-    if (Object.keys(updates).length === 0) {
-      if (access.credential.type === 'oauth' || access.credential.type === 'service_account') {
+      if (
+        parseResult.data.serviceAccountJson !== undefined &&
+        access.credential.type === 'service_account'
+      ) {
+        let parsed: Record<string, unknown>
+        try {
+          parsed = JSON.parse(parseResult.data.serviceAccountJson)
+        } catch {
+          return NextResponse.json({ error: 'Invalid JSON format' }, { status: 400 })
+        }
+        if (
+          parsed.type !== 'service_account' ||
+          typeof parsed.client_email !== 'string' ||
+          typeof parsed.private_key !== 'string' ||
+          typeof parsed.project_id !== 'string'
+        ) {
+          return NextResponse.json({ error: 'Invalid service account JSON key' }, { status: 400 })
+        }
+        const { encrypted } = await encryptSecret(parseResult.data.serviceAccountJson)
+        updates.encryptedServiceAccountKey = encrypted
+      }
+
+      if (Object.keys(updates).length === 0) {
+        if (access.credential.type === 'oauth' || access.credential.type === 'service_account') {
+          return NextResponse.json(
+            {
+              error: 'No updatable fields provided.',
+            },
+            { status: 400 }
+          )
+        }
         return NextResponse.json(
           {
-            error: 'No updatable fields provided.',
+            error:
+              'Environment credentials cannot be updated via this endpoint. Use the environment value editor in credentials settings.',
           },
           { status: 400 }
         )
       }
-      return NextResponse.json(
-        {
-          error:
-            'Environment credentials cannot be updated via this endpoint. Use the environment value editor in credentials settings.',
+
+      updates.updatedAt = new Date()
+      await db.update(credential).set(updates).where(eq(credential.id, id))
+
+      recordAudit({
+        workspaceId: access.credential.workspaceId,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.CREDENTIAL_UPDATED,
+        resourceType: AuditResourceType.CREDENTIAL,
+        resourceId: id,
+        resourceName: access.credential.displayName,
+        description: `Updated ${access.credential.type} credential "${access.credential.displayName}"`,
+        metadata: {
+          credentialType: access.credential.type,
+          updatedFields: Object.keys(updates).filter((k) => k !== 'updatedAt'),
         },
-        { status: 400 }
-      )
+        request,
+      })
+
+      const row = await getCredentialResponse(id, session.user.id)
+      return NextResponse.json({ credential: row }, { status: 200 })
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('unique')) {
+        return NextResponse.json(
+          { error: 'A service account credential with this name already exists in the workspace' },
+          { status: 409 }
+        )
+      }
+      logger.error('Failed to update credential', error)
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
-
-    updates.updatedAt = new Date()
-    await db.update(credential).set(updates).where(eq(credential.id, id))
-
-    recordAudit({
-      workspaceId: access.credential.workspaceId,
-      actorId: session.user.id,
-      actorName: session.user.name,
-      actorEmail: session.user.email,
-      action: AuditAction.CREDENTIAL_UPDATED,
-      resourceType: AuditResourceType.CREDENTIAL,
-      resourceId: id,
-      resourceName: access.credential.displayName,
-      description: `Updated ${access.credential.type} credential "${access.credential.displayName}"`,
-      metadata: {
-        credentialType: access.credential.type,
-        updatedFields: Object.keys(updates).filter((k) => k !== 'updatedAt'),
-      },
-      request,
-    })
-
-    const row = await getCredentialResponse(id, session.user.id)
-    return NextResponse.json({ credential: row }, { status: 200 })
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('unique')) {
-      return NextResponse.json(
-        { error: 'A service account credential with this name already exists in the workspace' },
-        { status: 409 }
-      )
-    }
-    logger.error('Failed to update credential', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+)
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const { id } = await params
-
-  try {
-    const access = await getCredentialActorContext(id, session.user.id)
-    if (!access.credential) {
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-    }
-    if (!access.hasWorkspaceAccess || !access.isAdmin) {
-      return NextResponse.json({ error: 'Credential admin permission required' }, { status: 403 })
+export const DELETE = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (access.credential.type === 'env_personal' && access.credential.envKey) {
-      const ownerUserId = access.credential.envOwnerUserId
-      if (!ownerUserId) {
-        return NextResponse.json({ error: 'Invalid personal secret owner' }, { status: 400 })
+    const { id } = await params
+
+    try {
+      const access = await getCredentialActorContext(id, session.user.id)
+      if (!access.credential) {
+        return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+      }
+      if (!access.hasWorkspaceAccess || !access.isAdmin) {
+        return NextResponse.json({ error: 'Credential admin permission required' }, { status: 403 })
       }
 
-      const [personalRow] = await db
-        .select({ variables: environment.variables })
-        .from(environment)
-        .where(eq(environment.userId, ownerUserId))
-        .limit(1)
+      if (access.credential.type === 'env_personal' && access.credential.envKey) {
+        const ownerUserId = access.credential.envOwnerUserId
+        if (!ownerUserId) {
+          return NextResponse.json({ error: 'Invalid personal secret owner' }, { status: 400 })
+        }
 
-      const current = ((personalRow?.variables as Record<string, string> | null) ?? {}) as Record<
-        string,
-        string
-      >
-      if (access.credential.envKey in current) {
-        delete current[access.credential.envKey]
-      }
+        const [personalRow] = await db
+          .select({ variables: environment.variables })
+          .from(environment)
+          .where(eq(environment.userId, ownerUserId))
+          .limit(1)
 
-      await db
-        .insert(environment)
-        .values({
-          id: ownerUserId,
+        const current = ((personalRow?.variables as Record<string, string> | null) ?? {}) as Record<
+          string,
+          string
+        >
+        if (access.credential.envKey in current) {
+          delete current[access.credential.envKey]
+        }
+
+        await db
+          .insert(environment)
+          .values({
+            id: ownerUserId,
+            userId: ownerUserId,
+            variables: current,
+            updatedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: [environment.userId],
+            set: { variables: current, updatedAt: new Date() },
+          })
+
+        await syncPersonalEnvCredentialsForUser({
           userId: ownerUserId,
-          variables: current,
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [environment.userId],
-          set: { variables: current, updatedAt: new Date() },
+          envKeys: Object.keys(current),
         })
 
-      await syncPersonalEnvCredentialsForUser({
-        userId: ownerUserId,
-        envKeys: Object.keys(current),
-      })
+        captureServerEvent(
+          session.user.id,
+          'credential_deleted',
+          {
+            credential_type: 'env_personal',
+            provider_id: access.credential.envKey,
+            workspace_id: access.credential.workspaceId,
+          },
+          { groups: { workspace: access.credential.workspaceId } }
+        )
 
-      captureServerEvent(
-        session.user.id,
-        'credential_deleted',
-        {
-          credential_type: 'env_personal',
-          provider_id: access.credential.envKey,
-          workspace_id: access.credential.workspaceId,
-        },
-        { groups: { workspace: access.credential.workspaceId } }
-      )
-
-      recordAudit({
-        workspaceId: access.credential.workspaceId,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.CREDENTIAL_DELETED,
-        resourceType: AuditResourceType.CREDENTIAL,
-        resourceId: id,
-        resourceName: access.credential.displayName,
-        description: `Deleted personal env credential "${access.credential.envKey}"`,
-        metadata: { credentialType: 'env_personal', envKey: access.credential.envKey },
-        request,
-      })
-
-      return NextResponse.json({ success: true }, { status: 200 })
-    }
-
-    if (access.credential.type === 'env_workspace' && access.credential.envKey) {
-      const [workspaceRow] = await db
-        .select({
-          id: workspaceEnvironment.id,
-          createdAt: workspaceEnvironment.createdAt,
-          variables: workspaceEnvironment.variables,
+        recordAudit({
+          workspaceId: access.credential.workspaceId,
+          actorId: session.user.id,
+          actorName: session.user.name,
+          actorEmail: session.user.email,
+          action: AuditAction.CREDENTIAL_DELETED,
+          resourceType: AuditResourceType.CREDENTIAL,
+          resourceId: id,
+          resourceName: access.credential.displayName,
+          description: `Deleted personal env credential "${access.credential.envKey}"`,
+          metadata: { credentialType: 'env_personal', envKey: access.credential.envKey },
+          request,
         })
-        .from(workspaceEnvironment)
-        .where(eq(workspaceEnvironment.workspaceId, access.credential.workspaceId))
-        .limit(1)
 
-      const current = ((workspaceRow?.variables as Record<string, string> | null) ?? {}) as Record<
-        string,
-        string
-      >
-      if (access.credential.envKey in current) {
-        delete current[access.credential.envKey]
+        return NextResponse.json({ success: true }, { status: 200 })
       }
 
-      await db
-        .insert(workspaceEnvironment)
-        .values({
-          id: workspaceRow?.id || generateId(),
+      if (access.credential.type === 'env_workspace' && access.credential.envKey) {
+        const [workspaceRow] = await db
+          .select({
+            id: workspaceEnvironment.id,
+            createdAt: workspaceEnvironment.createdAt,
+            variables: workspaceEnvironment.variables,
+          })
+          .from(workspaceEnvironment)
+          .where(eq(workspaceEnvironment.workspaceId, access.credential.workspaceId))
+          .limit(1)
+
+        const current = ((workspaceRow?.variables as Record<string, string> | null) ??
+          {}) as Record<string, string>
+        if (access.credential.envKey in current) {
+          delete current[access.credential.envKey]
+        }
+
+        await db
+          .insert(workspaceEnvironment)
+          .values({
+            id: workspaceRow?.id || generateId(),
+            workspaceId: access.credential.workspaceId,
+            variables: current,
+            createdAt: workspaceRow?.createdAt || new Date(),
+            updatedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: [workspaceEnvironment.workspaceId],
+            set: { variables: current, updatedAt: new Date() },
+          })
+
+        await deleteWorkspaceEnvCredentials({
           workspaceId: access.credential.workspaceId,
-          variables: current,
-          createdAt: workspaceRow?.createdAt || new Date(),
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [workspaceEnvironment.workspaceId],
-          set: { variables: current, updatedAt: new Date() },
+          removedKeys: [access.credential.envKey],
         })
 
-      await syncWorkspaceEnvCredentials({
-        workspaceId: access.credential.workspaceId,
-        envKeys: Object.keys(current),
-        actingUserId: session.user.id,
-      })
+        captureServerEvent(
+          session.user.id,
+          'credential_deleted',
+          {
+            credential_type: 'env_workspace',
+            provider_id: access.credential.envKey,
+            workspace_id: access.credential.workspaceId,
+          },
+          { groups: { workspace: access.credential.workspaceId } }
+        )
+
+        recordAudit({
+          workspaceId: access.credential.workspaceId,
+          actorId: session.user.id,
+          actorName: session.user.name,
+          actorEmail: session.user.email,
+          action: AuditAction.CREDENTIAL_DELETED,
+          resourceType: AuditResourceType.CREDENTIAL,
+          resourceId: id,
+          resourceName: access.credential.displayName,
+          description: `Deleted workspace env credential "${access.credential.envKey}"`,
+          metadata: { credentialType: 'env_workspace', envKey: access.credential.envKey },
+          request,
+        })
+
+        return NextResponse.json({ success: true }, { status: 200 })
+      }
+
+      await db.delete(credential).where(eq(credential.id, id))
 
       captureServerEvent(
         session.user.id,
         'credential_deleted',
         {
-          credential_type: 'env_workspace',
-          provider_id: access.credential.envKey,
+          credential_type: access.credential.type as 'oauth' | 'service_account',
+          provider_id: access.credential.providerId ?? id,
           workspace_id: access.credential.workspaceId,
         },
         { groups: { workspace: access.credential.workspaceId } }
@@ -343,47 +373,18 @@ export async function DELETE(
         resourceType: AuditResourceType.CREDENTIAL,
         resourceId: id,
         resourceName: access.credential.displayName,
-        description: `Deleted workspace env credential "${access.credential.envKey}"`,
-        metadata: { credentialType: 'env_workspace', envKey: access.credential.envKey },
+        description: `Deleted ${access.credential.type} credential "${access.credential.displayName}"`,
+        metadata: {
+          credentialType: access.credential.type,
+          providerId: access.credential.providerId,
+        },
         request,
       })
 
       return NextResponse.json({ success: true }, { status: 200 })
+    } catch (error) {
+      logger.error('Failed to delete credential', error)
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
-
-    await db.delete(credential).where(eq(credential.id, id))
-
-    captureServerEvent(
-      session.user.id,
-      'credential_deleted',
-      {
-        credential_type: access.credential.type as 'oauth' | 'service_account',
-        provider_id: access.credential.providerId ?? id,
-        workspace_id: access.credential.workspaceId,
-      },
-      { groups: { workspace: access.credential.workspaceId } }
-    )
-
-    recordAudit({
-      workspaceId: access.credential.workspaceId,
-      actorId: session.user.id,
-      actorName: session.user.name,
-      actorEmail: session.user.email,
-      action: AuditAction.CREDENTIAL_DELETED,
-      resourceType: AuditResourceType.CREDENTIAL,
-      resourceId: id,
-      resourceName: access.credential.displayName,
-      description: `Deleted ${access.credential.type} credential "${access.credential.displayName}"`,
-      metadata: {
-        credentialType: access.credential.type,
-        providerId: access.credential.providerId,
-      },
-      request,
-    })
-
-    return NextResponse.json({ success: true }, { status: 200 })
-  } catch (error) {
-    logger.error('Failed to delete credential', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+)

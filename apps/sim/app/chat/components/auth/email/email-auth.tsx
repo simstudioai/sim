@@ -1,7 +1,8 @@
 'use client'
 
-import { type KeyboardEvent, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { Loader2 } from 'lucide-react'
 import { Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -10,12 +11,12 @@ import AuthBackground from '@/app/(auth)/components/auth-background'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(landing)/components/navbar/navbar'
+import { useChatEmailOtpRequest, useChatEmailOtpVerify } from '@/hooks/queries/chats'
 
 const logger = createLogger('EmailAuth')
 
 interface EmailAuthProps {
   identifier: string
-  onAuthSuccess: () => void
 }
 
 const validateEmailField = (emailValue: string): string[] => {
@@ -34,35 +35,24 @@ const validateEmailField = (emailValue: string): string[] => {
   return errors
 }
 
-export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps) {
+export default function EmailAuth({ identifier }: EmailAuthProps) {
   const [email, setEmail] = useState('')
   const [authError, setAuthError] = useState<string | null>(null)
-  const [isSendingOtp, setIsSendingOtp] = useState(false)
-  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
 
   const [showOtpVerification, setShowOtpVerification] = useState(false)
   const [otpValue, setOtpValue] = useState('')
   const [countdown, setCountdown] = useState(0)
-  const [isResendDisabled, setIsResendDisabled] = useState(false)
+
+  const requestOtp = useChatEmailOtpRequest(identifier)
+  const verifyOtp = useChatEmailOtpVerify(identifier)
 
   useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown((c) => c - 1), 1000)
-      return () => clearTimeout(timer)
-    }
-    if (countdown === 0 && isResendDisabled) {
-      setIsResendDisabled(false)
-    }
-  }, [countdown, isResendDisabled])
-
-  const handleEmailKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      handleSendOtp()
-    }
-  }
+    if (countdown <= 0) return
+    const timer = setTimeout(() => setCountdown((c) => c - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [countdown])
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value
@@ -82,32 +72,14 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
     }
 
     setAuthError(null)
-    setIsSendingOtp(true)
 
     try {
-      const response = await fetch(`/api/chat/${identifier}/otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: JSON.stringify({ email }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        setEmailErrors([errorData.error || 'Failed to send verification code'])
-        setShowEmailValidationError(true)
-        return
-      }
-
+      await requestOtp.mutateAsync({ email })
       setShowOtpVerification(true)
     } catch (error) {
       logger.error('Error sending OTP:', error)
-      setEmailErrors(['An error occurred while sending the verification code'])
+      setEmailErrors([toError(error).message || 'Failed to send verification code'])
       setShowEmailValidationError(true)
-    } finally {
-      setIsSendingOtp(false)
     }
   }
 
@@ -119,65 +91,26 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
     }
 
     setAuthError(null)
-    setIsVerifyingOtp(true)
 
     try {
-      const response = await fetch(`/api/chat/${identifier}/otp`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: JSON.stringify({ email, otp: codeToVerify }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        setAuthError(errorData.error || 'Invalid verification code')
-        return
-      }
-
-      onAuthSuccess()
+      await verifyOtp.mutateAsync({ email, otp: codeToVerify })
     } catch (error) {
       logger.error('Error verifying OTP:', error)
-      setAuthError('An error occurred during verification')
-    } finally {
-      setIsVerifyingOtp(false)
+      setAuthError(toError(error).message || 'Invalid verification code')
     }
   }
 
   const handleResendOtp = async () => {
     setAuthError(null)
-    setIsSendingOtp(true)
-    setIsResendDisabled(true)
     setCountdown(30)
 
     try {
-      const response = await fetch(`/api/chat/${identifier}/otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: JSON.stringify({ email }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        setAuthError(errorData.error || 'Failed to resend verification code')
-        setIsResendDisabled(false)
-        setCountdown(0)
-        return
-      }
-
+      await requestOtp.mutateAsync({ email })
       setOtpValue('')
     } catch (error) {
       logger.error('Error resending OTP:', error)
-      setAuthError('An error occurred while resending the verification code')
-      setIsResendDisabled(false)
+      setAuthError(toError(error).message || 'Failed to resend verification code')
       setCountdown(0)
-    } finally {
-      setIsSendingOtp(false)
     }
   }
 
@@ -224,7 +157,6 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                         autoCorrect='off'
                         value={email}
                         onChange={handleEmailChange}
-                        onKeyDown={handleEmailKeyDown}
                         className={cn(
                           showEmailValidationError &&
                             emailErrors.length > 0 &&
@@ -241,8 +173,12 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                       )}
                     </div>
 
-                    <button type='submit' disabled={isSendingOtp} className={AUTH_SUBMIT_BTN}>
-                      {isSendingOtp ? (
+                    <button
+                      type='submit'
+                      disabled={requestOtp.isPending}
+                      className={AUTH_SUBMIT_BTN}
+                    >
+                      {requestOtp.isPending ? (
                         <span className='flex items-center gap-2'>
                           <Loader2 className='h-4 w-4 animate-spin' />
                           Sending Code...
@@ -269,7 +205,7 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                             handleVerifyOtp(value)
                           }
                         }}
-                        disabled={isVerifyingOtp}
+                        disabled={verifyOtp.isPending}
                         className={cn('gap-2', authError && 'otp-error')}
                       >
                         <InputOTPGroup>
@@ -292,10 +228,10 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
 
                     <button
                       onClick={() => handleVerifyOtp()}
-                      disabled={otpValue.length !== 6 || isVerifyingOtp}
+                      disabled={otpValue.length !== 6 || verifyOtp.isPending}
                       className={AUTH_SUBMIT_BTN}
                     >
-                      {isVerifyingOtp ? (
+                      {verifyOtp.isPending ? (
                         <span className='flex items-center gap-2'>
                           <Loader2 className='h-4 w-4 animate-spin' />
                           Verifying...
@@ -319,7 +255,7 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                           <button
                             className='font-medium text-[var(--brand-link)] underline-offset-4 transition hover:text-[var(--brand-link-hover)] hover:underline'
                             onClick={handleResendOtp}
-                            disabled={isVerifyingOtp || isResendDisabled}
+                            disabled={verifyOtp.isPending || requestOtp.isPending}
                           >
                             Resend
                           </button>

@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -237,7 +238,7 @@ export const attioHandler: WebhookProviderHandler = {
 
       return { providerConfigUpdates: { externalId: webhookId, webhookSecret: secret || '' } }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = toError(error).message
       logger.error(
         `[${requestId}] Exception during Attio webhook creation for webhook ${webhookRecord.id}.`,
         { message }

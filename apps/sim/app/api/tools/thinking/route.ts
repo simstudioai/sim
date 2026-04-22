@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { ThinkingToolParams, ThinkingToolResponse } from '@/tools/thinking/types'
 
 const logger = createLogger('ThinkingToolAPI')
@@ -11,7 +12,7 @@ export const dynamic = 'force-dynamic'
  * POST - Process a thinking tool request
  * Simply acknowledges the thought by returning it in the output
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -51,4 +52,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

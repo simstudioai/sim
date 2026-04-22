@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { eq, sql } from 'drizzle-orm'
 import type { MothershipResource } from './types'
 
@@ -64,7 +65,7 @@ export async function persistChatResources(
   } catch (err) {
     logger.warn('Failed to persist chat resources', {
       chatId,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
   }
 }
@@ -97,7 +98,7 @@ export async function removeChatResources(chatId: string, toRemove: ChatResource
   } catch (err) {
     logger.warn('Failed to remove chat resources', {
       chatId,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
   }
 }

@@ -1,12 +1,14 @@
 import { db, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { createWorkspaceApiKey } from '@/lib/api-key/auth'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
+import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import {
   getExecutionState,
@@ -67,7 +69,7 @@ function buildExecutionOutput(
 }
 
 function buildExecutionError(error: unknown): ToolCallResult {
-  const message = error instanceof Error ? error.message : String(error)
+  const message = toError(error).message
   if (hasExecutionResult(error)) {
     return buildExecutionOutput({
       ...error.executionResult,
@@ -147,8 +149,7 @@ function findDescendants(containerId: string, blocksById: Record<string, BlockSt
 }
 
 function notifyWorkflowUpdated(workflowId: string): void {
-  const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
-  fetch(`${socketUrl}/api/workflow-updated`, {
+  fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -268,7 +269,7 @@ export async function executeCreateWorkflow(
       },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -312,7 +313,7 @@ export async function executeCreateFolder(
 
     return { success: true, output: result }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -416,7 +417,7 @@ export async function executeSetGlobalWorkflowVariables(
               return parsed
           } catch (error) {
             logger.warn('Failed to parse JSON value for variable coercion', {
-              error: error instanceof Error ? error.message : String(error),
+              error: toError(error).message,
             })
           }
           return value
@@ -474,7 +475,7 @@ export async function executeSetGlobalWorkflowVariables(
 
     return { success: true, output: { updated: Object.values(byName).length } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -501,7 +502,7 @@ export async function executeRenameWorkflow(
 
     return { success: true, output: { workflowId, name } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -532,7 +533,7 @@ export async function executeMoveWorkflow(
 
     return { success: moved.length > 0, output: { moved, failed, folderId } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -566,7 +567,7 @@ export async function executeMoveFolder(
 
     return { success: true, output: { folderId, parentId } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -663,7 +664,7 @@ export async function executeGenerateApiKey(
       },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -764,7 +765,7 @@ export async function executeUpdateWorkflow(
       output: { workflowId, ...updates },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -895,7 +896,7 @@ export async function executeSetBlockEnabled(
       },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -937,7 +938,7 @@ export async function executeDeleteWorkflow(
       output: { deleted, failed },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -983,7 +984,7 @@ export async function executeDeleteFolder(
 
     return { success: deleted.length > 0, output: { deleted, failed } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -1011,7 +1012,7 @@ export async function executeRenameFolder(
 
     return { success: true, output: { folderId, name } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 

@@ -170,47 +170,50 @@ describe('Logger', () => {
       const child = createEnabledLogger().withMetadata({ workflowId: 'wf_1' })
       child.info('hello')
       expect(consoleLogSpy).toHaveBeenCalledTimes(1)
-      const prefix = consoleLogSpy.mock.calls[0][0] as string
-      expect(prefix).toContain('{workflowId=wf_1}')
+      const parsed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+      expect(parsed.workflowId).toBe('wf_1')
+      expect(parsed.message).toBe('hello')
     })
 
     test('should not affect original logger output', () => {
       const logger = createEnabledLogger()
       logger.withMetadata({ workflowId: 'wf_1' })
       logger.info('hello')
-      const prefix = consoleLogSpy.mock.calls[0][0] as string
-      expect(prefix).not.toContain('workflowId')
+      const parsed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+      expect(parsed.workflowId).toBeUndefined()
     })
 
     test('should merge metadata across chained calls', () => {
       const child = createEnabledLogger().withMetadata({ a: '1' }).withMetadata({ b: '2' })
       child.info('hello')
-      const prefix = consoleLogSpy.mock.calls[0][0] as string
-      expect(prefix).toContain('{a=1 b=2}')
+      const parsed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+      expect(parsed.a).toBe('1')
+      expect(parsed.b).toBe('2')
     })
 
     test('should override parent metadata for same key', () => {
       const child = createEnabledLogger().withMetadata({ a: '1' }).withMetadata({ a: '2' })
       child.info('hello')
-      const prefix = consoleLogSpy.mock.calls[0][0] as string
-      expect(prefix).toContain('{a=2}')
-      expect(prefix).not.toContain('a=1')
+      const parsed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+      expect(parsed.a).toBe('2')
     })
 
     test('should exclude undefined values from output', () => {
       const child = createEnabledLogger().withMetadata({ a: '1', b: undefined })
       child.info('hello')
-      const prefix = consoleLogSpy.mock.calls[0][0] as string
-      expect(prefix).toContain('{a=1}')
-      expect(prefix).not.toContain('b=')
+      const parsed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+      expect(parsed.a).toBe('1')
+      expect(parsed.b).toBeUndefined()
     })
 
     test('should produce no metadata segment when metadata is empty', () => {
       const child = createEnabledLogger().withMetadata({})
       child.info('hello')
-      const prefix = consoleLogSpy.mock.calls[0][0] as string
-      expect(prefix).not.toContain('{')
-      expect(prefix).not.toContain('}')
+      const parsed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+      expect(parsed.message).toBe('hello')
+      expect(Object.keys(parsed)).toEqual(
+        expect.arrayContaining(['timestamp', 'level', 'module', 'message'])
+      )
     })
   })
 })

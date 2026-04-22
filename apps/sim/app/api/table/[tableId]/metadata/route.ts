@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { TableMetadata } from '@/lib/table'
 import { updateTableMetadata } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
@@ -22,7 +23,7 @@ interface TableRouteParams {
 }
 
 /** PUT /api/table/[tableId]/metadata - Update table UI metadata (column widths, etc.) */
-export async function PUT(request: NextRequest, { params }: TableRouteParams) {
+export const PUT = withRouteHandler(async (request: NextRequest, { params }: TableRouteParams) => {
   const requestId = generateRequestId()
   const { tableId } = await params
 
@@ -63,4 +64,4 @@ export async function PUT(request: NextRequest, { params }: TableRouteParams) {
     logger.error(`[${requestId}] Error updating table metadata:`, error)
     return NextResponse.json({ error: 'Failed to update metadata' }, { status: 500 })
   }
-}
+})

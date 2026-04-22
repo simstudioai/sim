@@ -30,11 +30,8 @@ export function validateJiraSignature(secret: string, signature: string, body: s
     const providedSignature = signature.substring(7)
     const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
     logger.debug('Jira signature comparison', {
-      computedSignature: `${computedHash.substring(0, 10)}...`,
-      providedSignature: `${providedSignature.substring(0, 10)}...`,
       computedLength: computedHash.length,
       providedLength: providedSignature.length,
-      match: computedHash === providedSignature,
     })
     return safeCompare(computedHash, providedSignature)
   } catch (error) {
@@ -52,17 +49,64 @@ export const jiraHandler: WebhookProviderHandler = {
   }),
 
   async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
-    const { extractIssueData, extractCommentData, extractWorklogData } = await import(
-      '@/triggers/jira/utils'
-    )
+    const {
+      extractIssueData,
+      extractCommentData,
+      extractWorklogData,
+      extractSprintData,
+      extractProjectData,
+      extractVersionData,
+    } = await import('@/triggers/jira/utils')
     const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
     const triggerId = providerConfig.triggerId as string | undefined
-    if (triggerId === 'jira_issue_commented') {
+
+    if (
+      triggerId === 'jira_issue_commented' ||
+      triggerId === 'jira_comment_updated' ||
+      triggerId === 'jira_comment_deleted'
+    ) {
       return { input: extractCommentData(body) }
     }
-    if (triggerId === 'jira_worklog_created') {
+    if (
+      triggerId === 'jira_worklog_created' ||
+      triggerId === 'jira_worklog_updated' ||
+      triggerId === 'jira_worklog_deleted'
+    ) {
       return { input: extractWorklogData(body) }
     }
+    if (
+      triggerId === 'jira_sprint_created' ||
+      triggerId === 'jira_sprint_started' ||
+      triggerId === 'jira_sprint_closed'
+    ) {
+      return { input: extractSprintData(body) }
+    }
+    if (triggerId === 'jira_project_created') {
+      return { input: extractProjectData(body) }
+    }
+    if (triggerId === 'jira_version_released') {
+      return { input: extractVersionData(body) }
+    }
+
+    if (!triggerId || triggerId === 'jira_webhook') {
+      const obj = body as Record<string, unknown>
+      return {
+        input: {
+          webhookEvent: obj.webhookEvent,
+          timestamp: obj.timestamp,
+          user: obj.user || null,
+          issue_event_type_name: obj.issue_event_type_name,
+          issue: obj.issue || {},
+          changelog: obj.changelog,
+          comment: obj.comment,
+          worklog: obj.worklog,
+          sprint: obj.sprint,
+          project: obj.project,
+          version: obj.version,
+        },
+      }
+    }
+
     return { input: extractIssueData(body) }
   },
 
@@ -95,9 +139,16 @@ export const jiraHandler: WebhookProviderHandler = {
   extractIdempotencyId(body: unknown) {
     const obj = body as Record<string, unknown>
     const issue = obj.issue as Record<string, unknown> | undefined
+    const comment = obj.comment as Record<string, unknown> | undefined
+    const worklog = obj.worklog as Record<string, unknown> | undefined
     const project = obj.project as Record<string, unknown> | undefined
-    if (obj.webhookEvent && (issue?.id || project?.id)) {
-      return `${obj.webhookEvent}:${issue?.id || project?.id}`
+    const sprint = obj.sprint as Record<string, unknown> | undefined
+    const version = obj.version as Record<string, unknown> | undefined
+    const entityId =
+      comment?.id || worklog?.id || issue?.id || project?.id || sprint?.id || version?.id
+    if (obj.webhookEvent && entityId) {
+      const ts = obj.timestamp ?? ''
+      return `${obj.webhookEvent}:${entityId}:${ts}`
     }
     return null
   },

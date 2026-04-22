@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   getStorageConfig,
   getStorageProvider,
@@ -24,7 +25,7 @@ interface GetPartUrlsRequest {
   context?: StorageContext
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -273,4 +274,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

@@ -3,13 +3,14 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 
 const logger = createLogger('TrelloAuthorize')
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -41,4 +42,4 @@ export async function GET() {
     logger.error('Error initiating Trello authorization:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

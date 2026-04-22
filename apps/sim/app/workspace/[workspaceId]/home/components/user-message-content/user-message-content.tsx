@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
+import { cn } from '@/lib/core/utils/cn'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -9,9 +10,17 @@ import { useWorkflows } from '@/hooks/queries/workflows'
 const USER_MESSAGE_CLASSES =
   'whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-[430] font-[family-name:var(--font-inter)] text-base text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
 
+const COMPACT_CLASSES =
+  'truncate text-small leading-[20px] font-[430] font-[family-name:var(--font-inter)] text-[var(--text-primary)] tracking-[0] antialiased'
+
 interface UserMessageContentProps {
   content: string
   contexts?: ChatMessageContext[]
+  className?: string
+  /** When true, render mentions as plain inline text (no icon/pill) so truncation flows naturally. */
+  plainMentions?: boolean
+  /** Use compact single-line layout with truncation. */
+  compact?: boolean
 }
 
 function escapeRegex(str: string): string {
@@ -64,17 +73,23 @@ function MentionHighlight({ context }: { context: ChatMessageContext }) {
   )
 }
 
-export function UserMessageContent({ content, contexts }: UserMessageContentProps) {
+export function UserMessageContent({
+  content,
+  contexts,
+  className,
+  plainMentions = false,
+  compact = false,
+}: UserMessageContentProps) {
   const trimmed = content.trim()
+  const classes = cn(compact ? COMPACT_CLASSES : USER_MESSAGE_CLASSES, className)
 
-  if (!contexts || contexts.length === 0) {
-    return <p className={USER_MESSAGE_CLASSES}>{trimmed}</p>
-  }
-
-  const ranges = computeMentionRanges(content, contexts)
+  const ranges = useMemo(
+    () => (contexts && contexts.length > 0 ? computeMentionRanges(content, contexts) : []),
+    [content, contexts]
+  )
 
   if (ranges.length === 0) {
-    return <p className={USER_MESSAGE_CLASSES}>{trimmed}</p>
+    return <p className={classes}>{trimmed}</p>
   }
 
   const elements: React.ReactNode[] = []
@@ -88,7 +103,20 @@ export function UserMessageContent({ content, contexts }: UserMessageContentProp
       elements.push(<span key={`text-${i}-${lastIndex}`}>{before}</span>)
     }
 
-    elements.push(<MentionHighlight key={`mention-${i}-${range.start}`} context={range.context} />)
+    if (plainMentions) {
+      elements.push(
+        <span
+          key={`mention-${i}-${range.start}`}
+          className='font-medium text-[var(--text-primary)]'
+        >
+          {content.slice(range.start, range.end)}
+        </span>
+      )
+    } else {
+      elements.push(
+        <MentionHighlight key={`mention-${i}-${range.start}`} context={range.context} />
+      )
+    }
     lastIndex = range.end
   }
 
@@ -97,5 +125,5 @@ export function UserMessageContent({ content, contexts }: UserMessageContentProp
     elements.push(<span key={`tail-${lastIndex}`}>{tail}</span>)
   }
 
-  return <p className={USER_MESSAGE_CLASSES}>{elements}</p>
+  return <p className={classes}>{elements}</p>
 }

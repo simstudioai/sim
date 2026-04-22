@@ -24,6 +24,7 @@ import {
   SSE_RESPONSE_HEADERS,
 } from '@/lib/copilot/request/session'
 import { toStreamBatchEvent } from '@/lib/copilot/request/session/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const maxDuration = 3600
 
@@ -107,7 +108,7 @@ function buildResumeTerminalEnvelopes(options: {
   return envelopes
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const { userId: authenticatedUserId, isAuthenticated } =
     await authenticateCopilotRequestSessionOnly()
 
@@ -172,7 +173,7 @@ export async function GET(request: NextRequest) {
     rootSpan.end()
     throw err
   }
-}
+})
 
 async function handleResumeRequestBody({
   request,

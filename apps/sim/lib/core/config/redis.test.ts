@@ -1,4 +1,4 @@
-import { createEnvMock, createMockRedis, loggerMock } from '@sim/testing'
+import { createEnvMock, createMockRedis } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { MockRedisConstructor } = vi.hoisted(() => ({
@@ -8,7 +8,6 @@ const { MockRedisConstructor } = vi.hoisted(() => ({
 const mockRedisInstance = createMockRedis()
 MockRedisConstructor.mockImplementation(() => mockRedisInstance)
 
-vi.mock('@sim/logger', () => loggerMock)
 vi.mock('@/lib/core/config/env', () => createEnvMock({ REDIS_URL: 'redis://localhost:6379' }))
 vi.mock('ioredis', () => ({
   default: MockRedisConstructor,

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { generateId } from '@/lib/core/utils/uuid'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -154,7 +155,7 @@ export async function executeWorkflow(
         workflow_id: workflow.id,
         workspace_id: workspaceId,
         trigger_type: streamConfig?.workflowTriggerType || 'api',
-        error_message: error instanceof Error ? error.message : String(error),
+        error_message: toError(error).message,
       },
       { groups: { workspace: workspaceId } }
     )

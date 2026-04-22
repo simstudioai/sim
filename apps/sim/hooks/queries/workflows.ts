@@ -3,6 +3,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import {
   keepPreviousData,
   skipToken,
@@ -10,7 +11,6 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import { fetchDeploymentVersionState } from '@/hooks/queries/utils/fetch-deployment-version-state'
@@ -69,6 +69,9 @@ export function useWorkflows(workspaceId?: string, options?: { scope?: WorkflowQ
   })
 }
 
+const selectWorkflowMap = (data: WorkflowMetadata[]): Record<string, WorkflowMetadata> =>
+  Object.fromEntries(data.map((w) => [w.id, w]))
+
 /**
  * Returns workflows as a `Record<string, WorkflowMetadata>` keyed by ID.
  * Uses the `select` option so the transformation runs inside React Query
@@ -82,7 +85,7 @@ export function useWorkflowMap(workspaceId?: string, options?: { scope?: Workflo
     queryFn: workspaceId ? getWorkflowListQueryOptions(workspaceId, scope).queryFn : skipToken,
     placeholderData: keepPreviousData,
     staleTime: WORKFLOW_LIST_STALE_TIME,
-    select: (data) => Object.fromEntries(data.map((w) => [w.id, w])),
+    select: selectWorkflowMap,
   })
 }
 

@@ -7,6 +7,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
 
 export const dynamic = 'force-dynamic'
@@ -49,7 +50,7 @@ const TwilioGetRecordingSchema = z.object({
   recordingSid: z.string().min(1, 'Recording SID is required'),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -247,4 +248,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

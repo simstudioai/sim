@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
 
 const logger = createLogger('VLLMModelsAPI')
@@ -8,7 +9,7 @@ const logger = createLogger('VLLMModelsAPI')
 /**
  * Get available vLLM models
  */
-export async function GET(_request: NextRequest) {
+export const GET = withRouteHandler(async (_request: NextRequest) => {
   if (isProviderBlacklisted('vllm')) {
     logger.info('vLLM provider is blacklisted, returning empty models')
     return NextResponse.json({ models: [] })
@@ -66,4 +67,4 @@ export async function GET(_request: NextRequest) {
 
     return NextResponse.json({ models: [] })
   }
-}
+})

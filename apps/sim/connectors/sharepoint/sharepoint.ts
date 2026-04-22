@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { MicrosoftSharepointIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -473,7 +474,7 @@ export const sharepointConnector: ConnectorConfig = {
       return { ...stub, content, contentDeferred: false }
     } catch (error) {
       logger.warn(`Failed to fetch content for file: ${item.name} (${item.id})`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }

@@ -1,5 +1,5 @@
+import { generateId } from '@sim/utils/id'
 import { WebhookIcon } from '@/components/icons'
-import { generateId } from '@/lib/core/utils/uuid'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const genericWebhookTrigger: TriggerConfig = {

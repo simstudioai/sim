@@ -4,11 +4,8 @@ import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import {
-  generateDocxFromCode,
-  generatePdfFromCode,
-  generatePptxFromCode,
-} from '@/lib/execution/doc-vm'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -22,6 +19,7 @@ import {
   findLocalFile,
   getContentType,
 } from '@/app/api/files/utils'
+import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 
 const logger = createLogger('FilesServeAPI')
 
@@ -30,24 +28,24 @@ const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]) // %PDF-
 
 interface CompilableFormat {
   magic: Buffer
-  compile: (code: string, workspaceId: string) => Promise<Buffer>
+  taskId: SandboxTaskId
   contentType: string
 }
 
 const COMPILABLE_FORMATS: Record<string, CompilableFormat> = {
   '.pptx': {
     magic: ZIP_MAGIC,
-    compile: generatePptxFromCode,
+    taskId: 'pptx-generate',
     contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   },
   '.docx': {
     magic: ZIP_MAGIC,
-    compile: generateDocxFromCode,
+    taskId: 'docx-generate',
     contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   },
   '.pdf': {
     magic: PDF_MAGIC,
-    compile: generatePdfFromCode,
+    taskId: 'pdf-generate',
     contentType: 'application/pdf',
   },
 }
@@ -65,8 +63,10 @@ function compiledCacheSet(key: string, buffer: Buffer): void {
 async function compileDocumentIfNeeded(
   buffer: Buffer,
   filename: string,
-  workspaceId?: string,
-  raw?: boolean
+  workspaceId: string | undefined,
+  raw: boolean,
+  ownerKey: string | undefined,
+  signal: AbortSignal | undefined
 ): Promise<{ buffer: Buffer; contentType: string }> {
   if (raw) return { buffer, contentType: getContentType(filename) }
 
@@ -90,7 +90,11 @@ async function compileDocumentIfNeeded(
     return { buffer: cached, contentType: format.contentType }
   }
 
-  const compiled = await format.compile(code, workspaceId || '')
+  const compiled = await runSandboxTask(
+    format.taskId,
+    { code, workspaceId: workspaceId || '' },
+    { ownerKey, signal }
+  )
   compiledCacheSet(cacheKey, compiled)
   return { buffer: compiled, contentType: format.contentType }
 }
@@ -105,74 +109,75 @@ function getWorkspaceIdForCompile(key: string): string | undefined {
   return parseWorkspaceFileKey(key) ?? undefined
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
-) {
-  try {
-    const { path } = await params
+export const GET = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) => {
+    try {
+      const { path } = await params
 
-    if (!path || path.length === 0) {
-      throw new FileNotFoundError('No file path provided')
-    }
-
-    logger.info('File serve request:', { path })
-
-    const fullPath = path.join('/')
-    const isS3Path = path[0] === 's3'
-    const isBlobPath = path[0] === 'blob'
-    const isCloudPath = isS3Path || isBlobPath
-    const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
-
-    const isPublicByKeyPrefix =
-      cloudKey.startsWith('profile-pictures/') ||
-      cloudKey.startsWith('og-images/') ||
-      cloudKey.startsWith('workspace-logos/')
-
-    if (isPublicByKeyPrefix) {
-      const context = inferContextFromKey(cloudKey)
-      logger.info(`Serving public ${context}:`, { cloudKey })
-      if (isUsingCloudStorage() || isCloudPath) {
-        return await handleCloudProxyPublic(cloudKey, context)
+      if (!path || path.length === 0) {
+        throw new FileNotFoundError('No file path provided')
       }
-      return await handleLocalFilePublic(fullPath)
+
+      logger.info('File serve request:', { path })
+
+      const fullPath = path.join('/')
+      const isS3Path = path[0] === 's3'
+      const isBlobPath = path[0] === 'blob'
+      const isCloudPath = isS3Path || isBlobPath
+      const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
+
+      const isPublicByKeyPrefix =
+        cloudKey.startsWith('profile-pictures/') ||
+        cloudKey.startsWith('og-images/') ||
+        cloudKey.startsWith('workspace-logos/')
+
+      if (isPublicByKeyPrefix) {
+        const context = inferContextFromKey(cloudKey)
+        logger.info(`Serving public ${context}:`, { cloudKey })
+        if (isUsingCloudStorage() || isCloudPath) {
+          return await handleCloudProxyPublic(cloudKey, context)
+        }
+        return await handleLocalFilePublic(fullPath)
+      }
+
+      const raw = request.nextUrl.searchParams.get('raw') === '1'
+
+      const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+
+      if (!authResult.success || !authResult.userId) {
+        logger.warn('Unauthorized file access attempt', {
+          path,
+          error: authResult.error || 'Missing userId',
+        })
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      const userId = authResult.userId
+
+      if (isUsingCloudStorage()) {
+        return await handleCloudProxy(cloudKey, userId, raw, request.signal)
+      }
+
+      return await handleLocalFile(cloudKey, userId, raw, request.signal)
+    } catch (error) {
+      logger.error('Error serving file:', error)
+
+      if (error instanceof FileNotFoundError) {
+        return createErrorResponse(error)
+      }
+
+      return createErrorResponse(error instanceof Error ? error : new Error('Failed to serve file'))
     }
-
-    const raw = request.nextUrl.searchParams.get('raw') === '1'
-
-    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-
-    if (!authResult.success || !authResult.userId) {
-      logger.warn('Unauthorized file access attempt', {
-        path,
-        error: authResult.error || 'Missing userId',
-      })
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const userId = authResult.userId
-
-    if (isUsingCloudStorage()) {
-      return await handleCloudProxy(cloudKey, userId, raw)
-    }
-
-    return await handleLocalFile(cloudKey, userId, raw)
-  } catch (error) {
-    logger.error('Error serving file:', error)
-
-    if (error instanceof FileNotFoundError) {
-      return createErrorResponse(error)
-    }
-
-    return createErrorResponse(error instanceof Error ? error : new Error('Failed to serve file'))
   }
-}
+)
 
 async function handleLocalFile(
   filename: string,
   userId: string,
-  raw: boolean
+  raw: boolean,
+  signal: AbortSignal | undefined
 ): Promise<NextResponse> {
+  const ownerKey = `user:${userId}`
   try {
     const contextParam: StorageContext | undefined = inferContextFromKey(filename) as
       | StorageContext
@@ -205,7 +210,9 @@ async function handleLocalFile(
       rawBuffer,
       displayName,
       workspaceId,
-      raw
+      raw,
+      ownerKey,
+      signal
     )
 
     logger.info('Local file served', { userId, filename, size: fileBuffer.length })
@@ -225,8 +232,10 @@ async function handleLocalFile(
 async function handleCloudProxy(
   cloudKey: string,
   userId: string,
-  raw = false
+  raw = false,
+  signal: AbortSignal | undefined = undefined
 ): Promise<NextResponse> {
+  const ownerKey = `user:${userId}`
   try {
     const context = inferContextFromKey(cloudKey)
     logger.info(`Inferred context: ${context} from key pattern: ${cloudKey}`)
@@ -262,7 +271,9 @@ async function handleCloudProxy(
       rawBuffer,
       displayName,
       workspaceId,
-      raw
+      raw,
+      ownerKey,
+      signal
     )
 
     logger.info('Cloud file served', {

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -12,6 +13,7 @@ import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { type AtomicClaimResult, billingIdempotency } from '@/lib/core/idempotency/service'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('BillingUpdateCostAPI')
 
@@ -36,8 +38,8 @@ const UpdateCostSchema = z.object({
  * the Go client span AND this Sim server span sharing one trace, with
  * the actual usage/overage work nested below.
  */
-export async function POST(req: NextRequest) {
-  return withIncomingGoSpan(
+export const POST = withRouteHandler((req: NextRequest) =>
+  withIncomingGoSpan(
     req.headers,
     TraceSpan.CopilotBillingUpdateCost,
     {
@@ -46,7 +48,7 @@ export async function POST(req: NextRequest) {
     },
     async (span) => updateCostInner(req, span)
   )
-}
+)
 
 async function updateCostInner(
   req: NextRequest,
@@ -215,7 +217,7 @@ async function updateCostInner(
     const duration = Date.now() - startTime
 
     logger.error(`[${requestId}] Cost update failed`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
       duration,
     })
@@ -225,7 +227,7 @@ async function updateCostInner(
         .release(claim.normalizedKey, claim.storageMethod)
         .catch((releaseErr) => {
           logger.warn(`[${requestId}] Failed to release idempotency claim`, {
-            error: releaseErr instanceof Error ? releaseErr.message : String(releaseErr),
+            error: toError(releaseErr).message,
             normalizedKey: claim?.normalizedKey,
           })
         })

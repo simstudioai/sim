@@ -6,6 +6,7 @@ import type { NextRequest } from 'next/server'
 import { env } from '@/lib/core/config/env'
 import { validateAuthToken } from '@/lib/core/security/deployment'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('ProxyTTSStreamAPI')
 
@@ -51,7 +52,7 @@ async function validateChatAuth(request: NextRequest, chatId: string): Promise<b
   }
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     let body: any
     try {
@@ -175,4 +176,4 @@ export async function POST(request: NextRequest) {
       status: 500,
     })
   }
-}
+})

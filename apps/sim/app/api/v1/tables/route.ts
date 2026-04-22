@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createTable,
   getWorkspaceTableLimits,
@@ -80,7 +81,7 @@ const CreateTableSchema = z.object({
 })
 
 /** GET /api/v1/tables — List all tables in a workspace. */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -148,10 +149,10 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error listing tables:`, error)
     return NextResponse.json({ error: 'Failed to list tables' }, { status: 500 })
   }
-}
+})
 
 /** POST /api/v1/tables — Create a new table. */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -258,4 +259,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[${requestId}] Error creating table:`, error)
     return NextResponse.json({ error: 'Failed to create table' }, { status: 500 })
   }
-}
+})

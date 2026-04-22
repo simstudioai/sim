@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { generateId } from '@/lib/core/utils/uuid'
 import { restoreKnowledgeBase } from '@/lib/knowledge/service'
 import { getTableById, restoreTable } from '@/lib/table/service'
 import {
@@ -101,6 +102,6 @@ export async function executeRestoreResource(
         return { success: false, error: `Unsupported type: ${type}` }
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }

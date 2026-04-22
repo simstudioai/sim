@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, subscription, user } from '@sim/db/schema'
+import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
@@ -36,6 +36,10 @@ export interface SubscriptionMetadata {
   [key: string]: unknown
 }
 
+export interface HasPaidSubscriptionOptions {
+  onError?: 'assume-active' | 'throw'
+}
+
 /**
  * Extract the billing interval from subscription metadata, defaulting to 'month'.
  */
@@ -62,12 +66,74 @@ export async function writeBillingInterval(
 }
 
 /**
+ * Sync the subscription's `plan` column to match Stripe. Closes a gap
+ * where plan changes (Pro → Team upgrades, tier swaps) updated price,
+ * seats, and referenceId at Stripe but left the DB plan stale. Returns
+ * `true` if a write was issued, `false` if no change was needed.
+ */
+export async function syncSubscriptionPlan(
+  subscriptionId: string,
+  currentPlan: string | null,
+  planFromStripe: string | null
+): Promise<boolean> {
+  if (!planFromStripe) return false
+  if (currentPlan === planFromStripe) return false
+
+  await db
+    .update(subscription)
+    .set({ plan: planFromStripe })
+    .where(eq(subscription.id, subscriptionId))
+
+  logger.info('Synced subscription plan name from Stripe', {
+    subscriptionId,
+    previousPlan: currentPlan,
+    newPlan: planFromStripe,
+  })
+
+  return true
+}
+
+/**
+ * Get the organization's subscription row when its status is one of
+ * `USABLE_SUBSCRIPTION_STATUSES` (product access — stricter than
+ * `ENTITLED_SUBSCRIPTION_STATUSES` which also includes `past_due`).
+ * Use this for feature-gating ("can this org use the product right
+ * now"). Use `getOrganizationSubscription` (from `core/billing.ts`)
+ * when you need the billing-side entitlement row that includes
+ * past-due subscriptions. Returns `null` when there is no usable sub.
+ */
+export async function getOrganizationSubscriptionUsable(organizationId: string) {
+  try {
+    const [orgSub] = await db
+      .select()
+      .from(subscription)
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
+        )
+      )
+      .limit(1)
+
+    return orgSub ?? null
+  } catch (error) {
+    logger.error('Error getting usable organization subscription', { error, organizationId })
+    return null
+  }
+}
+
+/**
  * Check if a referenceId (user ID or org ID) has a paid subscription row.
  * Used for duplicate subscription prevention and transfer safety.
  *
- * Fails closed: returns true on error to prevent duplicate creation
+ * Fails closed by default: returns true on error to prevent duplicate creation.
  */
-export async function hasPaidSubscription(referenceId: string): Promise<boolean> {
+export async function hasPaidSubscription(
+  referenceId: string,
+  options: HasPaidSubscriptionOptions = {}
+): Promise<boolean> {
+  const { onError = 'assume-active' } = options
+
   try {
     const [activeSub] = await db
       .select({ id: subscription.id })
@@ -83,9 +149,42 @@ export async function hasPaidSubscription(referenceId: string): Promise<boolean>
     return !!activeSub
   } catch (error) {
     logger.error('Error checking active subscription', { error, referenceId })
-    // Fail closed: assume subscription exists to prevent duplicate creation
+
+    if (onError === 'throw') {
+      throw error
+    }
+
     return true
   }
+}
+
+export async function getOrganizationIdForSubscriptionReference(
+  referenceId: string
+): Promise<string | null> {
+  const [referencedOrganization] = await db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, referenceId))
+    .limit(1)
+
+  if (referencedOrganization) {
+    return referencedOrganization.id
+  }
+
+  const [memberRecord] = await db
+    .select({
+      organizationId: member.organizationId,
+      role: member.role,
+    })
+    .from(member)
+    .where(eq(member.userId, referenceId))
+    .limit(1)
+
+  if (memberRecord && (memberRecord.role === 'owner' || memberRecord.role === 'admin')) {
+    return memberRecord.organizationId
+  }
+
+  return null
 }
 
 /**
@@ -198,16 +297,7 @@ export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boole
       return false
     }
 
-    const [orgSub] = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, memberRecord.organizationId),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
+    const orgSub = await getOrganizationSubscriptionUsable(memberRecord.organizationId)
 
     const isEnterprise = orgSub && checkEnterprisePlan(orgSub)
 
@@ -262,16 +352,7 @@ export async function isTeamOrgAdminOrOwner(userId: string): Promise<boolean> {
       return false
     }
 
-    const [orgSub] = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, memberRecord.organizationId),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
+    const orgSub = await getOrganizationSubscriptionUsable(memberRecord.organizationId)
 
     const hasTeamPlan = orgSub && (checkTeamPlan(orgSub) || checkEnterprisePlan(orgSub))
 
@@ -311,16 +392,7 @@ export async function isOrganizationOnTeamOrEnterprisePlan(
       return false
     }
 
-    const [orgSub] = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, organizationId),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
+    const orgSub = await getOrganizationSubscriptionUsable(organizationId)
 
     return !!orgSub && (checkTeamPlan(orgSub) || checkEnterprisePlan(orgSub))
   } catch (error) {
@@ -347,16 +419,7 @@ export async function isOrganizationOnEnterprisePlan(organizationId: string): Pr
       return false
     }
 
-    const [orgSub] = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, organizationId),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
+    const orgSub = await getOrganizationSubscriptionUsable(organizationId)
 
     return !!orgSub && checkEnterprisePlan(orgSub)
   } catch (error) {
@@ -408,22 +471,30 @@ export async function hasSSOAccess(userId: string): Promise<boolean> {
 }
 
 /**
- * Check if user has access to Access Control (Permission Groups) feature
- * Returns true if:
- * - ACCESS_CONTROL_ENABLED env var is set (self-hosted override), OR
- * - User is admin/owner of an enterprise organization
- *
- * In non-production environments, returns true for convenience.
+ * Check whether a workspace is entitled to the Access Control (Permission Groups)
+ * feature. Entitlement follows the workspace's `billedAccountUserId`:
+ * - self-hosted override honored via ACCESS_CONTROL_ENABLED, OR
+ * - billing disabled, OR
+ * - the workspace belongs to an enterprise-plan organization (org-mode), OR
+ * - the billed user has an individual enterprise subscription (personal workspace).
  */
-export async function hasAccessControlAccess(userId: string): Promise<boolean> {
+export async function isWorkspaceOnEnterprisePlan(workspaceId: string): Promise<boolean> {
   try {
-    if (isAccessControlEnabled && !isHosted) {
-      return true
+    if (!isBillingEnabled) return true
+    if (isAccessControlEnabled && !isHosted) return true
+
+    const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
+    const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
+    if (!ws) return false
+
+    if (ws.organizationId) {
+      return isOrganizationOnEnterprisePlan(ws.organizationId)
     }
 
-    return isEnterpriseOrgAdminOrOwner(userId)
+    const billedSub = await getHighestPrioritySubscription(ws.billedAccountUserId)
+    return !!billedSub && checkEnterprisePlan(billedSub)
   } catch (error) {
-    logger.error('Error checking access control access', { error, userId })
+    logger.error('Error checking workspace enterprise plan status', { error, workspaceId })
     return false
   }
 }

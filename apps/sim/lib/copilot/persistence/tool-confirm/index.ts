@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import {
   ASYNC_TOOL_STATUS,
   type AsyncCompletionEnvelope,
@@ -31,7 +32,7 @@ export async function getToolConfirmation(
   const [row] = await getAsyncToolCalls([toolCallId]).catch((err) => {
     logger.warn('Failed to fetch async tool calls', {
       toolCallId,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
     return []
   })
@@ -81,7 +82,7 @@ export function publishToolConfirmation(event: AsyncCompletionEnvelope): void {
       .catch((error) => {
         logger.warn('Failed to persist tool confirmation in Redis', {
           toolCallId: event.toolCallId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       })
   } else {

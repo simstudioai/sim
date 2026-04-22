@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { SharepointSite } from '@/tools/sharepoint/types'
 
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SharePointSitesAPI')
 
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: Request) => {
   const requestId = generateRequestId()
 
   try {
@@ -75,4 +76,4 @@ export async function POST(request: Request) {
     logger.error(`[${requestId}] Error fetching sites from SharePoint`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

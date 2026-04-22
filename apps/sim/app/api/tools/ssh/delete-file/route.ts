@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createSSHConnection,
   escapeShellArg,
@@ -24,7 +25,7 @@ const DeleteFileSchema = z.object({
   force: z.boolean().default(false),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   try {
@@ -104,4 +105,4 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: `SSH delete file failed: ${errorMessage}` }, { status: 500 })
   }
-}
+})

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { generateId } from '@sim/utils/id'
 import {
   Button,
   Input,
@@ -14,7 +15,6 @@ import {
   ModalTrigger,
 } from '@/components/emcn'
 import { dollarsToCredits, formatCredits } from '@/lib/billing/credits/conversion'
-import { generateId } from '@/lib/core/utils/uuid'
 import { usePurchaseCredits } from '@/hooks/queries/subscription'
 
 interface CreditBalanceProps {

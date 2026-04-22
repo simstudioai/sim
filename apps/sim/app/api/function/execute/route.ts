@@ -8,6 +8,7 @@ import {
 } from '@/lib/copilot/request/tools/files'
 import { isE2bEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInE2B, executeShellInE2B } from '@/lib/execution/e2b'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
@@ -687,7 +688,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
   })
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   const startTime = Date.now()
   let stdout = ''
@@ -1201,4 +1202,4 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(errorResponse, { status: 500 })
   }
-}
+})

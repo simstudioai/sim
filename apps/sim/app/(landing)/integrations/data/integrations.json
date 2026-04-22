@@ -484,7 +484,7 @@
     "type": "dynamodb",
     "slug": "amazon-dynamodb",
     "name": "Amazon DynamoDB",
-    "description": "Connect to Amazon DynamoDB",
+    "description": "Get, put, query, scan, update, and delete items in Amazon DynamoDB tables",
     "longDescription": "Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.",
     "bgColor": "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)",
     "iconName": "DynamoDBIcon",
@@ -1464,14 +1464,93 @@
       {
         "name": "Remove User from Group",
         "description": "Remove an IAM user from a group"
+      },
+      {
+        "name": "List Attached Role Policies",
+        "description": "List all managed policies attached to an IAM role"
+      },
+      {
+        "name": "List Attached User Policies",
+        "description": "List all managed policies attached to an IAM user"
+      },
+      {
+        "name": "Simulate Principal Policy",
+        "description": "Simulate whether a user, role, or group is allowed to perform specific AWS actions — useful for pre-flight access checks"
       }
     ],
-    "operationCount": 18,
+    "operationCount": 21,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
     "integrationTypes": ["developer-tools", "security"],
+    "tags": ["cloud", "identity"]
+  },
+  {
+    "type": "identity_center",
+    "slug": "aws-identity-center",
+    "name": "AWS Identity Center",
+    "description": "Manage temporary elevated access in AWS IAM Identity Center",
+    "longDescription": "Provision and revoke temporary access to AWS accounts via IAM Identity Center (SSO). Assign permission sets to users or groups, look up users by email, and list accounts and permission sets for access request workflows.",
+    "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
+    "iconName": "IdentityCenterIcon",
+    "docsUrl": "https://docs.sim.ai/tools/identity-center",
+    "operations": [
+      {
+        "name": "List Instances",
+        "description": "List all AWS IAM Identity Center instances in your account"
+      },
+      {
+        "name": "List Accounts",
+        "description": "List all AWS accounts in your organization"
+      },
+      {
+        "name": "Describe Account",
+        "description": "Retrieve details about a specific AWS account by its ID"
+      },
+      {
+        "name": "List Permission Sets",
+        "description": "List all permission sets defined in an IAM Identity Center instance"
+      },
+      {
+        "name": "Get User",
+        "description": "Look up a user in the Identity Store by email address"
+      },
+      {
+        "name": "Get Group",
+        "description": "Look up a group in the Identity Store by display name"
+      },
+      {
+        "name": "List Groups",
+        "description": "List all groups in the Identity Store"
+      },
+      {
+        "name": "Create Account Assignment",
+        "description": "Grant a user or group access to an AWS account via a permission set (temporary elevated access)"
+      },
+      {
+        "name": "Delete Account Assignment",
+        "description": "Revoke a user or group access to an AWS account by removing a permission set assignment"
+      },
+      {
+        "name": "Check Assignment Status",
+        "description": "Check the provisioning status of an account assignment creation request"
+      },
+      {
+        "name": "Check Assignment Deletion Status",
+        "description": "Check the deprovisioning status of an account assignment deletion request"
+      },
+      {
+        "name": "List Account Assignments",
+        "description": "List all account assignments for a specific user or group across all accounts"
+      }
+    ],
+    "operationCount": 12,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["security", "developer-tools"],
     "tags": ["cloud", "identity"]
   },
   {
@@ -1512,6 +1591,61 @@
     "category": "tools",
     "integrationTypes": ["developer-tools", "security"],
     "tags": ["cloud", "secrets-management"]
+  },
+  {
+    "type": "ses",
+    "slug": "aws-ses",
+    "name": "AWS SES",
+    "description": "Send emails and manage templates with AWS Simple Email Service",
+    "longDescription": "Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates and retrieve account sending quota and verified identity information.",
+    "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
+    "iconName": "SESIcon",
+    "docsUrl": "https://docs.sim.ai/tools/ses",
+    "operations": [
+      {
+        "name": "Send Email",
+        "description": "Send an email via AWS SES using simple or HTML content"
+      },
+      {
+        "name": "Send Templated Email",
+        "description": "Send an email using an SES email template with dynamic template data"
+      },
+      {
+        "name": "Send Bulk Email",
+        "description": "Send emails to multiple recipients using an SES template with per-recipient data"
+      },
+      {
+        "name": "List Identities",
+        "description": "List all verified email identities (email addresses and domains) in your SES account"
+      },
+      {
+        "name": "Get Account",
+        "description": "Get SES account sending quota and status information"
+      },
+      {
+        "name": "Create Template",
+        "description": "Create a new SES email template for use with templated email sending"
+      },
+      {
+        "name": "Get Template",
+        "description": "Retrieve the content and details of an SES email template"
+      },
+      {
+        "name": "List Templates",
+        "description": "List all SES email templates in your account"
+      },
+      {
+        "name": "Delete Template",
+        "description": "Delete an existing SES email template"
+      }
+    ],
+    "operationCount": 9,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["email", "analytics", "developer-tools"],
+    "tags": ["cloud", "marketing"]
   },
   {
     "type": "sts",
@@ -2523,6 +2657,16 @@
         "description": "Trigger workflow when a page is moved in Confluence"
       },
       {
+        "id": "confluence_page_restored",
+        "name": "Confluence Page Restored",
+        "description": "Trigger workflow when a page is restored from trash in Confluence"
+      },
+      {
+        "id": "confluence_page_permissions_updated",
+        "name": "Confluence Page Permissions Updated",
+        "description": "Trigger workflow when page permissions are changed in Confluence"
+      },
+      {
         "id": "confluence_comment_created",
         "name": "Confluence Comment Created",
         "description": "Trigger workflow when a comment is created in Confluence"
@@ -2531,6 +2675,11 @@
         "id": "confluence_comment_removed",
         "name": "Confluence Comment Removed",
         "description": "Trigger workflow when a comment is removed in Confluence"
+      },
+      {
+        "id": "confluence_comment_updated",
+        "name": "Confluence Comment Updated",
+        "description": "Trigger workflow when a comment is updated in Confluence"
       },
       {
         "id": "confluence_blog_created",
@@ -2548,6 +2697,11 @@
         "description": "Trigger workflow when a blog post is removed in Confluence"
       },
       {
+        "id": "confluence_blog_restored",
+        "name": "Confluence Blog Post Restored",
+        "description": "Trigger workflow when a blog post is restored from trash in Confluence"
+      },
+      {
         "id": "confluence_attachment_created",
         "name": "Confluence Attachment Created",
         "description": "Trigger workflow when an attachment is uploaded in Confluence"
@@ -2556,6 +2710,11 @@
         "id": "confluence_attachment_removed",
         "name": "Confluence Attachment Removed",
         "description": "Trigger workflow when an attachment is removed in Confluence"
+      },
+      {
+        "id": "confluence_attachment_updated",
+        "name": "Confluence Attachment Updated",
+        "description": "Trigger workflow when an attachment is updated in Confluence"
       },
       {
         "id": "confluence_space_created",
@@ -2568,6 +2727,11 @@
         "description": "Trigger workflow when a space is updated in Confluence"
       },
       {
+        "id": "confluence_space_removed",
+        "name": "Confluence Space Removed",
+        "description": "Trigger workflow when a space is removed in Confluence"
+      },
+      {
         "id": "confluence_label_added",
         "name": "Confluence Label Added",
         "description": "Trigger workflow when a label is added to content in Confluence"
@@ -2578,12 +2742,17 @@
         "description": "Trigger workflow when a label is removed from content in Confluence"
       },
       {
+        "id": "confluence_user_created",
+        "name": "Confluence User Created",
+        "description": "Trigger workflow when a new user is added to Confluence"
+      },
+      {
         "id": "confluence_webhook",
         "name": "Confluence Webhook (All Events)",
         "description": "Trigger workflow on any Confluence webhook event"
       }
     ],
-    "triggerCount": 16,
+    "triggerCount": 23,
     "authType": "oauth",
     "category": "tools",
     "integrationTypes": ["documents", "productivity", "search"],
@@ -6798,9 +6967,54 @@
         "description": "Trigger workflow when a comment is added to a Jira issue"
       },
       {
+        "id": "jira_comment_updated",
+        "name": "Jira Comment Updated",
+        "description": "Trigger workflow when a comment is updated on a Jira issue"
+      },
+      {
+        "id": "jira_comment_deleted",
+        "name": "Jira Comment Deleted",
+        "description": "Trigger workflow when a comment is deleted from a Jira issue"
+      },
+      {
         "id": "jira_worklog_created",
         "name": "Jira Worklog Created",
         "description": "Trigger workflow when time is logged on a Jira issue"
+      },
+      {
+        "id": "jira_worklog_updated",
+        "name": "Jira Worklog Updated",
+        "description": "Trigger workflow when a worklog entry is updated on a Jira issue"
+      },
+      {
+        "id": "jira_worklog_deleted",
+        "name": "Jira Worklog Deleted",
+        "description": "Trigger workflow when a worklog entry is deleted from a Jira issue"
+      },
+      {
+        "id": "jira_sprint_created",
+        "name": "Jira Sprint Created",
+        "description": "Trigger workflow when a sprint is created in Jira"
+      },
+      {
+        "id": "jira_sprint_started",
+        "name": "Jira Sprint Started",
+        "description": "Trigger workflow when a sprint is started in Jira"
+      },
+      {
+        "id": "jira_sprint_closed",
+        "name": "Jira Sprint Closed",
+        "description": "Trigger workflow when a sprint is closed in Jira"
+      },
+      {
+        "id": "jira_project_created",
+        "name": "Jira Project Created",
+        "description": "Trigger workflow when a project is created in Jira"
+      },
+      {
+        "id": "jira_version_released",
+        "name": "Jira Version Released",
+        "description": "Trigger workflow when a version is released in Jira"
       },
       {
         "id": "jira_webhook",
@@ -6808,7 +7022,7 @@
         "description": "Trigger workflow on any Jira webhook event"
       }
     ],
-    "triggerCount": 6,
+    "triggerCount": 15,
     "authType": "oauth",
     "category": "tools",
     "integrationTypes": ["productivity", "customer-support"],
@@ -6962,8 +7176,34 @@
       }
     ],
     "operationCount": 34,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "jsm_request_created",
+        "name": "JSM Request Created",
+        "description": "Trigger workflow when a new service request is created in Jira Service Management"
+      },
+      {
+        "id": "jsm_request_updated",
+        "name": "JSM Request Updated",
+        "description": "Trigger workflow when a service request is updated in Jira Service Management"
+      },
+      {
+        "id": "jsm_request_commented",
+        "name": "JSM Request Commented",
+        "description": "Trigger workflow when a comment is added to a Jira Service Management request"
+      },
+      {
+        "id": "jsm_request_resolved",
+        "name": "JSM Request Resolved",
+        "description": "Trigger workflow when a service request is resolved in Jira Service Management"
+      },
+      {
+        "id": "jsm_webhook",
+        "name": "JSM Webhook (All Events)",
+        "description": "Trigger workflow on any Jira Service Management webhook event"
+      }
+    ],
+    "triggerCount": 5,
     "authType": "oauth",
     "category": "tools",
     "integrationTypes": ["customer-support", "developer-tools", "productivity"],
@@ -8602,6 +8842,123 @@
     "category": "tools",
     "integrationTypes": ["ai", "documents"],
     "tags": ["document-processing", "ocr"]
+  },
+  {
+    "type": "monday",
+    "slug": "monday",
+    "name": "Monday",
+    "description": "Manage Monday.com boards, items, and groups",
+    "longDescription": "Integrate with Monday.com to list boards, get board details, fetch and search items, create and update items, archive or delete items, create subitems, move items between groups, add updates, and create groups.",
+    "bgColor": "#FFFFFF",
+    "iconName": "MondayIcon",
+    "docsUrl": "https://docs.sim.ai/tools/monday",
+    "operations": [
+      {
+        "name": "List Boards",
+        "description": "List boards from your Monday.com account"
+      },
+      {
+        "name": "Get Board",
+        "description": "Get a specific Monday.com board with its groups and columns"
+      },
+      {
+        "name": "Get Item",
+        "description": "Get a specific item by ID from Monday.com"
+      },
+      {
+        "name": "Get Items",
+        "description": "Get items from a Monday.com board"
+      },
+      {
+        "name": "Search Items",
+        "description": "Search for items on a Monday.com board by column values"
+      },
+      {
+        "name": "Create Item",
+        "description": "Create a new item on a Monday.com board"
+      },
+      {
+        "name": "Update Item",
+        "description": "Update column values of an item on a Monday.com board"
+      },
+      {
+        "name": "Delete Item",
+        "description": "Delete an item from a Monday.com board"
+      },
+      {
+        "name": "Archive Item",
+        "description": "Archive an item on a Monday.com board"
+      },
+      {
+        "name": "Move Item to Group",
+        "description": "Move an item to a different group on a Monday.com board"
+      },
+      {
+        "name": "Create Subitem",
+        "description": "Create a subitem under a parent item on Monday.com"
+      },
+      {
+        "name": "Create Update",
+        "description": "Add an update (comment) to a Monday.com item"
+      },
+      {
+        "name": "Create Group",
+        "description": "Create a new group on a Monday.com board"
+      }
+    ],
+    "operationCount": 13,
+    "triggers": [
+      {
+        "id": "monday_item_created",
+        "name": "Monday Item Created",
+        "description": "Trigger workflow when a new item is created on a Monday.com board"
+      },
+      {
+        "id": "monday_column_changed",
+        "name": "Monday Column Value Changed",
+        "description": "Trigger workflow when any column value changes on a Monday.com board"
+      },
+      {
+        "id": "monday_status_changed",
+        "name": "Monday Status Changed",
+        "description": "Trigger workflow when a status column value changes on a Monday.com board"
+      },
+      {
+        "id": "monday_item_name_changed",
+        "name": "Monday Item Name Changed",
+        "description": "Trigger workflow when an item name changes on a Monday.com board"
+      },
+      {
+        "id": "monday_item_archived",
+        "name": "Monday Item Archived",
+        "description": "Trigger workflow when an item is archived on a Monday.com board"
+      },
+      {
+        "id": "monday_item_deleted",
+        "name": "Monday Item Deleted",
+        "description": "Trigger workflow when an item is deleted on a Monday.com board"
+      },
+      {
+        "id": "monday_item_moved",
+        "name": "Monday Item Moved to Group",
+        "description": "Trigger workflow when an item is moved to any group on a Monday.com board"
+      },
+      {
+        "id": "monday_subitem_created",
+        "name": "Monday Subitem Created",
+        "description": "Trigger workflow when a subitem is created on a Monday.com board"
+      },
+      {
+        "id": "monday_update_created",
+        "name": "Monday Update Posted",
+        "description": "Trigger workflow when an update or comment is posted on a Monday.com item"
+      }
+    ],
+    "triggerCount": 9,
+    "authType": "oauth",
+    "category": "tools",
+    "integrationTypes": ["productivity"],
+    "tags": ["project-management"]
   },
   {
     "type": "mongodb",

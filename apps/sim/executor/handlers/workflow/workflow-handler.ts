@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { generateId } from '@/lib/core/utils/uuid'
+import { generateId } from '@sim/utils/id'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'

@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getUserUsageLogs, type UsageLogSource } from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UsageLogsAPI')
 
@@ -19,7 +21,7 @@ const QuerySchema = z.object({
  * GET /api/users/me/usage-logs
  * Get usage logs for the authenticated user
  */
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
 
@@ -109,7 +111,7 @@ export async function GET(req: NextRequest) {
     })
   } catch (error) {
     logger.error('Failed to get usage logs', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
 
     return NextResponse.json(
@@ -119,4 +121,4 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

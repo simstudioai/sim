@@ -1,0 +1,340 @@
+---
+title: AWS Identity Center
+description: Manage temporary elevated access in AWS IAM Identity Center
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="identity_center"
+  color="linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[AWS IAM Identity Center](https://aws.amazon.com/iam/identity-center/) (formerly AWS Single Sign-On) is the recommended service for managing workforce access to multiple AWS accounts and applications. It provides a central place to assign users and groups temporary, permission-scoped access to AWS accounts using permission sets — without creating long-lived IAM credentials.
+
+With AWS IAM Identity Center, you can:
+
+- **Provision account assignments**: Grant a user or group access to a specific AWS account with a specific permission set — the core primitive of temporary elevated access
+- **Revoke access on demand**: Delete account assignments to immediately remove elevated permissions when they are no longer needed
+- **Look up users by email**: Resolve a federated identity (email address) to an Identity Store user ID for programmatic access provisioning
+- **List permission sets**: Enumerate the available permission sets (e.g., ReadOnly, PowerUser, AdministratorAccess) defined in your Identity Center instance
+- **Monitor assignment status**: Poll the provisioning status of create/delete operations, which are asynchronous in AWS
+- **List accounts in your organization**: Enumerate all AWS accounts in your AWS Organizations structure to populate access request dropdowns
+- **Manage groups**: List groups and resolve group IDs by display name for group-based access grants
+
+In Sim, the AWS Identity Center integration is designed to power **TEAM (Temporary Elevated Access Management)** workflows — automated pipelines where users request elevated access, approvers approve or deny it, access is provisioned with a time limit, and auto-revocation removes it when the window expires. This replaces manual console-based access management with auditable, agent-driven workflows that integrate with Slack, email, ticketing systems, and CloudTrail for full traceability.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Provision and revoke temporary access to AWS accounts via IAM Identity Center (SSO). Assign permission sets to users or groups, look up users by email, and list accounts and permission sets for access request workflows.
+
+
+
+## Tools
+
+### `identity_center_list_instances`
+
+List all AWS IAM Identity Center instances in your account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `maxResults` | number | No | Maximum number of instances to return \(1-100\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `instances` | json | List of Identity Center instances with instanceArn, identityStoreId, name, status, statusReason |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of instances returned |
+
+### `identity_center_list_accounts`
+
+List all AWS accounts in your organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `maxResults` | number | No | Maximum number of accounts to return |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accounts` | json | List of AWS accounts with id, arn, name, email, status |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of accounts returned |
+
+### `identity_center_describe_account`
+
+Retrieve details about a specific AWS account by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `accountId` | string | Yes | AWS account ID to describe |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | AWS account ID |
+| `arn` | string | AWS account ARN |
+| `name` | string | Account name |
+| `email` | string | Root email address of the account |
+| `status` | string | Account status \(ACTIVE, SUSPENDED, etc.\) |
+| `joinedTimestamp` | string | Date the account joined the organization |
+
+### `identity_center_list_permission_sets`
+
+List all permission sets defined in an IAM Identity Center instance
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `instanceArn` | string | Yes | ARN of the Identity Center instance |
+| `maxResults` | number | No | Maximum number of permission sets to return |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `permissionSets` | json | List of permission sets with permissionSetArn, name, description, sessionDuration |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of permission sets returned |
+
+### `identity_center_get_user`
+
+Look up a user in the Identity Store by email address
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `identityStoreId` | string | Yes | Identity Store ID \(from the Identity Center instance\) |
+| `email` | string | Yes | Email address of the user to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | Identity Store user ID \(use as principalId\) |
+| `userName` | string | Username in the Identity Store |
+| `displayName` | string | Display name of the user |
+| `email` | string | Email address of the user |
+
+### `identity_center_get_group`
+
+Look up a group in the Identity Store by display name
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `identityStoreId` | string | Yes | Identity Store ID \(from the Identity Center instance\) |
+| `displayName` | string | Yes | Display name of the group to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groupId` | string | Identity Store group ID \(use as principalId\) |
+| `displayName` | string | Display name of the group |
+| `description` | string | Group description |
+
+### `identity_center_list_groups`
+
+List all groups in the Identity Store
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `identityStoreId` | string | Yes | Identity Store ID \(from the Identity Center instance\) |
+| `maxResults` | number | No | Maximum number of groups to return |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groups` | json | List of groups with groupId, displayName, description |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of groups returned |
+
+### `identity_center_create_account_assignment`
+
+Grant a user or group access to an AWS account via a permission set (temporary elevated access)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `instanceArn` | string | Yes | ARN of the Identity Center instance |
+| `accountId` | string | Yes | AWS account ID to grant access to |
+| `permissionSetArn` | string | Yes | ARN of the permission set to assign |
+| `principalType` | string | Yes | Type of principal: USER or GROUP |
+| `principalId` | string | Yes | Identity Store ID of the user or group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Status message |
+| `status` | string | Provisioning status: IN_PROGRESS, FAILED, or SUCCEEDED |
+| `requestId` | string | Request ID to use with Check Assignment Status |
+| `accountId` | string | Target AWS account ID |
+| `permissionSetArn` | string | Permission set ARN |
+| `principalType` | string | Principal type \(USER or GROUP\) |
+| `principalId` | string | Principal ID |
+| `failureReason` | string | Reason for failure if status is FAILED |
+| `createdDate` | string | Date the request was created |
+
+### `identity_center_delete_account_assignment`
+
+Revoke a user or group access to an AWS account by removing a permission set assignment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `instanceArn` | string | Yes | ARN of the Identity Center instance |
+| `accountId` | string | Yes | AWS account ID to revoke access from |
+| `permissionSetArn` | string | Yes | ARN of the permission set to remove |
+| `principalType` | string | Yes | Type of principal: USER or GROUP |
+| `principalId` | string | Yes | Identity Store ID of the user or group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Status message |
+| `status` | string | Deprovisioning status: IN_PROGRESS, FAILED, or SUCCEEDED |
+| `requestId` | string | Request ID to use with Check Assignment Status |
+| `accountId` | string | Target AWS account ID |
+| `permissionSetArn` | string | Permission set ARN |
+| `principalType` | string | Principal type \(USER or GROUP\) |
+| `principalId` | string | Principal ID |
+| `failureReason` | string | Reason for failure if status is FAILED |
+| `createdDate` | string | Date the request was created |
+
+### `identity_center_check_assignment_status`
+
+Check the provisioning status of an account assignment creation request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `instanceArn` | string | Yes | ARN of the Identity Center instance |
+| `requestId` | string | Yes | Request ID returned from Create or Delete Account Assignment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Human-readable status message |
+| `status` | string | Current status: IN_PROGRESS, FAILED, or SUCCEEDED |
+| `requestId` | string | The request ID that was checked |
+| `accountId` | string | Target AWS account ID |
+| `permissionSetArn` | string | Permission set ARN |
+| `principalType` | string | Principal type \(USER or GROUP\) |
+| `principalId` | string | Principal ID |
+| `failureReason` | string | Reason for failure if status is FAILED |
+| `createdDate` | string | Date the request was created |
+
+### `identity_center_check_assignment_deletion_status`
+
+Check the deprovisioning status of an account assignment deletion request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `instanceArn` | string | Yes | ARN of the Identity Center instance |
+| `requestId` | string | Yes | Request ID returned from Delete Account Assignment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Human-readable status message |
+| `status` | string | Current deletion status: IN_PROGRESS, FAILED, or SUCCEEDED |
+| `requestId` | string | The deletion request ID that was checked |
+| `accountId` | string | Target AWS account ID |
+| `permissionSetArn` | string | Permission set ARN |
+| `principalType` | string | Principal type \(USER or GROUP\) |
+| `principalId` | string | Principal ID |
+| `failureReason` | string | Reason for failure if status is FAILED |
+| `createdDate` | string | Date the request was created |
+
+### `identity_center_list_account_assignments`
+
+List all account assignments for a specific user or group across all accounts
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `instanceArn` | string | Yes | ARN of the Identity Center instance |
+| `principalId` | string | Yes | Identity Store ID of the user or group |
+| `principalType` | string | Yes | Type of principal: USER or GROUP |
+| `maxResults` | number | No | Maximum number of assignments to return |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assignments` | json | List of account assignments with accountId, permissionSetArn, principalType, principalId |
+| `nextToken` | string | Pagination token for the next page of results |
+| `count` | number | Number of assignments returned |
+
+

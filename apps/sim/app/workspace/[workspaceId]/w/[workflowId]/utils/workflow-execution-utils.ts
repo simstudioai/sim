@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { generateId } from '@/lib/core/utils/uuid'
+import { generateId } from '@sim/utils/id'
 import type {
   BlockCompletedData,
   BlockErrorData,

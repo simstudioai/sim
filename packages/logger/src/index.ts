@@ -5,6 +5,7 @@
  * Provides standardized console logging with environment-aware configuration.
  */
 import chalk from 'chalk'
+import { getRequestContext } from './request-context'
 
 /**
  * LogLevel enum defines the severity levels for logging
@@ -230,7 +231,16 @@ export class Logger {
     const timestamp = new Date().toISOString()
     const formattedArgs = this.formatArgs(args)
 
-    const metadataEntries = Object.entries(this.metadata).filter(([_, v]) => v !== undefined)
+    const reqCtx = getRequestContext()
+    const effectiveMetadata = reqCtx
+      ? {
+          requestId: reqCtx.requestId,
+          method: reqCtx.method,
+          path: reqCtx.path,
+          ...this.metadata,
+        }
+      : this.metadata
+    const metadataEntries = Object.entries(effectiveMetadata).filter(([_, v]) => v !== undefined)
     const metadataStr =
       metadataEntries.length > 0
         ? ` {${metadataEntries.map(([k, v]) => `${k}=${v}`).join(' ')}}`
@@ -265,12 +275,38 @@ export class Logger {
         console.log(coloredPrefix, message, ...formattedArgs)
       }
     } else {
-      const prefix = `[${timestamp}] [${level}] [${this.module}]${metadataStr}`
+      // Structured JSON for production — CloudWatch Log Insights auto-parses JSON lines
+      const entry: Record<string, unknown> = {
+        timestamp,
+        level,
+        module: this.module,
+        message,
+      }
+      for (const [k, v] of metadataEntries) {
+        entry[k] = v
+      }
+      // Merge extra args into the entry
+      for (const arg of args) {
+        if (
+          arg !== null &&
+          arg !== undefined &&
+          typeof arg === 'object' &&
+          !(arg instanceof Error)
+        ) {
+          Object.assign(entry, arg)
+        } else if (arg instanceof Error) {
+          entry.error = arg.message
+          entry.stack = arg.stack
+        } else if (arg !== null && arg !== undefined) {
+          entry.extra = arg
+        }
+      }
 
+      const line = JSON.stringify(entry)
       if (level === LogLevel.ERROR) {
-        console.error(prefix, message, ...formattedArgs)
+        console.error(line)
       } else {
-        console.log(prefix, message, ...formattedArgs)
+        console.log(line)
       }
     }
   }
@@ -335,3 +371,6 @@ export class Logger {
 export function createLogger(module: string, config?: LoggerConfig): Logger {
   return new Logger(module, config)
 }
+
+export type { RequestContext } from './request-context'
+export { getRequestContext, runWithRequestContext } from './request-context'

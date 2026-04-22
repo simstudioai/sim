@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
-import { isPaid } from '@/lib/billing/plan-helpers'
+import { isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
+import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -29,14 +30,25 @@ export async function handleBillingLimitResponse(
   execContext: ExecutionContext,
   options: OrchestratorOptions
 ): Promise<void> {
-  let action = 'upgrade_plan'
+  let action: 'upgrade_plan' | 'increase_limit' = 'upgrade_plan'
   let message = "You've reached your usage limit. Please upgrade your plan to continue."
   try {
     const sub = await getHighestPrioritySubscription(userId)
     if (sub && isPaid(sub.plan)) {
+      // Paid subs use the existing `increase_limit` action so the UI
+      // (`UsageUpgradeDisplay`) renders its standard button. The message
+      // text does the work of clarifying the action when the user can't
+      // actually self-serve the limit change.
       action = 'increase_limit'
-      message =
-        "You've reached your usage limit for this billing period. Please increase your usage limit to continue."
+      const orgScoped = isOrgScopedSubscription(sub, userId)
+      if (orgScoped) {
+        message = isEnterprise(sub.plan)
+          ? "You've reached your organization's usage limit for this billing period. Only an organization admin or Sim support can raise an enterprise limit — reach out to them to continue."
+          : "You've reached your organization's usage limit for this billing period. Only an organization owner or admin can raise the limit — please ask them to update it from the team billing settings."
+      } else {
+        message =
+          "You've reached your usage limit for this billing period. Please increase your usage limit from billing settings to continue."
+      }
     }
   } catch {
     logger.warn('Failed to determine subscription plan, defaulting to upgrade_plan')

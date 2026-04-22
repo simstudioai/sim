@@ -5,6 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performChatDeploy } from '@/lib/workflows/orchestration'
 import { checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -38,7 +39,7 @@ const chatSchema = z.object({
     .default([]),
 })
 
-export async function GET(_request: NextRequest) {
+export const GET = withRouteHandler(async (_request: NextRequest) => {
   try {
     const session = await getSession()
 
@@ -57,9 +58,9 @@ export async function GET(_request: NextRequest) {
     logger.error('Error fetching chat deployments:', error)
     return createErrorResponse(error.message || 'Failed to fetch chat deployments', 500)
   }
-}
+})
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
 
@@ -155,4 +156,4 @@ export async function POST(request: NextRequest) {
     logger.error('Error creating chat deployment:', error)
     return createErrorResponse(error.message || 'Failed to create chat deployment', 500)
   }
-}
+})

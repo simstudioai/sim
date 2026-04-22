@@ -1,6 +1,9 @@
 import {
   type ComponentProps,
+  type Dispatch,
+  memo,
   type ReactNode,
+  type SetStateAction,
   useCallback,
   useEffect,
   useMemo,
@@ -133,6 +136,116 @@ function useResourceNameLookup(workspaceId: string): Map<string, string> {
     return map
   }, [workflows, tables, files, knowledgeBases, folders])
 }
+
+interface ResourceTabItemProps {
+  resource: MothershipResource
+  idx: number
+  isActive: boolean
+  isHovered: boolean
+  isDragging: boolean
+  isSelected: boolean
+  showGapBefore: boolean
+  showGapAfter: boolean
+  displayName: string
+  chatId?: string
+  onDragStart: (e: React.DragEvent, idx: number) => void
+  onDragOver: (e: React.DragEvent, idx: number) => void
+  onDragLeave: () => void
+  onDragEnd: () => void
+  onTabClick: (e: React.MouseEvent, idx: number) => void
+  setHoveredTabId: Dispatch<SetStateAction<string | null>>
+  onRemove: (e: React.MouseEvent, resource: MothershipResource) => void
+}
+
+const ResourceTabItem = memo(function ResourceTabItem({
+  resource,
+  idx,
+  isActive,
+  isHovered,
+  isDragging,
+  isSelected,
+  showGapBefore,
+  showGapAfter,
+  displayName,
+  chatId,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDragEnd,
+  onTabClick,
+  setHoveredTabId,
+  onRemove,
+}: ResourceTabItemProps) {
+  const config = getResourceConfig(resource.type)
+  return (
+    <div className='relative flex shrink-0 items-center'>
+      {showGapBefore && (
+        <div className='-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-10 h-[16px] w-[2px] rounded-full bg-[var(--text-subtle)]' />
+      )}
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='subtle'
+            draggable
+            data-resource-tab-id={resource.id}
+            onDragStart={(e) => onDragStart(e, idx)}
+            onDragOver={(e) => onDragOver(e, idx)}
+            onDragLeave={onDragLeave}
+            onDragEnd={onDragEnd}
+            onMouseDown={(e) => {
+              if (e.button === 1) {
+                e.preventDefault()
+                if (chatId) onRemove(e, resource)
+              }
+            }}
+            onClick={(e) => onTabClick(e, idx)}
+            onMouseEnter={() => setHoveredTabId(resource.id)}
+            onMouseLeave={() => setHoveredTabId(null)}
+            className={cn(
+              'group relative shrink-0 bg-transparent px-2 py-1 pr-[22px] text-caption transition-opacity duration-150',
+              isActive && 'bg-[var(--surface-4)]',
+              isSelected && !isActive && 'bg-[var(--surface-3)]',
+              isDragging && 'opacity-30'
+            )}
+          >
+            {config.renderTabIcon(resource, 'mr-1.5 h-[14px] w-[14px]')}
+            {displayName}
+            {(isHovered || isActive) && chatId && (
+              <span
+                role='button'
+                tabIndex={-1}
+                onClick={(e) => onRemove(e, resource)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onRemove(e as unknown as React.MouseEvent, resource)
+                }}
+                className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-sm p-[1px] hover-hover:bg-[var(--surface-5)]'
+                aria-label={`Close ${displayName}`}
+              >
+                <svg
+                  className='h-[10px] w-[10px] text-[var(--text-icon)]'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='2.5'
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                >
+                  <path d='M18 6 6 18M6 6l12 12' />
+                </svg>
+              </span>
+            )}
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>{displayName}</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      {showGapAfter && (
+        <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 z-10 h-[16px] w-[2px] translate-x-1/2 rounded-full bg-[var(--text-subtle)]' />
+      )}
+    </div>
+  )
+})
 
 interface ResourceTabsProps {
   workspaceId: string
@@ -476,7 +589,6 @@ export function ResourceTabs({
           onDrop={handleDrop}
         >
           {resources.map((resource, idx) => {
-            const config = getResourceConfig(resource.type)
             const displayName = nameLookup.get(`${resource.type}:${resource.id}`) ?? resource.title
             const isActive = activeId === resource.id
             const isHovered = hoveredTabId === resource.id
@@ -494,73 +606,26 @@ export function ResourceTabs({
               draggedIdx !== idx
 
             return (
-              <div key={resource.id} className='relative flex shrink-0 items-center'>
-                {showGapBefore && (
-                  <div className='-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-10 h-[16px] w-[2px] rounded-full bg-[var(--text-subtle)]' />
-                )}
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      variant='subtle'
-                      draggable
-                      data-resource-tab-id={resource.id}
-                      onDragStart={(e) => handleDragStart(e, idx)}
-                      onDragOver={(e) => handleDragOver(e, idx)}
-                      onDragLeave={handleDragLeave}
-                      onDragEnd={handleDragEnd}
-                      onMouseDown={(e) => {
-                        if (e.button === 1) {
-                          e.preventDefault()
-                          if (chatId) handleRemove(e, resource)
-                        }
-                      }}
-                      onClick={(e) => handleTabClick(e, idx)}
-                      onMouseEnter={() => setHoveredTabId(resource.id)}
-                      onMouseLeave={() => setHoveredTabId(null)}
-                      className={cn(
-                        'group relative shrink-0 bg-transparent px-2 py-1 pr-[22px] text-caption transition-opacity duration-150',
-                        isActive && 'bg-[var(--surface-4)]',
-                        isSelected && !isActive && 'bg-[var(--surface-3)]',
-                        isDragging && 'opacity-30'
-                      )}
-                    >
-                      {config.renderTabIcon(resource, 'mr-1.5 h-[14px] w-[14px]')}
-                      {displayName}
-                      {(isHovered || isActive) && chatId && (
-                        <span
-                          role='button'
-                          tabIndex={-1}
-                          onClick={(e) => handleRemove(e, resource)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter')
-                              handleRemove(e as unknown as React.MouseEvent, resource)
-                          }}
-                          className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-sm p-[1px] hover-hover:bg-[var(--surface-5)]'
-                          aria-label={`Close ${displayName}`}
-                        >
-                          <svg
-                            className='h-[10px] w-[10px] text-[var(--text-icon)]'
-                            viewBox='0 0 24 24'
-                            fill='none'
-                            stroke='currentColor'
-                            strokeWidth='2.5'
-                            strokeLinecap='round'
-                            strokeLinejoin='round'
-                          >
-                            <path d='M18 6 6 18M6 6l12 12' />
-                          </svg>
-                        </span>
-                      )}
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='bottom'>
-                    <p>{displayName}</p>
-                  </Tooltip.Content>
-                </Tooltip.Root>
-                {showGapAfter && (
-                  <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 z-10 h-[16px] w-[2px] translate-x-1/2 rounded-full bg-[var(--text-subtle)]' />
-                )}
-              </div>
+              <ResourceTabItem
+                key={resource.id}
+                resource={resource}
+                idx={idx}
+                isActive={isActive}
+                isHovered={isHovered}
+                isDragging={isDragging}
+                isSelected={isSelected}
+                showGapBefore={showGapBefore}
+                showGapAfter={showGapAfter}
+                displayName={displayName}
+                chatId={chatId}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDragEnd={handleDragEnd}
+                onTabClick={handleTabClick}
+                setHoveredTabId={setHoveredTabId}
+                onRemove={handleRemove}
+              />
             )
           })}
         </div>

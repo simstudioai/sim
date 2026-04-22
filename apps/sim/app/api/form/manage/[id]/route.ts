@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkFormAccess, DEFAULT_FORM_CUSTOMIZATIONS } from '@/app/api/form/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -63,213 +64,216 @@ const updateFormSchema = z.object({
   isActive: z.boolean().optional(),
 })
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await getSession()
-
-    if (!session) {
-      return createErrorResponse('Unauthorized', 401)
-    }
-
-    const { id } = await params
-
-    const { hasAccess, form: formRecord } = await checkFormAccess(id, session.user.id)
-
-    if (!hasAccess || !formRecord) {
-      return createErrorResponse('Form not found or access denied', 404)
-    }
-
-    const { password: _password, ...formWithoutPassword } = formRecord
-
-    return createSuccessResponse({
-      form: {
-        ...formWithoutPassword,
-        hasPassword: !!formRecord.password,
-      },
-    })
-  } catch (error: any) {
-    logger.error('Error fetching form:', error)
-    return createErrorResponse(error.message || 'Failed to fetch form', 500)
-  }
-}
-
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await getSession()
-
-    if (!session) {
-      return createErrorResponse('Unauthorized', 401)
-    }
-
-    const { id } = await params
-
-    const {
-      hasAccess,
-      form: formRecord,
-      workspaceId: formWorkspaceId,
-    } = await checkFormAccess(id, session.user.id)
-
-    if (!hasAccess || !formRecord) {
-      return createErrorResponse('Form not found or access denied', 404)
-    }
-
-    const body = await request.json()
-
+export const GET = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     try {
-      const validatedData = updateFormSchema.parse(body)
+      const session = await getSession()
+
+      if (!session) {
+        return createErrorResponse('Unauthorized', 401)
+      }
+
+      const { id } = await params
+
+      const { hasAccess, form: formRecord } = await checkFormAccess(id, session.user.id)
+
+      if (!hasAccess || !formRecord) {
+        return createErrorResponse('Form not found or access denied', 404)
+      }
+
+      const { password: _password, ...formWithoutPassword } = formRecord
+
+      return createSuccessResponse({
+        form: {
+          ...formWithoutPassword,
+          hasPassword: !!formRecord.password,
+        },
+      })
+    } catch (error: any) {
+      logger.error('Error fetching form:', error)
+      return createErrorResponse(error.message || 'Failed to fetch form', 500)
+    }
+  }
+)
+
+export const PATCH = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    try {
+      const session = await getSession()
+
+      if (!session) {
+        return createErrorResponse('Unauthorized', 401)
+      }
+
+      const { id } = await params
 
       const {
-        identifier,
-        title,
-        description,
-        customizations,
-        authType,
-        password,
-        allowedEmails,
-        showBranding,
-        isActive,
-      } = validatedData
+        hasAccess,
+        form: formRecord,
+        workspaceId: formWorkspaceId,
+      } = await checkFormAccess(id, session.user.id)
 
-      if (identifier && identifier !== formRecord.identifier) {
-        const existingIdentifier = await db
-          .select()
-          .from(form)
-          .where(and(eq(form.identifier, identifier), isNull(form.archivedAt)))
-          .limit(1)
+      if (!hasAccess || !formRecord) {
+        return createErrorResponse('Form not found or access denied', 404)
+      }
 
-        if (existingIdentifier.length > 0) {
-          return createErrorResponse('Identifier already in use', 400)
+      const body = await request.json()
+
+      try {
+        const validatedData = updateFormSchema.parse(body)
+
+        const {
+          identifier,
+          title,
+          description,
+          customizations,
+          authType,
+          password,
+          allowedEmails,
+          showBranding,
+          isActive,
+        } = validatedData
+
+        if (identifier && identifier !== formRecord.identifier) {
+          const existingIdentifier = await db
+            .select()
+            .from(form)
+            .where(and(eq(form.identifier, identifier), isNull(form.archivedAt)))
+            .limit(1)
+
+          if (existingIdentifier.length > 0) {
+            return createErrorResponse('Identifier already in use', 400)
+          }
         }
-      }
 
-      if (authType === 'password' && !password && !formRecord.password) {
-        return createErrorResponse('Password is required when using password protection', 400)
-      }
-
-      if (
-        authType === 'email' &&
-        (!allowedEmails || allowedEmails.length === 0) &&
-        (!formRecord.allowedEmails || (formRecord.allowedEmails as string[]).length === 0)
-      ) {
-        return createErrorResponse(
-          'At least one email or domain is required when using email access control',
-          400
-        )
-      }
-
-      const updateData: Record<string, any> = {
-        updatedAt: new Date(),
-      }
-
-      if (identifier !== undefined) updateData.identifier = identifier
-      if (title !== undefined) updateData.title = title
-      if (description !== undefined) updateData.description = description
-      if (showBranding !== undefined) updateData.showBranding = showBranding
-      if (isActive !== undefined) updateData.isActive = isActive
-      if (authType !== undefined) updateData.authType = authType
-      if (allowedEmails !== undefined) updateData.allowedEmails = allowedEmails
-
-      if (customizations !== undefined) {
-        const existingCustomizations = (formRecord.customizations as Record<string, any>) || {}
-        updateData.customizations = {
-          ...DEFAULT_FORM_CUSTOMIZATIONS,
-          ...existingCustomizations,
-          ...customizations,
+        if (authType === 'password' && !password && !formRecord.password) {
+          return createErrorResponse('Password is required when using password protection', 400)
         }
+
+        if (
+          authType === 'email' &&
+          (!allowedEmails || allowedEmails.length === 0) &&
+          (!formRecord.allowedEmails || (formRecord.allowedEmails as string[]).length === 0)
+        ) {
+          return createErrorResponse(
+            'At least one email or domain is required when using email access control',
+            400
+          )
+        }
+
+        const updateData: Record<string, any> = {
+          updatedAt: new Date(),
+        }
+
+        if (identifier !== undefined) updateData.identifier = identifier
+        if (title !== undefined) updateData.title = title
+        if (description !== undefined) updateData.description = description
+        if (showBranding !== undefined) updateData.showBranding = showBranding
+        if (isActive !== undefined) updateData.isActive = isActive
+        if (authType !== undefined) updateData.authType = authType
+        if (allowedEmails !== undefined) updateData.allowedEmails = allowedEmails
+
+        if (customizations !== undefined) {
+          const existingCustomizations = (formRecord.customizations as Record<string, any>) || {}
+          updateData.customizations = {
+            ...DEFAULT_FORM_CUSTOMIZATIONS,
+            ...existingCustomizations,
+            ...customizations,
+          }
+        }
+
+        if (password) {
+          const { encrypted } = await encryptSecret(password)
+          updateData.password = encrypted
+        } else if (authType && authType !== 'password') {
+          updateData.password = null
+        }
+
+        await db.update(form).set(updateData).where(eq(form.id, id))
+
+        logger.info(`Form ${id} updated successfully`)
+
+        recordAudit({
+          workspaceId: formWorkspaceId ?? null,
+          actorId: session.user.id,
+          action: AuditAction.FORM_UPDATED,
+          resourceType: AuditResourceType.FORM,
+          resourceId: id,
+          actorName: session.user.name ?? undefined,
+          actorEmail: session.user.email ?? undefined,
+          resourceName: (title || formRecord.title) ?? undefined,
+          description: `Updated form "${title || formRecord.title}"`,
+          metadata: {
+            identifier: identifier || formRecord.identifier,
+            workflowId: formRecord.workflowId,
+            authType: authType || formRecord.authType,
+            updatedFields: Object.keys(updateData).filter((k) => k !== 'updatedAt'),
+          },
+          request,
+        })
+
+        return createSuccessResponse({
+          message: 'Form updated successfully',
+        })
+      } catch (validationError) {
+        if (validationError instanceof z.ZodError) {
+          const errorMessage = validationError.errors[0]?.message || 'Invalid request data'
+          return createErrorResponse(errorMessage, 400, 'VALIDATION_ERROR')
+        }
+        throw validationError
+      }
+    } catch (error: any) {
+      logger.error('Error updating form:', error)
+      return createErrorResponse(error.message || 'Failed to update form', 500)
+    }
+  }
+)
+
+export const DELETE = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    try {
+      const session = await getSession()
+
+      if (!session) {
+        return createErrorResponse('Unauthorized', 401)
       }
 
-      if (password) {
-        const { encrypted } = await encryptSecret(password)
-        updateData.password = encrypted
-      } else if (authType && authType !== 'password') {
-        updateData.password = null
+      const { id } = await params
+
+      const {
+        hasAccess,
+        form: formRecord,
+        workspaceId: formWorkspaceId,
+      } = await checkFormAccess(id, session.user.id)
+
+      if (!hasAccess || !formRecord) {
+        return createErrorResponse('Form not found or access denied', 404)
       }
 
-      await db.update(form).set(updateData).where(eq(form.id, id))
+      await db.delete(form).where(eq(form.id, id))
 
-      logger.info(`Form ${id} updated successfully`)
+      logger.info(`Form ${id} deleted (soft delete)`)
 
       recordAudit({
         workspaceId: formWorkspaceId ?? null,
         actorId: session.user.id,
-        action: AuditAction.FORM_UPDATED,
+        action: AuditAction.FORM_DELETED,
         resourceType: AuditResourceType.FORM,
         resourceId: id,
         actorName: session.user.name ?? undefined,
         actorEmail: session.user.email ?? undefined,
-        resourceName: (title || formRecord.title) ?? undefined,
-        description: `Updated form "${title || formRecord.title}"`,
-        metadata: {
-          identifier: identifier || formRecord.identifier,
-          workflowId: formRecord.workflowId,
-          authType: authType || formRecord.authType,
-          updatedFields: Object.keys(updateData).filter((k) => k !== 'updatedAt'),
-        },
+        resourceName: formRecord.title ?? undefined,
+        description: `Deleted form "${formRecord.title}"`,
+        metadata: { identifier: formRecord.identifier, workflowId: formRecord.workflowId },
         request,
       })
 
       return createSuccessResponse({
-        message: 'Form updated successfully',
+        message: 'Form deleted successfully',
       })
-    } catch (validationError) {
-      if (validationError instanceof z.ZodError) {
-        const errorMessage = validationError.errors[0]?.message || 'Invalid request data'
-        return createErrorResponse(errorMessage, 400, 'VALIDATION_ERROR')
-      }
-      throw validationError
+    } catch (error: any) {
+      logger.error('Error deleting form:', error)
+      return createErrorResponse(error.message || 'Failed to delete form', 500)
     }
-  } catch (error: any) {
-    logger.error('Error updating form:', error)
-    return createErrorResponse(error.message || 'Failed to update form', 500)
   }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const session = await getSession()
-
-    if (!session) {
-      return createErrorResponse('Unauthorized', 401)
-    }
-
-    const { id } = await params
-
-    const {
-      hasAccess,
-      form: formRecord,
-      workspaceId: formWorkspaceId,
-    } = await checkFormAccess(id, session.user.id)
-
-    if (!hasAccess || !formRecord) {
-      return createErrorResponse('Form not found or access denied', 404)
-    }
-
-    await db.delete(form).where(eq(form.id, id))
-
-    logger.info(`Form ${id} deleted (soft delete)`)
-
-    recordAudit({
-      workspaceId: formWorkspaceId ?? null,
-      actorId: session.user.id,
-      action: AuditAction.FORM_DELETED,
-      resourceType: AuditResourceType.FORM,
-      resourceId: id,
-      actorName: session.user.name ?? undefined,
-      actorEmail: session.user.email ?? undefined,
-      resourceName: formRecord.title ?? undefined,
-      description: `Deleted form "${formRecord.title}"`,
-      metadata: { identifier: formRecord.identifier, workflowId: formRecord.workflowId },
-      request,
-    })
-
-    return createSuccessResponse({
-      message: 'Form deleted successfully',
-    })
-  } catch (error: any) {
-    logger.error('Error deleting form:', error)
-    return createErrorResponse(error.message || 'Failed to delete form', 500)
-  }
-}
+)

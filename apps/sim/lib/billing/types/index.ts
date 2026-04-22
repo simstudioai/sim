@@ -62,6 +62,15 @@ export interface UsageLimitInfo {
   minimumLimit: number
   plan: string
   updatedAt: Date | null
+  /**
+   * Whether the limit is stored on the user (`'user'`) or the organization
+   * (`'organization'`). Callers should route edits to the matching API
+   * context. Org-scoped includes any subscription whose `referenceId` is
+   * an organization id, regardless of plan name.
+   */
+  scope: 'user' | 'organization'
+  /** Present only when `scope === 'organization'`. */
+  organizationId: string | null
 }
 
 export interface BillingData {

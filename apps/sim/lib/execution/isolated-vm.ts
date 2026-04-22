@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
@@ -35,12 +36,60 @@ export interface IsolatedVMExecutionRequest {
   requestId: string
   ownerKey?: string
   ownerWeight?: number
+  /**
+   * Task-mode execution. When set, the worker loads pre-built library bundles,
+   * runs the task `bootstrap`, executes user `code`, then evaluates `finalize`
+   * (must return a `Uint8Array`). The bytes are returned in
+   * `IsolatedVMExecutionResult.bytesBase64`.
+   */
+  task?: IsolatedVMTaskRequest
+}
+
+export interface IsolatedVMTaskRequest {
+  id: string
+  bundles: string[]
+  bootstrap: string
+  brokers: string[]
+  finalize: string
+}
+
+/**
+ * Host-side broker handler invoked when isolate code calls a broker.
+ * Registered per-request via `executeInIsolatedVM(..., { brokers })`.
+ */
+export type IsolatedVMBrokerHandler = (args: unknown) => Promise<unknown>
+
+export interface IsolatedVMExecutionOptions {
+  /** Broker name → handler. Must cover every broker listed in `request.task.brokers`. */
+  brokers?: Record<string, IsolatedVMBrokerHandler>
+  /** Cancel the execution early. Broadcasts a cancellation error to the caller. */
+  signal?: AbortSignal
 }
 
 export interface IsolatedVMExecutionResult {
   result: unknown
   stdout: string
   error?: IsolatedVMError
+  /** Populated in task mode: the `finalize` result as base64-encoded bytes. */
+  bytesBase64?: string
+  /**
+   * Populated in task mode: per-phase execution timings in milliseconds. Lets
+   * callers log where time is spent per request (bundle parse is typically
+   * the dominant cost today). Shape mirrors `executeTask`'s `timings`.
+   */
+  timings?: IsolatedVMTaskTimings
+}
+
+export interface IsolatedVMTaskTimings {
+  setup: number
+  runtimeBootstrap: number
+  bundles: number
+  brokerInstall: number
+  taskBootstrap: number
+  harden: number
+  userCode: number
+  finalize: number
+  total: number
 }
 
 export interface IsolatedVMError {
@@ -71,6 +120,10 @@ const DISTRIBUTED_MAX_INFLIGHT_PER_OWNER =
   MAX_ACTIVE_PER_OWNER + MAX_QUEUED_PER_OWNER
 const DISTRIBUTED_LEASE_MIN_TTL_MS = Number.parseInt(env.IVM_DISTRIBUTED_LEASE_MIN_TTL_MS) || 120000
 const MAX_EXECUTIONS_PER_WORKER = Number.parseInt(env.IVM_MAX_EXECUTIONS_PER_WORKER) || 500
+const MAX_BROKER_ARGS_JSON_CHARS = Number.parseInt(env.IVM_MAX_BROKER_ARGS_JSON_CHARS) || 262_144
+const MAX_BROKER_RESULT_JSON_CHARS =
+  Number.parseInt(env.IVM_MAX_BROKER_RESULT_JSON_CHARS) || 16_777_216
+const MAX_BROKERS_PER_EXECUTION = Number.parseInt(env.IVM_MAX_BROKERS_PER_EXECUTION) || 1000
 const DISTRIBUTED_KEY_PREFIX = 'ivm:fair:v1:owner'
 const LEASE_REDIS_DEADLINE_MS = 200
 const QUEUE_RETRY_DELAY_MS = 1000
@@ -80,6 +133,11 @@ interface PendingExecution {
   resolve: (result: IsolatedVMExecutionResult) => void
   timeout: ReturnType<typeof setTimeout>
   ownerKey: string
+  brokers?: Record<string, IsolatedVMBrokerHandler>
+  /** Set when the caller aborts. Broker dispatches and the final result stop resolving the promise. */
+  cancelled: boolean
+  /** Number of broker calls made so far for this execution. */
+  brokerCallCount: number
 }
 
 interface WorkerInfo {
@@ -100,6 +158,21 @@ interface QueuedExecution {
   req: IsolatedVMExecutionRequest
   resolve: (result: IsolatedVMExecutionResult) => void
   queueTimeout: ReturnType<typeof setTimeout>
+  brokers?: Record<string, IsolatedVMBrokerHandler>
+  state: ExecutionState
+}
+
+/**
+ * Mutable per-execution bookkeeping shared between the outer Promise, the queue
+ * entry (if queued), and the worker dispatch entry. Lets the AbortSignal listener
+ * locate the right worker/queue slot and mark it cancelled without racing
+ * against the queue-to-worker handoff.
+ */
+interface ExecutionState {
+  cancelled: boolean
+  queueId?: number
+  workerId?: number
+  execId?: number
 }
 
 interface QueueNode {
@@ -238,7 +311,7 @@ async function secureFetch(
   } catch (error: unknown) {
     logger.warn(`[${requestId}] Isolated fetch failed`, {
       url: sanitizeUrlForLog(url),
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown fetch error' })
   }
@@ -523,6 +596,117 @@ function scheduleDrainRetry() {
   }, QUEUE_RETRY_DELAY_MS)
 }
 
+function handleBrokerMessage(
+  workerInfo: WorkerInfo | undefined,
+  msg: Record<string, unknown>
+): void {
+  if (!workerInfo) return
+  const brokerId = msg.brokerId as number
+  const executionId = msg.executionId as number
+  const brokerName = msg.brokerName as string
+  const argsJson = msg.argsJson as string | undefined
+
+  const sendResponse = (payload: Record<string, unknown>) => {
+    try {
+      workerInfo.process.send({ type: 'brokerResponse', brokerId, ...payload })
+    } catch (err) {
+      logger.error('Failed to send broker response to worker', {
+        err,
+        brokerId,
+        brokerName,
+        workerId: workerInfo.id,
+      })
+    }
+  }
+
+  const logReject = (reason: string, extra?: Record<string, unknown>) => {
+    logger.warn('Sandbox broker call rejected', {
+      reason,
+      brokerName,
+      executionId,
+      workerId: workerInfo.id,
+      ...extra,
+    })
+  }
+
+  const pending = workerInfo.pendingExecutions.get(executionId)
+  if (!pending) {
+    sendResponse({ error: 'Execution no longer active' })
+    return
+  }
+
+  if (pending.cancelled) {
+    sendResponse({ error: 'Execution cancelled' })
+    return
+  }
+
+  if (argsJson && argsJson.length > MAX_BROKER_ARGS_JSON_CHARS) {
+    logReject('args_too_large', { argsJsonLength: argsJson.length })
+    sendResponse({
+      error: `Broker args exceed maximum size (${MAX_BROKER_ARGS_JSON_CHARS} chars)`,
+    })
+    return
+  }
+
+  pending.brokerCallCount++
+  if (pending.brokerCallCount > MAX_BROKERS_PER_EXECUTION) {
+    logReject('rate_limit', { brokerCallCount: pending.brokerCallCount })
+    sendResponse({
+      error: `Broker call limit exceeded (${MAX_BROKERS_PER_EXECUTION} per execution)`,
+    })
+    return
+  }
+
+  const handler = pending.brokers?.[brokerName]
+  if (!handler) {
+    logReject('unknown_broker')
+    sendResponse({ error: `Broker "${brokerName}" is not available for this execution` })
+    return
+  }
+
+  let args: unknown
+  if (argsJson) {
+    try {
+      args = JSON.parse(argsJson)
+    } catch {
+      logReject('invalid_args_json')
+      sendResponse({ error: 'Invalid broker args JSON' })
+      return
+    }
+  }
+
+  Promise.resolve()
+    .then(() => handler(args))
+    .then((resultValue) => {
+      if (pending.cancelled) {
+        sendResponse({ error: 'Execution cancelled' })
+        return
+      }
+      let resultJson: string
+      try {
+        resultJson = JSON.stringify(resultValue ?? null)
+      } catch {
+        logReject('result_not_serializable')
+        sendResponse({ error: 'Broker result is not JSON-serializable' })
+        return
+      }
+      if (resultJson.length > MAX_BROKER_RESULT_JSON_CHARS) {
+        logReject('result_too_large', { resultJsonLength: resultJson.length })
+        sendResponse({
+          error: `Broker result exceeds maximum size (${MAX_BROKER_RESULT_JSON_CHARS} chars)`,
+        })
+        return
+      }
+      sendResponse({ resultJson })
+    })
+    .catch((err) => {
+      logReject('handler_threw', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+      sendResponse({ error: err instanceof Error ? err.message : String(err) })
+    })
+}
+
 function handleWorkerMessage(workerId: number, message: unknown) {
   if (typeof message !== 'object' || message === null) return
   const msg = message as Record<string, unknown>
@@ -554,9 +738,19 @@ function handleWorkerMessage(workerId: number, message: unknown) {
       } else {
         resetWorkerIdleTimeout(workerId)
       }
-      pending.resolve(msg.result as IsolatedVMExecutionResult)
+      // If the caller aborted, the outer Promise is already resolved with
+      // AbortError. Still run all the bookkeeping above so pool counters stay
+      // accurate; just skip re-resolving.
+      if (!pending.cancelled) {
+        pending.resolve(msg.result as IsolatedVMExecutionResult)
+      }
       drainQueue()
     }
+    return
+  }
+
+  if (msg.type === 'broker') {
+    handleBrokerMessage(workerInfo, msg)
     return
   }
 
@@ -855,9 +1049,25 @@ function dispatchToWorker(
   workerInfo: WorkerInfo,
   ownerState: OwnerState,
   req: IsolatedVMExecutionRequest,
-  resolve: (result: IsolatedVMExecutionResult) => void
+  resolve: (result: IsolatedVMExecutionResult) => void,
+  state: ExecutionState,
+  brokers?: Record<string, IsolatedVMBrokerHandler>
 ) {
+  // Caller may have aborted between acquireWorker() and dispatch. Skip the
+  // round-trip entirely and let the abort listener handle settlement.
+  if (state.cancelled) {
+    resolve({
+      result: null,
+      stdout: '',
+      error: { message: 'Execution cancelled', name: 'AbortError' },
+    })
+    drainQueue()
+    return
+  }
+
   const execId = ++executionIdCounter
+  state.workerId = workerInfo.id
+  state.execId = execId
 
   if (workerInfo.idleTimeout) {
     clearTimeout(workerInfo.idleTimeout)
@@ -891,7 +1101,14 @@ function dispatchToWorker(
     drainQueue()
   }, req.timeoutMs + 1000)
 
-  workerInfo.pendingExecutions.set(execId, { resolve, timeout, ownerKey: ownerState.ownerKey })
+  workerInfo.pendingExecutions.set(execId, {
+    resolve,
+    timeout,
+    ownerKey: ownerState.ownerKey,
+    brokers,
+    cancelled: false,
+    brokerCallCount: 0,
+  })
   workerInfo.activeExecutions++
   totalActiveExecutions++
   ownerState.activeExecutions++
@@ -923,9 +1140,19 @@ function dispatchToWorker(
 function enqueueExecution(
   ownerState: OwnerState,
   req: IsolatedVMExecutionRequest,
-  resolve: (result: IsolatedVMExecutionResult) => void
+  resolve: (result: IsolatedVMExecutionResult) => void,
+  state: ExecutionState,
+  brokers?: Record<string, IsolatedVMBrokerHandler>
 ) {
   if (queueLength() >= MAX_QUEUE_SIZE) {
+    logger.warn('Isolated-vm saturation: global queue full', {
+      reason: 'queue_full_global',
+      queueLength: queueLength(),
+      max: MAX_QUEUE_SIZE,
+      totalActive: totalActiveExecutions,
+      poolSize: workers.size,
+      ownerKey: ownerState.ownerKey,
+    })
     resolve({
       result: null,
       stdout: '',
@@ -937,6 +1164,13 @@ function enqueueExecution(
     return
   }
   if (ownerState.queueLength >= MAX_QUEUED_PER_OWNER) {
+    logger.warn('Isolated-vm saturation: per-owner queue full', {
+      reason: 'queue_full_owner',
+      ownerKey: ownerState.ownerKey,
+      ownerQueueLength: ownerState.queueLength,
+      ownerActive: ownerState.activeExecutions,
+      max: MAX_QUEUED_PER_OWNER,
+    })
     resolve({
       result: null,
       stdout: '',
@@ -953,6 +1187,11 @@ function enqueueExecution(
   const queueTimeout = setTimeout(() => {
     const queued = removeQueuedExecutionById(queueId)
     if (!queued) return
+    logger.warn('Isolated-vm saturation: queue wait timeout', {
+      reason: 'queue_wait_timeout',
+      ownerKey: ownerState.ownerKey,
+      queueTimeoutMs: QUEUE_TIMEOUT_MS,
+    })
     resolve({
       result: null,
       stdout: '',
@@ -963,12 +1202,15 @@ function enqueueExecution(
     })
   }, QUEUE_TIMEOUT_MS)
 
+  state.queueId = queueId
   pushQueuedExecution(ownerState, {
     id: queueId,
     ownerKey: ownerState.ownerKey,
     req,
     resolve,
     queueTimeout,
+    brokers,
+    state,
   })
   logger.info('Execution queued', {
     queueLength: queueLength(),
@@ -1014,7 +1256,9 @@ function drainQueue() {
       continue
     }
     clearTimeout(queued.queueTimeout)
-    dispatchToWorker(worker, owner, queued.req, queued.resolve)
+    // Clearing queueId: from here on, abort must reach the worker, not the queue.
+    queued.state.queueId = undefined
+    dispatchToWorker(worker, owner, queued.req, queued.resolve, queued.state, queued.brokers)
   }
 }
 
@@ -1022,11 +1266,39 @@ function drainQueue() {
  * Execute JavaScript code in an isolated V8 isolate via Node.js subprocess.
  */
 export async function executeInIsolatedVM(
-  req: IsolatedVMExecutionRequest
+  req: IsolatedVMExecutionRequest,
+  options?: IsolatedVMExecutionOptions
 ): Promise<IsolatedVMExecutionResult> {
   const ownerKey = normalizeOwnerKey(req.ownerKey)
   const ownerWeight = normalizeOwnerWeight(req.ownerWeight)
   const ownerState = getOrCreateOwnerState(ownerKey, ownerWeight)
+  const brokers = options?.brokers
+  const signal = options?.signal
+
+  if (signal?.aborted) {
+    maybeCleanupOwner(ownerKey)
+    return {
+      result: null,
+      stdout: '',
+      error: { message: 'Execution cancelled', name: 'AbortError' },
+    }
+  }
+
+  if (req.task) {
+    for (const brokerName of req.task.brokers) {
+      if (!brokers?.[brokerName]) {
+        maybeCleanupOwner(ownerKey)
+        return {
+          result: null,
+          stdout: '',
+          error: {
+            message: `Task "${req.task.id}" requires broker "${brokerName}" but none was provided`,
+            name: 'Error',
+          },
+        }
+      }
+    }
+  }
 
   const distributedLeaseId = `${req.requestId}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`
   const leaseAcquireResult = await tryAcquireDistributedLease(
@@ -1035,6 +1307,11 @@ export async function executeInIsolatedVM(
     req.timeoutMs
   )
   if (leaseAcquireResult === 'limit_exceeded') {
+    logger.warn('Isolated-vm saturation: distributed lease limit exceeded', {
+      reason: 'distributed_lease_limit',
+      ownerKey,
+      max: DISTRIBUTED_MAX_INFLIGHT_PER_OWNER,
+    })
     maybeCleanupOwner(ownerKey)
     return {
       result: null,
@@ -1060,35 +1337,85 @@ export async function executeInIsolatedVM(
     })
   }
 
+  const state: ExecutionState = { cancelled: false }
+
   return new Promise<IsolatedVMExecutionResult>((resolve) => {
+    let abortListener: (() => void) | null = null
+    let resolved = false
     const resolveWithRelease = (result: IsolatedVMExecutionResult) => {
+      if (resolved) return
+      resolved = true
+      if (abortListener && signal) {
+        signal.removeEventListener('abort', abortListener)
+      }
       releaseLease()
       resolve(result)
+    }
+
+    if (signal) {
+      abortListener = () => {
+        state.cancelled = true
+        // If queued, drop the entry immediately and free the slot.
+        if (state.queueId !== undefined) {
+          const removed = removeQueuedExecutionById(state.queueId)
+          if (removed) clearTimeout(removed.queueTimeout)
+          state.queueId = undefined
+        }
+        // If dispatched, mark the pending entry cancelled and ask the worker to
+        // dispose its isolate so the pool slot can be released. The worker will
+        // emit a `result` shortly after, which runs the normal counter cleanup.
+        if (state.workerId !== undefined && state.execId !== undefined) {
+          const wi = workers.get(state.workerId)
+          const pending = wi?.pendingExecutions.get(state.execId)
+          if (pending) pending.cancelled = true
+          if (wi) {
+            try {
+              wi.process.send({ type: 'cancel', executionId: state.execId })
+            } catch (err) {
+              logger.warn('Failed to send cancel to worker', { err, workerId: state.workerId })
+            }
+          }
+        }
+        resolveWithRelease({
+          result: null,
+          stdout: '',
+          error: { message: 'Execution cancelled', name: 'AbortError' },
+        })
+      }
+      signal.addEventListener('abort', abortListener, { once: true })
+      // Close the race where the signal aborted between the async work above
+      // (e.g. tryAcquireDistributedLease) and listener registration. AbortSignal
+      // does NOT fire listeners registered after `abort()` has fired, so we
+      // have to check and invoke synchronously.
+      if (signal.aborted) {
+        abortListener()
+        return
+      }
     }
 
     if (
       totalActiveExecutions >= MAX_CONCURRENT ||
       ownerState.activeExecutions >= MAX_ACTIVE_PER_OWNER
     ) {
-      enqueueExecution(ownerState, req, resolveWithRelease)
+      enqueueExecution(ownerState, req, resolveWithRelease, state, brokers)
       return
     }
 
     acquireWorker()
       .then((workerInfo) => {
         if (!workerInfo) {
-          enqueueExecution(ownerState, req, resolveWithRelease)
+          enqueueExecution(ownerState, req, resolveWithRelease, state, brokers)
           return
         }
 
-        dispatchToWorker(workerInfo, ownerState, req, resolveWithRelease)
+        dispatchToWorker(workerInfo, ownerState, req, resolveWithRelease, state, brokers)
         if (queueLength() > 0) {
           drainQueue()
         }
       })
       .catch((error) => {
         logger.error('Failed to acquire worker for execution', { error, ownerKey })
-        enqueueExecution(ownerState, req, resolveWithRelease)
+        enqueueExecution(ownerState, req, resolveWithRelease, state, brokers)
       })
   }).finally(() => {
     releaseLease()

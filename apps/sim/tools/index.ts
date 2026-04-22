@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -15,6 +17,7 @@ import { isUserFile } from '@/lib/core/utils/user-file'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext, UserFile } from '@/executor/types'
@@ -376,7 +379,7 @@ async function executeWithRetry<T>(
       logger.warn(
         `[${requestId}] Rate limited for ${toolId} (${envVarName}), retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`
       )
-      await new Promise((resolve) => setTimeout(resolve, delayMs))
+      await sleep(delayMs)
     }
   }
 
@@ -652,7 +655,7 @@ function isBodySizeLimitError(errorMessage: string): boolean {
  * @returns false if not a size limit error (caller should continue handling)
  */
 function handleBodySizeLimitError(error: unknown, requestId: string, context: string): boolean {
-  const errorMessage = error instanceof Error ? error.message : String(error)
+  const errorMessage = toError(error).message
 
   if (isBodySizeLimitError(errorMessage)) {
     logger.error(`[${requestId}] Request body size limit exceeded for ${context}:`, {
@@ -764,7 +767,24 @@ export async function executeTool(
 
     const scope = resolveToolScope(params, executionContext)
 
-    // Handle load_skill tool for agent skills progressive disclosure
+    const toolKind: 'skill' | 'custom' | 'mcp' | undefined =
+      normalizedToolId === 'load_skill'
+        ? 'skill'
+        : isCustomTool(normalizedToolId)
+          ? 'custom'
+          : isMcpTool(normalizedToolId)
+            ? 'mcp'
+            : undefined
+
+    if (toolKind && scope.userId && scope.workspaceId) {
+      await assertPermissionsAllowed({
+        userId: scope.userId,
+        workspaceId: scope.workspaceId,
+        toolKind,
+        ctx: executionContext,
+      })
+    }
+
     if (normalizedToolId === 'load_skill') {
       const skillName = params.skill_name
       if (!skillName || !scope.workspaceId) {
@@ -788,7 +808,6 @@ export async function executeTool(
       }
     }
 
-    // If it's a custom tool, use the async version
     if (isCustomTool(normalizedToolId)) {
       tool = await toolsUtilsServer.getToolAsync(normalizedToolId, {
         workflowId: scope.workflowId,
@@ -937,7 +956,7 @@ export async function executeTool(
         if (contextParams.workflowId) contextParams.workflowId = undefined
       } catch (error: any) {
         logger.error(`[${requestId}] Error fetching access token for ${toolId}:`, {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         throw error
       }
@@ -955,7 +974,7 @@ export async function executeTool(
           finalResult = await tool.postProcess(result, contextParams, executeTool)
         } catch (error) {
           logger.error(`[${requestId}] Post-processing error for ${toolId}:`, {
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           })
           finalResult = result
         }
@@ -1010,7 +1029,7 @@ export async function executeTool(
         finalResult = await tool.postProcess(result, contextParams, executeTool)
       } catch (error) {
         logger.error(`[${requestId}] Post-processing error for ${toolId}:`, {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         finalResult = result
       }
@@ -1047,7 +1066,7 @@ export async function executeTool(
     }
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing tool ${toolId}:`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
 
@@ -1331,8 +1350,7 @@ async function executeToolRequest(
           )
         } catch (validationError) {
           logger.error(`[${requestId}] Custom tool validation failed for ${toolId}:`, {
-            error:
-              validationError instanceof Error ? validationError.message : String(validationError),
+            error: toError(validationError).message,
           })
           throw validationError
         }
@@ -1540,7 +1558,7 @@ async function executeToolRequest(
           responseData = await response.json()
         } catch (jsonError) {
           logger.error(`[${requestId}] JSON parse error for ${toolId}:`, {
-            error: jsonError instanceof Error ? jsonError.message : String(jsonError),
+            error: toError(jsonError).message,
           })
           throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
         }
@@ -1582,7 +1600,7 @@ async function executeToolRequest(
         return data
       } catch (transformError) {
         logger.error(`[${requestId}] Transform response error for ${toolId}:`, {
-          error: transformError instanceof Error ? transformError.message : String(transformError),
+          error: toError(transformError).message,
         })
         throw transformError
       }
@@ -1599,7 +1617,7 @@ async function executeToolRequest(
     handleBodySizeLimitError(error, requestId, toolId)
 
     logger.error(`[${requestId}] Internal request error for ${toolId}:`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
 
     // Let the error bubble up to be handled in the main executeTool function
@@ -1867,7 +1885,7 @@ async function executeMcpTool(
     const duration = endTime.getTime() - new Date(actualStartTime).getTime()
 
     // Check if this is a body size limit error
-    const errorMsg = error instanceof Error ? error.message : String(error)
+    const errorMsg = toError(error).message
     if (isBodySizeLimitError(errorMsg)) {
       logger.error(`[${actualRequestId}] Request body size limit exceeded for mcp:${toolId}:`, {
         originalError: errorMsg,

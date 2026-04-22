@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import {
   type ExecutionStreamStatus,
   getExecutionMeta,
@@ -69,7 +71,7 @@ export function createBufferedExecutionStream(
             return
           }
 
-          await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+          await sleep(POLL_INTERVAL_MS)
           if (closed) {
             return
           }
@@ -93,7 +95,7 @@ export function createBufferedExecutionStream(
       } catch (error) {
         logger.error('Buffered execution stream failed', {
           executionId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
 
         if (!closed) {

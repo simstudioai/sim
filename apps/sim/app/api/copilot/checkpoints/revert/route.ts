@@ -13,6 +13,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { isUuidV4 } from '@/executor/constants'
 
@@ -26,7 +27,7 @@ const RevertCheckpointSchema = z.object({
  * POST /api/copilot/checkpoints/revert
  * Revert workflow to a specific checkpoint state
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const tracker = createRequestTracker()
 
   try {
@@ -155,4 +156,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[${tracker.requestId}] Error reverting to checkpoint:`, error)
     return createInternalServerErrorResponse('Failed to revert to checkpoint')
   }
-}
+})

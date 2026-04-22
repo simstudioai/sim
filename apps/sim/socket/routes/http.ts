@@ -122,6 +122,20 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       return
     }
 
+    // Handle workflow deployment change notifications from the main API
+    if (req.method === 'POST' && req.url === '/api/workflow-deployed') {
+      try {
+        const body = await readRequestBody(req)
+        const { workflowId } = JSON.parse(body)
+        await roomManager.handleWorkflowDeployed(workflowId)
+        sendSuccess(res)
+      } catch (error) {
+        logger.error('Error handling workflow deployed notification:', error)
+        sendError(res, 'Failed to process deployment notification')
+      }
+      return
+    }
+
     // Handle workflow revert notifications from the main API
     if (req.method === 'POST' && req.url === '/api/workflow-reverted') {
       try {

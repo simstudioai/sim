@@ -1,12 +1,13 @@
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
+import { createLogger, runWithRequestContext } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { IdempotencyService, webhookIdempotency } from '@/lib/core/idempotency'
-import { generateId } from '@/lib/core/utils/uuid'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -143,30 +144,32 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
   const executionId = correlation.executionId
   const requestId = correlation.requestId
 
-  logger.info(`[${requestId}] Starting webhook execution`, {
-    webhookId: payload.webhookId,
-    workflowId: payload.workflowId,
-    provider: payload.provider,
-    userId: payload.userId,
-    executionId,
+  return runWithRequestContext({ requestId }, async () => {
+    logger.info(`[${requestId}] Starting webhook execution`, {
+      webhookId: payload.webhookId,
+      workflowId: payload.workflowId,
+      provider: payload.provider,
+      userId: payload.userId,
+      executionId,
+    })
+
+    const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
+      payload.webhookId,
+      payload.headers,
+      payload.body,
+      payload.provider
+    )
+
+    const runOperation = async () => {
+      return await executeWebhookJobInternal(payload, correlation)
+    }
+
+    return await webhookIdempotency.executeWithIdempotency(
+      payload.provider,
+      idempotencyKey,
+      runOperation
+    )
   })
-
-  const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
-    payload.webhookId,
-    payload.headers,
-    payload.body,
-    payload.provider
-  )
-
-  const runOperation = async () => {
-    return await executeWebhookJobInternal(payload, correlation)
-  }
-
-  return await webhookIdempotency.executeWithIdempotency(
-    payload.provider,
-    idempotencyKey,
-    runOperation
-  )
 }
 
 export async function resolveWebhookExecutionProviderConfig<
@@ -180,7 +183,7 @@ export async function resolveWebhookExecutionProviderConfig<
   try {
     return await resolveWebhookRecordProviderConfig(webhookRecord, userId, workspaceId)
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
     throw new Error(
       `Failed to resolve webhook provider config for ${provider} webhook ${webhookRecord.id}: ${errorMessage}`
     )
@@ -502,7 +505,7 @@ async function executeWebhookJobInternal(
       provider: payload.provider,
     }
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
     const errorStack = error instanceof Error ? error.stack : undefined
 
     logger.error(`[${requestId}] Webhook execution failed`, {

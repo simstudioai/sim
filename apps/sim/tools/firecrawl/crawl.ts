@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import type { FirecrawlCrawlParams, FirecrawlCrawlResponse } from '@/tools/firecrawl/types'
 import { CRAWLED_PAGE_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
@@ -193,7 +194,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
           }
         }
 
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+        await sleep(POLL_INTERVAL_MS)
         elapsedTime += POLL_INTERVAL_MS
       } catch (error: any) {
         logger.error('Error polling for crawl job status:', {

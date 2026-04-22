@@ -1,6 +1,8 @@
 import { db } from '@sim/db'
 import { knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { KnowledgeBase } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -10,7 +12,6 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import {
   createSingleDocument,
   deleteDocument,
@@ -307,7 +308,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             ).catch((err) => {
               logger.error('Background document processing failed', {
                 documentId: doc.id,
-                error: err instanceof Error ? err.message : String(err),
+                error: toError(err).message,
               })
             })
 

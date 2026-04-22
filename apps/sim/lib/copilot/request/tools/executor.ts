@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type {
   AsyncCompletionEnvelope,
   AsyncCompletionSignal,
@@ -306,7 +307,7 @@ async function executeToolAndReportInner(
     }).catch((err) => {
       logger.warn('Failed to persist async tool status', {
         toolCallId: toolCall.id,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
     })
     publishTerminalToolConfirmation({
@@ -327,13 +328,13 @@ async function executeToolAndReportInner(
   }).catch((err) => {
     logger.warn('Failed to persist async tool row before execution', {
       toolCallId: toolCall.id,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
   })
   await markAsyncToolRunning(toolCall.id, 'sim-stream').catch((err) => {
     logger.warn('Failed to mark async tool running', {
       toolCallId: toolCall.id,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
   })
 
@@ -404,7 +405,7 @@ async function executeToolAndReportInner(
       }).catch((err) => {
         logger.warn('Failed to persist async tool status', {
           toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
       })
       publishTerminalToolConfirmation({
@@ -431,7 +432,7 @@ async function executeToolAndReportInner(
       }).catch((err) => {
         logger.warn('Failed to persist async tool status', {
           toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
       })
       publishTerminalToolConfirmation({
@@ -455,7 +456,7 @@ async function executeToolAndReportInner(
       }).catch((err) => {
         logger.warn('Failed to persist async tool status', {
           toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
       })
       publishTerminalToolConfirmation({
@@ -479,7 +480,7 @@ async function executeToolAndReportInner(
       }).catch((err) => {
         logger.warn('Failed to persist async tool status', {
           toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
       })
       publishTerminalToolConfirmation({
@@ -558,7 +559,7 @@ async function executeToolAndReportInner(
     }).catch((err) => {
       logger.warn('Failed to persist async tool completion', {
         toolCallId: toolCall.id,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
     })
     publishTerminalToolConfirmation({
@@ -619,7 +620,7 @@ async function executeToolAndReportInner(
       ...(terminalData !== undefined ? { data: terminalData } : {}),
     })
   } catch (error) {
-    const thrownMessage = error instanceof Error ? error.message : String(error)
+    const thrownMessage = toError(error).message
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool execution')
       markToolResultSeen(toolCall.id)
@@ -631,7 +632,7 @@ async function executeToolAndReportInner(
       }).catch((err) => {
         logger.warn('Failed to persist async tool status', {
           toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
       })
       publishTerminalToolConfirmation({
@@ -667,7 +668,7 @@ async function executeToolAndReportInner(
     }).catch((err) => {
       logger.warn('Failed to persist async tool error', {
         toolCallId: toolCall.id,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
     })
     publishTerminalToolConfirmation({

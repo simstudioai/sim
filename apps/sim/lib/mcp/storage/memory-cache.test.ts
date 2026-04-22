@@ -1,8 +1,4 @@
-import { loggerMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/logger', () => loggerMock)
-
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { McpTool } from '@/lib/mcp/types'
 import { MemoryMcpCache } from './memory-cache'
 

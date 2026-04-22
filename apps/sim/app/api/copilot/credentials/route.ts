@@ -1,13 +1,14 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
 import { routeExecution } from '@/lib/copilot/tools/server/router'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 /**
  * GET /api/copilot/credentials
  * Returns connected OAuth credentials for the authenticated user.
  * Used by the copilot store for credential masking.
  */
-export async function GET(_req: NextRequest) {
+export const GET = withRouteHandler(async (_req: NextRequest) => {
   const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
   if (!isAuthenticated || !userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -25,4 +26,4 @@ export async function GET(_req: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

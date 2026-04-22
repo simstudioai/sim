@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createRdsClient, executeUpdate } from '@/app/api/tools/rds/utils'
 
 const logger = createLogger('RDSUpdateAPI')
@@ -23,7 +24,7 @@ const UpdateSchema = z.object({
   }),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   const auth = await checkInternalAuth(request)
@@ -81,4 +82,4 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: `RDS update failed: ${errorMessage}` }, { status: 500 })
   }
-}
+})

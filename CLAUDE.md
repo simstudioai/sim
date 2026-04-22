@@ -4,10 +4,12 @@ You are a professional software engineer. All code must follow best practices: a
 
 ## Global Standards
 
-- **Logging**: Import `createLogger` from `@sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`
+- **Logging**: Import `createLogger` from `@sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`. Inside API routes wrapped with `withRouteHandler`, loggers automatically include the request ID — no manual `withMetadata({ requestId })` needed
+- **API Route Handlers**: All API route handlers (`GET`, `POST`, `PUT`, `DELETE`, `PATCH`) must be wrapped with `withRouteHandler` from `@/lib/core/utils/with-route-handler`. This provides request ID tracking, automatic error logging for 4xx/5xx responses, and unhandled error catching. See "API Route Pattern" section below
 - **Comments**: Use TSDoc for documentation. No `====` separators. No non-TSDoc comments
 - **Styling**: Never update global styles. Keep all styling local to components
-- **ID Generation**: Never use `crypto.randomUUID()`, `nanoid`, or `uuid` package. Use `generateId()` (UUID v4) or `generateShortId()` (compact) from `@/lib/core/utils/uuid`
+- **ID Generation**: Never use `crypto.randomUUID()`, `nanoid`, or `uuid` package. Use `generateId()` (UUID v4) or `generateShortId()` (compact) from `@sim/utils/id`
+- **Common Utilities**: Use shared helpers from `@sim/utils` instead of inline implementations. `sleep(ms)` from `@sim/utils/helpers` for delays, `toError(e)` from `@sim/utils/errors` to normalize caught values.
 - **Package Manager**: Use `bun` and `bunx`, not `npm` and `npx`
 
 ## Architecture
@@ -91,6 +93,41 @@ export function Component({ requiredProp, optionalProp = false }: ComponentProps
 ```
 
 Extract when: 50+ lines, used in 2+ files, or has own state/logic. Keep inline when: < 10 lines, single use, purely presentational.
+
+## API Route Pattern
+
+Every API route handler must be wrapped with `withRouteHandler`. This sets up `AsyncLocalStorage`-based request context so all loggers in the request lifecycle automatically include the request ID.
+
+```typescript
+import { createLogger } from '@sim/logger'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+
+const logger = createLogger('MyAPI')
+
+// Simple route
+export const GET = withRouteHandler(async (request: NextRequest) => {
+  logger.info('Handling request') // automatically includes {requestId=...}
+  return NextResponse.json({ ok: true })
+})
+
+// Route with params
+export const DELETE = withRouteHandler(async (
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params
+  return NextResponse.json({ deleted: id })
+})
+
+// Composing with other middleware (withRouteHandler wraps the outermost layer)
+export const POST = withRouteHandler(withAdminAuth(async (request) => {
+  return NextResponse.json({ ok: true })
+}))
+```
+
+Never export a bare `async function GET/POST/...` — always use `export const METHOD = withRouteHandler(...)`.
 
 ## Hooks
 

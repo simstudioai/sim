@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { credential } from '@sim/db/schema'
+import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 
@@ -77,7 +78,7 @@ export function executeManageCredential(
           }
       }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, error: toError(error).message }
     }
   })()
 }

@@ -8,40 +8,43 @@
  * Auth is handled via session cookies (EventSource sends cookies automatically).
  */
 
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createWorkspaceSSE } from '@/lib/events/sse-endpoint'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 
 export const dynamic = 'force-dynamic'
 
-export const GET = createWorkspaceSSE({
-  label: 'mcp-events',
-  subscriptions: [
-    {
-      subscribe: (workspaceId, send) => {
-        if (!mcpConnectionManager) return () => {}
-        return mcpConnectionManager.subscribe((event) => {
-          if (event.workspaceId !== workspaceId) return
-          send('tools_changed', {
-            source: 'external',
-            serverId: event.serverId,
-            timestamp: event.timestamp,
+export const GET = withRouteHandler(
+  createWorkspaceSSE({
+    label: 'mcp-events',
+    subscriptions: [
+      {
+        subscribe: (workspaceId, send) => {
+          if (!mcpConnectionManager) return () => {}
+          return mcpConnectionManager.subscribe((event) => {
+            if (event.workspaceId !== workspaceId) return
+            send('tools_changed', {
+              source: 'external',
+              serverId: event.serverId,
+              timestamp: event.timestamp,
+            })
           })
-        })
+        },
       },
-    },
-    {
-      subscribe: (workspaceId, send) => {
-        if (!mcpPubSub) return () => {}
-        return mcpPubSub.onWorkflowToolsChanged((event) => {
-          if (event.workspaceId !== workspaceId) return
-          send('tools_changed', {
-            source: 'workflow',
-            serverId: event.serverId,
-            timestamp: Date.now(),
+      {
+        subscribe: (workspaceId, send) => {
+          if (!mcpPubSub) return () => {}
+          return mcpPubSub.onWorkflowToolsChanged((event) => {
+            if (event.workspaceId !== workspaceId) return
+            send('tools_changed', {
+              source: 'workflow',
+              serverId: event.serverId,
+              timestamp: Date.now(),
+            })
           })
-        })
+        },
       },
-    },
-  ],
-})
+    ],
+  })
+)

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   createFilePreviewSession,
@@ -219,7 +220,7 @@ async function persistFilePreviewSession(session: FilePreviewSession): Promise<v
       streamId: session.streamId,
       toolCallId: session.toolCallId,
       previewVersion: session.previewVersion,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
 }

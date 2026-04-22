@@ -70,8 +70,10 @@ export const AuditAction = {
 
   // Invitations
   INVITATION_ACCEPTED: 'invitation.accepted',
+  INVITATION_REJECTED: 'invitation.rejected',
   INVITATION_RESENT: 'invitation.resent',
   INVITATION_REVOKED: 'invitation.revoked',
+  INVITATION_UPDATED: 'invitation.updated',
 
   // Knowledge Base Connectors
   CONNECTOR_CREATED: 'connector.created',
@@ -118,6 +120,7 @@ export const AuditAction = {
   ORG_MEMBER_REMOVED: 'org_member.removed',
   ORG_MEMBER_ROLE_CHANGED: 'org_member.role_changed',
   ORG_INVITATION_CREATED: 'org_invitation.created',
+  ORG_INVITATION_UPDATED: 'org_invitation.updated',
   ORG_INVITATION_ACCEPTED: 'org_invitation.accepted',
   ORG_INVITATION_REJECTED: 'org_invitation.rejected',
   ORG_INVITATION_CANCELLED: 'org_invitation.cancelled',

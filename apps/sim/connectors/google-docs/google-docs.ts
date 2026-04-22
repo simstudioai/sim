@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { GoogleDocsIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -283,7 +284,7 @@ export const googleDocsConnector: ConnectorConfig = {
       return { ...fileToStub(file), content, contentDeferred: false }
     } catch (error) {
       logger.warn(`Failed to extract content from document: ${file.name} (${file.id})`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }

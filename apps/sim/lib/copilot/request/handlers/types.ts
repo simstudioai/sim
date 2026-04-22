@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type {
   AsyncCompletionSignal,
   AsyncTerminalCompletionSnapshot,
@@ -230,7 +231,7 @@ export async function emitSyntheticToolResult(
     logger.warn('Failed to emit synthetic tool_result', {
       toolCallId,
       toolName,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
 }
