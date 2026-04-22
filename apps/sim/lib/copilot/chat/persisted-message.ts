@@ -87,13 +87,20 @@ function resolveToolState(block: ContentBlock): PersistedToolState {
   return tc.status as PersistedToolState
 }
 
-function withBlockTiming<T extends PersistedContentBlock>(
-  persisted: T,
+/**
+ * Copy `timestamp` / `endedAt` from a source object onto a target object.
+ * Shared by every block mapper (persist, display, snapshot) so the timing
+ * metadata that drives the `Thought for Ns` chip survives the full
+ * persist → normalize → display round-trip — and one rule lives in one place.
+ */
+export function withBlockTiming<T>(
+  target: T,
   src: { timestamp?: number; endedAt?: number }
 ): T {
-  if (typeof src.timestamp === 'number') persisted.timestamp = src.timestamp
-  if (typeof src.endedAt === 'number') persisted.endedAt = src.endedAt
-  return persisted
+  const writable = target as { timestamp?: number; endedAt?: number }
+  if (typeof src.timestamp === 'number') writable.timestamp = src.timestamp
+  if (typeof src.endedAt === 'number') writable.endedAt = src.endedAt
+  return target
 }
 
 function mapContentBlock(block: ContentBlock): PersistedContentBlock {

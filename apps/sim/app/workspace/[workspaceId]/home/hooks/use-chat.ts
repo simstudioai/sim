@@ -11,7 +11,7 @@ import type {
   PersistedFileAttachment,
   PersistedMessage,
 } from '@/lib/copilot/chat/persisted-message'
-import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
+import { normalizeMessage, withBlockTiming } from '@/lib/copilot/chat/persisted-message'
 import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
 import { MOTHERSHIP_CHAT_API_PATH, STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
 import type {
@@ -697,15 +697,6 @@ function parseStreamBatchResponse(value: unknown): StreamBatchResponse {
     ...(previewSessions ? { previewSessions } : {}),
     status: typeof value.status === 'string' ? value.status : 'unknown',
   }
-}
-
-function withBlockTiming(
-  persisted: Record<string, unknown>,
-  src: ContentBlock
-): Record<string, unknown> {
-  if (typeof src.timestamp === 'number') persisted.timestamp = src.timestamp
-  if (typeof src.endedAt === 'number') persisted.endedAt = src.endedAt
-  return persisted
 }
 
 function toRawPersistedContentBlock(block: ContentBlock): Record<string, unknown> | null {

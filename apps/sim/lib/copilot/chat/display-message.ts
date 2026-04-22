@@ -16,6 +16,7 @@ import {
   ToolCallStatus,
 } from '@/app/workspace/[workspaceId]/home/types'
 import type { PersistedContentBlock, PersistedMessage } from './persisted-message'
+import { withBlockTiming } from './persisted-message'
 
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   [MothershipStreamV1ToolOutcome.success]: ToolCallStatus.success,
@@ -41,12 +42,6 @@ function toToolCallInfo(block: PersistedContentBlock): ToolCallInfo | undefined 
     calledBy: tc.calledBy,
     result: tc.result,
   }
-}
-
-function withBlockTiming(block: ContentBlock, src: PersistedContentBlock): ContentBlock {
-  if (typeof src.timestamp === 'number') block.timestamp = src.timestamp
-  if (typeof src.endedAt === 'number') block.endedAt = src.endedAt
-  return block
 }
 
 function toDisplayBlock(block: PersistedContentBlock): ContentBlock | undefined {
