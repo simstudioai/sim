@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { validateAwsRegion } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createSESClient, createTemplate } from '../utils'
 
@@ -10,7 +11,12 @@ const logger = createLogger('SESCreateTemplateAPI')
 
 const CreateTemplateSchema = z
   .object({
-    region: z.string().min(1, 'AWS region is required'),
+    region: z
+      .string()
+      .min(1, 'AWS region is required')
+      .refine((v) => validateAwsRegion(v).isValid, {
+        message: 'Invalid AWS region format (e.g., us-east-1, eu-west-2)',
+      }),
     accessKeyId: z.string().min(1, 'AWS access key ID is required'),
     secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
     templateName: z.string().min(1, 'Template name is required'),

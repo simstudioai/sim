@@ -857,7 +857,9 @@ export function validateAirtableId(
  * - GovCloud: us-gov-east-1, us-gov-west-1
  * - China: cn-north-1, cn-northwest-1
  * - Israel: il-central-1
- * - ISO partitions: us-iso-east-1, us-isob-east-1
+ * - ISO partitions: us-iso-east-1, us-iso-west-1, us-isob-east-1
+ * - Mexico: mx-central-1
+ * - EU Sovereign Cloud: eu-isoe-west-1
  *
  * @param value - The AWS region to validate
  * @param paramName - Name of the parameter for error messages
@@ -883,7 +885,7 @@ export function validateAwsRegion(
   }
 
   const awsRegionPattern =
-    /^(af|ap|ca|cn|eu|il|me|sa|us|us-gov|us-iso|us-isob)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
+    /^(eu-isoe|us-isob|us-iso|us-gov|af|ap|ca|cn|eu|il|me|mx|sa|us)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
 
   if (!awsRegionPattern.test(value)) {
     logger.warn('Invalid AWS region format', {
