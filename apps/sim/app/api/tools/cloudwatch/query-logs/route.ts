@@ -14,10 +14,9 @@ const QueryLogsSchema = z.object({
   region: z
     .string()
     .min(1, 'AWS region is required')
-    .refine(
-      (v) => validateAwsRegion(v).isValid,
-      (v) => validateAwsRegion(v).error ?? 'Invalid AWS region'
-    ),
+    .refine((v) => validateAwsRegion(v).isValid, {
+      message: 'Invalid AWS region format (e.g., us-east-1, eu-west-2)',
+    }),
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
   logGroupNames: z.array(z.string().min(1)).min(1, 'At least one log group name is required'),

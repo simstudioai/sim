@@ -885,7 +885,7 @@ export function validateAwsRegion(
   }
 
   const awsRegionPattern =
-    /^(af|ap|ca|cn|eu|eu-isoe|il|me|mx|sa|us|us-gov|us-iso|us-isob)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
+    /^(eu-isoe|us-isob|us-iso|us-gov|af|ap|ca|cn|eu|il|me|mx|sa|us)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
 
   if (!awsRegionPattern.test(value)) {
     logger.warn('Invalid AWS region format', {
