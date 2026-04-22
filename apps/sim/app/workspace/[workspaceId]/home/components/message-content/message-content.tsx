@@ -180,7 +180,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       if (!block.content || !group) continue
       group.isDelegating = false
       const lastItem = group.items[group.items.length - 1]
-      if (lastItem?.type === 'thinking') {
+      if (lastItem?.type === 'thinking' && lastItem.endedAt === undefined) {
         lastItem.content += block.content
         if (block.endedAt !== undefined) lastItem.endedAt = block.endedAt
       } else {
@@ -201,7 +201,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
         group = null
       }
       const last = segments[segments.length - 1]
-      if (last?.type === 'thinking') {
+      if (last?.type === 'thinking' && last.endedAt === undefined) {
         last.content += block.content
         if (block.endedAt !== undefined) last.endedAt = block.endedAt
       } else {
