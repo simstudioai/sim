@@ -24,7 +24,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "email:dev": "email dev --dir components/emails",
-    "type-check": "tsc --noEmit",
+    "type-check": "NODE_OPTIONS='--max-old-space-size=8192' tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
     "format": "biome format --write .",

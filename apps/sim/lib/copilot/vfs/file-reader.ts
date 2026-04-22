@@ -101,7 +101,7 @@ async function prepareImageForVision(
         const mediaType = detectImageMime(buffer, claimedType)
         span.setAttribute(TraceAttr.CopilotVfsInputMediaTypeDetected, mediaType)
 
-        let sharpModule: typeof import('sharp').default
+        let sharpModule: typeof import('sharp')
         try {
           sharpModule = (await import('sharp')).default
         } catch (err) {
@@ -317,7 +317,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
             attachment: {
               type: 'image',
               source: {
-                type: 'base64',
+                type: 'base64' as const,
                 media_type: prepared.mediaType,
                 data: prepared.buffer.toString('base64'),
               },
