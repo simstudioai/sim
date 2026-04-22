@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { authMockFns, workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing'
+import { authMockFns, workflowAuthzMockFns, workflowsUtilsMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -63,7 +63,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
     authMockFns.mockGetSession.mockResolvedValue(null)
 
-    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: true,
       status: 200,
     })
@@ -251,7 +251,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
       thenResults.push(mockCheckpoint) // Checkpoint found
       thenResults.push(mockWorkflow) // Workflow found but different user
 
-      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: false,
         status: 403,
       })

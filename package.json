@@ -11,8 +11,8 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "dev:sockets": "cd apps/sim && bun run dev:sockets",
-    "dev:full": "cd apps/sim && bun run dev:full",
+    "dev:sockets": "bun --cwd apps/realtime run dev",
+    "dev:full": "bunx concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"bun --cwd apps/sim run dev\" \"bun --cwd apps/realtime run dev\"",
     "test": "turbo run test",
     "format": "turbo run format",
     "format:check": "turbo run format:check",
@@ -65,8 +65,5 @@
   },
   "trustedDependencies": [
     "sharp"
-  ],
-  "dependencies": {
-    "@aws-sdk/client-athena": "3.1024.0"
-  }
+  ]
 }

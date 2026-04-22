@@ -9,8 +9,8 @@ import {
   hybridAuthMockFns,
   permissionsMock,
   permissionsMockFns,
+  workflowAuthzMockFns,
   workflowsUtilsMock,
-  workflowsUtilsMockFns,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -233,7 +233,7 @@ describe('Custom Tools API Routes', () => {
     })
     mockGetUserEntityPermissions.mockResolvedValue('admin')
     mockUpsertCustomTools.mockResolvedValue(sampleTools)
-    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: true,
       status: 200,
       workflow: { workspaceId: 'workspace-123' },

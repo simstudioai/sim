@@ -15,6 +15,7 @@ import { userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
@@ -31,10 +32,7 @@ import { env } from '@/lib/core/config/env'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  authorizeWorkflowByWorkspacePermission,
-  resolveWorkflowIdForUser,
-} from '@/lib/workflows/utils'
+import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 
 const logger = createLogger('CopilotMcpAPI')
 const mcpRateLimiter = new RateLimiter()

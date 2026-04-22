@@ -26,7 +26,7 @@ vi.mock('@sim/db', () => ({
   workflowMcpTool: {},
 }))
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/mcp/pubsub', () => ({
   mcpPubSub: {

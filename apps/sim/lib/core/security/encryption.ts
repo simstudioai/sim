@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from 'crypto'
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
 
@@ -84,18 +84,4 @@ export function generatePassword(length = 24): string {
   }
 
   return result
-}
-
-/**
- * Compares two strings in constant time to prevent timing attacks.
- * Used for HMAC signature validation.
- * @param a - First string to compare
- * @param b - Second string to compare
- * @returns True if strings are equal, false otherwise
- */
-export function safeCompare(a: string, b: string): boolean {
-  const key = 'safeCompare'
-  const ha = createHmac('sha256', key).update(a).digest()
-  const hb = createHmac('sha256', key).update(b).digest()
-  return timingSafeEqual(ha, hb)
 }

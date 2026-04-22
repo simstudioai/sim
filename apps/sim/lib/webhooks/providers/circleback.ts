@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@/lib/core/security/encryption'
+import { safeCompare } from '@sim/security/compare'
 import type {
   FormatInputContext,
   FormatInputResult,

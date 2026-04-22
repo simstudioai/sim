@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { batchChunkOperation, createChunk, queryChunks } from '@/lib/knowledge/chunks/service'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
 import { calculateCost } from '@/providers/utils'
 

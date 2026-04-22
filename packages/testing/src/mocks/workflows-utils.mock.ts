@@ -20,7 +20,6 @@ export const workflowsUtilsMockFns = {
   mockWorkflowHasResponseBlock: vi.fn(),
   mockCreateHttpResponseFromBlock: vi.fn(),
   mockValidateWorkflowPermissions: vi.fn(),
-  mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
   mockCreateWorkflowRecord: vi.fn(),
   mockUpdateWorkflowRecord: vi.fn(),
   mockDeleteWorkflowRecord: vi.fn(),
@@ -38,9 +37,11 @@ export const workflowsUtilsMockFns = {
  *
  * Default behaviors:
  * - `getWorkflowById` resolves to `null`
- * - `authorizeWorkflowByWorkspacePermission` resolves to allowed with `test-workspace-id`
  * - `validateWorkflowPermissions` resolves to an authorized result
  * - Other functions resolve to sensible empty/success defaults
+ *
+ * `authorizeWorkflowByWorkspacePermission` moved to `@sim/workflow-authz`;
+ * use `workflowAuthzMock` / `workflowAuthzMockFns` for that surface.
  *
  * @example
  * ```ts
@@ -56,8 +57,6 @@ export const workflowsUtilsMock = {
   workflowHasResponseBlock: workflowsUtilsMockFns.mockWorkflowHasResponseBlock,
   createHttpResponseFromBlock: workflowsUtilsMockFns.mockCreateHttpResponseFromBlock,
   validateWorkflowPermissions: workflowsUtilsMockFns.mockValidateWorkflowPermissions,
-  authorizeWorkflowByWorkspacePermission:
-    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission,
   createWorkflowRecord: workflowsUtilsMockFns.mockCreateWorkflowRecord,
   updateWorkflowRecord: workflowsUtilsMockFns.mockUpdateWorkflowRecord,
   deleteWorkflowRecord: workflowsUtilsMockFns.mockDeleteWorkflowRecord,

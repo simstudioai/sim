@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import {
@@ -13,7 +14,6 @@ import {
   isLegacyApiKeyFormat,
 } from '@/lib/api-key/crypto'
 import { env } from '@/lib/core/config/env'
-import { safeCompare } from '@/lib/core/security/encryption'
 
 const logger = createLogger('ApiKeyAuth')
 

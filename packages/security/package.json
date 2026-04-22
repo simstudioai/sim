@@ -1,0 +1,31 @@
+{
+  "name": "@sim/security",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "bun": ">=1.2.13",
+    "node": ">=20.0.0"
+  },
+  "exports": {
+    "./compare": {
+      "types": "./src/compare.ts",
+      "default": "./src/compare.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format ."
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "@types/node": "24.2.1",
+    "typescript": "^5.7.3"
+  }
+}

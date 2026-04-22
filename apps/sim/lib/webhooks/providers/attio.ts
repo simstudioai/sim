@@ -1,8 +1,8 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
-import { safeCompare } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getCredentialOwner, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {

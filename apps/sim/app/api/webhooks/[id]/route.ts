@@ -1,9 +1,10 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { webhook, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateInteger } from '@/lib/core/security/input-validation'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -11,7 +12,6 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('WebhookAPI')
 

@@ -7,13 +7,13 @@
 import {
   auditMock,
   hybridAuthMockFns,
+  workflowAuthzMockFns,
   workflowsUtilsMock,
-  workflowsUtilsMockFns,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
@@ -47,7 +47,7 @@ describe('Workflow Variables API Route', () => {
         userId: 'user-123',
         authType: 'session',
       })
-      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: false,
         status: 404,
         message: 'Workflow not found',
@@ -80,7 +80,7 @@ describe('Workflow Variables API Route', () => {
         userId: 'user-123',
         authType: 'session',
       })
-      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: true,
         status: 200,
         workflow: mockWorkflow,
@@ -112,7 +112,7 @@ describe('Workflow Variables API Route', () => {
         userId: 'user-123',
         authType: 'session',
       })
-      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: true,
         status: 200,
         workflow: mockWorkflow,
@@ -142,7 +142,7 @@ describe('Workflow Variables API Route', () => {
         userId: 'user-123',
         authType: 'session',
       })
-      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: false,
         status: 403,
         message: 'Unauthorized: Access denied to read this workflow',
@@ -175,7 +175,7 @@ describe('Workflow Variables API Route', () => {
         userId: 'user-123',
         authType: 'session',
       })
-      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: true,
         status: 200,
         workflow: mockWorkflow,
@@ -207,7 +207,7 @@ describe('Workflow Variables API Route', () => {
         userId: 'user-123',
         authType: 'session',
       })
-      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: true,
         status: 200,
         workflow: mockWorkflow,
@@ -250,7 +250,7 @@ describe('Workflow Variables API Route', () => {
         userId: 'user-123',
         authType: 'session',
       })
-      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: false,
         status: 403,
         message: 'Unauthorized: Access denied to write this workflow',
@@ -294,7 +294,7 @@ describe('Workflow Variables API Route', () => {
         userId: 'user-123',
         authType: 'session',
       })
-      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: true,
         status: 200,
         workflow: mockWorkflow,
@@ -324,7 +324,7 @@ describe('Workflow Variables API Route', () => {
         userId: 'user-123',
         authType: 'session',
       })
-      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockRejectedValueOnce(
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockRejectedValueOnce(
         new Error('Database connection failed')
       )
 

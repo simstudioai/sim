@@ -2,10 +2,10 @@ import crypto from 'crypto'
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { safeCompare } from '@/lib/core/security/encryption'
 import { isMicrosoftContentUrl } from '@/lib/core/security/input-validation'
 import {
   type SecureFetchResponse,

@@ -34,7 +34,7 @@ vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
   dispatchSync: mockDispatchSync,
 }))
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 
 import { POST } from '@/app/api/knowledge/[id]/connectors/[connectorId]/sync/route'
 
