@@ -70,8 +70,6 @@ https://sim.ai/api/auth/sso/callback/{provider-id}
 https://sim.ai/api/auth/sso/saml2/callback/{provider-id}
 ```
 
-For self-hosted, replace `sim.ai` with your instance hostname.
-
 ### 5. Save and test
 
 Click **Save**. To test, sign out and use the **Sign in with SSO** button on the login page. Enter an email address at your configured domain — Sim will redirect you to your identity provider.
@@ -189,12 +187,10 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
    ```
    https://sim.ai
    ```
-   For self-hosted, use your instance's base URL (e.g. `https://sim.company.com`)
 4. Add an endpoint: **SAML Assertion Consumer Service** (HTTP POST) with the URL:
    ```
    https://sim.ai/api/auth/sso/saml2/callback/adfs
    ```
-   For self-hosted: `https://sim.company.com/api/auth/sso/saml2/callback/adfs`
 5. Export the **Token-signing certificate** from **Certificates**: right-click → **View Certificate → Details → Copy to File**, choose **Base-64 encoded X.509 (.CER)**. The `.cer` file is PEM-encoded — rename it to `.pem` before pasting its contents into Sim.
 6. Note the **ADFS Federation Service endpoint URL** (e.g. `https://adfs.company.com/adfs/ls`)
 
@@ -233,10 +229,6 @@ Users who sign in via SSO for the first time are automatically provisioned and a
 
 <Callout type="info">
   Password-based login remains available. Forcing all organization members to use SSO exclusively is not yet supported.
-</Callout>
-
-<Callout type="info">
-  **Self-hosted:** Automatic organization provisioning requires `ORGANIZATIONS_ENABLED=true` in addition to `SSO_ENABLED=true`. Without it, SSO authentication still works — users get a valid session — but they are not automatically added to an organization.
 </Callout>
 
 ---
