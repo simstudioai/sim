@@ -24,6 +24,10 @@ import {
   sseHandlers,
   subAgentHandlers,
 } from '@/lib/copilot/request/handlers'
+import {
+  flushSubagentThinkingBlock,
+  flushThinkingBlock,
+} from '@/lib/copilot/request/handlers/types'
 import { getCopilotTracer } from '@/lib/copilot/request/otel'
 import {
   eventToStreamEvent,
@@ -337,6 +341,13 @@ export async function runStreamLoop(
           const subagentName = streamEvent.payload.agent
           const spanEvt = streamEvent.payload.event
           const isPendingPause = spanData?.pending === true
+          // A subagent lifecycle boundary breaks the main thinking stream.
+          // Flush any open thinking block into contentBlocks BEFORE we push
+          // the `subagent` marker, or the persisted order ends up
+          // [subagent, thinking] and the UI renders the subagent group
+          // above a thinking block that actually happened first.
+          flushSubagentThinkingBlock(context)
+          flushThinkingBlock(context)
           if (spanEvt === MothershipStreamV1SpanLifecycleEvent.start) {
             const lastParent = context.subAgentParentStack[context.subAgentParentStack.length - 1]
             const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
@@ -377,6 +388,19 @@ export async function runStreamLoop(
               context.subAgentParentStack.length > 0
                 ? context.subAgentParentStack[context.subAgentParentStack.length - 1]
                 : undefined
+            if (subagentName) {
+              for (let i = context.contentBlocks.length - 1; i >= 0; i--) {
+                const b = context.contentBlocks[i]
+                if (
+                  b.type === 'subagent' &&
+                  b.content === subagentName &&
+                  b.endedAt === undefined
+                ) {
+                  b.endedAt = Date.now()
+                  break
+                }
+              }
+            }
             return
           }
         }
@@ -434,6 +458,12 @@ export async function runStreamLoop(
         endedOn = CopilotSseCloseReason.Aborted
       }
     }
+    // An abort or error can tear down the loop mid-thinking. Flush any
+    // open thinking blocks so partial-persistence on /chat/stop sees
+    // them in contentBlocks with endedAt stamped, instead of silently
+    // dropping the in-flight reasoning.
+    flushSubagentThinkingBlock(context)
+    flushThinkingBlock(context)
     clearTimeout(timeoutId)
 
     // Legacy TraceCollector span (consumed by the in-memory trace

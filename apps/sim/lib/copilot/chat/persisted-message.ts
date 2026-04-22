@@ -38,6 +38,8 @@ export interface PersistedContentBlock {
   status?: MothershipStreamV1CompletionStatus
   content?: string
   toolCall?: PersistedToolCall
+  timestamp?: number
+  endedAt?: number
 }
 
 export interface PersistedFileAttachment {
@@ -85,7 +87,21 @@ function resolveToolState(block: ContentBlock): PersistedToolState {
   return tc.status as PersistedToolState
 }
 
+function withBlockTiming<T extends PersistedContentBlock>(
+  persisted: T,
+  src: { timestamp?: number; endedAt?: number }
+): T {
+  if (typeof src.timestamp === 'number') persisted.timestamp = src.timestamp
+  if (typeof src.endedAt === 'number') persisted.endedAt = src.endedAt
+  return persisted
+}
+
 function mapContentBlock(block: ContentBlock): PersistedContentBlock {
+  const persisted = mapContentBlockBody(block)
+  return withBlockTiming(persisted, block)
+}
+
+function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
   switch (block.type) {
     case 'text':
       return {
@@ -242,6 +258,8 @@ interface RawBlock {
   kind?: string
   lifecycle?: string
   status?: string
+  timestamp?: number
+  endedAt?: number
   toolCall?: {
     id?: string
     name?: string
@@ -406,7 +424,16 @@ function normalizeLegacyBlock(block: RawBlock): PersistedContentBlock {
 }
 
 function normalizeBlock(block: RawBlock): PersistedContentBlock {
-  return isCanonicalBlock(block) ? normalizeCanonicalBlock(block) : normalizeLegacyBlock(block)
+  const result = isCanonicalBlock(block)
+    ? normalizeCanonicalBlock(block)
+    : normalizeLegacyBlock(block)
+  if (typeof block.timestamp === 'number' && result.timestamp === undefined) {
+    result.timestamp = block.timestamp
+  }
+  if (typeof block.endedAt === 'number' && result.endedAt === undefined) {
+    result.endedAt = block.endedAt
+  }
+  return result
 }
 
 function normalizeLegacyToolCall(tc: LegacyToolCall): PersistedContentBlock {

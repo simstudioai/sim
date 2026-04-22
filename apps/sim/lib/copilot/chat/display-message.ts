@@ -43,7 +43,18 @@ function toToolCallInfo(block: PersistedContentBlock): ToolCallInfo | undefined 
   }
 }
 
+function withBlockTiming(block: ContentBlock, src: PersistedContentBlock): ContentBlock {
+  if (typeof src.timestamp === 'number') block.timestamp = src.timestamp
+  if (typeof src.endedAt === 'number') block.endedAt = src.endedAt
+  return block
+}
+
 function toDisplayBlock(block: PersistedContentBlock): ContentBlock | undefined {
+  const displayed = toDisplayBlockBody(block)
+  return displayed ? withBlockTiming(displayed, block) : undefined
+}
+
+function toDisplayBlockBody(block: PersistedContentBlock): ContentBlock | undefined {
   switch (block.type) {
     case MothershipStreamV1EventType.text:
       if (block.lane === 'subagent') {
@@ -51,6 +62,9 @@ function toDisplayBlock(block: PersistedContentBlock): ContentBlock | undefined 
           return { type: ContentBlockType.subagent_thinking, content: block.content }
         }
         return { type: ContentBlockType.subagent_text, content: block.content }
+      }
+      if (block.channel === 'thinking') {
+        return { type: ContentBlockType.thinking, content: block.content }
       }
       return { type: ContentBlockType.text, content: block.content }
     case MothershipStreamV1EventType.tool:
