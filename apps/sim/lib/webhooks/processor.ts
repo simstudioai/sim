@@ -642,21 +642,8 @@ export interface PolledWebhookEventResult {
   statusCode?: number
 }
 
-interface PolledWebhookRecord {
-  id: string
-  path: string
-  provider: string | null
-  blockId: string | null
-  providerConfig: unknown
-  credentialSetId: string | null
-  workflowId: string
-}
-
-interface PolledWorkflowRecord {
-  id: string
-  userId: string
-  workspaceId: string
-}
+type PolledWebhookRecord = typeof webhook.$inferSelect
+type PolledWorkflowRecord = typeof workflow.$inferSelect
 
 /**
  * Processes a polled webhook event directly, bypassing the HTTP trigger route.
@@ -739,6 +726,7 @@ export async function processPolledWebhookEvent(
         triggerType: 'webhook',
       } satisfies AsyncExecutionCorrelation)
 
+    const workspaceId = foundWorkflow.workspaceId ?? undefined
     const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
@@ -751,7 +739,7 @@ export async function processPolledWebhookEvent(
       headers: { 'content-type': 'application/json' } as Record<string, string>,
       path: foundWebhook.path,
       blockId: foundWebhook.blockId ?? undefined,
-      workspaceId: foundWorkflow.workspaceId,
+      workspaceId,
       ...(credentialId ? { credentialId } : {}),
     }
 
@@ -759,7 +747,7 @@ export async function processPolledWebhookEvent(
       const jobId = await (await getJobQueue()).enqueue('webhook-execution', payload, {
         metadata: {
           workflowId: foundWorkflow.id,
-          workspaceId: foundWorkflow.workspaceId,
+          workspaceId,
           userId: actorUserId,
           correlation,
         },
@@ -772,7 +760,7 @@ export async function processPolledWebhookEvent(
       const jobId = await jobQueue.enqueue('webhook-execution', payload, {
         metadata: {
           workflowId: foundWorkflow.id,
-          workspaceId: foundWorkflow.workspaceId,
+          workspaceId,
           userId: actorUserId,
           correlation,
         },

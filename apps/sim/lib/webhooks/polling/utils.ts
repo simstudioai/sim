@@ -96,7 +96,7 @@ export async function fetchActiveWebhooks(
       )
     )
 
-  return rows as unknown as { webhook: WebhookRecord; workflow: WorkflowRecord }[]
+  return rows
 }
 
 /**
