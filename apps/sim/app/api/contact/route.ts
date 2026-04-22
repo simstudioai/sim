@@ -90,11 +90,29 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         remoteIp: ip,
         expectedHostname: SITE_HOSTNAME,
       })
-      if (!verification.success) {
+      if (!verification.success && verification.transportError) {
+        // Cloudflare siteverify unreachable — fall through via the tighter no-captcha bucket
+        // so a Cloudflare outage doesn't hard-block users who completed the challenge.
+        logger.warn(
+          `[${requestId}] Captcha transport error, falling back to no-captcha rate limit`,
+          { ip }
+        )
+        const nocaptchaKey = `public:contact:nocaptcha:${ip}`
+        const { allowed: nocaptchaAllowed } = await rateLimiter.checkRateLimitDirect(
+          nocaptchaKey,
+          CAPTCHA_UNAVAILABLE_RATE_LIMIT
+        )
+        if (!nocaptchaAllowed) {
+          logger.warn(`[${requestId}] Rate limit exceeded (transport-error fallback) for IP ${ip}`)
+          return NextResponse.json(
+            { error: 'Too many requests. Please try again later.' },
+            { status: 429 }
+          )
+        }
+      } else if (!verification.success) {
         logger.warn(`[${requestId}] Captcha verification failed`, {
           ip,
           errorCodes: verification.errorCodes,
-          transportError: verification.transportError,
         })
         return NextResponse.json(
           { error: 'Captcha verification failed. Please try again.' },
