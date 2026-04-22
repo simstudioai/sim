@@ -12,6 +12,7 @@ import {
 
 describe('persisted-message', () => {
   it('round-trips canonical tool blocks through normalizeMessage', () => {
+    const blockTimestamp = 1_700_000_000_000
     const result: OrchestratorResult = {
       success: true,
       content: 'done',
@@ -19,7 +20,7 @@ describe('persisted-message', () => {
       contentBlocks: [
         {
           type: 'tool_call',
-          timestamp: Date.now(),
+          timestamp: blockTimestamp,
           calledBy: 'workflow',
           toolCall: {
             id: 'tool-1',
@@ -41,6 +42,7 @@ describe('persisted-message', () => {
       {
         type: 'tool',
         phase: 'call',
+        timestamp: blockTimestamp,
         toolCall: {
           id: 'tool-1',
           name: 'read',
