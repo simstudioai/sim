@@ -624,6 +624,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       return createUnauthorizedResponse()
     }
     const authenticatedUserId = session.user.id
+    const authenticatedUserEmail = session.user.email
 
     const body = ChatMessageSchema.parse(await req.json())
     const normalizedContexts = normalizeContexts(body.contexts) ?? []
@@ -638,6 +639,16 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     })
     if (otelRoot.requestId) {
       requestId = otelRoot.requestId
+    }
+    // Identity stamp — Go already stamps `user.id` on spans from the
+    // validated API-key path, but Sim is the only side of the wire
+    // that knows the human-facing email. Stamping both on the Sim
+    // root (so they show up on `rootAttrs` in Tempo search) saves
+    // the "turn user.id into a real person" round-trip to the DB
+    // for every ad-hoc investigation.
+    otelRoot.span.setAttribute(TraceAttr.UserId, authenticatedUserId)
+    if (authenticatedUserEmail) {
+      otelRoot.span.setAttribute(TraceAttr.UserEmail, authenticatedUserEmail)
     }
     // `setInputMessages` is internally gated on
     // OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT; safe to call.
