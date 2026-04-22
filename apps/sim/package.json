@@ -116,7 +116,7 @@
     "decimal.js": "10.6.0",
     "docx": "^9.6.1",
     "docx-preview": "^0.3.7",
-    "drizzle-orm": "^0.44.5",
+    "drizzle-orm": "^0.45.2",
     "encoding": "0.1.13",
     "entities": "6.0.1",
     "es-toolkit": "1.45.1",
@@ -239,7 +239,7 @@
   "overrides": {
     "next": "16.1.6",
     "@next/env": "16.1.6",
-    "drizzle-orm": "^0.44.5",
+    "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5",
     "react-floater": {
       "react": "$react",
