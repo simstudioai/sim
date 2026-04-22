@@ -359,6 +359,12 @@ export interface ExecutionResult {
 export interface StreamingExecution {
   stream: ReadableStream
   execution: ExecutionResult & { isStreaming?: boolean }
+  /**
+   * Invoked with the assembled response text after the stream drains. Lets agent
+   * blocks persist the full response without interposing a TransformStream on a
+   * fetch-backed source — that pattern amplifies memory on Bun via #28035.
+   */
+  onFullContent?: (content: string) => void | Promise<void>
 }
 
 export interface BlockExecutor {

@@ -111,35 +111,6 @@ export class Memory {
     })
   }
 
-  wrapStreamForPersistence(
-    stream: ReadableStream<Uint8Array>,
-    ctx: ExecutionContext,
-    inputs: AgentInputs
-  ): ReadableStream<Uint8Array> {
-    const chunks: string[] = []
-    const decoder = new TextDecoder()
-
-    const transformStream = new TransformStream<Uint8Array, Uint8Array>({
-      transform: (chunk, controller) => {
-        controller.enqueue(chunk)
-        const decoded = decoder.decode(chunk, { stream: true })
-        chunks.push(decoded)
-      },
-
-      flush: () => {
-        const content = chunks.join('')
-        if (content.trim()) {
-          this.appendToMemory(ctx, inputs, {
-            role: 'assistant',
-            content,
-          }).catch((error) => logger.error('Failed to persist streaming response:', error))
-        }
-      },
-    })
-
-    return stream.pipeThrough(transformStream)
-  }
-
   private requireWorkspaceId(ctx: ExecutionContext): string {
     if (!ctx.workspaceId) {
       throw new Error('workspaceId is required for memory operations')
