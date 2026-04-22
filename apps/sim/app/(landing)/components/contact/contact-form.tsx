@@ -96,6 +96,7 @@ export function ContactForm() {
   const [form, setForm] = useState<ContactFormState>(INITIAL_FORM_STATE)
   const [errors, setErrors] = useState<ContactErrors>({})
   const [submitSuccess, setSubmitSuccess] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [website, setWebsite] = useState('')
   const [widgetReady, setWidgetReady] = useState(false)
   const [turnstileSiteKey, setTurnstileSiteKey] = useState<string | undefined>()
@@ -124,7 +125,8 @@ export function ContactForm() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (contactMutation.isPending) return
+    if (contactMutation.isPending || isSubmitting) return
+    setIsSubmitting(true)
 
     const parsed = contactRequestSchema.safeParse({
       ...form,
@@ -141,6 +143,7 @@ export function ContactForm() {
         subject: fieldErrors.subject?.[0],
         message: fieldErrors.message?.[0],
       })
+      setIsSubmitting(false)
       return
     }
 
@@ -163,7 +166,10 @@ export function ContactForm() {
     }
 
     contactMutation.mutate({ ...parsed.data, website, captchaToken, captchaUnavailable })
+    setIsSubmitting(false)
   }
+
+  const isBusy = contactMutation.isPending || isSubmitting
 
   const submitError = contactMutation.isError
     ? toError(contactMutation.error).message || 'Failed to send message. Please try again.'
@@ -194,7 +200,7 @@ export function ContactForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className='flex flex-col gap-5'>
+    <form onSubmit={handleSubmit} className='relative flex flex-col gap-5'>
       {/* Honeypot */}
       <div
         aria-hidden='true'
@@ -329,8 +335,8 @@ export function ContactForm() {
         </p>
       ) : null}
 
-      <button type='submit' disabled={contactMutation.isPending} className={LANDING_SUBMIT}>
-        {contactMutation.isPending ? 'Sending...' : 'Send message'}
+      <button type='submit' disabled={isBusy} className={LANDING_SUBMIT}>
+        {isBusy ? 'Sending...' : 'Send message'}
       </button>
 
       <p className='text-center font-season text-[12px] text-[var(--landing-text-muted)] leading-[1.6]'>
