@@ -77,10 +77,8 @@ export async function authenticateApiKeyFromHeader(
       }
     }
 
-    const hashCandidate = await lookupByHash(apiKeyHeader)
-    if (hashCandidate !== null) {
-      return await applyHashGates(hashCandidate, options, workspaceSettings)
-    }
+    const hashResult = await authenticateApiKeyByHash(apiKeyHeader, options, workspaceSettings)
+    if (hashResult !== null) return hashResult
 
     // LEGACY FALLBACK — delete once `logger.warn('API key matched via fallback
     // decrypt loop', ...)` count stays at zero in prod. The block below is the
@@ -189,9 +187,18 @@ export async function authenticateApiKeyFromHeader(
   }
 }
 
-/** Hash-only lookup — scope gates are applied separately so this can run in
- *  parallel with `getWorkspaceBillingSettings`. */
-async function lookupByHash(apiKeyHeader: string): Promise<HashCandidate | null> {
+/**
+ * Fast path: look up a single row by `sha256(apiKeyHeader)` and apply the
+ * scope / expiry / permission gates. Returns `null` when no row matched the
+ * hash (caller should fall through to the legacy scan+decrypt loop). A hash
+ * hit that fails a gate returns a concrete `INVALID` — the key definitely
+ * belongs to that row, it's just not authorized in this scope.
+ */
+async function authenticateApiKeyByHash(
+  apiKeyHeader: string,
+  options: ApiKeyAuthOptions,
+  workspaceSettings: WorkspaceBillingSettings | null
+): Promise<ApiKeyAuthResult | null> {
   const keyHash = hashApiKey(apiKeyHeader)
   const rows: HashCandidate[] = await db
     .select({
@@ -204,14 +211,9 @@ async function lookupByHash(apiKeyHeader: string): Promise<HashCandidate | null>
     .from(apiKeyTable)
     .where(eq(apiKeyTable.keyHash, keyHash))
 
-  return rows.length === 0 ? null : rows[0]
-}
+  if (rows.length === 0) return null
 
-async function applyHashGates(
-  record: HashCandidate,
-  options: ApiKeyAuthOptions,
-  workspaceSettings: WorkspaceBillingSettings | null
-): Promise<ApiKeyAuthResult> {
+  const record = rows[0]
   const keyType = record.type as 'personal' | 'workspace'
 
   if (options.userId && record.userId !== options.userId) return INVALID
