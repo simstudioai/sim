@@ -45,7 +45,6 @@ vi.mock('@/env', () => ({
     INTERNAL_API_SECRET: 'test-internal-api-secret-at-least-32-chars',
     NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
     PORT: 3002,
-    HOSTNAME: '0.0.0.0',
     DISABLE_AUTH: false,
   },
   isProd: false,
@@ -54,7 +53,6 @@ vi.mock('@/env', () => ({
   isHosted: false,
   isAuthDisabled: false,
   getBaseUrl: () => 'http://localhost:3000',
-  getInternalApiBaseUrl: () => 'http://localhost:3000',
 }))
 
 vi.mock('@/middleware/auth', () => ({

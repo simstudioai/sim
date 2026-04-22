@@ -11,8 +11,8 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "dev:sockets": "bun --cwd apps/realtime run dev",
-    "dev:full": "bunx concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"bun --cwd apps/sim run dev\" \"bun --cwd apps/realtime run dev\"",
+    "dev:sockets": "cd apps/realtime && bun run dev",
+    "dev:full": "bunx concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"cd apps/sim && bun run dev\" \"cd apps/realtime && bun run dev\"",
     "test": "turbo run test",
     "format": "turbo run format",
     "format:check": "turbo run format:check",
