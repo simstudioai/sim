@@ -1,14 +1,11 @@
-export type ToolAnnotations = {
-  readOnlyHint?: boolean
-  destructiveHint?: boolean
-  idempotentHint?: boolean
-  openWorldHint?: boolean
-}
+import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+
+export type ToolAnnotations = NonNullable<Tool['annotations']>
 
 export type DirectToolDef = {
   name: string
   description: string
-  inputSchema: { type: 'object'; properties?: Record<string, unknown>; required?: string[] }
+  inputSchema: Tool['inputSchema']
   toolId: string
   annotations?: ToolAnnotations
 }
@@ -16,7 +13,7 @@ export type DirectToolDef = {
 export type SubagentToolDef = {
   name: string
   description: string
-  inputSchema: { type: 'object'; properties?: Record<string, unknown>; required?: string[] }
+  inputSchema: Tool['inputSchema']
   agentId: string
   annotations?: ToolAnnotations
 }

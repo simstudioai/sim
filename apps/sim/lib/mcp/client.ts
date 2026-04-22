@@ -97,9 +97,7 @@ export class McpClient {
         version: '1.0.0',
       },
       {
-        capabilities: {
-          tools: {},
-        },
+        capabilities: {},
       }
     )
   }
@@ -262,20 +260,10 @@ export class McpClient {
   }
 
   /**
-   * Check if server has capability
-   */
-  hasCapability(capability: string): boolean {
-    const serverCapabilities = this.client.getServerCapabilities()
-    return !!serverCapabilities?.[capability]
-  }
-
-  /**
    * Check if the server declared `capabilities.tools.listChanged: true` during initialization.
    */
   hasListChangedCapability(): boolean {
-    const caps = this.client.getServerCapabilities()
-    const toolsCap = caps?.tools as Record<string, unknown> | undefined
-    return !!toolsCap?.listChanged
+    return !!this.client.getServerCapabilities()?.tools?.listChanged
   }
 
   /**
