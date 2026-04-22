@@ -3,7 +3,6 @@ title: Enterprise
 description: Enterprise features for business organizations
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 
 Sim Enterprise provides advanced features for organizations with enhanced security, compliance, and management requirements.
@@ -26,9 +25,9 @@ Define permission groups on a workspace to control what features and integration
 2. Create a permission group with your desired restrictions
 3. Add workspace members to the permission group
 
-<Callout type="info">
-  Any workspace admin on an Enterprise-entitled workspace can manage permission groups. Users not assigned to any group have full access. Permission restrictions are enforced at both UI and execution time, and apply to workflows based on the workflow's workspace.
-</Callout>
+Any workspace admin on an Enterprise-entitled workspace can manage permission groups. Users not assigned to any group have full access. Restrictions are enforced at both UI and execution time, based on the workflow's workspace.
+
+See the [Access Control guide](/docs/enterprise/access-control) for full details.
 
 ---
 
@@ -40,69 +39,46 @@ See the [SSO setup guide](/docs/enterprise/sso) for step-by-step instructions an
 
 ---
 
-## Self-Hosted Configuration
+## Whitelabeling
 
-For self-hosted deployments, enterprise features can be enabled via environment variables without requiring billing.
+Replace Sim's default branding — logos, product name, and favicons — with your own. See the [whitelabeling guide](/docs/enterprise/whitelabeling).
 
-### Environment Variables
+---
+
+## Audit Logs
+
+Track configuration and security-relevant actions across your organization for compliance and monitoring. See the [audit logs guide](/docs/enterprise/audit-logs).
+
+---
+
+## Data Retention
+
+Configure how long execution logs, soft-deleted resources, and Mothership data are kept before permanent deletion. See the [data retention guide](/docs/enterprise/data-retention).
+
+---
+
+<FAQ items={[
+  { question: "Who can manage Enterprise features?", answer: "Workspace admins on an Enterprise-entitled workspace. Access Control, SSO, whitelabeling, audit logs, and data retention are all configured per workspace under Settings → Enterprise." },
+  { question: "Which SSO providers are supported?", answer: "Sim supports SAML 2.0 and OIDC, which works with virtually any enterprise identity provider including Okta, Azure AD (Entra ID), Google Workspace, ADFS, and OneLogin." },
+  { question: "How do access control permission groups work?", answer: "Permission groups are created per workspace and let you restrict which AI providers, workflow blocks, and platform features are available to specific members of that workspace. Each user can belong to at most one group per workspace. Users not assigned to any group have full access. Restrictions are enforced at both the UI level and at execution time based on the workflow's workspace." },
+]} />
+
+---
+
+## Self-hosted setup
+
+Self-hosted deployments enable enterprise features via environment variables instead of billing.
 
 | Variable | Description |
 |----------|-------------|
-| `ORGANIZATIONS_ENABLED`, `NEXT_PUBLIC_ORGANIZATIONS_ENABLED` | Enable team/organization management |
-| `ACCESS_CONTROL_ENABLED`, `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` | Permission groups for access restrictions |
-| `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | Single Sign-On with SAML/OIDC |
-| `CREDENTIAL_SETS_ENABLED`, `NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED` | Polling Groups for email triggers |
-| `INBOX_ENABLED`, `NEXT_PUBLIC_INBOX_ENABLED` | Sim Mailer inbox for outbound email |
-| `WHITELABELING_ENABLED`, `NEXT_PUBLIC_WHITELABELING_ENABLED` | Custom branding and white-labeling |
-| `AUDIT_LOGS_ENABLED`, `NEXT_PUBLIC_AUDIT_LOGS_ENABLED` | Audit logging for compliance and monitoring |
-| `DISABLE_INVITATIONS`, `NEXT_PUBLIC_DISABLE_INVITATIONS` | Globally disable workspace/organization invitations |
+| `ORGANIZATIONS_ENABLED`, `NEXT_PUBLIC_ORGANIZATIONS_ENABLED` | Team and organization management |
+| `ACCESS_CONTROL_ENABLED`, `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` | Permission groups |
+| `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | SAML and OIDC sign-in |
+| `WHITELABELING_ENABLED`, `NEXT_PUBLIC_WHITELABELING_ENABLED` | Custom branding |
+| `AUDIT_LOGS_ENABLED`, `NEXT_PUBLIC_AUDIT_LOGS_ENABLED` | Audit logging |
+| `NEXT_PUBLIC_DATA_RETENTION_ENABLED` | Data retention configuration |
+| `CREDENTIAL_SETS_ENABLED`, `NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED` | Polling groups for email triggers |
+| `INBOX_ENABLED`, `NEXT_PUBLIC_INBOX_ENABLED` | Sim Mailer inbox |
+| `DISABLE_INVITATIONS`, `NEXT_PUBLIC_DISABLE_INVITATIONS` | Disable invitations; manage membership via Admin API |
 
-### Organization Management
-
-When billing is disabled, use the Admin API to manage organizations:
-
-```bash
-# Create an organization
-curl -X POST https://your-instance/api/v1/admin/organizations \
-  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "My Organization", "ownerId": "user-id-here"}'
-
-# Add a member
-curl -X POST https://your-instance/api/v1/admin/organizations/{orgId}/members \
-  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"userId": "user-id-here", "role": "admin"}'
-```
-
-### Workspace Members
-
-When invitations are disabled, use the Admin API to manage workspace memberships directly:
-
-```bash
-# Add a user to a workspace
-curl -X POST https://your-instance/api/v1/admin/workspaces/{workspaceId}/members \
-  -H "x-admin-key: YOUR_ADMIN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"userId": "user-id-here", "permissions": "write"}'
-
-# Remove a user from a workspace
-curl -X DELETE "https://your-instance/api/v1/admin/workspaces/{workspaceId}/members?userId=user-id-here" \
-  -H "x-admin-key: YOUR_ADMIN_API_KEY"
-```
-
-### Notes
-
-- Access Control is scoped per workspace. Set `ACCESS_CONTROL_ENABLED` and `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` to enable it on every workspace in a self-hosted deployment, bypassing the Enterprise plan check.
-- When `DISABLE_INVITATIONS` is set, users cannot send invitations. Use the Admin API to manage workspace and organization memberships instead.
-
-<FAQ items={[
-  { question: "What are the minimum requirements to self-host Sim?", answer: "The Docker Compose production setup includes the Sim application (8 GB memory limit), a realtime collaboration server (1 GB memory limit), and a PostgreSQL database with pgvector. A machine with at least 16 GB of RAM and 4 CPU cores is recommended. You will also need Docker and Docker Compose installed." },
-  { question: "Can I run Sim completely offline with local AI models?", answer: "Yes. Sim supports Ollama and VLLM for running local AI models. A separate Docker Compose configuration (docker-compose.ollama.yml) is available for deploying with Ollama. This lets you run workflows without any external API calls, keeping all data on your infrastructure." },
-  { question: "How does data privacy work with self-hosted deployments?", answer: "When self-hosted, all data stays on your infrastructure. Workflow definitions, execution logs, credentials, and user data are stored in your PostgreSQL database. If you use local AI models through Ollama or VLLM, no data leaves your network. When using external AI providers, only the data sent in prompts goes to those providers." },
-  { question: "Do I need a paid license to self-host Sim?", answer: "The core Sim platform is open source under Apache 2.0 and can be self-hosted for free. Enterprise features like SSO (SAML/OIDC), access control with permission groups, and organization management require an Enterprise subscription for production use. These features can be enabled via environment variables for development and evaluation without a license." },
-  { question: "Which SSO providers are supported?", answer: "Sim supports SAML 2.0 and OIDC protocols, which means it works with virtually any enterprise identity provider including Okta, Azure AD (Entra ID), Google Workspace, and OneLogin. Configuration is done through Settings in the workspace UI." },
-  { question: "How do I manage users when invitations are disabled?", answer: "Use the Admin API with your admin API key. You can create organizations, add members to organizations with specific roles, add users to workspaces with defined permissions, and remove users. All management is done through REST API calls authenticated with the x-admin-key header." },
-  { question: "Can I scale Sim horizontally for high availability?", answer: "The Docker Compose setup is designed for single-node deployments. For production scaling, you can deploy on Kubernetes with multiple application replicas behind a load balancer. The database can be scaled independently using managed PostgreSQL services. Redis can be configured for session and cache management across multiple instances." },
-  { question: "How do access control permission groups work?", answer: "Permission groups are created per workspace and let you restrict which AI providers, workflow blocks, and platform features are available to specific members of that workspace. Each user can belong to at most one group per workspace (and different groups in different workspaces). Users not assigned to any group have full access. Restrictions are enforced at both the UI level (hiding restricted options) and at execution time (blocking unauthorized operations) — execution enforcement is based on the workflow's workspace. Any workspace admin on an Enterprise-entitled workspace can manage permission groups." },
-]} />
+Once enabled, each feature is configured through the same Settings UI as Sim Cloud. When invitations are disabled, use the Admin API (`x-admin-key` header) to manage organization and workspace membership.

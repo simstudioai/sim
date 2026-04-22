@@ -3,7 +3,6 @@ title: Data Retention
 description: Control how long execution logs, deleted resources, and copilot data are kept before permanent deletion
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
@@ -55,9 +54,7 @@ Controls how long **Mothership data** is kept, including:
 - Run checkpoints and async tool calls
 - Inbox tasks (Sim Mailer)
 
-<Callout type="info">
-  Each setting is independent. You can configure a short log retention period alongside a long soft deletion cleanup period, or set any combination that fits your compliance requirements.
-</Callout>
+Each setting is independent. You can configure a short log retention period alongside a long soft deletion cleanup period, or any combination that fits your compliance requirements.
 
 ---
 
@@ -67,23 +64,9 @@ Retention is configured at the **workspace level**, not organization-wide. Each 
 
 ---
 
-## Plan defaults
+## Defaults
 
-Non-enterprise workspaces use the following automatic defaults. These cannot be changed.
-
-| Setting | Free | Pro | Team |
-|---------|------|-----|------|
-| Log retention | 30 days | Not configured | Not configured |
-| Soft deletion cleanup | 30 days | 90 days | 90 days |
-| Task cleanup | Not configured | Not configured | Not configured |
-
-"Not configured" means that category of data is not automatically deleted on that plan.
-
-Enterprise workspaces have no defaults — retention only runs for a setting once you configure it. Until configured, that category of data is not automatically deleted.
-
-<Callout type="info">
-  On Enterprise, setting a period to **Forever** explicitly keeps data indefinitely. Leaving a setting unconfigured has the same effect, but setting it to Forever makes the intent explicit and allows you to change it later without needing to save from scratch.
-</Callout>
+By default, all three settings are unconfigured — no data is automatically deleted in any category until you configure it. Setting a period to **Forever** has the same effect as leaving it unconfigured, but makes the intent explicit and allows you to change it later without saving from scratch.
 
 ---
 
