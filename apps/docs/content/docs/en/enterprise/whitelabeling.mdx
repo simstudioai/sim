@@ -3,8 +3,6 @@ title: Whitelabeling
 description: Replace Sim branding with your own logo, colors, and links
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
 Whitelabeling lets you replace Sim's default branding — logo, colors, and support links — with your own. Members of your organization see your brand instead of Sim's throughout the workspace.
@@ -12,6 +10,8 @@ Whitelabeling lets you replace Sim's default branding — logo, colors, and supp
 ---
 
 ## Setup
+
+Organization owners and admins on an Enterprise-entitled workspace can configure whitelabeling.
 
 ### 1. Open Whitelabeling settings
 
@@ -65,30 +65,7 @@ Whitelabeling replaces the following visual elements:
 - **Primary and accent colors** — applied to buttons, active states, and highlights
 - **Support and legal links** — help prompts and footer links point to your URLs
 
-<Callout type="info">
-  Whitelabeling applies only to members of your organization. Public-facing pages (login, marketing) are not affected.
-</Callout>
-
----
-
-<FAQ items={[
-  {
-    question: "Who can configure whitelabeling?",
-    answer: "Organization owners and admins can configure whitelabeling. On Sim Cloud, you must be on the Enterprise plan."
-  },
-  {
-    question: "What image formats are supported?",
-    answer: "PNG, JPEG, SVG, and WebP. Maximum file size is 5 MB for both the logo and wordmark."
-  },
-  {
-    question: "What is the difference between the logo and the wordmark?",
-    answer: "The logo is a square image shown in the collapsed sidebar. The wordmark is a wide image shown in the expanded sidebar alongside member names and navigation items."
-  },
-  {
-    question: "Do members outside my organization see the custom branding?",
-    answer: "No. Custom branding is scoped to your organization. Members see your branding when signed in to your organization's workspace."
-  }
-]} />
+Whitelabeling applies only to members of your organization. Public-facing pages (login, marketing) are not affected.
 
 ---
 

@@ -3,7 +3,6 @@ title: Audit Logs
 description: Track every action taken across your organization's workspaces
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
@@ -78,9 +77,7 @@ Authorization: Bearer <api-key>
 
 Paginate by passing the `nextCursor` value as the `cursor` parameter in the next request. When `nextCursor` is absent, you have reached the last page.
 
-<Callout type="info">
-  The API accepts both personal and workspace-scoped API keys. Rate limits apply — the response includes `X-RateLimit-*` headers with your current limit and remaining quota.
-</Callout>
+The API accepts both personal and workspace-scoped API keys. Rate limits apply — the response includes `X-RateLimit-*` headers with your current limit and remaining quota.
 
 ---
 

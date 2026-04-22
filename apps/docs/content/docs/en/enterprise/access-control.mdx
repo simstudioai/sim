@@ -3,7 +3,6 @@ title: Access Control
 description: Restrict which models, blocks, and platform features each group of users can access
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
@@ -54,11 +53,7 @@ Controls which workflow blocks members can place and execute.
 <Image src="/static/enterprise/access-control-blocks.png" alt="Blocks tab showing Core Blocks (Agent, API, Condition, Function, Knowledge, etc.) and Tools (integrations like 1Password, A2A, Ahrefs, Airtable, and more) with checkboxes to allow or restrict each" width={900} height={500} /> Blocks are split into two sections: **Core Blocks** (Agent, API, Condition, Function, etc.) and **Tools** (all integration blocks).
 
 - **All checked (default):** All blocks are allowed.
-- **Subset checked:** Only the selected blocks are allowed. Workflows that already contain a disallowed block will fail when run — they are not automatically modified.
-
-<Callout type="info">
-  The `start_trigger` block (the entry point of every workflow) is always allowed and cannot be restricted.
-</Callout>
+- **Subset checked:** Only the selected blocks are allowed. Workflows that already contain a disallowed block will fail when run — they are not automatically modified. The `start_trigger` block (the entry point of every workflow) is always allowed and cannot be restricted.
 
 #### Platform
 

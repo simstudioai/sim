@@ -3,7 +3,6 @@ title: Data Retention
 description: Control how long execution logs, deleted resources, and copilot data are kept before permanent deletion
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
@@ -55,9 +54,7 @@ Controls how long **Mothership data** is kept, including:
 - Run checkpoints and async tool calls
 - Inbox tasks (Sim Mailer)
 
-<Callout type="info">
-  Each setting is independent. You can configure a short log retention period alongside a long soft deletion cleanup period, or set any combination that fits your compliance requirements.
-</Callout>
+Each setting is independent. You can configure a short log retention period alongside a long soft deletion cleanup period, or any combination that fits your compliance requirements.
 
 ---
 
@@ -69,11 +66,7 @@ Retention is configured at the **workspace level**, not organization-wide. Each 
 
 ## Defaults
 
-By default, all three settings are unconfigured — no data is automatically deleted in any category until you configure it.
-
-<Callout type="info">
-  Setting a period to **Forever** explicitly keeps data indefinitely. Leaving a setting unconfigured has the same effect, but setting it to Forever makes the intent explicit and allows you to change it later without needing to save from scratch.
-</Callout>
+By default, all three settings are unconfigured — no data is automatically deleted in any category until you configure it. Setting a period to **Forever** has the same effect as leaving it unconfigured, but makes the intent explicit and allows you to change it later without saving from scratch.
 
 ---
 

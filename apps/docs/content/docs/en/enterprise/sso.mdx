@@ -107,9 +107,7 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 | Client ID | From Okta app |
 | Client Secret | From Okta app |
 
-<Callout type="info">
-  The issuer URL uses Okta's default authorization server (`/oauth2/default`), which is pre-configured on every Okta org. If you created a custom authorization server, replace `default` with your server name.
-</Callout>
+The issuer URL uses Okta's default authorization server, which is pre-configured on every Okta org. If you created a custom authorization server, replace `default` with your server name.
 
 </Tab>
 
@@ -137,10 +135,6 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 | Domain | `company.com` |
 | Client ID | Application (client) ID |
 | Client Secret | Secret value |
-
-<Callout type="info">
-  Replace `{tenant-id}` with your Directory (tenant) ID from the app's Overview page. Sim auto-discovers token and JWKS endpoints from the issuer.
-</Callout>
 
 </Tab>
 
@@ -225,11 +219,7 @@ Once SSO is configured, users with your domain (`company.com`) can sign in throu
 4. After authenticating, they are returned to Sim and added to your organization automatically
 5. They land in the workspace
 
-Users who sign in via SSO for the first time are automatically provisioned and added to your organization — no manual invite required.
-
-<Callout type="info">
-  Password-based login remains available. Forcing all organization members to use SSO exclusively is not yet supported.
-</Callout>
+Users who sign in via SSO for the first time are automatically provisioned and added to your organization — no manual invite required. Password-based login remains available; forcing all organization members to use SSO exclusively is not yet supported.
 
 ---
 
