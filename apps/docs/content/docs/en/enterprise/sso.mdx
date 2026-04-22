@@ -62,15 +62,13 @@ The **Callback URL** shown in the form is the endpoint your identity provider mu
 
 **OIDC providers** (Okta, Microsoft Entra ID, Google Workspace, Auth0):
 ```
-https://simstudio.ai/api/auth/sso/callback/{provider-id}
+https://sim.ai/api/auth/sso/callback/{provider-id}
 ```
 
 **SAML providers** (ADFS, Shibboleth):
 ```
-https://simstudio.ai/api/auth/sso/saml2/callback/{provider-id}
+https://sim.ai/api/auth/sso/saml2/callback/{provider-id}
 ```
-
-For self-hosted, replace `simstudio.ai` with your instance hostname.
 
 ### 5. Save and test
 
@@ -92,7 +90,7 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 2. Select **OIDC - OpenID Connect**, then **Web Application**
 3. Set the **Sign-in redirect URI** to your Sim callback URL:
    ```
-   https://simstudio.ai/api/auth/sso/callback/okta
+   https://sim.ai/api/auth/sso/callback/okta
    ```
 4. Under **Assignments**, grant access to the relevant users or groups
 5. Copy the **Client ID** and **Client Secret** from the app's **General** tab
@@ -109,9 +107,7 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 | Client ID | From Okta app |
 | Client Secret | From Okta app |
 
-<Callout type="info">
-  The issuer URL uses Okta's default authorization server (`/oauth2/default`), which is pre-configured on every Okta org. If you created a custom authorization server, replace `default` with your server name.
-</Callout>
+The issuer URL uses Okta's default authorization server, which is pre-configured on every Okta org. If you created a custom authorization server, replace `default` with your server name.
 
 </Tab>
 
@@ -124,7 +120,7 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 1. Go to **Microsoft Entra ID → App registrations → New registration**
 2. Under **Redirect URI**, select **Web** and enter your Sim callback URL:
    ```
-   https://simstudio.ai/api/auth/sso/callback/azure-ad
+   https://sim.ai/api/auth/sso/callback/azure-ad
    ```
 3. After registration, go to **Certificates & secrets → New client secret** and copy the value immediately — it won't be shown again
 4. Go to **Overview** and copy the **Application (client) ID** and **Directory (tenant) ID**
@@ -140,10 +136,6 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 | Client ID | Application (client) ID |
 | Client Secret | Secret value |
 
-<Callout type="info">
-  Replace `{tenant-id}` with your Directory (tenant) ID from the app's Overview page. Sim auto-discovers token and JWKS endpoints from the issuer.
-</Callout>
-
 </Tab>
 
 <Tab value="Google Workspace">
@@ -156,7 +148,7 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 2. Set the application type to **Web application**
 3. Add your Sim callback URL to **Authorized redirect URIs**:
    ```
-   https://simstudio.ai/api/auth/sso/callback/google-workspace
+   https://sim.ai/api/auth/sso/callback/google-workspace
    ```
 4. Copy the **Client ID** and **Client Secret**
 
@@ -187,14 +179,12 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 2. Choose **Claims aware**, then **Enter data about the relying party manually**
 3. Set the **Relying party identifier** (Entity ID) to your Sim base URL:
    ```
-   https://simstudio.ai
+   https://sim.ai
    ```
-   For self-hosted, use your instance's base URL (e.g. `https://sim.company.com`)
 4. Add an endpoint: **SAML Assertion Consumer Service** (HTTP POST) with the URL:
    ```
-   https://simstudio.ai/api/auth/sso/saml2/callback/adfs
+   https://sim.ai/api/auth/sso/saml2/callback/adfs
    ```
-   For self-hosted: `https://sim.company.com/api/auth/sso/saml2/callback/adfs`
 5. Export the **Token-signing certificate** from **Certificates**: right-click → **View Certificate → Details → Copy to File**, choose **Base-64 encoded X.509 (.CER)**. The `.cer` file is PEM-encoded — rename it to `.pem` before pasting its contents into Sim.
 6. Note the **ADFS Federation Service endpoint URL** (e.g. `https://adfs.company.com/adfs/ls`)
 
@@ -204,7 +194,7 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 |-------|-------|
 | Provider Type | SAML |
 | Provider ID | `adfs` |
-| Issuer URL | `https://simstudio.ai` |
+| Issuer URL | `https://sim.ai` |
 | Domain | `company.com` |
 | Entry Point URL | `https://adfs.company.com/adfs/ls` |
 | Certificate | Contents of the `.pem` file |
@@ -223,7 +213,7 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 
 Once SSO is configured, users with your domain (`company.com`) can sign in through your identity provider:
 
-1. User goes to `simstudio.ai` and clicks **Sign in with SSO**
+1. User goes to `sim.ai` and clicks **Sign in with SSO**
 2. They enter their work email (e.g. `alice@company.com`)
 3. Sim redirects them to your identity provider
 4. After authenticating, they are returned to Sim and added to your organization automatically
@@ -233,10 +223,6 @@ Users who sign in via SSO for the first time are automatically provisioned and a
 
 <Callout type="info">
   Password-based login remains available. Forcing all organization members to use SSO exclusively is not yet supported.
-</Callout>
-
-<Callout type="info">
-  **Self-hosted:** Automatic organization provisioning requires `ORGANIZATIONS_ENABLED=true` in addition to `SSO_ENABLED=true`. Without it, SSO authentication still works — users get a valid session — but they are not automatically added to an organization.
 </Callout>
 
 ---
@@ -268,7 +254,7 @@ Users who sign in via SSO for the first time are automatically provisioned and a
   },
   {
     question: "What is the Callback URL?",
-    answer: "The Callback URL (also called Redirect URI or ACS URL) is the endpoint in Sim that receives the authentication response from your identity provider. For OIDC providers it follows the format: https://simstudio.ai/api/auth/sso/callback/{provider-id}. For SAML providers it is: https://simstudio.ai/api/auth/sso/saml2/callback/{provider-id}. You must register this URL in your identity provider before SSO will work."
+    answer: "The Callback URL (also called Redirect URI or ACS URL) is the endpoint in Sim that receives the authentication response from your identity provider. For OIDC providers it follows the format: https://sim.ai/api/auth/sso/callback/{provider-id}. For SAML providers it is: https://sim.ai/api/auth/sso/saml2/callback/{provider-id}. You must register this URL in your identity provider before SSO will work."
   },
   {
     question: "How do I update or replace an existing SSO configuration?",
