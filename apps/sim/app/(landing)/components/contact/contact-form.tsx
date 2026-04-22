@@ -5,7 +5,7 @@ import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { toError } from '@sim/utils/errors'
 import { useMutation } from '@tanstack/react-query'
 import Link from 'next/link'
-import { Combobox, Input, Textarea } from '@/components/emcn'
+import { Combobox, type ComboboxOption, Input, Textarea } from '@/components/emcn'
 import { Check } from '@/components/emcn/icons'
 import { getEnv } from '@/lib/core/config/env'
 import { captureClientEvent } from '@/lib/posthog/client'
@@ -269,7 +269,7 @@ export function ContactForm() {
           labelClassName={LANDING_LABEL}
         >
           <Combobox
-            options={CONTACT_TOPIC_OPTIONS}
+            options={CONTACT_TOPIC_OPTIONS as unknown as ComboboxOption[]}
             value={form.topic}
             selectedValue={form.topic}
             onChange={(value) => updateField('topic', value as ContactRequestPayload['topic'])}
