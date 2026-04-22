@@ -183,7 +183,6 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       continue
     }
 
-
     if (block.type === 'subagent') {
       if (!block.content) continue
       const key = block.content

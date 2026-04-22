@@ -234,8 +234,7 @@ async function prepareImageForVision(
               span.addEvent(TraceEvent.CopilotVfsResizeAttemptFailed, {
                 [TraceAttr.CopilotVfsResizeDimension]: dimension,
                 [TraceAttr.CopilotVfsResizeQuality]: quality,
-                [TraceAttr.ErrorMessage]:
-                  toError(err).message.slice(0, 500),
+                [TraceAttr.ErrorMessage]: toError(err).message.slice(0, 500),
               })
             }
           }
@@ -379,8 +378,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
               error: toError(parseErr).message,
             })
             span.addEvent(TraceEvent.CopilotVfsParseFailed, {
-              [TraceAttr.ErrorMessage]:
-                toError(parseErr).message.slice(0, 500),
+              [TraceAttr.ErrorMessage]: toError(parseErr).message.slice(0, 500),
             })
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ParseFailed)
             return {
