@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { StorageContext } from '../shared/types'
 
@@ -16,7 +17,8 @@ export interface FileMetadataInsertOptions {
   originalName: string
   contentType: string
   size: number
-  id?: string // Optional - will generate UUID if not provided
+  /** Optional — a UUID is generated when omitted. */
+  id?: string
 }
 
 export interface FileMetadataQueryOptions {
@@ -71,7 +73,7 @@ export async function insertFileMetadata(
     return existing[0]
   }
 
-  const fileId = id || (await import('uuid')).v4()
+  const fileId = id || generateId()
 
   try {
     const [inserted] = await db
@@ -92,10 +94,8 @@ export async function insertFileMetadata(
 
     return inserted
   } catch (error) {
-    if (
-      (error as any)?.code === '23505' ||
-      (error instanceof Error && error.message.includes('unique'))
-    ) {
+    const code = (error as { code?: string } | null)?.code
+    if (code === '23505' || (error instanceof Error && error.message.includes('unique'))) {
       const existingAfterError = await db
         .select()
         .from(workspaceFiles)
