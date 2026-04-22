@@ -71,15 +71,16 @@ export async function authenticateApiKeyFromHeader(
   }
 
   try {
-    const [workspaceSettings, hashCandidate] = await Promise.all([
-      options.workspaceId ? getWorkspaceBillingSettings(options.workspaceId) : null,
-      lookupByHash(apiKeyHeader),
-    ])
+    let workspaceSettings: WorkspaceBillingSettings | null = null
 
-    if (options.workspaceId && !workspaceSettings) {
-      return { success: false, error: 'Workspace not found' }
+    if (options.workspaceId) {
+      workspaceSettings = await getWorkspaceBillingSettings(options.workspaceId)
+      if (!workspaceSettings) {
+        return { success: false, error: 'Workspace not found' }
+      }
     }
 
+    const hashCandidate = await lookupByHash(apiKeyHeader)
     if (hashCandidate !== null) {
       return await applyHashGates(hashCandidate, options, workspaceSettings)
     }
