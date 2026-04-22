@@ -21,6 +21,7 @@ import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { ORCHESTRATION_TIMEOUT_MS, SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { createRequestId } from '@/lib/copilot/request/http'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { orchestrateSubagentStream } from '@/lib/copilot/request/subagent'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
@@ -61,7 +62,8 @@ async function authenticateCopilotApiKey(apiKey: string): Promise<CopilotKeyAuth
       return { success: false, error: 'Server configuration error' }
     }
 
-    const res = await fetch(`${SIM_AGENT_API_URL}/api/validate-key`, {
+    const { fetchGo } = await import('@/lib/copilot/request/go/fetch')
+    const res = await fetchGo(`${SIM_AGENT_API_URL}/api/validate-key`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -69,6 +71,8 @@ async function authenticateCopilotApiKey(apiKey: string): Promise<CopilotKeyAuth
       },
       body: JSON.stringify({ targetApiKey: apiKey }),
       signal: AbortSignal.timeout(10_000),
+      spanName: 'sim → go /api/validate-key (mcp)',
+      operation: 'mcp_validate_key',
     })
 
     if (!res.ok) {
@@ -89,7 +93,10 @@ async function authenticateCopilotApiKey(apiKey: string): Promise<CopilotKeyAuth
         }
       }
 
-      return { success: false, error: String(upstream ?? 'Copilot API key validation failed') }
+      return {
+        success: false,
+        error: String(upstream ?? 'Copilot API key validation failed'),
+      }
     }
 
     const data = (await res.json()) as { ok?: boolean; userId?: string }
@@ -696,7 +703,11 @@ async function handleBuildToolCall(
           resolvedWorkflowName = authorization.workflow?.name || undefined
           resolvedWorkspaceId = authorization.workflow?.workspaceId || undefined
           return authorization.allowed
-            ? { status: 'resolved' as const, workflowId, workflowName: resolvedWorkflowName }
+            ? {
+                status: 'resolved' as const,
+                workflowId,
+                workflowName: resolvedWorkflowName,
+              }
             : {
                 status: 'not_found' as const,
                 message: 'workflowId is required for build. Call create_workflow first.',
@@ -815,6 +826,7 @@ async function handleSubagentToolCall(
       (args.message as string) ||
       (args.error as string) ||
       JSON.stringify(args)
+    const simRequestId = createRequestId()
 
     const context = (args.context as Record<string, unknown>) || {}
     if (args.plan && !context.plan) {
@@ -836,6 +848,7 @@ async function handleSubagentToolCall(
         userId,
         workflowId: args.workflowId as string | undefined,
         workspaceId: args.workspaceId as string | undefined,
+        simRequestId,
         abortSignal,
       }
     )

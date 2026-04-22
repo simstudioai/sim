@@ -161,21 +161,30 @@ export async function executeVfsRead(
       const filename = path.slice('uploads/'.length)
       const uploadResult = await readChatUpload(filename, context.chatId)
       if (uploadResult) {
+        const isImage = hasImageAttachment(uploadResult)
         if (
-          !hasImageAttachment(uploadResult) &&
+          !isImage &&
           (isOversizedReadPlaceholder(uploadResult.content) ||
             serializedResultSize(uploadResult) > TOOL_RESULT_MAX_INLINE_CHARS)
         ) {
+          logger.warn('Upload read result too large', {
+            path,
+            hasAttachment: isImage,
+            contentLength: uploadResult.content.length,
+            serializedSize: serializedResultSize(uploadResult),
+          })
           return {
             success: false,
-            error:
-              'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit. Avoid catch-all greps or full-file reads because they waste context window.',
+            error: isOversizedReadPlaceholder(uploadResult.content)
+              ? uploadResult.content
+              : 'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit. Avoid catch-all greps or full-file reads because they waste context window.',
           }
         }
         const windowedUpload = applyWindow(uploadResult)
         logger.debug('vfs_read resolved chat upload', {
           path,
           totalLines: uploadResult.totalLines,
+          hasAttachment: isImage,
           offset,
           limit,
         })
@@ -188,34 +197,47 @@ export async function executeVfsRead(
     }
 
     const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
-    const result = vfs.read(path, offset, limit)
-    if (!result) {
-      const fileContent = await vfs.readFileContent(path)
-      if (fileContent) {
-        if (
-          !hasImageAttachment(fileContent) &&
-          (isOversizedReadPlaceholder(fileContent.content) ||
-            serializedResultSize(fileContent) > TOOL_RESULT_MAX_INLINE_CHARS)
-        ) {
-          return {
-            success: false,
-            error:
-              'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit. Avoid catch-all greps or full-file reads because they waste context window.',
-          }
-        }
-        const windowedFileContent = applyWindow(fileContent)
-        logger.debug('vfs_read resolved workspace file', {
+
+    // For workspace file paths (files/ or recently-deleted/files/), try readFileContent
+    // first so images, PDFs, and documents get proper attachment/parsing handling rather
+    // than being served as raw VFS metadata text.
+    const fileContent = await vfs.readFileContent(path)
+    if (fileContent) {
+      const isImage = hasImageAttachment(fileContent)
+      if (
+        !isImage &&
+        (isOversizedReadPlaceholder(fileContent.content) ||
+          serializedResultSize(fileContent) > TOOL_RESULT_MAX_INLINE_CHARS)
+      ) {
+        logger.warn('File read result too large', {
           path,
-          totalLines: fileContent.totalLines,
-          offset,
-          limit,
+          hasAttachment: isImage,
+          contentLength: fileContent.content.length,
+          serializedSize: serializedResultSize(fileContent),
         })
         return {
-          success: true,
-          output: windowedFileContent,
+          success: false,
+          error: isOversizedReadPlaceholder(fileContent.content)
+            ? fileContent.content
+            : 'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit. Avoid catch-all greps or full-file reads because they waste context window.',
         }
       }
+      const windowedFileContent = applyWindow(fileContent)
+      logger.debug('vfs_read resolved workspace file', {
+        path,
+        totalLines: fileContent.totalLines,
+        hasAttachment: isImage,
+        offset,
+        limit,
+      })
+      return {
+        success: true,
+        output: windowedFileContent,
+      }
+    }
 
+    const result = vfs.read(path, offset, limit)
+    if (!result) {
       const suggestions = vfs.suggestSimilar(path)
       logger.warn('vfs_read file not found', { path, suggestions })
       const hint =

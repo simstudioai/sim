@@ -29,7 +29,7 @@ const socketDb = drizzle(
     prepare: false,
     idle_timeout: 10,
     connect_timeout: 20,
-    max: 10,
+    max: 30,
     onnotice: () => {},
   }),
   { schema }

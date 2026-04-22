@@ -5,7 +5,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
+import { BillingRouteOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
+import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { type AtomicClaimResult, billingIdempotency } from '@/lib/core/idempotency/service'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -28,8 +32,28 @@ const UpdateCostSchema = z.object({
 /**
  * POST /api/billing/update-cost
  * Update user cost with a pre-calculated cost value (internal API key auth required)
+ *
+ * Parented under the Go-side `sim.update_cost` span via W3C traceparent
+ * propagation. Every mothership request that bills should therefore show
+ * the Go client span AND this Sim server span sharing one trace, with
+ * the actual usage/overage work nested below.
  */
-export const POST = withRouteHandler(async (req: NextRequest) => {
+export const POST = withRouteHandler((req: NextRequest) =>
+  withIncomingGoSpan(
+    req.headers,
+    TraceSpan.CopilotBillingUpdateCost,
+    {
+      [TraceAttr.HttpMethod]: 'POST',
+      [TraceAttr.HttpRoute]: '/api/billing/update-cost',
+    },
+    async (span) => updateCostInner(req, span)
+  )
+)
+
+async function updateCostInner(
+  req: NextRequest,
+  span: import('@opentelemetry/api').Span
+): Promise<NextResponse> {
   const requestId = generateRequestId()
   const startTime = Date.now()
   let claim: AtomicClaimResult | null = null
@@ -39,6 +63,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     logger.info(`[${requestId}] Update cost request started`)
 
     if (!isBillingEnabled) {
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.BillingDisabled)
+      span.setAttribute(TraceAttr.HttpStatusCode, 200)
       return NextResponse.json({
         success: true,
         message: 'Billing disabled, cost update skipped',
@@ -54,6 +80,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const authResult = checkInternalApiKey(req)
     if (!authResult.success) {
       logger.warn(`[${requestId}] Authentication failed: ${authResult.error}`)
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.AuthFailed)
+      span.setAttribute(TraceAttr.HttpStatusCode, 401)
       return NextResponse.json(
         {
           success: false,
@@ -69,8 +97,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     if (!validation.success) {
       logger.warn(`[${requestId}] Invalid request body`, {
         errors: validation.error.issues,
-        body,
       })
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InvalidBody)
+      span.setAttribute(TraceAttr.HttpStatusCode, 400)
       return NextResponse.json(
         {
           success: false,
@@ -85,6 +114,17 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       validation.data
     const isMcp = source === 'mcp_copilot'
 
+    span.setAttributes({
+      [TraceAttr.UserId]: userId,
+      [TraceAttr.GenAiRequestModel]: model,
+      [TraceAttr.BillingSource]: source,
+      [TraceAttr.BillingCostUsd]: cost,
+      [TraceAttr.GenAiUsageInputTokens]: inputTokens,
+      [TraceAttr.GenAiUsageOutputTokens]: outputTokens,
+      [TraceAttr.BillingIsMcp]: isMcp,
+      ...(idempotencyKey ? { [TraceAttr.BillingIdempotencyKey]: idempotencyKey } : {}),
+    })
+
     claim = idempotencyKey
       ? await billingIdempotency.atomicallyClaim('update-cost', idempotencyKey)
       : null
@@ -95,6 +135,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         userId,
         source,
       })
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.DuplicateIdempotencyKey)
+      span.setAttribute(TraceAttr.HttpStatusCode, 409)
       return NextResponse.json(
         {
           success: false,
@@ -159,6 +201,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       cost,
     })
 
+    span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.Billed)
+    span.setAttribute(TraceAttr.HttpStatusCode, 200)
+    span.setAttribute(TraceAttr.BillingDurationMs, duration)
     return NextResponse.json({
       success: true,
       data: {
@@ -193,6 +238,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
+    span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InternalError)
+    span.setAttribute(TraceAttr.HttpStatusCode, 500)
+    span.setAttribute(TraceAttr.BillingDurationMs, duration)
     return NextResponse.json(
       {
         success: false,
@@ -202,4 +250,4 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       { status: 500 }
     )
   }
-})
+}

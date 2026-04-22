@@ -2,14 +2,17 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1SpanPayloadKind,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { createStreamingContext } from '@/lib/copilot/request/context/request-context'
 import { buildToolCallSummaries } from '@/lib/copilot/request/context/result'
 import { runStreamLoop } from '@/lib/copilot/request/go/stream'
+import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import type {
   ExecutionContext,
   OrchestratorOptions,
@@ -30,6 +33,7 @@ export interface SubagentOrchestratorOptions extends Omit<OrchestratorOptions, '
   workflowId?: string
   workspaceId?: string
   userPermission?: string
+  simRequestId?: string
   onComplete?: (result: SubagentOrchestratorResult) => void | Promise<void>
 }
 
@@ -48,6 +52,47 @@ export interface SubagentOrchestratorResult {
 }
 
 export async function orchestrateSubagentStream(
+  agentId: string,
+  requestPayload: Record<string, unknown>,
+  options: SubagentOrchestratorOptions
+): Promise<SubagentOrchestratorResult> {
+  return withCopilotSpan(
+    TraceSpan.CopilotSubagentExecute,
+    {
+      [TraceAttr.SubagentId]: agentId,
+      // Sim-side entrypoint = MCP / headless subagent call. No parent
+      // agent (the caller is an external client); treat as depth 2 and
+      // mark as NOT nested so it aggregates with Go-side direct-child
+      // subagent spans on dashboards. Grandchildren are stamped
+      // depth=3 + nested=true in
+      // `agents/nested.go:executeNestedAgent`.
+      [TraceAttr.SubagentDepth]: 2,
+      [TraceAttr.SubagentNested]: false,
+      [TraceAttr.SubagentParentAgentId]: 'mcp',
+      [TraceAttr.UserId]: options.userId,
+      ...(options.simRequestId ? { [TraceAttr.SimRequestId]: options.simRequestId } : {}),
+      ...(options.workflowId ? { [TraceAttr.WorkflowId]: options.workflowId } : {}),
+      ...(options.workspaceId ? { [TraceAttr.WorkspaceId]: options.workspaceId } : {}),
+    },
+    async (otelSpan) => {
+      const result = await orchestrateSubagentStreamInner(agentId, requestPayload, options)
+      otelSpan.setAttributes({
+        [TraceAttr.SubagentOutcomeSuccess]: result.success,
+        [TraceAttr.SubagentOutcomeToolCallCount]: result.toolCalls.length,
+        [TraceAttr.SubagentOutcomeContentBytes]: result.content?.length ?? 0,
+        ...(result.structuredResult?.type
+          ? { [TraceAttr.SubagentOutcomeStructuredType]: result.structuredResult.type }
+          : {}),
+        ...(result.error
+          ? { [TraceAttr.SubagentOutcomeError]: String(result.error).slice(0, 500) }
+          : {}),
+      })
+      return result
+    }
+  )
+}
+
+async function orchestrateSubagentStreamInner(
   agentId: string,
   requestPayload: Record<string, unknown>,
   options: SubagentOrchestratorOptions
@@ -87,6 +132,7 @@ export async function orchestrateSubagentStream(
   const msgId = requestPayload?.messageId
   const context = createStreamingContext({
     chatId,
+    requestId: options.simRequestId,
     messageId: typeof msgId === 'string' ? msgId : generateId(),
   })
 
@@ -100,6 +146,7 @@ export async function orchestrateSubagentStream(
         headers: {
           'Content-Type': 'application/json',
           ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
+          'X-Client-Version': SIM_AGENT_VERSION,
         },
         body: JSON.stringify({
           ...requestPayload,
@@ -149,7 +196,10 @@ export async function orchestrateSubagentStream(
     return result
   } catch (error) {
     const err = error instanceof Error ? error : new Error('Subagent orchestration failed')
-    logger.error('Subagent orchestration failed', { error: err.message, agentId })
+    logger.error('Subagent orchestration failed', {
+      error: err.message,
+      agentId,
+    })
     await options.onError?.(err)
     return {
       success: false,

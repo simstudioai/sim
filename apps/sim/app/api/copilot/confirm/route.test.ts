@@ -206,7 +206,7 @@ describe('Copilot Confirm API Route', () => {
     })
   })
 
-  it('returns 400 when the durable write fails before publish', async () => {
+  it('returns 500 when the durable write fails before publish', async () => {
     completeAsyncToolCall.mockRejectedValueOnce(new Error('db down'))
 
     const response = await POST(
@@ -216,7 +216,7 @@ describe('Copilot Confirm API Route', () => {
       })
     )
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(500)
     expect(publishToolConfirmation).not.toHaveBeenCalled()
   })
 })
