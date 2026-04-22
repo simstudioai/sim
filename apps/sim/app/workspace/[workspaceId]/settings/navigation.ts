@@ -189,7 +189,6 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isDataRetentionEnabled,
-    showWhenLocked: true,
   },
   {
     id: 'whitelabeling',
