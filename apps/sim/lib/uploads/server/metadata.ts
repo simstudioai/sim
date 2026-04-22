@@ -56,7 +56,9 @@ export async function insertFileMetadata(
       .where(eq(workspaceFiles.id, existingDeleted[0].id))
       .returning()
 
-    return restored
+    if (restored) {
+      return restored
+    }
   }
 
   const existing = await db
