@@ -6,9 +6,21 @@ interface LandingFieldProps {
   optional?: boolean
   error?: string
   children: React.ReactNode
+  /** Replaces the default label className. */
+  labelClassName?: string
 }
 
-export function LandingField({ label, htmlFor, optional, error, children }: LandingFieldProps) {
+const DEFAULT_LABEL_CLASSNAME =
+  'font-[430] font-season text-[13px] text-[var(--text-secondary)] tracking-[0.02em]'
+
+export function LandingField({
+  label,
+  htmlFor,
+  optional,
+  error,
+  children,
+  labelClassName,
+}: LandingFieldProps) {
   const errorId = error ? `${htmlFor}-error` : undefined
   const describedChild =
     errorId && isValidElement<{ 'aria-describedby'?: string; 'aria-invalid'?: boolean }>(children)
@@ -16,19 +28,22 @@ export function LandingField({ label, htmlFor, optional, error, children }: Land
       : children
   return (
     <div className='flex flex-col gap-1.5'>
-      <label
-        htmlFor={htmlFor}
-        className='font-[430] font-season text-[13px] text-[var(--text-secondary)] tracking-[0.02em]'
-      >
-        {label}
-        {optional ? <span className='ml-1 text-[var(--text-muted)]'>(optional)</span> : null}
-      </label>
+      <div className='flex min-h-[18px] items-baseline justify-between gap-3'>
+        <label htmlFor={htmlFor} className={labelClassName ?? DEFAULT_LABEL_CLASSNAME}>
+          {label}
+          {optional ? <span className='ml-1 text-[var(--text-muted)]'>(optional)</span> : null}
+        </label>
+        {error ? (
+          <span
+            id={errorId}
+            role='alert'
+            className='truncate font-season text-[12px] text-[var(--text-error)]'
+          >
+            {error}
+          </span>
+        ) : null}
+      </div>
       {describedChild}
-      {error ? (
-        <p id={errorId} role='alert' className='text-[12px] text-[var(--text-error)]'>
-          {error}
-        </p>
-      ) : null}
     </div>
   )
 }
