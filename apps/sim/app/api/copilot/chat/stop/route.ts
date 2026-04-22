@@ -52,6 +52,8 @@ const ContentBlockSchema = z.object({
   lifecycle: z.enum(['start', 'end']).optional(),
   status: z.enum(['complete', 'error', 'cancelled']).optional(),
   toolCall: StoredToolCallSchema.optional(),
+  timestamp: z.number().optional(),
+  endedAt: z.number().optional(),
 })
 
 const StopSchema = z.object({

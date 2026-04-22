@@ -11,7 +11,7 @@ import type {
   PersistedFileAttachment,
   PersistedMessage,
 } from '@/lib/copilot/chat/persisted-message'
-import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
+import { normalizeMessage, withBlockTiming } from '@/lib/copilot/chat/persisted-message'
 import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
 import { MOTHERSHIP_CHAT_API_PATH, STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
 import type {
@@ -26,6 +26,7 @@ import {
   MothershipStreamV1SessionKind,
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1SpanPayloadKind,
+  MothershipStreamV1TextChannel,
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
   MothershipStreamV1ToolStatus,
@@ -699,11 +700,37 @@ function parseStreamBatchResponse(value: unknown): StreamBatchResponse {
 }
 
 function toRawPersistedContentBlock(block: ContentBlock): Record<string, unknown> | null {
+  const persisted = toRawPersistedContentBlockBody(block)
+  return persisted ? withBlockTiming(persisted, block) : null
+}
+
+function toRawPersistedContentBlockBody(block: ContentBlock): Record<string, unknown> | null {
   switch (block.type) {
     case 'text':
       return {
         type: MothershipStreamV1EventType.text,
         ...(block.subagent ? { lane: 'subagent' } : {}),
+        channel: MothershipStreamV1TextChannel.assistant,
+        content: block.content ?? '',
+      }
+    case 'thinking':
+      return {
+        type: MothershipStreamV1EventType.text,
+        channel: MothershipStreamV1TextChannel.thinking,
+        content: block.content ?? '',
+      }
+    case 'subagent_thinking':
+      return {
+        type: MothershipStreamV1EventType.text,
+        lane: 'subagent',
+        channel: MothershipStreamV1TextChannel.thinking,
+        content: block.content ?? '',
+      }
+    case 'subagent_text':
+      return {
+        type: MothershipStreamV1EventType.text,
+        lane: 'subagent',
+        channel: MothershipStreamV1TextChannel.assistant,
         content: block.content ?? '',
       }
     case 'tool_call':
@@ -773,22 +800,27 @@ function buildAssistantSnapshotMessage(params: {
 }
 
 function markMessageStopped(message: PersistedMessage): PersistedMessage {
-  if (!message.contentBlocks?.some((block) => block.toolCall?.state === 'executing')) {
+  const hasExecutingTool = message.contentBlocks?.some(
+    (block) => block.toolCall?.state === 'executing'
+  )
+  const hasOpenBlock = message.contentBlocks?.some((block) => block.endedAt === undefined)
+  if (!hasExecutingTool && !hasOpenBlock) {
     return message
   }
 
-  const nextBlocks = message.contentBlocks.map((block) => {
-    if (block.toolCall?.state !== 'executing') {
-      return block
+  const stopTs = Date.now()
+  const nextBlocks = (message.contentBlocks ?? []).map((block) => {
+    const stamped = block.endedAt === undefined ? { ...block, endedAt: stopTs } : block
+    if (stamped.toolCall?.state !== 'executing') {
+      return stamped
     }
-
     return {
-      ...block,
+      ...stamped,
       toolCall: {
-        ...block.toolCall,
+        ...stamped.toolCall,
         state: 'cancelled' as const,
         display: {
-          ...(block.toolCall.display ?? {}),
+          ...(stamped.toolCall.display ?? {}),
           title: 'Stopped by user',
         },
       },
@@ -1716,10 +1748,34 @@ export function useChat(
         streamingBlocksRef.current = []
       }
 
-      const ensureTextBlock = (subagentName?: string): ContentBlock => {
+      const toEventMs = (ts: string | undefined): number => {
+        if (ts) {
+          const parsed = Date.parse(ts)
+          if (Number.isFinite(parsed)) return parsed
+        }
+        return Date.now()
+      }
+
+      const stampBlockEnd = (block: ContentBlock | undefined, ts?: string) => {
+        if (block && block.endedAt === undefined) block.endedAt = toEventMs(ts)
+      }
+
+      const ensureTextBlock = (subagentName: string | undefined, ts?: string): ContentBlock => {
         const last = blocks[blocks.length - 1]
         if (last?.type === 'text' && last.subagent === subagentName) return last
-        const b: ContentBlock = { type: 'text', content: '' }
+        stampBlockEnd(last, ts)
+        const b: ContentBlock = { type: 'text', content: '', timestamp: toEventMs(ts) }
+        if (subagentName) b.subagent = subagentName
+        blocks.push(b)
+        return b
+      }
+
+      const ensureThinkingBlock = (subagentName: string | undefined, ts?: string): ContentBlock => {
+        const targetType = subagentName ? 'subagent_thinking' : 'thinking'
+        const last = blocks[blocks.length - 1]
+        if (last?.type === targetType && last.subagent === subagentName) return last
+        stampBlockEnd(last, ts)
+        const b: ContentBlock = { type: targetType, content: '', timestamp: toEventMs(ts) }
         if (subagentName) b.subagent = subagentName
         blocks.push(b)
         return b
@@ -1737,9 +1793,9 @@ export function useChat(
         return activeSubagent
       }
 
-      const appendInlineErrorTag = (tag: string, subagentName?: string) => {
+      const appendInlineErrorTag = (tag: string, subagentName?: string, ts?: string) => {
         if (runningText.includes(tag)) return
-        const tb = ensureTextBlock(subagentName)
+        const tb = ensureTextBlock(subagentName, ts)
         const prefix = runningText.length > 0 && !runningText.endsWith('\n') ? '\n' : ''
         tb.content = `${tb.content ?? ''}${prefix}${tag}`
         runningText += `${prefix}${tag}`
@@ -1950,13 +2006,20 @@ export function useChat(
             case MothershipStreamV1EventType.text: {
               const chunk = parsed.payload.text
               if (chunk) {
+                const eventTs = typeof parsed.ts === 'string' ? parsed.ts : undefined
+                if (parsed.payload.channel === MothershipStreamV1TextChannel.thinking) {
+                  const tb = ensureThinkingBlock(scopedSubagent, eventTs)
+                  tb.content = (tb.content ?? '') + chunk
+                  flushText()
+                  break
+                }
                 const contentSource: 'main' | 'subagent' = scopedSubagent ? 'subagent' : 'main'
                 const needsBoundaryNewline =
                   lastContentSource !== null &&
                   lastContentSource !== contentSource &&
                   runningText.length > 0 &&
                   !runningText.endsWith('\n')
-                const tb = ensureTextBlock(scopedSubagent)
+                const tb = ensureTextBlock(scopedSubagent, eventTs)
                 const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
                 tb.content = (tb.content ?? '') + normalizedChunk
                 runningText += normalizedChunk
@@ -2170,6 +2233,7 @@ export function useChat(
                   output: payload.output,
                   error: typeof payload.error === 'string' ? payload.error : undefined,
                 }
+                stampBlockEnd(blocks[idx])
                 flush()
 
                 if (tc.name === ReadTool.id && tc.status === 'success') {
@@ -2292,6 +2356,7 @@ export function useChat(
               }
 
               if (!toolMap.has(id)) {
+                stampBlockEnd(blocks[blocks.length - 1])
                 toolMap.set(id, blocks.length)
                 blocks.push({
                   type: 'tool_call',
@@ -2303,6 +2368,7 @@ export function useChat(
                     params: args,
                     calledBy: scopedSubagent,
                   },
+                  timestamp: Date.now(),
                 })
                 if (name === ReadTool.id || isResourceToolName(name)) {
                   if (args) toolArgsMap.set(id, args)
@@ -2376,6 +2442,7 @@ export function useChat(
               if (payload.kind === MothershipStreamV1RunKind.compaction_start) {
                 const compactionId = `compaction_${Date.now()}`
                 activeCompactionId = compactionId
+                stampBlockEnd(blocks[blocks.length - 1])
                 toolMap.set(compactionId, blocks.length)
                 blocks.push({
                   type: 'tool_call',
@@ -2385,6 +2452,7 @@ export function useChat(
                     status: 'executing',
                     displayTitle: 'Compacting context...',
                   },
+                  timestamp: Date.now(),
                 })
                 flush()
               } else if (payload.kind === MothershipStreamV1RunKind.compaction_done) {
@@ -2394,8 +2462,10 @@ export function useChat(
                 if (idx !== undefined && blocks[idx]?.toolCall) {
                   blocks[idx].toolCall!.status = 'success'
                   blocks[idx].toolCall!.displayTitle = 'Compacted context'
+                  stampBlockEnd(blocks[idx])
                 } else {
                   toolMap.set(compactionId, blocks.length)
+                  const endNow = Date.now()
                   blocks.push({
                     type: 'tool_call',
                     toolCall: {
@@ -2404,6 +2474,8 @@ export function useChat(
                       status: 'success',
                       displayTitle: 'Compacted context',
                     },
+                    timestamp: endNow,
+                    endedAt: endNow,
                   })
                 }
                 flush()
@@ -2432,7 +2504,8 @@ export function useChat(
                 activeSubagent = name
                 activeSubagentParentToolCallId = parentToolCallId
                 if (!isSameActiveSubagent) {
-                  blocks.push({ type: 'subagent', content: name })
+                  stampBlockEnd(blocks[blocks.length - 1])
+                  blocks.push({ type: 'subagent', content: name, timestamp: Date.now() })
                 }
                 if (name === FILE_SUBAGENT_ID && !isSameActiveSubagent) {
                   applyPreviewSessionUpdate({
@@ -2472,7 +2545,18 @@ export function useChat(
                   activeSubagent = undefined
                   activeSubagentParentToolCallId = undefined
                 }
-                blocks.push({ type: 'subagent_end' })
+                const endNow = Date.now()
+                if (name) {
+                  for (let i = blocks.length - 1; i >= 0; i--) {
+                    const b = blocks[i]
+                    if (b.type === 'subagent' && b.content === name && b.endedAt === undefined) {
+                      b.endedAt = endNow
+                      break
+                    }
+                  }
+                }
+                stampBlockEnd(blocks[blocks.length - 1])
+                blocks.push({ type: 'subagent_end', timestamp: endNow })
                 flush()
               }
               break
@@ -2480,11 +2564,16 @@ export function useChat(
             case MothershipStreamV1EventType.error: {
               sawStreamError = true
               setError(parsed.payload.message || parsed.payload.error || 'An error occurred')
-              appendInlineErrorTag(buildInlineErrorTag(parsed.payload), scopedSubagent)
+              appendInlineErrorTag(
+                buildInlineErrorTag(parsed.payload),
+                scopedSubagent,
+                typeof parsed.ts === 'string' ? parsed.ts : undefined
+              )
               break
             }
             case MothershipStreamV1EventType.complete: {
               sawCompleteEvent = true
+              stampBlockEnd(blocks[blocks.length - 1])
               // `complete` is the end-of-turn marker; drain whatever
               // else arrived in the same TCP chunk (trailing text,
               // followups, run metadata) before stopping. Do NOT
@@ -2888,6 +2977,10 @@ export function useChat(
 
       const sourceBlocks = overrides?.blocks ?? streamingBlocksRef.current
       const storedBlocks = sourceBlocks.map((block) => {
+        const timing = {
+          ...(typeof block.timestamp === 'number' ? { timestamp: block.timestamp } : {}),
+          ...(typeof block.endedAt === 'number' ? { endedAt: block.endedAt } : {}),
+        }
         if (block.type === 'tool_call' && block.toolCall) {
           const isCancelled =
             block.toolCall.status === 'executing' || block.toolCall.status === 'cancelled'
@@ -2905,9 +2998,10 @@ export function useChat(
               ...(display ? { display } : {}),
               calledBy: block.toolCall.calledBy,
             },
+            ...timing,
           }
         }
-        return { type: block.type, content: block.content }
+        return { type: block.type, content: block.content, ...timing }
       })
 
       if (storedBlocks.length > 0) {
@@ -3465,11 +3559,21 @@ export function useChat(
       queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatIdRef.current))
         ?.activeStreamId ||
       undefined
+    // Snapshot the active assistant message id BEFORE clearActiveTurn()
+    // nulls the ref. Used below to restrict markMessageStopped to the
+    // in-flight turn only — historical messages from the chat history
+    // also lack `endedAt` on their legacy blocks (pre-timing-fields),
+    // and without this gate we'd corrupt them with cancelled markers.
+    const activeAssistantMessageId =
+      activeTurnRef.current?.assistantMessageId ??
+      (sid ? getLiveAssistantMessageId(sid) : undefined)
     const stopContentSnapshot = streamingContentRef.current
+    const stopNow = Date.now()
     const stopBlocksSnapshot = streamingBlocksRef.current.map((block) => ({
       ...block,
       ...(block.options ? { options: [...block.options] } : {}),
       ...(block.toolCall ? { toolCall: { ...block.toolCall } } : {}),
+      ...(block.endedAt === undefined ? { endedAt: stopNow } : {}),
     }))
     // Snapshot BEFORE clearActiveTurn() nulls the refs. Both
     // persistPartialResponse and the abort/stop fetches run inside
@@ -3491,22 +3595,31 @@ export function useChat(
       await queryClient.cancelQueries({ queryKey: taskKeys.detail(activeChatId) })
       upsertTaskChatHistory(activeChatId, (current) => ({
         ...current,
-        messages: current.messages.map(markMessageStopped),
+        messages: current.messages.map((message) =>
+          activeAssistantMessageId && message.id === activeAssistantMessageId
+            ? markMessageStopped(message)
+            : message
+        ),
       }))
     } else {
       setPendingMessages((prev) =>
         prev.map((msg) => {
-          if (!msg.contentBlocks?.some((block) => block.toolCall?.status === 'executing')) {
+          const hasExecutingTool = msg.contentBlocks?.some(
+            (block) => block.toolCall?.status === 'executing'
+          )
+          const hasOpenBlock = msg.contentBlocks?.some((block) => block.endedAt === undefined)
+          if (!hasExecutingTool && !hasOpenBlock) {
             return msg
           }
-          const updatedBlocks = msg.contentBlocks.map((block) => {
-            if (block.toolCall?.status !== 'executing') {
-              return block
+          const updatedBlocks = (msg.contentBlocks ?? []).map((block) => {
+            const stamped = block.endedAt === undefined ? { ...block, endedAt: stopNow } : block
+            if (stamped.toolCall?.status !== 'executing') {
+              return stamped
             }
             return {
-              ...block,
+              ...stamped,
               toolCall: {
-                ...block.toolCall,
+                ...stamped.toolCall,
                 status: 'cancelled' as const,
                 displayTitle: 'Stopped by user',
               },
