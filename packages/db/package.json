@@ -29,7 +29,7 @@
     "format:check": "biome format ."
   },
   "dependencies": {
-    "drizzle-orm": "^0.44.5",
+    "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5",
     "uuid": "^11.1.0",
     "zod": "^3.24.2"
