@@ -4,8 +4,9 @@ import { renderHelpConfirmationEmail } from '@/components/emails'
 import { env } from '@/lib/core/config/env'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
+import { isTurnstileConfigured, verifyTurnstileToken } from '@/lib/core/security/turnstile'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
-import { getEmailDomain } from '@/lib/core/utils/urls'
+import { getEmailDomain, SITE_URL } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
@@ -17,12 +18,21 @@ import {
 
 const logger = createLogger('ContactAPI')
 const rateLimiter = new RateLimiter()
+const SITE_HOSTNAME = new URL(SITE_URL).hostname
 
 const PUBLIC_ENDPOINT_RATE_LIMIT: TokenBucketConfig = {
   maxTokens: 10,
   refillRate: 5,
   refillIntervalMs: 60_000,
 }
+
+const CAPTCHA_UNAVAILABLE_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 3,
+  refillRate: 1,
+  refillIntervalMs: 60_000,
+}
+
+const SUCCESS_RESPONSE = { success: true, message: "Thanks — we'll be in touch soon." }
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
@@ -47,7 +57,67 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
-    const body = await req.json()
+    const body = (await req.json()) as Record<string, unknown>
+
+    const honeypot = body?.website
+    if (typeof honeypot === 'string' && honeypot.trim().length > 0) {
+      logger.warn(`[${requestId}] Honeypot triggered, discarding`, { ip })
+      return NextResponse.json(SUCCESS_RESPONSE, { status: 201 })
+    }
+
+    const captchaUnavailable = body?.captchaUnavailable === true
+
+    if (captchaUnavailable) {
+      const nocaptchaKey = `public:contact:nocaptcha:${ip}`
+      const { allowed: nocaptchaAllowed } = await rateLimiter.checkRateLimitDirect(
+        nocaptchaKey,
+        CAPTCHA_UNAVAILABLE_RATE_LIMIT
+      )
+      if (!nocaptchaAllowed) {
+        logger.warn(`[${requestId}] Rate limit exceeded (no-captcha) for IP ${ip}`)
+        return NextResponse.json(
+          { error: 'Too many requests. Please try again later.' },
+          { status: 429 }
+        )
+      }
+    }
+
+    if (isTurnstileConfigured() && !captchaUnavailable) {
+      const token = typeof body?.captchaToken === 'string' ? body.captchaToken : null
+      const verification = await verifyTurnstileToken({
+        token,
+        remoteIp: ip,
+        expectedHostname: SITE_HOSTNAME,
+      })
+      if (!verification.success && verification.transportError) {
+        logger.warn(
+          `[${requestId}] Captcha transport error, falling back to no-captcha rate limit`,
+          { ip }
+        )
+        const nocaptchaKey = `public:contact:nocaptcha:${ip}`
+        const { allowed: nocaptchaAllowed } = await rateLimiter.checkRateLimitDirect(
+          nocaptchaKey,
+          CAPTCHA_UNAVAILABLE_RATE_LIMIT
+        )
+        if (!nocaptchaAllowed) {
+          logger.warn(`[${requestId}] Rate limit exceeded (transport-error fallback) for IP ${ip}`)
+          return NextResponse.json(
+            { error: 'Too many requests. Please try again later.' },
+            { status: 429 }
+          )
+        }
+      } else if (!verification.success) {
+        logger.warn(`[${requestId}] Captcha verification failed`, {
+          ip,
+          errorCodes: verification.errorCodes,
+        })
+        return NextResponse.json(
+          { error: 'Captcha verification failed. Please try again.' },
+          { status: 400 }
+        )
+      }
+    }
+
     const validationResult = contactRequestSchema.safeParse(body)
 
     if (!validationResult.success) {
@@ -113,10 +183,7 @@ ${message}
       logger.warn(`[${requestId}] Failed to send contact confirmation email`, err)
     }
 
-    return NextResponse.json(
-      { success: true, message: "Thanks — we'll be in touch soon." },
-      { status: 201 }
-    )
+    return NextResponse.json(SUCCESS_RESPONSE, { status: 201 })
   } catch (error) {
     if (error instanceof Error && error.message.includes('not configured')) {
       logger.error(`[${requestId}] Email service configuration error`, error)
