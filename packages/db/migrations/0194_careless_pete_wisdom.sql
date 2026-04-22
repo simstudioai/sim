@@ -65,6 +65,14 @@ END $$;--> statement-breakpoint
 --     workspace-scoped shape. This DROP NOT NULL is a no-op if already nullable.
 ALTER TABLE "permission_group" ALTER COLUMN "organization_id" DROP NOT NULL;--> statement-breakpoint
 
+-- 1c. Drop the legacy global UNIQUE(user_id) on permission_group_member before cloning.
+--     The pre-0194 model allowed at most one permission-group membership per user globally;
+--     the new model allows one membership per user per workspace, enforced by the composite
+--     unique indexes created in step 7. Cloning a source member onto multiple workspaces
+--     (or even onto a single workspace while the source row still exists) would violate the
+--     legacy index, so we must drop it before step 4's INSERT.
+DROP INDEX IF EXISTS "permission_group_member_user_id_unique";--> statement-breakpoint
+
 -- 2. Materialize a plan of (source permission group, target workspace, new clone id)
 --    so we can insert the clone rows AND the member rows with stable references.
 --    Temp tables are always fresh per transaction, so this is naturally idempotent.
@@ -152,7 +160,7 @@ ALTER TABLE "permission_group_member" ALTER COLUMN "workspace_id" SET NOT NULL;-
 ALTER TABLE "permission_group" DROP CONSTRAINT IF EXISTS "permission_group_organization_id_organization_id_fk";--> statement-breakpoint
 DROP INDEX IF EXISTS "permission_group_org_name_unique";--> statement-breakpoint
 DROP INDEX IF EXISTS "permission_group_org_auto_add_unique";--> statement-breakpoint
-DROP INDEX IF EXISTS "permission_group_member_user_id_unique";--> statement-breakpoint
+-- permission_group_member_user_id_unique was dropped earlier in step 1c (before cloning).
 ALTER TABLE "permission_group" DROP COLUMN IF EXISTS "organization_id";--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "permission_group_workspace_name_unique" ON "permission_group" USING btree ("workspace_id","name");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "permission_group_workspace_auto_add_unique" ON "permission_group" USING btree ("workspace_id") WHERE auto_add_new_members = true;--> statement-breakpoint
