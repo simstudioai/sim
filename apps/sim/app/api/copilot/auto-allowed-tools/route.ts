@@ -2,6 +2,8 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -31,9 +33,15 @@ export const GET = withRouteHandler(async () => {
 
     const userId = session.user.id
 
-    const res = await fetch(
+    const res = await fetchGo(
       `${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed?userId=${encodeURIComponent(userId)}`,
-      { method: 'GET', headers: copilotHeaders() }
+      {
+        method: 'GET',
+        headers: copilotHeaders(),
+        spanName: 'sim → go /api/tool-preferences/auto-allowed',
+        operation: 'list_auto_allowed_tools',
+        attributes: { [TraceAttr.UserId]: userId },
+      }
     )
 
     if (!res.ok) {
@@ -67,10 +75,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'toolId must be a string' }, { status: 400 })
     }
 
-    const res = await fetch(`${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed`, {
+    const res = await fetchGo(`${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed`, {
       method: 'POST',
       headers: copilotHeaders(),
       body: JSON.stringify({ userId, toolId: body.toolId }),
+      spanName: 'sim → go /api/tool-preferences/auto-allowed',
+      operation: 'add_auto_allowed_tool',
+      attributes: { [TraceAttr.UserId]: userId, [TraceAttr.ToolId]: body.toolId },
     })
 
     if (!res.ok) {
@@ -108,9 +119,15 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'toolId query parameter is required' }, { status: 400 })
     }
 
-    const res = await fetch(
+    const res = await fetchGo(
       `${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed?userId=${encodeURIComponent(userId)}&toolId=${encodeURIComponent(toolId)}`,
-      { method: 'DELETE', headers: copilotHeaders() }
+      {
+        method: 'DELETE',
+        headers: copilotHeaders(),
+        spanName: 'sim → go /api/tool-preferences/auto-allowed',
+        operation: 'remove_auto_allowed_tool',
+        attributes: { [TraceAttr.UserId]: userId, [TraceAttr.ToolId]: toolId },
+      }
     )
 
     if (!res.ok) {

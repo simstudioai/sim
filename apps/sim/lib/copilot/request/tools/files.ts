@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { FunctionExecute, UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
+import { CopilotOutputFileOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
+import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
@@ -162,55 +167,80 @@ export async function maybeWriteOutputToFile(
   const explicitFormat =
     (params?.outputFormat as string | undefined) ?? (args?.outputFormat as string | undefined)
 
-  try {
-    const fileName = normalizeOutputWorkspaceFileName(outputPath)
-    const format = resolveOutputFormat(fileName, explicitFormat)
-    if (context.abortSignal?.aborted) {
-      throw new Error('Request aborted before tool mutation could be applied')
-    }
-    const content = serializeOutputForFile(result.output, format)
-    const contentType = FORMAT_TO_CONTENT_TYPE[format]
+  // Only span the actual write path (where we upload to storage). Fast
+  // no-op returns above don't need a span — they'd just pad the trace
+  // with empty work.
+  return withCopilotSpan(
+    TraceSpan.CopilotToolsWriteOutputFile,
+    {
+      [TraceAttr.ToolName]: toolName,
+      [TraceAttr.WorkspaceId]: context.workspaceId,
+    },
+    async (span) => {
+      try {
+        const fileName = normalizeOutputWorkspaceFileName(outputPath)
+        const format = resolveOutputFormat(fileName, explicitFormat)
+        span.setAttributes({
+          [TraceAttr.CopilotOutputFileName]: fileName,
+          [TraceAttr.CopilotOutputFileFormat]: format,
+        })
+        if (context.abortSignal?.aborted) {
+          throw new Error('Request aborted before tool mutation could be applied')
+        }
+        const content = serializeOutputForFile(result.output, format)
+        const contentType = FORMAT_TO_CONTENT_TYPE[format]
 
-    const buffer = Buffer.from(content, 'utf-8')
-    if (context.abortSignal?.aborted) {
-      throw new Error('Request aborted before tool mutation could be applied')
-    }
-    const uploaded = await uploadWorkspaceFile(
-      context.workspaceId,
-      context.userId,
-      buffer,
-      fileName,
-      contentType
-    )
+        const buffer = Buffer.from(content, 'utf-8')
+        span.setAttribute(TraceAttr.CopilotOutputFileBytes, buffer.length)
+        if (context.abortSignal?.aborted) {
+          throw new Error('Request aborted before tool mutation could be applied')
+        }
+        const uploaded = await uploadWorkspaceFile(
+          context.workspaceId!,
+          context.userId!,
+          buffer,
+          fileName,
+          contentType
+        )
+        span.setAttributes({
+          [TraceAttr.CopilotOutputFileId]: uploaded.id,
+          [TraceAttr.CopilotOutputFileOutcome]: CopilotOutputFileOutcome.Uploaded,
+        })
 
-    logger.info('Tool output written to file', {
-      toolName,
-      fileName,
-      size: buffer.length,
-      fileId: uploaded.id,
-    })
+        logger.info('Tool output written to file', {
+          toolName,
+          fileName,
+          size: buffer.length,
+          fileId: uploaded.id,
+        })
 
-    return {
-      success: true,
-      output: {
-        message: `Output written to files/${fileName} (${buffer.length} bytes)`,
-        fileId: uploaded.id,
-        fileName,
-        size: buffer.length,
-        downloadUrl: uploaded.url,
-      },
-      resources: [{ type: 'file', id: uploaded.id, title: fileName }],
+        return {
+          success: true,
+          output: {
+            message: `Output written to files/${fileName} (${buffer.length} bytes)`,
+            fileId: uploaded.id,
+            fileName,
+            size: buffer.length,
+            downloadUrl: uploaded.url,
+          },
+          resources: [{ type: 'file', id: uploaded.id, title: fileName }],
+        }
+      } catch (err) {
+        const message = toError(err).message
+        logger.warn('Failed to write tool output to file', {
+          toolName,
+          outputPath,
+          error: message,
+        })
+        span.setAttribute(TraceAttr.CopilotOutputFileOutcome, CopilotOutputFileOutcome.Failed)
+        span.addEvent(TraceEvent.CopilotOutputFileError, {
+          [TraceAttr.ErrorMessage]: message.slice(0, 500),
+        })
+        return {
+          success: false,
+          error: `Failed to write output file: ${message}`,
+        }
+      }
     }
-  } catch (err) {
-    const message = toError(err).message
-    logger.warn('Failed to write tool output to file', {
-      toolName,
-      outputPath,
-      error: message,
-    })
-    return {
-      success: false,
-      error: `Failed to write output file: ${message}`,
-    }
-  }
+  )
 }

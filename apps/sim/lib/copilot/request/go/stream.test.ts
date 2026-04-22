@@ -17,7 +17,7 @@ import {
   runStreamLoop,
 } from '@/lib/copilot/request/go/stream'
 import { createEvent } from '@/lib/copilot/request/session'
-import { TraceCollector } from '@/lib/copilot/request/trace'
+import { RequestTraceV1Outcome, TraceCollector } from '@/lib/copilot/request/trace'
 import type { ExecutionContext, StreamingContext } from '@/lib/copilot/request/types'
 
 function createSseResponse(events: unknown[]): Response {
@@ -280,5 +280,56 @@ describe('copilot go stream helpers', () => {
     expect(
       context.errors.some((message) => message.includes('Failed to parse SSE event JSON'))
     ).toBe(true)
+  })
+
+  it('records a split canonical request id and go trace id from the stream envelope', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      createSseResponse([
+        {
+          v: 1,
+          type: MothershipStreamV1EventType.text,
+          seq: 1,
+          ts: '2026-01-01T00:00:00.000Z',
+          stream: { streamId: 'stream-1', cursor: '1' },
+          trace: {
+            requestId: 'sim-request-1',
+            goTraceId: 'go-trace-1',
+          },
+          payload: {
+            channel: 'assistant',
+            text: 'hello',
+          },
+        },
+        createEvent({
+          streamId: 'stream-1',
+          cursor: '2',
+          seq: 2,
+          requestId: 'sim-request-1',
+          type: MothershipStreamV1EventType.complete,
+          payload: {
+            status: MothershipStreamV1CompletionStatus.complete,
+          },
+        }),
+      ])
+    )
+
+    const context = createStreamingContext()
+    context.requestId = 'sim-request-1'
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+
+    await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+      timeout: 1000,
+    })
+
+    expect(context.requestId).toBe('sim-request-1')
+    expect(
+      context.trace.build({
+        outcome: RequestTraceV1Outcome.success,
+        simRequestId: 'sim-request-1',
+      }).goTraceId
+    ).toBe('go-trace-1')
   })
 })

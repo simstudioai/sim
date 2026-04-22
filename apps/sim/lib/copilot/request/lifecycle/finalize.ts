@@ -1,3 +1,4 @@
+import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { updateRunStatus } from '@/lib/copilot/async-runs/repository'
@@ -5,30 +6,70 @@ import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import {
+  type RequestTraceV1Outcome,
+  RequestTraceV1Outcome as RequestTraceV1OutcomeConst,
+} from '@/lib/copilot/generated/request-trace-v1'
+import { CopilotFinalizeOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import type { StreamWriter } from '@/lib/copilot/request/session'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
 
 const logger = createLogger('CopilotStreamFinalize')
+const getTracer = () => trace.getTracer('sim-copilot-finalize', '1.0.0')
 
-/**
- * Single finalization path for stream results.
- * Handles abort / error / success and publishes the terminal event.
- * Replaces duplicated blocks in the old chat-streaming.ts.
- */
+// Single finalization path. `outcome` is the caller's resolved verdict
+// so we don't have to re-derive cancel vs error from raw signals.
 export async function finalizeStream(
   result: OrchestratorResult,
   publisher: StreamWriter,
   runId: string,
-  aborted: boolean,
+  outcome: RequestTraceV1Outcome,
   requestId: string
 ): Promise<void> {
-  if (aborted) {
-    return handleAborted(result, publisher, runId, requestId)
+  const spanOutcome =
+    outcome === RequestTraceV1OutcomeConst.cancelled
+      ? CopilotFinalizeOutcome.Aborted
+      : outcome === RequestTraceV1OutcomeConst.success
+        ? CopilotFinalizeOutcome.Success
+        : CopilotFinalizeOutcome.Error
+  const span = getTracer().startSpan(TraceSpan.CopilotFinalizeStream, {
+    attributes: {
+      [TraceAttr.CopilotFinalizeOutcome]: spanOutcome,
+      [TraceAttr.RunId]: runId,
+      [TraceAttr.RequestId]: requestId,
+      [TraceAttr.CopilotResultToolCalls]: result.toolCalls?.length ?? 0,
+      [TraceAttr.CopilotResultContentBlocks]: result.contentBlocks?.length ?? 0,
+      [TraceAttr.CopilotResultContentLength]: result.content?.length ?? 0,
+      [TraceAttr.CopilotPublisherSawComplete]: publisher.sawComplete,
+      [TraceAttr.CopilotPublisherClientDisconnected]: publisher.clientDisconnected,
+    },
+  })
+  try {
+    if (outcome === RequestTraceV1OutcomeConst.cancelled) {
+      await handleAborted(result, publisher, runId, requestId)
+    } else if (outcome === RequestTraceV1OutcomeConst.error) {
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: result.error || 'orchestration failed',
+      })
+      await handleError(result, publisher, runId, requestId)
+    } else {
+      await handleSuccess(publisher, runId, requestId)
+    }
+    // Successful + cancelled paths fall through as status-unset → set
+    // OK so dashboards don't show "incomplete" for normal terminals.
+    if (outcome !== RequestTraceV1OutcomeConst.error) {
+      span.setStatus({ code: SpanStatusCode.OK })
+    }
+  } catch (error) {
+    span.recordException(error instanceof Error ? error : new Error(String(error)))
+    span.setStatus({ code: SpanStatusCode.ERROR, message: 'finalize threw' })
+    throw error
+  } finally {
+    span.end()
   }
-  if (!result.success) {
-    return handleError(result, publisher, runId, requestId)
-  }
-  return handleSuccess(publisher, runId, requestId)
 }
 
 async function handleAborted(
