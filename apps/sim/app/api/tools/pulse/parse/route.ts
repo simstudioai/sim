@@ -7,6 +7,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
@@ -27,7 +28,7 @@ const PulseParseSchema = z.object({
   chunkSize: z.number().optional(),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -173,4 +174,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

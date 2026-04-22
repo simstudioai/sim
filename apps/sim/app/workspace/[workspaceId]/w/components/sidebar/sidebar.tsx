@@ -448,6 +448,7 @@ export const Sidebar = memo(function Sidebar() {
 
   const {
     workspaces,
+    workspaceCreationPolicy,
     activeWorkspace,
     isWorkspacesLoading,
     switchWorkspace,
@@ -1406,6 +1407,7 @@ export const Sidebar = memo(function Sidebar() {
                 activeWorkspace={activeWorkspace}
                 workspaceId={workspaceId}
                 workspaces={workspaces}
+                workspaceCreationPolicy={workspaceCreationPolicy}
                 isWorkspacesLoading={isWorkspacesLoading}
                 isCreatingWorkspace={isCreatingWorkspace}
                 isWorkspaceMenuOpen={isWorkspaceMenuOpen}

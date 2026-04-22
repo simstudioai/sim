@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UserSettingsAPI')
 
@@ -45,7 +46,7 @@ const defaultSettings = {
   lastActiveWorkspaceId: null,
 }
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   const requestId = generateRequestId()
 
   try {
@@ -87,9 +88,9 @@ export async function GET() {
     logger.error(`[${requestId}] Settings fetch error`, error)
     return NextResponse.json({ data: defaultSettings }, { status: 200 })
   }
-}
+})
 
-export async function PATCH(request: Request) {
+export const PATCH = withRouteHandler(async (request: Request) => {
   const requestId = generateRequestId()
 
   try {
@@ -141,4 +142,4 @@ export async function PATCH(request: Request) {
     logger.error(`[${requestId}] Settings update error`, error)
     return NextResponse.json({ success: true }, { status: 200 })
   }
-}
+})

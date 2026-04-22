@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   downloadWorkspaceFile,
   getWorkspaceFileByName,
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('FileManageAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!auth.success) {
     return NextResponse.json({ success: false, error: auth.error }, { status: 401 })
@@ -163,4 +164,4 @@ export async function POST(request: NextRequest) {
     logger.error('File operation failed', { operation, error: message })
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
-}
+})

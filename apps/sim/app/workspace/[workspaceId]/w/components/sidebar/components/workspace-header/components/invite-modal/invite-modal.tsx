@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
   type FileInputOptions,
@@ -27,6 +27,7 @@ import {
   useResendWorkspaceInvitation,
   useUpdateWorkspacePermissions,
 } from '@/hooks/queries/invitations'
+import { useOrganizationBilling } from '@/hooks/queries/organization'
 import type { PermissionType, UserPermissions } from './components/types'
 
 const logger = createLogger('InviteModal')
@@ -35,9 +36,18 @@ interface InviteModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workspaceName?: string
+  inviteDisabledReason?: string | null
+  organizationId?: string | null
 }
 
-export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalProps) {
+export function InviteModal({
+  open,
+  onOpenChange,
+  workspaceName,
+  inviteDisabledReason = null,
+  organizationId = null,
+}: InviteModalProps) {
+  const router = useRouter()
   const formRef = useRef<HTMLFormElement>(null)
   const [emailItems, setEmailItems] = useState<TagItem[]>([])
   const [userPermissions, setUserPermissions] = useState<UserPermissions[]>([])
@@ -70,6 +80,8 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
   const { data: pendingInvitations = [], isLoading: isPendingInvitationsLoading } =
     usePendingInvitations(open ? workspaceId : undefined)
 
+  const { data: organizationBillingData } = useOrganizationBilling(organizationId ?? '')
+
   const batchSendInvitations = useBatchSendWorkspaceInvitations()
   const cancelInvitation = useCancelWorkspaceInvitation()
   const resendInvitation = useResendWorkspaceInvitation()
@@ -79,6 +91,23 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
   const hasPendingChanges = Object.keys(existingUserPermissionChanges).length > 0
   const validEmails = emailItems.filter((item) => item.isValid).map((item) => item.value)
   const hasNewInvites = validEmails.length > 0
+  const canInviteMembers = userPerms.canAdmin && !inviteDisabledReason
+
+  const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
+  const usedSeats = organizationBillingData?.data?.usedSeats ?? 0
+  const availableSeats = Math.max(0, totalSeats - usedSeats)
+  const hasSeatData = !!organizationId && totalSeats > 0
+  const exceedsSeatCapacity =
+    hasSeatData && userPerms.canAdmin && validEmails.length > availableSeats
+  const isAtSeatCapacity = hasSeatData && userPerms.canAdmin && availableSeats === 0
+  const isOutOfSeats = exceedsSeatCapacity || isAtSeatCapacity
+  const seatLimitReason = hasSeatData
+    ? availableSeats === 0
+      ? `No available seats. Using ${usedSeats} of ${totalSeats}.`
+      : exceedsSeatCapacity
+        ? `Only ${availableSeats} seat${availableSeats === 1 ? '' : 's'} available.`
+        : null
+    : null
 
   const isSubmitting = batchSendInvitations.isPending
   const isSaving = updatePermissionsMutation.isPending
@@ -157,7 +186,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
 
   const fileInputOptions: FileInputOptions = useMemo(
     () => ({
-      enabled: userPerms.canAdmin,
+      enabled: canInviteMembers,
       accept: '.csv,.txt,text/csv,text/plain',
       extractValues: (text: string) => {
         const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
@@ -167,7 +196,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
       },
       tooltip: 'Upload emails',
     }),
-    [userPerms.canAdmin]
+    [canInviteMembers]
   )
 
   const handlePermissionChange = useCallback(
@@ -392,13 +421,24 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     [workspaceId, userPerms.canAdmin, resendCooldowns, resendingInvitationIds, resendInvitation]
   )
 
+  const handleUpgradeRedirect = useCallback(() => {
+    if (!workspaceId) return
+    onOpenChange(false)
+    router.push(`/workspace/${workspaceId}/settings/subscription`)
+  }, [onOpenChange, router, workspaceId])
+
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault()
 
       setErrorMessage(null)
 
-      if (validEmails.length === 0 || !workspaceId) {
+      if (isOutOfSeats) {
+        handleUpgradeRedirect()
+        return
+      }
+
+      if (!canInviteMembers || validEmails.length === 0 || !workspaceId) {
         return
       }
 
@@ -432,7 +472,15 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         }
       )
     },
-    [validEmails, workspaceId, userPermissions, batchSendInvitations]
+    [
+      canInviteMembers,
+      isOutOfSeats,
+      handleUpgradeRedirect,
+      validEmails,
+      workspaceId,
+      userPermissions,
+      batchSendInvitations,
+    ]
   )
 
   const resetState = useCallback(() => {
@@ -524,15 +572,21 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                   onRemove={removeEmailItem}
                   onInputChange={() => setErrorMessage(null)}
                   placeholder={
-                    !userPerms.canAdmin
-                      ? 'Only administrators can invite new members'
+                    !canInviteMembers
+                      ? inviteDisabledReason || 'Only administrators can invite new members'
                       : 'Enter emails'
                   }
                   placeholderWithTags='Add email'
-                  disabled={isSubmitting || !userPerms.canAdmin}
+                  disabled={isSubmitting || !canInviteMembers}
                   fileInputOptions={fileInputOptions}
                 />
               </div>
+              {inviteDisabledReason && (
+                <p className='mt-1 text-[var(--text-muted)] text-caption'>{inviteDisabledReason}</p>
+              )}
+              {isOutOfSeats && seatLimitReason && (
+                <p className='mt-1 text-[var(--text-muted)] text-caption'>{seatLimitReason}</p>
+              )}
               {errorMessage && (
                 <p className='mt-1 text-[var(--text-error)] text-caption'>{errorMessage}</p>
               )}
@@ -586,17 +640,32 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
             <Button
               type='button'
               variant='primary'
-              onClick={() => formRef.current?.requestSubmit()}
+              onClick={() => {
+                if (isOutOfSeats) {
+                  handleUpgradeRedirect()
+                  return
+                }
+                formRef.current?.requestSubmit()
+              }}
               disabled={
-                !userPerms.canAdmin || isSubmitting || isSaving || !workspaceId || !hasNewInvites
+                !userPerms.canAdmin ||
+                !!inviteDisabledReason ||
+                isSubmitting ||
+                isSaving ||
+                !workspaceId ||
+                (!isOutOfSeats && !hasNewInvites)
               }
               className='ml-auto'
             >
-              {!userPerms.canAdmin
-                ? 'Admin Access Required'
-                : isSubmitting
-                  ? 'Inviting...'
-                  : 'Invite'}
+              {inviteDisabledReason
+                ? 'Invites Disabled'
+                : !userPerms.canAdmin
+                  ? 'Admin Access Required'
+                  : isSubmitting
+                    ? 'Inviting...'
+                    : isOutOfSeats
+                      ? 'Upgrade to invite'
+                      : 'Invite'}
             </Button>
           </ModalFooter>
         </form>

@@ -47,6 +47,10 @@ export interface PostHogEventMap {
     company_size: string
   }
 
+  landing_contact_submitted: {
+    topic: string
+  }
+
   landing_prompt_submitted: Record<string, never>
 
   login_page_viewed: Record<string, never>
@@ -77,6 +81,8 @@ export interface PostHogEventMap {
   workspace_created: {
     workspace_id: string
     name: string
+    workspace_mode?: string
+    organization_id?: string | null
   }
 
   workspace_member_invited: {

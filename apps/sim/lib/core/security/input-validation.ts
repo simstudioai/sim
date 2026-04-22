@@ -857,7 +857,9 @@ export function validateAirtableId(
  * - GovCloud: us-gov-east-1, us-gov-west-1
  * - China: cn-north-1, cn-northwest-1
  * - Israel: il-central-1
- * - ISO partitions: us-iso-east-1, us-isob-east-1
+ * - ISO partitions: us-iso-east-1, us-iso-west-1, us-isob-east-1
+ * - Mexico: mx-central-1
+ * - EU Sovereign Cloud: eu-isoe-west-1
  *
  * @param value - The AWS region to validate
  * @param paramName - Name of the parameter for error messages
@@ -883,7 +885,7 @@ export function validateAwsRegion(
   }
 
   const awsRegionPattern =
-    /^(af|ap|ca|cn|eu|il|me|sa|us|us-gov|us-iso|us-isob)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
+    /^(eu-isoe|us-isob|us-iso|us-gov|af|ap|ca|cn|eu|il|me|mx|sa|us)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
 
   if (!awsRegionPattern.test(value)) {
     logger.warn('Invalid AWS region format', {
@@ -1155,23 +1157,40 @@ export function validatePaginationCursor(
   return { isValid: true, sanitized: value }
 }
 
+const CALLBACK_URL_SERVER_BASE = 'https://callback-url-validator.invalid'
+
 /**
  * Validates a callback URL to prevent open redirect attacks.
- * Accepts relative paths and absolute URLs matching the current origin.
+ *
+ * Accepts:
+ * - Same-origin relative references (e.g. `/workspace`, `/invite/abc?foo=bar`, `?q=1`)
+ * - Absolute URLs whose origin matches the current origin
+ *
+ * Rejects:
+ * - Cross-origin absolute URLs
+ * - Protocol-relative URLs (`//evil.com`) and backslash variants (`/\evil.com`,
+ *   `\\evil.com`), which browsers resolve to an external origin
+ * - Whitespace/control-character bypasses (`/\t/evil.com`, `/\n/evil.com`) — the
+ *   WHATWG URL parser strips these everywhere in the input, collapsing the value
+ *   to a protocol-relative reference
+ * - Userinfo smuggling (`https://trusted.com@evil.com`)
+ * - Opaque-origin schemes (`javascript:`, `data:`, `vbscript:`, etc.)
+ *
+ * Delegates parsing to `new URL()` so validation matches the browser's resolution
+ * when the value is later assigned to `window.location.href`. This mirrors the
+ * reference pattern from next-auth and follows the OWASP Unvalidated Redirects
+ * cheat sheet guidance to never validate URLs with string operations.
  *
  * @param url - The callback URL to validate
  * @returns true if the URL is safe to redirect to
  */
 export function validateCallbackUrl(url: string): boolean {
   try {
-    if (url.startsWith('/')) return true
+    if (typeof url !== 'string' || url.length === 0) return false
 
-    if (typeof window === 'undefined') return false
-
-    const currentOrigin = window.location.origin
-    if (url.startsWith(currentOrigin)) return true
-
-    return false
+    const base = typeof window === 'undefined' ? CALLBACK_URL_SERVER_BASE : window.location.origin
+    const parsed = new URL(url, base)
+    return parsed.origin === base
   } catch (error) {
     logger.error('Error validating callback URL:', { error, url })
     return false
@@ -1459,4 +1478,118 @@ export function isMicrosoftContentUrl(url: string): boolean {
   return MICROSOFT_CONTENT_SUFFIXES.some(
     (suffix) => hostname === suffix || hostname.endsWith(`.${suffix}`)
   )
+}
+
+const SERVICENOW_ALLOWED_HOST_SUFFIXES = [
+  '.service-now.com',
+  '.servicenow.com',
+  '.servicenowservices.com',
+] as const
+
+/**
+ * Validates a ServiceNow instance URL to prevent SSRF attacks.
+ *
+ * ServiceNow instances are SaaS endpoints hosted on ServiceNow-owned domains.
+ * Example valid formats:
+ * - https://acme.service-now.com (standard commercial instances)
+ * - https://acme.servicenow.com (newer commercial domain)
+ * - https://acme.servicenowservices.com (GovCloud/FedRAMP)
+ *
+ * This validator ensures the URL:
+ * - Is a valid HTTPS URL (reuses validateExternalUrl for IP/localhost/port checks)
+ * - Has a hostname ending in a trusted ServiceNow-owned domain suffix
+ *
+ * Note: Customers using the Custom URLs plugin to front their instance with a
+ * vanity CNAME (e.g. support.acme.com) will be rejected. Point the connector at
+ * the underlying `*.service-now.com` host instead.
+ *
+ * @param url - The instance URL to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ *
+ * @example
+ * ```typescript
+ * const result = validateServiceNowInstanceUrl(instanceUrl)
+ * if (!result.isValid) {
+ *   throw new Error(result.error)
+ * }
+ * ```
+ */
+export function validateServiceNowInstanceUrl(
+  url: string | null | undefined,
+  paramName = 'instanceUrl'
+): ValidationResult {
+  const urlResult = validateExternalUrl(url, paramName)
+  if (!urlResult.isValid) return urlResult
+
+  const hostname = new URL(url as string).hostname.toLowerCase()
+  const isAllowedHost = SERVICENOW_ALLOWED_HOST_SUFFIXES.some(
+    (suffix) => hostname === suffix.slice(1) || hostname.endsWith(suffix)
+  )
+
+  if (!isAllowedHost) {
+    logger.warn('ServiceNow instance URL hostname not on allowlist', {
+      paramName,
+      hostname: hostname.substring(0, 100),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be a ServiceNow-hosted domain (e.g., *.service-now.com, *.servicenow.com, or *.servicenowservices.com)`,
+    }
+  }
+
+  return { isValid: true, sanitized: url as string }
+}
+
+const WORKDAY_ALLOWED_HOST_SUFFIXES = ['.workday.com', '.myworkday.com'] as const
+
+/**
+ * Validates a Workday tenant URL to prevent SSRF attacks.
+ *
+ * Workday tenant URLs are SaaS endpoints hosted on Workday-owned domains.
+ * Example valid formats:
+ * - https://wd2-impl-services1.workday.com (implementation/sandbox tenants)
+ * - https://wd5-services1.workday.com (production)
+ * - https://wd5-services1.myworkday.com (production, customer-facing endpoint)
+ *
+ * This validator ensures the URL:
+ * - Is a valid HTTPS URL (reuses validateExternalUrl for IP/localhost/port checks)
+ * - Has a hostname ending in a trusted Workday-owned domain suffix
+ *
+ * @param url - The tenant URL to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ *
+ * @example
+ * ```typescript
+ * const result = validateWorkdayTenantUrl(tenantUrl)
+ * if (!result.isValid) {
+ *   throw new Error(result.error)
+ * }
+ * ```
+ */
+export function validateWorkdayTenantUrl(
+  url: string | null | undefined,
+  paramName = 'tenantUrl'
+): ValidationResult {
+  const urlResult = validateExternalUrl(url, paramName)
+  if (!urlResult.isValid) return urlResult
+
+  const hostname = new URL(url as string).hostname.toLowerCase()
+  const isAllowedHost = WORKDAY_ALLOWED_HOST_SUFFIXES.some(
+    (suffix) => hostname === suffix.slice(1) || hostname.endsWith(suffix)
+  )
+
+  if (!isAllowedHost) {
+    logger.warn('Workday tenant URL hostname not on allowlist', {
+      paramName,
+      hostname: hostname.substring(0, 100),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be a Workday-hosted domain (e.g., *.workday.com or *.myworkday.com)`,
+    }
+  }
+
+  return { isValid: true, sanitized: url as string }
 }

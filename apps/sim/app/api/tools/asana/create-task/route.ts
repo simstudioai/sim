@@ -3,12 +3,13 @@ import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('AsanaCreateTaskAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -128,4 +129,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

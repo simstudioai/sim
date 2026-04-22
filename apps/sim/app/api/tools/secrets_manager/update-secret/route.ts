@@ -3,6 +3,7 @@ import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createSecretsManagerClient, updateSecretValue } from '../utils'
 
 const logger = createLogger('SecretsManagerUpdateSecretAPI')
@@ -16,7 +17,7 @@ const UpdateSecretSchema = z.object({
   description: z.string().nullish(),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   const auth = await checkInternalAuth(request)
@@ -67,4 +68,4 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: `Failed to update secret: ${errorMessage}` }, { status: 500 })
   }
-}
+})

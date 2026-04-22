@@ -15,6 +15,7 @@ import { getSession } from '@/lib/auth'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -280,7 +281,7 @@ async function testSlack(
   }
 }
 
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -337,4 +338,4 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     logger.error('Error testing notification', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

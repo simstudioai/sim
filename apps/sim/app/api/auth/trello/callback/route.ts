@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   const baseUrl = getBaseUrl()
 
   return new NextResponse(
@@ -132,4 +133,4 @@ export async function GET() {
       },
     }
   )
-}
+})

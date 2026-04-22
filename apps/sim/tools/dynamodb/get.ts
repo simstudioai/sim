@@ -5,7 +5,7 @@ export const getTool: ToolConfig<DynamoDBGetParams, DynamoDBGetResponse> = {
   id: 'dynamodb_get',
   name: 'DynamoDB Get',
   description: 'Get an item from a DynamoDB table by primary key',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {
@@ -33,7 +33,7 @@ export const getTool: ToolConfig<DynamoDBGetParams, DynamoDBGetResponse> = {
       description: 'DynamoDB table name (e.g., "Users", "Orders")',
     },
     key: {
-      type: 'object',
+      type: 'json',
       required: true,
       visibility: 'user-or-llm',
       description:
@@ -82,6 +82,6 @@ export const getTool: ToolConfig<DynamoDBGetParams, DynamoDBGetResponse> = {
 
   outputs: {
     message: { type: 'string', description: 'Operation status message' },
-    item: { type: 'object', description: 'Retrieved item' },
+    item: { type: 'json', description: 'Retrieved item', optional: true },
   },
 }

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { refreshAccessTokenIfNeeded, ServiceAccountTokenError } from '@/app/api/auth/oauth/utils'
 
@@ -9,7 +10,7 @@ const logger = createLogger('GoogleBigQueryTablesAPI')
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: Request) => {
   const requestId = generateRequestId()
   try {
     const body = await request.json()
@@ -97,4 +98,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
+})

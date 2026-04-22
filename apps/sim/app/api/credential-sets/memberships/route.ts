@@ -6,11 +6,12 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 
 const logger = createLogger('CredentialSetMemberships')
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   const session = await getSession()
 
   if (!session?.user?.id) {
@@ -40,13 +41,13 @@ export async function GET() {
     logger.error('Error fetching credential set memberships', error)
     return NextResponse.json({ error: 'Failed to fetch memberships' }, { status: 500 })
   }
-}
+})
 
 /**
  * Leave a credential set (self-revocation).
  * Sets status to 'revoked' immediately (blocks execution), then syncs webhooks to clean up.
  */
-export async function DELETE(req: NextRequest) {
+export const DELETE = withRouteHandler(async (req: NextRequest) => {
   const session = await getSession()
 
   if (!session?.user?.id) {
@@ -126,4 +127,4 @@ export async function DELETE(req: NextRequest) {
     logger.error('Error leaving credential set', error)
     return NextResponse.json({ error: message }, { status: 500 })
   }
-}
+})

@@ -7,6 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData } from '@/lib/table'
 import { deleteRow, updateRow } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
@@ -31,7 +32,7 @@ interface RowRouteParams {
 }
 
 /** GET /api/table/[tableId]/rows/[rowId] - Retrieves a single row. */
-export async function GET(request: NextRequest, { params }: RowRouteParams) {
+export const GET = withRouteHandler(async (request: NextRequest, { params }: RowRouteParams) => {
   const requestId = generateRequestId()
   const { tableId, rowId } = await params
 
@@ -104,10 +105,10 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
     logger.error(`[${requestId}] Error getting row:`, error)
     return NextResponse.json({ error: 'Failed to get row' }, { status: 500 })
   }
-}
+})
 
 /** PATCH /api/table/[tableId]/rows/[rowId] - Updates a single row (supports partial updates). */
-export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
+export const PATCH = withRouteHandler(async (request: NextRequest, { params }: RowRouteParams) => {
   const requestId = generateRequestId()
   const { tableId, rowId } = await params
 
@@ -192,10 +193,10 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
     logger.error(`[${requestId}] Error updating row:`, error)
     return NextResponse.json({ error: 'Failed to update row' }, { status: 500 })
   }
-}
+})
 
 /** DELETE /api/table/[tableId]/rows/[rowId] - Deletes a single row. */
-export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
+export const DELETE = withRouteHandler(async (request: NextRequest, { params }: RowRouteParams) => {
   const requestId = generateRequestId()
   const { tableId, rowId } = await params
 
@@ -249,4 +250,4 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
     logger.error(`[${requestId}] Error deleting row:`, error)
     return NextResponse.json({ error: 'Failed to delete row' }, { status: 500 })
   }
-}
+})

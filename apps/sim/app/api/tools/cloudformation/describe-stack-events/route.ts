@@ -7,6 +7,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CloudFormationDescribeStackEvents')
 
@@ -21,7 +22,7 @@ const DescribeStackEventsSchema = z.object({
   ),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -81,4 +82,4 @@ export async function POST(request: NextRequest) {
     logger.error('DescribeStackEvents failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
-}
+})

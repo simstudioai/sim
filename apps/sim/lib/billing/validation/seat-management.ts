@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { invitation, member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq } from 'drizzle-orm'
+import { and, count, eq, gt, ne } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
@@ -28,12 +28,14 @@ interface OrganizationSeatInfo {
   canAddSeats: boolean
 }
 
-/**
- * Validate if an organization can invite new members based on seat limits
- */
+interface ValidateSeatOptions {
+  excludePendingInvitationId?: string
+}
+
 export async function validateSeatAvailability(
   organizationId: string,
-  additionalSeats = 1
+  additionalSeats = 1,
+  options: ValidateSeatOptions = {}
 ): Promise<SeatValidationResult> {
   try {
     if (!isBillingEnabled) {
@@ -72,18 +74,27 @@ export async function validateSeatAvailability(
       }
     }
 
-    // Get current member count
-    const memberCount = await db
+    const [memberCount] = await db
       .select({ count: count() })
       .from(member)
       .where(eq(member.organizationId, organizationId))
 
-    const currentSeats = memberCount[0]?.count || 0
+    const pendingFilters = [
+      eq(invitation.organizationId, organizationId),
+      eq(invitation.status, 'pending'),
+      gt(invitation.expiresAt, new Date()),
+    ]
+    if (options.excludePendingInvitationId) {
+      pendingFilters.push(ne(invitation.id, options.excludePendingInvitationId))
+    }
+    const [pendingCount] = await db
+      .select({ count: count() })
+      .from(invitation)
+      .where(and(...pendingFilters))
 
-    // Team: seats from the `seats` column (Stripe quantity).
-    // Enterprise: seats from metadata.seats (column is always 1).
+    const currentSeats = (memberCount?.count ?? 0) + (pendingCount?.count ?? 0)
+
     const maxSeats = getEffectiveSeats(subscription)
-
     const availableSeats = Math.max(0, maxSeats - currentSeats)
     const canInvite = availableSeats >= additionalSeats
 
@@ -141,18 +152,41 @@ export async function getOrganizationSeatInfo(
       return null
     }
 
+    const [memberCountRow] = await db
+      .select({ count: count() })
+      .from(member)
+      .where(eq(member.organizationId, organizationId))
+
+    const [pendingCountRow] = await db
+      .select({ count: count() })
+      .from(invitation)
+      .where(
+        and(
+          eq(invitation.organizationId, organizationId),
+          eq(invitation.status, 'pending'),
+          gt(invitation.expiresAt, new Date())
+        )
+      )
+
+    const currentSeats = (memberCountRow?.count ?? 0) + (pendingCountRow?.count ?? 0)
+
+    if (!isBillingEnabled) {
+      return {
+        organizationId,
+        organizationName: organizationData[0].name,
+        currentSeats,
+        maxSeats: Number.MAX_SAFE_INTEGER,
+        availableSeats: Number.MAX_SAFE_INTEGER,
+        subscriptionPlan: 'billing_disabled',
+        canAddSeats: false,
+      }
+    }
+
     const subscription = await getOrganizationSubscription(organizationId)
 
     if (!subscription) {
       return null
     }
-
-    const memberCount = await db
-      .select({ count: count() })
-      .from(member)
-      .where(eq(member.organizationId, organizationId))
-
-    const currentSeats = memberCount[0]?.count || 0
 
     const maxSeats = getEffectiveSeats(subscription)
 
@@ -209,7 +243,13 @@ export async function validateBulkInvitations(
     const pendingInvitations = await db
       .select({ email: invitation.email })
       .from(invitation)
-      .where(and(eq(invitation.organizationId, organizationId), eq(invitation.status, 'pending')))
+      .where(
+        and(
+          eq(invitation.organizationId, organizationId),
+          eq(invitation.status, 'pending'),
+          gt(invitation.expiresAt, new Date())
+        )
+      )
 
     const pendingEmails = pendingInvitations.map((i) => i.email)
     const finalEmailsToInvite = newEmails.filter((email) => !pendingEmails.includes(email))

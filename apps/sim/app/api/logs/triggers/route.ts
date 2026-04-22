@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('TriggersAPI')
 
@@ -21,7 +22,7 @@ const QueryParamsSchema = z.object({
  * Returns unique trigger types from workflow execution logs
  * Only includes integration triggers (excludes core types: api, manual, webhook, chat, schedule)
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -82,4 +83,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Failed to fetch triggers`, { error: err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

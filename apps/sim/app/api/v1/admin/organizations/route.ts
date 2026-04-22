@@ -24,8 +24,13 @@
 import { db } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
 import { count, eq } from 'drizzle-orm'
+import {
+  createOrganizationWithOwner,
+  OrganizationSlugInvalidError,
+  OrganizationSlugTakenError,
+} from '@/lib/billing/organizations/create-organization'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -43,112 +48,110 @@ import {
 
 const logger = createLogger('AdminOrganizationsAPI')
 
-export const GET = withAdminAuth(async (request) => {
-  const url = new URL(request.url)
-  const { limit, offset } = parsePaginationParams(url)
+export const GET = withRouteHandler(
+  withAdminAuth(async (request) => {
+    const url = new URL(request.url)
+    const { limit, offset } = parsePaginationParams(url)
 
-  try {
-    const [countResult, organizations] = await Promise.all([
-      db.select({ total: count() }).from(organization),
-      db.select().from(organization).orderBy(organization.name).limit(limit).offset(offset),
-    ])
+    try {
+      const [countResult, organizations] = await Promise.all([
+        db.select({ total: count() }).from(organization),
+        db.select().from(organization).orderBy(organization.name).limit(limit).offset(offset),
+      ])
 
-    const total = countResult[0].total
-    const data: AdminOrganization[] = organizations.map(toAdminOrganization)
-    const pagination = createPaginationMeta(total, limit, offset)
+      const total = countResult[0].total
+      const data: AdminOrganization[] = organizations.map(toAdminOrganization)
+      const pagination = createPaginationMeta(total, limit, offset)
 
-    logger.info(`Admin API: Listed ${data.length} organizations (total: ${total})`)
+      logger.info(`Admin API: Listed ${data.length} organizations (total: ${total})`)
 
-    return listResponse(data, pagination)
-  } catch (error) {
-    logger.error('Admin API: Failed to list organizations', { error })
-    return internalErrorResponse('Failed to list organizations')
-  }
-})
-
-export const POST = withAdminAuth(async (request) => {
-  try {
-    const body = await request.json()
-
-    if (!body.name || typeof body.name !== 'string' || body.name.trim().length === 0) {
-      return badRequestResponse('name is required')
+      return listResponse(data, pagination)
+    } catch (error) {
+      logger.error('Admin API: Failed to list organizations', { error })
+      return internalErrorResponse('Failed to list organizations')
     }
+  })
+)
 
-    if (!body.ownerId || typeof body.ownerId !== 'string') {
-      return badRequestResponse('ownerId is required')
-    }
+export const POST = withRouteHandler(
+  withAdminAuth(async (request) => {
+    try {
+      const body = await request.json()
 
-    const [ownerData] = await db
-      .select({ id: user.id, name: user.name })
-      .from(user)
-      .where(eq(user.id, body.ownerId))
-      .limit(1)
+      if (!body.name || typeof body.name !== 'string' || body.name.trim().length === 0) {
+        return badRequestResponse('name is required')
+      }
 
-    if (!ownerData) {
-      return notFoundResponse('Owner user')
-    }
+      if (!body.ownerId || typeof body.ownerId !== 'string') {
+        return badRequestResponse('ownerId is required')
+      }
 
-    const [existingMembership] = await db
-      .select({ organizationId: member.organizationId })
-      .from(member)
-      .where(eq(member.userId, body.ownerId))
-      .limit(1)
+      const [ownerData] = await db
+        .select({ id: user.id, name: user.name })
+        .from(user)
+        .where(eq(user.id, body.ownerId))
+        .limit(1)
 
-    if (existingMembership) {
-      return badRequestResponse(
-        'User is already a member of another organization. Users can only belong to one organization at a time.'
-      )
-    }
+      if (!ownerData) {
+        return notFoundResponse('Owner user')
+      }
 
-    const name = body.name.trim()
-    const slug =
-      body.slug?.trim() ||
-      name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '')
+      const [existingMembership] = await db
+        .select({ organizationId: member.organizationId })
+        .from(member)
+        .where(eq(member.userId, body.ownerId))
+        .limit(1)
 
-    const organizationId = generateId()
-    const memberId = generateId()
-    const now = new Date()
+      if (existingMembership) {
+        return badRequestResponse(
+          'User is already a member of another organization. Users can only belong to one organization at a time.'
+        )
+      }
 
-    await db.transaction(async (tx) => {
-      await tx.insert(organization).values({
-        id: organizationId,
+      const name = body.name.trim()
+      const slug =
+        body.slug?.trim() ||
+        name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '')
+
+      const { organizationId, memberId } = await createOrganizationWithOwner({
+        ownerUserId: body.ownerId,
         name,
         slug,
-        createdAt: now,
-        updatedAt: now,
       })
 
-      await tx.insert(member).values({
-        id: memberId,
-        userId: body.ownerId,
-        organizationId,
-        role: 'owner',
-        createdAt: now,
+      const [createdOrg] = await db
+        .select()
+        .from(organization)
+        .where(eq(organization.id, organizationId))
+        .limit(1)
+
+      logger.info(`Admin API: Created organization ${organizationId}`, {
+        name,
+        slug,
+        ownerId: body.ownerId,
+        memberId,
       })
-    })
 
-    const [createdOrg] = await db
-      .select()
-      .from(organization)
-      .where(eq(organization.id, organizationId))
-      .limit(1)
+      return singleResponse({
+        ...toAdminOrganization(createdOrg),
+        memberId,
+      })
+    } catch (error) {
+      if (error instanceof OrganizationSlugInvalidError) {
+        return badRequestResponse(
+          'Organization slug can only contain lowercase letters, numbers, hyphens, and underscores.'
+        )
+      }
 
-    logger.info(`Admin API: Created organization ${organizationId}`, {
-      name,
-      slug,
-      ownerId: body.ownerId,
-      memberId,
-    })
+      if (error instanceof OrganizationSlugTakenError) {
+        return badRequestResponse('This slug is already taken')
+      }
 
-    return singleResponse({
-      ...toAdminOrganization(createdOrg),
-      memberId,
-    })
-  } catch (error) {
-    logger.error('Admin API: Failed to create organization', { error })
-    return internalErrorResponse('Failed to create organization')
-  }
-})
+      logger.error('Admin API: Failed to create organization', { error })
+      return internalErrorResponse('Failed to create organization')
+    }
+  })
+)

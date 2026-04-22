@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { refreshAccessTokenIfNeeded, ServiceAccountTokenError } from '@/app/api/auth/oauth/utils'
 
@@ -17,7 +18,7 @@ export const dynamic = 'force-dynamic'
  * @param request - Incoming request containing `credential`, `workflowId`, and `projectId` in the JSON body
  * @returns JSON response with a `datasets` array, each entry containing `datasetReference` and optional `friendlyName`
  */
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: Request) => {
   const requestId = generateRequestId()
   try {
     const body = await request.json()
@@ -103,4 +104,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
+})

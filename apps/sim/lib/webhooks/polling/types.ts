@@ -1,3 +1,4 @@
+import type { webhook, workflow } from '@sim/db/schema'
 import type { Logger } from '@sim/logger'
 
 /** Summary returned after polling all webhooks for a provider. */
@@ -15,25 +16,8 @@ export interface PollWebhookContext {
   logger: Logger
 }
 
-/** DB row shape for the webhook table. */
-export interface WebhookRecord {
-  id: string
-  path: string
-  provider: string | null
-  blockId: string | null
-  providerConfig: unknown
-  credentialSetId: string | null
-  workflowId: string
-  [key: string]: unknown
-}
-
-/** DB row shape for the workflow table. */
-export interface WorkflowRecord {
-  id: string
-  userId: string
-  workspaceId: string
-  [key: string]: unknown
-}
+export type WebhookRecord = typeof webhook.$inferSelect
+export type WorkflowRecord = typeof workflow.$inferSelect
 
 /**
  * Strategy interface for provider-specific polling behavior.

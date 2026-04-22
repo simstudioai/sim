@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
 
 const logger = createLogger('OpenRouterModelsAPI')
@@ -29,7 +30,7 @@ export interface OpenRouterModelInfo {
   }
 }
 
-export async function GET(_request: NextRequest) {
+export const GET = withRouteHandler(async (_request: NextRequest) => {
   if (isProviderBlacklisted('openrouter')) {
     logger.info('OpenRouter provider is blacklisted, returning empty models')
     return NextResponse.json({ models: [], modelInfo: {} })
@@ -93,4 +94,4 @@ export async function GET(_request: NextRequest) {
     })
     return NextResponse.json({ models: [], modelInfo: {} })
   }
-}
+})

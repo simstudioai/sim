@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('TeamsSubscriptionRenewal')
@@ -33,7 +34,7 @@ async function getCredentialOwner(
  * Teams subscriptions expire after ~3 days and must be renewed.
  * Configured in helm/sim/values.yaml under cronjobs.jobs.renewSubscriptions
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const authError = verifyCronAuth(request, 'Teams subscription renewal')
     if (authError) {
@@ -183,4 +184,4 @@ export async function GET(request: NextRequest) {
     logger.error('Error in Teams subscription renewal job:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

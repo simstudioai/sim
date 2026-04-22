@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
+import { createLogger, runWithRequestContext } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { task } from '@trigger.dev/sdk'
@@ -144,30 +144,32 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
   const executionId = correlation.executionId
   const requestId = correlation.requestId
 
-  logger.info(`[${requestId}] Starting webhook execution`, {
-    webhookId: payload.webhookId,
-    workflowId: payload.workflowId,
-    provider: payload.provider,
-    userId: payload.userId,
-    executionId,
+  return runWithRequestContext({ requestId }, async () => {
+    logger.info(`[${requestId}] Starting webhook execution`, {
+      webhookId: payload.webhookId,
+      workflowId: payload.workflowId,
+      provider: payload.provider,
+      userId: payload.userId,
+      executionId,
+    })
+
+    const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
+      payload.webhookId,
+      payload.headers,
+      payload.body,
+      payload.provider
+    )
+
+    const runOperation = async () => {
+      return await executeWebhookJobInternal(payload, correlation)
+    }
+
+    return await webhookIdempotency.executeWithIdempotency(
+      payload.provider,
+      idempotencyKey,
+      runOperation
+    )
   })
-
-  const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
-    payload.webhookId,
-    payload.headers,
-    payload.body,
-    payload.provider
-  )
-
-  const runOperation = async () => {
-    return await executeWebhookJobInternal(payload, correlation)
-  }
-
-  return await webhookIdempotency.executeWithIdempotency(
-    payload.provider,
-    idempotencyKey,
-    runOperation
-  )
 }
 
 export async function resolveWebhookExecutionProviderConfig<

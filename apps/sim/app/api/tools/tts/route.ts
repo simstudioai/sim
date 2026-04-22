@@ -5,11 +5,12 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { StorageService } from '@/lib/uploads'
 
 const logger = createLogger('ProxyTTSAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success) {
@@ -142,4 +143,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

@@ -44,6 +44,12 @@ export const assumeRoleTool: ToolConfig<STSAssumeRoleParams, STSAssumeRoleRespon
       visibility: 'user-or-llm',
       description: 'Duration of the session in seconds (900-43200, default 3600)',
     },
+    policy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON IAM policy to further restrict session permissions (max 2048 chars)',
+    },
     externalId: {
       type: 'string',
       required: false,
@@ -75,6 +81,7 @@ export const assumeRoleTool: ToolConfig<STSAssumeRoleParams, STSAssumeRoleRespon
       roleArn: params.roleArn,
       roleSessionName: params.roleSessionName,
       durationSeconds: params.durationSeconds,
+      policy: params.policy,
       externalId: params.externalId,
       serialNumber: params.serialNumber,
       tokenCode: params.tokenCode,
@@ -98,6 +105,7 @@ export const assumeRoleTool: ToolConfig<STSAssumeRoleParams, STSAssumeRoleRespon
         assumedRoleArn: data.assumedRoleArn ?? '',
         assumedRoleId: data.assumedRoleId ?? '',
         packedPolicySize: data.packedPolicySize ?? null,
+        sourceIdentity: data.sourceIdentity ?? null,
       },
     }
   },
@@ -106,12 +114,17 @@ export const assumeRoleTool: ToolConfig<STSAssumeRoleParams, STSAssumeRoleRespon
     accessKeyId: { type: 'string', description: 'Temporary access key ID' },
     secretAccessKey: { type: 'string', description: 'Temporary secret access key' },
     sessionToken: { type: 'string', description: 'Temporary session token' },
-    expiration: { type: 'string', description: 'Credential expiration timestamp' },
+    expiration: { type: 'string', description: 'Credential expiration timestamp', optional: true },
     assumedRoleArn: { type: 'string', description: 'ARN of the assumed role' },
     assumedRoleId: { type: 'string', description: 'Assumed role ID with session name' },
     packedPolicySize: {
       type: 'number',
       description: 'Percentage of allowed policy size used',
+      optional: true,
+    },
+    sourceIdentity: {
+      type: 'string',
+      description: 'Source identity set on the role session, if any',
       optional: true,
     },
   },

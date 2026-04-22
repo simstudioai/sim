@@ -17,6 +17,7 @@ import { workflowBlocks, workflowEdges } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { performDeleteWorkflow } from '@/lib/workflows/orchestration'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -33,69 +34,73 @@ interface RouteParams {
   id: string
 }
 
-export const GET = withAdminAuthParams<RouteParams>(async (request, context) => {
-  const { id: workflowId } = await context.params
+export const GET = withRouteHandler(
+  withAdminAuthParams<RouteParams>(async (request, context) => {
+    const { id: workflowId } = await context.params
 
-  try {
-    const workflowData = await getActiveWorkflowRecord(workflowId)
+    try {
+      const workflowData = await getActiveWorkflowRecord(workflowId)
 
-    if (!workflowData) {
-      return notFoundResponse('Workflow')
+      if (!workflowData) {
+        return notFoundResponse('Workflow')
+      }
+
+      const [blockCountResult, edgeCountResult] = await Promise.all([
+        db
+          .select({ count: count() })
+          .from(workflowBlocks)
+          .where(eq(workflowBlocks.workflowId, workflowId)),
+        db
+          .select({ count: count() })
+          .from(workflowEdges)
+          .where(eq(workflowEdges.workflowId, workflowId)),
+      ])
+
+      const data: AdminWorkflowDetail = {
+        ...toAdminWorkflow(workflowData),
+        blockCount: blockCountResult[0].count,
+        edgeCount: edgeCountResult[0].count,
+      }
+
+      logger.info(`Admin API: Retrieved workflow ${workflowId}`)
+
+      return singleResponse(data)
+    } catch (error) {
+      logger.error('Admin API: Failed to get workflow', { error, workflowId })
+      return internalErrorResponse('Failed to get workflow')
     }
+  })
+)
 
-    const [blockCountResult, edgeCountResult] = await Promise.all([
-      db
-        .select({ count: count() })
-        .from(workflowBlocks)
-        .where(eq(workflowBlocks.workflowId, workflowId)),
-      db
-        .select({ count: count() })
-        .from(workflowEdges)
-        .where(eq(workflowEdges.workflowId, workflowId)),
-    ])
+export const DELETE = withRouteHandler(
+  withAdminAuthParams<RouteParams>(async (_request, context) => {
+    const { id: workflowId } = await context.params
 
-    const data: AdminWorkflowDetail = {
-      ...toAdminWorkflow(workflowData),
-      blockCount: blockCountResult[0].count,
-      edgeCount: edgeCountResult[0].count,
+    try {
+      const workflowData = await getActiveWorkflowRecord(workflowId)
+
+      if (!workflowData) {
+        return notFoundResponse('Workflow')
+      }
+
+      const result = await performDeleteWorkflow({
+        workflowId,
+        userId: workflowData.userId,
+        skipLastWorkflowGuard: true,
+        requestId: `admin-workflow-${workflowId}`,
+        actorId: 'admin-api',
+      })
+
+      if (!result.success) {
+        return internalErrorResponse(result.error || 'Failed to delete workflow')
+      }
+
+      logger.info(`Admin API: Deleted workflow ${workflowId} (${workflowData.name})`)
+
+      return NextResponse.json({ success: true, workflowId })
+    } catch (error) {
+      logger.error('Admin API: Failed to delete workflow', { error, workflowId })
+      return internalErrorResponse('Failed to delete workflow')
     }
-
-    logger.info(`Admin API: Retrieved workflow ${workflowId}`)
-
-    return singleResponse(data)
-  } catch (error) {
-    logger.error('Admin API: Failed to get workflow', { error, workflowId })
-    return internalErrorResponse('Failed to get workflow')
-  }
-})
-
-export const DELETE = withAdminAuthParams<RouteParams>(async (_request, context) => {
-  const { id: workflowId } = await context.params
-
-  try {
-    const workflowData = await getActiveWorkflowRecord(workflowId)
-
-    if (!workflowData) {
-      return notFoundResponse('Workflow')
-    }
-
-    const result = await performDeleteWorkflow({
-      workflowId,
-      userId: workflowData.userId,
-      skipLastWorkflowGuard: true,
-      requestId: `admin-workflow-${workflowId}`,
-      actorId: 'admin-api',
-    })
-
-    if (!result.success) {
-      return internalErrorResponse(result.error || 'Failed to delete workflow')
-    }
-
-    logger.info(`Admin API: Deleted workflow ${workflowId} (${workflowData.name})`)
-
-    return NextResponse.json({ success: true, workflowId })
-  } catch (error) {
-    logger.error('Admin API: Failed to delete workflow', { error, workflowId })
-    return internalErrorResponse('Failed to delete workflow')
-  }
-})
+  })
+)

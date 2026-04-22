@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { EmailType } from '@/lib/messaging/email/mailer'
 import {
   getEmailPreferences,
@@ -19,7 +20,7 @@ const unsubscribeSchema = z.object({
   type: z.enum(['all', 'marketing', 'updates', 'notifications']).optional().default('all'),
 })
 
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -59,9 +60,9 @@ export async function GET(req: NextRequest) {
     logger.error(`[${requestId}] Error processing unsubscribe GET request:`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -160,4 +161,4 @@ export async function POST(req: NextRequest) {
     logger.error(`[${requestId}] Error processing unsubscribe POST request:`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

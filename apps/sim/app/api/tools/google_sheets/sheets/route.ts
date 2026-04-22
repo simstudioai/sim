@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { refreshAccessTokenIfNeeded, ServiceAccountTokenError } from '@/app/api/auth/oauth/utils'
 
@@ -27,7 +28,7 @@ interface SpreadsheetResponse {
 /**
  * Get sheets (tabs) from a Google Spreadsheet
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Google Sheets sheets request received`)
 
@@ -125,4 +126,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching Google Sheets sheets`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

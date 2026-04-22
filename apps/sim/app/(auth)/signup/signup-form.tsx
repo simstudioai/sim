@@ -10,6 +10,7 @@ import { usePostHog } from 'posthog-js/react'
 import { Input, Label } from '@/components/emcn'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
+import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureClientEvent, captureEvent } from '@/lib/posthog/client'
@@ -102,10 +103,14 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
   useEffect(() => {
     setTurnstileSiteKey(getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'))
   }, [])
-  const redirectUrl = useMemo(
-    () => searchParams.get('redirect') || searchParams.get('callbackUrl') || '',
-    [searchParams]
-  )
+  const rawRedirectUrl = searchParams.get('redirect') || searchParams.get('callbackUrl') || ''
+  const isValidRedirectUrl = rawRedirectUrl ? validateCallbackUrl(rawRedirectUrl) : false
+  const invalidCallbackRef = useRef(false)
+  if (rawRedirectUrl && !isValidRedirectUrl && !invalidCallbackRef.current) {
+    invalidCallbackRef.current = true
+    logger.warn('Invalid callback URL detected and blocked:', { url: rawRedirectUrl })
+  }
+  const redirectUrl = isValidRedirectUrl ? rawRedirectUrl : ''
   const isInviteFlow = useMemo(
     () =>
       searchParams.get('invite_flow') === 'true' ||

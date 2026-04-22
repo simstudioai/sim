@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { organizationKeys } from '@/hooks/queries/organization'
+import { workspaceKeys } from '@/hooks/queries/workspace'
 
 /**
  * Shape of the usage object returned from the billing API (user context)
@@ -270,6 +271,7 @@ export function useUpgradeSubscription() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
 
       if (variables.orgId) {
         queryClient.invalidateQueries({

@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UpdateUserProfileAPI')
 
@@ -34,7 +35,7 @@ interface UpdateData {
 
 export const dynamic = 'force-dynamic'
 
-export async function PATCH(request: NextRequest) {
+export const PATCH = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -92,10 +93,10 @@ export async function PATCH(request: NextRequest) {
     logger.error(`[${requestId}] Profile update error`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 // GET endpoint to fetch current user profile
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   const requestId = generateRequestId()
 
   try {
@@ -131,4 +132,4 @@ export async function GET() {
     logger.error(`[${requestId}] Profile fetch error`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

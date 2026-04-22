@@ -11,6 +11,7 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CopilotFeedbackAPI')
@@ -29,7 +30,7 @@ const FeedbackSchema = z.object({
  * POST /api/copilot/feedback
  * Submit feedback for a copilot interaction
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const tracker = createRequestTracker()
 
   try {
@@ -113,13 +114,13 @@ export async function POST(req: NextRequest) {
 
     return createInternalServerErrorResponse('Failed to submit feedback')
   }
-}
+})
 
 /**
  * GET /api/copilot/feedback
  * Get feedback records for the authenticated user
  */
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   const tracker = createRequestTracker()
 
   try {
@@ -161,4 +162,4 @@ export async function GET(req: NextRequest) {
     logger.error(`[${tracker.requestId}] Error retrieving copilot feedback:`, error)
     return createInternalServerErrorResponse('Failed to retrieve feedback')
   }
-}
+})

@@ -11,12 +11,21 @@ import {
 import { createAuthClient } from 'better-auth/react'
 import type { auth } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled, isOrganizationsEnabled } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { SessionContext, type SessionHookResult } from '@/app/_shell/providers/session-provider'
 
+function getAuthBaseUrl(): string {
+  try {
+    return getBaseUrl()
+  } catch (e) {
+    if (typeof window !== 'undefined') return window.location.origin
+    throw e
+  }
+}
+
 export const client = createAuthClient({
-  baseURL: getBaseUrl(),
+  baseURL: getAuthBaseUrl(),
   plugins: [
     adminClient(),
     emailOTPClient(),
@@ -27,9 +36,9 @@ export const client = createAuthClient({
           stripeClient({
             subscription: true, // Enable subscription management
           }),
-          organizationClient(),
         ]
       : []),
+    ...(isOrganizationsEnabled ? [organizationClient()] : []),
     ...(env.NEXT_PUBLIC_SSO_ENABLED ? [ssoClient()] : []),
   ],
 })
@@ -44,7 +53,7 @@ export function useSession(): SessionHookResult {
   return ctx
 }
 
-export const useActiveOrganization = isBillingEnabled
+export const useActiveOrganization = isOrganizationsEnabled
   ? client.useActiveOrganization
   : () => ({ data: undefined, isPending: false, error: null })
 

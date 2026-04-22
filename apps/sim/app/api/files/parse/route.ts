@@ -29,6 +29,7 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 import '@/lib/uploads/core/setup.server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,7 +63,7 @@ interface ParseResult {
 /**
  * Main API route handler
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const startTime = Date.now()
 
   try {
@@ -189,7 +190,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * Parse a single file and return its content

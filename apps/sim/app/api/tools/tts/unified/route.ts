@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { StorageService } from '@/lib/uploads'
 import type {
   AzureTtsParams,
@@ -83,7 +84,7 @@ interface TtsUnifiedRequestBody {
   executionId?: string
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId()
   logger.info(`[${requestId}] TTS unified request started`)
 
@@ -313,7 +314,7 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
-}
+})
 
 async function synthesizeWithOpenAi(
   params: OpenAiTtsParams

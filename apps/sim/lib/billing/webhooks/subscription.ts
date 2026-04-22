@@ -1,12 +1,11 @@
 import { db } from '@sim/db'
-import { member, organization, subscription } from '@sim/db/schema'
+import { member, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, ne } from 'drizzle-orm'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
-import { hasPaidSubscription } from '@/lib/billing/core/subscription'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { restoreUserProSubscription } from '@/lib/billing/organizations/membership'
-import { isEnterprise, isPaid, isPro } from '@/lib/billing/plan-helpers'
+import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
@@ -15,95 +14,186 @@ import {
   resetUsageForSubscription,
 } from '@/lib/billing/webhooks/invoices'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { detachOrganizationWorkspaces } from '@/lib/workspaces/organization-workspaces'
 
 const logger = createLogger('StripeSubscriptionWebhooks')
 
 /**
- * Restore personal Pro subscriptions for all members of an organization
- * when the team/enterprise subscription ends.
+ * Restore personal Pro subscriptions for every member of an organization
+ * when the team/enterprise subscription ends. Errors propagate so the
+ * enclosing webhook handler fails and Stripe retries the delivery.
+ *
+ * `restoreUserProSubscription` is idempotent: already-restored members
+ * are no-ops on retry, so a partial first attempt is safe to re-run.
  */
 async function restoreMemberProSubscriptions(organizationId: string): Promise<number> {
+  const members = await db
+    .select({ userId: member.userId })
+    .from(member)
+    .where(eq(member.organizationId, organizationId))
+
   let restoredCount = 0
 
-  try {
-    const members = await db
-      .select({ userId: member.userId })
-      .from(member)
-      .where(eq(member.organizationId, organizationId))
-
-    for (const m of members) {
-      const result = await restoreUserProSubscription(m.userId)
-      if (result.restored) {
-        restoredCount++
-      }
+  for (const m of members) {
+    const result = await restoreUserProSubscription(m.userId)
+    if (result.restored) {
+      restoredCount++
     }
+  }
 
-    if (restoredCount > 0) {
-      logger.info('Restored Pro subscriptions for team members', {
-        organizationId,
-        restoredCount,
-        totalMembers: members.length,
-      })
-    }
-  } catch (error) {
-    logger.error('Failed to restore member Pro subscriptions', {
+  if (restoredCount > 0) {
+    logger.info('Restored Pro subscriptions for team members', {
       organizationId,
-      error,
+      restoredCount,
+      totalMembers: members.length,
     })
   }
 
   return restoredCount
 }
 
-/**
- * Cleanup organization when team/enterprise subscription is deleted.
- * - Checks if other active subscriptions point to this org (skip deletion if so)
- * - Restores member Pro subscriptions
- * - Deletes the organization (only if no other active subs)
- * - Syncs usage limits for former members (resets to free or Pro tier)
- */
-async function cleanupOrganizationSubscription(organizationId: string): Promise<{
+export interface OrganizationDormantTransitionResult {
   restoredProCount: number
   membersSynced: number
-  organizationDeleted: boolean
-}> {
-  // Check if other active subscriptions still point to this org
-  // Note: The subscription being deleted is already marked as 'canceled' by better-auth
-  // before this handler runs, so we only find truly active ones
-  if (await hasPaidSubscription(organizationId)) {
-    logger.info('Skipping organization deletion - other active subscriptions exist', {
-      organizationId,
-    })
+  workspacesDetached: number
+  organizationRetainsTeamOrEnterprise: boolean
+}
 
-    // Still sync limits for members since this subscription was deleted
-    const memberUserIds = await db
-      .select({ userId: member.userId })
-      .from(member)
-      .where(eq(member.organizationId, organizationId))
-
-    for (const m of memberUserIds) {
-      await syncUsageLimitsFromSubscription(m.userId)
-    }
-
-    return { restoredProCount: 0, membersSynced: memberUserIds.length, organizationDeleted: false }
+/**
+ * Returns true when the organization is still covered by an **active
+ * Team or Enterprise** subscription other than `excludeSubscriptionId`.
+ * The org keeps its team-owned workspaces only while such a sub exists;
+ * a Pro sub on the org does not count.
+ */
+async function hasOtherActiveTeamOrEnterpriseSubscription(
+  organizationId: string,
+  excludeSubscriptionId: string | null
+): Promise<boolean> {
+  const filters = [
+    eq(subscription.referenceId, organizationId),
+    inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
+  ]
+  if (excludeSubscriptionId) {
+    filters.push(ne(subscription.id, excludeSubscriptionId))
   }
 
-  // Get member userIds before deletion (needed for limit syncing after org deletion)
+  const rows = await db
+    .select({ plan: subscription.plan })
+    .from(subscription)
+    .where(and(...filters))
+
+  return rows.some((row) => isTeam(row.plan) || isEnterprise(row.plan))
+}
+
+async function transitionOrganizationToDormantState(
+  organizationId: string,
+  triggeringSubscriptionId: string | null
+): Promise<OrganizationDormantTransitionResult> {
   const memberUserIds = await db
     .select({ userId: member.userId })
     .from(member)
     .where(eq(member.organizationId, organizationId))
 
+  if (await hasOtherActiveTeamOrEnterpriseSubscription(organizationId, triggeringSubscriptionId)) {
+    logger.info(
+      'Skipping dormant transition - another Team/Enterprise subscription still covers this organization',
+      { organizationId, triggeringSubscriptionId }
+    )
+
+    for (const m of memberUserIds) {
+      await syncUsageLimitsFromSubscription(m.userId)
+    }
+
+    return {
+      restoredProCount: 0,
+      membersSynced: memberUserIds.length,
+      workspacesDetached: 0,
+      organizationRetainsTeamOrEnterprise: true,
+    }
+  }
+
+  const { detachedWorkspaceIds } = await detachOrganizationWorkspaces(organizationId)
   const restoredProCount = await restoreMemberProSubscriptions(organizationId)
 
-  await db.delete(organization).where(eq(organization.id, organizationId))
-
-  // Sync usage limits for former members (now free or Pro tier)
   for (const m of memberUserIds) {
     await syncUsageLimitsFromSubscription(m.userId)
   }
 
-  return { restoredProCount, membersSynced: memberUserIds.length, organizationDeleted: true }
+  return {
+    restoredProCount,
+    membersSynced: memberUserIds.length,
+    workspacesDetached: detachedWorkspaceIds.length,
+    organizationRetainsTeamOrEnterprise: false,
+  }
+}
+
+export async function handleOrganizationPlanDowngrade(
+  subscriptionData: {
+    id: string
+    plan: string | null
+    referenceId: string
+    status: string | null
+  },
+  stripeEventId?: string
+): Promise<void> {
+  if (!(await isSubscriptionOrgScoped({ referenceId: subscriptionData.referenceId }))) {
+    return
+  }
+
+  const stillTeamOrEnterprise = isTeam(subscriptionData.plan) || isEnterprise(subscriptionData.plan)
+  if (stillTeamOrEnterprise) {
+    return
+  }
+
+  const [currentRow] = await db
+    .select({ plan: subscription.plan })
+    .from(subscription)
+    .where(eq(subscription.id, subscriptionData.id))
+    .limit(1)
+
+  if (currentRow && (isTeam(currentRow.plan) || isEnterprise(currentRow.plan))) {
+    logger.info('Skipping plan downgrade transition - subscription is currently Team/Enterprise', {
+      subscriptionId: subscriptionData.id,
+      organizationId: subscriptionData.referenceId,
+      eventPlan: subscriptionData.plan,
+      currentPlan: currentRow.plan,
+    })
+    return
+  }
+
+  const idempotencyIdentifier = stripeEventId ?? `plan-downgrade:${subscriptionData.id}`
+
+  try {
+    await stripeWebhookIdempotency.executeWithIdempotency(
+      'organization-plan-downgrade',
+      idempotencyIdentifier,
+      async () => {
+        const result = await transitionOrganizationToDormantState(
+          subscriptionData.referenceId,
+          subscriptionData.id
+        )
+
+        if (result.workspacesDetached > 0 || result.restoredProCount > 0) {
+          logger.info('Transitioned organization to dormant state after plan downgrade', {
+            organizationId: subscriptionData.referenceId,
+            subscriptionId: subscriptionData.id,
+            plan: subscriptionData.plan,
+            ...result,
+          })
+        }
+
+        return result
+      }
+    )
+  } catch (error) {
+    logger.error('Failed to transition organization to dormant state on plan downgrade', {
+      organizationId: subscriptionData.referenceId,
+      subscriptionId: subscriptionData.id,
+      plan: subscriptionData.plan,
+      error,
+    })
+    throw error
+  }
 }
 
 /**
@@ -176,19 +266,12 @@ export async function handleSubscriptionCreated(subscriptionData: {
 }
 
 /**
- * Handle subscription deletion/cancellation — bill for final period
- * overages, reset usage, restore member Pros, and clean up the org.
- *
- * Wrapped in `stripeWebhookIdempotency` keyed by Stripe `event.id` so
- * that duplicate webhook deliveries collapse to a single execution. The
- * three failure-prone side effects each have their own recovery story:
- *   - Final Stripe invoice: created with a deterministic idempotency key,
- *     so re-create returns the existing invoice on retry
- *   - `resetUsageForSubscription`: delta-based reset, near-idempotent
- *   - `cleanupOrganizationSubscription`: delete is idempotent (ON NOT
- *     EXISTS); Pro restore flips `cancelAtPeriodEnd=false`, idempotent
- * If any step throws, `retryFailures: true` releases the claim so
- * Stripe's next retry runs from scratch and recovers.
+ * Handles a subscription deletion (cancel) event. Bills any final-period
+ * overages, resets usage, and transitions the organization to a dormant
+ * state via `transitionOrganizationToDormantState` — the same path used
+ * by plan downgrades. Wrapped in `stripeWebhookIdempotency` so duplicate
+ * event deliveries collapse to one execution; if any step throws, the
+ * webhook retries from scratch.
  */
 export async function handleSubscriptionDeleted(
   subscription: {
@@ -221,22 +304,21 @@ export async function handleSubscriptionDeleted(
         const totalOverage = await calculateSubscriptionOverage(subscription)
         const stripe = requireStripeClient()
 
-        // Enterprise plans have no overages — reset usage and cleanup org
         if (isEnterprise(subscription.plan)) {
           await resetUsageForSubscription({
             plan: subscription.plan,
             referenceId: subscription.referenceId,
           })
 
-          const { restoredProCount, membersSynced, organizationDeleted } =
-            await cleanupOrganizationSubscription(subscription.referenceId)
+          const dormantResult = await transitionOrganizationToDormantState(
+            subscription.referenceId,
+            subscription.id
+          )
 
           logger.info('Successfully processed enterprise subscription cancellation', {
             subscriptionId: subscription.id,
             stripeSubscriptionId,
-            restoredProCount,
-            organizationDeleted,
-            membersSynced,
+            ...dormantResult,
           })
 
           captureServerEvent(subscription.referenceId, 'subscription_cancelled', {
@@ -257,9 +339,6 @@ export async function handleSubscriptionDeleted(
           remainingOverage,
         })
 
-        // Phase — Stripe final overage invoice. Idempotency keys ensure
-        // retry-safe creation; errors propagate up to the wrapper so the
-        // webhook gets retried rather than swallowed.
         if (remainingOverage > 0 && stripeSubscriptionId) {
           const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId)
           const customerId = stripeSubscription.customer as string
@@ -330,23 +409,23 @@ export async function handleSubscriptionDeleted(
           })
         }
 
-        // Phase — reset usage, then plan-specific cleanup. Both are
-        // idempotent on re-run (delete is already-no-op if org is gone;
-        // reset-by-delta is a no-op when trackers are already zeroed).
         await resetUsageForSubscription({
           plan: subscription.plan,
           referenceId: subscription.referenceId,
         })
 
         let restoredProCount = 0
-        let organizationDeleted = false
         let membersSynced = 0
+        let workspacesDetached = 0
 
         if (await isSubscriptionOrgScoped(subscription)) {
-          const cleanup = await cleanupOrganizationSubscription(subscription.referenceId)
-          restoredProCount = cleanup.restoredProCount
-          membersSynced = cleanup.membersSynced
-          organizationDeleted = cleanup.organizationDeleted
+          const dormantResult = await transitionOrganizationToDormantState(
+            subscription.referenceId,
+            subscription.id
+          )
+          restoredProCount = dormantResult.restoredProCount
+          membersSynced = dormantResult.membersSynced
+          workspacesDetached = dormantResult.workspacesDetached
         } else if (isPro(subscription.plan)) {
           await syncUsageLimitsFromSubscription(subscription.referenceId)
           membersSynced = 1
@@ -358,8 +437,8 @@ export async function handleSubscriptionDeleted(
           plan: subscription.plan,
           totalOverage,
           restoredProCount,
-          organizationDeleted,
           membersSynced,
+          workspacesDetached,
         })
 
         captureServerEvent(subscription.referenceId, 'subscription_cancelled', {
@@ -367,7 +446,7 @@ export async function handleSubscriptionDeleted(
           reference_id: subscription.referenceId,
         })
 
-        return { totalOverage, remainingOverage, restoredProCount, organizationDeleted }
+        return { totalOverage, remainingOverage, restoredProCount, workspacesDetached }
       }
     )
   } catch (error) {

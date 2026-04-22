@@ -4,6 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   batchInsertRows,
   buildAutoMapping,
@@ -26,7 +27,7 @@ interface RouteParams {
   params: Promise<{ tableId: string }>
 }
 
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
   const { tableId } = await params
 
@@ -265,4 +266,4 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { status: isClientError ? 400 : 500 }
     )
   }
-}
+})

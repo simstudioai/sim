@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('ConnectorDocumentsAPI')
@@ -17,7 +18,7 @@ type RouteParams = { params: Promise<{ id: string; connectorId: string }> }
  * GET /api/knowledge/[id]/connectors/[connectorId]/documents
  * Returns documents for a connector, optionally including user-excluded ones.
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
   const { id: knowledgeBaseId, connectorId } = await params
 
@@ -113,7 +114,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     logger.error(`[${requestId}] Error fetching connector documents`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 const PatchSchema = z.object({
   operation: z.enum(['restore', 'exclude']),
@@ -124,7 +125,7 @@ const PatchSchema = z.object({
  * PATCH /api/knowledge/[id]/connectors/[connectorId]/documents
  * Restore or exclude connector documents.
  */
-export async function PATCH(request: NextRequest, { params }: RouteParams) {
+export const PATCH = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
   const { id: knowledgeBaseId, connectorId } = await params
 
@@ -253,4 +254,4 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     logger.error(`[${requestId}] Error updating connector documents`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

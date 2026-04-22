@@ -51,11 +51,23 @@ export async function getItem(
 export async function putItem(
   client: DynamoDBDocumentClient,
   tableName: string,
-  item: Record<string, unknown>
+  item: Record<string, unknown>,
+  options?: {
+    conditionExpression?: string
+    expressionAttributeNames?: Record<string, string>
+    expressionAttributeValues?: Record<string, unknown>
+  }
 ): Promise<{ success: boolean }> {
   const command = new PutCommand({
     TableName: tableName,
     Item: item,
+    ...(options?.conditionExpression && { ConditionExpression: options.conditionExpression }),
+    ...(options?.expressionAttributeNames && {
+      ExpressionAttributeNames: options.expressionAttributeNames,
+    }),
+    ...(options?.expressionAttributeValues && {
+      ExpressionAttributeValues: options.expressionAttributeValues,
+    }),
   })
 
   await client.send(command)
@@ -72,8 +84,14 @@ export async function queryItems(
     expressionAttributeValues?: Record<string, unknown>
     indexName?: string
     limit?: number
+    exclusiveStartKey?: Record<string, unknown>
+    scanIndexForward?: boolean
   }
-): Promise<{ items: Record<string, unknown>[]; count: number }> {
+): Promise<{
+  items: Record<string, unknown>[]
+  count: number
+  lastEvaluatedKey?: Record<string, unknown>
+}> {
   const command = new QueryCommand({
     TableName: tableName,
     KeyConditionExpression: keyConditionExpression,
@@ -86,12 +104,15 @@ export async function queryItems(
     }),
     ...(options?.indexName && { IndexName: options.indexName }),
     ...(options?.limit && { Limit: options.limit }),
+    ...(options?.exclusiveStartKey && { ExclusiveStartKey: options.exclusiveStartKey }),
+    ...(options?.scanIndexForward !== undefined && { ScanIndexForward: options.scanIndexForward }),
   })
 
   const response = await client.send(command)
   return {
     items: (response.Items as Record<string, unknown>[]) || [],
     count: response.Count || 0,
+    lastEvaluatedKey: response.LastEvaluatedKey as Record<string, unknown> | undefined,
   }
 }
 
@@ -104,8 +125,13 @@ export async function scanItems(
     expressionAttributeNames?: Record<string, string>
     expressionAttributeValues?: Record<string, unknown>
     limit?: number
+    exclusiveStartKey?: Record<string, unknown>
   }
-): Promise<{ items: Record<string, unknown>[]; count: number }> {
+): Promise<{
+  items: Record<string, unknown>[]
+  count: number
+  lastEvaluatedKey?: Record<string, unknown>
+}> {
   const command = new ScanCommand({
     TableName: tableName,
     ...(options?.filterExpression && { FilterExpression: options.filterExpression }),
@@ -117,12 +143,14 @@ export async function scanItems(
       ExpressionAttributeValues: options.expressionAttributeValues,
     }),
     ...(options?.limit && { Limit: options.limit }),
+    ...(options?.exclusiveStartKey && { ExclusiveStartKey: options.exclusiveStartKey }),
   })
 
   const response = await client.send(command)
   return {
     items: (response.Items as Record<string, unknown>[]) || [],
     count: response.Count || 0,
+    lastEvaluatedKey: response.LastEvaluatedKey as Record<string, unknown> | undefined,
   }
 }
 
@@ -161,12 +189,22 @@ export async function deleteItem(
   client: DynamoDBDocumentClient,
   tableName: string,
   key: Record<string, unknown>,
-  conditionExpression?: string
+  options?: {
+    conditionExpression?: string
+    expressionAttributeNames?: Record<string, string>
+    expressionAttributeValues?: Record<string, unknown>
+  }
 ): Promise<{ success: boolean }> {
   const command = new DeleteCommand({
     TableName: tableName,
     Key: key,
-    ...(conditionExpression && { ConditionExpression: conditionExpression }),
+    ...(options?.conditionExpression && { ConditionExpression: options.conditionExpression }),
+    ...(options?.expressionAttributeNames && {
+      ExpressionAttributeNames: options.expressionAttributeNames,
+    }),
+    ...(options?.expressionAttributeValues && {
+      ExpressionAttributeValues: options.expressionAttributeValues,
+    }),
   })
 
   await client.send(command)

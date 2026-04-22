@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { getPollingHandler } from '@/lib/webhooks/polling/registry'
-import type { PollSummary, WebhookRecord, WorkflowRecord } from '@/lib/webhooks/polling/types'
+import type { PollSummary } from '@/lib/webhooks/polling/types'
 import { fetchActiveWebhooks, runWithConcurrency } from '@/lib/webhooks/polling/utils'
 
 /** Poll all active webhooks for a given provider. */
@@ -27,8 +27,8 @@ export async function pollProvider(providerName: string): Promise<PollSummary> {
     async (entry) => {
       const requestId = generateShortId()
       return handler.pollWebhook({
-        webhookData: entry.webhook as WebhookRecord,
-        workflowData: entry.workflow as WorkflowRecord,
+        webhookData: entry.webhook,
+        workflowData: entry.workflow,
         requestId,
         logger,
       })

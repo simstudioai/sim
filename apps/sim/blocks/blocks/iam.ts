@@ -40,6 +40,9 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
         { label: 'List Groups', id: 'list_groups' },
         { label: 'Add User to Group', id: 'add_user_to_group' },
         { label: 'Remove User from Group', id: 'remove_user_from_group' },
+        { label: 'List Attached Role Policies', id: 'list_attached_role_policies' },
+        { label: 'List Attached User Policies', id: 'list_attached_user_policies' },
+        { label: 'Simulate Principal Policy', id: 'simulate_principal_policy' },
       ],
       value: () => 'list_users',
     },
@@ -83,6 +86,7 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
           'delete_access_key',
           'add_user_to_group',
           'remove_user_from_group',
+          'list_attached_user_policies',
         ],
       },
       required: {
@@ -95,6 +99,7 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
           'detach_user_policy',
           'add_user_to_group',
           'remove_user_from_group',
+          'list_attached_user_policies',
         ],
       },
     },
@@ -111,6 +116,7 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
           'delete_role',
           'attach_role_policy',
           'detach_role_policy',
+          'list_attached_role_policies',
         ],
       },
       required: {
@@ -121,6 +127,7 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
           'delete_role',
           'attach_role_policy',
           'detach_role_policy',
+          'list_attached_role_policies',
         ],
       },
     },
@@ -240,13 +247,51 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'policySourceArn',
+      title: 'Principal ARN',
+      type: 'short-input',
+      placeholder: 'arn:aws:iam::123456789012:user/alice',
+      condition: { field: 'operation', value: 'simulate_principal_policy' },
+      required: { field: 'operation', value: 'simulate_principal_policy' },
+    },
+    {
+      id: 'actionNames',
+      title: 'Actions (comma-separated)',
+      type: 'short-input',
+      placeholder: 's3:GetObject,ec2:DescribeInstances',
+      condition: { field: 'operation', value: 'simulate_principal_policy' },
+      required: { field: 'operation', value: 'simulate_principal_policy' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of AWS IAM action names to simulate (e.g., s3:GetObject,ec2:DescribeInstances,iam:ListUsers). Return ONLY the comma-separated list - no explanations, no extra text.',
+        placeholder: 'Describe the actions you want to check',
+      },
+    },
+    {
+      id: 'resourceArns',
+      title: 'Resource ARNs (comma-separated)',
+      type: 'short-input',
+      placeholder: 'arn:aws:s3:::my-bucket/*',
+      condition: { field: 'operation', value: 'simulate_principal_policy' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
       id: 'pathPrefix',
       title: 'Path Prefix',
       type: 'short-input',
       placeholder: '/division_abc/',
       condition: {
         field: 'operation',
-        value: ['list_users', 'list_roles', 'list_policies', 'list_groups'],
+        value: [
+          'list_users',
+          'list_roles',
+          'list_policies',
+          'list_groups',
+          'list_attached_role_policies',
+          'list_attached_user_policies',
+        ],
       },
       required: false,
       mode: 'advanced',
@@ -258,7 +303,15 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
       placeholder: '100',
       condition: {
         field: 'operation',
-        value: ['list_users', 'list_roles', 'list_policies', 'list_groups'],
+        value: [
+          'list_users',
+          'list_roles',
+          'list_policies',
+          'list_groups',
+          'list_attached_role_policies',
+          'list_attached_user_policies',
+          'simulate_principal_policy',
+        ],
       },
       required: false,
       mode: 'advanced',
@@ -270,7 +323,15 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
       placeholder: 'Pagination marker',
       condition: {
         field: 'operation',
-        value: ['list_users', 'list_roles', 'list_policies', 'list_groups'],
+        value: [
+          'list_users',
+          'list_roles',
+          'list_policies',
+          'list_groups',
+          'list_attached_role_policies',
+          'list_attached_user_policies',
+          'simulate_principal_policy',
+        ],
       },
       required: false,
       mode: 'advanced',
@@ -296,6 +357,9 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
       'iam_list_groups',
       'iam_add_user_to_group',
       'iam_remove_user_from_group',
+      'iam_list_attached_role_policies',
+      'iam_list_attached_user_policies',
+      'iam_simulate_principal_policy',
     ],
     config: {
       tool: (params) => {
@@ -336,12 +400,19 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
             return 'iam_add_user_to_group'
           case 'remove_user_from_group':
             return 'iam_remove_user_from_group'
+          case 'list_attached_role_policies':
+            return 'iam_list_attached_role_policies'
+          case 'list_attached_user_policies':
+            return 'iam_list_attached_user_policies'
+          case 'simulate_principal_policy':
+            return 'iam_simulate_principal_policy'
           default:
             throw new Error(`Invalid IAM operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { operation, maxItems, maxSessionDuration, onlyAttached, ...rest } = params
+        const { operation, maxItems, maxSessionDuration, onlyAttached, resourceArns, ...rest } =
+          params
 
         const connectionConfig = {
           region: rest.region,
@@ -416,6 +487,34 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
             result.userName = rest.userName
             result.groupName = rest.groupName
             break
+          case 'list_attached_role_policies':
+            result.roleName = rest.roleName
+            if (rest.pathPrefix) result.pathPrefix = rest.pathPrefix
+            if (maxItems) {
+              const parsed = Number.parseInt(String(maxItems), 10)
+              if (!Number.isNaN(parsed)) result.maxItems = parsed
+            }
+            if (rest.marker) result.marker = rest.marker
+            break
+          case 'list_attached_user_policies':
+            result.userName = rest.userName
+            if (rest.pathPrefix) result.pathPrefix = rest.pathPrefix
+            if (maxItems) {
+              const parsed = Number.parseInt(String(maxItems), 10)
+              if (!Number.isNaN(parsed)) result.maxItems = parsed
+            }
+            if (rest.marker) result.marker = rest.marker
+            break
+          case 'simulate_principal_policy':
+            result.policySourceArn = rest.policySourceArn
+            result.actionNames = rest.actionNames
+            if (resourceArns) result.resourceArns = resourceArns
+            if (maxItems) {
+              const parsed = Number.parseInt(String(maxItems), 10)
+              if (!Number.isNaN(parsed)) result.maxResults = parsed
+            }
+            if (rest.marker) result.marker = rest.marker
+            break
         }
 
         return result
@@ -441,6 +540,12 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
     pathPrefix: { type: 'string', description: 'Path prefix filter' },
     maxItems: { type: 'number', description: 'Maximum number of items to return' },
     marker: { type: 'string', description: 'Pagination marker' },
+    policySourceArn: { type: 'string', description: 'ARN of the principal to simulate' },
+    actionNames: { type: 'string', description: 'Comma-separated AWS actions to simulate' },
+    resourceArns: {
+      type: 'string',
+      description: 'Comma-separated resource ARNs to simulate against',
+    },
   },
   outputs: {
     message: {
@@ -548,6 +653,15 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
     count: {
       type: 'number',
       description: 'Number of items returned',
+    },
+    attachedPolicies: {
+      type: 'json',
+      description: 'List of attached managed policies with policyName and policyArn',
+    },
+    evaluationResults: {
+      type: 'json',
+      description:
+        'Policy simulation results per action: evalActionName, evalResourceName, evalDecision (allowed/explicitDeny/implicitDeny), matchedStatements (sourcePolicyId, sourcePolicyType), missingContextValues',
     },
   },
 }

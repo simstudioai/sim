@@ -8,6 +8,7 @@ import {
   isOrganizationOwnerOrAdmin,
 } from '@/lib/billing/core/organization'
 import { isUserMemberOfOrganization } from '@/lib/billing/organizations/membership'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UnifiedUsageAPI')
 
@@ -28,7 +29,7 @@ const usageUpdateSchema = z
  * GET/PUT /api/usage?context=user|organization&userId=<id>&organizationId=<id>
  *
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
 
   try {
@@ -95,9 +96,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function PUT(request: NextRequest) {
+export const PUT = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
 
   try {
@@ -157,4 +158,4 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

@@ -3,6 +3,7 @@ import { ImapFlow } from 'imapflow'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('ImapMailboxesAPI')
 
@@ -14,7 +15,7 @@ interface ImapMailboxRequest {
   password: string
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
   if (!session?.user?.id) {
     return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
@@ -95,4 +96,4 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: false, message: userMessage }, { status: 500 })
   }
-}
+})

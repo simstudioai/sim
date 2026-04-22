@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
@@ -19,11 +20,23 @@ export const azureAnthropicProvider: ProviderConfig = {
   executeRequest: async (
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
-    const azureEndpoint = request.azureEndpoint || env.AZURE_ANTHROPIC_ENDPOINT
+    const userProvidedEndpoint = request.azureEndpoint
+    const azureEndpoint = userProvidedEndpoint || env.AZURE_ANTHROPIC_ENDPOINT
     if (!azureEndpoint) {
       throw new Error(
         'Azure endpoint is required for Azure Anthropic. Please provide it via the azureEndpoint parameter or AZURE_ANTHROPIC_ENDPOINT environment variable.'
       )
+    }
+
+    if (userProvidedEndpoint) {
+      const validation = await validateUrlWithDNS(userProvidedEndpoint, 'azureEndpoint')
+      if (!validation.isValid) {
+        logger.warn('Blocked SSRF attempt via azureEndpoint', {
+          endpoint: userProvidedEndpoint,
+          error: validation.error,
+        })
+        throw new Error(`Invalid Azure Anthropic endpoint: ${validation.error}`)
+      }
     }
 
     const apiKey = request.apiKey

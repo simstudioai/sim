@@ -16,6 +16,7 @@ import {
   renderWorkflowNotificationEmail,
   renderWorkspaceInvitationEmail,
 } from '@/components/emails'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const emailTemplates = {
   // Auth emails
@@ -140,7 +141,7 @@ const emailTemplates = {
 
 type EmailTemplate = keyof typeof emailTemplates
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url)
   const template = searchParams.get('template') as EmailTemplate | null
 
@@ -206,4 +207,4 @@ export async function GET(request: NextRequest) {
   return new NextResponse(html, {
     headers: { 'Content-Type': 'text/html' },
   })
-}
+})

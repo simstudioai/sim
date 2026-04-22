@@ -5,6 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import type { Client, SFTPWrapper } from 'ssh2'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { createSSHConnection, sanitizePath } from '@/app/api/tools/ssh/utils'
 
@@ -32,7 +33,7 @@ function getSFTP(client: Client): Promise<SFTPWrapper> {
   })
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   try {
@@ -149,4 +150,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

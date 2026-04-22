@@ -7,6 +7,7 @@ import {
   validatePaginationCursor,
   validatePathSegment,
 } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
@@ -18,7 +19,7 @@ export const dynamic = 'force-dynamic'
  * List, get, or update Confluence inline tasks.
  * Uses GET /wiki/api/v2/tasks, GET /wiki/api/v2/tasks/{id}, PUT /wiki/api/v2/tasks/{id}
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -290,4 +291,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

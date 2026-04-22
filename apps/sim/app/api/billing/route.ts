@@ -7,13 +7,14 @@ import { getSession } from '@/lib/auth'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { getSimplifiedBillingSummary } from '@/lib/billing/core/billing'
 import { getOrganizationBillingData } from '@/lib/billing/core/organization'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UnifiedBillingAPI')
 
 /**
  * Unified Billing Endpoint
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
 
   try {
@@ -176,4 +177,4 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

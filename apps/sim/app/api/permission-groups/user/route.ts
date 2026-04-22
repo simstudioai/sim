@@ -1,42 +1,41 @@
 import { db } from '@sim/db'
-import { member, permissionGroup, permissionGroupMember } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
+import { and, asc, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
+import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parsePermissionGroupConfig } from '@/lib/permission-groups/types'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
-export async function GET(req: Request) {
+export const GET = withRouteHandler(async (req: Request) => {
   const session = await getSession()
-
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const { searchParams } = new URL(req.url)
-  const organizationId = searchParams.get('organizationId')
+  const workspaceId = searchParams.get('workspaceId')
 
-  if (!organizationId) {
-    return NextResponse.json({ error: 'organizationId is required' }, { status: 400 })
+  if (!workspaceId) {
+    return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 })
   }
 
-  const [membership] = await db
-    .select({ id: member.id })
-    .from(member)
-    .where(and(eq(member.userId, session.user.id), eq(member.organizationId, organizationId)))
-    .limit(1)
-
-  if (!membership) {
-    return NextResponse.json({ error: 'Not a member of this organization' }, { status: 403 })
+  const access = await checkWorkspaceAccess(workspaceId, session.user.id)
+  if (!access.exists) {
+    return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+  }
+  if (!access.hasAccess) {
+    return NextResponse.json({ error: 'Not a member of this workspace' }, { status: 403 })
   }
 
-  // Short-circuit: if org is not on enterprise plan, ignore permission configs
-  const isEnterprise = await isOrganizationOnEnterprisePlan(organizationId)
+  const isEnterprise = await isWorkspaceOnEnterprisePlan(workspaceId)
   if (!isEnterprise) {
     return NextResponse.json({
       permissionGroupId: null,
       groupName: null,
       config: null,
+      entitled: false,
     })
   }
 
@@ -51,9 +50,10 @@ export async function GET(req: Request) {
     .where(
       and(
         eq(permissionGroupMember.userId, session.user.id),
-        eq(permissionGroup.organizationId, organizationId)
+        eq(permissionGroup.workspaceId, workspaceId)
       )
     )
+    .orderBy(asc(permissionGroup.createdAt), asc(permissionGroup.id))
     .limit(1)
 
   if (!groupMembership) {
@@ -61,6 +61,7 @@ export async function GET(req: Request) {
       permissionGroupId: null,
       groupName: null,
       config: null,
+      entitled: true,
     })
   }
 
@@ -68,5 +69,6 @@ export async function GET(req: Request) {
     permissionGroupId: groupMembership.permissionGroupId,
     groupName: groupMembership.groupName,
     config: parsePermissionGroupConfig(groupMembership.config),
+    entitled: true,
   })
-}
+})

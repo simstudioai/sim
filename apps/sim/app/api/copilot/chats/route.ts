@@ -12,6 +12,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { taskPubSub } from '@/lib/copilot/tasks'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -24,7 +25,7 @@ const CreateWorkflowCopilotChatSchema = z.object({
 
 const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
 
-export async function GET(_request: NextRequest) {
+export const GET = withRouteHandler(async (_request: NextRequest) => {
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
@@ -81,14 +82,14 @@ export async function GET(_request: NextRequest) {
     logger.error('Error fetching user copilot chats:', error)
     return createInternalServerErrorResponse('Failed to fetch user chats')
   }
-}
+})
 
 /**
  * POST /api/copilot/chats
  * Creates an empty workflow-scoped copilot chat (same lifecycle as {@link resolveOrCreateChat}).
  * Matches mothership's POST /api/mothership/chats pattern so the client always selects a real row id.
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
@@ -138,4 +139,4 @@ export async function POST(request: NextRequest) {
     logger.error('Error creating workflow copilot chat:', error)
     return createInternalServerErrorResponse('Failed to create chat')
   }
-}
+})

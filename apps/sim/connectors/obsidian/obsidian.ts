@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { ObsidianIcon } from '@/components/icons'
+import { validateExternalUrl } from '@/lib/core/security/input-validation'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { joinTagArray, parseTagDate } from '@/connectors/utils'
@@ -8,6 +9,7 @@ import { joinTagArray, parseTagDate } from '@/connectors/utils'
 const logger = createLogger('ObsidianConnector')
 
 const DOCS_PER_PAGE = 50
+const DEFAULT_VAULT_URL = 'https://127.0.0.1:27124'
 
 interface NoteJson {
   content: string
@@ -22,10 +24,29 @@ interface NoteJson {
 }
 
 /**
- * Normalizes the vault URL by removing trailing slashes.
+ * Normalizes the vault URL and validates it against SSRF protections.
+ *
+ * The Obsidian Local REST API plugin runs on the user's own machine, so there
+ * is no SaaS domain to allowlist — the vault URL is fully user-controlled. We
+ * defer to the shared `validateExternalUrl` policy:
+ *   - hosted Sim: blocks localhost, private IPs, HTTP (forces HTTPS)
+ *   - self-hosted Sim: allows http://localhost (built-in carve-out), still
+ *     blocks non-loopback private IPs and dangerous ports (22, 25, 3306,
+ *     5432, 6379, 27017, 9200)
+ *
+ * This does not defend against DNS rebinding; for hosted deployments the user
+ * must expose the plugin through a public URL (tunnel, port-forward).
  */
-function normalizeVaultUrl(url: string): string {
-  return url.trim().replace(/\/+$/, '')
+function resolveVaultEndpoint(rawUrl: string | undefined): string {
+  let url = (rawUrl || DEFAULT_VAULT_URL).trim().replace(/\/+$/, '')
+  if (url && !url.startsWith('https://') && !url.startsWith('http://')) {
+    url = `https://${url}`
+  }
+  const validation = validateExternalUrl(url, 'vaultUrl')
+  if (!validation.isValid) {
+    throw new Error(validation.error || 'Invalid vault URL')
+  }
+  return url
 }
 
 /**
@@ -61,9 +82,6 @@ async function listDirectory(
   return data.files ?? []
 }
 
-/**
- * Recursively lists all markdown files in the vault or a specific folder.
- */
 const MAX_RECURSION_DEPTH = 20
 
 async function listVaultFiles(
@@ -183,9 +201,7 @@ export const obsidianConnector: ConnectorConfig = {
     cursor?: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
-    const baseUrl = normalizeVaultUrl(
-      (sourceConfig.vaultUrl as string) || 'https://127.0.0.1:27124'
-    )
+    const baseUrl = resolveVaultEndpoint(sourceConfig.vaultUrl as string)
     const folderPath = (sourceConfig.folderPath as string) || ''
 
     let allFiles = syncContext?.allFiles as string[] | undefined
@@ -230,9 +246,7 @@ export const obsidianConnector: ConnectorConfig = {
     externalId: string,
     _syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
-    const baseUrl = normalizeVaultUrl(
-      (sourceConfig.vaultUrl as string) || 'https://127.0.0.1:27124'
-    )
+    const baseUrl = resolveVaultEndpoint(sourceConfig.vaultUrl as string)
 
     try {
       const note = await fetchNote(baseUrl, accessToken, externalId)
@@ -275,7 +289,12 @@ export const obsidianConnector: ConnectorConfig = {
       return { valid: false, error: 'Vault URL is required' }
     }
 
-    const baseUrl = normalizeVaultUrl(rawUrl)
+    let baseUrl: string
+    try {
+      baseUrl = resolveVaultEndpoint(rawUrl)
+    } catch (error) {
+      return { valid: false, error: toError(error).message }
+    }
 
     try {
       const response = await fetchWithRetry(
@@ -313,8 +332,10 @@ export const obsidianConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to connect to Obsidian vault'
-      return { valid: false, error: message }
+      return {
+        valid: false,
+        error: toError(error).message || 'Failed to connect to Obsidian vault',
+      }
     }
   },
 

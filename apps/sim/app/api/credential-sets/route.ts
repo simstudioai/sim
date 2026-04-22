@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CredentialSets')
 
@@ -18,7 +19,7 @@ const createCredentialSetSchema = z.object({
   providerId: z.enum(['google-email', 'outlook']),
 })
 
-export async function GET(req: Request) {
+export const GET = withRouteHandler(async (req: Request) => {
   const session = await getSession()
 
   if (!session?.user?.id) {
@@ -88,9 +89,9 @@ export async function GET(req: Request) {
   )
 
   return NextResponse.json({ credentialSets: setsWithCounts })
-}
+})
 
-export async function POST(req: Request) {
+export const POST = withRouteHandler(async (req: Request) => {
   const session = await getSession()
 
   if (!session?.user?.id) {
@@ -191,4 +192,4 @@ export async function POST(req: Request) {
     logger.error('Error creating credential set', error)
     return NextResponse.json({ error: 'Failed to create credential set' }, { status: 500 })
   }
-}
+})

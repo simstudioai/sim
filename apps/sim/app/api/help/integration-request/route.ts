@@ -6,6 +6,7 @@ import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import {
   getFromEmailAddress,
@@ -33,7 +34,7 @@ const integrationRequestSchema = z.object({
   useCase: z.string().max(2000).optional(),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -115,4 +116,4 @@ ${useCase ? `Use Case:\n${useCase}` : 'No use case provided.'}
     logger.error(`[${requestId}] Error processing integration request`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

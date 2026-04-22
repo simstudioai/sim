@@ -399,12 +399,7 @@ export function CredentialsManager() {
   const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId || null)
   const queryClient = useQueryClient()
 
-  const isWorkspaceAdmin = useMemo(() => {
-    const userId = session?.user?.id
-    if (!userId || !workspacePermissions?.users) return false
-    const currentUser = workspacePermissions.users.find((user) => user.userId === userId)
-    return currentUser?.permissionType === 'admin'
-  }, [session?.user?.id, workspacePermissions?.users])
+  const isWorkspaceAdmin = workspacePermissions?.viewer?.isAdmin ?? false
 
   const isLoading = isPersonalLoading || isWorkspaceLoading
   const variables = useMemo(() => personalEnvData || {}, [personalEnvData])

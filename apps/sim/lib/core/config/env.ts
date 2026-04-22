@@ -187,8 +187,6 @@ export const env = createEnv({
     AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: z.string().optional(),                 // Azure container for OpenGraph images
     AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME: z.string().optional(),            // Azure container for workspace logos
 
-    // Data Retention
-    FREE_PLAN_LOG_RETENTION_DAYS:          z.string().optional(),                  // Log retention days for free plan users
 
     // Admission & Burst Protection
     ADMISSION_GATE_MAX_INFLIGHT:           z.string().optional().default('500'),   // Max concurrent in-flight execution requests per pod
@@ -340,6 +338,7 @@ export const env = createEnv({
     // Enterprise Feature Overrides - for self-hosted deployments
     WHITELABELING_ENABLED:                 z.boolean().optional(),                 // Enable whitelabeling on self-hosted (bypasses hosted requirements)
     AUDIT_LOGS_ENABLED:                    z.boolean().optional(),                 // Enable audit logs on self-hosted (bypasses hosted requirements)
+    DATA_RETENTION_ENABLED:               z.boolean().optional(),                 // Enable data retention settings on self-hosted (bypasses hosted requirements)
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)
@@ -434,6 +433,7 @@ export const env = createEnv({
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED:    z.boolean().optional(),                   // Enable access control (permission groups) on self-hosted
     NEXT_PUBLIC_WHITELABELING_ENABLED:     z.boolean().optional(),                   // Enable whitelabeling on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED:        z.boolean().optional(),                   // Enable audit logs on self-hosted (bypasses hosted requirements)
+    NEXT_PUBLIC_DATA_RETENTION_ENABLED:   z.boolean().optional(),                   // Enable data retention settings on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED:     z.boolean().optional(),                   // Enable organizations on self-hosted (bypasses plan requirements)
     NEXT_PUBLIC_DISABLE_INVITATIONS:       z.boolean().optional(),                   // Disable workspace invitations globally (for self-hosted deployments)
     NEXT_PUBLIC_DISABLE_PUBLIC_API:        z.boolean().optional(),                   // Disable public API access UI toggle globally
@@ -470,6 +470,7 @@ export const env = createEnv({
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: process.env.NEXT_PUBLIC_ACCESS_CONTROL_ENABLED,
     NEXT_PUBLIC_WHITELABELING_ENABLED: process.env.NEXT_PUBLIC_WHITELABELING_ENABLED,
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED: process.env.NEXT_PUBLIC_AUDIT_LOGS_ENABLED,
+    NEXT_PUBLIC_DATA_RETENTION_ENABLED: process.env.NEXT_PUBLIC_DATA_RETENTION_ENABLED,
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED: process.env.NEXT_PUBLIC_ORGANIZATIONS_ENABLED,
     NEXT_PUBLIC_DISABLE_INVITATIONS: process.env.NEXT_PUBLIC_DISABLE_INVITATIONS,
     NEXT_PUBLIC_DISABLE_PUBLIC_API: process.env.NEXT_PUBLIC_DISABLE_PUBLIC_API,

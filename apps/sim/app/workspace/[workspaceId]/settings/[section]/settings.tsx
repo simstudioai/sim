@@ -29,6 +29,7 @@ import {
   isCredentialSetsEnabled,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { AuditLogsSkeleton } from '@/ee/audit-logs/components/audit-logs-skeleton'
+import { DataRetentionSkeleton } from '@/ee/data-retention/components/data-retention-skeleton'
 
 /**
  * Generic skeleton fallback for sections without a dedicated skeleton.
@@ -169,6 +170,13 @@ const AuditLogs = dynamic(
 const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((m) => m.SSO), {
   loading: () => <SettingsSectionSkeleton />,
 })
+const DataRetentionSettings = dynamic(
+  () =>
+    import('@/ee/data-retention/components/data-retention-settings').then(
+      (m) => m.DataRetentionSettings
+    ),
+  { loading: () => <DataRetentionSkeleton /> }
+)
 const WhitelabelingSettings = dynamic(
   () =>
     import('@/ee/whitelabeling/components/whitelabeling-settings').then(
@@ -189,7 +197,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
 
   const isAdminRole = session?.user?.role === 'admin'
   const effectiveSection =
-    !isBillingEnabled && (section === 'subscription' || section === 'team')
+    !isBillingEnabled && (section === 'subscription' || section === 'organization')
       ? 'general'
       : section === 'credential-sets' && !isCredentialSetsEnabled
         ? 'general'
@@ -208,7 +216,12 @@ export function SettingsPage({ section }: SettingsPageProps) {
   }, [effectiveSection, sessionLoading, posthog])
 
   return (
-    <div className={cn(effectiveSection === 'access-control' && 'flex h-full flex-col')}>
+    <div
+      className={cn(
+        (effectiveSection === 'access-control' || effectiveSection === 'recently-deleted') &&
+          'flex h-full flex-col'
+      )}
+    >
       <h2 className='mb-7 font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
       {effectiveSection === 'general' && <General />}
       {effectiveSection === 'integrations' && <Integrations />}
@@ -219,8 +232,9 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'audit-logs' && <AuditLogs />}
       {effectiveSection === 'apikeys' && <ApiKeys />}
       {isBillingEnabled && effectiveSection === 'subscription' && <Subscription />}
-      {isBillingEnabled && effectiveSection === 'team' && <TeamManagement />}
+      {isBillingEnabled && effectiveSection === 'organization' && <TeamManagement />}
       {effectiveSection === 'sso' && <SSO />}
+      {effectiveSection === 'data-retention' && <DataRetentionSettings />}
       {effectiveSection === 'whitelabeling' && <WhitelabelingSettings />}
       {effectiveSection === 'byok' && <BYOK />}
       {effectiveSection === 'copilot' && <Copilot />}

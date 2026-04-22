@@ -3,13 +3,14 @@ import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('TeamsTeamsAPI')
 
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: Request) => {
   try {
     const body = await request.json()
 
@@ -119,4 +120,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
+})

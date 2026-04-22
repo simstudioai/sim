@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { IncidentIOWidgetResponse, StatusResponse, StatusType } from '@/app/api/status/types'
 
 const logger = createLogger('StatusAPI')
@@ -30,7 +31,7 @@ function determineStatus(data: IncidentIOWidgetResponse): {
   return { status: 'operational', message: 'All Systems Operational' }
 }
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   try {
     const now = Date.now()
 
@@ -94,4 +95,4 @@ export async function GET() {
       },
     })
   }
-}
+})

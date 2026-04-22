@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('ShopifyCallback')
 
@@ -42,7 +43,7 @@ function validateHmac(searchParams: URLSearchParams, clientSecret: string): bool
   }
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const baseUrl = getBaseUrl()
 
   try {
@@ -164,4 +165,4 @@ export async function GET(request: NextRequest) {
     logger.error('Error in Shopify OAuth callback:', error)
     return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_callback_error`)
   }
-}
+})

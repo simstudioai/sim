@@ -6,11 +6,12 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getEffectiveCurrentPeriodCost } from '@/lib/billing/core/usage'
 import { getUserStorageLimit, getUserStorageUsage } from '@/lib/billing/storage'
 import { RateLimiter } from '@/lib/core/rate-limiter'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('UsageLimitsAPI')
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkHybridAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
@@ -79,4 +80,4 @@ export async function GET(request: NextRequest) {
     logger.error('Error checking usage limits:', error)
     return createErrorResponse(error.message || 'Failed to check usage limits', 500)
   }
-}
+})

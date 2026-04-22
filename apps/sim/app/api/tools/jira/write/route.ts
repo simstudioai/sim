@@ -3,13 +3,14 @@ import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getJiraCloudId, parseAtlassianErrorMessage, toAdf } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JiraWriteAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -238,4 +239,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

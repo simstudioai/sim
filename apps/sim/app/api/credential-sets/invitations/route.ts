@@ -4,10 +4,11 @@ import { createLogger } from '@sim/logger'
 import { and, eq, gt, isNull, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CredentialSetInvitations')
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   const session = await getSession()
 
   if (!session?.user?.id || !session?.user?.email) {
@@ -50,4 +51,4 @@ export async function GET() {
     logger.error('Error fetching credential set invitations', error)
     return NextResponse.json({ error: 'Failed to fetch invitations' }, { status: 500 })
   }
-}
+})

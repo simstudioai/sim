@@ -6,12 +6,18 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
   getServiceAccountToken,
   refreshTokenIfNeeded,
   resolveOAuthAccountId,
 } from '@/app/api/auth/oauth/utils'
+import {
+  assertPermissionsAllowed,
+  IntegrationNotAllowedError,
+  ProviderNotAllowedError,
+} from '@/ee/access-control/utils/permission-check'
 import type { StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
 
@@ -22,7 +28,7 @@ export const dynamic = 'force-dynamic'
 /**
  * Server-side proxy for provider requests
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   const startTime = Date.now()
 
@@ -101,6 +107,19 @@ export async function POST(request: NextRequest) {
       const workspaceAccess = await checkWorkspaceAccess(workspaceId, auth.userId)
       if (!workspaceAccess.hasAccess) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
+      try {
+        await assertPermissionsAllowed({
+          userId: auth.userId,
+          workspaceId,
+          model,
+        })
+      } catch (err) {
+        if (err instanceof ProviderNotAllowedError || err instanceof IntegrationNotAllowedError) {
+          return NextResponse.json({ error: err.message }, { status: 403 })
+        }
+        throw err
       }
     }
 
@@ -268,7 +287,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: toError(error).message }, { status: 500 })
   }
-}
+})
 
 /**
  * Helper function to sanitize tool calls to remove Unicode characters

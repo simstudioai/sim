@@ -18,6 +18,7 @@ export const OUTBOX_EVENT_TYPES = {
    */
   STRIPE_SYNC_CANCEL_AT_PERIOD_END: 'stripe.sync-cancel-at-period-end',
   STRIPE_THRESHOLD_OVERAGE_INVOICE: 'stripe.threshold-overage-invoice',
+  STRIPE_SYNC_CUSTOMER_CONTACT: 'stripe.sync-customer-contact',
 } as const
 
 export interface StripeSyncCancelAtPeriodEndPayload {
@@ -25,6 +26,13 @@ export interface StripeSyncCancelAtPeriodEndPayload {
   /** The DB subscription row id — also our source-of-truth pointer. */
   subscriptionId: string
   /** Optional: reason this was enqueued — e.g. 'member-joined-paid-org'. */
+  reason?: string
+}
+
+export interface StripeSyncCustomerContactPayload {
+  stripeCustomerId: string
+  email: string
+  name?: string
   reason?: string
 }
 
@@ -166,9 +174,31 @@ const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoice
   })
 }
 
+const stripeSyncCustomerContact: OutboxHandler<StripeSyncCustomerContactPayload> = async (
+  payload,
+  ctx
+) => {
+  const stripe = requireStripeClient()
+  await stripe.customers.update(
+    payload.stripeCustomerId,
+    {
+      email: payload.email,
+      ...(payload.name ? { name: payload.name } : {}),
+    },
+    { idempotencyKey: `outbox:${ctx.eventId}` }
+  )
+  logger.info('Synced Stripe customer contact', {
+    eventId: ctx.eventId,
+    stripeCustomerId: payload.stripeCustomerId,
+    reason: payload.reason,
+  })
+}
+
 export const billingOutboxHandlers = {
   [OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END]:
     stripeSyncCancelAtPeriodEnd as OutboxHandler<unknown>,
   [OUTBOX_EVENT_TYPES.STRIPE_THRESHOLD_OVERAGE_INVOICE]:
     stripeThresholdOverageInvoice as OutboxHandler<unknown>,
+  [OUTBOX_EVENT_TYPES.STRIPE_SYNC_CUSTOMER_CONTACT]:
+    stripeSyncCustomerContact as OutboxHandler<unknown>,
 } as const

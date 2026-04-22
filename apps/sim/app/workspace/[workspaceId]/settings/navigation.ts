@@ -2,6 +2,7 @@ import {
   Card,
   ClipboardList,
   Connections,
+  Database,
   HexSimple,
   Key,
   KeySquare,
@@ -32,7 +33,7 @@ export type SettingsSection =
   | 'apikeys'
   | 'byok'
   | 'subscription'
-  | 'team'
+  | 'organization'
   | 'sso'
   | 'whitelabeling'
   | 'copilot'
@@ -42,6 +43,7 @@ export type SettingsSection =
   | 'workflow-mcp-servers'
   | 'inbox'
   | 'admin'
+  | 'data-retention'
   | 'mothership'
   | 'recently-deleted'
 
@@ -77,6 +79,7 @@ const isAccessControlEnabled = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABL
 const isInboxEnabled = isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED'))
 const isWhitelabelingEnabled = isTruthy(getEnv('NEXT_PUBLIC_WHITELABELING_ENABLED'))
 const isAuditLogsEnabled = isTruthy(getEnv('NEXT_PUBLIC_AUDIT_LOGS_ENABLED'))
+const isDataRetentionEnabled = isTruthy(getEnv('NEXT_PUBLIC_DATA_RETENTION_ENABLED'))
 
 export const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 export { isCredentialSetsEnabled }
@@ -119,8 +122,8 @@ export const allNavigationItems: NavigationItem[] = [
     hideWhenBillingDisabled: true,
   },
   {
-    id: 'team',
-    label: 'Team',
+    id: 'organization',
+    label: 'Organization',
     icon: Users,
     section: 'subscription',
     hideWhenBillingDisabled: true,
@@ -177,6 +180,15 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isSSOEnabled,
+  },
+  {
+    id: 'data-retention',
+    label: 'Data Retention',
+    icon: Database,
+    section: 'enterprise',
+    requiresHosted: true,
+    requiresEnterprise: true,
+    selfHostedOverride: isDataRetentionEnabled,
   },
   {
     id: 'whitelabeling',

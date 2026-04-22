@@ -1,15 +1,30 @@
 import { db } from '@sim/db'
-import { member, organization } from '@sim/db/schema'
+import { member, organization, subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, or } from 'drizzle-orm'
+import { and, eq, inArray, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { createOrganizationForTeamPlan } from '@/lib/billing/organization'
+import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
+import {
+  createOrganizationForTeamPlan,
+  ensureOrganizationForTeamSubscription,
+} from '@/lib/billing/organization'
+import {
+  OrganizationSlugInvalidError,
+  OrganizationSlugTakenError,
+} from '@/lib/billing/organizations/create-organization'
+import { isOrgPlan } from '@/lib/billing/plan-helpers'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  attachOwnedWorkspacesToOrganization,
+  WorkspaceOrganizationMembershipConflictError,
+} from '@/lib/workspaces/organization-workspaces'
 
 const logger = createLogger('OrganizationsAPI')
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   try {
     const session = await getSession()
 
@@ -50,9 +65,9 @@ export async function GET() {
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: Request) => {
   try {
     const session = await getSession()
 
@@ -78,22 +93,21 @@ export async function POST(request: Request) {
       // If no body or invalid JSON, use defaults
     }
 
-    logger.info('Creating organization for team plan', {
-      userId: user.id,
-      userName: user.name,
-      userEmail: user.email,
-      organizationName,
-      organizationSlug,
-    })
-
-    // Enforce: a user can only belong to one organization at a time
     const existingOrgMembership = await db
-      .select({ id: member.id })
+      .select({
+        organizationId: member.organizationId,
+        role: member.role,
+      })
       .from(member)
       .where(eq(member.userId, user.id))
       .limit(1)
 
-    if (existingOrgMembership.length > 0) {
+    const existingAdminMembership =
+      existingOrgMembership.length > 0 && ['owner', 'admin'].includes(existingOrgMembership[0].role)
+        ? existingOrgMembership[0]
+        : null
+
+    if (existingOrgMembership.length > 0 && !existingAdminMembership) {
       return NextResponse.json(
         {
           error:
@@ -103,38 +117,166 @@ export async function POST(request: Request) {
       )
     }
 
-    // Create organization and make user the owner/admin
-    const organizationId = await createOrganizationForTeamPlan(
-      user.id,
-      organizationName || undefined,
-      user.email,
-      organizationSlug
-    )
+    const subscriptionReferenceIds = existingAdminMembership
+      ? [user.id, existingAdminMembership.organizationId]
+      : [user.id]
 
-    logger.info('Successfully created organization for team plan', {
+    const activeOrgSubscriptions = await db
+      .select({
+        id: subscriptionTable.id,
+        plan: subscriptionTable.plan,
+        referenceId: subscriptionTable.referenceId,
+        status: subscriptionTable.status,
+        seats: subscriptionTable.seats,
+      })
+      .from(subscriptionTable)
+      .where(
+        and(
+          inArray(subscriptionTable.referenceId, subscriptionReferenceIds),
+          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
+
+    const activeOrgSubscription =
+      (existingAdminMembership
+        ? activeOrgSubscriptions.find(
+            (subscription) =>
+              isOrgPlan(subscription.plan) &&
+              subscription.referenceId === existingAdminMembership.organizationId
+          )
+        : undefined) ??
+      activeOrgSubscriptions.find(
+        (subscription) => isOrgPlan(subscription.plan) && subscription.referenceId === user.id
+      ) ??
+      activeOrgSubscriptions.find((subscription) => isOrgPlan(subscription.plan))
+
+    if (!activeOrgSubscription) {
+      return NextResponse.json(
+        { error: 'Organization creation requires an active Team or Enterprise subscription.' },
+        { status: 403 }
+      )
+    }
+
+    logger.info('Creating organization for team plan', {
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email,
+      organizationName,
+      organizationSlug,
+      existingOrganizationId: existingAdminMembership?.organizationId ?? null,
+      subscriptionReferenceId: activeOrgSubscription.referenceId,
+    })
+
+    let organizationId: string
+    let createdOrganization = false
+
+    if (existingAdminMembership) {
+      organizationId = existingAdminMembership.organizationId
+
+      if (activeOrgSubscription.referenceId === organizationId) {
+        await attachOwnedWorkspacesToOrganization({
+          ownerUserId: user.id,
+          organizationId,
+        })
+      } else {
+        const resolvedSubscription =
+          await ensureOrganizationForTeamSubscription(activeOrgSubscription)
+
+        if (resolvedSubscription.referenceId !== organizationId) {
+          logger.error('Recovered organization did not match existing owner/admin membership', {
+            userId: user.id,
+            expectedOrganizationId: organizationId,
+            resolvedReferenceId: resolvedSubscription.referenceId,
+            subscriptionId: activeOrgSubscription.id,
+          })
+          throw new Error('Organization recovery resolved to an unexpected subscription owner')
+        }
+      }
+    } else {
+      createdOrganization = true
+      organizationId = await createOrganizationForTeamPlan(
+        user.id,
+        organizationName || undefined,
+        user.email,
+        organizationSlug
+      )
+
+      const resolvedSubscription =
+        await ensureOrganizationForTeamSubscription(activeOrgSubscription)
+
+      if (resolvedSubscription.referenceId !== organizationId) {
+        logger.error('Newly created organization was not attached to the active subscription', {
+          userId: user.id,
+          expectedOrganizationId: organizationId,
+          resolvedReferenceId: resolvedSubscription.referenceId,
+          subscriptionId: activeOrgSubscription.id,
+        })
+        throw new Error('Failed to link the new organization to the active subscription')
+      }
+    }
+
+    try {
+      await setActiveOrganizationForCurrentSession(organizationId)
+    } catch (error) {
+      logger.error('Failed to activate organization after creation', {
+        organizationId,
+        userId: user.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+
+    logger.info('Successfully ensured organization for team plan', {
       userId: user.id,
       organizationId,
+      createdOrganization,
     })
 
-    recordAudit({
-      workspaceId: null,
-      actorId: user.id,
-      action: AuditAction.ORGANIZATION_CREATED,
-      resourceType: AuditResourceType.ORGANIZATION,
-      resourceId: organizationId,
-      actorName: user.name ?? undefined,
-      actorEmail: user.email ?? undefined,
-      resourceName: organizationName ?? undefined,
-      description: `Created organization "${organizationName}"`,
-      metadata: { organizationSlug },
-      request,
-    })
+    if (createdOrganization) {
+      recordAudit({
+        workspaceId: null,
+        actorId: user.id,
+        action: AuditAction.ORGANIZATION_CREATED,
+        resourceType: AuditResourceType.ORGANIZATION,
+        resourceId: organizationId,
+        actorName: user.name ?? undefined,
+        actorEmail: user.email ?? undefined,
+        resourceName: organizationName ?? undefined,
+        description: `Created organization "${organizationName}"`,
+        metadata: { organizationSlug },
+        request,
+      })
+    }
 
     return NextResponse.json({
       success: true,
       organizationId,
+      created: createdOrganization,
     })
   } catch (error) {
+    if (error instanceof OrganizationSlugInvalidError) {
+      return NextResponse.json(
+        {
+          error:
+            'Organization slug can only contain lowercase letters, numbers, hyphens, and underscores.',
+        },
+        { status: 400 }
+      )
+    }
+
+    if (error instanceof OrganizationSlugTakenError) {
+      return NextResponse.json({ error: 'This slug is already taken' }, { status: 400 })
+    }
+
+    if (error instanceof WorkspaceOrganizationMembershipConflictError) {
+      return NextResponse.json(
+        {
+          error:
+            'One or more members of your existing shared workspaces already belong to another organization. Remove them from those workspaces before converting them to organization-owned workspaces.',
+        },
+        { status: 409 }
+      )
+    }
+
     logger.error('Failed to create organization for team plan', {
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
@@ -148,4 +290,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
+})

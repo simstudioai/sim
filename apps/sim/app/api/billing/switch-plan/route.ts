@@ -19,6 +19,7 @@ import {
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('SwitchPlan')
@@ -39,7 +40,7 @@ const switchPlanSchema = z.object({
  *   targetPlanName: string  -- e.g. 'pro_6000', 'team_25000'
  *   interval?: 'month' | 'year'  -- if omitted, keeps the current interval
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
 
   try {
@@ -194,4 +195,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

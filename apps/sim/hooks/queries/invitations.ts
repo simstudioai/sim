@@ -1,4 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { organizationKeys } from '@/hooks/queries/organization'
 import { workspaceKeys } from './workspace'
 
 /**
@@ -11,17 +12,15 @@ export const invitationKeys = {
   list: (workspaceId: string) => [...invitationKeys.lists(), workspaceId] as const,
 }
 
-/** Raw invitation data from the API. */
-export interface PendingInvitation {
+export interface PendingInvitationRow {
   id: string
   workspaceId: string
   email: string
-  permissions: 'admin' | 'write' | 'read'
+  permission: 'admin' | 'write' | 'read'
   status: string
   createdAt: string
 }
 
-/** Normalized invitation for display in the UI. */
 export interface WorkspaceInvitation {
   email: string
   permissionType: 'admin' | 'write' | 'read'
@@ -44,11 +43,11 @@ async function fetchPendingInvitations(
   return (
     data.invitations
       ?.filter(
-        (inv: PendingInvitation) => inv.status === 'pending' && inv.workspaceId === workspaceId
+        (inv: PendingInvitationRow) => inv.status === 'pending' && inv.workspaceId === workspaceId
       )
-      .map((inv: PendingInvitation) => ({
+      .map((inv: PendingInvitationRow) => ({
         email: inv.email,
-        permissionType: inv.permissions,
+        permissionType: inv.permission,
         isPendingInvitation: true,
         invitationId: inv.id,
       })) || []
@@ -99,7 +98,6 @@ export function useBatchSendWorkspaceInvitations() {
             body: JSON.stringify({
               workspaceId,
               email,
-              role: 'member',
               permission,
             }),
           })
@@ -149,7 +147,7 @@ export function useCancelWorkspaceInvitation() {
 
   return useMutation({
     mutationFn: async ({ invitationId }: CancelInvitationParams) => {
-      const response = await fetch(`/api/workspaces/invitations/${invitationId}`, {
+      const response = await fetch(`/api/invitations/${invitationId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
       })
@@ -183,7 +181,7 @@ export function useResendWorkspaceInvitation() {
 
   return useMutation({
     mutationFn: async ({ invitationId }: ResendInvitationParams) => {
-      const response = await fetch(`/api/workspaces/invitations/${invitationId}`, {
+      const response = await fetch(`/api/invitations/${invitationId}/resend`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })
@@ -279,12 +277,9 @@ export function useLeaveWorkspace() {
 interface UpdatePermissionsParams {
   workspaceId: string
   updates: Array<{ userId: string; permissions: 'admin' | 'write' | 'read' }>
+  organizationId?: string
 }
 
-/**
- * Updates permissions for one or more workspace members.
- * Invalidates the workspace permissions cache on success.
- */
 export function useUpdateWorkspacePermissions() {
   const queryClient = useQueryClient()
 
@@ -307,6 +302,11 @@ export function useUpdateWorkspacePermissions() {
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.permissions(variables.workspaceId),
       })
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.roster(variables.organizationId),
+        })
+      }
     },
   })
 }

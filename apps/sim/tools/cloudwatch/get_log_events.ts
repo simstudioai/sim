@@ -101,6 +101,14 @@ export const getLogEventsTool: ToolConfig<
     events: {
       type: 'array',
       description: 'Log events with timestamp, message, and ingestion time',
+      items: {
+        type: 'object',
+        properties: {
+          timestamp: { type: 'number', description: 'Event timestamp in epoch milliseconds' },
+          message: { type: 'string', description: 'Log event message' },
+          ingestionTime: { type: 'number', description: 'Ingestion time in epoch milliseconds' },
+        },
+      },
     },
   },
 }

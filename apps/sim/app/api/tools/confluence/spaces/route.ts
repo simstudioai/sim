@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
@@ -10,7 +11,7 @@ const logger = createLogger('ConfluenceSpacesAPI')
 export const dynamic = 'force-dynamic'
 
 // List all spaces
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -94,4 +95,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

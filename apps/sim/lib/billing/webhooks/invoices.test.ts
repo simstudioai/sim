@@ -1,57 +1,27 @@
 /**
  * @vitest-environment node
  */
-import { urlsMock, urlsMockFns } from '@sim/testing'
+import {
+  createMockStripeEvent,
+  dbChainMock,
+  dbChainMockFns,
+  drizzleOrmMock,
+  resetDbChainMock,
+  stripeClientMock,
+  stripePaymentMethodMock,
+  urlsMock,
+  urlsMockFns,
+} from '@sim/testing'
 import type Stripe from 'stripe'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBlockOrgMembers, mockDbSelect, mockUnblockOrgMembers, selectResponses } = vi.hoisted(
-  () => {
-    const selectResponses: Array<{ limitResult?: unknown; whereResult?: unknown }> = []
-    const mockDbSelect = vi.fn(() => {
-      const nextResponse = selectResponses.shift()
-
-      if (!nextResponse) {
-        throw new Error('No queued db.select response')
-      }
-
-      const builder = {
-        from: vi.fn(() => builder),
-        where: vi.fn(() => builder),
-        limit: vi.fn(async () => nextResponse.limitResult ?? nextResponse.whereResult ?? []),
-        then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
-          Promise.resolve(nextResponse.whereResult ?? nextResponse.limitResult ?? []).then(
-            resolve,
-            reject
-          ),
-      }
-
-      return builder
-    })
-
-    return {
-      mockBlockOrgMembers: vi.fn(),
-      mockDbSelect,
-      mockUnblockOrgMembers: vi.fn(),
-      selectResponses,
-    }
-  }
-)
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockDbSelect,
-  },
+const { mockBlockOrgMembers, mockUnblockOrgMembers } = vi.hoisted(() => ({
+  mockBlockOrgMembers: vi.fn(),
+  mockUnblockOrgMembers: vi.fn(),
 }))
 
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(() => 'and'),
-  eq: vi.fn(() => 'eq'),
-  inArray: vi.fn(() => 'inArray'),
-  isNull: vi.fn(() => 'isNull'),
-  ne: vi.fn(() => 'ne'),
-  or: vi.fn(() => 'or'),
-}))
+vi.mock('@sim/db', () => dbChainMock)
+vi.mock('drizzle-orm', () => drizzleOrmMock)
 
 vi.mock('@/components/emails', () => ({
   PaymentFailedEmail: vi.fn(),
@@ -85,18 +55,8 @@ vi.mock('@/lib/billing/plan-helpers', () => ({
   isTeam: vi.fn((plan: string | null | undefined) => Boolean(plan?.startsWith('team'))),
 }))
 
-vi.mock('@/lib/billing/stripe-client', () => ({
-  requireStripeClient: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/stripe-payment-method', () => ({
-  resolveDefaultPaymentMethod: vi.fn(async () => ({
-    paymentMethodId: undefined,
-    collectionMethod: 'charge_automatically',
-  })),
-  getPaymentMethodId: vi.fn(),
-  getCustomerId: vi.fn(),
-}))
+vi.mock('@/lib/billing/stripe-client', () => stripeClientMock)
+vi.mock('@/lib/billing/stripe-payment-method', () => stripePaymentMethodMock)
 
 vi.mock('@/lib/billing/subscriptions/utils', () => ({
   ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'trialing', 'past_due'],
@@ -140,29 +100,57 @@ vi.mock('@react-email/render', () => ({
   render: vi.fn(),
 }))
 
-import { handleInvoicePaymentFailed, handleInvoicePaymentSucceeded } from './invoices'
+import {
+  handleInvoicePaymentFailed,
+  handleInvoicePaymentSucceeded,
+} from '@/lib/billing/webhooks/invoices'
 
-function queueSelectResponse(response: { limitResult?: unknown; whereResult?: unknown }) {
+interface SelectResponse {
+  limitResult?: unknown
+  whereResult?: unknown
+}
+
+const selectResponses: SelectResponse[] = []
+
+function queueSelectResponse(response: SelectResponse) {
   selectResponses.push(response)
+}
+
+/**
+ * Override `where` so that each select-then-where chain pops the next queued
+ * response. Supports both `.limit(1)` terminals and directly-awaited `where()`.
+ */
+function installSelectResponseQueue() {
+  dbChainMockFns.where.mockImplementation(() => {
+    const next = selectResponses.shift()
+    if (!next) {
+      throw new Error('No queued db.select response')
+    }
+    const builder = {
+      limit: vi.fn(async () => next.limitResult ?? next.whereResult ?? []),
+      orderBy: vi.fn(async () => next.limitResult ?? next.whereResult ?? []),
+      returning: vi.fn(async () => next.limitResult ?? next.whereResult ?? []),
+      groupBy: vi.fn(async () => next.limitResult ?? next.whereResult ?? []),
+      then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
+        Promise.resolve(next.whereResult ?? next.limitResult ?? []).then(resolve, reject),
+    }
+    return builder as unknown as ReturnType<typeof dbChainMockFns.where>
+  })
 }
 
 function createInvoiceEvent(
   type: 'invoice.payment_failed' | 'invoice.payment_succeeded',
   invoice: Partial<Stripe.Invoice>
 ): Stripe.Event {
-  return {
-    data: {
-      object: invoice as Stripe.Invoice,
-    },
-    id: `evt_${type}`,
-    type,
-  } as Stripe.Event
+  return createMockStripeEvent(type, invoice)
 }
 
 describe('invoice billing recovery', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     selectResponses.length = 0
+    installSelectResponseQueue()
     urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
     mockBlockOrgMembers.mockResolvedValue(2)
     mockUnblockOrgMembers.mockResolvedValue(2)

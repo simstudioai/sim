@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ensureZodObject, normalizeUrl } from '@/app/api/tools/stagehand/utils'
 
 const logger = createLogger('StagehandExtractAPI')
@@ -23,7 +24,7 @@ const requestSchema = z.object({
   url: z.string().url(),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
@@ -251,4 +252,4 @@ export async function POST(request: NextRequest) {
       }
     }
   }
-}
+})
