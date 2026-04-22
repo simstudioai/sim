@@ -1311,8 +1311,27 @@ describe('validateAwsRegion', () => {
       expect(result.isValid).toBe(true)
     })
 
+    it.concurrent('should accept us-iso-west-1', () => {
+      const result = validateAwsRegion('us-iso-west-1')
+      expect(result.isValid).toBe(true)
+    })
+
     it.concurrent('should accept us-isob-east-1', () => {
       const result = validateAwsRegion('us-isob-east-1')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('valid Mexico regions', () => {
+    it.concurrent('should accept mx-central-1', () => {
+      const result = validateAwsRegion('mx-central-1')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('valid EU Sovereign Cloud regions', () => {
+    it.concurrent('should accept eu-isoe-west-1', () => {
+      const result = validateAwsRegion('eu-isoe-west-1')
       expect(result.isValid).toBe(true)
     })
   })
