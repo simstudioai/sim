@@ -171,7 +171,7 @@ export function ContactForm() {
 
   if (submitSuccess) {
     return (
-      <div className='flex min-h-[460px] flex-col items-center justify-center px-8 py-16 text-center'>
+      <div className='flex flex-col items-center px-8 py-16 text-center'>
         <div className='flex h-16 w-16 items-center justify-center rounded-full border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg-surface)] text-[var(--landing-text)]'>
           <Check className='h-8 w-8' />
         </div>
