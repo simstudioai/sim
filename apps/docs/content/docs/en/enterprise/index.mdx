@@ -3,6 +3,8 @@ title: Enterprise
 description: Enterprise features for business organizations
 ---
 
+import { FAQ } from '@/components/ui/faq'
+
 Sim Enterprise provides advanced features for organizations with enhanced security, compliance, and management requirements.
 
 ---
@@ -52,6 +54,14 @@ Track configuration and security-relevant actions across your organization for c
 ## Data Retention
 
 Configure how long execution logs, soft-deleted resources, and Mothership data are kept before permanent deletion. See the [data retention guide](/docs/enterprise/data-retention).
+
+---
+
+<FAQ items={[
+  { question: "Who can manage Enterprise features?", answer: "Workspace admins on an Enterprise-entitled workspace. Access Control, SSO, whitelabeling, audit logs, and data retention are all configured per workspace under Settings → Enterprise." },
+  { question: "Which SSO providers are supported?", answer: "Sim supports SAML 2.0 and OIDC, which works with virtually any enterprise identity provider including Okta, Azure AD (Entra ID), Google Workspace, ADFS, and OneLogin." },
+  { question: "How do access control permission groups work?", answer: "Permission groups are created per workspace and let you restrict which AI providers, workflow blocks, and platform features are available to specific members of that workspace. Each user can belong to at most one group per workspace. Users not assigned to any group have full access. Restrictions are enforced at both the UI level and at execution time based on the workflow's workspace." },
+]} />
 
 ---
 
