@@ -26,7 +26,6 @@ const PUBLIC_ENDPOINT_RATE_LIMIT: TokenBucketConfig = {
   refillIntervalMs: 60_000,
 }
 
-/** Tighter limit for submissions that couldn't complete CAPTCHA (e.g. ad blockers). */
 const CAPTCHA_UNAVAILABLE_RATE_LIMIT: TokenBucketConfig = {
   maxTokens: 3,
   refillRate: 1,
@@ -91,8 +90,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         expectedHostname: SITE_HOSTNAME,
       })
       if (!verification.success && verification.transportError) {
-        // Cloudflare siteverify unreachable — fall through via the tighter no-captcha bucket
-        // so a Cloudflare outage doesn't hard-block users who completed the challenge.
         logger.warn(
           `[${requestId}] Captcha transport error, falling back to no-captcha rate limit`,
           { ip }
