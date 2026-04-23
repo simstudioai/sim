@@ -26,7 +26,7 @@ const postgresClient = postgres(connectionString, {
   prepare: false,
   idle_timeout: 20,
   connect_timeout: 30,
-  max: 10,
+  max: 30,
   onnotice: () => {},
   connection: {
     options: '-c statement_timeout=90000 -c idle_in_transaction_session_timeout=90000',

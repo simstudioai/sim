@@ -89,7 +89,7 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('@sim/logger', () => loggerMock)
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/auth', () => ({
   getSession: mockGetSession,

@@ -18,13 +18,30 @@ FROM base AS deps
 WORKDIR /app
 
 COPY package.json bun.lock turbo.json ./
-RUN mkdir -p apps packages/db packages/testing packages/logger packages/tsconfig packages/utils
+RUN mkdir -p apps \
+    packages/audit \
+    packages/db \
+    packages/logger \
+    packages/realtime-protocol \
+    packages/security \
+    packages/testing \
+    packages/tsconfig \
+    packages/utils \
+    packages/workflow-authz \
+    packages/workflow-persistence \
+    packages/workflow-types
 COPY apps/sim/package.json ./apps/sim/package.json
+COPY packages/audit/package.json ./packages/audit/package.json
 COPY packages/db/package.json ./packages/db/package.json
-COPY packages/testing/package.json ./packages/testing/package.json
 COPY packages/logger/package.json ./packages/logger/package.json
+COPY packages/realtime-protocol/package.json ./packages/realtime-protocol/package.json
+COPY packages/security/package.json ./packages/security/package.json
+COPY packages/testing/package.json ./packages/testing/package.json
 COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
 COPY packages/utils/package.json ./packages/utils/package.json
+COPY packages/workflow-authz/package.json ./packages/workflow-authz/package.json
+COPY packages/workflow-persistence/package.json ./packages/workflow-persistence/package.json
+COPY packages/workflow-types/package.json ./packages/workflow-types/package.json
 
 # Install dependencies, then rebuild isolated-vm for Node.js
 # Use --linker=hoisted for flat node_modules layout (required for Docker multi-stage builds)
@@ -49,10 +66,17 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy package configuration files (needed for build)
 COPY package.json bun.lock turbo.json ./
 COPY apps/sim/package.json ./apps/sim/package.json
+COPY packages/audit/package.json ./packages/audit/package.json
 COPY packages/db/package.json ./packages/db/package.json
-COPY packages/testing/package.json ./packages/testing/package.json
 COPY packages/logger/package.json ./packages/logger/package.json
+COPY packages/realtime-protocol/package.json ./packages/realtime-protocol/package.json
+COPY packages/security/package.json ./packages/security/package.json
+COPY packages/testing/package.json ./packages/testing/package.json
+COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
 COPY packages/utils/package.json ./packages/utils/package.json
+COPY packages/workflow-authz/package.json ./packages/workflow-authz/package.json
+COPY packages/workflow-persistence/package.json ./packages/workflow-persistence/package.json
+COPY packages/workflow-types/package.json ./packages/workflow-types/package.json
 
 # Copy workspace configuration files (needed for turbo)
 COPY apps/sim/next.config.ts ./apps/sim/next.config.ts

@@ -5,7 +5,7 @@ import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm'
 
 const logger = createLogger('WorkspaceUtils')
 
-interface WorkspaceBillingSettings {
+export interface WorkspaceBillingSettings {
   billedAccountUserId: string | null
   allowPersonalApiKeys: boolean
 }

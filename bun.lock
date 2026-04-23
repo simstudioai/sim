@@ -1,11 +1,9 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "simstudio",
-      "dependencies": {
-        "@aws-sdk/client-athena": "3.1024.0",
-      },
       "devDependencies": {
         "@biomejs/biome": "2.0.0-beta.5",
         "@octokit/rest": "^21.0.0",
@@ -52,6 +50,36 @@
         "typescript": "^5.8.2",
       },
     },
+    "apps/realtime": {
+      "name": "@sim/realtime",
+      "version": "0.1.0",
+      "dependencies": {
+        "@sim/audit": "workspace:*",
+        "@sim/auth": "workspace:*",
+        "@sim/db": "workspace:*",
+        "@sim/logger": "workspace:*",
+        "@sim/realtime-protocol": "workspace:*",
+        "@sim/security": "workspace:*",
+        "@sim/utils": "workspace:*",
+        "@sim/workflow-authz": "workspace:*",
+        "@sim/workflow-persistence": "workspace:*",
+        "@sim/workflow-types": "workspace:*",
+        "@socket.io/redis-adapter": "8.3.0",
+        "drizzle-orm": "^0.45.2",
+        "postgres": "^3.4.5",
+        "redis": "5.10.0",
+        "socket.io": "^4.8.1",
+        "zod": "^3.24.2",
+      },
+      "devDependencies": {
+        "@sim/testing": "workspace:*",
+        "@sim/tsconfig": "workspace:*",
+        "@types/node": "24.2.1",
+        "socket.io-client": "4.8.1",
+        "typescript": "^5.7.3",
+        "vitest": "^3.0.8",
+      },
+    },
     "apps/sim": {
       "name": "sim",
       "version": "0.1.0",
@@ -59,6 +87,7 @@
         "@1password/sdk": "0.3.1",
         "@a2a-js/sdk": "0.3.7",
         "@anthropic-ai/sdk": "0.71.2",
+        "@aws-sdk/client-athena": "3.1024.0",
         "@aws-sdk/client-bedrock-runtime": "3.940.0",
         "@aws-sdk/client-cloudformation": "3.1019.0",
         "@aws-sdk/client-cloudwatch": "3.940.0",
@@ -118,9 +147,14 @@
         "@radix-ui/react-visually-hidden": "1.2.4",
         "@react-email/components": "^0.0.34",
         "@react-email/render": "2.0.0",
+        "@sim/audit": "workspace:*",
         "@sim/logger": "workspace:*",
+        "@sim/realtime-protocol": "workspace:*",
+        "@sim/security": "workspace:*",
         "@sim/utils": "workspace:*",
-        "@socket.io/redis-adapter": "8.3.0",
+        "@sim/workflow-authz": "workspace:*",
+        "@sim/workflow-persistence": "workspace:*",
+        "@sim/workflow-types": "workspace:*",
         "@t3-oss/env-nextjs": "0.13.4",
         "@tanstack/react-query": "5.90.8",
         "@tanstack/react-query-devtools": "5.90.2",
@@ -209,7 +243,6 @@
         "safe-regex2": "5.1.0",
         "sharp": "0.34.3",
         "soap": "1.8.0",
-        "socket.io": "^4.8.1",
         "socket.io-client": "4.8.1",
         "ssh2": "^1.17.0",
         "streamdown": "2.5.0",
@@ -257,6 +290,34 @@
         "typescript": "^5.7.3",
         "vite-tsconfig-paths": "^5.1.4",
         "vitest": "^3.0.8",
+      },
+    },
+    "packages/audit": {
+      "name": "@sim/audit",
+      "version": "0.1.0",
+      "dependencies": {
+        "@sim/db": "workspace:*",
+        "@sim/logger": "workspace:*",
+        "@sim/utils": "workspace:*",
+        "drizzle-orm": "^0.45.2",
+      },
+      "devDependencies": {
+        "@sim/testing": "workspace:*",
+        "@sim/tsconfig": "workspace:*",
+        "typescript": "^5.7.3",
+        "vitest": "^3.0.8",
+      },
+    },
+    "packages/auth": {
+      "name": "@sim/auth",
+      "version": "0.1.0",
+      "dependencies": {
+        "@sim/db": "workspace:*",
+        "better-auth": "1.3.12",
+      },
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "typescript": "^5.7.3",
       },
     },
     "packages/cli": {
@@ -307,6 +368,27 @@
         "vitest": "^3.0.8",
       },
     },
+    "packages/realtime-protocol": {
+      "name": "@sim/realtime-protocol",
+      "version": "0.1.0",
+      "dependencies": {
+        "zod": "^3.24.2",
+      },
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "typescript": "^5.7.3",
+      },
+    },
+    "packages/security": {
+      "name": "@sim/security",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "@types/node": "24.2.1",
+        "typescript": "^5.7.3",
+        "vitest": "^3.0.8",
+      },
+    },
     "packages/testing": {
       "name": "@sim/testing",
       "version": "0.1.0",
@@ -344,6 +426,46 @@
         "@sim/tsconfig": "workspace:*",
         "typescript": "^5.7.3",
         "vitest": "^3.0.8",
+      },
+    },
+    "packages/workflow-authz": {
+      "name": "@sim/workflow-authz",
+      "version": "0.1.0",
+      "dependencies": {
+        "@sim/db": "workspace:*",
+        "drizzle-orm": "^0.45.2",
+      },
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "typescript": "^5.7.3",
+      },
+    },
+    "packages/workflow-persistence": {
+      "name": "@sim/workflow-persistence",
+      "version": "0.1.0",
+      "dependencies": {
+        "@sim/db": "workspace:*",
+        "@sim/logger": "workspace:*",
+        "@sim/utils": "workspace:*",
+        "@sim/workflow-types": "workspace:*",
+        "drizzle-orm": "^0.45.2",
+        "reactflow": "^11.11.4",
+      },
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "typescript": "^5.7.3",
+      },
+    },
+    "packages/workflow-types": {
+      "name": "@sim/workflow-types",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "reactflow": "^11.11.4",
+        "typescript": "^5.7.3",
+      },
+      "peerDependencies": {
+        "reactflow": "^11.11.4",
       },
     },
   },
@@ -1351,15 +1473,31 @@
 
     "@shuding/opentype.js": ["@shuding/opentype.js@1.4.0-beta.0", "", { "dependencies": { "fflate": "^0.7.3", "string.prototype.codepointat": "^0.2.1" }, "bin": { "ot": "bin/ot" } }, "sha512-3NgmNyH3l/Hv6EvsWJbsvpcpUba6R8IREQ83nH83cyakCw7uM1arZKNfHwv1Wz6jgqrF/j4x5ELvR6PnK9nTcA=="],
 
+    "@sim/audit": ["@sim/audit@workspace:packages/audit"],
+
+    "@sim/auth": ["@sim/auth@workspace:packages/auth"],
+
     "@sim/db": ["@sim/db@workspace:packages/db"],
 
     "@sim/logger": ["@sim/logger@workspace:packages/logger"],
+
+    "@sim/realtime": ["@sim/realtime@workspace:apps/realtime"],
+
+    "@sim/realtime-protocol": ["@sim/realtime-protocol@workspace:packages/realtime-protocol"],
+
+    "@sim/security": ["@sim/security@workspace:packages/security"],
 
     "@sim/testing": ["@sim/testing@workspace:packages/testing"],
 
     "@sim/tsconfig": ["@sim/tsconfig@workspace:packages/tsconfig"],
 
     "@sim/utils": ["@sim/utils@workspace:packages/utils"],
+
+    "@sim/workflow-authz": ["@sim/workflow-authz@workspace:packages/workflow-authz"],
+
+    "@sim/workflow-persistence": ["@sim/workflow-persistence@workspace:packages/workflow-persistence"],
+
+    "@sim/workflow-types": ["@sim/workflow-types@workspace:packages/workflow-types"],
 
     "@simplewebauthn/browser": ["@simplewebauthn/browser@13.3.0", "", {}, "sha512-BE/UWv6FOToAdVk0EokzkqQQDOWtNydYlY6+OrmiZ5SCNmb41VehttboTetUM3T/fr6EAFYVXjz4My2wg230rQ=="],
 
@@ -4995,6 +5133,10 @@
 
     "@shuding/opentype.js/fflate": ["fflate@0.7.4", "", {}, "sha512-5u2V/CDW15QM1XbbgS+0DfPxVB+jUKhWEKuuFuHncbk3tEEqzmoXL+2KyOFuKGqOnmdIy0/davWF1CkuwtibCw=="],
 
+    "@sim/realtime/@types/node": ["@types/node@24.2.1", "", { "dependencies": { "undici-types": "~7.10.0" } }, "sha512-DRh5K+ka5eJic8CjH7td8QpYEV6Zo10gfRkjHCO3weqZHWDtAaSTFtl4+VMqOJ4N5jcuhZ9/l+yy8rVgw7BQeQ=="],
+
+    "@sim/security/@types/node": ["@types/node@24.2.1", "", { "dependencies": { "undici-types": "~7.10.0" } }, "sha512-DRh5K+ka5eJic8CjH7td8QpYEV6Zo10gfRkjHCO3weqZHWDtAaSTFtl4+VMqOJ4N5jcuhZ9/l+yy8rVgw7BQeQ=="],
+
     "@smithy/core/@smithy/util-stream": ["@smithy/util-stream@4.5.21", "", { "dependencies": { "@smithy/fetch-http-handler": "^5.3.15", "@smithy/node-http-handler": "^4.5.1", "@smithy/types": "^4.13.1", "@smithy/util-base64": "^4.3.2", "@smithy/util-buffer-from": "^4.2.2", "@smithy/util-hex-encoding": "^4.2.2", "@smithy/util-utf8": "^4.2.2", "tslib": "^2.6.2" } }, "sha512-KzSg+7KKywLnkoKejRtIBXDmwBfjGvg1U1i/etkC7XSWUyFCoLno1IohV2c74IzQqdhX5y3uE44r/8/wuK+A7Q=="],
 
     "@smithy/middleware-compression/fflate": ["fflate@0.8.1", "", {}, "sha512-/exOvEuc+/iaUm105QIiOt4LpBdMTWsXxqR0HDF35vx3fmaKzw7354gTilCh5rkzEt8WYyG//ku3h3nRmd7CHQ=="],
@@ -6002,6 +6144,10 @@
     "@shikijs/rehype/shiki/@shikijs/langs": ["@shikijs/langs@3.23.0", "", { "dependencies": { "@shikijs/types": "3.23.0" } }, "sha512-2Ep4W3Re5aB1/62RSYQInK9mM3HsLeB91cHqznAJMuylqjzNVAVCMnNWRHFtcNHXsoNRayP9z1qj4Sq3nMqYXg=="],
 
     "@shikijs/rehype/shiki/@shikijs/themes": ["@shikijs/themes@3.23.0", "", { "dependencies": { "@shikijs/types": "3.23.0" } }, "sha512-5qySYa1ZgAT18HR/ypENL9cUSGOeI2x+4IvYJu4JgVJdizn6kG4ia5Q1jDEOi7gTbN4RbuYtmHh0W3eccOrjMA=="],
+
+    "@sim/realtime/@types/node/undici-types": ["undici-types@7.10.0", "", {}, "sha512-t5Fy/nfn+14LuOc2KNYg75vZqClpAiqscVvMygNnlsHBFpSXdJaYtXMcdNLpl/Qvc3P2cB3s6lOV51nqsFq4ag=="],
+
+    "@sim/security/@types/node/undici-types": ["undici-types@7.10.0", "", {}, "sha512-t5Fy/nfn+14LuOc2KNYg75vZqClpAiqscVvMygNnlsHBFpSXdJaYtXMcdNLpl/Qvc3P2cB3s6lOV51nqsFq4ag=="],
 
     "@trigger.dev/core/@opentelemetry/core/@opentelemetry/semantic-conventions": ["@opentelemetry/semantic-conventions@1.40.0", "", {}, "sha512-cifvXDhcqMwwTlTK04GBNeIe7yyo28Mfby85QXFe1Yk8nmi36Ab/5UQwptOx84SsoGNRg+EVSjwzfSZMy6pmlw=="],
 

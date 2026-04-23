@@ -1,0 +1,36 @@
+{
+  "name": "@sim/realtime-protocol",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "bun": ">=1.2.13",
+    "node": ">=20.0.0"
+  },
+  "exports": {
+    "./constants": {
+      "types": "./src/constants.ts",
+      "default": "./src/constants.ts"
+    },
+    "./schemas": {
+      "types": "./src/schemas.ts",
+      "default": "./src/schemas.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format ."
+  },
+  "dependencies": {
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "typescript": "^5.7.3"
+  }
+}

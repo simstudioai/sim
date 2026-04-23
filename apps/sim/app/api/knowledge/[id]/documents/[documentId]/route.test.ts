@@ -34,7 +34,7 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   processDocumentAsync: vi.fn(),
 }))
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 
 import {
   deleteDocument,

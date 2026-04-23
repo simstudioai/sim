@@ -9,6 +9,7 @@ import {
   hybridAuthMockFns,
   loggingSessionMock,
   requestUtilsMockFns,
+  workflowAuthzMockFns,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
@@ -22,7 +23,7 @@ const mockCheckHybridAuth = hybridAuthMockFns.mockCheckHybridAuth
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 
 const mockAuthorizeWorkflowByWorkspacePermission =
-  workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission
+  workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 

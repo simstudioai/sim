@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import type { NextRequest } from 'next/server'
 import {
   type ApiKeyAuthResult,
@@ -6,7 +7,7 @@ import {
   updateApiKeyLastUsed,
 } from '@/lib/api-key/service'
 import { type AuthResult, checkHybridAuth } from '@/lib/auth/hybrid'
-import { authorizeWorkflowByWorkspacePermission, getWorkflowById } from '@/lib/workflows/utils'
+import { getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowMiddleware')
 

@@ -1,8 +1,8 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
-import { safeCompare } from '@/lib/core/security/encryption'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -207,10 +207,7 @@ function validateSlackSignature(
 
     const providedSignature = signature.substring(3)
     const basestring = `v0:${timestamp}:${rawBody}`
-    const computedHash = crypto
-      .createHmac('sha256', signingSecret)
-      .update(basestring, 'utf8')
-      .digest('hex')
+    const computedHash = hmacSha256Hex(basestring, signingSecret)
 
     return safeCompare(computedHash, providedSignature)
   } catch (error) {

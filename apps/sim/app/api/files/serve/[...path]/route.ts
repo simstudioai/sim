@@ -1,6 +1,6 @@
-import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
@@ -80,11 +80,7 @@ async function compileDocumentIfNeeded(
   }
 
   const code = buffer.toString('utf-8')
-  const cacheKey = createHash('sha256')
-    .update(ext)
-    .update(code)
-    .update(workspaceId ?? '')
-    .digest('hex')
+  const cacheKey = sha256Hex(`${ext}${code}${workspaceId ?? ''}`)
   const cached = compiledDocCache.get(cacheKey)
   if (cached) {
     return { buffer: cached, contentType: format.contentType }

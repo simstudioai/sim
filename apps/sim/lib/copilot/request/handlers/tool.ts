@@ -36,6 +36,8 @@ import {
   addContentBlock,
   emitSyntheticToolResult,
   ensureTerminalToolCallState,
+  flushSubagentThinkingBlock,
+  flushThinkingBlock,
   getScopedParentToolCallId,
   getToolCallUI,
   getToolResultErrorMessage,
@@ -130,6 +132,14 @@ export async function handleToolEvent(
     return
   }
 
+  // A tool event breaks the thinking stream. Flush any open thinking
+  // block into contentBlocks BEFORE we add the tool_call block, or
+  // contentBlocks will end up with tool_call before thinking — which
+  // re-renders on reload in the wrong order (Mothership group above
+  // the Thinking block, even though thinking happened first).
+  flushSubagentThinkingBlock(context)
+  flushThinkingBlock(context)
+
   if (isToolResultStreamEvent(event)) {
     handleResultPhase(event.payload, context, parentToolCallId)
     return
@@ -190,7 +200,22 @@ function handleResultPhase(
     ...(errorMessage ? { error: errorMessage } : {}),
     endTime,
   })
+  stampToolCallBlockEnd(context, toolCallId, endTime)
   markToolResultSeen(toolCallId)
+}
+
+function stampToolCallBlockEnd(
+  context: StreamingContext,
+  toolCallId: string,
+  endTime: number
+): void {
+  for (let i = context.contentBlocks.length - 1; i >= 0; i--) {
+    const block = context.contentBlocks[i]
+    if (block.type === 'tool_call' && block.toolCall?.id === toolCallId) {
+      if (block.endedAt === undefined) block.endedAt = endTime
+      return
+    }
+  }
 }
 
 async function handleCallPhase(

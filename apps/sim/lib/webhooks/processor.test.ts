@@ -56,7 +56,7 @@ vi.mock('@/lib/core/async-jobs', () => ({
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
-vi.mock('@/lib/core/security/encryption', () => ({
+vi.mock('@sim/security/compare', () => ({
   safeCompare: vi.fn().mockReturnValue(true),
 }))
 

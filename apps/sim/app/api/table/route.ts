@@ -260,6 +260,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
             updatedAt:
               t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt),
+            archivedAt:
+              t.archivedAt instanceof Date
+                ? t.archivedAt.toISOString()
+                : t.archivedAt
+                  ? String(t.archivedAt)
+                  : null,
           }
         }),
         totalCount: tables.length,

@@ -120,6 +120,8 @@ export {
 export { telemetryMock } from './telemetry.mock'
 // URL mocks
 export { urlsMock, urlsMockFns } from './urls.mock'
+// Workflow authz package mocks (for @sim/workflow-authz)
+export { workflowAuthzMock, workflowAuthzMockFns } from './workflow-authz.mock'
 // Workflows API utils mocks (for @/app/api/workflows/utils)
 export { workflowsApiUtilsMock, workflowsApiUtilsMockFns } from './workflows-api-utils.mock'
 // Workflows orchestration mocks (for @/lib/workflows/orchestration)

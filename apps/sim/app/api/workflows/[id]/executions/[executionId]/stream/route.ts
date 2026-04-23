@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
@@ -11,7 +12,6 @@ import {
   readExecutionEvents,
 } from '@/lib/execution/event-buffer'
 import { formatSSEEvent } from '@/lib/workflows/executor/execution-events'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('ExecutionStreamReconnectAPI')
 

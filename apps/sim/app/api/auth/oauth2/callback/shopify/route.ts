@@ -1,5 +1,6 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
@@ -34,13 +35,9 @@ function validateHmac(searchParams: URLSearchParams, clientSecret: string): bool
     .map((key) => `${key}=${params[key]}`)
     .join('&')
 
-  const generatedHmac = crypto.createHmac('sha256', clientSecret).update(message).digest('hex')
+  const generatedHmac = hmacSha256Hex(message, clientSecret)
 
-  try {
-    return crypto.timingSafeEqual(Buffer.from(hmac, 'hex'), Buffer.from(generatedHmac, 'hex'))
-  } catch {
-    return false
-  }
+  return safeCompare(hmac, generatedHmac)
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {

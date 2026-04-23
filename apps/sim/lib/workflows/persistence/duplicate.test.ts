@@ -4,6 +4,7 @@
 import {
   permissionsMock,
   permissionsMockFns,
+  workflowAuthzMockFns,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
@@ -11,7 +12,7 @@ import { drizzleOrmMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockAuthorizeWorkflowByWorkspacePermission =
-  workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission
+  workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 const { mockDb } = vi.hoisted(() => ({

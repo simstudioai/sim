@@ -1,10 +1,10 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq } from 'drizzle-orm'
 import { GetWorkflowLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import type { TraceSpan } from '@/stores/logs/filters/types'
 
 const logger = createLogger('GetWorkflowLogsServerTool')

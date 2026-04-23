@@ -734,6 +734,7 @@ export const apiKey = pgTable(
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     key: text('key').notNull().unique(),
+    keyHash: text('key_hash'),
     type: text('type').notNull().default('personal'),
     lastUsed: timestamp('last_used'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -747,6 +748,7 @@ export const apiKey = pgTable(
     ),
     workspaceTypeIdx: index('api_key_workspace_type_idx').on(table.workspaceId, table.type),
     userTypeIdx: index('api_key_user_type_idx').on(table.userId, table.type),
+    keyHashIdx: uniqueIndex('api_key_key_hash_idx').on(table.keyHash),
   })
 )
 
@@ -978,6 +980,11 @@ export const organization = pgTable('organization', {
     privacyUrl?: string
     hidePoweredBySim?: boolean
   }>(),
+  dataRetentionSettings: json('data_retention_settings').$type<{
+    logRetentionHours?: number | null
+    softDeleteRetentionHours?: number | null
+    taskCleanupHours?: number | null
+  }>(),
   orgUsageLimit: decimal('org_usage_limit'),
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
   departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
@@ -1077,9 +1084,6 @@ export const workspace = pgTable(
     inboxEnabled: boolean('inbox_enabled').notNull().default(false),
     inboxAddress: text('inbox_address'),
     inboxProviderId: text('inbox_provider_id'),
-    logRetentionHours: integer('log_retention_hours'),
-    softDeleteRetentionHours: integer('soft_delete_retention_hours'),
-    taskCleanupHours: integer('task_cleanup_hours'),
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

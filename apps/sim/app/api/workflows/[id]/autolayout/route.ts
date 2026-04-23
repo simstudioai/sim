@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
@@ -14,7 +15,6 @@ import {
   loadWorkflowFromNormalizedTables,
   type NormalizedWorkflowData,
 } from '@/lib/workflows/persistence/utils'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 export const dynamic = 'force-dynamic'
 

@@ -71,12 +71,24 @@ fi
 
 # Set up environment variables if .env doesn't exist for the sim app
 if [ ! -f "apps/sim/.env" ]; then
-  echo "📄 Creating .env file from template..."
+  echo "📄 Creating apps/sim/.env from template..."
   if [ -f "apps/sim/.env.example" ]; then
     cp apps/sim/.env.example apps/sim/.env
   else
     echo "DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio" > apps/sim/.env
   fi
+fi
+
+# Set up env for the realtime server (must match the shared values in apps/sim/.env)
+if [ ! -f "apps/realtime/.env" ] && [ -f "apps/realtime/.env.example" ]; then
+  echo "📄 Creating apps/realtime/.env from template..."
+  cp apps/realtime/.env.example apps/realtime/.env
+fi
+
+# Set up packages/db/.env for drizzle-kit and migration scripts
+if [ ! -f "packages/db/.env" ] && [ -f "packages/db/.env.example" ]; then
+  echo "📄 Creating packages/db/.env from template..."
+  cp packages/db/.env.example packages/db/.env
 fi
 
 # Generate schema and run database migrations

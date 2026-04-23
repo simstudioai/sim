@@ -37,7 +37,7 @@ const mockPerformDeleteFolder = workflowsOrchestrationMockFns.mockPerformDeleteF
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@sim/logger', () => ({
   createLogger: vi.fn().mockReturnValue(mockLogger),
   runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),

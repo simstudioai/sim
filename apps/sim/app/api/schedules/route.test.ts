@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { authMockFns, databaseMock, workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing'
+import { authMockFns, databaseMock, workflowAuthzMockFns, workflowsUtilsMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -44,7 +44,7 @@ describe('Schedule GET API', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: true,
       status: 200,
       workflow: { id: 'wf-1', workspaceId: 'ws-1' },
@@ -103,7 +103,7 @@ describe('Schedule GET API', () => {
   })
 
   it('returns 404 for non-existent workflow', async () => {
-    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: false,
       status: 404,
       message: 'Workflow not found',
@@ -118,7 +118,7 @@ describe('Schedule GET API', () => {
   })
 
   it('denies access for unauthorized user', async () => {
-    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: false,
       status: 403,
       message: 'Unauthorized: Access denied to read this workflow',

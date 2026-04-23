@@ -1,5 +1,6 @@
-import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from 'crypto'
 import { createLogger } from '@sim/logger'
+import { decrypt, encrypt } from '@sim/security/encryption'
+import { toError } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('Encryption')
@@ -13,59 +14,23 @@ function getEncryptionKey(): Buffer {
 }
 
 /**
- * Encrypts a secret using AES-256-GCM
+ * Encrypts a secret using AES-256-GCM with the app's `ENCRYPTION_KEY`.
  * @param secret - The secret to encrypt
- * @returns A promise that resolves to an object containing the encrypted secret and IV
+ * @returns A promise resolving to the encrypted value (`iv:ciphertext:authTag`) and the IV.
  */
 export async function encryptSecret(secret: string): Promise<{ encrypted: string; iv: string }> {
-  const iv = randomBytes(16)
-  const key = getEncryptionKey()
-
-  const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 })
-  let encrypted = cipher.update(secret, 'utf8', 'hex')
-  encrypted += cipher.final('hex')
-
-  const authTag = cipher.getAuthTag()
-  const ivHex = iv.toString('hex')
-
-  // Format: iv:encrypted:authTag
-  return {
-    encrypted: `${ivHex}:${encrypted}:${authTag.toString('hex')}`,
-    iv: ivHex,
-  }
+  return encrypt(secret, getEncryptionKey())
 }
 
 /**
- * Decrypts an encrypted secret
- * @param encryptedValue - The encrypted value in format "iv:encrypted:authTag"
- * @returns A promise that resolves to an object containing the decrypted secret
+ * Decrypts a secret previously produced by {@link encryptSecret}. Logs and
+ * rethrows on malformed input or tampered ciphertext.
  */
 export async function decryptSecret(encryptedValue: string): Promise<{ decrypted: string }> {
-  const parts = encryptedValue.split(':')
-  const ivHex = parts[0]
-  const authTagHex = parts[parts.length - 1]
-  const encrypted = parts.slice(1, -1).join(':')
-
-  if (!ivHex || !encrypted || !authTagHex) {
-    throw new Error('Invalid encrypted value format. Expected "iv:encrypted:authTag"')
-  }
-
-  const key = getEncryptionKey()
-  const iv = Buffer.from(ivHex, 'hex')
-  const authTag = Buffer.from(authTagHex, 'hex')
-
   try {
-    const decipher = createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 })
-    decipher.setAuthTag(authTag)
-
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8')
-    decrypted += decipher.final('utf8')
-
-    return { decrypted }
-  } catch (error: unknown) {
-    logger.error('Decryption error:', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+    return await decrypt(encryptedValue, getEncryptionKey())
+  } catch (error) {
+    logger.error('Decryption error:', { error: toError(error).message })
     throw error
   }
 }
@@ -84,18 +49,4 @@ export function generatePassword(length = 24): string {
   }
 
   return result
-}
-
-/**
- * Compares two strings in constant time to prevent timing attacks.
- * Used for HMAC signature validation.
- * @param a - First string to compare
- * @param b - Second string to compare
- * @returns True if strings are equal, false otherwise
- */
-export function safeCompare(a: string, b: string): boolean {
-  const key = 'safeCompare'
-  const ha = createHmac('sha256', key).update(a).digest()
-  const hb = createHmac('sha256', key).update(b).digest()
-  return timingSafeEqual(ha, hb)
 }

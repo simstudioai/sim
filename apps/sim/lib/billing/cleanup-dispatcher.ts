@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
-import { subscription, workspace } from '@sim/db/schema'
+import { organization, subscription, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { tasks } from '@trigger.dev/sdk'
-import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import { type PlanCategory, sqlIsPaid, sqlIsPro, sqlIsTeam } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { getJobQueue } from '@/lib/core/async-jobs'
@@ -16,10 +16,14 @@ const BATCH_TRIGGER_CHUNK_SIZE = 1000
 
 export type CleanupJobType = 'cleanup-logs' | 'cleanup-soft-deletes' | 'cleanup-tasks'
 
-export type WorkspaceRetentionColumn =
+export type OrganizationRetentionKey =
   | 'logRetentionHours'
   | 'softDeleteRetentionHours'
   | 'taskCleanupHours'
+
+export type OrganizationRetentionSettings = {
+  [K in OrganizationRetentionKey]: number | null
+}
 
 export type NonEnterprisePlan = Exclude<PlanCategory, 'enterprise'>
 
@@ -30,35 +34,36 @@ export type CleanupJobPayload =
   | { plan: 'enterprise'; workspaceId: string }
 
 interface CleanupJobConfig {
-  column: WorkspaceRetentionColumn
+  key: OrganizationRetentionKey
   defaults: Record<PlanCategory, number | null>
 }
 
 const DAY = 24
 
 /**
- * Single source of truth for cleanup retention: which workspace column each job
- * type inspects, and the default retention (in hours) per plan. Enterprise is
- * always `null` here — enterprise tenants must set their own value per workspace.
+ * Single source of truth for cleanup retention: which key each job type reads
+ * from `organization.dataRetentionSettings`, and the default retention (in
+ * hours) per plan. Enterprise is always `null` here — enterprise orgs must
+ * set their own value.
  */
 export const CLEANUP_CONFIG = {
   'cleanup-logs': {
-    column: 'logRetentionHours',
+    key: 'logRetentionHours',
     defaults: { free: 30 * DAY, pro: null, team: null, enterprise: null },
   },
   'cleanup-soft-deletes': {
-    column: 'softDeleteRetentionHours',
+    key: 'softDeleteRetentionHours',
     defaults: { free: 30 * DAY, pro: 90 * DAY, team: 90 * DAY, enterprise: null },
   },
   'cleanup-tasks': {
-    column: 'taskCleanupHours',
+    key: 'taskCleanupHours',
     defaults: { free: null, pro: null, team: null, enterprise: null },
   },
 } as const satisfies Record<CleanupJobType, CleanupJobConfig>
 
 /**
  * Bulk-lookup workspace IDs for a non-enterprise plan category. Enterprise is
- * per-workspace (has explicit opt-in retention), so it's not handled here.
+ * per-workspace (routed through the owning organization's retention config).
  */
 export async function resolveWorkspaceIdsForPlan(plan: NonEnterprisePlan): Promise<string[]> {
   if (plan === 'free') {
@@ -105,8 +110,8 @@ export interface ResolvedCleanupScope {
 /**
  * Translate a queued cleanup payload into a concrete cleanup scope: the set of
  * workspaces and the retention cutoff to apply. Returns `null` when the plan
- * has no retention configured (default is null, or the enterprise workspace
- * has not opted in).
+ * has no retention configured (default is null, or the enterprise org has not
+ * set this key).
  */
 export async function resolveCleanupScope(
   jobType: CleanupJobType,
@@ -121,17 +126,19 @@ export async function resolveCleanupScope(
     return { workspaceIds, retentionHours, label: payload.plan }
   }
 
-  const [ws] = await db
-    .select({ hours: workspace[config.column] })
+  const [row] = await db
+    .select({ settings: organization.dataRetentionSettings })
     .from(workspace)
+    .innerJoin(organization, eq(organization.id, workspace.organizationId))
     .where(eq(workspace.id, payload.workspaceId))
     .limit(1)
 
-  if (ws?.hours == null) return null
+  const hours = row?.settings?.[config.key]
+  if (hours == null) return null
 
   return {
     workspaceIds: [payload.workspaceId],
-    retentionHours: ws.hours,
+    retentionHours: hours,
     label: `enterprise/${payload.workspaceId}`,
   }
 }
@@ -189,7 +196,8 @@ async function runInlineIfNeeded(
  * Dispatcher: enqueue cleanup jobs driven by `CLEANUP_CONFIG`.
  *
  * - One job per non-enterprise plan with a non-null default
- * - One enterprise job per workspace with a non-NULL retention value in the column
+ * - One enterprise job per workspace whose owning organization has a non-null
+ *   retention value for this job's key
  *
  * Uses Trigger.dev batchTrigger when available, otherwise parallel enqueue via
  * the JobQueueBackend abstraction. On the database backend (no external worker),
@@ -211,30 +219,34 @@ export async function dispatchCleanupJobs(
     await runInlineIfNeeded(jobQueue, jobType, jobId, payload)
   }
 
-  // Enterprise: query workspaces with non-NULL retention column. The JOIN can
-  // match multiple subscription rows per workspace (e.g. active + past_due both
-  // in ENTITLED_SUBSCRIPTION_STATUSES) — groupBy dedupes to one row per workspace
-  // so we don't dispatch the same cleanup job twice.
-  const retentionCol = workspace[config.column]
+  // Enterprise: workspaces whose owning org is on an active enterprise sub and
+  // has a non-NULL value for this job's retention key. groupBy dedupes in case
+  // multiple entitled subscription rows exist for the same org.
   const enterpriseRows = await db
     .select({ id: workspace.id })
     .from(workspace)
+    .innerJoin(organization, eq(organization.id, workspace.organizationId))
     .innerJoin(
       subscription,
       and(
-        eq(subscription.referenceId, workspace.billedAccountUserId),
+        eq(subscription.referenceId, organization.id),
         inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
         eq(subscription.plan, 'enterprise')
       )
     )
-    .where(and(isNull(workspace.archivedAt), isNotNull(retentionCol)))
+    .where(
+      and(
+        isNull(workspace.archivedAt),
+        isNotNull(sql`${organization.dataRetentionSettings}->>${config.key}`)
+      )
+    )
     .groupBy(workspace.id)
 
   const enterpriseCount = enterpriseRows.length
 
   const planLabels = plansWithDefaults.join('+') || 'none'
   logger.info(
-    `[${jobType}] Dispatching: plans=[${planLabels}] + ${enterpriseCount} enterprise jobs (column: ${config.column})`
+    `[${jobType}] Dispatching: plans=[${planLabels}] + ${enterpriseCount} enterprise jobs (key: ${config.key})`
   )
 
   if (enterpriseCount === 0) {

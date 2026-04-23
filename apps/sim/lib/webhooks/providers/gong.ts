@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { toError } from '@sim/utils/errors'
 import * as jose from 'jose'
 import { NextResponse } from 'next/server'
@@ -102,7 +102,7 @@ export async function verifyGongJwtAuth(ctx: AuthContext): Promise<NextResponse 
     return new NextResponse('Unauthorized - Invalid Gong JWT claims', { status: 401 })
   }
 
-  const expectedDigest = createHash('sha256').update(rawBody, 'utf8').digest('hex')
+  const expectedDigest = sha256Hex(rawBody)
   if (claimDigest !== expectedDigest) {
     logger.warn(`[${requestId}] Gong JWT body_sha256 mismatch`)
     return new NextResponse('Unauthorized - Gong JWT body mismatch', { status: 401 })

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { workflowExecutionLogs } from '@sim/db/schema'
+import { jobExecutionLogs, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { and, inArray, lt } from 'drizzle-orm'
@@ -112,6 +112,63 @@ async function cleanupTier(
   return results
 }
 
+interface JobLogCleanupResults {
+  deleted: number
+  deleteFailed: number
+}
+
+async function cleanupJobExecutionLogsTier(
+  workspaceIds: string[],
+  retentionDate: Date,
+  label: string
+): Promise<JobLogCleanupResults> {
+  const results: JobLogCleanupResults = { deleted: 0, deleteFailed: 0 }
+  if (workspaceIds.length === 0) return results
+
+  let batchesProcessed = 0
+  let hasMore = true
+
+  while (hasMore && batchesProcessed < MAX_BATCHES_PER_TIER) {
+    const batch = await db
+      .select({ id: jobExecutionLogs.id })
+      .from(jobExecutionLogs)
+      .where(
+        and(
+          inArray(jobExecutionLogs.workspaceId, workspaceIds),
+          lt(jobExecutionLogs.startedAt, retentionDate)
+        )
+      )
+      .limit(BATCH_SIZE)
+
+    if (batch.length === 0) {
+      hasMore = false
+      break
+    }
+
+    const logIds = batch.map((log) => log.id)
+    try {
+      const deleted = await db
+        .delete(jobExecutionLogs)
+        .where(inArray(jobExecutionLogs.id, logIds))
+        .returning({ id: jobExecutionLogs.id })
+
+      results.deleted += deleted.length
+    } catch (deleteError) {
+      results.deleteFailed += logIds.length
+      logger.error(`Batch delete failed for ${label} (job_execution_logs):`, { deleteError })
+    }
+
+    batchesProcessed++
+    hasMore = batch.length === BATCH_SIZE
+
+    logger.info(
+      `[${label}] job_execution_logs batch ${batchesProcessed}: ${batch.length} rows processed`
+    )
+  }
+
+  return results
+}
+
 export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> {
   const startTime = Date.now()
 
@@ -135,7 +192,12 @@ export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> 
 
   const results = await cleanupTier(workspaceIds, retentionDate, label)
   logger.info(
-    `[${label}] Result: ${results.deleted} deleted, ${results.deleteFailed} failed out of ${results.total} candidates`
+    `[${label}] workflow_execution_logs: ${results.deleted} deleted, ${results.deleteFailed} failed out of ${results.total} candidates`
+  )
+
+  const jobLogResults = await cleanupJobExecutionLogsTier(workspaceIds, retentionDate, label)
+  logger.info(
+    `[${label}] job_execution_logs: ${jobLogResults.deleted} deleted, ${jobLogResults.deleteFailed} failed`
   )
 
   // Snapshot cleanup runs only on the free job to avoid running it N times for N enterprise workspaces.

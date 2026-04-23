@@ -22,11 +22,11 @@
  *   Response: { success: true, deletedCount: number, membersRemoved: number }
  */
 
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { permissionGroup, permissionGroupMember, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq, inArray, sql } from 'drizzle-orm'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {

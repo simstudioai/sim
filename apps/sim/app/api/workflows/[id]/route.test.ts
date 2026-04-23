@@ -10,6 +10,7 @@ import {
   envMock,
   hybridAuthMockFns,
   telemetryMock,
+  workflowAuthzMockFns,
   workflowsOrchestrationMock,
   workflowsOrchestrationMockFns,
   workflowsPersistenceUtilsMock,
@@ -24,7 +25,7 @@ const mockLoadWorkflowFromNormalizedTables =
   workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
 const mockGetWorkflowById = workflowsUtilsMockFns.mockGetWorkflowById
 const mockAuthorizeWorkflowByWorkspacePermission =
-  workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission
+  workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
 const mockPerformDeleteWorkflow = workflowsOrchestrationMockFns.mockPerformDeleteWorkflow
 const mockDbUpdate = vi.fn()
 const mockDbSelect = vi.fn()
@@ -52,7 +53,7 @@ vi.mock('@/lib/core/config/env', () => envMock)
 
 vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 

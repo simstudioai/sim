@@ -114,6 +114,7 @@ export interface OptionItem {
 
 export const ContentBlockType = {
   text: 'text',
+  thinking: 'thinking',
   tool_call: 'tool_call',
   subagent: 'subagent',
   subagent_end: 'subagent_end',
@@ -130,6 +131,8 @@ export interface ContentBlock {
   subagent?: string
   toolCall?: ToolCallInfo
   options?: OptionItem[]
+  timestamp?: number
+  endedAt?: number
 }
 
 export interface ChatMessageAttachment {

@@ -1,8 +1,9 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -18,7 +19,6 @@ import {
 } from '@/lib/knowledge/documents/service'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('DocumentsAPI')

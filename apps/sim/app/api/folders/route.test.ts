@@ -30,7 +30,7 @@ const { mockLogger } = vi.hoisted(() => {
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('drizzle-orm', () => ({
   ...drizzleOrmMock,
   min: vi.fn((field) => ({ type: 'min', field })),

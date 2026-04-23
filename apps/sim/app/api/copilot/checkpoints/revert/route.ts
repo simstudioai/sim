@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflowCheckpoints, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -14,7 +15,6 @@ import {
 } from '@/lib/copilot/request/http'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { isUuidV4 } from '@/executor/constants'
 
 const logger = createLogger('CheckpointRevertAPI')
