@@ -214,7 +214,7 @@
     "name": "AgentPhone",
     "description": "Provision numbers, send SMS and iMessage, and place voice calls with AgentPhone",
     "longDescription": "Give your workflow a phone. Provision SMS- and voice-enabled numbers, send messages and tapback reactions, place outbound voice calls, manage conversations and contacts, and track usage — all through a single AgentPhone API key.",
-    "bgColor": "linear-gradient(135deg, #050505 0%, #003d20 55%, #00e676 100%)",
+    "bgColor": "linear-gradient(135deg, #1a1a1a 0%, #0a2a14 100%)",
     "iconName": "AgentPhoneIcon",
     "docsUrl": "https://docs.sim.ai/tools/agentphone",
     "operations": [
