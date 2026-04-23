@@ -53,7 +53,7 @@ packages/
 ### Package boundaries
 - `apps/* → packages/*` only. Packages never import from `apps/*`.
 - Each package has explicit subpath `exports` maps; no barrels that accidentally pull in heavy halves.
-- `apps/realtime` intentionally avoids Next.js, React, the block/tool registry, provider SDKs, and the executor. CI enforces this via `scripts/check-monorepo-boundaries.ts` and `scripts/check-realtime-image-size.ts`.
+- `apps/realtime` intentionally avoids Next.js, React, the block/tool registry, provider SDKs, and the executor. CI enforces this via `scripts/check-monorepo-boundaries.ts` and `scripts/check-realtime-prune-graph.ts`.
 - Auth is shared across services via the Better Auth "Shared Database Session" pattern: both apps read the same `BETTER_AUTH_SECRET` and point at the same DB via `@sim/db`.
 
 ### Naming Conventions

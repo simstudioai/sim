@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "simstudio",
@@ -68,13 +69,13 @@
         "postgres": "^3.4.5",
         "redis": "5.10.0",
         "socket.io": "^4.8.1",
-        "socket.io-client": "4.8.1",
         "zod": "^3.24.2",
       },
       "devDependencies": {
         "@sim/testing": "workspace:*",
         "@sim/tsconfig": "workspace:*",
         "@types/node": "24.2.1",
+        "socket.io-client": "4.8.1",
         "typescript": "^5.7.3",
         "vitest": "^3.0.8",
       },
@@ -301,8 +302,10 @@
         "drizzle-orm": "^0.45.2",
       },
       "devDependencies": {
+        "@sim/testing": "workspace:*",
         "@sim/tsconfig": "workspace:*",
         "typescript": "^5.7.3",
+        "vitest": "^3.0.8",
       },
     },
     "packages/auth": {
@@ -442,6 +445,7 @@
       "dependencies": {
         "@sim/db": "workspace:*",
         "@sim/logger": "workspace:*",
+        "@sim/utils": "workspace:*",
         "@sim/workflow-types": "workspace:*",
         "drizzle-orm": "^0.45.2",
         "reactflow": "^11.11.4",

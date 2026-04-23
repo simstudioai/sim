@@ -2,6 +2,13 @@ import type { BlockState, SubBlockState } from '@sim/workflow-types/workflow'
 
 export const DEFAULT_SUBBLOCK_TYPE = 'short-input'
 
+/**
+ * Merges subblock values into the provided subblock structures.
+ * Falls back to a default subblock shape when a value has no structure.
+ * @param subBlocks - Existing subblock definitions from the workflow
+ * @param values - Stored subblock values keyed by subblock id
+ * @returns Merged subblock structures with updated values
+ */
 export function mergeSubBlockValues(
   subBlocks: Record<string, unknown> | undefined,
   values: Record<string, unknown> | undefined
@@ -29,6 +36,14 @@ export function mergeSubBlockValues(
   return merged
 }
 
+/**
+ * Merges workflow block states with explicit subblock values while maintaining block structure.
+ * Values that are null or undefined do not override existing subblock values.
+ * @param blocks - Block configurations from workflow state
+ * @param subBlockValues - Subblock values keyed by blockId -> subBlockId -> value
+ * @param blockId - Optional specific block ID to merge (merges all if not provided)
+ * @returns Merged block states with updated subblocks
+ */
 export function mergeSubblockStateWithValues(
   blocks: Record<string, BlockState>,
   subBlockValues: Record<string, Record<string, unknown>> = {},

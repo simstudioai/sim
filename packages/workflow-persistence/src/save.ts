@@ -1,5 +1,6 @@
 import { db, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { SUBFLOW_TYPES } from '@sim/workflow-types/workflow'
 import type { InferInsertModel } from 'drizzle-orm'
@@ -101,7 +102,7 @@ export async function saveWorkflowToNormalizedTables(
     logger.error(`Error saving workflow ${workflowId} to normalized tables:`, error)
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: toError(error).message,
     }
   }
 }

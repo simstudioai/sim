@@ -20,7 +20,9 @@
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
     "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@sim/db": "workspace:*",
@@ -29,7 +31,9 @@
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
+    "@sim/testing": "workspace:*",
     "@sim/tsconfig": "workspace:*",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.8"
   }
 }

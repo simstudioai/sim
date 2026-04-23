@@ -13,6 +13,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@sim/db', () => ({
   ...dbChainMock,
   auditLog: { id: 'id', workspaceId: 'workspace_id' },
+  user: { id: 'id', name: 'name', email: 'email' },
+}))
+vi.mock('drizzle-orm', () => ({
+  eq: vi.fn(),
+  and: vi.fn(),
+  or: vi.fn(),
+  sql: vi.fn(),
+}))
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  }),
 }))
 vi.mock('@sim/utils/id', () => ({
   generateId: () => 'test-uuid-123',

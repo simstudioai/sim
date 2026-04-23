@@ -40,7 +40,7 @@ vi.mock('@/serializer', () => ({
   Serializer: vi.fn(),
 }))
 
-vi.mock('@/lib/workflows/subblocks', () => ({
+vi.mock('@sim/workflow-persistence/subblocks', () => ({
   mergeSubblockStateWithValues: mockMergeSubblockStateWithValues,
   mergeSubBlockValues: mockMergeSubBlockValues,
 }))
