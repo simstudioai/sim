@@ -154,6 +154,7 @@ function BoundedViewport({ children, isStreaming }: BoundedViewportProps) {
   const ref = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number | null>(null)
   const stickToBottomRef = useRef(true)
+  const [hasOverflow, setHasOverflow] = useState(false)
 
   useEffect(() => {
     const el = ref.current
@@ -176,6 +177,11 @@ function BoundedViewport({ children, isStreaming }: BoundedViewportProps) {
   }, [])
 
   useLayoutEffect(() => {
+    const el = ref.current
+    if (el) {
+      const next = el.scrollHeight > el.clientHeight
+      setHasOverflow((prev) => (prev === next ? prev : next))
+    }
     if (rafRef.current !== null) {
       window.cancelAnimationFrame(rafRef.current)
       rafRef.current = null
@@ -206,11 +212,19 @@ function BoundedViewport({ children, isStreaming }: BoundedViewportProps) {
   })
 
   return (
-    <div
-      ref={ref}
-      className='max-h-[110px] overflow-y-auto pr-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
-    >
-      {children}
+    <div className='relative'>
+      <div
+        ref={ref}
+        className={cn('max-h-[110px] overflow-y-auto pr-2', hasOverflow && 'py-1')}
+      >
+        {children}
+      </div>
+      {hasOverflow && (
+        <>
+          <div className='pointer-events-none absolute top-0 right-2 left-0 h-3 bg-gradient-to-b from-[var(--bg)] to-transparent' />
+          <div className='pointer-events-none absolute right-2 bottom-0 left-0 h-3 bg-gradient-to-t from-[var(--bg)] to-transparent' />
+        </>
+      )}
     </div>
   )
 }
