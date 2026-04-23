@@ -10,7 +10,6 @@ const EnvSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().url(),
   ALLOWED_ORIGINS: z.string().optional(),
   PORT: z.coerce.number().int().positive().default(3002),
-  SOCKET_PORT: z.coerce.number().int().positive().optional(),
   DISABLE_AUTH: z
     .string()
     .optional()
