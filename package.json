@@ -11,8 +11,8 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "dev:sockets": "cd apps/sim && bun run dev:sockets",
-    "dev:full": "cd apps/sim && bun run dev:full",
+    "dev:sockets": "cd apps/realtime && bun run dev",
+    "dev:full": "bunx concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"cd apps/sim && bun run dev\" \"cd apps/realtime && bun run dev\"",
     "test": "turbo run test",
     "format": "turbo run format",
     "format:check": "turbo run format:check",
@@ -21,6 +21,8 @@
     "lint:helm": "helm lint ./helm/sim --strict --values ./helm/sim/test/values-lint.yaml",
     "lint:all": "turbo run lint && bun run lint:helm",
     "check": "turbo run format:check",
+    "check:boundaries": "bun run scripts/check-monorepo-boundaries.ts",
+    "check:realtime-prune": "bun run scripts/check-realtime-prune-graph.ts",
     "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",
     "mship-contracts:check": "bun run scripts/sync-mothership-stream-contract.ts --check",
     "mship-tools:generate": "bun run scripts/sync-tool-catalog.ts",
@@ -65,8 +67,5 @@
   },
   "trustedDependencies": [
     "sharp"
-  ],
-  "dependencies": {
-    "@aws-sdk/client-athena": "3.1024.0"
-  }
+  ]
 }

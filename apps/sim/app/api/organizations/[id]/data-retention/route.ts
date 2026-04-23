@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { getSession } from '@/lib/auth'
 import {
   CLEANUP_CONFIG,

@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflowCheckpoints } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -13,7 +14,6 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowCheckpointsAPI')
 

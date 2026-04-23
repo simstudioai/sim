@@ -1,7 +1,7 @@
-import { createHmac } from 'crypto'
 import { db } from '@sim/db'
 import { account, workspaceNotificationSubscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
@@ -36,9 +36,7 @@ interface SlackConfig {
 
 function generateSignature(secret: string, timestamp: number, body: string): string {
   const signatureBase = `${timestamp}.${body}`
-  const hmac = createHmac('sha256', secret)
-  hmac.update(signatureBase)
-  return hmac.digest('hex')
+  return hmacSha256Hex(signatureBase, secret)
 }
 
 function buildTestPayload(subscription: typeof workspaceNotificationSubscription.$inferSelect) {

@@ -108,7 +108,6 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       canonicalParamId: 'listId',
       serviceId: 'sharepoint',
       selectorKey: 'sharepoint.lists',
-      selectorAllowSearch: false,
       placeholder: 'Select a list',
       dependsOn: ['credential', 'siteSelector'],
       mode: 'basic',

@@ -30,7 +30,7 @@ const mockCheckWriteAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWrit
 
 vi.mock('@sim/db', () => ({ db: mockDbChain }))
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 
 import { GET, PATCH } from '@/app/api/knowledge/[id]/connectors/[connectorId]/documents/route'
 

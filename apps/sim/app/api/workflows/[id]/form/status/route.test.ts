@@ -8,8 +8,8 @@ import {
   dbChainMockFns,
   hybridAuthMockFns,
   resetDbChainMock,
+  workflowAuthzMockFns,
   workflowsUtilsMock,
-  workflowsUtilsMockFns,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -45,7 +45,7 @@ describe('Workflow Form Status Route', () => {
       userId: 'user-1',
       authType: 'session',
     })
-    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
       allowed: false,
       status: 403,
       message: 'Access denied',
@@ -65,7 +65,7 @@ describe('Workflow Form Status Route', () => {
       userId: 'user-1',
       authType: 'session',
     })
-    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
       allowed: true,
       status: 200,
       workflow: { id: 'wf-1', workspaceId: 'ws-1' },

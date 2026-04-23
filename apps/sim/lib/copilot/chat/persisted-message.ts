@@ -1,3 +1,4 @@
+import { generateId } from '@sim/utils/id'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -191,7 +192,7 @@ export function buildPersistedAssistantMessage(
   requestId?: string
 ): PersistedMessage {
   const message: PersistedMessage = {
-    id: crypto.randomUUID(),
+    id: generateId(),
     role: 'assistant',
     content: result.content,
     timestamp: new Date().toISOString(),
@@ -488,7 +489,7 @@ function normalizeBlocks(rawBlocks: RawBlock[], messageContent: string): Persist
 
 export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage {
   const msg: PersistedMessage = {
-    id: (raw.id as string) ?? crypto.randomUUID(),
+    id: (raw.id as string) ?? generateId(),
     role: (raw.role as 'user' | 'assistant') ?? 'assistant',
     content: (raw.content as string) ?? '',
     timestamp: (raw.timestamp as string) ?? new Date().toISOString(),

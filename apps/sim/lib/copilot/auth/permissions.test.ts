@@ -10,7 +10,7 @@ const { mockGetActiveWorkflowContext } = vi.hoisted(() => ({
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
-vi.mock('@/lib/workflows/active-context', () => ({
+vi.mock('@sim/workflow-authz', () => ({
   getActiveWorkflowContext: mockGetActiveWorkflowContext,
 }))
 

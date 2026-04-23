@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
@@ -10,7 +11,6 @@ import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/ev
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('CancelExecutionAPI')
 

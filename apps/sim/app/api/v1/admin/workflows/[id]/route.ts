@@ -15,10 +15,10 @@
 import { db } from '@sim/db'
 import { workflowBlocks, workflowEdges } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getActiveWorkflowRecord } from '@sim/workflow-authz'
 import { count, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { performDeleteWorkflow } from '@/lib/workflows/orchestration'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {

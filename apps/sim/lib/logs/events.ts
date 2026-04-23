@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workspaceNotificationDelivery, workspaceNotificationSubscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { getActiveWorkflowContext } from '@sim/workflow-authz'
 import { and, eq, or, sql } from 'drizzle-orm'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import type { WorkflowExecutionLog } from '@/lib/logs/types'
@@ -10,7 +11,6 @@ import {
   type AlertConfig,
   shouldTriggerAlert,
 } from '@/lib/notifications/alert-rules'
-import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import {
   executeNotificationDelivery,
   workspaceNotificationDeliveryTask,

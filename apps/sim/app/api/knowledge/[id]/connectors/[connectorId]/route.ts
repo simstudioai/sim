@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   document,
@@ -11,7 +12,6 @@ import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { decryptApiKey } from '@/lib/api-key/crypto'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { hasLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { generateRequestId } from '@/lib/core/utils/request'

@@ -3,6 +3,7 @@ import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId, isValidUuid } from '@sim/utils/id'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -45,11 +46,7 @@ import {
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
-import {
-  authorizeWorkflowByWorkspacePermission,
-  createHttpResponseFromBlock,
-  workflowHasResponseBlock,
-} from '@/lib/workflows/utils'
+import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
 import {
   PublicApiNotAllowedError,

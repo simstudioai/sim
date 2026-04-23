@@ -41,7 +41,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 

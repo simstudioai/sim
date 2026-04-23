@@ -103,6 +103,15 @@ jobs:
       - name: Lint code
         run: bun run lint:check
 
+      - name: Enforce monorepo boundaries
+        run: bun run check:boundaries
+
+      - name: Verify realtime prune graph
+        run: bun run check:realtime-prune
+
+      - name: Type-check realtime server
+        run: bunx turbo run type-check --filter=@sim/realtime
+
       - name: Run tests with coverage
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'

@@ -428,7 +428,6 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       canonicalParamId: 'driveId',
       serviceId: 'microsoft-excel',
       selectorKey: 'microsoft.excel.drives',
-      selectorAllowSearch: false,
       placeholder: 'Select a document library',
       dependsOn: ['credential', 'siteSelector', 'fileSource'],
       condition: { field: 'fileSource', value: 'sharepoint' },
@@ -478,7 +477,6 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       canonicalParamId: 'sheetName',
       serviceId: 'microsoft-excel',
       selectorKey: 'microsoft.excel.sheets',
-      selectorAllowSearch: false,
       placeholder: 'Select a sheet',
       required: true,
       dependsOn: {

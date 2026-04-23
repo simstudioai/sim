@@ -1,7 +1,7 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { NextResponse } from 'next/server'
-import { safeCompare } from '@/lib/core/security/encryption'
 import type {
   EventMatchContext,
   FormatInputContext,
@@ -28,7 +28,7 @@ function validateNotionSignature(secret: string, signature: string, body: string
     }
 
     const providedHash = signature.startsWith('sha256=') ? signature.slice(7) : signature
-    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+    const computedHash = hmacSha256Hex(body, secret)
 
     logger.debug('Notion signature comparison', {
       computedSignature: `${computedHash.substring(0, 10)}...`,

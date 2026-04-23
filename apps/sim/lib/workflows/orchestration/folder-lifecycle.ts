@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   a2aAgent,
@@ -11,7 +12,6 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { archiveWorkflowsByIdsInWorkspace } from '@/lib/workflows/lifecycle'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
 

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { getActiveWorkflowRecord } from '@sim/workflow-authz'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { performFullDeploy, performFullUndeploy } from '@/lib/workflows/orchestration'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
