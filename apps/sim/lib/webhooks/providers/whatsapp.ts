@@ -1,9 +1,9 @@
-import { createHmac } from 'crypto'
 import { db, workflowDeploymentVersion } from '@sim/db'
 import { webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import type {
@@ -111,7 +111,7 @@ function validateWhatsAppSignature(secret: string, signature: string, body: stri
     }
 
     const providedSignature = signature.substring(7)
-    const computedSignature = createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+    const computedSignature = hmacSha256Hex(body, secret)
 
     return safeCompare(computedSignature, providedSignature)
   } catch (error) {

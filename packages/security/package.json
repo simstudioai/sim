@@ -22,6 +22,10 @@
       "types": "./src/hash.ts",
       "default": "./src/hash.ts"
     },
+    "./hmac": {
+      "types": "./src/hmac.ts",
+      "default": "./src/hmac.ts"
+    },
     "./tokens": {
       "types": "./src/tokens.ts",
       "default": "./src/tokens.ts"

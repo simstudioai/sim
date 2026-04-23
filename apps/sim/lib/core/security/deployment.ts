@@ -1,6 +1,6 @@
-import { createHmac } from 'crypto'
 import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import type { NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
 import { isDev } from '@/lib/core/config/feature-flags'
@@ -11,7 +11,7 @@ import { isDev } from '@/lib/core/config/feature-flags'
  */
 
 function signPayload(payload: string): string {
-  return createHmac('sha256', env.BETTER_AUTH_SECRET).update(payload).digest('hex')
+  return hmacSha256Hex(payload, env.BETTER_AUTH_SECRET)
 }
 
 function passwordSlot(encryptedPassword?: string | null): string {

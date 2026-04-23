@@ -1,6 +1,6 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -29,7 +29,7 @@ function validateAttioSignature(secret: string, signature: string, body: string)
       })
       return false
     }
-    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+    const computedHash = hmacSha256Hex(body, secret)
     logger.debug('Attio signature comparison', {
       computedSignature: `${computedHash.substring(0, 10)}...`,
       providedSignature: `${signature.substring(0, 10)}...`,

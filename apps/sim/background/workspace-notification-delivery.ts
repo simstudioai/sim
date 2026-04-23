@@ -1,4 +1,3 @@
-import { createHmac } from 'crypto'
 import { db, workflowExecutionLogs } from '@sim/db'
 import {
   account,
@@ -6,6 +5,7 @@ import {
   workspaceNotificationSubscription,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { formatDuration } from '@sim/utils/formatting'
 import { generateId } from '@sim/utils/id'
@@ -62,9 +62,7 @@ interface NotificationPayload {
 
 function generateSignature(secret: string, timestamp: number, body: string): string {
   const signatureBase = `${timestamp}.${body}`
-  const hmac = createHmac('sha256', secret)
-  hmac.update(signatureBase)
-  return hmac.digest('hex')
+  return hmacSha256Hex(signatureBase, secret)
 }
 
 async function buildPayload(
