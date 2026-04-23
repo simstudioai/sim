@@ -3,16 +3,17 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import { Button, Combobox, toast } from '@/components/emcn'
+import { useSession } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { SettingRow } from '@/ee/components/setting-row'
 import { DataRetentionSkeleton } from '@/ee/data-retention/components/data-retention-skeleton'
 import {
-  useUpdateWorkspaceRetention,
-  useWorkspaceRetention,
+  useOrganizationRetention,
+  useUpdateOrganizationRetention,
 } from '@/ee/data-retention/hooks/data-retention'
+import { useOrganizations } from '@/hooks/queries/organization'
 
 const logger = createLogger('DataRetentionSettings')
 
@@ -68,12 +69,18 @@ function RetentionSelect({ value, onChange }: RetentionSelectProps) {
 }
 
 export function DataRetentionSettings() {
-  const params = useParams<{ workspaceId: string }>()
-  const workspaceId = params.workspaceId
+  const { data: session, isPending: sessionPending } = useSession()
+  const { data: orgsData, isLoading: orgsLoading } = useOrganizations()
 
-  const { data, isLoading } = useWorkspaceRetention(workspaceId)
-  const { canAdmin } = useUserPermissionsContext()
-  const updateMutation = useUpdateWorkspaceRetention()
+  const activeOrganization = orgsData?.activeOrganization
+  const orgId = activeOrganization?.id
+
+  const { data, isLoading: retentionLoading } = useOrganizationRetention(orgId)
+  const updateMutation = useUpdateOrganizationRetention()
+
+  const userEmail = session?.user?.email
+  const userRole = getUserRole(activeOrganization, userEmail)
+  const canManage = userRole === 'owner' || userRole === 'admin'
 
   const [logDays, setLogDays] = useState('')
   const [softDeleteDays, setSoftDeleteDays] = useState('')
@@ -103,9 +110,10 @@ export function DataRetentionSettings() {
     taskCleanupDays !== savedTaskCleanupDays
 
   async function handleSave() {
+    if (!orgId) return
     try {
       await updateMutation.mutateAsync({
-        workspaceId,
+        orgId,
         settings: {
           logRetentionHours: daysToHours(logDays),
           softDeleteRetentionHours: daysToHours(softDeleteDays),
@@ -123,7 +131,17 @@ export function DataRetentionSettings() {
     }
   }
 
-  if (isLoading) return <DataRetentionSkeleton />
+  if (sessionPending || orgsLoading || (orgId && retentionLoading)) {
+    return <DataRetentionSkeleton />
+  }
+
+  if (!orgId) {
+    return (
+      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+        Data retention is configured per organization. Join or create an organization to continue.
+      </div>
+    )
+  }
 
   if (!data) {
     return (
@@ -141,10 +159,10 @@ export function DataRetentionSettings() {
     )
   }
 
-  if (!canAdmin) {
+  if (!canManage) {
     return (
       <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-        Only workspace admins can configure data retention settings.
+        Only organization owners and admins can configure data retention settings.
       </div>
     )
   }

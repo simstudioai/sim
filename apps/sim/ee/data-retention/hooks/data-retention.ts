@@ -1,7 +1,6 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { PlanCategory } from '@/lib/billing/plan-helpers'
 
 export interface RetentionValues {
   logRetentionHours: number | null
@@ -10,7 +9,6 @@ export interface RetentionValues {
 }
 
 export interface DataRetentionResponse {
-  plan: PlanCategory
   isEnterprise: boolean
   defaults: RetentionValues
   configured: RetentionValues
@@ -19,14 +17,14 @@ export interface DataRetentionResponse {
 
 export const dataRetentionKeys = {
   all: ['dataRetention'] as const,
-  settings: (workspaceId: string) => [...dataRetentionKeys.all, 'settings', workspaceId] as const,
+  settings: (orgId: string) => [...dataRetentionKeys.all, 'settings', orgId] as const,
 }
 
 async function fetchDataRetention(
-  workspaceId: string,
+  orgId: string,
   signal?: AbortSignal
 ): Promise<DataRetentionResponse> {
-  const response = await fetch(`/api/workspaces/${workspaceId}/data-retention`, { signal })
+  const response = await fetch(`/api/organizations/${orgId}/data-retention`, { signal })
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
@@ -37,26 +35,26 @@ async function fetchDataRetention(
   return data as DataRetentionResponse
 }
 
-export function useWorkspaceRetention(workspaceId: string | undefined) {
+export function useOrganizationRetention(orgId: string | undefined) {
   return useQuery({
-    queryKey: dataRetentionKeys.settings(workspaceId ?? ''),
-    queryFn: ({ signal }) => fetchDataRetention(workspaceId as string, signal),
-    enabled: Boolean(workspaceId),
+    queryKey: dataRetentionKeys.settings(orgId ?? ''),
+    queryFn: ({ signal }) => fetchDataRetention(orgId as string, signal),
+    enabled: Boolean(orgId),
     staleTime: 60 * 1000,
   })
 }
 
 interface UpdateRetentionVariables {
-  workspaceId: string
+  orgId: string
   settings: Partial<RetentionValues>
 }
 
-export function useUpdateWorkspaceRetention() {
+export function useUpdateOrganizationRetention() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, settings }: UpdateRetentionVariables) => {
-      const response = await fetch(`/api/workspaces/${workspaceId}/data-retention`, {
+    mutationFn: async ({ orgId, settings }: UpdateRetentionVariables) => {
+      const response = await fetch(`/api/organizations/${orgId}/data-retention`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
@@ -70,8 +68,8 @@ export function useUpdateWorkspaceRetention() {
       const { data } = await response.json()
       return data as DataRetentionResponse
     },
-    onSettled: (_data, _error, { workspaceId }) => {
-      queryClient.invalidateQueries({ queryKey: dataRetentionKeys.settings(workspaceId) })
+    onSettled: (_data, _error, { orgId }) => {
+      queryClient.invalidateQueries({ queryKey: dataRetentionKeys.settings(orgId) })
     },
   })
 }
