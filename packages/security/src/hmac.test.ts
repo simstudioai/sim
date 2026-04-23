@@ -24,6 +24,11 @@ describe('hmacSha256Hex', () => {
   it('differs when secret changes', () => {
     expect(hmacSha256Hex('body', 'k1')).not.toBe(hmacSha256Hex('body', 'k2'))
   })
+
+  it('accepts a Buffer secret and matches the equivalent binary-string secret', () => {
+    const raw = Buffer.from('0b'.repeat(20), 'hex')
+    expect(hmacSha256Hex('Hi There', raw)).toBe(hmacSha256Hex('Hi There', raw.toString('binary')))
+  })
 })
 
 describe('hmacSha256Base64', () => {
@@ -38,6 +43,13 @@ describe('hmacSha256Base64', () => {
   it('agrees with hex form via Buffer conversion', () => {
     const hex = hmacSha256Hex('body', 'secret')
     const b64 = hmacSha256Base64('body', 'secret')
+    expect(Buffer.from(b64, 'base64').toString('hex')).toBe(hex)
+  })
+
+  it('accepts a Buffer secret (Svix / MS-Teams scheme)', () => {
+    const secret = Buffer.from('whsec-decoded-bytes')
+    const hex = hmacSha256Hex('body', secret)
+    const b64 = hmacSha256Base64('body', secret)
     expect(Buffer.from(b64, 'base64').toString('hex')).toBe(hex)
   })
 })

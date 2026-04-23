@@ -10,6 +10,10 @@
     "node": ">=20.0.0"
   },
   "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
     "./load": {
       "types": "./src/load.ts",
       "default": "./src/load.ts"

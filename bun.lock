@@ -459,12 +459,13 @@
     "packages/workflow-types": {
       "name": "@sim/workflow-types",
       "version": "0.1.0",
-      "dependencies": {
-        "reactflow": "^11.11.4",
-      },
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",
+        "reactflow": "^11.11.4",
         "typescript": "^5.7.3",
+      },
+      "peerDependencies": {
+        "reactflow": "^11.11.4",
       },
     },
   },

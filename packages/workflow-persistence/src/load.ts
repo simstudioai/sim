@@ -18,6 +18,13 @@ export interface RawNormalizedWorkflow extends NormalizedWorkflowData {
  * backfill, tool sanitization) depend on the block/tool registry that lives in
  * the Next app and should not be pulled into leaf services. Callers that want
  * migrated state should wrap this with their own migration pipeline.
+ *
+ * Invariant: downstream migrations must not mutate `block.data.collection`,
+ * `block.data.whileCondition`, or `block.data.doWhileCondition`. Those fields
+ * are patched here from the subflow config on the pre-migration block, and
+ * callers re-sync only `loop.enabled`/`parallel.enabled` from the migrated
+ * block. If a future migration rewrites these data fields, the loop/parallel
+ * config on the returned object will silently diverge from the migrated block.
  */
 export async function loadWorkflowFromNormalizedTablesRaw(
   workflowId: string

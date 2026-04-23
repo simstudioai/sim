@@ -26,11 +26,12 @@
     "format": "biome format --write .",
     "format:check": "biome format ."
   },
-  "dependencies": {
+  "peerDependencies": {
     "reactflow": "^11.11.4"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
+    "reactflow": "^11.11.4",
     "typescript": "^5.7.3"
   }
 }
