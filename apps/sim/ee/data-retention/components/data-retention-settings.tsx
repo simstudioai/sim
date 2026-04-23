@@ -5,7 +5,6 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { Button, Combobox, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
-import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { SettingRow } from '@/ee/components/setting-row'
@@ -15,7 +14,6 @@ import {
   useUpdateOrganizationRetention,
 } from '@/ee/data-retention/hooks/data-retention'
 import { useOrganizations } from '@/hooks/queries/organization'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('DataRetentionSettings')
 
@@ -71,21 +69,18 @@ function RetentionSelect({ value, onChange }: RetentionSelectProps) {
 }
 
 export function DataRetentionSettings() {
-  const { data: session } = useSession()
-  const { data: orgsData } = useOrganizations()
-  const { data: subscriptionData } = useSubscriptionData()
+  const { data: session, isPending: sessionPending } = useSession()
+  const { data: orgsData, isLoading: orgsLoading } = useOrganizations()
 
   const activeOrganization = orgsData?.activeOrganization
   const orgId = activeOrganization?.id
 
-  const { data, isLoading } = useOrganizationRetention(orgId)
+  const { data, isLoading: retentionLoading } = useOrganizationRetention(orgId)
   const updateMutation = useUpdateOrganizationRetention()
 
   const userEmail = session?.user?.email
   const userRole = getUserRole(activeOrganization, userEmail)
   const canManage = userRole === 'owner' || userRole === 'admin'
-  const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
-  const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
 
   const [logDays, setLogDays] = useState('')
   const [softDeleteDays, setSoftDeleteDays] = useState('')
@@ -136,6 +131,10 @@ export function DataRetentionSettings() {
     }
   }
 
+  if (sessionPending || orgsLoading || (orgId && retentionLoading)) {
+    return <DataRetentionSkeleton />
+  }
+
   if (!orgId) {
     return (
       <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
@@ -143,8 +142,6 @@ export function DataRetentionSettings() {
       </div>
     )
   }
-
-  if (isLoading) return <DataRetentionSkeleton />
 
   if (!data) {
     return (
@@ -154,7 +151,7 @@ export function DataRetentionSettings() {
     )
   }
 
-  if (isBillingEnabled && !hasEnterprisePlan) {
+  if (isBillingEnabled && !data.isEnterprise) {
     return (
       <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
         Data retention is available on Enterprise plans only.
