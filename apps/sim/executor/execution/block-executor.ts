@@ -618,6 +618,7 @@ export class BlockExecutor {
     const decoder = new TextDecoder()
     const accumulated: string[] = []
     let drainError: unknown
+    let sourceFullyDrained = false
 
     const clientSource = new ReadableStream<Uint8Array>({
       async pull(controller) {
@@ -626,6 +627,7 @@ export class BlockExecutor {
           if (done) {
             const tail = decoder.decode()
             if (tail) accumulated.push(tail)
+            sourceFullyDrained = true
             controller.close()
             return
           }
@@ -666,6 +668,17 @@ export class BlockExecutor {
 
     if (drainError) {
       this.execLogger.error('Error reading stream for block', { blockId, error: drainError })
+      return
+    }
+
+    // If the onStream consumer exited before the source drained (e.g. it caught
+    // an internal error and returned normally), `accumulated` holds a truncated
+    // response. Persisting that to memory or setting it as the block output
+    // would corrupt downstream state — skip and log instead.
+    if (!sourceFullyDrained) {
+      this.execLogger.warn('Stream consumer exited before source drained; skipping content persistence', {
+        blockId,
+      })
       return
     }
 
