@@ -37,7 +37,6 @@ WORKDIR /app
 
 ENV NODE_ENV=production \
     PORT=3002 \
-    SOCKET_PORT=3002 \
     HOSTNAME="0.0.0.0"
 
 RUN addgroup -g 1001 -S nodejs && \
