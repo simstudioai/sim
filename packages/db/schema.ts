@@ -1138,6 +1138,7 @@ export const workspaceFiles = pgTable(
     size: integer('size').notNull(),
     deletedAt: timestamp('deleted_at'),
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')

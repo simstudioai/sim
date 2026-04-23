@@ -45,6 +45,7 @@ export interface WorkspaceFileRecord {
   uploadedBy: string
   deletedAt?: Date | null
   uploadedAt: Date
+  updatedAt: Date
   /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads). */
   storageContext?: 'workspace' | 'mothership'
 }
@@ -375,6 +376,7 @@ export async function getWorkspaceFileByName(
     uploadedBy: file.userId,
     deletedAt: file.deletedAt,
     uploadedAt: file.uploadedAt,
+    updatedAt: file.updatedAt,
   }
 }
 
@@ -423,6 +425,7 @@ export async function listWorkspaceFiles(
       uploadedBy: file.userId,
       deletedAt: file.deletedAt,
       uploadedAt: file.uploadedAt,
+      updatedAt: file.updatedAt,
     }))
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
@@ -560,6 +563,7 @@ export async function getWorkspaceFile(
       uploadedBy: file.userId,
       deletedAt: file.deletedAt,
       uploadedAt: file.uploadedAt,
+      updatedAt: file.updatedAt,
     }
   } catch (error) {
     logger.error(`Failed to get workspace file ${fileId}:`, error)
@@ -638,7 +642,7 @@ export async function updateWorkspaceFileContent(
 
     await db
       .update(workspaceFiles)
-      .set({ size: content.length, contentType: nextContentType })
+      .set({ size: content.length, contentType: nextContentType, updatedAt: new Date() })
       .where(
         and(
           eq(workspaceFiles.id, fileId),
@@ -707,7 +711,7 @@ export async function renameWorkspaceFile(
   try {
     updated = await db
       .update(workspaceFiles)
-      .set({ originalName: trimmedName })
+      .set({ originalName: trimmedName, updatedAt: new Date() })
       .where(
         and(
           eq(workspaceFiles.id, fileId),
@@ -807,7 +811,7 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
 
       await db
         .update(workspaceFiles)
-        .set({ deletedAt: null, originalName: newName })
+        .set({ deletedAt: null, originalName: newName, updatedAt: new Date() })
         .where(
           and(
             eq(workspaceFiles.id, fileId),
