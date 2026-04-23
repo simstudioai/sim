@@ -61,10 +61,10 @@ export const agentphoneUpdateContactTool: ToolConfig<
     }),
     body: (params) => {
       const body: Record<string, unknown> = {}
-      if (params.phoneNumber !== undefined) body.phoneNumber = params.phoneNumber
-      if (params.name !== undefined) body.name = params.name
-      if (params.email !== undefined) body.email = params.email
-      if (params.notes !== undefined) body.notes = params.notes
+      if (params.phoneNumber) body.phoneNumber = params.phoneNumber
+      if (params.name) body.name = params.name
+      if (params.email) body.email = params.email
+      if (params.notes) body.notes = params.notes
       return body
     },
   },

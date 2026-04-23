@@ -546,10 +546,10 @@ export const AgentPhoneBlock: BlockConfig = {
         }
 
         if (['create_contact', 'update_contact'].includes(operation as string)) {
-          if (contactPhoneNumber !== undefined) rest.phoneNumber = contactPhoneNumber
-          if (contactName !== undefined) rest.name = contactName
-          if (contactEmail !== undefined) rest.email = contactEmail
-          if (contactNotes !== undefined) rest.notes = contactNotes
+          if (contactPhoneNumber) rest.phoneNumber = contactPhoneNumber
+          if (contactName) rest.name = contactName
+          if (contactEmail) rest.email = contactEmail
+          if (contactNotes) rest.notes = contactNotes
         }
 
         if (operation === 'list_contacts' && contactsSearch !== undefined) {
