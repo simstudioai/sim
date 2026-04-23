@@ -746,7 +746,7 @@ export const auth = betterAuth({
       }
     },
     onPasswordReset: async ({ user: resetUser }) => {
-      const { AuditAction, AuditResourceType, recordAudit } = await import('@/lib/audit/log')
+      const { AuditAction, AuditResourceType, recordAudit } = await import('@sim/audit')
       recordAudit({
         actorId: resetUser.id,
         actorName: resetUser.name,

@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { UNDO_REDO_OPERATIONS } from '@sim/realtime-protocol/constants'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import { UNDO_REDO_OPERATIONS } from '@/socket/constants'
 import type {
   BatchAddBlocksOperation,
   BatchAddEdgesOperation,

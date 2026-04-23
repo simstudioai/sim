@@ -1,10 +1,10 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   McpDnsResolutionError,

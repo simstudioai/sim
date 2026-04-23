@@ -1,10 +1,10 @@
+import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
 import { env } from '@/lib/core/config/env'
-import { safeCompare } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
 
 export const NotificationStatus = {
@@ -38,7 +38,7 @@ export function createRequestId(): string {
   return generateId()
 }
 
-export function createShortRequestId(): string {
+function createShortRequestId(): string {
   return generateRequestId()
 }
 

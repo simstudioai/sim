@@ -1,6 +1,6 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@/lib/core/security/encryption'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import type {
   FormatInputContext,
   FormatInputResult,
@@ -27,7 +27,7 @@ function validateFirefliesSignature(secret: string, signature: string, body: str
       return false
     }
     const providedSignature = signature.substring(7)
-    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+    const computedHash = hmacSha256Hex(body, secret)
     logger.debug('Fireflies signature comparison', {
       computedSignature: `${computedHash.substring(0, 10)}...`,
       providedSignature: `${providedSignature.substring(0, 10)}...`,

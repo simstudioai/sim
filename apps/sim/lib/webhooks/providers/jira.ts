@@ -1,6 +1,6 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@/lib/core/security/encryption'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import type {
   EventMatchContext,
   FormatInputContext,
@@ -28,7 +28,7 @@ export function validateJiraSignature(secret: string, signature: string, body: s
       return false
     }
     const providedSignature = signature.substring(7)
-    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+    const computedHash = hmacSha256Hex(body, secret)
     logger.debug('Jira signature comparison', {
       computedLength: computedHash.length,
       providedLength: providedSignature.length,

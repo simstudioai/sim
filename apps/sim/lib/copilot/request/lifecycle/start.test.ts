@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { propagation, trace } from '@opentelemetry/api'
+import { W3CTraceContextPropagator } from '@opentelemetry/core'
+import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
 
 const {
@@ -115,6 +118,19 @@ async function drainStream(stream: ReadableStream) {
 describe('createSSEStream terminal error handling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    trace.setGlobalTracerProvider(new BasicTracerProvider())
+    propagation.setGlobalPropagator(new W3CTraceContextPropagator())
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ title: 'Test title' }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
+      )
+    )
     resetBuffer.mockResolvedValue(undefined)
     clearFilePreviewSessions.mockResolvedValue(undefined)
     scheduleBufferCleanup.mockResolvedValue(undefined)
@@ -129,6 +145,10 @@ describe('createSSEStream terminal error handling', () => {
     releasePendingChatStream.mockResolvedValue(undefined)
     createRunSegment.mockResolvedValue(null)
     updateRunStatus.mockResolvedValue(null)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('writes a terminal error event before close when orchestration returns success=false', async () => {
@@ -189,5 +209,40 @@ describe('createSSEStream terminal error handling', () => {
       })
     )
     expect(scheduleBufferCleanup).toHaveBeenCalledWith('stream-1')
+  })
+
+  it('passes an OTel context into the streaming lifecycle', async () => {
+    let lifecycleTraceparent = ''
+    runCopilotLifecycle.mockImplementation(async (_payload, options) => {
+      const { traceHeaders } = await import('@/lib/copilot/request/go/propagation')
+      lifecycleTraceparent = traceHeaders({}, options.otelContext).traceparent ?? ''
+      return {
+        success: true,
+        content: 'OK',
+        contentBlocks: [],
+        toolCalls: [],
+      }
+    })
+
+    const stream = createSSEStream({
+      requestPayload: { message: 'hello' },
+      userId: 'user-1',
+      streamId: 'stream-1',
+      executionId: 'exec-1',
+      runId: 'run-1',
+      currentChat: null,
+      isNewChat: false,
+      message: 'hello',
+      titleModel: 'gpt-5.4',
+      requestId: 'req-otel',
+      orchestrateOptions: {
+        goRoute: '/api/mothership',
+        workflowId: 'workflow-1',
+      },
+    })
+
+    await drainStream(stream)
+
+    expect(lifecycleTraceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[0-9a-f]$/)
   })
 })

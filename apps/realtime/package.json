@@ -1,0 +1,48 @@
+{
+  "name": "@sim/realtime",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "bun": ">=1.2.13",
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@sim/audit": "workspace:*",
+    "@sim/auth": "workspace:*",
+    "@sim/db": "workspace:*",
+    "@sim/logger": "workspace:*",
+    "@sim/realtime-protocol": "workspace:*",
+    "@sim/security": "workspace:*",
+    "@sim/utils": "workspace:*",
+    "@sim/workflow-authz": "workspace:*",
+    "@sim/workflow-persistence": "workspace:*",
+    "@sim/workflow-types": "workspace:*",
+    "@socket.io/redis-adapter": "8.3.0",
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.5",
+    "redis": "5.10.0",
+    "socket.io": "^4.8.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@sim/testing": "workspace:*",
+    "@sim/tsconfig": "workspace:*",
+    "@types/node": "24.2.1",
+    "socket.io-client": "4.8.1",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.8"
+  }
+}

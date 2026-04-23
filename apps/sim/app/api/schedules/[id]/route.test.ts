@@ -7,8 +7,8 @@ import {
   auditMock,
   authMockFns,
   databaseMock,
+  workflowAuthzMockFns,
   workflowsUtilsMock,
-  workflowsUtilsMockFns,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,7 +21,7 @@ vi.mock('drizzle-orm', () => ({
   isNull: vi.fn(),
 }))
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 
 import { PUT } from './route'
 
@@ -61,7 +61,7 @@ describe('Schedule PUT API (Reactivate)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: true,
       status: 200,
       workflow: { id: 'wf-1', workspaceId: 'ws-1' },
@@ -125,7 +125,7 @@ describe('Schedule PUT API (Reactivate)', () => {
     })
 
     it('returns 404 when workflow does not exist for schedule', async () => {
-      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
         allowed: false,
         status: 404,
         workflow: null,
@@ -144,7 +144,7 @@ describe('Schedule PUT API (Reactivate)', () => {
 
   describe('Authorization', () => {
     it('returns 403 when user is not workflow owner', async () => {
-      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
         allowed: false,
         status: 403,
         workflow: { id: 'wf-1', workspaceId: null },
@@ -165,7 +165,7 @@ describe('Schedule PUT API (Reactivate)', () => {
     })
 
     it('returns 403 for workspace member with only read permission', async () => {
-      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
         allowed: false,
         status: 403,
         workflow: { id: 'wf-1', workspaceId: 'ws-1' },

@@ -28,7 +28,7 @@ vi.mock('@/lib/workspaces/utils', () => ({
   getWorkspaceBilledAccountUserId: mockGetWorkspaceBilledAccountUserId,
 }))
 
-vi.mock('@/lib/workflows/active-context', () => ({
+vi.mock('@sim/workflow-authz', () => ({
   getActiveWorkflowRecord: vi.fn().mockResolvedValue({
     id: 'workflow-1',
     workspaceId: 'workspace-1',

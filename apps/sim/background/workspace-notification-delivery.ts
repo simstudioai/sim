@@ -1,4 +1,3 @@
-import { createHmac } from 'crypto'
 import { db, workflowExecutionLogs } from '@sim/db'
 import {
   account,
@@ -6,9 +5,11 @@ import {
   workspaceNotificationSubscription,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { formatDuration } from '@sim/utils/formatting'
 import { generateId } from '@sim/utils/id'
+import { getActiveWorkflowContext } from '@sim/workflow-authz'
 import { task } from '@trigger.dev/sdk'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
 import {
@@ -26,7 +27,6 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import type { AlertConfig } from '@/lib/notifications/alert-rules'
-import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 const logger = createLogger('WorkspaceNotificationDelivery')
@@ -62,9 +62,7 @@ interface NotificationPayload {
 
 function generateSignature(secret: string, timestamp: number, body: string): string {
   const signatureBase = `${timestamp}.${body}`
-  const hmac = createHmac('sha256', secret)
-  hmac.update(signatureBase)
-  return hmac.digest('hex')
+  return hmacSha256Hex(signatureBase, secret)
 }
 
 async function buildPayload(

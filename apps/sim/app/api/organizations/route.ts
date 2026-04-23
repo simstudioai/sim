@@ -1,9 +1,9 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import {

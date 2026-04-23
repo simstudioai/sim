@@ -1,6 +1,6 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@/lib/core/security/encryption'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import type { WebhookProviderHandler } from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
@@ -22,7 +22,7 @@ function validateCalcomSignature(secret: string, signature: string, body: string
     } else {
       providedSignature = signature
     }
-    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+    const computedHash = hmacSha256Hex(body, secret)
     logger.debug('Cal.com signature comparison', {
       computedSignature: `${computedHash.substring(0, 10)}...`,
       providedSignature: `${providedSignature.substring(0, 10)}...`,

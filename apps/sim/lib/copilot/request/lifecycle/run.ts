@@ -1,5 +1,7 @@
+import type { Context } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { createRunSegment, updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
@@ -50,6 +52,7 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
   goRoute?: string
   trace?: TraceCollector
   simRequestId?: string
+  otelContext?: Context
   onGoTraceId?: (goTraceId: string) => void
   executionContext?: ExecutionContext
 }
@@ -112,6 +115,7 @@ export async function runCopilotLifecycle(
 
   const context = createStreamingContext({
     chatId,
+    requestId: lifecycleOptions.simRequestId,
     executionId: resolvedExecutionId,
     runId: resolvedRunId,
     messageId: payloadMsgId,
@@ -123,6 +127,15 @@ export async function runCopilotLifecycle(
 
     const result: OrchestratorResult = {
       success: context.errors.length === 0 && !context.wasAborted,
+      // `cancelled` is an explicit discriminator so callers can tell
+      // "user hit Stop" (don't clear the chat row; /chat/stop owns it)
+      // from "backend errored" (do clear the row so the chat isn't
+      // stuck with a non-null `conversationId`). An error that also
+      // happens to fire the abort signal still counts as an error
+      // path, but practically that doesn't happen in the success
+      // branch here — if there are errors we never reach a
+      // wasAborted-without-errors state.
+      cancelled: context.wasAborted && context.errors.length === 0,
       content: context.accumulatedContent,
       contentBlocks: context.contentBlocks,
       toolCalls: buildToolCallSummaries(context),
@@ -137,9 +150,23 @@ export async function runCopilotLifecycle(
   } catch (error) {
     const err = error instanceof Error ? error : new Error('Copilot orchestration failed')
     logger.error('Copilot orchestration failed', { error: err.message })
-    await lifecycleOptions.onError?.(err)
+    // If the abort signal fired, this throw is a consequence of the
+    // cancel (publisher.publish fails once the client disconnects, a
+    // downstream Go read throws on ctx cancel, etc.) — NOT a real
+    // backend error. Don't invoke `onError`, because on the cancel
+    // path `/api/copilot/chat/stop` is the single DB writer and
+    // `onError` would race with it via `finalizeAssistantTurn`,
+    // clearing `conversationId` before stop's UPDATE can match (see
+    // `buildOnComplete` in chat/post.ts for the full rationale).
+    // Return `cancelled: true` so upstream classification stays
+    // consistent with the success-path cancel result.
+    const wasCancelled = lifecycleOptions.abortSignal?.aborted ?? false
+    if (!wasCancelled) {
+      await lifecycleOptions.onError?.(err)
+    }
     return {
       success: false,
+      cancelled: wasCancelled,
       content: '',
       contentBlocks: [],
       toolCalls: [],
@@ -225,7 +252,6 @@ async function runCheckpointLoop(
             'Content-Type': 'application/json',
             ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
             'X-Client-Version': SIM_AGENT_VERSION,
-            ...(options.simRequestId ? { 'X-Sim-Request-ID': options.simRequestId } : {}),
           },
           body: JSON.stringify(payload),
         },
@@ -531,7 +557,7 @@ function isRetryableStreamError(error: unknown): boolean {
 
 function sleepWithAbort(ms: number, abortSignal?: AbortSignal): Promise<void> {
   if (!abortSignal) {
-    return new Promise((resolve) => setTimeout(resolve, ms))
+    return sleep(ms)
   }
   if (abortSignal.aborted) {
     return Promise.resolve()

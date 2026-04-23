@@ -171,7 +171,12 @@ function isStreamRef(value: unknown): value is MothershipStreamV1StreamRef {
 }
 
 function isTrace(value: unknown): value is MothershipStreamV1Trace {
-  return isRecord(value) && typeof value.requestId === 'string' && isOptionalString(value.spanId)
+  return (
+    isRecord(value) &&
+    typeof value.requestId === 'string' &&
+    isOptionalString(value.goTraceId) &&
+    isOptionalString(value.spanId)
+  )
 }
 
 function isStreamScope(value: unknown): value is MothershipStreamV1StreamScope {
@@ -317,9 +322,12 @@ function isContractEnvelope(value: unknown): value is MothershipStreamV1EventEnv
 // Synthetic file-preview envelope validators
 // ---------------------------------------------------------------------------
 
-function isSyntheticEnvelopeBase(
-  value: unknown
-): value is Omit<SyntheticFilePreviewEventEnvelope, 'payload'> & { payload?: unknown } {
+function isSyntheticEnvelopeBase(value: unknown): value is Omit<
+  SyntheticFilePreviewEventEnvelope,
+  'payload'
+> & {
+  payload?: unknown
+} {
   return (
     isRecord(value) &&
     value.v === 1 &&

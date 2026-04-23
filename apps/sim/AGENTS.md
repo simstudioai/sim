@@ -26,6 +26,13 @@ apps/sim/
 └── triggers/            # Trigger definitions
 ```
 
+The Socket.IO collaborative-canvas server lives in a separate workspace at
+`apps/realtime/`. It shares DB + auth with `apps/sim` via the `@sim/*`
+packages. Do not add imports from `@/lib/webhooks/providers/*`, `@/executor/*`,
+`@/blocks/*`, or `@/tools/*` to any package consumed by `apps/realtime` —
+those heavyweight registries stay in this app. `apps/realtime` calls back
+into this app only over internal HTTP with `INTERNAL_API_SECRET`.
+
 ### Feature Organization
 
 Features live under `app/workspace/[workspaceId]/`:

@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { authMockFns, workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing'
+import { authMockFns, workflowAuthzMockFns, workflowsUtilsMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -79,7 +79,7 @@ describe('Copilot Checkpoints API Route', () => {
       userId: 'user-123',
       workflowId: 'workflow-123',
     })
-    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: true,
     })
   })

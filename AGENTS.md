@@ -20,18 +20,41 @@ You are a professional software engineer. All code must follow best practices: a
 
 ### Root Structure
 ```
-apps/sim/
-├── app/           # Next.js app router (pages, API routes)
-├── blocks/        # Block definitions and registry
-├── components/    # Shared UI (emcn/, ui/)
-├── executor/      # Workflow execution engine
-├── hooks/         # Shared hooks (queries/, selectors/)
-├── lib/           # App-wide utilities
-├── providers/     # LLM provider integrations
-├── stores/        # Zustand stores
-├── tools/         # Tool definitions
-└── triggers/      # Trigger definitions
+apps/
+├── sim/                    # Next.js app (UI + API routes + workflow editor)
+│   ├── app/                # Next.js app router (pages, API routes)
+│   ├── blocks/             # Block definitions and registry
+│   ├── components/         # Shared UI (emcn/, ui/)
+│   ├── executor/           # Workflow execution engine
+│   ├── hooks/              # Shared hooks (queries/, selectors/)
+│   ├── lib/                # App-wide utilities
+│   ├── providers/          # LLM provider integrations
+│   ├── stores/             # Zustand stores
+│   ├── tools/              # Tool definitions
+│   └── triggers/           # Trigger definitions
+└── realtime/               # Bun Socket.IO server (collaborative canvas)
+    └── src/                # auth, config, database, handlers, middleware,
+                            # rooms, routes, internal/webhook-cleanup.ts
+
+packages/
+├── audit/                  # @sim/audit — recordAudit + AuditAction + AuditResourceType
+├── auth/                   # @sim/auth — @sim/auth/verify (shared Better Auth verifier)
+├── db/                     # @sim/db — drizzle schema + client
+├── logger/                 # @sim/logger
+├── realtime-protocol/      # @sim/realtime-protocol — socket operation constants + zod schemas
+├── security/               # @sim/security — safeCompare
+├── tsconfig/               # shared tsconfig presets
+├── utils/                  # @sim/utils
+├── workflow-authz/         # @sim/workflow-authz — authorizeWorkflowByWorkspacePermission
+├── workflow-persistence/   # @sim/workflow-persistence — raw load/save + subflow helpers
+└── workflow-types/         # @sim/workflow-types — pure BlockState/Loop/Parallel/... types
 ```
+
+### Package boundaries
+- `apps/* → packages/*` only. Packages never import from `apps/*`.
+- Each package has explicit subpath `exports` maps; no barrels that accidentally pull in heavy halves.
+- `apps/realtime` intentionally avoids Next.js, React, the block/tool registry, provider SDKs, and the executor. CI enforces this via `scripts/check-monorepo-boundaries.ts` and `scripts/check-realtime-prune-graph.ts`.
+- Auth is shared across services via the Better Auth "Shared Database Session" pattern: both apps read the same `BETTER_AUTH_SECRET` and point at the same DB via `@sim/db`.
 
 ### Naming Conventions
 - Components: PascalCase (`WorkflowList`)

@@ -1,9 +1,9 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { document, knowledgeConnector } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteDocument } from '@/lib/knowledge/documents/service'
 import {

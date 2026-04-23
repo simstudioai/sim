@@ -11,8 +11,8 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "dev:sockets": "cd apps/sim && bun run dev:sockets",
-    "dev:full": "cd apps/sim && bun run dev:full",
+    "dev:sockets": "cd apps/realtime && bun run dev",
+    "dev:full": "bunx concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"cd apps/sim && bun run dev\" \"cd apps/realtime && bun run dev\"",
     "test": "turbo run test",
     "format": "turbo run format",
     "format:check": "turbo run format:check",
@@ -21,14 +21,24 @@
     "lint:helm": "helm lint ./helm/sim --strict --values ./helm/sim/test/values-lint.yaml",
     "lint:all": "turbo run lint && bun run lint:helm",
     "check": "turbo run format:check",
+    "check:boundaries": "bun run scripts/check-monorepo-boundaries.ts",
+    "check:realtime-prune": "bun run scripts/check-realtime-prune-graph.ts",
     "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",
     "mship-contracts:check": "bun run scripts/sync-mothership-stream-contract.ts --check",
     "mship-tools:generate": "bun run scripts/sync-tool-catalog.ts",
     "mship-tools:check": "bun run scripts/sync-tool-catalog.ts --check",
     "trace-contracts:generate": "bun run scripts/sync-request-trace-contract.ts",
     "trace-contracts:check": "bun run scripts/sync-request-trace-contract.ts --check",
-    "mship:generate": "bun run mship-contracts:generate && bun run mship-tools:generate && bun run trace-contracts:generate",
-    "mship:check": "bun run mship-contracts:check && bun run mship-tools:check && bun run trace-contracts:check",
+    "trace-spans-contract:generate": "bun run scripts/sync-trace-spans-contract.ts",
+    "trace-spans-contract:check": "bun run scripts/sync-trace-spans-contract.ts --check",
+    "trace-attributes-contract:generate": "bun run scripts/sync-trace-attributes-contract.ts",
+    "trace-attributes-contract:check": "bun run scripts/sync-trace-attributes-contract.ts --check",
+    "trace-attribute-values-contract:generate": "bun run scripts/sync-trace-attribute-values-contract.ts",
+    "trace-attribute-values-contract:check": "bun run scripts/sync-trace-attribute-values-contract.ts --check",
+    "trace-events-contract:generate": "bun run scripts/sync-trace-events-contract.ts",
+    "trace-events-contract:check": "bun run scripts/sync-trace-events-contract.ts --check",
+    "mship:generate": "bun run scripts/generate-mship-contracts.ts",
+    "mship:check": "bun run scripts/generate-mship-contracts.ts --check",
     "prepare": "bun husky",
     "type-check": "turbo run type-check",
     "release": "bun run scripts/create-single-release.ts"
@@ -57,8 +67,5 @@
   },
   "trustedDependencies": [
     "sharp"
-  ],
-  "dependencies": {
-    "@aws-sdk/client-athena": "3.1024.0"
-  }
+  ]
 }

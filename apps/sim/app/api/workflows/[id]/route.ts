@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -10,7 +11,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { performDeleteWorkflow } from '@/lib/workflows/orchestration'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { authorizeWorkflowByWorkspacePermission, getWorkflowById } from '@/lib/workflows/utils'
+import { getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowByIdAPI')
 

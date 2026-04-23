@@ -8,6 +8,9 @@ import {
   MothershipStreamV1ToolOutcome,
   type MothershipStreamV1ToolResultPayload,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
+import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import {
   isToolArgsDeltaStreamEvent,
   isToolCallStreamEvent,
@@ -33,6 +36,8 @@ import {
   addContentBlock,
   emitSyntheticToolResult,
   ensureTerminalToolCallState,
+  flushSubagentThinkingBlock,
+  flushThinkingBlock,
   getScopedParentToolCallId,
   getToolCallUI,
   getToolResultErrorMessage,
@@ -50,6 +55,52 @@ function applyToolDisplay(
   if (!toolCall) return
   const displayTitle = ui.title || ui.phaseLabel
   if (displayTitle) toolCall.displayTitle = displayTitle
+}
+
+/**
+ * Upsert the durable `async_tool_calls` row before the authoritative tool-call
+ * SSE frame is forwarded to the client, so `/api/copilot/confirm` can never
+ * race ahead of the row that identifies the call. This is the sole
+ * persistence point for client-executable tools; gating mirrors the
+ * client-wait branch in `dispatchToolExecution`.
+ */
+export async function prePersistClientExecutableToolCall(
+  event: StreamEvent,
+  context: StreamingContext
+): Promise<void> {
+  if (event.type !== 'tool') return
+  if (!isToolCallStreamEvent(event)) return
+
+  const data = event.payload
+  const isGenerating = data.status === TOOL_CALL_STATUS.generating
+  const isPartial = data.partial === true || isGenerating
+  if (isPartial) return
+
+  const ui = getToolCallUI(data)
+  if (!ui.clientExecutable) return
+
+  const catalogEntry = getToolEntry(data.toolName)
+  const isInternal = ui.internal === true || catalogEntry?.internal === true
+  if (isInternal) return
+
+  const delegateWorkflowRunToClient = isWorkflowToolName(data.toolName)
+  if (isSimExecuted(data.toolName) && !delegateWorkflowRunToClient) return
+
+  if (!context.runId) return
+
+  await upsertAsyncToolCall({
+    runId: context.runId,
+    toolCallId: data.toolCallId,
+    toolName: data.toolName,
+    args: data.arguments,
+    status: MothershipStreamV1AsyncToolRecordStatus.running,
+  }).catch((err) => {
+    logger.warn('Failed to pre-persist async tool row before forwarding call frame', {
+      toolCallId: data.toolCallId,
+      toolName: data.toolName,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  })
 }
 
 /**
@@ -80,6 +131,14 @@ export async function handleToolEvent(
   if (isToolArgsDeltaStreamEvent(event)) {
     return
   }
+
+  // A tool event breaks the thinking stream. Flush any open thinking
+  // block into contentBlocks BEFORE we add the tool_call block, or
+  // contentBlocks will end up with tool_call before thinking — which
+  // re-renders on reload in the wrong order (Mothership group above
+  // the Thinking block, even though thinking happened first).
+  flushSubagentThinkingBlock(context)
+  flushThinkingBlock(context)
 
   if (isToolResultStreamEvent(event)) {
     handleResultPhase(event.payload, context, parentToolCallId)
@@ -141,7 +200,22 @@ function handleResultPhase(
     ...(errorMessage ? { error: errorMessage } : {}),
     endTime,
   })
+  stampToolCallBlockEnd(context, toolCallId, endTime)
   markToolResultSeen(toolCallId)
+}
+
+function stampToolCallBlockEnd(
+  context: StreamingContext,
+  toolCallId: string,
+  endTime: number
+): void {
+  for (let i = context.contentBlocks.length - 1; i >= 0; i--) {
+    const block = context.contentBlocks[i]
+    if (block.type === 'tool_call' && block.toolCall?.id === toolCallId) {
+      if (block.endedAt === undefined) block.endedAt = endTime
+      return
+    }
+  }
 }
 
 async function handleCallPhase(
@@ -363,35 +437,35 @@ async function dispatchToolExecution(
       }
     } else {
       toolCall.status = 'executing'
-      const pendingPromise = (async () => {
-        await upsertAsyncToolCall({
-          runId: context.runId,
-          toolCallId,
-          toolName,
-          args,
-          status: MothershipStreamV1AsyncToolRecordStatus.running,
-        }).catch((err) => {
-          logger.warn(`Failed to persist async tool row for client-executable ${scopeLabel}tool`, {
+      const pendingPromise = withCopilotSpan(
+        TraceSpan.CopilotToolWaitForClientResult,
+        {
+          [TraceAttr.ToolName]: toolName,
+          [TraceAttr.ToolCallId]: toolCallId,
+          [TraceAttr.ToolTimeoutMs]: options.timeout || STREAM_TIMEOUT_MS,
+          ...(context.runId ? { [TraceAttr.RunId]: context.runId } : {}),
+        },
+        async (span) => {
+          const completion = await waitForToolCompletion(
             toolCallId,
-            toolName,
-            error: toError(err).message,
-          })
-        })
-        const completion = await waitForToolCompletion(
-          toolCallId,
-          options.timeout || STREAM_TIMEOUT_MS,
-          options.abortSignal
-        )
-        handleClientCompletion(toolCall, toolCallId, completion)
-        await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
-        return (
-          completion ?? {
-            status: MothershipStreamV1ToolOutcome.error,
-            message: 'Tool completion missing',
-            data: { error: 'Tool completion missing' },
+            options.timeout || STREAM_TIMEOUT_MS,
+            options.abortSignal
+          )
+          span.setAttribute(TraceAttr.ToolCompletionReceived, completion !== undefined)
+          if (completion) {
+            span.setAttribute(TraceAttr.ToolOutcome, completion.status)
           }
-        )
-      })().catch((err) => {
+          handleClientCompletion(toolCall, toolCallId, completion)
+          await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
+          return (
+            completion ?? {
+              status: MothershipStreamV1ToolOutcome.error,
+              message: 'Tool completion missing',
+              data: { error: 'Tool completion missing' },
+            }
+          )
+        }
+      ).catch((err) => {
         logger.error(`Client-executable ${scopeLabel}tool wait failed`, {
           toolCallId,
           toolName,

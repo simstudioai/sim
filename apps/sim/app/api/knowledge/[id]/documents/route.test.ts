@@ -42,7 +42,7 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   retryDocumentProcessing: vi.fn(),
 }))
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 
 import {
   createDocumentRecords,

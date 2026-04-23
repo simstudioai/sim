@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
+import {
+  BLOCK_OPERATIONS,
+  BLOCKS_OPERATIONS,
+  EDGES_OPERATIONS,
+  OPERATION_TARGETS,
+  SUBBLOCK_OPERATIONS,
+  SUBFLOW_OPERATIONS,
+  VARIABLE_OPERATIONS,
+  WORKFLOW_OPERATIONS,
+} from '@sim/realtime-protocol/constants'
 import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Edge } from 'reactflow'
@@ -10,16 +20,6 @@ import { getBlock } from '@/blocks'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { invalidateDeploymentQueries } from '@/hooks/queries/deployments'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
-import {
-  BLOCK_OPERATIONS,
-  BLOCKS_OPERATIONS,
-  EDGES_OPERATIONS,
-  OPERATION_TARGETS,
-  SUBBLOCK_OPERATIONS,
-  SUBFLOW_OPERATIONS,
-  VARIABLE_OPERATIONS,
-  WORKFLOW_OPERATIONS,
-} from '@/socket/constants'
 import { useNotificationStore } from '@/stores/notifications'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
 import { usePanelEditorStore } from '@/stores/panel'

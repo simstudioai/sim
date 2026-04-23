@@ -51,12 +51,17 @@ export function addContentBlock(
   })
 }
 
+export function stampBlockEnd(block: ContentBlock): void {
+  if (block.endedAt === undefined) block.endedAt = Date.now()
+}
+
 /**
  * Flush any open thinking block into contentBlocks and clear the thinking state.
  * Safe to call repeatedly.
  */
 export function flushThinkingBlock(context: StreamingContext): void {
   if (context.currentThinkingBlock) {
+    stampBlockEnd(context.currentThinkingBlock)
     context.contentBlocks.push(context.currentThinkingBlock)
   }
   context.isInThinkingBlock = false
@@ -65,6 +70,7 @@ export function flushThinkingBlock(context: StreamingContext): void {
 
 export function flushSubagentThinkingBlock(context: StreamingContext): void {
   if (context.currentSubagentThinkingBlock) {
+    stampBlockEnd(context.currentSubagentThinkingBlock)
     context.contentBlocks.push(context.currentSubagentThinkingBlock)
   }
   context.currentSubagentThinkingBlock = null

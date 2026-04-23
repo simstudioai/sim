@@ -9,6 +9,7 @@ import {
   RunFromBlock,
   RunWorkflowUntilBlock,
 } from '@/lib/copilot/generated/tool-catalog-v1'
+import { traceparentHeader } from '@/lib/copilot/tools/client/trace-context'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
 import {
@@ -466,7 +467,7 @@ async function reportCompletion(
     })
     const res = await fetch(COPILOT_CONFIRM_API_PATH, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...traceparentHeader() },
       body,
     })
     const LARGE_PAYLOAD_THRESHOLD = 10 * 1024 * 1024
@@ -480,7 +481,7 @@ async function reportCompletion(
       })
       const retryRes = await fetch(COPILOT_CONFIRM_API_PATH, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...traceparentHeader() },
         body: JSON.stringify({
           toolCallId,
           status,
