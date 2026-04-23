@@ -584,15 +584,18 @@ export const AgentPhoneBlock: BlockConfig = {
         }
 
         if (
-          operation !== 'get_number_messages' &&
-          operation !== 'get_conversation_messages' &&
+          OFFSET_LIMIT_OPS.includes(operation as (typeof OFFSET_LIMIT_OPS)[number]) &&
           limit !== undefined &&
           limit !== ''
         ) {
           rest.limit = toFiniteNumber(limit, 'Limit')
         }
 
-        if (offset !== undefined && offset !== '') {
+        if (
+          OFFSET_LIMIT_OPS.includes(operation as (typeof OFFSET_LIMIT_OPS)[number]) &&
+          offset !== undefined &&
+          offset !== ''
+        ) {
           rest.offset = toFiniteNumber(offset, 'Offset')
         }
 
