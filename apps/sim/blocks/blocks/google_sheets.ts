@@ -387,7 +387,6 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
       canonicalParamId: 'sheetName',
       serviceId: 'google-sheets',
       selectorKey: 'google.sheets',
-      selectorAllowSearch: false,
       placeholder: 'Select a sheet',
       required: true,
       dependsOn: { all: ['credential'], any: ['spreadsheetId', 'manualSpreadsheetId'] },
