@@ -1,3 +1,4 @@
+import { toError } from '@sim/utils/errors'
 import { AgentPhoneIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -562,8 +563,16 @@ export const AgentPhoneBlock: BlockConfig = {
           if (callsSearch) rest.search = callsSearch
         }
 
+        const toFiniteNumber = (value: unknown, field: string): number => {
+          const parsed = Number(value)
+          if (!Number.isFinite(parsed)) {
+            throw new Error(`Invalid numeric value for ${field}: ${String(value)}`)
+          }
+          return parsed
+        }
+
         if (operation === 'get_conversation' && messageLimit !== undefined && messageLimit !== '') {
-          rest.messageLimit = Number(messageLimit)
+          rest.messageLimit = toFiniteNumber(messageLimit, 'Message Limit')
         }
 
         if (
@@ -571,7 +580,7 @@ export const AgentPhoneBlock: BlockConfig = {
           messagesLimit !== undefined &&
           messagesLimit !== ''
         ) {
-          rest.limit = Number(messagesLimit)
+          rest.limit = toFiniteNumber(messagesLimit, 'Limit')
         }
 
         if (
@@ -580,19 +589,19 @@ export const AgentPhoneBlock: BlockConfig = {
           limit !== undefined &&
           limit !== ''
         ) {
-          rest.limit = Number(limit)
+          rest.limit = toFiniteNumber(limit, 'Limit')
         }
 
         if (offset !== undefined && offset !== '') {
-          rest.offset = Number(offset)
+          rest.offset = toFiniteNumber(offset, 'Offset')
         }
 
         if (operation === 'get_usage_daily' && usageDays !== undefined && usageDays !== '') {
-          rest.days = Number(usageDays)
+          rest.days = toFiniteNumber(usageDays, 'Days')
         }
 
         if (operation === 'get_usage_monthly' && usageMonths !== undefined && usageMonths !== '') {
-          rest.months = Number(usageMonths)
+          rest.months = toFiniteNumber(usageMonths, 'Months')
         }
 
         if (operation === 'update_conversation' && metadata !== undefined) {
@@ -601,8 +610,8 @@ export const AgentPhoneBlock: BlockConfig = {
           } else if (typeof metadata === 'string') {
             try {
               rest.metadata = JSON.parse(metadata)
-            } catch {
-              rest.metadata = metadata
+            } catch (error) {
+              throw new Error(`Invalid JSON for Metadata: ${toError(error).message}`)
             }
           } else {
             rest.metadata = metadata
