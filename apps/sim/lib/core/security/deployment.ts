@@ -1,4 +1,6 @@
-import { createHash, createHmac, timingSafeEqual } from 'crypto'
+import { createHmac } from 'crypto'
+import { safeCompare } from '@sim/security/compare'
+import { sha256Hex } from '@sim/security/hash'
 import type { NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
 import { isDev } from '@/lib/core/config/feature-flags'
@@ -14,7 +16,7 @@ function signPayload(payload: string): string {
 
 function passwordSlot(encryptedPassword?: string | null): string {
   if (!encryptedPassword) return ''
-  return createHash('sha256').update(encryptedPassword).digest('hex').slice(0, 8)
+  return sha256Hex(encryptedPassword).slice(0, 8)
 }
 
 function generateAuthToken(
@@ -46,10 +48,7 @@ export function validateAuthToken(
     const sig = decoded.slice(lastColon + 1)
 
     const expectedSig = signPayload(payload)
-    if (
-      sig.length !== expectedSig.length ||
-      !timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))
-    ) {
+    if (!safeCompare(sig, expectedSig)) {
       return false
     }
 

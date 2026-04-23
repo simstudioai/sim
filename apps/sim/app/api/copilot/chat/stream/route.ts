@@ -1,5 +1,6 @@
 import { context as otelContext, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import {
@@ -407,7 +408,7 @@ async function handleResumeRequestBody({
           break
         }
 
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+        await sleep(POLL_INTERVAL_MS)
       }
       if (!controllerClosed && Date.now() - startTime >= MAX_STREAM_MS) {
         emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {

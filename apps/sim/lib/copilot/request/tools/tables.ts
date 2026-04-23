@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { parse as csvParse } from 'csv-parse/sync'
 import { eq } from 'drizzle-orm'
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -107,7 +108,7 @@ export async function maybeWriteOutputToTable(
             }
             const chunk = rows.slice(i, i + BATCH_CHUNK_SIZE)
             const values = chunk.map((rowData, j) => ({
-              id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+              id: `row_${generateId().replace(/-/g, '')}`,
               tableId: outputTable,
               workspaceId: context.workspaceId!,
               data: rowData,
@@ -251,7 +252,7 @@ export async function maybeWriteReadCsvToTable(
             }
             const chunk = rows.slice(i, i + BATCH_CHUNK_SIZE)
             const values = chunk.map((rowData, j) => ({
-              id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+              id: `row_${generateId().replace(/-/g, '')}`,
               tableId: outputTable,
               workspaceId: context.workspaceId!,
               data: rowData,

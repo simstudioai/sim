@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { db } from '@sim/db'
 import {
   document,
@@ -8,6 +7,7 @@ import {
   knowledgeConnector,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
@@ -520,7 +520,7 @@ export async function processDocumentAsync(
           knowledgeBaseId,
           documentId,
           chunkIndex,
-          chunkHash: crypto.createHash('sha256').update(chunk.text).digest('hex'),
+          chunkHash: sha256Hex(chunk.text),
           content: chunk.text,
           contentLength: chunk.text.length,
           tokenCount: Math.ceil(chunk.text.length / 4),

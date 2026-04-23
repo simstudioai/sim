@@ -13,6 +13,18 @@
     "./compare": {
       "types": "./src/compare.ts",
       "default": "./src/compare.ts"
+    },
+    "./encryption": {
+      "types": "./src/encryption.ts",
+      "default": "./src/encryption.ts"
+    },
+    "./hash": {
+      "types": "./src/hash.ts",
+      "default": "./src/hash.ts"
+    },
+    "./tokens": {
+      "types": "./src/tokens.ts",
+      "default": "./src/tokens.ts"
     }
   },
   "scripts": {
@@ -20,12 +32,15 @@
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
     "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {},
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "@types/node": "24.2.1",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.8"
   }
 }

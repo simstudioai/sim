@@ -1,8 +1,9 @@
-import { createHash, createHmac } from 'crypto'
+import { createHmac } from 'crypto'
 import { db, workflowDeploymentVersion } from '@sim/db'
 import { webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { sha256Hex } from '@sim/security/hash'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import type {
@@ -125,7 +126,7 @@ function buildWhatsAppIdempotencyKey(keys: Set<string>): string | null {
   }
 
   const sortedKeys = Array.from(keys).sort()
-  const digest = createHash('sha256').update(sortedKeys.join('|'), 'utf8').digest('hex')
+  const digest = sha256Hex(sortedKeys.join('|'))
   return `whatsapp:${sortedKeys.length}:${digest}`
 }
 
