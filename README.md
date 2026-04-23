@@ -152,6 +152,83 @@ See the [environment variables reference](https://docs.sim.ai/self-hosting/envir
 - **Remote Code Execution**: [E2B](https://www.e2b.dev/)
 - **Isolated Code Execution**: [isolated-vm](https://github.com/laverdet/isolated-vm)
 
+## Frequently Asked Questions (FAQ)
+
+### General Questions
+
+**Q: What is Sim?**  
+A: Sim is an open-source platform to build AI agents and run your agentic workforce. It provides a visual workflow builder, 1,000+ integrations, and support for multiple LLMs to orchestrate agentic workflows.
+
+**Q: Is Sim free to use?**  
+A: Yes, Sim is open-source (Apache 2.0 license). You can self-host it for free or use the cloud-hosted version at [sim.ai](https://sim.ai).
+
+**Q: What's the difference between self-hosted and cloud?**  
+A: 
+- **Cloud (sim.ai)**: Managed service with automatic updates, scaling, and support
+- **Self-hosted**: Full control over your data and infrastructure, requires your own resources
+
+**Q: Which AI models does Sim support?**  
+A: Sim supports all major LLM providers including OpenAI, Anthropic, Google, and local models via Ollama and vLLM. See the [documentation](https://docs.sim.ai) for the complete list.
+
+### Installation & Setup
+
+**Q: What are the requirements for self-hosting?**  
+A: 
+- **Docker method**: Docker and Docker Compose installed, 12GB+ RAM recommended
+- **Manual method**: Bun, Node.js v20+, PostgreSQL 12+ with pgvector extension
+
+**Q: How do I install Sim?**  
+A: The easiest way is using the NPM package:
+```bash
+npx simstudio
+```
+
+Or with Docker Compose:
+```bash
+git clone https://github.com/simstudioai/sim.git && cd sim
+docker compose -f docker-compose.prod.yml up -d
+```
+
+**Q: Can I use local AI models?**  
+A: Yes! Sim supports local models via Ollama and vLLM. See the [Docker self-hosting docs](https://docs.sim.ai/self-hosting/docker) for setup details.
+
+**Q: How do I enable Copilot in self-hosted instances?**  
+A: Copilot is a Sim-managed service. Generate a Copilot API key at https://sim.ai → Settings → Copilot, then set `COPILOT_API_KEY` in your `.env` file.
+
+### Troubleshooting
+
+**Port already in use errors**
+- Default ports: 3000 (app), 3002 (sockets), 5432 (PostgreSQL)
+- Change ports in docker-compose.yml or stop conflicting services
+- Check with: `lsof -i :3000` or `docker ps`
+
+**Docker containers not starting**
+- Ensure Docker daemon is running: `docker info`
+- Check available memory: Sim needs 12GB+ RAM
+- View logs: `docker compose -f docker-compose.prod.yml logs`
+
+**Database connection errors**
+- Verify PostgreSQL is running with pgvector extension
+- Check connection string in `.env` file
+- For Docker: ensure the db container is healthy before starting app
+
+**Workflow not executing**
+- Check that all required API keys are configured
+- Verify node connections in the workflow builder
+- Review logs in the Sim dashboard or Docker logs
+
+**Copilot not working**
+- Ensure `COPILOT_API_KEY` is set correctly in `.env`
+- Verify the key is valid (generate new one if needed)
+- Check network connectivity to sim.ai
+
+### Getting More Help
+
+- 📚 **Documentation**: [docs.sim.ai](https://docs.sim.ai)
+- 💬 **Discord**: [Join Server](https://discord.gg/Hr4UWYEcTT)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/simstudioai/sim/issues)
+- 📧 **Contact**: [sim.ai](https://sim.ai)
+
 ## Contributing
 
 We welcome contributions! Please see our [Contributing Guide](.github/CONTRIBUTING.md) for details.
