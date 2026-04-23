@@ -107,7 +107,6 @@ export const TrelloBlock: BlockConfig<TrelloResponse> = {
       canonicalParamId: 'boardId',
       serviceId: 'trello',
       selectorKey: 'trello.boards',
-      selectorAllowSearch: false,
       placeholder: 'Select Trello board',
       dependsOn: ['credential'],
       mode: 'basic',
