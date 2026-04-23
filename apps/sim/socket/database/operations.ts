@@ -24,6 +24,10 @@ import {
 const logger = createLogger('SocketDatabase')
 
 const connectionString = env.DATABASE_URL
+/**
+ * Server-side safety net for runaway queries and abandoned transactions.
+ * See `packages/db/index.ts` for rationale.
+ */
 const socketDb = drizzle(
   postgres(connectionString, {
     prepare: false,
@@ -31,6 +35,9 @@ const socketDb = drizzle(
     connect_timeout: 20,
     max: 10,
     onnotice: () => {},
+    connection: {
+      options: '-c statement_timeout=90000 -c idle_in_transaction_session_timeout=90000',
+    },
   }),
   { schema }
 )
