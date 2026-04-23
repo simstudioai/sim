@@ -97,6 +97,7 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'type', header: 'Type' },
   { id: 'created', header: 'Created' },
   { id: 'owner', header: 'Owner' },
+  { id: 'updated', header: 'Last Updated' },
 ]
 
 const MIME_TYPE_LABELS: Record<string, string> = {
@@ -313,6 +314,7 @@ export function Files() {
           },
           created: timeCell(file.uploadedAt),
           owner: ownerCell(file.uploadedBy, members),
+          updated: timeCell(file.updatedAt),
         },
       }
       nextCache.set(file.id, { row, file, members })
