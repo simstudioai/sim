@@ -164,7 +164,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
 
-    if (block.type === 'subagent_text') {
+    if (block.type === 'subagent_text' || block.type === 'subagent_thinking') {
       if (!block.content || !group) continue
       group.isDelegating = false
       const lastItem = group.items[group.items.length - 1]
@@ -172,24 +172,6 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
         lastItem.content += block.content
       } else {
         group.items.push({ type: 'text', content: block.content })
-      }
-      continue
-    }
-
-    if (block.type === 'subagent_thinking') {
-      if (!block.content || !group) continue
-      group.isDelegating = false
-      const lastItem = group.items[group.items.length - 1]
-      if (lastItem?.type === 'thinking' && lastItem.endedAt === undefined) {
-        lastItem.content += block.content
-        if (block.endedAt !== undefined) lastItem.endedAt = block.endedAt
-      } else {
-        group.items.push({
-          type: 'thinking',
-          content: block.content,
-          startedAt: block.timestamp,
-          endedAt: block.endedAt,
-        })
       }
       continue
     }

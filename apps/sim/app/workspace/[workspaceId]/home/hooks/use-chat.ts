@@ -3001,7 +3001,12 @@ export function useChat(
             ...timing,
           }
         }
-        return { type: block.type, content: block.content, ...timing }
+        return {
+          type: block.type,
+          content: block.content,
+          ...(block.subagent ? { lane: 'subagent' } : {}),
+          ...timing,
+        }
       })
 
       if (storedBlocks.length > 0) {
