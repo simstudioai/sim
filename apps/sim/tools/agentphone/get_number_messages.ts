@@ -77,7 +77,7 @@ export const agentphoneGetNumberMessagesTool: ToolConfig<
       output: {
         data: (data.data ?? []).map((msg: Record<string, unknown>) => ({
           id: (msg.id as string) ?? '',
-          from_: (msg.from_ as string) ?? (msg.from as string) ?? '',
+          from_: (msg.from_ as string) ?? '',
           to: (msg.to as string) ?? '',
           body: (msg.body as string) ?? '',
           direction: (msg.direction as string) ?? '',
