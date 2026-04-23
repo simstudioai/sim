@@ -144,7 +144,7 @@ vi.useFakeTimers()
 | `@/app/api/auth/oauth/utils` | `authOAuthUtilsMock`, `authOAuthUtilsMockFns` | `vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)` |
 | `@/app/api/knowledge/utils` | `knowledgeApiUtilsMock`, `knowledgeApiUtilsMockFns` | `vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)` |
 | `@/app/api/workflows/utils` | `workflowsApiUtilsMock`, `workflowsApiUtilsMockFns` | `vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)` |
-| `@/lib/audit/log` | `auditMock`, `auditMockFns` | `vi.mock('@/lib/audit/log', () => auditMock)` |
+| `@sim/audit` | `auditMock`, `auditMockFns` | `vi.mock('@sim/audit', () => auditMock)` |
 | `@/lib/auth` | `authMock`, `authMockFns` | `vi.mock('@/lib/auth', () => authMock)` |
 | `@/lib/auth/hybrid` | `hybridAuthMock`, `hybridAuthMockFns` | `vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)` |
 | `@/lib/copilot/request/http` | `copilotHttpMock`, `copilotHttpMockFns` | `vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)` |

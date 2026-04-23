@@ -23,7 +23,7 @@ vi.mock('@/lib/webhooks/utils.server', () => ({
   syncAllWebhooksForCredentialSet: mockSyncAllWebhooksForCredentialSet,
 }))
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 
 import { POST } from '@/app/api/auth/oauth/disconnect/route'
 

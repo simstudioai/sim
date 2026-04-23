@@ -1,7 +1,7 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { generateId } from '@sim/utils/id'
-import { safeCompare } from '@/lib/core/security/encryption'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -24,7 +24,7 @@ function validateAshbySignature(secretToken: string, signature: string, body: st
       return false
     }
     const providedSignature = signature.substring(7)
-    const computedHash = crypto.createHmac('sha256', secretToken).update(body, 'utf8').digest('hex')
+    const computedHash = hmacSha256Hex(body, secretToken)
     return safeCompare(computedHash, providedSignature)
   } catch (error) {
     logger.error('Error validating Ashby signature:', error)

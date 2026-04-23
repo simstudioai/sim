@@ -5,8 +5,8 @@
 import {
   databaseMock,
   hybridAuthMockFns,
+  workflowAuthzMockFns,
   workflowsUtilsMock,
-  workflowsUtilsMockFns,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -68,7 +68,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({ success: true, userId: 'user-1' })
-    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: true,
     })
     mockAbortManualExecution.mockReturnValue(false)
@@ -193,7 +193,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
 
   it('returns 403 when workflow access is denied', async () => {
     mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
-    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: false,
       message: 'Access denied',
       status: 403,

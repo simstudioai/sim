@@ -1,13 +1,12 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
 import { createLogger } from '@sim/logger'
+import { decrypt, encrypt } from '@sim/security/encryption'
+import { sha256Hex } from '@sim/security/hash'
+import { generateSecureToken } from '@sim/security/tokens'
+import { toError } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('ApiKeyCrypto')
 
-/**
- * Get the API encryption key from the environment
- * @returns The API encryption key
- */
 function getApiEncryptionKey(): Buffer | null {
   const key = env.API_ENCRYPTION_KEY
   if (!key) {
@@ -23,77 +22,38 @@ function getApiEncryptionKey(): Buffer | null {
 }
 
 /**
- * Encrypts an API key using the dedicated API encryption key
- * @param apiKey - The API key to encrypt
- * @returns A promise that resolves to an object containing the encrypted API key and IV
+ * Encrypts an API key using the dedicated API encryption key. Falls back to
+ * returning the plain key when `API_ENCRYPTION_KEY` is unset, for backward
+ * compatibility with deployments that predate encryption-at-rest.
  */
 export async function encryptApiKey(apiKey: string): Promise<{ encrypted: string; iv: string }> {
   const key = getApiEncryptionKey()
-
-  // If no API encryption key is set, return the key as-is for backward compatibility
   if (!key) {
     return { encrypted: apiKey, iv: '' }
   }
-
-  const iv = randomBytes(16)
-  const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 })
-  let encrypted = cipher.update(apiKey, 'utf8', 'hex')
-  encrypted += cipher.final('hex')
-
-  const authTag = cipher.getAuthTag()
-  const ivHex = iv.toString('hex')
-
-  // Format: iv:encrypted:authTag
-  return {
-    encrypted: `${ivHex}:${encrypted}:${authTag.toString('hex')}`,
-    iv: ivHex,
-  }
+  return encrypt(apiKey, key)
 }
 
 /**
- * Decrypts an API key using the dedicated API encryption key
- * @param encryptedValue - The encrypted value in format "iv:encrypted:authTag" or plain text
- * @returns A promise that resolves to an object containing the decrypted API key
+ * Decrypts an API key previously produced by {@link encryptApiKey}. Values
+ * that lack the `iv:ciphertext:authTag` shape are assumed to be legacy plain
+ * text and returned unchanged.
  */
 export async function decryptApiKey(encryptedValue: string): Promise<{ decrypted: string }> {
   const parts = encryptedValue.split(':')
-
-  // Check if this is actually encrypted (contains colons)
   if (parts.length !== 3) {
-    // This is a plain text key, return as-is
     return { decrypted: encryptedValue }
   }
 
   const key = getApiEncryptionKey()
-
-  // If no API encryption key is set, assume it's plain text
   if (!key) {
     return { decrypted: encryptedValue }
   }
 
-  const ivHex = parts[0]
-  const authTagHex = parts[2]
-  const encrypted = parts[1]
-
-  if (!ivHex || !encrypted || !authTagHex) {
-    throw new Error('Invalid encrypted API key format. Expected "iv:encrypted:authTag"')
-  }
-
-  const iv = Buffer.from(ivHex, 'hex')
-  const authTag = Buffer.from(authTagHex, 'hex')
-
   try {
-    const decipher = createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 })
-    decipher.setAuthTag(authTag)
-
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8')
-    decrypted += decipher.final('utf8')
-
-    return { decrypted }
-  } catch (error: unknown) {
-    logger.error('API key decryption error:', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+    return await decrypt(encryptedValue, key)
+  } catch (error) {
+    logger.error('API key decryption error:', { error: toError(error).message })
     throw error
   }
 }
@@ -103,7 +63,7 @@ export async function decryptApiKey(encryptedValue: string): Promise<{ decrypted
  * @returns A new API key string
  */
 export function generateApiKey(): string {
-  return `sim_${randomBytes(24).toString('base64url')}`
+  return `sim_${generateSecureToken(24)}`
 }
 
 /**
@@ -111,7 +71,7 @@ export function generateApiKey(): string {
  * @returns A new encrypted API key string
  */
 export function generateEncryptedApiKey(): string {
-  return `sk-sim-${randomBytes(24).toString('base64url')}`
+  return `sk-sim-${generateSecureToken(24)}`
 }
 
 /**
@@ -142,5 +102,5 @@ export function isLegacyApiKeyFormat(apiKey: string): boolean {
  * @returns The hex-encoded SHA-256 digest
  */
 export function hashApiKey(plainKey: string): string {
-  return createHash('sha256').update(plainKey, 'utf8').digest('hex')
+  return sha256Hex(plainKey)
 }

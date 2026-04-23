@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
+import { getActiveWorkflowContext } from '@sim/workflow-authz'
 import { getUserEntityPermissions, type PermissionType } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotPermissions')

@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import { form } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('FormStatusAPI')

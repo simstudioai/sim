@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
 import { permissions, workspace } from '@sim/db/schema'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq, isNull } from 'drizzle-orm'
-import { authorizeWorkflowByWorkspacePermission, type getWorkflowById } from '@/lib/workflows/utils'
+import type { getWorkflowById } from '@/lib/workflows/utils'
 import { checkWorkspaceAccess, getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 type WorkflowRecord = NonNullable<Awaited<ReturnType<typeof getWorkflowById>>>

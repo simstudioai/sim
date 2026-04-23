@@ -1,10 +1,10 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { templateCreators, templates, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -203,13 +203,14 @@ export const PUT = withRouteHandler(
       if (status !== undefined) updateData.status = status
 
       if (updateState && template.workflowId) {
-        const { verifyWorkflowAccess } = await import('@/socket/middleware/permissions')
-        const { hasAccess: hasWorkflowAccess } = await verifyWorkflowAccess(
-          session.user.id,
-          template.workflowId
-        )
+        const { authorizeWorkflowByWorkspacePermission } = await import('@sim/workflow-authz')
+        const authorization = await authorizeWorkflowByWorkspacePermission({
+          userId: session.user.id,
+          workflowId: template.workflowId,
+          action: 'read',
+        })
 
-        if (!hasWorkflowAccess) {
+        if (!authorization.allowed) {
           logger.warn(`[${requestId}] User denied workflow access for state sync on template ${id}`)
           return NextResponse.json({ error: 'Access denied to workflow' }, { status: 403 })
         }

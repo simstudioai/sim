@@ -1,4 +1,4 @@
-import { createHmac } from 'crypto'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { generateId } from '@sim/utils/id'
 import type { RequestResponse, WebhookRequestParams } from '@/tools/http/types'
 import type { ToolConfig } from '@/tools/types'
@@ -8,7 +8,7 @@ import type { ToolConfig } from '@/tools/types'
  */
 function generateSignature(secret: string, timestamp: number, body: string): string {
   const signatureBase = `${timestamp}.${body}`
-  return createHmac('sha256', secret).update(signatureBase).digest('hex')
+  return hmacSha256Hex(signatureBase, secret)
 }
 
 export const webhookRequestTool: ToolConfig<WebhookRequestParams, RequestResponse> = {

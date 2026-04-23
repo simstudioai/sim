@@ -1,6 +1,6 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createSingleDocument,

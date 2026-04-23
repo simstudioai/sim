@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   invitation,
@@ -9,7 +10,6 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'

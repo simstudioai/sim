@@ -1,6 +1,10 @@
 import { db } from '@sim/db'
 import { document, knowledgeBase, templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  getActiveWorkflowRecord,
+} from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
   serializeFileMeta,
@@ -11,10 +15,8 @@ import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { getTableById } from '@/lib/table/service'
 import { canAccessTemplate } from '@/lib/templates/permissions'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 import { isHiddenFromDisplay } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'

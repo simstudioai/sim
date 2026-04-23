@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
@@ -17,7 +18,6 @@ import {
 import { readFilePreviewSessions } from '@/lib/copilot/request/session'
 import { readEvents } from '@/lib/copilot/request/session/buffer'
 import { toStreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotChatAPI')

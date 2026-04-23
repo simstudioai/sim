@@ -11,8 +11,8 @@ import {
   hybridAuthMockFns,
   knowledgeApiUtilsMock,
   knowledgeApiUtilsMockFns,
+  workflowAuthzMockFns,
   workflowsUtilsMock,
-  workflowsUtilsMockFns,
 } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -169,7 +169,7 @@ describe('Knowledge Search API Route', () => {
       userId: 'user-123',
       authType: 'session',
     })
-    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockClear().mockResolvedValue({
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockClear().mockResolvedValue({
       allowed: true,
       status: 200,
     })
@@ -324,13 +324,11 @@ describe('Knowledge Search API Route', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
-      expect(workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith(
-        {
-          workflowId: 'workflow-123',
-          userId: 'user-123',
-          action: 'read',
-        }
-      )
+      expect(workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith({
+        workflowId: 'workflow-123',
+        userId: 'user-123',
+        action: 'read',
+      })
     })
 
     it.concurrent('should return unauthorized for unauthenticated request', async () => {
@@ -353,7 +351,7 @@ describe('Knowledge Search API Route', () => {
         workflowId: 'nonexistent-workflow',
       }
 
-      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: false,
         status: 404,
         message: 'Workflow not found',

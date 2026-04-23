@@ -33,12 +33,13 @@ export const GET = withRouteHandler(
       const metadataToCheck = job.metadata
 
       if (metadataToCheck?.workflowId) {
-        const { verifyWorkflowAccess } = await import('@/socket/middleware/permissions')
-        const accessCheck = await verifyWorkflowAccess(
-          authenticatedUserId,
-          metadataToCheck.workflowId as string
-        )
-        if (!accessCheck.hasAccess) {
+        const { authorizeWorkflowByWorkspacePermission } = await import('@sim/workflow-authz')
+        const accessCheck = await authorizeWorkflowByWorkspacePermission({
+          userId: authenticatedUserId,
+          workflowId: metadataToCheck.workflowId as string,
+          action: 'read',
+        })
+        if (!accessCheck.allowed) {
           logger.warn(`[${requestId}] Access denied to workflow ${metadataToCheck.workflowId}`)
           return createErrorResponse('Access denied', 403)
         }

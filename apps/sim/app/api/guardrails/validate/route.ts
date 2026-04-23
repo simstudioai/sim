@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -7,7 +8,6 @@ import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
 import { validateJson } from '@/lib/guardrails/validate_json'
 import { validatePII } from '@/lib/guardrails/validate_pii'
 import { validateRegex } from '@/lib/guardrails/validate_regex'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import {
   assertPermissionsAllowed,
   ProviderNotAllowedError,

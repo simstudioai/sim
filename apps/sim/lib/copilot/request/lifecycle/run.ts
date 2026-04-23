@@ -1,6 +1,7 @@
 import type { Context } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { createRunSegment, updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
@@ -556,7 +557,7 @@ function isRetryableStreamError(error: unknown): boolean {
 
 function sleepWithAbort(ms: number, abortSignal?: AbortSignal): Promise<void> {
   if (!abortSignal) {
-    return new Promise((resolve) => setTimeout(resolve, ms))
+    return sleep(ms)
   }
   if (abortSignal.aborted) {
     return Promise.resolve()

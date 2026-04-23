@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { account, credential, credentialMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -12,7 +13,6 @@ import {
   getCanonicalScopesForProvider,
   getServiceAccountProviderForProviderId,
 } from '@/lib/oauth/utils'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'

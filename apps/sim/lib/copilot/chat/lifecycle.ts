@@ -1,9 +1,11 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  getActiveWorkflowRecord,
+} from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
-import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import {
   assertActiveWorkspaceAccess,
   checkWorkspaceAccess,

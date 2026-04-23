@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { EditWorkflow } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
@@ -26,7 +27,6 @@ import {
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'

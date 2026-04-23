@@ -2,6 +2,7 @@ import { type Context as OtelContext, context as otelContextApi } from '@opentel
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -615,8 +616,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
   // trace ID) as soon as startCopilotOtelRoot runs. Empty only in the
   // narrow pre-otelRoot window where errors don't correlate anyway.
   let requestId = ''
-  const executionId = crypto.randomUUID()
-  const runId = crypto.randomUUID()
+  const executionId = generateId()
+  const runId = generateId()
 
   try {
     const session = await getSession()
@@ -628,7 +629,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
 
     const body = ChatMessageSchema.parse(await req.json())
     const normalizedContexts = normalizeContexts(body.contexts) ?? []
-    userMessageId = body.userMessageId || crypto.randomUUID()
+    userMessageId = body.userMessageId || generateId()
 
     otelRoot = startCopilotOtelRoot({
       streamId: userMessageId,

@@ -33,7 +33,7 @@ const mockPerformChatUndeploy = workflowsOrchestrationMockFns.mockPerformChatUnd
 const mockNotifySocketDeploymentChanged =
   workflowsOrchestrationMockFns.mockNotifySocketDeploymentChanged
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/core/config/feature-flags', () => ({
   isDev: true,
   isHosted: false,
