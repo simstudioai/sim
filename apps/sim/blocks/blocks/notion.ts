@@ -93,7 +93,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       canonicalParamId: 'databaseId',
       serviceId: 'notion',
       selectorKey: 'notion.databases',
-      selectorAllowSearch: false,
       placeholder: 'Select Notion database',
       dependsOn: ['credential'],
       mode: 'basic',

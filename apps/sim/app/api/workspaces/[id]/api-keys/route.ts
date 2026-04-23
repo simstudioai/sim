@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -6,7 +7,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { hashApiKey } from '@/lib/api-key/crypto'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -145,6 +146,7 @@ export const POST = withRouteHandler(
           createdBy: userId,
           name,
           key: encryptedKey,
+          keyHash: hashApiKey(plainKey),
           type: 'workspace',
           createdAt: new Date(),
           updatedAt: new Date(),

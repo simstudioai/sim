@@ -5,10 +5,12 @@ import { ChevronDown, Expandable, ExpandableContent, PillsRing } from '@/compone
 import { cn } from '@/lib/core/utils/cn'
 import type { ToolCallData } from '../../../../types'
 import { getAgentIcon } from '../../utils'
+import { ThinkingBlock } from '../thinking-block'
 import { ToolCallItem } from './tool-call-item'
 
 export type AgentGroupItem =
   | { type: 'text'; content: string }
+  | { type: 'thinking'; content: string; startedAt?: number; endedAt?: number }
   | { type: 'tool'; data: ToolCallData }
 
 interface AgentGroupProps {
@@ -16,6 +18,7 @@ interface AgentGroupProps {
   agentLabel: string
   items: AgentGroupItem[]
   isDelegating?: boolean
+  isStreaming?: boolean
   autoCollapse?: boolean
   defaultExpanded?: boolean
 }
@@ -35,6 +38,7 @@ export function AgentGroup({
   agentLabel,
   items,
   isDelegating = false,
+  isStreaming = false,
   autoCollapse = false,
   defaultExpanded = false,
 }: AgentGroupProps) {
@@ -110,16 +114,39 @@ export function AgentGroup({
         <Expandable expanded={expanded}>
           <ExpandableContent>
             <div className='flex flex-col gap-1.5 pt-0.5'>
-              {items.map((item, idx) =>
-                item.type === 'tool' ? (
-                  <ToolCallItem
-                    key={item.data.id}
-                    toolName={item.data.toolName}
-                    displayTitle={item.data.displayTitle}
-                    status={item.data.status}
-                    streamingArgs={item.data.streamingArgs}
-                  />
-                ) : (
+              {items.map((item, idx) => {
+                if (item.type === 'tool') {
+                  return (
+                    <ToolCallItem
+                      key={item.data.id}
+                      toolName={item.data.toolName}
+                      displayTitle={item.data.displayTitle}
+                      status={item.data.status}
+                      streamingArgs={item.data.streamingArgs}
+                    />
+                  )
+                }
+                if (item.type === 'thinking') {
+                  const elapsedMs =
+                    item.startedAt !== undefined && item.endedAt !== undefined
+                      ? item.endedAt - item.startedAt
+                      : undefined
+                  if (elapsedMs !== undefined && elapsedMs <= 3000) return null
+                  return (
+                    <div key={`thinking-${idx}`} className='pl-6'>
+                      <ThinkingBlock
+                        content={item.content}
+                        isActive={
+                          isStreaming && idx === items.length - 1 && item.endedAt === undefined
+                        }
+                        isStreaming={isStreaming}
+                        startedAt={item.startedAt}
+                        endedAt={item.endedAt}
+                      />
+                    </div>
+                  )
+                }
+                return (
                   <span
                     key={`text-${idx}`}
                     className='pl-6 font-base text-[var(--text-secondary)] text-small'
@@ -127,7 +154,7 @@ export function AgentGroup({
                     {item.content.trim()}
                   </span>
                 )
-              )}
+              })}
             </div>
           </ExpandableContent>
         </Expandable>

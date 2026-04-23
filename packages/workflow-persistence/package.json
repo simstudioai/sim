@@ -1,0 +1,57 @@
+{
+  "name": "@sim/workflow-persistence",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "bun": ">=1.2.13",
+    "node": ">=20.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./load": {
+      "types": "./src/load.ts",
+      "default": "./src/load.ts"
+    },
+    "./save": {
+      "types": "./src/save.ts",
+      "default": "./src/save.ts"
+    },
+    "./subblocks": {
+      "types": "./src/subblocks.ts",
+      "default": "./src/subblocks.ts"
+    },
+    "./subflow-helpers": {
+      "types": "./src/subflow-helpers.ts",
+      "default": "./src/subflow-helpers.ts"
+    },
+    "./types": {
+      "types": "./src/types.ts",
+      "default": "./src/types.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format ."
+  },
+  "dependencies": {
+    "@sim/db": "workspace:*",
+    "@sim/logger": "workspace:*",
+    "@sim/utils": "workspace:*",
+    "@sim/workflow-types": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "reactflow": "^11.11.4"
+  },
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "typescript": "^5.7.3"
+  }
+}

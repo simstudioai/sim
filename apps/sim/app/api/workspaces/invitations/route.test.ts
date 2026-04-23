@@ -92,7 +92,7 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
   InvitationsNotAllowedError: class InvitationsNotAllowedError extends Error {},
 }))
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: vi.fn(),

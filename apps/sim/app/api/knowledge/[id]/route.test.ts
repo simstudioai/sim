@@ -22,7 +22,7 @@ vi.mock('@sim/db', () => ({
   db: mockDbChain,
 }))
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/knowledge/service', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/knowledge/service')>()

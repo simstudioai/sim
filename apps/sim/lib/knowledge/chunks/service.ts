@@ -1,7 +1,7 @@
-import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
 import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm'
 import type {
@@ -155,7 +155,7 @@ export async function createChunk(
       knowledgeBaseId,
       documentId,
       chunkIndex: nextChunkIndex,
-      chunkHash: createHash('sha256').update(chunkData.content).digest('hex'),
+      chunkHash: sha256Hex(chunkData.content),
       content: chunkData.content,
       contentLength: chunkData.content.length,
       tokenCount: tokenCount.count,
@@ -368,7 +368,7 @@ export async function updateChunk(
         dbUpdateData.content = content
         dbUpdateData.contentLength = newContentLength
         dbUpdateData.tokenCount = tokenCount.count
-        dbUpdateData.chunkHash = createHash('sha256').update(content).digest('hex')
+        dbUpdateData.chunkHash = sha256Hex(content)
         // Add the embedding field to the update data
         dbUpdateData.embedding = embeddings[0]
       } else {
@@ -376,7 +376,7 @@ export async function updateChunk(
         dbUpdateData.content = content
         dbUpdateData.contentLength = newContentLength
         dbUpdateData.tokenCount = oldTokenCount // Keep the same token count if content is identical
-        dbUpdateData.chunkHash = createHash('sha256').update(content).digest('hex')
+        dbUpdateData.chunkHash = sha256Hex(content)
       }
 
       if (updateData.enabled !== undefined) {

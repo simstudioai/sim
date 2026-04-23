@@ -22,6 +22,7 @@
     "db:push": "bunx drizzle-kit push --config=./drizzle.config.ts",
     "db:migrate": "bun --env-file=.env run ./scripts/migrate.ts",
     "db:studio": "bunx drizzle-kit studio --config=./drizzle.config.ts",
+    "test": "vitest run",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",

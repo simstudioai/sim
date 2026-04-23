@@ -55,6 +55,7 @@ export interface ContentBlock {
   toolCall?: ToolCallState
   calledBy?: string
   timestamp: number
+  endedAt?: number
 }
 
 export interface StreamingContext {

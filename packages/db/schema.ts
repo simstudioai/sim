@@ -734,6 +734,7 @@ export const apiKey = pgTable(
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     key: text('key').notNull().unique(),
+    keyHash: text('key_hash'),
     type: text('type').notNull().default('personal'),
     lastUsed: timestamp('last_used'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -747,6 +748,7 @@ export const apiKey = pgTable(
     ),
     workspaceTypeIdx: index('api_key_workspace_type_idx').on(table.workspaceId, table.type),
     userTypeIdx: index('api_key_user_type_idx').on(table.userId, table.type),
+    keyHashIdx: uniqueIndex('api_key_key_hash_idx').on(table.keyHash),
   })
 )
 

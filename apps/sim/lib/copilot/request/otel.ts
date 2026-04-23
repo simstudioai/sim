@@ -10,6 +10,7 @@ import {
   TraceFlags,
   trace,
 } from '@opentelemetry/api'
+import { toError } from '@sim/utils/errors'
 import { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
 import {
   CopilotBranchKind,
@@ -92,12 +93,12 @@ export function isActionableErrorStatus(code: number): boolean {
 // client disconnect, internal timeout, uncategorized AbortError —
 // becomes a real error that the dashboards will surface.
 export function markSpanForError(span: Span, error: unknown): void {
-  const asError = error instanceof Error ? error : new Error(String(error))
+  const asError = toError(error)
   span.recordException(asError)
   if (!isExplicitUserStopError(error)) {
     span.setStatus({
       code: SpanStatusCode.ERROR,
-      message: error instanceof Error ? error.message : String(error),
+      message: asError.message,
     })
   }
 }

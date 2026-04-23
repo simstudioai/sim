@@ -8,9 +8,6 @@ declare global {
   }
 }
 
-import type { Edge } from 'reactflow'
-import { useSession } from '@/lib/auth/auth-client'
-import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-operations'
 import {
   BLOCK_OPERATIONS,
   BLOCKS_OPERATIONS,
@@ -18,7 +15,10 @@ import {
   EDGES_OPERATIONS,
   OPERATION_TARGETS,
   UNDO_REDO_OPERATIONS,
-} from '@/socket/constants'
+} from '@sim/realtime-protocol/constants'
+import type { Edge } from 'reactflow'
+import { useSession } from '@/lib/auth/auth-client'
+import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-operations'
 import { useOperationQueue } from '@/stores/operation-queue/store'
 import {
   type BatchAddBlocksOperation,
