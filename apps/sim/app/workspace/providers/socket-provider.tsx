@@ -409,9 +409,22 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             error.message?.includes('Authentication failed') ||
             error.message?.includes('Authentication required')
 
+          // Check if this is a permanent configuration error — retrying won't help
+          const isNamespaceError = error.message?.includes('Invalid namespace')
+
           if (isAuthError) {
             logger.warn(
               'Authentication failed - stopping reconnection attempts. User may need to refresh/re-login.'
+            )
+            socketInstance.disconnect()
+            setSocket(null)
+            setAuthFailed(true)
+            setIsReconnecting(false)
+            initializedRef.current = false
+          } else if (isNamespaceError) {
+            logger.warn(
+              'Invalid namespace error - stopping reconnection attempts. Check NEXT_PUBLIC_SOCKET_URL configuration.',
+              { message: error.message }
             )
             socketInstance.disconnect()
             setSocket(null)
