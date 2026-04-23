@@ -676,9 +676,12 @@ export class BlockExecutor {
     // response. Persisting that to memory or setting it as the block output
     // would corrupt downstream state — skip and log instead.
     if (!sourceFullyDrained) {
-      this.execLogger.warn('Stream consumer exited before source drained; skipping content persistence', {
-        blockId,
-      })
+      this.execLogger.warn(
+        'Stream consumer exited before source drained; skipping content persistence',
+        {
+          blockId,
+        }
+      )
       return
     }
 
