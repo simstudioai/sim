@@ -1,0 +1,1 @@
+ALTER TABLE "workspace_files" ADD COLUMN "updated_at" timestamp DEFAULT now() NOT NULL;

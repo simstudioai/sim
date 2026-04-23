@@ -123,7 +123,7 @@ export function Tables() {
     if (ownerFilter.length > 0) {
       result = result.filter((t) => ownerFilter.includes(t.createdBy))
     }
-    const col = activeSort?.column ?? 'created'
+    const col = activeSort?.column ?? 'updated'
     const dir = activeSort?.direction ?? 'desc'
     return [...result].sort((a, b) => {
       let cmp = 0

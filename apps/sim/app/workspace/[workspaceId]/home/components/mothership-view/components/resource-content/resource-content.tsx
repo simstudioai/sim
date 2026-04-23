@@ -124,6 +124,7 @@ export const ResourceContent = memo(function ResourceContent({
       type,
       uploadedBy: '',
       uploadedAt: STREAMING_EPOCH,
+      updatedAt: STREAMING_EPOCH,
     }
   }, [workspaceId, streamFileName])
 

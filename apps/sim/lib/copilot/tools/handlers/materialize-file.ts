@@ -29,6 +29,7 @@ function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
     uploadedBy: row.userId,
     deletedAt: row.deletedAt,
     uploadedAt: row.uploadedAt,
+    updatedAt: row.updatedAt,
     storageContext: 'mothership' as const,
   }
 }
