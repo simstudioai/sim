@@ -64,7 +64,7 @@ export async function finalizeStream(
       span.setStatus({ code: SpanStatusCode.OK })
     }
   } catch (error) {
-    span.recordException(error instanceof Error ? error : new Error(String(error)))
+    span.recordException(toError(error))
     span.setStatus({ code: SpanStatusCode.ERROR, message: 'finalize threw' })
     throw error
   } finally {
