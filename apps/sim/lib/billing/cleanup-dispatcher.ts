@@ -237,7 +237,7 @@ export async function dispatchCleanupJobs(
     .where(
       and(
         isNull(workspace.archivedAt),
-        isNotNull(sql`${organization.dataRetentionSettings}->>${sql.raw(`'${config.key}'`)}`)
+        isNotNull(sql`${organization.dataRetentionSettings}->>${config.key}`)
       )
     )
     .groupBy(workspace.id)
