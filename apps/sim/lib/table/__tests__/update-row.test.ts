@@ -246,6 +246,8 @@ describe('insertRow — position race safety (migration 0198 + advisory lock)', 
 
   it('upsertRow acquires the advisory lock on the insert path (no match)', async () => {
     vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
+    // Initial existing-row check + post-lock re-check both find no match.
+    dbChainMockFns.limit.mockResolvedValueOnce([])
     dbChainMockFns.limit.mockResolvedValueOnce([])
 
     await expect(
@@ -262,6 +264,44 @@ describe('insertRow — position race safety (migration 0198 + advisory lock)', 
     ).rejects.toBeDefined()
 
     expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
+  })
+
+  it('upsertRow re-checks after acquiring the lock and switches to UPDATE when a racing tx inserted the row', async () => {
+    vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
+    // Initial existing-row check: no match (another tx has not committed yet).
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    // Post-lock re-check: a racing tx just inserted the row.
+    const racedRow = {
+      id: 'row-raced',
+      tableId: 'tbl-1',
+      workspaceId: 'ws-1',
+      data: { name: 'Bob', age: 25 },
+      position: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+    dbChainMockFns.limit.mockResolvedValueOnce([racedRow])
+    // UPDATE returning the patched row.
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { ...racedRow, data: { name: 'Bob', age: 26 } },
+    ])
+
+    const result = await upsertRow(
+      {
+        tableId: 'tbl-1',
+        workspaceId: 'ws-1',
+        data: { name: 'Bob', age: 26 },
+        conflictTarget: 'name',
+      },
+      TABLE,
+      'req-1'
+    )
+
+    expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
+    expect(result.operation).toBe('update')
+    expect(result.row.id).toBe('row-raced')
+    expect(dbChainMockFns.update).toHaveBeenCalled()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 })
 
@@ -347,5 +387,16 @@ describe('mutation paths — SET LOCAL timeouts', () => {
 
     // 100 × 2ms = 200ms → floored at 60_000ms
     expect(findExecutedRawSql("SET LOCAL statement_timeout = '60000ms'")).toBeDefined()
+  })
+
+  it('replaceTableRows acquires the per-table advisory lock to serialize concurrent replaces', async () => {
+    await replaceTableRows(
+      { tableId: 'tbl-1', workspaceId: 'ws-1', rows: [{ name: 'a' }] },
+      { ...TABLE, rowCount: 5 },
+      'req-1'
+    )
+
+    expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
+    expect(findExecutedSqlContaining('hashtextextended')).toBe(true)
   })
 })

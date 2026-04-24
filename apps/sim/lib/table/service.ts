@@ -895,6 +895,13 @@ export async function replaceTableRows(
   const result = await db.transaction(async (trx) => {
     await setTableTxTimeouts(trx, { statementMs })
 
+    // Serialize concurrent replaces (and concurrent auto-position inserts) on the
+    // same table. Without this, two concurrent replaces each see their own MVCC
+    // snapshot for the DELETE; the second's DELETE would not observe rows the
+    // first inserted, so both transactions commit and the table ends up with
+    // the union of both row sets instead of only the last caller's rows.
+    await acquireTablePositionLock(trx, data.tableId)
+
     const deletedRows = await trx
       .delete(userTableRows)
       .where(eq(userTableRows.tableId, data.tableId))
@@ -938,8 +945,11 @@ export async function replaceTableRows(
  * column, otherwise inserts a new row.
  *
  * Uses a single unique column for matching (not OR across all unique columns) to avoid
- * ambiguous matches when multiple unique columns exist. Capacity checks run inside the
- * transaction with a FOR UPDATE lock to prevent TOCTOU races.
+ * ambiguous matches when multiple unique columns exist. Capacity enforcement lives
+ * in the `increment_user_table_row_count` trigger (migration 0198). On the insert
+ * path we acquire the per-table advisory lock and re-check for an existing match
+ * before inserting, so a concurrent upsert racing on the same conflict target
+ * cannot produce a duplicate row.
  *
  * @param data - Upsert data including optional conflictTarget
  * @param table - Table definition
@@ -1060,6 +1070,46 @@ export async function upsertRow(
     }
 
     await acquireTablePositionLock(trx, data.tableId)
+
+    // Re-check after acquiring the lock: a concurrent upsert that started
+    // before us may have inserted the matching row between our initial
+    // `existingRow` read and now. Without this, both transactions would
+    // proceed to insert and produce a duplicate that bypasses the
+    // app-level unique check.
+    const [racedRow] = await trx
+      .select()
+      .from(userTableRows)
+      .where(
+        and(
+          eq(userTableRows.tableId, data.tableId),
+          eq(userTableRows.workspaceId, data.workspaceId),
+          matchFilter
+        )
+      )
+      .limit(1)
+
+    if (racedRow) {
+      const [updatedRow] = await trx
+        .update(userTableRows)
+        .set({
+          data: data.data,
+          updatedAt: now,
+        })
+        .where(eq(userTableRows.id, racedRow.id))
+        .returning()
+
+      return {
+        row: {
+          id: updatedRow.id,
+          data: updatedRow.data as RowData,
+          position: updatedRow.position,
+          createdAt: updatedRow.createdAt,
+          updatedAt: updatedRow.updatedAt,
+        },
+        operation: 'update' as const,
+      }
+    }
+
     const [{ maxPos }] = await trx
       .select({
         maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
