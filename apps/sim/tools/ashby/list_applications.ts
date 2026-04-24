@@ -67,7 +67,7 @@ export const listApplicationsTool: ToolConfig<
       if (params.cursor) body.cursor = params.cursor
       if (params.perPage) body.limit = params.perPage
       if (params.status) body.status = params.status
-      if (params.jobId) body.jobId = params.jobId
+      if (params.jobId) body.jobId = params.jobId.trim()
       if (params.createdAfter) {
         const ms = new Date(params.createdAfter).getTime()
         if (!Number.isNaN(ms)) body.createdAfter = ms

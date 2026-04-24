@@ -137,8 +137,8 @@ export const listInterviewsTool: ToolConfig<
     }),
     body: (params) => {
       const body: Record<string, unknown> = {}
-      if (params.applicationId) body.applicationId = params.applicationId
-      if (params.interviewStageId) body.interviewStageId = params.interviewStageId
+      if (params.applicationId) body.applicationId = params.applicationId.trim()
+      if (params.interviewStageId) body.interviewStageId = params.interviewStageId.trim()
       if (params.cursor) body.cursor = params.cursor
       if (params.perPage) body.limit = params.perPage
       return body
