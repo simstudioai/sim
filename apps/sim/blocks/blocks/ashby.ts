@@ -677,7 +677,6 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       description:
         'Job posting details (id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy[], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt)',
     },
-    noteId: { type: 'string', description: 'Created note UUID' },
     content: { type: 'string', description: 'Note content' },
     author: {
       type: 'json',

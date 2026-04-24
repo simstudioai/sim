@@ -70,6 +70,14 @@ export const ashbyHandler: WebhookProviderHandler = {
     const obj = body as Record<string, unknown>
     const action = typeof obj?.action === 'string' ? obj.action : ''
 
+    if (action === 'ping') {
+      logger.debug(`[${requestId}] Ashby ping event received. Skipping execution.`, {
+        webhookId: webhook.id,
+        triggerId,
+      })
+      return false
+    }
+
     if (!triggerId) return true
 
     const { isAshbyEventMatch } = await import('@/triggers/ashby/utils')
