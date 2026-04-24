@@ -99,6 +99,15 @@ export interface IsolatedVMError {
   line?: number
   column?: number
   lineContent?: string
+  /**
+   * True when the failure is host-infrastructure caused (worker crash, IPC
+   * failure, pool saturation, task misconfig) rather than anything the user's
+   * code did. Callers use this to keep genuine server failures as 5xx while
+   * translating user-caused failures (code errors, timeouts, aborts, per-owner
+   * rate limits) into 4xx. Defaults to undefined/false — new error sites
+   * default to user-caused unless explicitly marked.
+   */
+  isSystemError?: boolean
 }
 
 const POOL_SIZE = Number.parseInt(env.IVM_POOL_SIZE) || 4
@@ -838,7 +847,11 @@ function cleanupWorker(workerId: number) {
     pending.resolve({
       result: null,
       stdout: '',
-      error: { message: 'Code execution failed unexpectedly. Please try again.', name: 'Error' },
+      error: {
+        message: 'Code execution failed unexpectedly. Please try again.',
+        name: 'Error',
+        isSystemError: true,
+      },
     })
     workerInfo.pendingExecutions.delete(id)
   }
@@ -1125,7 +1138,11 @@ function dispatchToWorker(
     resolve({
       result: null,
       stdout: '',
-      error: { message: 'Code execution failed to start. Please try again.', name: 'Error' },
+      error: {
+        message: 'Code execution failed to start. Please try again.',
+        name: 'Error',
+        isSystemError: true,
+      },
     })
     if (workerInfo.retiring && workerInfo.activeExecutions === 0) {
       cleanupWorker(workerInfo.id)
@@ -1159,6 +1176,7 @@ function enqueueExecution(
       error: {
         message: 'Code execution is at capacity. Please try again in a moment.',
         name: 'Error',
+        isSystemError: true,
       },
     })
     return
@@ -1198,6 +1216,7 @@ function enqueueExecution(
       error: {
         message: 'Code execution timed out waiting for an available worker. Please try again.',
         name: 'Error',
+        isSystemError: true,
       },
     })
   }, QUEUE_TIMEOUT_MS)
@@ -1294,6 +1313,7 @@ export async function executeInIsolatedVM(
           error: {
             message: `Task "${req.task.id}" requires broker "${brokerName}" but none was provided`,
             name: 'Error',
+            isSystemError: true,
           },
         }
       }
