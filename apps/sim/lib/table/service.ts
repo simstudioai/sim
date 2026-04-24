@@ -103,6 +103,21 @@ async function acquireTablePositionLock(trx: DbTransaction, tableId: string) {
   )
 }
 
+/**
+ * Returns the next auto-assigned `position` for a table (max(position) + 1, or 0
+ * if empty). Callers must hold `acquireTablePositionLock` to avoid two concurrent
+ * writers computing the same value against the same snapshot.
+ */
+async function nextAutoPosition(trx: DbTransaction, tableId: string): Promise<number> {
+  const [{ maxPos }] = await trx
+    .select({
+      maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
+    })
+    .from(userTableRows)
+    .where(eq(userTableRows.tableId, tableId))
+  return maxPos + 1
+}
+
 const TIMEOUT_CAP_MS = 10 * 60_000
 
 /**
@@ -681,14 +696,7 @@ export async function insertRow(
           )
       }
     } else {
-      const [{ maxPos }] = await trx
-        .select({
-          maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
-        })
-        .from(userTableRows)
-        .where(eq(userTableRows.tableId, data.tableId))
-
-      targetPosition = maxPos + 1
+      targetPosition = await nextAutoPosition(trx, data.tableId)
     }
 
     return trx
@@ -801,14 +809,8 @@ export async function batchInsertRows(
       return trx.insert(userTableRows).values(rowsToInsert).returning()
     }
 
-    const [{ maxPos }] = await trx
-      .select({
-        maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
-      })
-      .from(userTableRows)
-      .where(eq(userTableRows.tableId, data.tableId))
-
-    const rowsToInsert = data.rows.map((rowData, i) => buildRow(rowData, maxPos + 1 + i))
+    const startPos = await nextAutoPosition(trx, data.tableId)
+    const rowsToInsert = data.rows.map((rowData, i) => buildRow(rowData, startPos + i))
 
     return trx.insert(userTableRows).values(rowsToInsert).returning()
   })
@@ -1056,55 +1058,33 @@ export async function upsertRow(
 
     const now = new Date()
 
-    if (existingRow) {
-      const [updatedRow] = await trx
-        .update(userTableRows)
-        .set({
-          data: data.data,
-          updatedAt: now,
-        })
-        .where(eq(userTableRows.id, existingRow.id))
-        .returning()
-
-      return {
-        row: {
-          id: updatedRow.id,
-          data: updatedRow.data as RowData,
-          position: updatedRow.position,
-          createdAt: updatedRow.createdAt,
-          updatedAt: updatedRow.updatedAt,
-        },
-        operation: 'update' as const,
-      }
-    }
-
-    await acquireTablePositionLock(trx, data.tableId)
-
-    // Re-check after acquiring the lock: a concurrent upsert that started
-    // before us may have inserted the matching row between our initial
-    // `existingRow` read and now. Without this, both transactions would
-    // proceed to insert and produce a duplicate that bypasses the
-    // app-level unique check.
-    const [racedRow] = await trx
-      .select()
-      .from(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.tableId, data.tableId),
-          eq(userTableRows.workspaceId, data.workspaceId),
-          matchFilter
+    // Resolve which row (if any) we should update. If the initial SELECT missed,
+    // acquire the lock and re-check — a concurrent upsert may have inserted the
+    // matching row between our SELECT and the INSERT path, and without the
+    // re-check both transactions would insert and produce a duplicate that
+    // bypasses the app-level unique check.
+    let matchedRowId = existingRow?.id
+    if (!matchedRowId) {
+      await acquireTablePositionLock(trx, data.tableId)
+      const [racedRow] = await trx
+        .select({ id: userTableRows.id })
+        .from(userTableRows)
+        .where(
+          and(
+            eq(userTableRows.tableId, data.tableId),
+            eq(userTableRows.workspaceId, data.workspaceId),
+            matchFilter
+          )
         )
-      )
-      .limit(1)
+        .limit(1)
+      matchedRowId = racedRow?.id
+    }
 
-    if (racedRow) {
+    if (matchedRowId) {
       const [updatedRow] = await trx
         .update(userTableRows)
-        .set({
-          data: data.data,
-          updatedAt: now,
-        })
-        .where(eq(userTableRows.id, racedRow.id))
+        .set({ data: data.data, updatedAt: now })
+        .where(eq(userTableRows.id, matchedRowId))
         .returning()
 
       return {
@@ -1118,13 +1098,6 @@ export async function upsertRow(
         operation: 'update' as const,
       }
     }
-
-    const [{ maxPos }] = await trx
-      .select({
-        maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
-      })
-      .from(userTableRows)
-      .where(eq(userTableRows.tableId, data.tableId))
 
     const [insertedRow] = await trx
       .insert(userTableRows)
@@ -1133,7 +1106,7 @@ export async function upsertRow(
         tableId: data.tableId,
         workspaceId: data.workspaceId,
         data: data.data,
-        position: maxPos + 1,
+        position: await nextAutoPosition(trx, data.tableId),
         createdAt: now,
         updatedAt: now,
         ...(data.userId ? { createdBy: data.userId } : {}),
