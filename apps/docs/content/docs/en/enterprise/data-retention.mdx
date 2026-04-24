@@ -6,7 +6,7 @@ description: Control how long execution logs, deleted resources, and copilot dat
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
-Data Retention lets workspace admins on Enterprise plans configure how long three categories of data are kept before they are permanently deleted. Each workspace in your organization can have its own independent configuration.
+Data Retention lets organization owners and admins on Enterprise plans configure how long three categories of data are kept before they are permanently deleted. The configuration applies to every workspace in the organization.
 
 ---
 
@@ -58,9 +58,9 @@ Each setting is independent. You can configure a short log retention period alon
 
 ---
 
-## Per-workspace configuration
+## Organization-wide configuration
 
-Retention is configured at the **workspace level**, not organization-wide. Each workspace in your organization can have a different configuration. Changes to one workspace's settings do not affect other workspaces.
+Retention is configured at the **organization level**. A single configuration applies to every workspace in the organization — there are no per-workspace overrides.
 
 ---
 
@@ -73,7 +73,7 @@ By default, all three settings are unconfigured — no data is automatically del
 <FAQ items={[
   {
     question: "Who can configure data retention settings?",
-    answer: "Only workspace admins can configure data retention settings. On Sim Cloud, the workspace must be on an Enterprise plan."
+    answer: "Only organization owners and admins can configure data retention settings. On Sim Cloud, the organization must be on an Enterprise plan."
   },
   {
     question: "Is deletion immediate once the retention period expires?",
@@ -85,7 +85,7 @@ By default, all three settings are unconfigured — no data is automatically del
   },
   {
     question: "Does the retention period apply to all workspaces in my organization?",
-    answer: "No. Retention is configured per workspace. Each workspace in your organization can have a different configuration."
+    answer: "Yes. Retention is configured once per organization and applies to every workspace in the organization."
   },
   {
     question: "What happens if I shorten the retention period?",

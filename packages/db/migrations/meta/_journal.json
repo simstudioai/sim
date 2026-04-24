@@ -1366,6 +1366,20 @@
       "when": 1776883116756,
       "tag": "0195_normal_white_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 196,
+      "version": "7",
+      "when": 1776916912442,
+      "tag": "0196_retention_org_level",
+      "breakpoints": true
+    },
+    {
+      "idx": 197,
+      "version": "7",
+      "when": 1776980739421,
+      "tag": "0197_unknown_the_captain",
+      "breakpoints": true
     }
   ]
 }

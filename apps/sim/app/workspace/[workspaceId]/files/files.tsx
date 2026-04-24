@@ -97,6 +97,7 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'type', header: 'Type' },
   { id: 'created', header: 'Created' },
   { id: 'owner', header: 'Owner' },
+  { id: 'updated', header: 'Last Updated' },
 ]
 
 const MIME_TYPE_LABELS: Record<string, string> = {
@@ -249,7 +250,7 @@ export function Files() {
       result = result.filter((f) => uploadedByFilter.includes(f.uploadedBy))
     }
 
-    const col = activeSort?.column ?? 'created'
+    const col = activeSort?.column ?? 'updated'
     const dir = activeSort?.direction ?? 'desc'
     return [...result].sort((a, b) => {
       let cmp = 0
@@ -265,6 +266,9 @@ export function Files() {
           break
         case 'created':
           cmp = new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime()
+          break
+        case 'updated':
+          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
           break
         case 'owner':
           cmp = (members?.find((m) => m.userId === a.uploadedBy)?.name ?? '').localeCompare(
@@ -310,6 +314,7 @@ export function Files() {
           },
           created: timeCell(file.uploadedAt),
           owner: ownerCell(file.uploadedBy, members),
+          updated: timeCell(file.updatedAt),
         },
       }
       nextCache.set(file.id, { row, file, members })
@@ -875,6 +880,7 @@ export function Files() {
         { id: 'size', label: 'Size' },
         { id: 'type', label: 'Type' },
         { id: 'created', label: 'Created' },
+        { id: 'updated', label: 'Last Updated' },
         { id: 'owner', label: 'Owner' },
       ],
       active: activeSort,

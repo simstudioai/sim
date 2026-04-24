@@ -750,27 +750,43 @@ export function Table({
     const colIndex = cols.findIndex((c) => c.name === columnName)
     if (colIndex === -1) return
 
+    const column = cols[colIndex]
+    if (column.type === 'boolean') return
+
+    const host = containerRef.current ?? document.body
     const currentRows = rowsRef.current
     let maxWidth = COL_WIDTH_MIN
 
     const measure = document.createElement('span')
-    measure.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap'
-    document.body.appendChild(measure)
+    measure.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;top:-9999px'
+    host.appendChild(measure)
 
     try {
       measure.className = 'font-medium text-small'
       measure.textContent = columnName
-      maxWidth = Math.max(maxWidth, measure.offsetWidth + 57)
+      maxWidth = Math.max(maxWidth, measure.getBoundingClientRect().width + 57)
 
       measure.className = 'text-small'
       for (const row of currentRows) {
         const val = row.data[columnName]
         if (val == null) continue
-        measure.textContent = String(val)
-        maxWidth = Math.max(maxWidth, measure.offsetWidth + 17)
+        let text: string
+        if (column.type === 'json') {
+          try {
+            text = JSON.stringify(val)
+          } catch {
+            text = String(val)
+          }
+        } else if (column.type === 'date') {
+          text = storageToDisplay(String(val))
+        } else {
+          text = String(val)
+        }
+        measure.textContent = text
+        maxWidth = Math.max(maxWidth, measure.getBoundingClientRect().width + 17)
       }
     } finally {
-      document.body.removeChild(measure)
+      host.removeChild(measure)
     }
 
     const newWidth = Math.min(Math.ceil(maxWidth), 600)

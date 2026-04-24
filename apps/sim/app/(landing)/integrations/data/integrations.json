@@ -209,6 +209,113 @@
     "tags": ["messaging"]
   },
   {
+    "type": "agentphone",
+    "slug": "agentphone",
+    "name": "AgentPhone",
+    "description": "Provision numbers, send SMS and iMessage, and place voice calls with AgentPhone",
+    "longDescription": "Give your workflow a phone. Provision SMS- and voice-enabled numbers, send messages and tapback reactions, place outbound voice calls, manage conversations and contacts, and track usage — all through a single AgentPhone API key.",
+    "bgColor": "linear-gradient(135deg, #1a1a1a 0%, #0a2a14 100%)",
+    "iconName": "AgentPhoneIcon",
+    "docsUrl": "https://docs.sim.ai/tools/agentphone",
+    "operations": [
+      {
+        "name": "Create Number",
+        "description": "Provision a new SMS- and voice-enabled phone number"
+      },
+      {
+        "name": "List Numbers",
+        "description": "List all phone numbers provisioned for this AgentPhone account"
+      },
+      {
+        "name": "Release Number",
+        "description": "Release (delete) a phone number. This action is irreversible."
+      },
+      {
+        "name": "Get Number Messages",
+        "description": "Fetch messages received on a specific phone number"
+      },
+      {
+        "name": "Create Call",
+        "description": "Initiate an outbound voice call from an AgentPhone agent"
+      },
+      {
+        "name": "List Calls",
+        "description": "List voice calls for this AgentPhone account"
+      },
+      {
+        "name": "Get Call",
+        "description": "Fetch a call and its full transcript"
+      },
+      {
+        "name": "Get Call Transcript",
+        "description": "Get the full ordered transcript for a call"
+      },
+      {
+        "name": "List Conversations",
+        "description": "List conversations (message threads) for this AgentPhone account"
+      },
+      {
+        "name": "Get Conversation",
+        "description": "Get a conversation along with its recent messages"
+      },
+      {
+        "name": "Update Conversation",
+        "description": "Update conversation metadata (stored state). Pass null to clear existing metadata."
+      },
+      {
+        "name": "Get Conversation Messages",
+        "description": "Get paginated messages for a conversation"
+      },
+      {
+        "name": "Send Message",
+        "description": "Send an outbound SMS or iMessage from an AgentPhone agent"
+      },
+      {
+        "name": "React to Message",
+        "description": "Send an iMessage tapback reaction to a message (iMessage only)"
+      },
+      {
+        "name": "Create Contact",
+        "description": "Create a new contact in AgentPhone"
+      },
+      {
+        "name": "List Contacts",
+        "description": "List contacts for this AgentPhone account"
+      },
+      {
+        "name": "Get Contact",
+        "description": "Fetch a single contact by ID"
+      },
+      {
+        "name": "Update Contact",
+        "description": "Update a contact"
+      },
+      {
+        "name": "Delete Contact",
+        "description": "Delete a contact by ID"
+      },
+      {
+        "name": "Get Usage",
+        "description": "Retrieve current usage statistics for the AgentPhone account"
+      },
+      {
+        "name": "Get Daily Usage",
+        "description": "Get a daily breakdown of usage (messages, calls, webhooks) for the last N days"
+      },
+      {
+        "name": "Get Monthly Usage",
+        "description": "Get monthly usage aggregation (messages, calls, webhooks) for the last N months"
+      }
+    ],
+    "operationCount": 22,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["communication", "developer-tools"],
+    "tags": ["messaging", "automation"]
+  },
+  {
     "type": "agiloft",
     "slug": "agiloft",
     "name": "Agiloft",

@@ -23,6 +23,7 @@ function toWorkspaceFileRecord(row: typeof workspaceFiles.$inferSelect): Workspa
     uploadedBy: row.userId,
     deletedAt: row.deletedAt,
     uploadedAt: row.uploadedAt,
+    updatedAt: row.updatedAt,
     storageContext: 'mothership',
   }
 }

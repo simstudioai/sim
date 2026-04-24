@@ -980,6 +980,11 @@ export const organization = pgTable('organization', {
     privacyUrl?: string
     hidePoweredBySim?: boolean
   }>(),
+  dataRetentionSettings: json('data_retention_settings').$type<{
+    logRetentionHours?: number | null
+    softDeleteRetentionHours?: number | null
+    taskCleanupHours?: number | null
+  }>(),
   orgUsageLimit: decimal('org_usage_limit'),
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
   departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
@@ -1079,9 +1084,6 @@ export const workspace = pgTable(
     inboxEnabled: boolean('inbox_enabled').notNull().default(false),
     inboxAddress: text('inbox_address'),
     inboxProviderId: text('inbox_provider_id'),
-    logRetentionHours: integer('log_retention_hours'),
-    softDeleteRetentionHours: integer('soft_delete_retention_hours'),
-    taskCleanupHours: integer('task_cleanup_hours'),
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -1136,6 +1138,7 @@ export const workspaceFiles = pgTable(
     size: integer('size').notNull(),
     deletedAt: timestamp('deleted_at'),
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')
