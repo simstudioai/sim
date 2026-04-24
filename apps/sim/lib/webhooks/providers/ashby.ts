@@ -5,6 +5,7 @@ import { generateId } from '@sim/utils/id'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
+  EventMatchContext,
   FormatInputContext,
   FormatInputResult,
   SubscriptionContext,
@@ -48,7 +49,6 @@ export const ashbyHandler: WebhookProviderHandler = {
       input: {
         ...((b.data as Record<string, unknown>) || {}),
         action: b.action,
-        data: b.data || {},
       },
     }
   },
@@ -59,6 +59,34 @@ export const ashbyHandler: WebhookProviderHandler = {
     validateFn: validateAshbySignature,
     providerLabel: 'Ashby',
   }),
+
+  async matchEvent({
+    webhook,
+    body,
+    requestId,
+    providerConfig,
+  }: EventMatchContext): Promise<boolean> {
+    const triggerId = providerConfig.triggerId as string | undefined
+    const obj = body as Record<string, unknown>
+    const action = typeof obj?.action === 'string' ? obj.action : ''
+
+    if (!triggerId) return true
+
+    const { isAshbyEventMatch } = await import('@/triggers/ashby/utils')
+    if (!isAshbyEventMatch(triggerId, action)) {
+      logger.debug(
+        `[${requestId}] Ashby event mismatch for trigger ${triggerId}. Action: ${action || '(missing)'}. Skipping execution.`,
+        {
+          webhookId: webhook.id,
+          triggerId,
+          receivedAction: action,
+        }
+      )
+      return false
+    }
+
+    return true
+  },
 
   async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     try {
@@ -78,18 +106,12 @@ export const ashbyHandler: WebhookProviderHandler = {
         throw new Error('Trigger ID is required to create Ashby webhook.')
       }
 
-      const webhookTypeMap: Record<string, string> = {
-        ashby_application_submit: 'applicationSubmit',
-        ashby_candidate_stage_change: 'candidateStageChange',
-        ashby_candidate_hire: 'candidateHire',
-        ashby_candidate_delete: 'candidateDelete',
-        ashby_job_create: 'jobCreate',
-        ashby_offer_create: 'offerCreate',
-      }
-
-      const webhookType = webhookTypeMap[triggerId]
+      const { ASHBY_TRIGGER_ACTION_MAP } = await import('@/triggers/ashby/utils')
+      const webhookType = ASHBY_TRIGGER_ACTION_MAP[triggerId]
       if (!webhookType) {
-        throw new Error(`Unknown Ashby triggerId: ${triggerId}. Add it to webhookTypeMap.`)
+        throw new Error(
+          `Unknown Ashby triggerId: ${triggerId}. Add it to ASHBY_TRIGGER_ACTION_MAP.`
+        )
       }
 
       const notificationUrl = getNotificationUrl(ctx.webhook)

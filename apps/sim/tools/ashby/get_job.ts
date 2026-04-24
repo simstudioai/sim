@@ -1,5 +1,6 @@
+import type { AshbyGetJobParams, AshbyGetJobResponse } from '@/tools/ashby/types'
+import { JOB_OUTPUTS, mapJob } from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
-import type { AshbyGetJobParams, AshbyGetJobResponse } from './types'
 
 export const getJobTool: ToolConfig<AshbyGetJobParams, AshbyGetJobResponse> = {
   id: 'ashby_get_job',
@@ -30,7 +31,7 @@ export const getJobTool: ToolConfig<AshbyGetJobParams, AshbyGetJobResponse> = {
       Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
     }),
     body: (params) => ({
-      jobId: params.jobId.trim(),
+      id: params.jobId.trim(),
     }),
   },
 
@@ -41,43 +42,11 @@ export const getJobTool: ToolConfig<AshbyGetJobParams, AshbyGetJobResponse> = {
       throw new Error(data.errorInfo?.message || 'Failed to get job')
     }
 
-    const r = data.results
-
     return {
       success: true,
-      output: {
-        id: r.id ?? null,
-        title: r.title ?? null,
-        status: r.status ?? null,
-        employmentType: r.employmentType ?? null,
-        departmentId: r.departmentId ?? null,
-        locationId: r.locationId ?? null,
-        descriptionPlain: r.descriptionPlain ?? null,
-        isArchived: r.isArchived ?? false,
-        createdAt: r.createdAt ?? null,
-        updatedAt: r.updatedAt ?? null,
-      },
+      output: mapJob(data.results),
     }
   },
 
-  outputs: {
-    id: { type: 'string', description: 'Job UUID' },
-    title: { type: 'string', description: 'Job title' },
-    status: { type: 'string', description: 'Job status (Open, Closed, Draft, Archived)' },
-    employmentType: {
-      type: 'string',
-      description: 'Employment type (FullTime, PartTime, Intern, Contract, Temporary)',
-      optional: true,
-    },
-    departmentId: { type: 'string', description: 'Department UUID', optional: true },
-    locationId: { type: 'string', description: 'Location UUID', optional: true },
-    descriptionPlain: {
-      type: 'string',
-      description: 'Job description in plain text',
-      optional: true,
-    },
-    isArchived: { type: 'boolean', description: 'Whether the job is archived' },
-    createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
-    updatedAt: { type: 'string', description: 'ISO 8601 last update timestamp' },
-  },
+  outputs: JOB_OUTPUTS,
 }

@@ -1,3 +1,4 @@
+import type { AshbySourceSummary } from '@/tools/ashby/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListSourcesParams {
@@ -6,11 +7,7 @@ interface AshbyListSourcesParams {
 
 interface AshbyListSourcesResponse extends ToolResponse {
   output: {
-    sources: Array<{
-      id: string
-      title: string
-      isArchived: boolean
-    }>
+    sources: AshbySourceSummary[]
   }
 }
 
@@ -49,11 +46,23 @@ export const listSourcesTool: ToolConfig<AshbyListSourcesParams, AshbyListSource
     return {
       success: true,
       output: {
-        sources: (data.results ?? []).map((s: Record<string, unknown>) => ({
-          id: s.id ?? null,
-          title: s.title ?? null,
-          isArchived: s.isArchived ?? false,
-        })),
+        sources: (data.results ?? []).map(
+          (s: Record<string, unknown> & { sourceType?: Record<string, unknown> }) => {
+            const sourceType = s.sourceType
+            return {
+              id: (s.id as string) ?? '',
+              title: (s.title as string) ?? '',
+              isArchived: (s.isArchived as boolean) ?? false,
+              sourceType: sourceType
+                ? {
+                    id: (sourceType.id as string) ?? '',
+                    title: (sourceType.title as string) ?? '',
+                    isArchived: (sourceType.isArchived as boolean) ?? false,
+                  }
+                : null,
+            }
+          }
+        ),
       },
     }
   },
@@ -68,6 +77,16 @@ export const listSourcesTool: ToolConfig<AshbyListSourcesParams, AshbyListSource
           id: { type: 'string', description: 'Source UUID' },
           title: { type: 'string', description: 'Source title' },
           isArchived: { type: 'boolean', description: 'Whether the source is archived' },
+          sourceType: {
+            type: 'object',
+            description: 'Source type grouping',
+            optional: true,
+            properties: {
+              id: { type: 'string', description: 'Source type UUID' },
+              title: { type: 'string', description: 'Source type title' },
+              isArchived: { type: 'boolean', description: 'Whether archived' },
+            },
+          },
         },
       },
     },

@@ -1,3 +1,5 @@
+import type { AshbyCandidate } from '@/tools/ashby/types'
+import { CANDIDATE_OUTPUTS, mapCandidate } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyRemoveCandidateTagParams {
@@ -7,9 +9,7 @@ interface AshbyRemoveCandidateTagParams {
 }
 
 interface AshbyRemoveCandidateTagResponse extends ToolResponse {
-  output: {
-    success: boolean
-  }
+  output: AshbyCandidate
 }
 
 export const removeCandidateTagTool: ToolConfig<
@@ -18,7 +18,7 @@ export const removeCandidateTagTool: ToolConfig<
 > = {
   id: 'ashby_remove_candidate_tag',
   name: 'Ashby Remove Candidate Tag',
-  description: 'Removes a tag from a candidate in Ashby.',
+  description: 'Removes a tag from a candidate in Ashby and returns the updated candidate.',
   version: '1.0.0',
 
   params: {
@@ -50,8 +50,8 @@ export const removeCandidateTagTool: ToolConfig<
       Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
     }),
     body: (params) => ({
-      candidateId: params.candidateId,
-      tagId: params.tagId,
+      candidateId: params.candidateId.trim(),
+      tagId: params.tagId.trim(),
     }),
   },
 
@@ -64,13 +64,9 @@ export const removeCandidateTagTool: ToolConfig<
 
     return {
       success: true,
-      output: {
-        success: true,
-      },
+      output: mapCandidate(data.results),
     }
   },
 
-  outputs: {
-    success: { type: 'boolean', description: 'Whether the tag was successfully removed' },
-  },
+  outputs: CANDIDATE_OUTPUTS,
 }

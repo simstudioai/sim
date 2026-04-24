@@ -1,3 +1,5 @@
+import type { AshbyApplication } from '@/tools/ashby/types'
+import { APPLICATION_OUTPUTS, mapApplication } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyGetApplicationParams {
@@ -6,35 +8,7 @@ interface AshbyGetApplicationParams {
 }
 
 interface AshbyGetApplicationResponse extends ToolResponse {
-  output: {
-    id: string
-    status: string
-    candidate: {
-      id: string
-      name: string
-    }
-    job: {
-      id: string
-      title: string
-    }
-    currentInterviewStage: {
-      id: string
-      title: string
-      type: string
-    } | null
-    source: {
-      id: string
-      title: string
-    } | null
-    archiveReason: {
-      id: string
-      text: string
-      reasonType: string
-    } | null
-    archivedAt: string | null
-    createdAt: string
-    updatedAt: string
-  }
+  output: AshbyApplication
 }
 
 export const getApplicationTool: ToolConfig<
@@ -69,7 +43,7 @@ export const getApplicationTool: ToolConfig<
       Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
     }),
     body: (params) => ({
-      applicationId: params.applicationId,
+      applicationId: params.applicationId.trim(),
     }),
   },
 
@@ -80,98 +54,11 @@ export const getApplicationTool: ToolConfig<
       throw new Error(data.errorInfo?.message || 'Failed to get application')
     }
 
-    const r = data.results
-
     return {
       success: true,
-      output: {
-        id: r.id ?? null,
-        status: r.status ?? null,
-        candidate: {
-          id: r.candidate?.id ?? null,
-          name: r.candidate?.name ?? null,
-        },
-        job: {
-          id: r.job?.id ?? null,
-          title: r.job?.title ?? null,
-        },
-        currentInterviewStage: r.currentInterviewStage
-          ? {
-              id: r.currentInterviewStage.id ?? null,
-              title: r.currentInterviewStage.title ?? null,
-              type: r.currentInterviewStage.type ?? null,
-            }
-          : null,
-        source: r.source
-          ? {
-              id: r.source.id ?? null,
-              title: r.source.title ?? null,
-            }
-          : null,
-        archiveReason: r.archiveReason
-          ? {
-              id: r.archiveReason.id ?? null,
-              text: r.archiveReason.text ?? null,
-              reasonType: r.archiveReason.reasonType ?? null,
-            }
-          : null,
-        archivedAt: r.archivedAt ?? null,
-        createdAt: r.createdAt ?? null,
-        updatedAt: r.updatedAt ?? null,
-      },
+      output: mapApplication(data.results),
     }
   },
 
-  outputs: {
-    id: { type: 'string', description: 'Application UUID' },
-    status: { type: 'string', description: 'Application status (Active, Hired, Archived, Lead)' },
-    candidate: {
-      type: 'object',
-      description: 'Associated candidate',
-      properties: {
-        id: { type: 'string', description: 'Candidate UUID' },
-        name: { type: 'string', description: 'Candidate name' },
-      },
-    },
-    job: {
-      type: 'object',
-      description: 'Associated job',
-      properties: {
-        id: { type: 'string', description: 'Job UUID' },
-        title: { type: 'string', description: 'Job title' },
-      },
-    },
-    currentInterviewStage: {
-      type: 'object',
-      description: 'Current interview stage',
-      optional: true,
-      properties: {
-        id: { type: 'string', description: 'Stage UUID' },
-        title: { type: 'string', description: 'Stage title' },
-        type: { type: 'string', description: 'Stage type' },
-      },
-    },
-    source: {
-      type: 'object',
-      description: 'Application source',
-      optional: true,
-      properties: {
-        id: { type: 'string', description: 'Source UUID' },
-        title: { type: 'string', description: 'Source title' },
-      },
-    },
-    archiveReason: {
-      type: 'object',
-      description: 'Reason for archival',
-      optional: true,
-      properties: {
-        id: { type: 'string', description: 'Reason UUID' },
-        text: { type: 'string', description: 'Reason text' },
-        reasonType: { type: 'string', description: 'Reason type' },
-      },
-    },
-    archivedAt: { type: 'string', description: 'ISO 8601 archive timestamp', optional: true },
-    createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
-    updatedAt: { type: 'string', description: 'ISO 8601 last update timestamp' },
-  },
+  outputs: APPLICATION_OUTPUTS,
 }

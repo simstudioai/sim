@@ -1,5 +1,9 @@
+import type {
+  AshbySearchCandidatesParams,
+  AshbySearchCandidatesResponse,
+} from '@/tools/ashby/types'
+import { CANDIDATE_OUTPUTS, mapCandidate } from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
-import type { AshbySearchCandidatesParams, AshbySearchCandidatesResponse } from './types'
 
 export const searchCandidatesTool: ToolConfig<
   AshbySearchCandidatesParams,
@@ -57,33 +61,7 @@ export const searchCandidatesTool: ToolConfig<
     return {
       success: true,
       output: {
-        candidates: (data.results ?? []).map(
-          (
-            c: Record<string, unknown> & {
-              primaryEmailAddress?: { value?: string; type?: string; isPrimary?: boolean }
-              primaryPhoneNumber?: { value?: string; type?: string; isPrimary?: boolean }
-            }
-          ) => ({
-            id: c.id ?? null,
-            name: c.name ?? null,
-            primaryEmailAddress: c.primaryEmailAddress
-              ? {
-                  value: c.primaryEmailAddress.value ?? '',
-                  type: c.primaryEmailAddress.type ?? 'Other',
-                  isPrimary: c.primaryEmailAddress.isPrimary ?? true,
-                }
-              : null,
-            primaryPhoneNumber: c.primaryPhoneNumber
-              ? {
-                  value: c.primaryPhoneNumber.value ?? '',
-                  type: c.primaryPhoneNumber.type ?? 'Other',
-                  isPrimary: c.primaryPhoneNumber.isPrimary ?? true,
-                }
-              : null,
-            createdAt: c.createdAt ?? null,
-            updatedAt: c.updatedAt ?? null,
-          })
-        ),
+        candidates: (data.results ?? []).map(mapCandidate),
       },
     }
   },
@@ -94,32 +72,7 @@ export const searchCandidatesTool: ToolConfig<
       description: 'Matching candidates (max 100 results)',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Candidate UUID' },
-          name: { type: 'string', description: 'Full name' },
-          primaryEmailAddress: {
-            type: 'object',
-            description: 'Primary email contact info',
-            optional: true,
-            properties: {
-              value: { type: 'string', description: 'Email address' },
-              type: { type: 'string', description: 'Contact type (Personal, Work, Other)' },
-              isPrimary: { type: 'boolean', description: 'Whether this is the primary email' },
-            },
-          },
-          primaryPhoneNumber: {
-            type: 'object',
-            description: 'Primary phone contact info',
-            optional: true,
-            properties: {
-              value: { type: 'string', description: 'Phone number' },
-              type: { type: 'string', description: 'Contact type (Personal, Work, Other)' },
-              isPrimary: { type: 'boolean', description: 'Whether this is the primary phone' },
-            },
-          },
-          createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
-          updatedAt: { type: 'string', description: 'ISO 8601 last update timestamp' },
-        },
+        properties: CANDIDATE_OUTPUTS,
       },
     },
   },
