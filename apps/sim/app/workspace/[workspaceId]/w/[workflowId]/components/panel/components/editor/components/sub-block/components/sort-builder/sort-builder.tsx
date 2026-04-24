@@ -5,6 +5,7 @@ import { generateId } from '@sim/utils/id'
 import type { ComboboxOption } from '@/components/emcn'
 import { useTableColumns } from '@/lib/table/hooks'
 import { SORT_DIRECTIONS, type SortRule } from '@/lib/table/query-builder/constants'
+import { useCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { SortRuleRow } from './components/sort-rule-row'
 
@@ -36,7 +37,7 @@ export function SortBuilder({
   tableIdSubBlockId = 'tableId',
 }: SortBuilderProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<SortRule[]>(blockId, subBlockId)
-  const [tableIdValue] = useSubBlockValue<string>(blockId, tableIdSubBlockId)
+  const tableIdValue = useCanonicalSubBlockValue<string>(blockId, tableIdSubBlockId)
 
   const dynamicColumns = useTableColumns({ tableId: tableIdValue, includeBuiltIn: true })
   const columns = useMemo(() => {

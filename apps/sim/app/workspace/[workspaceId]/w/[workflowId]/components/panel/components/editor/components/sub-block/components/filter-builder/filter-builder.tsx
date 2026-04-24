@@ -6,6 +6,7 @@ import type { ComboboxOption } from '@/components/emcn'
 import { useTableColumns } from '@/lib/table/hooks'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { useFilterBuilder } from '@/lib/table/query-builder/use-query-builder'
+import { useCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { FilterRuleRow } from './components/filter-rule-row'
@@ -40,7 +41,7 @@ export function FilterBuilder({
   tableIdSubBlockId = 'tableId',
 }: FilterBuilderProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<FilterRule[]>(blockId, subBlockId)
-  const [tableIdValue] = useSubBlockValue<string>(blockId, tableIdSubBlockId)
+  const tableIdValue = useCanonicalSubBlockValue<string>(blockId, tableIdSubBlockId)
 
   const dynamicColumns = useTableColumns({ tableId: tableIdValue })
   const columns = useMemo(() => {
