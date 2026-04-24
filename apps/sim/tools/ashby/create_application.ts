@@ -91,10 +91,10 @@ export const createApplicationTool: ToolConfig<
         candidateId: params.candidateId.trim(),
         jobId: params.jobId.trim(),
       }
-      if (params.interviewPlanId) body.interviewPlanId = params.interviewPlanId
-      if (params.interviewStageId) body.interviewStageId = params.interviewStageId
-      if (params.sourceId) body.sourceId = params.sourceId
-      if (params.creditedToUserId) body.creditedToUserId = params.creditedToUserId
+      if (params.interviewPlanId) body.interviewPlanId = params.interviewPlanId.trim()
+      if (params.interviewStageId) body.interviewStageId = params.interviewStageId.trim()
+      if (params.sourceId) body.sourceId = params.sourceId.trim()
+      if (params.creditedToUserId) body.creditedToUserId = params.creditedToUserId.trim()
       if (params.createdAt) body.createdAt = params.createdAt
       return body
     },

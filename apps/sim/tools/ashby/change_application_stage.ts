@@ -63,7 +63,7 @@ export const changeApplicationStageTool: ToolConfig<
         applicationId: params.applicationId.trim(),
         interviewStageId: params.interviewStageId.trim(),
       }
-      if (params.archiveReasonId) body.archiveReasonId = params.archiveReasonId
+      if (params.archiveReasonId) body.archiveReasonId = params.archiveReasonId.trim()
       return body
     },
   },
