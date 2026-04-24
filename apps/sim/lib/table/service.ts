@@ -64,6 +64,80 @@ export class TableConflictError extends Error {
 
 export type TableScope = 'active' | 'archived' | 'all'
 
+type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+/**
+ * Sets per-transaction Postgres timeouts via `SET LOCAL`.
+ *
+ * `lock_timeout` is the critical one: without it, a waiter inherits the full
+ * `statement_timeout` clock, so one stuck writer can drain the pool.
+ *
+ * Safe under pgBouncer transaction pooling — `SET LOCAL` is transaction-scoped
+ * and cleared at COMMIT/ROLLBACK before the session returns to the pool.
+ */
+async function setTableTxTimeouts(
+  trx: DbTransaction,
+  opts?: { statementMs?: number; lockMs?: number; idleMs?: number }
+) {
+  const s = opts?.statementMs ?? 10_000
+  const l = opts?.lockMs ?? 3_000
+  const i = opts?.idleMs ?? 5_000
+  await trx.execute(sql.raw(`SET LOCAL statement_timeout = '${s}ms'`))
+  await trx.execute(sql.raw(`SET LOCAL lock_timeout = '${l}ms'`))
+  await trx.execute(sql.raw(`SET LOCAL idle_in_transaction_session_timeout = '${i}ms'`))
+}
+
+/**
+ * Serializes writers that compute `max(position) + 1` for the same table.
+ *
+ * The row-count trigger (migration 0198) serializes capacity via a row lock on
+ * `user_table_definitions` — but it fires AFTER INSERT, so two concurrent
+ * auto-positioned inserts can read the same snapshot and assign the same
+ * position (the `(table_id, position)` index is non-unique). This advisory
+ * lock restores the pre-trigger serialization scoped to a single table, with
+ * no cross-table contention. Released automatically at COMMIT/ROLLBACK.
+ */
+async function acquireTablePositionLock(trx: DbTransaction, tableId: string) {
+  await trx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_rows_pos:${tableId}`}, 0))`
+  )
+}
+
+/**
+ * Returns the next auto-assigned `position` for a table (max(position) + 1, or 0
+ * if empty). Callers must hold `acquireTablePositionLock` to avoid two concurrent
+ * writers computing the same value against the same snapshot.
+ */
+async function nextAutoPosition(trx: DbTransaction, tableId: string): Promise<number> {
+  const [{ maxPos }] = await trx
+    .select({
+      maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
+    })
+    .from(userTableRows)
+    .where(eq(userTableRows.tableId, tableId))
+  return maxPos + 1
+}
+
+const TIMEOUT_CAP_MS = 10 * 60_000
+
+/**
+ * Scales `statement_timeout` to the expected row-count work.
+ *
+ * Bulk operations that rewrite JSONB or cascade row triggers (e.g.
+ * `replaceTableRows`, `deleteColumn`, `renameColumn`) scale roughly linearly
+ * with row count. A fixed cap would regress large-table users who never saw a
+ * timeout before `SET LOCAL` was introduced. This helper picks
+ * `max(baseMs, rowCount * perRowMs)`, capped at 10 minutes so a single
+ * runaway transaction cannot indefinitely pin a pool connection.
+ */
+function scaledStatementTimeoutMs(
+  rowCount: number,
+  opts: { baseMs: number; perRowMs: number }
+): number {
+  const safeRowCount = Math.max(0, rowCount)
+  return Math.min(TIMEOUT_CAP_MS, Math.max(opts.baseMs, safeRowCount * opts.perRowMs))
+}
+
 /**
  * Gets a table by ID with full details.
  *
@@ -88,16 +162,14 @@ export async function getTableById(
       archivedAt: userTableDefinitions.archivedAt,
       createdAt: userTableDefinitions.createdAt,
       updatedAt: userTableDefinitions.updatedAt,
-      rowCount: sql<number>`coalesce(${count(userTableRows.id)}, 0)`.mapWith(Number),
+      rowCount: userTableDefinitions.rowCount,
     })
     .from(userTableDefinitions)
-    .leftJoin(userTableRows, eq(userTableRows.tableId, userTableDefinitions.id))
     .where(
       includeArchived
         ? eq(userTableDefinitions.id, tableId)
         : and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.archivedAt))
     )
-    .groupBy(userTableDefinitions.id)
     .limit(1)
 
   if (results.length === 0) return null
@@ -156,10 +228,9 @@ export async function listTables(
       archivedAt: userTableDefinitions.archivedAt,
       createdAt: userTableDefinitions.createdAt,
       updatedAt: userTableDefinitions.updatedAt,
-      rowCount: sql<number>`coalesce(${count(userTableRows.id)}, 0)`.mapWith(Number),
+      rowCount: userTableDefinitions.rowCount,
     })
     .from(userTableDefinitions)
-    .leftJoin(userTableRows, eq(userTableRows.tableId, userTableDefinitions.id))
     .where(
       scope === 'all'
         ? eq(userTableDefinitions.workspaceId, workspaceId)
@@ -173,7 +244,6 @@ export async function listTables(
               isNull(userTableDefinitions.archivedAt)
             )
     )
-    .groupBy(userTableDefinitions.id)
     .orderBy(userTableDefinitions.createdAt)
 
   return tables.map((t) => ({
@@ -240,6 +310,7 @@ export async function createTable(
   // to prevent TOCTOU race on the table count limit
   try {
     await db.transaction(async (trx) => {
+      await setTableTxTimeouts(trx)
       await trx.execute(sql`SELECT 1 FROM workspace WHERE id = ${data.workspaceId} FOR UPDATE`)
 
       const [{ count: existingCount }] = await trx
@@ -510,6 +581,7 @@ export async function restoreTable(tableId: string, requestId: string): Promise<
     attemptedRestoreName = ''
     try {
       await db.transaction(async (tx) => {
+        await setTableTxTimeouts(tx)
         await tx.execute(sql`SELECT 1 FROM user_table_definitions WHERE id = ${tableId} FOR UPDATE`)
 
         attemptedRestoreName = await generateRestoreName(table.name, async (candidate) => {
@@ -585,24 +657,21 @@ export async function insertRow(
   const rowId = `row_${generateId().replace(/-/g, '')}`
   const now = new Date()
 
-  // Atomic capacity check + insert inside a transaction.
-  // FOR UPDATE on the table definition row serializes concurrent inserts,
-  // preventing the TOCTOU race where multiple requests pass the count check.
+  // Capacity enforcement lives in the `increment_user_table_row_count` trigger
+  // (migration 0198): a single conditional UPDATE on user_table_definitions
+  // increments row_count iff row_count < max_rows, taking the row lock
+  // atomically. No app-level FOR UPDATE / COUNT needed.
   const [row] = await db.transaction(async (trx) => {
-    await trx.execute(
-      sql`SELECT 1 FROM user_table_definitions WHERE id = ${data.tableId} FOR UPDATE`
-    )
-
-    const [{ count: currentCount }] = await trx
-      .select({ count: count() })
-      .from(userTableRows)
-      .where(eq(userTableRows.tableId, data.tableId))
-
-    if (Number(currentCount) >= table.maxRows) {
-      throw new Error(`Table has reached maximum row limit (${table.maxRows})`)
-    }
+    await setTableTxTimeouts(trx)
 
     let targetPosition: number
+
+    // The `(table_id, position)` index is non-unique, so we serialize all
+    // position-aware writes (explicit and auto) through the per-table
+    // advisory lock. Without this, two concurrent explicit-position inserts
+    // at the same position can both observe an empty slot, both skip the
+    // shift, and each INSERT a row with a duplicate `(table_id, position)`.
+    await acquireTablePositionLock(trx, data.tableId)
 
     if (data.position !== undefined) {
       targetPosition = data.position
@@ -627,14 +696,7 @@ export async function insertRow(
           )
       }
     } else {
-      const [{ maxPos }] = await trx
-        .select({
-          maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
-        })
-        .from(userTableRows)
-        .where(eq(userTableRows.tableId, data.tableId))
-
-      targetPosition = maxPos + 1
+      targetPosition = await nextAutoPosition(trx, data.tableId)
     }
 
     return trx
@@ -706,24 +768,12 @@ export async function batchInsertRows(
 
   const now = new Date()
 
-  // Atomic capacity check + insert inside a transaction.
-  // FOR UPDATE on the table definition row serializes concurrent inserts.
+  // Capacity enforcement lives in the `increment_user_table_row_count` trigger
+  // (migration 0198) — fires per row and raises `Maximum row limit (%) reached ...`
+  // if the cap is hit mid-batch. The outer transaction means a partial batch
+  // rolls back cleanly.
   const insertedRows = await db.transaction(async (trx) => {
-    await trx.execute(
-      sql`SELECT 1 FROM user_table_definitions WHERE id = ${data.tableId} FOR UPDATE`
-    )
-
-    const [{ count: currentCount }] = await trx
-      .select({ count: count() })
-      .from(userTableRows)
-      .where(eq(userTableRows.tableId, data.tableId))
-
-    const remainingCapacity = table.maxRows - Number(currentCount)
-    if (remainingCapacity < data.rows.length) {
-      throw new Error(
-        `Insufficient capacity. Can only insert ${remainingCapacity} more rows (table has ${Number(currentCount)}/${table.maxRows} rows)`
-      )
-    }
+    await setTableTxTimeouts(trx, { statementMs: 60_000 })
 
     const buildRow = (rowData: RowData, position: number) => ({
       id: `row_${generateId().replace(/-/g, '')}`,
@@ -735,6 +785,10 @@ export async function batchInsertRows(
       updatedAt: now,
       ...(data.userId ? { createdBy: data.userId } : {}),
     })
+
+    // Serialize position-aware writes per-table. See `acquireTablePositionLock`
+    // for why both explicit- and auto-position paths take this lock.
+    await acquireTablePositionLock(trx, data.tableId)
 
     if (data.positions && data.positions.length > 0) {
       // Position-aware insert: shift existing rows to create gaps, then insert.
@@ -755,14 +809,8 @@ export async function batchInsertRows(
       return trx.insert(userTableRows).values(rowsToInsert).returning()
     }
 
-    const [{ maxPos }] = await trx
-      .select({
-        maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
-      })
-      .from(userTableRows)
-      .where(eq(userTableRows.tableId, data.tableId))
-
-    const rowsToInsert = data.rows.map((rowData, i) => buildRow(rowData, maxPos + 1 + i))
+    const startPos = await nextAutoPosition(trx, data.tableId)
+    const rowsToInsert = data.rows.map((rowData, i) => buildRow(rowData, startPos + i))
 
     return trx.insert(userTableRows).values(rowsToInsert).returning()
   })
@@ -849,10 +897,21 @@ export async function replaceTableRows(
 
   const now = new Date()
 
+  const totalRowWork = Math.max(0, table.rowCount ?? 0) + data.rows.length
+  const statementMs = scaledStatementTimeoutMs(totalRowWork, {
+    baseMs: 120_000,
+    perRowMs: 3,
+  })
+
   const result = await db.transaction(async (trx) => {
-    await trx.execute(
-      sql`SELECT 1 FROM user_table_definitions WHERE id = ${data.tableId} FOR UPDATE`
-    )
+    await setTableTxTimeouts(trx, { statementMs })
+
+    // Serialize concurrent replaces (and concurrent auto-position inserts) on the
+    // same table. Without this, two concurrent replaces each see their own MVCC
+    // snapshot for the DELETE; the second's DELETE would not observe rows the
+    // first inserted, so both transactions commit and the table ends up with
+    // the union of both row sets instead of only the last caller's rows.
+    await acquireTablePositionLock(trx, data.tableId)
 
     const deletedRows = await trx
       .delete(userTableRows)
@@ -897,8 +956,11 @@ export async function replaceTableRows(
  * column, otherwise inserts a new row.
  *
  * Uses a single unique column for matching (not OR across all unique columns) to avoid
- * ambiguous matches when multiple unique columns exist. Capacity checks run inside the
- * transaction with a FOR UPDATE lock to prevent TOCTOU races.
+ * ambiguous matches when multiple unique columns exist. Capacity enforcement lives
+ * in the `increment_user_table_row_count` trigger (migration 0198). On the insert
+ * path we acquire the per-table advisory lock and re-check for an existing match
+ * before inserting, so a concurrent upsert racing on the same conflict target
+ * cannot produce a duplicate row.
  *
  * @param data - Upsert data including optional conflictTarget
  * @param table - Table definition
@@ -965,12 +1027,10 @@ export async function upsertRow(
       ? sql`${userTableRows.data}->>${sql.raw(`'${targetColumnName}'`)} = ${String(targetValue)}`
       : sql`(${userTableRows.data}->${sql.raw(`'${targetColumnName}'`)})::jsonb = ${JSON.stringify(targetValue)}::jsonb`
 
-  // Entire upsert runs in a transaction with FOR UPDATE lock on the table definition.
-  // This serializes concurrent upserts and prevents the TOCTOU race on row count.
+  // Capacity enforcement for the insert path lives in the `increment_user_table_row_count`
+  // trigger (migration 0198). The update path doesn't change row_count, so no check needed.
   const result = await db.transaction(async (trx) => {
-    await trx.execute(
-      sql`SELECT 1 FROM user_table_definitions WHERE id = ${data.tableId} FOR UPDATE`
-    )
+    await setTableTxTimeouts(trx)
 
     // Find existing row by single conflict target column
     const [existingRow] = await trx
@@ -998,14 +1058,33 @@ export async function upsertRow(
 
     const now = new Date()
 
-    if (existingRow) {
+    // Resolve which row (if any) we should update. If the initial SELECT missed,
+    // acquire the lock and re-check — a concurrent upsert may have inserted the
+    // matching row between our SELECT and the INSERT path, and without the
+    // re-check both transactions would insert and produce a duplicate that
+    // bypasses the app-level unique check.
+    let matchedRowId = existingRow?.id
+    if (!matchedRowId) {
+      await acquireTablePositionLock(trx, data.tableId)
+      const [racedRow] = await trx
+        .select({ id: userTableRows.id })
+        .from(userTableRows)
+        .where(
+          and(
+            eq(userTableRows.tableId, data.tableId),
+            eq(userTableRows.workspaceId, data.workspaceId),
+            matchFilter
+          )
+        )
+        .limit(1)
+      matchedRowId = racedRow?.id
+    }
+
+    if (matchedRowId) {
       const [updatedRow] = await trx
         .update(userTableRows)
-        .set({
-          data: data.data,
-          updatedAt: now,
-        })
-        .where(eq(userTableRows.id, existingRow.id))
+        .set({ data: data.data, updatedAt: now })
+        .where(eq(userTableRows.id, matchedRowId))
         .returning()
 
       return {
@@ -1020,23 +1099,6 @@ export async function upsertRow(
       }
     }
 
-    // Check capacity atomically (inside the lock)
-    const [{ count: currentCount }] = await trx
-      .select({ count: count() })
-      .from(userTableRows)
-      .where(eq(userTableRows.tableId, data.tableId))
-
-    if (Number(currentCount) >= table.maxRows) {
-      throw new Error(`Table row limit reached (${table.maxRows} rows max)`)
-    }
-
-    const [{ maxPos }] = await trx
-      .select({
-        maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
-      })
-      .from(userTableRows)
-      .where(eq(userTableRows.tableId, data.tableId))
-
     const [insertedRow] = await trx
       .insert(userTableRows)
       .values({
@@ -1044,7 +1106,7 @@ export async function upsertRow(
         tableId: data.tableId,
         workspaceId: data.workspaceId,
         data: data.data,
-        position: maxPos + 1,
+        position: await nextAutoPosition(trx, data.tableId),
         createdAt: now,
         updatedAt: now,
         ...(data.userId ? { createdBy: data.userId } : {}),
@@ -1073,6 +1135,14 @@ export async function upsertRow(
 /**
  * Queries rows from a table with filtering, sorting, and pagination.
  *
+ * Filter cost model: equality filters (`$eq`, `$in`) compile to JSONB
+ * containment (`@>`) and hit the GIN (jsonb_path_ops) index on
+ * `user_table_rows.data`. Range operators (`$gt`, `$gte`, `$lt`, `$lte`) and
+ * `$contains` compile to `data->>'field'` text extraction and bypass the GIN
+ * index — they fall back to a sequential scan of the rows for the table
+ * (bounded only by the btree on `table_id`). Prefer equality on hot paths; set
+ * `includeTotal: false` when the caller does not need the `COUNT(*)`.
+ *
  * @param tableId - Table ID to query
  * @param workspaceId - Workspace ID for access control
  * @param options - Query options (filter, sort, limit, offset)
@@ -1085,7 +1155,13 @@ export async function queryRows(
   options: QueryOptions,
   requestId: string
 ): Promise<QueryResult> {
-  const { filter, sort, limit = TABLE_LIMITS.DEFAULT_QUERY_LIMIT, offset = 0 } = options
+  const {
+    filter,
+    sort,
+    limit = TABLE_LIMITS.DEFAULT_QUERY_LIMIT,
+    offset = 0,
+    includeTotal = true,
+  } = options
 
   const tableName = USER_TABLE_ROWS_SQL_NAME
 
@@ -1103,13 +1179,14 @@ export async function queryRows(
     }
   }
 
-  // Get total count
-  const countResult = await db
-    .select({ count: count() })
-    .from(userTableRows)
-    .where(whereClause ?? baseConditions)
-
-  const totalCount = Number(countResult[0].count)
+  let totalCount: number | null = null
+  if (includeTotal) {
+    const countResult = await db
+      .select({ count: count() })
+      .from(userTableRows)
+      .where(whereClause ?? baseConditions)
+    totalCount = Number(countResult[0].count)
+  }
 
   // Build ORDER BY clause (default to position ASC for stable ordering)
   let orderByClause
@@ -1273,6 +1350,7 @@ export async function deleteRow(
   requestId: string
 ): Promise<void> {
   await db.transaction(async (trx) => {
+    await setTableTxTimeouts(trx)
     const [deleted] = await trx
       .delete(userTableRows)
       .where(
@@ -1351,49 +1429,45 @@ export async function updateRowsByFilter(
   }
 
   const uniqueColumns = getUniqueColumns(table.schema)
-  if (uniqueColumns.length > 0) {
+  const uniqueColumnsInUpdate = uniqueColumns.filter((col) => col.name in data.data)
+  if (uniqueColumnsInUpdate.length > 0) {
     if (matchingRows.length > 1) {
-      const uniqueColumnsInUpdate = uniqueColumns.filter((col) => col.name in data.data)
-      if (uniqueColumnsInUpdate.length > 0) {
-        throw new Error(
-          `Cannot set unique column values when updating multiple rows. ` +
-            `Columns with unique constraint: ${uniqueColumnsInUpdate.map((c) => c.name).join(', ')}. ` +
-            `Updating ${matchingRows.length} rows with the same value would violate uniqueness.`
-        )
-      }
+      throw new Error(
+        `Cannot set unique column values when updating multiple rows. ` +
+          `Columns with unique constraint: ${uniqueColumnsInUpdate.map((c) => c.name).join(', ')}. ` +
+          `Updating ${matchingRows.length} rows with the same value would violate uniqueness.`
+      )
     }
 
-    for (const row of matchingRows) {
-      const existingData = row.data as RowData
-      const mergedData = { ...existingData, ...data.data }
-      const uniqueValidation = await checkUniqueConstraintsDb(
-        data.tableId,
-        mergedData,
-        table.schema,
-        row.id
-      )
-      if (!uniqueValidation.valid) {
-        throw new Error(`Unique constraint violation: ${uniqueValidation.errors.join(', ')}`)
-      }
+    // Only one row — only the touched unique columns need re-checking.
+    const row = matchingRows[0]
+    const mergedData = { ...(row.data as RowData), ...data.data }
+    const uniqueValidation = await checkUniqueConstraintsDb(
+      data.tableId,
+      mergedData,
+      table.schema,
+      row.id
+    )
+    if (!uniqueValidation.valid) {
+      throw new Error(`Unique constraint violation: ${uniqueValidation.errors.join(', ')}`)
     }
   }
 
   const now = new Date()
+  const ids = matchingRows.map((r) => r.id)
+  const patchJson = JSON.stringify(data.data)
 
   await db.transaction(async (trx) => {
-    for (let i = 0; i < matchingRows.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
-      const batch = matchingRows.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
-      const updatePromises = batch.map((row) => {
-        const existingData = row.data as RowData
-        return trx
-          .update(userTableRows)
-          .set({
-            data: { ...existingData, ...data.data },
-            updatedAt: now,
-          })
-          .where(eq(userTableRows.id, row.id))
-      })
-      await Promise.all(updatePromises)
+    await setTableTxTimeouts(trx, { statementMs: 60_000 })
+    for (let i = 0; i < ids.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
+      const batchIds = ids.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
+      await trx
+        .update(userTableRows)
+        .set({
+          data: sql`${userTableRows.data} || ${patchJson}::jsonb`,
+          updatedAt: now,
+        })
+        .where(inArray(userTableRows.id, batchIds))
     }
   })
 
@@ -1401,7 +1475,7 @@ export async function updateRowsByFilter(
 
   return {
     affectedCount: matchingRows.length,
-    affectedRowIds: matchingRows.map((r) => r.id),
+    affectedRowIds: ids,
   }
 }
 
@@ -1473,6 +1547,7 @@ export async function batchUpdateRows(
   const now = new Date()
 
   await db.transaction(async (trx) => {
+    await setTableTxTimeouts(trx, { statementMs: 60_000 })
     for (let i = 0; i < mergedUpdates.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
       const batch = mergedUpdates.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
       const updatePromises = batch.map(({ rowId, mergedData }) =>
@@ -1493,20 +1568,38 @@ export async function batchUpdateRows(
   }
 }
 
-type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
-
 /**
- * Recompacts row positions to be contiguous (0, 1, 2, ...) after batch deletions.
+ * Recompacts row positions to be contiguous after batch deletions.
+ *
+ * When `minDeletedPos` is provided, only rows with `position >= minDeletedPos`
+ * are re-numbered (starting from `minDeletedPos`). Rows before the earliest
+ * deleted position are untouched since their position is unaffected.
+ *
+ * If `minDeletedPos` is omitted, the whole table is recompacted from 0.
  * Single-row deletes use the more efficient `position - 1` shift in {@link deleteRow}.
  */
-async function recompactPositions(tableId: string, trx: DbTransaction) {
+async function recompactPositions(tableId: string, trx: DbTransaction, minDeletedPos?: number) {
+  if (minDeletedPos === undefined) {
+    await trx.execute(sql`
+      UPDATE user_table_rows t
+      SET position = r.new_pos
+      FROM (
+        SELECT id, ROW_NUMBER() OVER (ORDER BY position) - 1 AS new_pos
+        FROM user_table_rows
+        WHERE table_id = ${tableId}
+      ) r
+      WHERE t.id = r.id AND t.table_id = ${tableId} AND t.position != r.new_pos
+    `)
+    return
+  }
+
   await trx.execute(sql`
     UPDATE user_table_rows t
     SET position = r.new_pos
     FROM (
-      SELECT id, ROW_NUMBER() OVER (ORDER BY position) - 1 AS new_pos
+      SELECT id, ${minDeletedPos}::int + ROW_NUMBER() OVER (ORDER BY position) - 1 AS new_pos
       FROM user_table_rows
-      WHERE table_id = ${tableId}
+      WHERE table_id = ${tableId} AND position >= ${minDeletedPos}
     ) r
     WHERE t.id = r.id AND t.table_id = ${tableId} AND t.position != r.new_pos
   `)
@@ -1538,7 +1631,7 @@ export async function deleteRowsByFilter(
   )
 
   let query = db
-    .select({ id: userTableRows.id })
+    .select({ id: userTableRows.id, position: userTableRows.position })
     .from(userTableRows)
     .where(and(baseConditions, filterClause))
 
@@ -1553,8 +1646,13 @@ export async function deleteRowsByFilter(
   }
 
   const rowIds = matchingRows.map((r) => r.id)
+  const minDeletedPos = matchingRows.reduce(
+    (min, r) => (r.position < min ? r.position : min),
+    matchingRows[0].position
+  )
 
   await db.transaction(async (trx) => {
+    await setTableTxTimeouts(trx, { statementMs: 60_000 })
     for (let i = 0; i < rowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
       const batch = rowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
       await trx.delete(userTableRows).where(
@@ -1569,7 +1667,7 @@ export async function deleteRowsByFilter(
       )
     }
 
-    await recompactPositions(data.tableId, trx)
+    await recompactPositions(data.tableId, trx, minDeletedPos)
   })
 
   logger.info(`[${requestId}] Deleted ${matchingRows.length} rows from table ${data.tableId}`)
@@ -1594,7 +1692,8 @@ export async function deleteRowsByIds(
   const uniqueRequestedRowIds = Array.from(new Set(data.rowIds))
 
   const deletedRows = await db.transaction(async (trx) => {
-    const deleted: { id: string }[] = []
+    await setTableTxTimeouts(trx, { statementMs: 60_000 })
+    const deleted: { id: string; position: number }[] = []
     for (let i = 0; i < uniqueRequestedRowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
       const batch = uniqueRequestedRowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
       const rows = await trx
@@ -1609,11 +1708,17 @@ export async function deleteRowsByIds(
             )}])`
           )
         )
-        .returning({ id: userTableRows.id })
+        .returning({ id: userTableRows.id, position: userTableRows.position })
       deleted.push(...rows)
     }
 
-    await recompactPositions(data.tableId, trx)
+    if (deleted.length > 0) {
+      const minDeletedPos = deleted.reduce(
+        (min, r) => (r.position < min ? r.position : min),
+        deleted[0].position
+      )
+      await recompactPositions(data.tableId, trx, minDeletedPos)
+    }
 
     return deleted
   })
@@ -1691,8 +1796,13 @@ export async function renameColumn(
   }
 
   const now = new Date()
+  const statementMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {
+    baseMs: 60_000,
+    perRowMs: 2,
+  })
 
   await db.transaction(async (trx) => {
+    await setTableTxTimeouts(trx, { statementMs })
     await trx
       .update(userTableDefinitions)
       .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
@@ -1752,8 +1862,13 @@ export async function deleteColumn(
   }
 
   const now = new Date()
+  const statementMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {
+    baseMs: 60_000,
+    perRowMs: 2,
+  })
 
   await db.transaction(async (trx) => {
+    await setTableTxTimeouts(trx, { statementMs })
     await trx
       .update(userTableDefinitions)
       .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
@@ -1815,8 +1930,13 @@ export async function deleteColumns(
   }
 
   const now = new Date()
+  const statementMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {
+    baseMs: 60_000,
+    perRowMs: 2 * namesToDelete.size,
+  })
 
   await db.transaction(async (trx) => {
+    await setTableTxTimeouts(trx, { statementMs })
     await trx
       .update(userTableDefinitions)
       .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
