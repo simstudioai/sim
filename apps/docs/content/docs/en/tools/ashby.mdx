@@ -76,7 +76,6 @@ Adds a tag to a candidate in Ashby and returns the updated candidate.
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
 | `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
-| `noteId` | string | Created note UUID |
 | `content` | string | Note content |
 | `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
 | `isPrivate` | boolean | Whether the note is private |
@@ -126,7 +125,6 @@ Moves an application to a different interview stage. Requires an archive reason 
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
 | `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
-| `noteId` | string | Created note UUID |
 | `content` | string | Note content |
 | `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
 | `isPrivate` | boolean | Whether the note is private |
@@ -180,7 +178,6 @@ Creates a new application for a candidate on a job. Optionally specify interview
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
 | `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
-| `noteId` | string | Created note UUID |
 | `content` | string | Note content |
 | `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
 | `isPrivate` | boolean | Whether the note is private |
@@ -233,7 +230,6 @@ Creates a new candidate record in Ashby.
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
 | `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
-| `noteId` | string | Created note UUID |
 | `content` | string | Note content |
 | `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
 | `isPrivate` | boolean | Whether the note is private |
@@ -309,7 +305,6 @@ Retrieves full details about a single application by its ID.
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
 | `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
-| `noteId` | string | Created note UUID |
 | `content` | string | Note content |
 | `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
 | `isPrivate` | boolean | Whether the note is private |
@@ -357,7 +352,6 @@ Retrieves full details about a single candidate by their ID.
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
 | `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
-| `noteId` | string | Created note UUID |
 | `content` | string | Note content |
 | `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
 | `isPrivate` | boolean | Whether the note is private |
@@ -405,7 +399,6 @@ Retrieves full details about a single job by its ID.
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
 | `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
-| `noteId` | string | Created note UUID |
 | `content` | string | Note content |
 | `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
 | `isPrivate` | boolean | Whether the note is private |
@@ -523,7 +516,6 @@ Retrieves full details about a single offer by its ID.
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
 | `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
-| `noteId` | string | Created note UUID |
 | `content` | string | Note content |
 | `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
 | `isPrivate` | boolean | Whether the note is private |
@@ -951,7 +943,6 @@ Removes a tag from a candidate in Ashby and returns the updated candidate.
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
 | `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
-| `noteId` | string | Created note UUID |
 | `content` | string | Note content |
 | `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
 | `isPrivate` | boolean | Whether the note is private |
@@ -1024,7 +1015,6 @@ Updates an existing candidate record in Ashby. Only provided fields are changed.
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
 | `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
-| `noteId` | string | Created note UUID |
 | `content` | string | Note content |
 | `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
 | `isPrivate` | boolean | Whether the note is private |
