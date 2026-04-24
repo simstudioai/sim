@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 interface ProgressiveListOptions {
   /** Number of items to render in the initial batch (most recent items) */
@@ -14,15 +14,31 @@ const DEFAULTS = {
   batchSize: 5,
 } satisfies Required<ProgressiveListOptions>
 
+interface ProgressiveListState {
+  key: string
+  count: number
+  caughtUp: boolean
+}
+
+function createInitialState(
+  key: string,
+  itemCount: number,
+  initialBatch: number
+): ProgressiveListState {
+  const count = Math.min(itemCount, initialBatch)
+  return {
+    key,
+    count,
+    caughtUp: itemCount > 0 && count >= itemCount,
+  }
+}
+
 /**
  * Progressively renders a list of items so that first paint is fast.
  *
  * On mount (or when `key` changes), only the most recent `initialBatch`
  * items are rendered. The rest are added in `batchSize` increments via
- * `requestAnimationFrame` so the browser never blocks on a large DOM mount.
- *
- * Once staging completes for a given key it never re-stages -- new items
- * appended to the list are rendered immediately.
+ * `requestAnimationFrame`.
  *
  * @param items    Full list of items to render.
  * @param key      A session/conversation identifier. When it changes,
@@ -35,67 +51,83 @@ export function useProgressiveList<T>(
   key: string,
   options?: ProgressiveListOptions
 ): { staged: T[]; isStaging: boolean } {
-  const initialBatch = options?.initialBatch ?? DEFAULTS.initialBatch
-  const batchSize = options?.batchSize ?? DEFAULTS.batchSize
+  const initialBatch = Math.max(0, options?.initialBatch ?? DEFAULTS.initialBatch)
+  const batchSize = Math.max(1, options?.batchSize ?? DEFAULTS.batchSize)
+  const [state, setState] = useState(() => createInitialState(key, items.length, initialBatch))
+  const latestItemCountRef = useRef(items.length)
 
-  const completedKeysRef = useRef(new Set<string>())
-  const prevKeyRef = useRef(key)
-  const stagingCountRef = useRef(initialBatch)
-  const [count, setCount] = useState(() => {
-    if (items.length <= initialBatch) return items.length
-    return initialBatch
-  })
+  useLayoutEffect(() => {
+    latestItemCountRef.current = items.length
+  }, [items.length])
+
+  const renderState =
+    state.key === key && (state.count > 0 || items.length === 0 || state.caughtUp)
+      ? state
+      : createInitialState(key, items.length, initialBatch)
 
   useEffect(() => {
-    if (completedKeysRef.current.has(key)) {
-      setCount(items.length)
-      return
-    }
-
-    if (items.length <= initialBatch) {
-      setCount(items.length)
-      completedKeysRef.current.add(key)
-      return
-    }
-
-    let current = Math.max(stagingCountRef.current, initialBatch)
-    setCount(current)
-
-    let frame: number | undefined
-
-    const step = () => {
-      const total = items.length
-      current = Math.min(total, current + batchSize)
-      stagingCountRef.current = current
-      setCount(current)
-      if (current >= total) {
-        completedKeysRef.current.add(key)
-        frame = undefined
-        return
+    setState((prev) => {
+      if (prev.key !== key) {
+        return createInitialState(key, items.length, initialBatch)
       }
-      frame = requestAnimationFrame(step)
+
+      if (items.length === 0) {
+        if (prev.count === 0 && !prev.caughtUp) {
+          return prev
+        }
+        return { key, count: 0, caughtUp: false }
+      }
+
+      if (prev.caughtUp) {
+        if (prev.count === items.length) {
+          return prev
+        }
+        return { key, count: items.length, caughtUp: true }
+      }
+
+      const minimumCount = Math.min(items.length, initialBatch)
+      if (prev.count >= minimumCount && prev.count <= items.length) {
+        return prev
+      }
+
+      const count = Math.min(items.length, Math.max(prev.count, minimumCount))
+      return {
+        key,
+        count,
+        caughtUp: count >= items.length,
+      }
+    })
+  }, [key, items.length, initialBatch])
+
+  useEffect(() => {
+    if (state.key !== key || state.caughtUp || state.count >= items.length) {
+      return
     }
 
-    frame = requestAnimationFrame(step)
+    const frame = requestAnimationFrame(() => {
+      setState((prev) => {
+        if (prev.key !== key || prev.caughtUp) {
+          return prev
+        }
 
-    return () => {
-      if (frame !== undefined) cancelAnimationFrame(frame)
-    }
-  }, [key, items.length, initialBatch, batchSize])
+        const itemCount = latestItemCountRef.current
+        const count = Math.min(itemCount, prev.count + batchSize)
+        return {
+          key,
+          count,
+          caughtUp: count >= itemCount,
+        }
+      })
+    })
 
-  let effectiveCount = count
-  if (prevKeyRef.current !== key) {
-    effectiveCount = items.length <= initialBatch ? items.length : initialBatch
-    stagingCountRef.current = initialBatch
-  }
-  prevKeyRef.current = key
+    return () => cancelAnimationFrame(frame)
+  }, [state.key, state.count, state.caughtUp, key, items.length, batchSize])
 
-  const isCompleted = completedKeysRef.current.has(key)
-  const isStaging = !isCompleted && effectiveCount < items.length
-  const staged =
-    isCompleted || effectiveCount >= items.length
-      ? items
-      : items.slice(Math.max(0, items.length - effectiveCount))
+  const effectiveCount = renderState.caughtUp
+    ? items.length
+    : Math.min(renderState.count, items.length)
+  const staged = items.slice(Math.max(0, items.length - effectiveCount))
+  const isStaging = effectiveCount < items.length
 
   return { staged, isStaging }
 }
