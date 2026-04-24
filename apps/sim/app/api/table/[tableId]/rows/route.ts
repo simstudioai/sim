@@ -66,6 +66,12 @@ const QueryRowsSchema = z.object({
     .min(0, 'Offset must be 0 or greater')
     .optional()
     .default(0),
+  includeTotal: z
+    .preprocess(
+      (val) => (val === null || val === undefined || val === '' ? undefined : val === 'true'),
+      z.boolean().optional()
+    )
+    .default(true),
 })
 
 const nonEmptyFilter = z
@@ -328,6 +334,7 @@ export const GET = withRouteHandler(
       const sortParam = searchParams.get('sort')
       const limit = searchParams.get('limit')
       const offset = searchParams.get('offset')
+      const includeTotalParam = searchParams.get('includeTotal')
 
       let filter: Record<string, unknown> | undefined
       let sort: Sort | undefined
@@ -349,6 +356,7 @@ export const GET = withRouteHandler(
         sort,
         limit,
         offset,
+        includeTotal: includeTotalParam,
       })
 
       const accessResult = await checkAccess(tableId, authResult.userId, 'read')
@@ -398,17 +406,19 @@ export const GET = withRouteHandler(
         query = query.orderBy(userTableRows.position) as typeof query
       }
 
-      const countQuery = db
-        .select({ count: sql<number>`count(*)` })
-        .from(userTableRows)
-        .where(and(...baseConditions))
-
-      const [{ count: totalCount }] = await countQuery
+      let totalCount: number | null = null
+      if (validated.includeTotal) {
+        const [{ count }] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(userTableRows)
+          .where(and(...baseConditions))
+        totalCount = Number(count)
+      }
 
       const rows = await query.limit(validated.limit).offset(validated.offset)
 
       logger.info(
-        `[${requestId}] Queried ${rows.length} rows from table ${tableId} (total: ${totalCount})`
+        `[${requestId}] Queried ${rows.length} rows from table ${tableId} (total: ${totalCount ?? 'n/a'})`
       )
 
       return NextResponse.json({
@@ -424,7 +434,7 @@ export const GET = withRouteHandler(
               r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
           })),
           rowCount: rows.length,
-          totalCount: Number(totalCount),
+          totalCount,
           limit: validated.limit,
           offset: validated.offset,
         },

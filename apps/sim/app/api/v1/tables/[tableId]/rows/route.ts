@@ -71,6 +71,12 @@ const QueryRowsSchema = z.object({
         .optional()
     )
     .default(0),
+  includeTotal: z
+    .preprocess(
+      (val) => (val === null || val === undefined || val === '' ? undefined : val === 'true'),
+      z.boolean().optional()
+    )
+    .default(true),
 })
 
 const nonEmptyFilter = z
@@ -219,6 +225,7 @@ export const GET = withRouteHandler(
         sort,
         limit: searchParams.get('limit'),
         offset: searchParams.get('offset'),
+        includeTotal: searchParams.get('includeTotal'),
       })
 
       const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
@@ -268,16 +275,37 @@ export const GET = withRouteHandler(
         query = query.orderBy(userTableRows.position) as typeof query
       }
 
-      const countQuery = db
-        .select({ count: sql<number>`count(*)` })
-        .from(userTableRows)
-        .where(and(...baseConditions))
+      const rowsPromise = query.limit(validated.limit).offset(validated.offset)
 
-      const [countResult, rows] = await Promise.all([
-        countQuery,
-        query.limit(validated.limit).offset(validated.offset),
-      ])
-      const totalCount = countResult[0].count
+      let totalCount: number | null = null
+      if (validated.includeTotal) {
+        const countQuery = db
+          .select({ count: sql<number>`count(*)` })
+          .from(userTableRows)
+          .where(and(...baseConditions))
+        const [countResult, rows] = await Promise.all([countQuery, rowsPromise])
+        totalCount = Number(countResult[0].count)
+        return NextResponse.json({
+          success: true,
+          data: {
+            rows: rows.map((r) => ({
+              id: r.id,
+              data: r.data,
+              position: r.position,
+              createdAt:
+                r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+              updatedAt:
+                r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
+            })),
+            rowCount: rows.length,
+            totalCount,
+            limit: validated.limit,
+            offset: validated.offset,
+          },
+        })
+      }
+
+      const rows = await rowsPromise
 
       return NextResponse.json({
         success: true,
@@ -292,7 +320,7 @@ export const GET = withRouteHandler(
               r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
           })),
           rowCount: rows.length,
-          totalCount: Number(totalCount),
+          totalCount,
           limit: validated.limit,
           offset: validated.offset,
         },
