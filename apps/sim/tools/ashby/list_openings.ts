@@ -1,3 +1,5 @@
+import type { AshbyOpening } from '@/tools/ashby/types'
+import { mapOpenings, OPENINGS_OUTPUT } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListOpeningsParams {
@@ -8,13 +10,7 @@ interface AshbyListOpeningsParams {
 
 interface AshbyListOpeningsResponse extends ToolResponse {
   output: {
-    openings: Array<{
-      id: string
-      openingState: string | null
-      isArchived: boolean
-      openedAt: string | null
-      closedAt: string | null
-    }>
+    openings: AshbyOpening[]
     moreDataAvailable: boolean
     nextCursor: string | null
   }
@@ -72,13 +68,7 @@ export const listOpeningsTool: ToolConfig<AshbyListOpeningsParams, AshbyListOpen
     return {
       success: true,
       output: {
-        openings: (data.results ?? []).map((o: Record<string, unknown>) => ({
-          id: o.id ?? null,
-          openingState: o.openingState ?? null,
-          isArchived: o.isArchived ?? false,
-          openedAt: o.openedAt ?? null,
-          closedAt: o.closedAt ?? null,
-        })),
+        openings: mapOpenings(data.results),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
       },
@@ -86,24 +76,7 @@ export const listOpeningsTool: ToolConfig<AshbyListOpeningsParams, AshbyListOpen
   },
 
   outputs: {
-    openings: {
-      type: 'array',
-      description: 'List of openings',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Opening UUID' },
-          openingState: {
-            type: 'string',
-            description: 'Opening state (Approved, Closed, Draft, Filled, Open)',
-            optional: true,
-          },
-          isArchived: { type: 'boolean', description: 'Whether the opening is archived' },
-          openedAt: { type: 'string', description: 'ISO 8601 opened timestamp', optional: true },
-          closedAt: { type: 'string', description: 'ISO 8601 closed timestamp', optional: true },
-        },
-      },
-    },
+    openings: OPENINGS_OUTPUT,
     moreDataAvailable: {
       type: 'boolean',
       description: 'Whether more pages of results exist',

@@ -194,6 +194,64 @@ describe('copilot go stream helpers', () => {
     )
   })
 
+  it('does not retry transient backend statuses because stream requests are not idempotent', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('bad gateway', { status: 502 }))
+
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+
+    await expect(
+      runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+        timeout: 1000,
+      })
+    ).rejects.toMatchObject({
+      name: 'CopilotBackendError',
+      status: 502,
+      body: 'bad gateway',
+    })
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retry non-transient backend statuses before the SSE stream opens', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('limit reached', { status: 402 }))
+
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+
+    await expect(
+      runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+        timeout: 1000,
+      })
+    ).rejects.toThrow('Usage limit reached')
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retry network errors because Go may already be executing the request', async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new TypeError('fetch failed'))
+
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+
+    await expect(
+      runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+        timeout: 1000,
+      })
+    ).rejects.toThrow('fetch failed')
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
   it('fails closed when the shared stream ends before a terminal event', async () => {
     const textEvent = createEvent({
       streamId: 'stream-1',

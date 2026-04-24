@@ -34,6 +34,7 @@ export function useTableData({
     offset: 0,
     filter: queryOptions.filter,
     sort: queryOptions.sort,
+    includeTotal: false,
     enabled: Boolean(workspaceId && tableId),
   })
 

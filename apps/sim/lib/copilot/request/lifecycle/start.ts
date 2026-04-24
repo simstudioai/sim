@@ -210,6 +210,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 
           const abortPoller = startAbortPoller(streamId, abortController, {
             requestId,
+            chatId,
           })
           publisher.startKeepalive()
 

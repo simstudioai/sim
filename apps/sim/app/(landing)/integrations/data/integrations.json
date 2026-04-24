@@ -1031,7 +1031,7 @@
       },
       {
         "name": "List Applications",
-        "description": "Lists all applications in an Ashby organization with pagination and optional filters for status, job, candidate, and creation date."
+        "description": "Lists all applications in an Ashby organization with pagination and optional filters for status, job, and creation date."
       },
       {
         "name": "Get Application",
@@ -1051,11 +1051,11 @@
       },
       {
         "name": "Add Candidate Tag",
-        "description": "Adds a tag to a candidate in Ashby."
+        "description": "Adds a tag to a candidate in Ashby and returns the updated candidate."
       },
       {
         "name": "Remove Candidate Tag",
-        "description": "Removes a tag from a candidate in Ashby."
+        "description": "Removes a tag from a candidate in Ashby and returns the updated candidate."
       },
       {
         "name": "Get Offer",

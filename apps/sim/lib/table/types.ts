@@ -139,12 +139,18 @@ export interface QueryOptions {
   sort?: Sort
   limit?: number
   offset?: number
+  /**
+   * When true (default), runs a `COUNT(*)` and returns `totalCount` as a number.
+   * Pass `false` to skip the count query (grid UI doesn't need it); `totalCount`
+   * is returned as `null` to signal it was not computed.
+   */
+  includeTotal?: boolean
 }
 
 export interface QueryResult {
   rows: TableRow[]
   rowCount: number
-  totalCount: number
+  totalCount: number | null
   limit: number
   offset: number
 }

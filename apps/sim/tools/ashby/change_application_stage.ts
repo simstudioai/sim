@@ -1,3 +1,5 @@
+import type { AshbyApplication } from '@/tools/ashby/types'
+import { APPLICATION_OUTPUTS, mapApplication } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyChangeApplicationStageParams {
@@ -8,10 +10,7 @@ interface AshbyChangeApplicationStageParams {
 }
 
 interface AshbyChangeApplicationStageResponse extends ToolResponse {
-  output: {
-    applicationId: string
-    stageId: string | null
-  }
+  output: AshbyApplication
 }
 
 export const changeApplicationStageTool: ToolConfig<
@@ -61,10 +60,10 @@ export const changeApplicationStageTool: ToolConfig<
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
-        applicationId: params.applicationId,
-        interviewStageId: params.interviewStageId,
+        applicationId: params.applicationId.trim(),
+        interviewStageId: params.interviewStageId.trim(),
       }
-      if (params.archiveReasonId) body.archiveReasonId = params.archiveReasonId
+      if (params.archiveReasonId) body.archiveReasonId = params.archiveReasonId.trim()
       return body
     },
   },
@@ -76,19 +75,11 @@ export const changeApplicationStageTool: ToolConfig<
       throw new Error(data.errorInfo?.message || 'Failed to change application stage')
     }
 
-    const r = data.results
-
     return {
       success: true,
-      output: {
-        applicationId: r.id ?? null,
-        stageId: r.currentInterviewStage?.id ?? null,
-      },
+      output: mapApplication(data.results),
     }
   },
 
-  outputs: {
-    applicationId: { type: 'string', description: 'Application UUID' },
-    stageId: { type: 'string', description: 'New interview stage UUID' },
-  },
+  outputs: APPLICATION_OUTPUTS,
 }

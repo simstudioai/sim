@@ -97,6 +97,14 @@ Trigger workflow when a candidate is hired
 |   ↳ `job` | object | job output from the tool |
 |     ↳ `id` | string | Job UUID |
 |     ↳ `title` | string | Job title |
+| `offer` | object | offer output from the tool |
+|   ↳ `id` | string | Accepted offer UUID |
+|   ↳ `applicationId` | string | Associated application UUID |
+|   ↳ `acceptanceStatus` | string | Offer acceptance status |
+|   ↳ `offerStatus` | string | Offer process status |
+|   ↳ `decidedAt` | string | Offer decision timestamp \(ISO 8601\) |
+|   ↳ `latestVersion` | object | latestVersion output from the tool |
+|     ↳ `id` | string | Latest offer version UUID |
 
 
 ---

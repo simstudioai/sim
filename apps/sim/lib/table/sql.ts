@@ -30,6 +30,14 @@ const ALLOWED_OPERATORS = new Set([
  * Builds a WHERE clause from a filter object.
  * Recursively processes logical operators ($or, $and) and field conditions.
  *
+ * Index behavior: equality ($eq, $in) uses the JSONB containment operator (@>) and
+ * can leverage the GIN index on `user_table_rows.data` (jsonb_path_ops). Range
+ * operators ($gt, $gte, $lt, $lte) and pattern match ($contains) fall back to
+ * text extraction via `data->>'field'`, which defeats the GIN index and produces
+ * a sequential scan over the table's rows (bounded by a btree prefix on
+ * `table_id`). Prefer equality filters on hot paths; assume range filters are
+ * O(rows per table) until a per-column expression index is added.
+ *
  * @param filter - Filter object with field conditions and logical operators
  * @param tableName - Table name for the query (e.g., 'user_table_rows')
  * @returns SQL WHERE clause or undefined if no filter specified

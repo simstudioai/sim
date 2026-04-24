@@ -134,17 +134,27 @@ export async function runStreamLoop(
     requestBodyBytes,
   })
   const fetchStart = performance.now()
-  const response = await fetchGo(fetchUrl, {
-    ...fetchOptions,
-    signal: abortSignal,
-    otelContext: options.otelContext,
-    spanName: `sim → go ${pathname}`,
-    operation: 'stream',
-    attributes: {
-      [TraceAttr.CopilotStream]: true,
-      ...(requestBodyBytes ? { [TraceAttr.HttpRequestContentLength]: requestBodyBytes } : {}),
-    },
-  })
+  let response: Response
+  try {
+    response = await fetchGo(fetchUrl, {
+      ...fetchOptions,
+      signal: abortSignal,
+      otelContext: options.otelContext,
+      spanName: `sim → go ${pathname}`,
+      operation: 'stream',
+      attributes: {
+        [TraceAttr.CopilotStream]: true,
+        ...(requestBodyBytes ? { [TraceAttr.HttpRequestContentLength]: requestBodyBytes } : {}),
+      },
+    })
+  } catch (error) {
+    fetchSpan.attributes = {
+      ...(fetchSpan.attributes ?? {}),
+      headersMs: Math.round(performance.now() - fetchStart),
+    }
+    context.trace.endSpan(fetchSpan, abortSignal?.aborted ? 'cancelled' : 'error')
+    throw error
+  }
   const headersElapsedMs = Math.round(performance.now() - fetchStart)
   fetchSpan.attributes = {
     ...(fetchSpan.attributes ?? {}),
@@ -561,14 +571,14 @@ function stampSseReadLoopSpan(
   const nowWall = Date.now()
   const startWall = nowWall - (nowPerf - startPerfMs)
 
-  const terminalEventSeen = counters.eventsByType.complete > 0
+  const terminalEventSeen = counters.eventsByType.complete > 0 || counters.eventsByType.error > 0
   // `terminal_event_missing` is the single-attribute dashboard signal
   // for the "disappeared response" bug class: the caller considered
   // this leg to be the final one (`context.streamComplete === true`)
-  // but no `complete` event arrived on the wire. Tool-pause legs have
-  // expectedTerminal=false and never trip this, so dashboards can
-  // filter on `{ .copilot.sse.terminal_event_missing = true }` without
-  // false positives.
+  // but no terminal `complete` or `error` event arrived on the wire.
+  // Tool-pause legs have expectedTerminal=false and never trip this, so
+  // dashboards can filter on `{ .copilot.sse.terminal_event_missing = true }`
+  // without false positives.
   const terminalEventMissing = opts.expectedTerminal && !terminalEventSeen
 
   const tracer = getCopilotTracer()
