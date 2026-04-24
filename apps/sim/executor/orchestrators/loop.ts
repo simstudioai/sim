@@ -717,10 +717,13 @@ export class LoopOrchestrator {
       })
 
       if (vmResult.error) {
-        logger.error('Failed to evaluate loop condition', {
+        const isSystemError = vmResult.error.isSystemError === true
+        const logFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
+        logFn('Failed to evaluate loop condition', {
           condition,
           evaluatedCondition,
           error: vmResult.error,
+          isSystemError,
         })
         return false
       }
