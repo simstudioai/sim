@@ -170,7 +170,7 @@ describe('insertRow — position race safety (migration 0198 + advisory lock)', 
     expect(findExecutedSqlContaining('hashtextextended')).toBe(true)
   })
 
-  it('explicit-position inserts skip the advisory lock (no max(position) race to guard)', async () => {
+  it('explicit-position inserts also acquire the advisory lock to serialize position shifts', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])
     dbChainMockFns.returning.mockResolvedValueOnce([
       {
@@ -190,7 +190,10 @@ describe('insertRow — position race safety (migration 0198 + advisory lock)', 
       'req-1'
     )
 
-    expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(false)
+    // `(table_id, position)` index is non-unique, so concurrent explicit-position
+    // inserts at the same slot could both skip the shift and duplicate — lock
+    // serializes them.
+    expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
   })
 
   it('batchInsertRows acquires the advisory lock (always auto-positioned)', async () => {
@@ -201,6 +204,42 @@ describe('insertRow — position race safety (migration 0198 + advisory lock)', 
         'req-1'
       )
     ).rejects.toBeDefined()
+
+    expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
+  })
+
+  it('batchInsertRows with explicit positions acquires the advisory lock', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'row-1',
+        tableId: 'tbl-1',
+        workspaceId: 'ws-1',
+        data: { name: 'a' },
+        position: 3,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: 'row-2',
+        tableId: 'tbl-1',
+        workspaceId: 'ws-1',
+        data: { name: 'b' },
+        position: 4,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ])
+
+    await batchInsertRows(
+      {
+        tableId: 'tbl-1',
+        rows: [{ name: 'a' }, { name: 'b' }],
+        workspaceId: 'ws-1',
+        positions: [3, 4],
+      },
+      TABLE,
+      'req-1'
+    )
 
     expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
   })

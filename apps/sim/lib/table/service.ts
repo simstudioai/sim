@@ -651,6 +651,13 @@ export async function insertRow(
 
     let targetPosition: number
 
+    // The `(table_id, position)` index is non-unique, so we serialize all
+    // position-aware writes (explicit and auto) through the per-table
+    // advisory lock. Without this, two concurrent explicit-position inserts
+    // at the same position can both observe an empty slot, both skip the
+    // shift, and each INSERT a row with a duplicate `(table_id, position)`.
+    await acquireTablePositionLock(trx, data.tableId)
+
     if (data.position !== undefined) {
       targetPosition = data.position
 
@@ -674,7 +681,6 @@ export async function insertRow(
           )
       }
     } else {
-      await acquireTablePositionLock(trx, data.tableId)
       const [{ maxPos }] = await trx
         .select({
           maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
@@ -772,6 +778,10 @@ export async function batchInsertRows(
       ...(data.userId ? { createdBy: data.userId } : {}),
     })
 
+    // Serialize position-aware writes per-table. See `acquireTablePositionLock`
+    // for why both explicit- and auto-position paths take this lock.
+    await acquireTablePositionLock(trx, data.tableId)
+
     if (data.positions && data.positions.length > 0) {
       // Position-aware insert: shift existing rows to create gaps, then insert.
       // Process positions ascending so each shift preserves gaps created by prior shifts.
@@ -791,7 +801,6 @@ export async function batchInsertRows(
       return trx.insert(userTableRows).values(rowsToInsert).returning()
     }
 
-    await acquireTablePositionLock(trx, data.tableId)
     const [{ maxPos }] = await trx
       .select({
         maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
