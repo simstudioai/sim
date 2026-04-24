@@ -46,10 +46,12 @@ export const ashbyHandler: WebhookProviderHandler = {
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
+    const data = (b.data as Record<string, unknown>) || {}
     return {
       input: {
-        ...((b.data as Record<string, unknown>) || {}),
+        ...data,
         action: b.action,
+        data,
       },
     }
   },
