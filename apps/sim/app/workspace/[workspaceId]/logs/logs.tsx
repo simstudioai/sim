@@ -290,6 +290,7 @@ export default function Logs() {
   const logsRef = useRef<WorkflowLog[]>([])
   const selectedLogIndexRef = useRef(-1)
   const selectedLogIdRef = useRef<string | null>(null)
+  const shouldScrollIntoViewRef = useRef(false)
   const logsRefetchRef = useRef<() => void>(() => {})
   const activeLogRefetchRef = useRef<() => void>(() => {})
   const logsQueryRef = useRef({ isFetching: false, hasNextPage: false, fetchNextPage: () => {} })
@@ -467,6 +468,7 @@ export default function Logs() {
     const idx = selectedLogIndexRef.current
     const currentLogs = logsRef.current
     if (idx < currentLogs.length - 1) {
+      shouldScrollIntoViewRef.current = true
       dispatch({ type: 'SELECT_LOG', logId: currentLogs[idx + 1].id })
     }
   }, [])
@@ -474,6 +476,7 @@ export default function Logs() {
   const handleNavigatePrev = useCallback(() => {
     const idx = selectedLogIndexRef.current
     if (idx > 0) {
+      shouldScrollIntoViewRef.current = true
       dispatch({ type: 'SELECT_LOG', logId: logsRef.current[idx - 1].id })
     }
   }, [])
@@ -594,7 +597,8 @@ export default function Logs() {
   })
 
   useEffect(() => {
-    if (!selectedLogId) return
+    if (!selectedLogId || !shouldScrollIntoViewRef.current) return
+    shouldScrollIntoViewRef.current = false
     const row = document.querySelector(`[data-row-id="${selectedLogId}"]`) as HTMLElement | null
     if (row) {
       row.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -713,6 +717,7 @@ export default function Logs() {
 
       if (currentIndex === -1 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault()
+        shouldScrollIntoViewRef.current = true
         dispatch({ type: 'SELECT_LOG', logId: currentLogs[0].id })
         return
       }

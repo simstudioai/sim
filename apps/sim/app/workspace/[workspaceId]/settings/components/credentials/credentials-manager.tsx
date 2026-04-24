@@ -22,6 +22,7 @@ import {
   Textarea,
   Tooltip,
   Trash,
+  toast,
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
@@ -60,7 +61,6 @@ const logger = createLogger('SecretsManager')
 
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto_auto] items-center'
 const COL_SPAN_ALL = 'col-span-5'
-const CONFLICT_CLASS = 'border-[var(--text-error)] bg-[var(--error-muted)]'
 
 const ROLE_OPTIONS = [
   { value: 'member', label: 'Member' },
@@ -402,7 +402,6 @@ export function CredentialsManager() {
   const isWorkspaceAdmin = workspacePermissions?.viewer?.isAdmin ?? false
 
   const isLoading = isPersonalLoading || isWorkspaceLoading
-  const variables = useMemo(() => personalEnvData || {}, [personalEnvData])
 
   const [envVars, setEnvVars] = useState<UIEnvironmentVariable[]>([])
   const [newWorkspaceRows, setNewWorkspaceRows] = useState<UIEnvironmentVariable[]>([
@@ -591,7 +590,7 @@ export function CredentialsManager() {
   useEffect(() => {
     if (hasSavedRef.current) return
 
-    const existingVars = Object.values(variables)
+    const existingVars = Object.values(personalEnvData || {})
     const initialVars = [
       ...existingVars.map((envVar) => ({
         ...envVar,
@@ -601,7 +600,7 @@ export function CredentialsManager() {
     ]
     initialVarsRef.current = JSON.parse(JSON.stringify(initialVars))
     setEnvVars(JSON.parse(JSON.stringify(initialVars)))
-  }, [variables])
+  }, [personalEnvData])
 
   useEffect(() => {
     if (!workspaceEnvData) return
@@ -1041,11 +1040,15 @@ export function CredentialsManager() {
 
       setWorkspaceVars(mergedWorkspaceVars)
       setNewWorkspaceRows([createEmptyEnvVar()])
+      if (mutations.length > 0) {
+        toast.success('Secrets saved')
+      }
     } catch (error) {
       hasSavedRef.current = false
       initialVarsRef.current = prevInitialVars
       initialWorkspaceVarsRef.current = prevInitialWorkspaceVars
       logger.error('Failed to save environment variables:', error)
+      toast.error('Failed to save secrets')
     } finally {
       if (mutations.length > 0) {
         queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
@@ -1095,7 +1098,7 @@ export function CredentialsManager() {
           onFocus={(e) => e.target.removeAttribute('readOnly')}
           className={cn(
             'h-9',
-            isConflict && CONFLICT_CLASS,
+            isConflict && 'border-[var(--text-error)]',
             keyError && 'border-[var(--text-error)]'
           )}
         />
@@ -1115,8 +1118,6 @@ export function CredentialsManager() {
           onBlur={() => setFocusedValueIndex(null)}
           onPaste={(e) => handlePaste(e, originalIndex)}
           placeholder={isConflict ? 'Workspace override active' : 'Enter value'}
-          disabled={isConflict}
-          aria-disabled={isConflict}
           name={`env_variable_value_${envVar.id || originalIndex}_${Math.random()}`}
           autoComplete='off'
           autoCapitalize='off'
@@ -1125,12 +1126,11 @@ export function CredentialsManager() {
           style={maskedValueStyle}
           className={cn(
             'h-9',
-            !isComplete && 'col-span-2',
-            isConflict && 'cursor-not-allowed',
-            isConflict && CONFLICT_CLASS
+            (!isComplete || isConflict) && 'col-span-2',
+            isConflict && 'cursor-not-allowed opacity-50'
           )}
         />
-        {isComplete && (
+        {isComplete && !isConflict && (
           <Button
             variant='default'
             onClick={() => handleViewDetails(envVar.key, 'env_personal')}
@@ -1267,7 +1267,7 @@ export function CredentialsManager() {
               </div>
 
               {detailsError && (
-                <div className='rounded-lg border border-[color-mix(in_srgb,var(--status-red)_40%,transparent)] bg-[color-mix(in_srgb,var(--status-red)_10%,transparent)] px-2.5 py-2 text-[var(--status-red)] text-small'>
+                <div className='rounded-lg border border-[color-mix(in_srgb,var(--text-error)_40%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] px-2.5 py-2 text-[var(--text-error)] text-small'>
                   {detailsError}
                 </div>
               )}
@@ -1299,7 +1299,7 @@ export function CredentialsManager() {
                             </AvatarFallback>
                           </Avatar>
                           <div className='min-w-0'>
-                            <p className='truncate font-medium text-[var(--text-primary)] text-sm'>
+                            <p className='truncate font-medium text-[var(--text-primary)] text-small'>
                               {member.userName || member.userEmail || member.userId}
                             </p>
                             <p className='truncate text-[var(--text-tertiary)] text-caption'>
