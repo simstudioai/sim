@@ -181,6 +181,8 @@ export const UpdateColumnSchema = z.object({
     workflowConfig: z
       .object({
         workflowId: z.string().min(1),
+        dependencies: z.array(z.string()).optional(),
+        outputPath: z.string().optional(),
       })
       .optional(),
   }),
@@ -197,5 +199,6 @@ export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
     type: col.type,
     required: col.required ?? false,
     unique: col.unique ?? false,
+    ...(col.workflowConfig ? { workflowConfig: col.workflowConfig } : {}),
   }
 }

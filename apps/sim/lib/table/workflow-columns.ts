@@ -18,6 +18,7 @@ import { webhook as webhookTable, workflow as workflowTable } from '@sim/db/sche
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { generateId } from '@/lib/core/utils/uuid'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import type {
   ColumnDefinition,
   RowData,
@@ -27,6 +28,26 @@ import type {
 } from '@/lib/table/types'
 
 const logger = createLogger('WorkflowColumnScheduler')
+
+/**
+ * Walk a dot-and-bracket path into a value (e.g. `a.b[0].c` or `result.items.0`).
+ * Returns undefined for any missing segment. Used by workflow columns that specify
+ * an `outputPath` to pick one field out of a workflow's full output.
+ */
+function pluckByPath(source: unknown, path: string): unknown {
+  if (source === null || source === undefined || !path) return source
+  const segments = path
+    .replace(/\[(\w+)\]/g, '.$1')
+    .split('.')
+    .filter(Boolean)
+  let cursor: unknown = source
+  for (const seg of segments) {
+    if (cursor === null || cursor === undefined) return undefined
+    if (typeof cursor !== 'object') return undefined
+    cursor = (cursor as Record<string, unknown>)[seg]
+  }
+  return cursor
+}
 
 /**
  * Per-cell eligibility: returns true if the workflow should run for this row × column now.
@@ -47,28 +68,58 @@ export function isWorkflowColumnEligible(
   const status = cell?.status
   if (status === 'running' || status === 'completed' || status === 'error') return false
 
-  // Default predicate: every column to the left must be filled.
-  // For plain columns, "filled" means a non-null / non-empty value.
-  // For upstream workflow columns, "filled" means the cell has status === 'completed'
-  // — this is what makes cascading work: a downstream workflow only runs after the
-  // upstream workflow finishes.
+  const isFilled = (colToCheck: ColumnDefinition, value: unknown): boolean => {
+    if (colToCheck.type === 'workflow') {
+      const cellVal = value as WorkflowCellValue | null | undefined
+      return cellVal?.status === 'completed'
+    }
+    return value !== null && value !== undefined && value !== ''
+  }
+
+  const explicitDeps = column.workflowConfig?.dependencies
+  if (explicitDeps && explicitDeps.length > 0) {
+    // Explicit dependency list: check only the named columns. Fail fast on unknown
+    // names — malformed config is a bug, not a silent skip.
+    for (const depName of explicitDeps) {
+      const depCol = schema.columns.find((c) => c.name === depName)
+      if (!depCol) {
+        throw new Error(
+          `Workflow column "${column.name}" has unknown dependency "${depName}"`
+        )
+      }
+      if (!isFilled(depCol, row.data[depName])) return false
+    }
+    return true
+  }
+
+  // Default predicate: every column to the left must be filled. Plain columns need a
+  // non-null/non-empty value; upstream workflow columns need status === 'completed'
+  // (this is what makes cascading work).
   for (let i = 0; i < columnIndex; i++) {
     const leftCol = schema.columns[i]
-    const value = row.data[leftCol.name]
-    if (leftCol.type === 'workflow') {
-      const leftCell = value as WorkflowCellValue | null | undefined
-      if (leftCell?.status !== 'completed') return false
-      continue
-    }
-    if (value === null || value === undefined || value === '') return false
+    if (!isFilled(leftCol, row.data[leftCol.name])) return false
   }
 
   return true
 }
 
+/** Upper bound on workflow-column run concurrency exposed to the user. */
+const WORKFLOW_COLUMN_BATCH_SIZE_MAX = 100
+
+interface ScheduleWorkflowColumnRunsOptions {
+  /**
+   * Maximum number of workflow-column runs to execute concurrently. When unset, the
+   * per-table value at `table.metadata.workflowColumnBatchSize` is used, falling back
+   * to `TABLE_LIMITS.WORKFLOW_COLUMN_BATCH_SIZE`. Clamped to 1..100.
+   */
+  batchSize?: number
+}
+
 /**
- * Fire-and-forget scheduler. Iterates workflow columns × rows and kicks off eligible
- * executions. Safe to call after any row-write operation; errors are logged.
+ * Scheduler. Iterates workflow columns × rows and kicks off eligible executions in
+ * bounded-concurrency batches. Safe to call after any row-write operation; errors are
+ * logged. Callers typically invoke this with `void` — the function awaits internally to
+ * limit concurrency, but resolves once all scheduled runs complete.
  *
  * Actor identity for the downstream workflow is derived from the workflow record itself
  * (same convention as webhook/polling-fired triggers), so the service call site doesn't
@@ -76,10 +127,12 @@ export function isWorkflowColumnEligible(
  *
  * @param table - The table definition with schema.
  * @param rows - Rows that were just written (post-commit state).
+ * @param options - Optional batching/concurrency controls.
  */
 export async function scheduleWorkflowColumnRuns(
   table: TableDefinition,
-  rows: TableRow[]
+  rows: TableRow[],
+  options?: ScheduleWorkflowColumnRunsOptions
 ): Promise<void> {
   try {
     const workflowColumns = table.schema.columns
@@ -89,30 +142,97 @@ export async function scheduleWorkflowColumnRuns(
     if (workflowColumns.length === 0) return
     if (rows.length === 0) return
 
+    const requestedBatchSize =
+      options?.batchSize ??
+      table.metadata?.workflowColumnBatchSize ??
+      TABLE_LIMITS.WORKFLOW_COLUMN_BATCH_SIZE
+    const batchSize = Math.min(
+      WORKFLOW_COLUMN_BATCH_SIZE_MAX,
+      Math.max(1, Math.floor(requestedBatchSize))
+    )
+
+    const pendingRuns: RunWorkflowColumnOptions[] = []
+
     for (const row of rows) {
       for (const { col, idx } of workflowColumns) {
-        if (!isWorkflowColumnEligible(col, idx, row, table.schema)) continue
+        let eligible = false
+        try {
+          eligible = isWorkflowColumnEligible(col, idx, row, table.schema)
+        } catch (predicateErr) {
+          // Malformed dependency config — surface it on the specific cell so the user
+          // can see why their column is stuck, then move on to the next row/column.
+          const message = predicateErr instanceof Error ? predicateErr.message : String(predicateErr)
+          logger.error(
+            `Eligibility predicate threw for table=${table.id} row=${row.id} col=${col.name}: ${message}`
+          )
+          void markCellError(table.id, row.id, col.name, col.workflowConfig!.workflowId, message)
+          continue
+        }
+        if (!eligible) continue
 
-        const workflowId = col.workflowConfig!.workflowId
-        const executionId = generateId()
-
-        logger.info(
-          `Scheduling workflow column run: table=${table.id} row=${row.id} col=${col.name} workflow=${workflowId}`
-        )
-
-        void runWorkflowColumn({
+        pendingRuns.push({
           tableId: table.id,
           tableName: table.name,
           rowId: row.id,
           columnName: col.name,
-          workflowId,
+          workflowId: col.workflowConfig!.workflowId,
           workspaceId: table.workspaceId,
-          executionId,
+          executionId: generateId(),
         })
       }
     }
+
+    if (pendingRuns.length === 0) return
+
+    logger.info(
+      `Scheduling ${pendingRuns.length} workflow column run(s) for table=${table.id} in batches of ${batchSize}`
+    )
+
+    for (let i = 0; i < pendingRuns.length; i += batchSize) {
+      const batch = pendingRuns.slice(i, i + batchSize)
+      await Promise.allSettled(batch.map((opts) => runWorkflowColumn(opts)))
+    }
   } catch (err) {
     logger.error('scheduleWorkflowColumnRuns failed:', err)
+  }
+}
+
+/**
+ * Write a config-error cell directly via the service layer. Used when the eligibility
+ * predicate throws (e.g. dependency refers to a nonexistent column).
+ */
+async function markCellError(
+  tableId: string,
+  rowId: string,
+  columnName: string,
+  workflowId: string,
+  message: string
+): Promise<void> {
+  try {
+    const { getTableById, getRowById, updateRow } = await import('@/lib/table/service')
+    const table = await getTableById(tableId)
+    if (!table) return
+    const row = await getRowById(tableId, rowId, table.workspaceId)
+    if (!row) return
+    const errorCell: WorkflowCellValue = {
+      executionId: null,
+      workflowId,
+      status: 'error',
+      output: null,
+      error: message,
+    }
+    await updateRow(
+      {
+        tableId,
+        rowId,
+        data: { ...row.data, [columnName]: errorCell as unknown as RowData[string] },
+        workspaceId: table.workspaceId,
+      },
+      table,
+      `wfcol-config-error-${rowId}-${columnName}`
+    )
+  } catch (err) {
+    logger.error('markCellError failed:', err)
   }
 }
 
@@ -242,6 +362,9 @@ export async function runWorkflowColumn(opts: RunWorkflowColumnOptions): Promise
     return
   }
 
+  const columnDef = table.schema.columns.find((c) => c.name === columnName)
+  const outputPath = columnDef?.workflowConfig?.outputPath
+
   const inputRow: Record<string, unknown> = {}
   for (const key of Object.keys(row.data)) {
     if (key === columnName) continue
@@ -286,11 +409,13 @@ export async function runWorkflowColumn(opts: RunWorkflowColumnOptions): Promise
     )
 
     if (result.success) {
+      const rawOutput = (result.output as unknown) ?? null
+      const pickedOutput = outputPath ? pluckByPath(rawOutput, outputPath) : rawOutput
       await writeCell({
         executionId,
         workflowId,
         status: 'completed',
-        output: (result.output as unknown) ?? null,
+        output: pickedOutput ?? null,
         error: null,
       })
     } else {

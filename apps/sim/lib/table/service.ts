@@ -441,11 +441,11 @@ export async function renameTable(
 }
 
 /**
- * Updates a table's UI metadata (e.g. column widths).
- * Does not update `updatedAt` since metadata is UI-only state.
+ * Updates a table's metadata (UI state like column widths/order, plus behavioral
+ * settings like `workflowColumnBatchSize`). Merges into the existing metadata blob.
  *
  * @param tableId - Table ID to update
- * @param metadata - New metadata object (merged with existing)
+ * @param metadata - Partial metadata object (merged with existing)
  * @param existingMetadata - Existing metadata from a prior fetch (avoids redundant DB read)
  * @returns Updated metadata
  */
@@ -1612,9 +1612,17 @@ export async function renameColumn(
   }
 
   const actualOldName = schema.columns[columnIndex].name
-  const updatedColumns = schema.columns.map((c, i) =>
-    i === columnIndex ? { ...c, name: data.newName } : c
-  )
+  const updatedColumns = schema.columns.map((c, i) => {
+    const base = i === columnIndex ? { ...c, name: data.newName } : { ...c }
+    // Cascade rename into sibling workflow columns' explicit dependency lists.
+    if (base.workflowConfig?.dependencies?.length) {
+      const rewritten = base.workflowConfig.dependencies.map((d) =>
+        d === actualOldName ? data.newName : d
+      )
+      base.workflowConfig = { ...base.workflowConfig, dependencies: rewritten }
+    }
+    return base
+  })
   const updatedSchema: TableSchema = { columns: updatedColumns }
 
   const metadata = table.metadata as TableMetadata | null
@@ -1675,7 +1683,15 @@ export async function deleteColumn(
 
   const actualName = schema.columns[columnIndex].name
   const updatedSchema: TableSchema = {
-    columns: schema.columns.filter((_, i) => i !== columnIndex),
+    columns: schema.columns
+      .filter((_, i) => i !== columnIndex)
+      .map((c) => {
+        // Cascade removal into sibling workflow columns' explicit dependency lists.
+        if (!c.workflowConfig?.dependencies?.length) return c
+        const filtered = c.workflowConfig.dependencies.filter((d) => d !== actualName)
+        if (filtered.length === c.workflowConfig.dependencies.length) return c
+        return { ...c, workflowConfig: { ...c.workflowConfig, dependencies: filtered } }
+      }),
   }
 
   const metadata = table.metadata as TableMetadata | null
@@ -1738,7 +1754,15 @@ export async function deleteColumns(
     throw new Error('Cannot delete all columns from a table')
   }
 
-  const updatedSchema: TableSchema = { columns: remaining }
+  // Cascade removal into sibling workflow columns' explicit dependency lists.
+  const scrubbed = remaining.map((c) => {
+    if (!c.workflowConfig?.dependencies?.length) return c
+    const filtered = c.workflowConfig.dependencies.filter((d) => !namesToDelete.has(d))
+    if (filtered.length === c.workflowConfig.dependencies.length) return c
+    return { ...c, workflowConfig: { ...c.workflowConfig, dependencies: filtered } }
+  })
+
+  const updatedSchema: TableSchema = { columns: scrubbed }
 
   const metadata = table.metadata as TableMetadata | null
   let updatedMetadata = metadata

@@ -1,10 +1,11 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, GripVertical } from 'lucide-react'
+import { Check, GripVertical, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
+  Badge,
   Button,
   Checkbox,
   DatePicker,
@@ -21,6 +22,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  PillsRing,
   Skeleton,
 } from '@/components/emcn'
 import {
@@ -31,6 +33,7 @@ import {
   Fingerprint,
   Pencil,
   Play,
+  PlayOutline,
   Plus,
   Table as TableIcon,
   TableX,
@@ -57,6 +60,7 @@ import {
   useAddTableColumn,
   useBatchCreateTableRows,
   useBatchUpdateTableRows,
+  useCancelTableRuns,
   useCreateTableRow,
   useDeleteColumn,
   useDeleteTable,
@@ -81,6 +85,7 @@ import {
 import { ContextMenu } from '../context-menu'
 import { RowModal } from '../row-modal'
 import { TableFilter } from '../table-filter'
+import { WorkflowColumnSidebar } from '../workflow-column-sidebar/workflow-column-sidebar'
 
 interface CellCoord {
   rowIndex: number
@@ -100,7 +105,7 @@ const EMPTY_COLUMNS: never[] = []
 const EMPTY_CHECKED_ROWS = new Set<number>()
 const COL_WIDTH = 160
 const COL_WIDTH_MIN = 80
-const CHECKBOX_COL_WIDTH = 40
+const CHECKBOX_COL_WIDTH = 56
 const ADD_COL_WIDTH = 120
 const SKELETON_COL_COUNT = 4
 const SKELETON_ROW_COUNT = 10
@@ -261,6 +266,7 @@ export function Table({
   const updateColumnMutation = useUpdateColumn({ workspaceId, tableId })
   const deleteColumnMutation = useDeleteColumn({ workspaceId, tableId })
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
+  const cancelRunsMutation = useCancelTableRuns({ workspaceId, tableId })
 
   const { pushUndo, undo, redo } = useTableUndo({ workspaceId, tableId })
   const undoRef = useRef(undo)
@@ -1486,27 +1492,31 @@ export function Table({
     []
   )
 
+  /**
+   * Config state for the side panel:
+   * - `null` → closed.
+   * - `{ mode: 'edit' }` → configuring an existing workflow column.
+   * - `{ mode: 'new' }` → user just picked a workflow; nothing is persisted until Save.
+   */
+  type ConfigState =
+    | { mode: 'edit'; columnName: string }
+    | { mode: 'new'; columnName: string; workflowId: string; proposedName: string }
+    | null
+  const [configState, setConfigState] = useState<ConfigState>(null)
+
+  const handleConfigureWorkflow = useCallback((columnName: string) => {
+    setConfigState({ mode: 'edit', columnName })
+  }, [])
+
   const handleChangeToWorkflow = useCallback(
     (columnName: string, workflowId: string) => {
-      const column = columnsRef.current.find((c) => c.name === columnName)
-      if (column) {
-        pushUndoRef.current({
-          type: 'update-column-type',
-          columnName,
-          previousType: column.type,
-          newType: 'workflow',
-        })
-      }
+      // Don't persist anything yet — open the sidebar with the pending workflow pick.
+      // The Save button in the sidebar is what actually writes type/name/config.
       const wf = manualTriggerWorkflowsRef.current?.find((w) => w.workflowId === workflowId)
-      const newName = wf ? sanitizeWorkflowNameAsColumn(wf.workflowName, columnName) : undefined
-      updateColumnMutation.mutate({
-        columnName,
-        updates: {
-          ...(newName && newName !== columnName ? { name: newName } : {}),
-          type: 'workflow',
-          workflowConfig: { workflowId },
-        },
-      })
+      const proposedName = wf
+        ? sanitizeWorkflowNameAsColumn(wf.workflowName, columnName)
+        : columnName
+      setConfigState({ mode: 'new', columnName, workflowId, proposedName })
     },
     [sanitizeWorkflowNameAsColumn]
   )
@@ -1684,6 +1694,57 @@ export function Table({
 
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
+  const workflowColumnNames = useMemo(
+    () => columns.filter((c) => c.type === 'workflow').map((c) => c.name),
+    [columns]
+  )
+  const hasWorkflowColumns = workflowColumnNames.length > 0
+  const workflowColumnNamesRef = useRef(workflowColumnNames)
+  workflowColumnNamesRef.current = workflowColumnNames
+
+  const { runningByRowId, totalRunning } = useMemo(() => {
+    const byRow = new Map<string, number>()
+    let total = 0
+    if (workflowColumnNames.length === 0) return { runningByRowId: byRow, totalRunning: 0 }
+    for (const row of rows) {
+      let count = 0
+      for (const name of workflowColumnNames) {
+        const cell = row.data[name] as WorkflowCellValue | null | undefined
+        if (cell?.status === 'running') count++
+      }
+      if (count > 0) {
+        byRow.set(row.id, count)
+        total += count
+      }
+    }
+    return { runningByRowId: byRow, totalRunning: total }
+  }, [rows, workflowColumnNames])
+
+  const cancelRunsMutate = cancelRunsMutation.mutate
+
+  const handleStopAll = useCallback(() => {
+    if (totalRunning === 0) return
+    cancelRunsMutate({ scope: 'all' })
+  }, [totalRunning, cancelRunsMutate])
+
+  const handleStopRow = useCallback(
+    (rowId: string) => {
+      cancelRunsMutate({ scope: 'row', rowId })
+    },
+    [cancelRunsMutate]
+  )
+
+  const handleRunRow = useCallback(
+    (rowId: string) => {
+      const columnNames = workflowColumnNamesRef.current
+      if (columnNames.length === 0) return
+      for (const columnName of columnNames) {
+        void runWorkflowColumn({ tableId, rowId, workspaceId, columnName })
+      }
+    },
+    [runWorkflowColumn, tableId, workspaceId]
+  )
+
   if (!isLoadingTable && !tableData) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
@@ -1720,6 +1781,14 @@ export function Table({
         </>
       )}
 
+      <div className='relative flex min-h-0 flex-1'>
+      {totalRunning > 0 && (
+        <RunStatusPill
+          running={totalRunning}
+          onStopAll={handleStopAll}
+          isStopping={cancelRunsMutation.isPending}
+        />
+      )}
       <div
         ref={scrollRef}
         tabIndex={-1}
@@ -1802,6 +1871,7 @@ export function Table({
                       onDragLeave={handleColumnDragLeave}
                       manualTriggerWorkflows={manualTriggerWorkflows}
                       onChangeToWorkflow={handleChangeToWorkflow}
+                      onConfigureWorkflow={handleConfigureWorkflow}
                     />
                   ))}
                   {userPermissions.canEdit && (
@@ -1860,6 +1930,10 @@ export function Table({
                           onCellMouseEnter={handleCellMouseEnter}
                           isRowChecked={checkedRows.has(row.position)}
                           onRowToggle={handleRowToggle}
+                          runningCount={runningByRowId.get(row.id) ?? 0}
+                          hasWorkflowColumns={hasWorkflowColumns}
+                          onStopRow={handleStopRow}
+                          onRunRow={handleRunRow}
                         />
                       </React.Fragment>
                     )
@@ -1884,6 +1958,22 @@ export function Table({
         {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
           <AddRowButton onClick={handleAppendRow} />
         )}
+      </div>
+
+      <WorkflowColumnSidebar
+        configState={configState}
+        onClose={() => setConfigState(null)}
+        existingColumn={
+          configState?.mode === 'edit'
+            ? columns.find((c) => c.name === configState.columnName) ?? null
+            : null
+        }
+        allColumns={columns}
+        workflows={manualTriggerWorkflows}
+        workspaceId={workspaceId}
+        tableId={tableId}
+        workflowColumnBatchSize={tableData?.metadata?.workflowColumnBatchSize}
+      />
       </div>
 
       {editingRow && tableData && (
@@ -2176,6 +2266,12 @@ interface DataRowProps {
   onCellMouseEnter: (rowIndex: number, colIndex: number) => void
   isRowChecked: boolean
   onRowToggle: (rowIndex: number, shiftKey: boolean) => void
+  /** Number of workflow cells in this row currently in a running/queued state. */
+  runningCount: number
+  /** Whether the table has at least one workflow column — controls whether a run/stop icon is rendered. */
+  hasWorkflowColumns: boolean
+  onStopRow: (rowId: string) => void
+  onRunRow: (rowId: string) => void
 }
 
 function rowSelectionChanged(
@@ -2225,7 +2321,11 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.onCellMouseDown !== next.onCellMouseDown ||
     prev.onCellMouseEnter !== next.onCellMouseEnter ||
     prev.isRowChecked !== next.isRowChecked ||
-    prev.onRowToggle !== next.onRowToggle
+    prev.onRowToggle !== next.onRowToggle ||
+    prev.runningCount !== next.runningCount ||
+    prev.hasWorkflowColumns !== next.hasWorkflowColumns ||
+    prev.onStopRow !== next.onStopRow ||
+    prev.onRunRow !== next.onRunRow
   ) {
     return false
   }
@@ -2262,6 +2362,10 @@ const DataRow = React.memo(function DataRow({
   onCellMouseDown,
   onCellMouseEnter,
   onRowToggle,
+  runningCount,
+  hasWorkflowColumns,
+  onStopRow,
+  onRunRow,
 }: DataRowProps) {
   const sel = normalizedSelection
   const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
@@ -2275,28 +2379,53 @@ const DataRow = React.memo(function DataRow({
 
   return (
     <tr onContextMenu={(e) => onContextMenu(e, row)}>
-      <td
-        className={cn(CELL_CHECKBOX, 'group/checkbox cursor-pointer text-center')}
-        onMouseDown={(e) => {
-          if (e.button !== 0) return
-          onRowToggle(rowIndex, e.shiftKey)
-        }}
-      >
-        <span
-          className={cn(
-            'text-[var(--text-tertiary)] text-xs tabular-nums',
-            isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
+      <td className={cn(CELL_CHECKBOX, 'cursor-pointer')}>
+        <div className='flex items-center justify-between gap-1'>
+          <div
+            className='group/checkbox flex h-[20px] w-[20px] items-center justify-center'
+            onMouseDown={(e) => {
+              if (e.button !== 0) return
+              onRowToggle(rowIndex, e.shiftKey)
+            }}
+          >
+            <span
+              className={cn(
+                'text-[var(--text-tertiary)] text-xs tabular-nums',
+                isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
+              )}
+            >
+              {row.position + 1}
+            </span>
+            <div
+              className={cn(
+                'items-center justify-center',
+                isRowSelected ? 'flex' : 'hidden group-hover/checkbox:flex'
+              )}
+            >
+              <Checkbox size='sm' checked={isRowSelected} className='pointer-events-none' />
+            </div>
+          </div>
+          {hasWorkflowColumns && (
+            <button
+              type='button'
+              aria-label={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
+              title={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
+              className='flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded text-[var(--text-primary)] transition-colors hover-hover:bg-[var(--surface-2)]'
+              onClick={() => {
+                if (runningCount > 0) {
+                  onStopRow(row.id)
+                } else {
+                  onRunRow(row.id)
+                }
+              }}
+            >
+              {runningCount > 0 ? (
+                <Square className='h-[12px] w-[12px]' />
+              ) : (
+                <PlayOutline className='h-[12px] w-[12px]' />
+              )}
+            </button>
           )}
-        >
-          {row.position + 1}
-        </span>
-        <div
-          className={cn(
-            'items-center justify-center',
-            isRowSelected ? 'flex' : 'hidden group-hover/checkbox:flex'
-          )}
-        >
-          <Checkbox size='sm' checked={isRowSelected} className='pointer-events-none' />
         </div>
       </td>
       {columns.map((column, colIndex) => {
@@ -2739,6 +2868,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onDragLeave,
   manualTriggerWorkflows,
   onChangeToWorkflow,
+  onConfigureWorkflow,
 }: {
   column: ColumnDefinition
   readOnly?: boolean
@@ -2763,6 +2893,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onDragLeave?: () => void
   manualTriggerWorkflows?: ManualTriggerWorkflow[]
   onChangeToWorkflow?: (columnName: string, workflowId: string) => void
+  onConfigureWorkflow?: (columnName: string) => void
 }) {
   const renameInputRef = useRef<HTMLInputElement>(null)
   const configuredWorkflow =
@@ -2901,6 +3032,15 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='start'>
+              {column.type === 'workflow' && onConfigureWorkflow && (
+                <>
+                  <DropdownMenuItem onSelect={() => onConfigureWorkflow(column.name)}>
+                    <Pencil />
+                    Configure workflow
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem onSelect={() => onRenameColumn(column.name)}>
                 <Pencil />
                 Rename column
@@ -2993,6 +3133,55 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         onPointerDown={handleResizePointerDown}
       />
     </th>
+  )
+})
+
+interface RunStatusPillProps {
+  running: number
+  onStopAll: () => void
+  isStopping: boolean
+}
+
+/** Adapter so `<Badge icon={...}>` can render an animated PillsRing. */
+function AnimatedPillsRing({ className }: { className?: string }) {
+  return <PillsRing animate className={className} />
+}
+
+/**
+ * Floating status card anchored to the top-right of the table viewport. Surfaces
+ * active workflow-column run activity and a one-click Stop-all affordance.
+ *
+ * Styled to match Sim's established patterns: floating-tooltip surface tokens from
+ * the logs status bar (`surface-1`/`border-1`/`shadow-lg`), `PillsRing` as the
+ * running spinner, and the same `variant='active'` + filled `Square` + "Stop" button
+ * the workflow panel uses during execution.
+ *
+ * Queued count is not tracked yet — once `WorkflowCellValue.status` grows a `queued`
+ * state, thread it in alongside `running`.
+ */
+const RunStatusPill = React.memo(function RunStatusPill({
+  running,
+  onStopAll,
+  isStopping,
+}: RunStatusPillProps) {
+  return (
+    <div className='pointer-events-none absolute top-3 right-3 z-20 flex'>
+      <div className='pointer-events-auto flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] p-1.5 shadow-lg'>
+        <Badge variant='green' icon={AnimatedPillsRing}>
+          <span className='tabular-nums'>{running}</span>
+          <span>running</span>
+        </Badge>
+        <Button
+          className='h-[30px] gap-2 px-2.5'
+          variant='active'
+          onClick={onStopAll}
+          disabled={isStopping}
+        >
+          <Square className='h-[11.5px] w-[11.5px] fill-current' />
+          Stop
+        </Button>
+      </div>
+    </div>
   )
 })
 

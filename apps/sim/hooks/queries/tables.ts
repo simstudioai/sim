@@ -645,7 +645,7 @@ interface UpdateColumnParams {
     type?: string
     required?: boolean
     unique?: boolean
-    workflowConfig?: { workflowId: string }
+    workflowConfig?: { workflowId: string; dependencies?: string[]; outputPath?: string }
   }
 }
 
@@ -719,6 +719,39 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
+    },
+  })
+}
+
+interface CancelRunsParams {
+  scope: 'all' | 'row'
+  rowId?: string
+}
+
+/**
+ * Cancel in-flight and queued workflow-column runs for a table.
+ * Scope is either `all` (table-wide) or `row` (a single row).
+ */
+export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ scope, rowId }: CancelRunsParams) => {
+      const res = await fetch(`/api/table/${tableId}/cancel-runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId, scope, rowId }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(
+          (data as { error?: string }).error || 'Failed to cancel runs'
+        )
+      }
+      return res.json() as Promise<{ success: true; data: { cancelled: number } }>
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
     },
   })
 }

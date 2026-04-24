@@ -23,6 +23,18 @@ export interface ColumnOption {
 
 export interface WorkflowColumnConfig {
   workflowId: string
+  /**
+   * Explicit dependency list (column names). When set, overrides the scheduler's
+   * default "all left non-workflow columns must be filled; upstream workflow
+   * columns must be completed" predicate — only the listed columns are checked.
+   */
+  dependencies?: string[]
+  /**
+   * Dot-path into the workflow's final output to use as the cell's displayed value.
+   * Example: `summary` selects `output.summary`, `result.items[0]` selects the first
+   * item. When unset, the full output object is stored.
+   */
+  outputPath?: string
 }
 
 export interface ColumnDefinition {
@@ -45,10 +57,20 @@ export interface TableSchema {
   columns: ColumnDefinition[]
 }
 
-/** UI-only metadata stored alongside the table definition. */
+/**
+ * Table-level metadata stored alongside the table definition. Holds both UI state
+ * (column widths, column order) and behavioral settings (e.g. scheduler concurrency)
+ * — treat it as first-class backend state, not UI-only.
+ */
 export interface TableMetadata {
   columnWidths?: Record<string, number>
   columnOrder?: string[]
+  /**
+   * Maximum number of workflow-column runs to execute concurrently per scheduler
+   * pass. Clamped to 1..100. When unset, the scheduler uses
+   * `TABLE_LIMITS.WORKFLOW_COLUMN_BATCH_SIZE`.
+   */
+  workflowColumnBatchSize?: number
 }
 
 export interface TableDefinition {

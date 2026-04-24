@@ -14,6 +14,7 @@ const MetadataSchema = z.object({
   metadata: z.object({
     columnWidths: z.record(z.number().positive()).optional(),
     columnOrder: z.array(z.string()).optional(),
+    workflowColumnBatchSize: z.number().int().min(1).max(100).optional(),
   }),
 })
 
