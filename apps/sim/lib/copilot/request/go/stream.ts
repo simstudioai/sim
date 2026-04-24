@@ -134,17 +134,27 @@ export async function runStreamLoop(
     requestBodyBytes,
   })
   const fetchStart = performance.now()
-  const response = await fetchGo(fetchUrl, {
-    ...fetchOptions,
-    signal: abortSignal,
-    otelContext: options.otelContext,
-    spanName: `sim → go ${pathname}`,
-    operation: 'stream',
-    attributes: {
-      [TraceAttr.CopilotStream]: true,
-      ...(requestBodyBytes ? { [TraceAttr.HttpRequestContentLength]: requestBodyBytes } : {}),
-    },
-  })
+  let response: Response
+  try {
+    response = await fetchGo(fetchUrl, {
+      ...fetchOptions,
+      signal: abortSignal,
+      otelContext: options.otelContext,
+      spanName: `sim → go ${pathname}`,
+      operation: 'stream',
+      attributes: {
+        [TraceAttr.CopilotStream]: true,
+        ...(requestBodyBytes ? { [TraceAttr.HttpRequestContentLength]: requestBodyBytes } : {}),
+      },
+    })
+  } catch (error) {
+    fetchSpan.attributes = {
+      ...(fetchSpan.attributes ?? {}),
+      headersMs: Math.round(performance.now() - fetchStart),
+    }
+    context.trace.endSpan(fetchSpan, abortSignal?.aborted ? 'cancelled' : 'error')
+    throw error
+  }
   const headersElapsedMs = Math.round(performance.now() - fetchStart)
   fetchSpan.attributes = {
     ...(fetchSpan.attributes ?? {}),
