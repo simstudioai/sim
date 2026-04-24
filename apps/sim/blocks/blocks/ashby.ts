@@ -113,7 +113,6 @@ export const AshbyBlock: BlockConfig = {
       id: 'email',
       title: 'Email',
       type: 'short-input',
-      required: { field: 'operation', value: 'create_candidate' },
       placeholder: 'Email address',
       condition: { field: 'operation', value: ['create_candidate', 'update_candidate'] },
     },
@@ -309,14 +308,6 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       mode: 'advanced',
     },
     {
-      id: 'filterCandidateId',
-      title: 'Candidate ID Filter',
-      type: 'short-input',
-      placeholder: 'Filter by candidate UUID',
-      condition: { field: 'operation', value: 'list_applications' },
-      mode: 'advanced',
-    },
-    {
       id: 'createdAfter',
       title: 'Created After',
       type: 'short-input',
@@ -366,6 +357,7 @@ Output only the ISO 8601 timestamp string, nothing else.`,
           'list_openings',
           'list_users',
           'list_interviews',
+          'list_candidate_tags',
         ],
       },
       mode: 'advanced',
@@ -386,8 +378,41 @@ Output only the ISO 8601 timestamp string, nothing else.`,
           'list_openings',
           'list_users',
           'list_interviews',
+          'list_candidate_tags',
         ],
       },
+      mode: 'advanced',
+    },
+    {
+      id: 'syncToken',
+      title: 'Sync Token',
+      type: 'short-input',
+      placeholder: 'Sync token for incremental updates',
+      condition: { field: 'operation', value: 'list_candidate_tags' },
+      mode: 'advanced',
+    },
+    {
+      id: 'includeArchived',
+      title: 'Include Archived',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: ['list_candidate_tags', 'list_archive_reasons'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'expandApplicationFormDefinition',
+      title: 'Include Application Form Definition',
+      type: 'switch',
+      condition: { field: 'operation', value: 'get_job_posting' },
+      mode: 'advanced',
+    },
+    {
+      id: 'expandSurveyFormDefinitions',
+      title: 'Include Survey Form Definitions',
+      type: 'switch',
+      condition: { field: 'operation', value: 'get_job_posting' },
       mode: 'advanced',
     },
     {
@@ -476,10 +501,24 @@ Output only the ISO 8601 timestamp string, nothing else.`,
         if (params.searchEmail) result.email = params.searchEmail
         if (params.filterStatus) result.status = params.filterStatus
         if (params.filterJobId) result.jobId = params.filterJobId
-        if (params.filterCandidateId) result.candidateId = params.filterCandidateId
         if (params.jobStatus) result.status = params.jobStatus
         if (params.sendNotifications === 'true' || params.sendNotifications === true) {
           result.sendNotifications = true
+        }
+        if (params.includeArchived === 'true' || params.includeArchived === true) {
+          result.includeArchived = true
+        }
+        if (
+          params.expandApplicationFormDefinition === 'true' ||
+          params.expandApplicationFormDefinition === true
+        ) {
+          result.expandApplicationFormDefinition = true
+        }
+        if (
+          params.expandSurveyFormDefinitions === 'true' ||
+          params.expandSurveyFormDefinitions === true
+        ) {
+          result.expandSurveyFormDefinitions = true
         }
         if (params.appCandidateId) result.candidateId = params.appCandidateId
         if (params.appCreatedAt) result.createdAt = params.appCreatedAt
@@ -515,11 +554,20 @@ Output only the ISO 8601 timestamp string, nothing else.`,
     sendNotifications: { type: 'boolean', description: 'Send notifications' },
     filterStatus: { type: 'string', description: 'Application status filter' },
     filterJobId: { type: 'string', description: 'Job UUID filter' },
-    filterCandidateId: { type: 'string', description: 'Candidate UUID filter' },
     createdAfter: { type: 'string', description: 'Filter by creation date' },
     jobStatus: { type: 'string', description: 'Job status filter' },
     cursor: { type: 'string', description: 'Pagination cursor' },
     perPage: { type: 'number', description: 'Results per page' },
+    syncToken: { type: 'string', description: 'Sync token for incremental updates' },
+    includeArchived: { type: 'boolean', description: 'Include archived records' },
+    expandApplicationFormDefinition: {
+      type: 'boolean',
+      description: 'Include application form definition in job posting',
+    },
+    expandSurveyFormDefinitions: {
+      type: 'boolean',
+      description: 'Include survey form definitions in job posting',
+    },
     tagId: { type: 'string', description: 'Tag UUID' },
     offerId: { type: 'string', description: 'Offer UUID' },
     jobPostingId: { type: 'string', description: 'Job posting UUID' },
@@ -530,93 +578,113 @@ Output only the ISO 8601 timestamp string, nothing else.`,
     candidates: {
       type: 'json',
       description:
-        'List of candidates (id, name, primaryEmailAddress, primaryPhoneNumber, createdAt, updatedAt)',
+        'List of candidates with rich fields (id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses[], phoneNumbers[], socialLinks[], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents[], tags[], applicationIds[], customFields[], resumeFileHandle, fileHandles[], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt)',
     },
     jobs: {
       type: 'json',
       description:
-        'List of jobs (id, title, status, employmentType, departmentId, locationId, createdAt, updatedAt)',
+        'List of jobs (id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds[], customFields[], jobPostingIds[], customRequisitionId, brandId, hiringTeam[], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings[] with latestVersion, compensation with compensationTiers[])',
     },
     applications: {
       type: 'json',
       description:
-        'List of applications (id, status, candidate, job, currentInterviewStage, source, createdAt, updatedAt)',
+        'List of applications (id, status, customFields[], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields[], archivedAt, job summary, creditedToUser, hiringTeam[], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt)',
     },
     notes: {
       type: 'json',
-      description: 'List of notes (id, content, author, createdAt)',
+      description: 'List of notes (id, content, author, isPrivate, createdAt)',
     },
     offers: {
       type: 'json',
       description:
-        'List of offers (id, offerStatus, acceptanceStatus, applicationId, startDate, salary, openingId)',
+        'List of offers (id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields[]/fileHandles[]/author/approvalStatus)',
     },
     archiveReasons: {
       type: 'json',
-      description: 'List of archive reasons (id, text, reasonType, isArchived)',
+      description:
+        'List of archive reasons (id, text, reasonType [RejectedByCandidate/RejectedByOrg/Other], isArchived)',
     },
     sources: {
       type: 'json',
-      description: 'List of sources (id, title, isArchived)',
+      description: 'List of sources (id, title, isArchived, sourceType {id, title, isArchived})',
     },
     customFields: {
       type: 'json',
-      description: 'List of custom fields (id, title, fieldType, objectType, isArchived)',
+      description:
+        'List of custom field definitions (id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues[] {label, value, isArchived})',
     },
     departments: {
       type: 'json',
-      description: 'List of departments (id, name, isArchived, parentId)',
+      description:
+        'List of departments (id, name, externalName, isArchived, parentId, createdAt, updatedAt)',
     },
     locations: {
       type: 'json',
-      description: 'List of locations (id, name, isArchived, isRemote, address)',
+      description:
+        'List of locations (id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress)',
     },
     jobPostings: {
       type: 'json',
       description:
-        'List of job postings (id, title, jobId, locationName, departmentName, employmentType, isListed, publishedDate)',
+        'List of job postings (id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt)',
     },
     openings: {
       type: 'json',
-      description: 'List of openings (id, openingState, isArchived, openedAt, closedAt)',
+      description:
+        'List of openings (id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds[]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds[]/hiringTeam[]/customFields[])',
     },
     users: {
       type: 'json',
-      description: 'List of users (id, firstName, lastName, email, isEnabled, globalRole)',
+      description:
+        'List of users (id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId)',
     },
     interviewSchedules: {
       type: 'json',
       description:
-        'List of interview schedules (id, applicationId, interviewStageId, status, createdAt)',
+        'List of interview schedules (id, applicationId, interviewStageId, interviewEvents[] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt)',
     },
     tags: {
       type: 'json',
       description: 'List of candidate tags (id, title, isArchived)',
     },
-    stageId: { type: 'string', description: 'Interview stage UUID after stage change' },
-    success: { type: 'boolean', description: 'Whether the operation succeeded' },
-    offerStatus: {
-      type: 'string',
-      description: 'Offer status (e.g. WaitingOnCandidateResponse, CandidateAccepted)',
-    },
-    acceptanceStatus: {
-      type: 'string',
-      description: 'Acceptance status (e.g. Accepted, Declined, Pending)',
-    },
-    applicationId: { type: 'string', description: 'Associated application UUID' },
-    openingId: { type: 'string', description: 'Opening UUID associated with the offer' },
-    salary: {
-      type: 'json',
-      description: 'Salary details from latest version (currencyCode, value)',
-    },
-    startDate: { type: 'string', description: 'Offer start date from latest version' },
     id: { type: 'string', description: 'Resource UUID' },
     name: { type: 'string', description: 'Resource name' },
-    title: { type: 'string', description: 'Job title' },
+    title: { type: 'string', description: 'Job title or job posting title' },
     status: { type: 'string', description: 'Status' },
-    noteId: { type: 'string', description: 'Created note UUID' },
+    candidate: {
+      type: 'json',
+      description:
+        'Candidate details (id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses[], phoneNumbers[], socialLinks[], customFields[], source, creditedToUser, createdAt, updatedAt)',
+    },
+    job: {
+      type: 'json',
+      description:
+        'Job details (id, title, status, employmentType, locationId, departmentId, hiringTeam[], author, location, openings[], compensation, createdAt, updatedAt)',
+    },
+    application: {
+      type: 'json',
+      description:
+        'Application details (id, status, customFields[], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam[], createdAt, updatedAt)',
+    },
+    offer: {
+      type: 'json',
+      description:
+        'Offer details (id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion)',
+    },
+    jobPosting: {
+      type: 'json',
+      description:
+        'Job posting details (id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy[], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt)',
+    },
     content: { type: 'string', description: 'Note content' },
+    author: {
+      type: 'json',
+      description: 'Note author (id, firstName, lastName, email, globalRole, isEnabled)',
+    },
+    isPrivate: { type: 'boolean', description: 'Whether the note is private' },
+    createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
     moreDataAvailable: { type: 'boolean', description: 'Whether more pages exist' },
     nextCursor: { type: 'string', description: 'Pagination cursor for next page' },
+    syncToken: { type: 'string', description: 'Sync token for incremental updates' },
   },
 }

@@ -1,3 +1,5 @@
+import type { AshbyOffer } from '@/tools/ashby/types'
+import { mapOffer, OFFER_OUTPUTS } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListOffersParams {
@@ -8,19 +10,7 @@ interface AshbyListOffersParams {
 
 interface AshbyListOffersResponse extends ToolResponse {
   output: {
-    offers: Array<{
-      id: string
-      offerStatus: string
-      acceptanceStatus: string | null
-      applicationId: string | null
-      startDate: string | null
-      salary: {
-        currencyCode: string
-        value: number
-      } | null
-      openingId: string | null
-      createdAt: string | null
-    }>
+    offers: AshbyOffer[]
     moreDataAvailable: boolean
     nextCursor: string | null
   }
@@ -78,35 +68,7 @@ export const listOffersTool: ToolConfig<AshbyListOffersParams, AshbyListOffersRe
     return {
       success: true,
       output: {
-        offers: (data.results ?? []).map(
-          (
-            o: Record<string, unknown> & {
-              latestVersion?: {
-                startDate?: string
-                salary?: { currencyCode?: string; value?: number }
-                openingId?: string
-                createdAt?: string
-              }
-            }
-          ) => {
-            const v = o.latestVersion
-            return {
-              id: o.id ?? null,
-              offerStatus: o.offerStatus ?? null,
-              acceptanceStatus: o.acceptanceStatus ?? null,
-              applicationId: o.applicationId ?? null,
-              startDate: v?.startDate ?? null,
-              salary: v?.salary
-                ? {
-                    currencyCode: v.salary.currencyCode ?? null,
-                    value: v.salary.value ?? null,
-                  }
-                : null,
-              openingId: v?.openingId ?? null,
-              createdAt: v?.createdAt ?? null,
-            }
-          }
-        ),
+        offers: (data.results ?? []).map(mapOffer),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
       },
@@ -119,28 +81,7 @@ export const listOffersTool: ToolConfig<AshbyListOffersParams, AshbyListOffersRe
       description: 'List of offers',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Offer UUID' },
-          offerStatus: { type: 'string', description: 'Offer status' },
-          acceptanceStatus: { type: 'string', description: 'Acceptance status', optional: true },
-          applicationId: {
-            type: 'string',
-            description: 'Associated application UUID',
-            optional: true,
-          },
-          startDate: { type: 'string', description: 'Offer start date', optional: true },
-          salary: {
-            type: 'object',
-            description: 'Salary details',
-            optional: true,
-            properties: {
-              currencyCode: { type: 'string', description: 'ISO 4217 currency code' },
-              value: { type: 'number', description: 'Salary amount' },
-            },
-          },
-          openingId: { type: 'string', description: 'Associated opening UUID', optional: true },
-          createdAt: { type: 'string', description: 'ISO 8601 creation timestamp', optional: true },
-        },
+        properties: OFFER_OUTPUTS,
       },
     },
     moreDataAvailable: {

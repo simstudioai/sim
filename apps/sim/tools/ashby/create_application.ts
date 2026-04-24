@@ -1,3 +1,5 @@
+import type { AshbyApplication } from '@/tools/ashby/types'
+import { APPLICATION_OUTPUTS, mapApplication } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyCreateApplicationParams {
@@ -12,9 +14,7 @@ interface AshbyCreateApplicationParams {
 }
 
 interface AshbyCreateApplicationResponse extends ToolResponse {
-  output: {
-    applicationId: string
-  }
+  output: AshbyApplication
 }
 
 export const createApplicationTool: ToolConfig<
@@ -88,13 +88,13 @@ export const createApplicationTool: ToolConfig<
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
-        candidateId: params.candidateId,
-        jobId: params.jobId,
+        candidateId: params.candidateId.trim(),
+        jobId: params.jobId.trim(),
       }
-      if (params.interviewPlanId) body.interviewPlanId = params.interviewPlanId
-      if (params.interviewStageId) body.interviewStageId = params.interviewStageId
-      if (params.sourceId) body.sourceId = params.sourceId
-      if (params.creditedToUserId) body.creditedToUserId = params.creditedToUserId
+      if (params.interviewPlanId) body.interviewPlanId = params.interviewPlanId.trim()
+      if (params.interviewStageId) body.interviewStageId = params.interviewStageId.trim()
+      if (params.sourceId) body.sourceId = params.sourceId.trim()
+      if (params.creditedToUserId) body.creditedToUserId = params.creditedToUserId.trim()
       if (params.createdAt) body.createdAt = params.createdAt
       return body
     },
@@ -107,17 +107,11 @@ export const createApplicationTool: ToolConfig<
       throw new Error(data.errorInfo?.message || 'Failed to create application')
     }
 
-    const r = data.results
-
     return {
       success: true,
-      output: {
-        applicationId: r.applicationId ?? null,
-      },
+      output: mapApplication(data.results),
     }
   },
 
-  outputs: {
-    applicationId: { type: 'string', description: 'Created application UUID' },
-  },
+  outputs: APPLICATION_OUTPUTS,
 }

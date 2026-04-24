@@ -38,7 +38,7 @@ Integrate Ashby into the workflow. Manage candidates (list, get, create, update,
 
 ### `ashby_add_candidate_tag`
 
-Adds a tag to a candidate in Ashby.
+Adds a tag to a candidate in Ashby and returns the updated candidate.
 
 #### Input
 
@@ -52,7 +52,37 @@ Adds a tag to a candidate in Ashby.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the tag was successfully added |
+| `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
+| `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
+| `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
+| `archiveReasons` | json | List of archive reasons \(id, text, reasonType \[RejectedByCandidate/RejectedByOrg/Other\], isArchived\) |
+| `sources` | json | List of sources \(id, title, isArchived, sourceType \{id, title, isArchived\}\) |
+| `customFields` | json | List of custom field definitions \(id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues\[\] \{label, value, isArchived\}\) |
+| `departments` | json | List of departments \(id, name, externalName, isArchived, parentId, createdAt, updatedAt\) |
+| `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
+| `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
+| `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
+| `tags` | json | List of candidate tags \(id, title, isArchived\) |
+| `id` | string | Resource UUID |
+| `name` | string | Resource name |
+| `title` | string | Job title or job posting title |
+| `status` | string | Status |
+| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
+| `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `content` | string | Note content |
+| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `isPrivate` | boolean | Whether the note is private |
+| `createdAt` | string | ISO 8601 creation timestamp |
+| `moreDataAvailable` | boolean | Whether more pages exist |
+| `nextCursor` | string | Pagination cursor for next page |
+| `syncToken` | string | Sync token for incremental updates |
 
 ### `ashby_change_application_stage`
 
@@ -71,8 +101,37 @@ Moves an application to a different interview stage. Requires an archive reason 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `applicationId` | string | Application UUID |
-| `stageId` | string | New interview stage UUID |
+| `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
+| `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
+| `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
+| `archiveReasons` | json | List of archive reasons \(id, text, reasonType \[RejectedByCandidate/RejectedByOrg/Other\], isArchived\) |
+| `sources` | json | List of sources \(id, title, isArchived, sourceType \{id, title, isArchived\}\) |
+| `customFields` | json | List of custom field definitions \(id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues\[\] \{label, value, isArchived\}\) |
+| `departments` | json | List of departments \(id, name, externalName, isArchived, parentId, createdAt, updatedAt\) |
+| `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
+| `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
+| `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
+| `tags` | json | List of candidate tags \(id, title, isArchived\) |
+| `id` | string | Resource UUID |
+| `name` | string | Resource name |
+| `title` | string | Job title or job posting title |
+| `status` | string | Status |
+| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
+| `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `content` | string | Note content |
+| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `isPrivate` | boolean | Whether the note is private |
+| `createdAt` | string | ISO 8601 creation timestamp |
+| `moreDataAvailable` | boolean | Whether more pages exist |
+| `nextCursor` | string | Pagination cursor for next page |
+| `syncToken` | string | Sync token for incremental updates |
 
 ### `ashby_create_application`
 
@@ -95,7 +154,37 @@ Creates a new application for a candidate on a job. Optionally specify interview
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `applicationId` | string | Created application UUID |
+| `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
+| `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
+| `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
+| `archiveReasons` | json | List of archive reasons \(id, text, reasonType \[RejectedByCandidate/RejectedByOrg/Other\], isArchived\) |
+| `sources` | json | List of sources \(id, title, isArchived, sourceType \{id, title, isArchived\}\) |
+| `customFields` | json | List of custom field definitions \(id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues\[\] \{label, value, isArchived\}\) |
+| `departments` | json | List of departments \(id, name, externalName, isArchived, parentId, createdAt, updatedAt\) |
+| `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
+| `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
+| `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
+| `tags` | json | List of candidate tags \(id, title, isArchived\) |
+| `id` | string | Resource UUID |
+| `name` | string | Resource name |
+| `title` | string | Job title or job posting title |
+| `status` | string | Status |
+| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
+| `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `content` | string | Note content |
+| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `isPrivate` | boolean | Whether the note is private |
+| `createdAt` | string | ISO 8601 creation timestamp |
+| `moreDataAvailable` | boolean | Whether more pages exist |
+| `nextCursor` | string | Pagination cursor for next page |
+| `syncToken` | string | Sync token for incremental updates |
 
 ### `ashby_create_candidate`
 
@@ -107,7 +196,7 @@ Creates a new candidate record in Ashby.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Ashby API Key |
 | `name` | string | Yes | The candidate full name |
-| `email` | string | Yes | Primary email address for the candidate |
+| `email` | string | No | Primary email address for the candidate |
 | `phoneNumber` | string | No | Primary phone number for the candidate |
 | `linkedInUrl` | string | No | LinkedIn profile URL |
 | `githubUrl` | string | No | GitHub profile URL |
@@ -117,17 +206,37 @@ Creates a new candidate record in Ashby.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Created candidate UUID |
-| `name` | string | Full name |
-| `primaryEmailAddress` | object | Primary email contact info |
-|   ↳ `value` | string | Email address |
-|   ↳ `type` | string | Contact type \(Personal, Work, Other\) |
-|   ↳ `isPrimary` | boolean | Whether this is the primary email |
-| `primaryPhoneNumber` | object | Primary phone contact info |
-|   ↳ `value` | string | Phone number |
-|   ↳ `type` | string | Contact type \(Personal, Work, Other\) |
-|   ↳ `isPrimary` | boolean | Whether this is the primary phone |
+| `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
+| `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
+| `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
+| `archiveReasons` | json | List of archive reasons \(id, text, reasonType \[RejectedByCandidate/RejectedByOrg/Other\], isArchived\) |
+| `sources` | json | List of sources \(id, title, isArchived, sourceType \{id, title, isArchived\}\) |
+| `customFields` | json | List of custom field definitions \(id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues\[\] \{label, value, isArchived\}\) |
+| `departments` | json | List of departments \(id, name, externalName, isArchived, parentId, createdAt, updatedAt\) |
+| `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
+| `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
+| `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
+| `tags` | json | List of candidate tags \(id, title, isArchived\) |
+| `id` | string | Resource UUID |
+| `name` | string | Resource name |
+| `title` | string | Job title or job posting title |
+| `status` | string | Status |
+| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
+| `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `content` | string | Note content |
+| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `isPrivate` | boolean | Whether the note is private |
 | `createdAt` | string | ISO 8601 creation timestamp |
+| `moreDataAvailable` | boolean | Whether more pages exist |
+| `nextCursor` | string | Pagination cursor for next page |
+| `syncToken` | string | Sync token for incremental updates |
 
 ### `ashby_create_note`
 
@@ -147,7 +256,15 @@ Creates a note on a candidate in Ashby. Supports plain text and HTML content (bo
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `noteId` | string | Created note UUID |
+| `id` | string | Created note UUID |
+| `createdAt` | string | ISO 8601 creation timestamp |
+| `isPrivate` | boolean | Whether the note is private |
+| `content` | string | Note content |
+| `author` | object | Author of the note |
+|   ↳ `id` | string | Author user UUID |
+|   ↳ `firstName` | string | Author first name |
+|   ↳ `lastName` | string | Author last name |
+|   ↳ `email` | string | Author email |
 
 ### `ashby_get_application`
 
@@ -164,28 +281,37 @@ Retrieves full details about a single application by its ID.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Application UUID |
-| `status` | string | Application status \(Active, Hired, Archived, Lead\) |
-| `candidate` | object | Associated candidate |
-|   ↳ `id` | string | Candidate UUID |
-|   ↳ `name` | string | Candidate name |
-| `job` | object | Associated job |
-|   ↳ `id` | string | Job UUID |
-|   ↳ `title` | string | Job title |
-| `currentInterviewStage` | object | Current interview stage |
-|   ↳ `id` | string | Stage UUID |
-|   ↳ `title` | string | Stage title |
-|   ↳ `type` | string | Stage type |
-| `source` | object | Application source |
-|   ↳ `id` | string | Source UUID |
-|   ↳ `title` | string | Source title |
-| `archiveReason` | object | Reason for archival |
-|   ↳ `id` | string | Reason UUID |
-|   ↳ `text` | string | Reason text |
-|   ↳ `reasonType` | string | Reason type |
-| `archivedAt` | string | ISO 8601 archive timestamp |
+| `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
+| `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
+| `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
+| `archiveReasons` | json | List of archive reasons \(id, text, reasonType \[RejectedByCandidate/RejectedByOrg/Other\], isArchived\) |
+| `sources` | json | List of sources \(id, title, isArchived, sourceType \{id, title, isArchived\}\) |
+| `customFields` | json | List of custom field definitions \(id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues\[\] \{label, value, isArchived\}\) |
+| `departments` | json | List of departments \(id, name, externalName, isArchived, parentId, createdAt, updatedAt\) |
+| `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
+| `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
+| `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
+| `tags` | json | List of candidate tags \(id, title, isArchived\) |
+| `id` | string | Resource UUID |
+| `name` | string | Resource name |
+| `title` | string | Job title or job posting title |
+| `status` | string | Status |
+| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
+| `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `content` | string | Note content |
+| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `isPrivate` | boolean | Whether the note is private |
 | `createdAt` | string | ISO 8601 creation timestamp |
-| `updatedAt` | string | ISO 8601 last update timestamp |
+| `moreDataAvailable` | boolean | Whether more pages exist |
+| `nextCursor` | string | Pagination cursor for next page |
+| `syncToken` | string | Sync token for incremental updates |
 
 ### `ashby_get_candidate`
 
@@ -202,27 +328,37 @@ Retrieves full details about a single candidate by their ID.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Candidate UUID |
-| `name` | string | Full name |
-| `primaryEmailAddress` | object | Primary email contact info |
-|   ↳ `value` | string | Email address |
-|   ↳ `type` | string | Contact type \(Personal, Work, Other\) |
-|   ↳ `isPrimary` | boolean | Whether this is the primary email |
-| `primaryPhoneNumber` | object | Primary phone contact info |
-|   ↳ `value` | string | Phone number |
-|   ↳ `type` | string | Contact type \(Personal, Work, Other\) |
-|   ↳ `isPrimary` | boolean | Whether this is the primary phone |
-| `profileUrl` | string | URL to the candidate Ashby profile |
-| `position` | string | Current position or title |
-| `company` | string | Current company |
-| `linkedInUrl` | string | LinkedIn profile URL |
-| `githubUrl` | string | GitHub profile URL |
-| `tags` | array | Tags applied to the candidate |
-|   ↳ `id` | string | Tag UUID |
-|   ↳ `title` | string | Tag title |
-| `applicationIds` | array | IDs of associated applications |
+| `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
+| `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
+| `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
+| `archiveReasons` | json | List of archive reasons \(id, text, reasonType \[RejectedByCandidate/RejectedByOrg/Other\], isArchived\) |
+| `sources` | json | List of sources \(id, title, isArchived, sourceType \{id, title, isArchived\}\) |
+| `customFields` | json | List of custom field definitions \(id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues\[\] \{label, value, isArchived\}\) |
+| `departments` | json | List of departments \(id, name, externalName, isArchived, parentId, createdAt, updatedAt\) |
+| `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
+| `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
+| `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
+| `tags` | json | List of candidate tags \(id, title, isArchived\) |
+| `id` | string | Resource UUID |
+| `name` | string | Resource name |
+| `title` | string | Job title or job posting title |
+| `status` | string | Status |
+| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
+| `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `content` | string | Note content |
+| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `isPrivate` | boolean | Whether the note is private |
 | `createdAt` | string | ISO 8601 creation timestamp |
-| `updatedAt` | string | ISO 8601 last update timestamp |
+| `moreDataAvailable` | boolean | Whether more pages exist |
+| `nextCursor` | string | Pagination cursor for next page |
+| `syncToken` | string | Sync token for incremental updates |
 
 ### `ashby_get_job`
 
@@ -239,16 +375,37 @@ Retrieves full details about a single job by its ID.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Job UUID |
-| `title` | string | Job title |
-| `status` | string | Job status \(Open, Closed, Draft, Archived\) |
-| `employmentType` | string | Employment type \(FullTime, PartTime, Intern, Contract, Temporary\) |
-| `departmentId` | string | Department UUID |
-| `locationId` | string | Location UUID |
-| `descriptionPlain` | string | Job description in plain text |
-| `isArchived` | boolean | Whether the job is archived |
+| `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
+| `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
+| `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
+| `archiveReasons` | json | List of archive reasons \(id, text, reasonType \[RejectedByCandidate/RejectedByOrg/Other\], isArchived\) |
+| `sources` | json | List of sources \(id, title, isArchived, sourceType \{id, title, isArchived\}\) |
+| `customFields` | json | List of custom field definitions \(id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues\[\] \{label, value, isArchived\}\) |
+| `departments` | json | List of departments \(id, name, externalName, isArchived, parentId, createdAt, updatedAt\) |
+| `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
+| `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
+| `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
+| `tags` | json | List of candidate tags \(id, title, isArchived\) |
+| `id` | string | Resource UUID |
+| `name` | string | Resource name |
+| `title` | string | Job title or job posting title |
+| `status` | string | Status |
+| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
+| `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `content` | string | Note content |
+| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `isPrivate` | boolean | Whether the note is private |
 | `createdAt` | string | ISO 8601 creation timestamp |
-| `updatedAt` | string | ISO 8601 last update timestamp |
+| `moreDataAvailable` | boolean | Whether more pages exist |
+| `nextCursor` | string | Pagination cursor for next page |
+| `syncToken` | string | Sync token for incremental updates |
 
 ### `ashby_get_job_posting`
 
@@ -260,6 +417,8 @@ Retrieves full details about a single job posting by its ID.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Ashby API Key |
 | `jobPostingId` | string | Yes | The UUID of the job posting to fetch |
+| `expandApplicationFormDefinition` | boolean | No | Include application form definition in the response |
+| `expandSurveyFormDefinitions` | boolean | No | Include survey form definitions in the response |
 
 #### Output
 
@@ -267,14 +426,56 @@ Retrieves full details about a single job posting by its ID.
 | --------- | ---- | ----------- |
 | `id` | string | Job posting UUID |
 | `title` | string | Job posting title |
-| `jobId` | string | Associated job UUID |
-| `locationName` | string | Location name |
+| `descriptionPlain` | string | Full description in plain text |
+| `descriptionHtml` | string | Full description in HTML |
+| `descriptionSocial` | string | Shortened description for social sharing \(max 200 chars\) |
+| `descriptionParts` | object | Description broken into opening, body, and closing sections |
+|   ↳ `descriptionOpening` | object | Opening \(from Job Boards theme settings\) |
+|     ↳ `html` | string | HTML content |
+|     ↳ `plain` | string | Plain text content |
+|   ↳ `descriptionBody` | object | Main description body |
+|     ↳ `html` | string | HTML content |
+|     ↳ `plain` | string | Plain text content |
+|   ↳ `descriptionClosing` | object | Closing \(from Job Boards theme settings\) |
+|     ↳ `html` | string | HTML content |
+|     ↳ `plain` | string | Plain text content |
 | `departmentName` | string | Department name |
-| `employmentType` | string | Employment type \(e.g. FullTime, PartTime, Contract\) |
-| `descriptionPlain` | string | Job posting description in plain text |
-| `isListed` | boolean | Whether the posting is publicly listed |
+| `teamName` | string | Team name |
+| `teamNameHierarchy` | array | Hierarchy of team names from root to team |
+| `jobId` | string | Associated job UUID |
+| `locationName` | string | Primary location name |
+| `locationIds` | object | Primary and secondary location UUIDs |
+|   ↳ `primaryLocationId` | string | Primary location UUID |
+|   ↳ `secondaryLocationIds` | array | Secondary location UUIDs |
+| `address` | object | Postal address of the posting location |
+|   ↳ `postalAddress` | object | Structured postal address |
+|     ↳ `addressCountry` | string | Country |
+|     ↳ `addressRegion` | string | State or region |
+|     ↳ `addressLocality` | string | City or locality |
+|     ↳ `postalCode` | string | Postal code |
+|     ↳ `streetAddress` | string | Street address |
+| `isRemote` | boolean | Whether the posting is remote |
+| `workplaceType` | string | Workplace type \(OnSite, Remote, Hybrid\) |
+| `employmentType` | string | Employment type \(FullTime, PartTime, Intern, Contract, Temporary\) |
+| `isListed` | boolean | Whether publicly listed on the job board |
+| `suppressDescriptionOpening` | boolean | Whether the theme opening is hidden on this posting |
+| `suppressDescriptionClosing` | boolean | Whether the theme closing is hidden on this posting |
 | `publishedDate` | string | ISO 8601 published date |
+| `applicationDeadline` | string | ISO 8601 application deadline |
 | `externalLink` | string | External link to the job posting |
+| `applyLink` | string | Direct apply link |
+| `compensation` | object | Compensation details for the posting |
+|   ↳ `compensationTierSummary` | string | Human-readable tier summary |
+|   ↳ `summaryComponents` | array | Structured compensation components |
+|     ↳ `summary` | string | Component summary |
+|     ↳ `compensationTypeLabel` | string | Component type label \(Salary, Commission, Bonus, Equity, etc.\) |
+|     ↳ `interval` | string | Payment interval \(e.g. annual, hourly\) |
+|     ↳ `currencyCode` | string | ISO 4217 currency code |
+|     ↳ `minValue` | number | Minimum value |
+|     ↳ `maxValue` | number | Maximum value |
+|   ↳ `shouldDisplayCompensationOnJobBoard` | boolean | Whether compensation is shown on the job board |
+| `applicationLimitCalloutHtml` | string | HTML callout shown when application limit is reached |
+| `updatedAt` | string | ISO 8601 last update timestamp |
 
 ### `ashby_get_offer`
 
@@ -291,20 +492,41 @@ Retrieves full details about a single offer by its ID.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Offer UUID |
-| `offerStatus` | string | Offer status \(e.g. WaitingOnCandidateResponse, CandidateAccepted\) |
-| `acceptanceStatus` | string | Acceptance status \(e.g. Accepted, Declined, Pending\) |
-| `applicationId` | string | Associated application UUID |
-| `startDate` | string | Offer start date |
-| `salary` | object | Salary details |
-|   ↳ `currencyCode` | string | ISO 4217 currency code |
-|   ↳ `value` | number | Salary amount |
-| `openingId` | string | Associated opening UUID |
-| `createdAt` | string | ISO 8601 creation timestamp \(from latest version\) |
+| `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
+| `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
+| `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
+| `archiveReasons` | json | List of archive reasons \(id, text, reasonType \[RejectedByCandidate/RejectedByOrg/Other\], isArchived\) |
+| `sources` | json | List of sources \(id, title, isArchived, sourceType \{id, title, isArchived\}\) |
+| `customFields` | json | List of custom field definitions \(id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues\[\] \{label, value, isArchived\}\) |
+| `departments` | json | List of departments \(id, name, externalName, isArchived, parentId, createdAt, updatedAt\) |
+| `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
+| `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
+| `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
+| `tags` | json | List of candidate tags \(id, title, isArchived\) |
+| `id` | string | Resource UUID |
+| `name` | string | Resource name |
+| `title` | string | Job title or job posting title |
+| `status` | string | Status |
+| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
+| `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `content` | string | Note content |
+| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `isPrivate` | boolean | Whether the note is private |
+| `createdAt` | string | ISO 8601 creation timestamp |
+| `moreDataAvailable` | boolean | Whether more pages exist |
+| `nextCursor` | string | Pagination cursor for next page |
+| `syncToken` | string | Sync token for incremental updates |
 
 ### `ashby_list_applications`
 
-Lists all applications in an Ashby organization with pagination and optional filters for status, job, candidate, and creation date.
+Lists all applications in an Ashby organization with pagination and optional filters for status, job, and creation date.
 
 #### Input
 
@@ -315,7 +537,6 @@ Lists all applications in an Ashby organization with pagination and optional fil
 | `perPage` | number | No | Number of results per page \(default 100\) |
 | `status` | string | No | Filter by application status: Active, Hired, Archived, or Lead |
 | `jobId` | string | No | Filter applications by a specific job UUID |
-| `candidateId` | string | No | Filter applications by a specific candidate UUID |
 | `createdAfter` | string | No | Filter to applications created after this ISO 8601 timestamp \(e.g. 2024-01-01T00:00:00Z\) |
 
 #### Output
@@ -323,23 +544,6 @@ Lists all applications in an Ashby organization with pagination and optional fil
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `applications` | array | List of applications |
-|   ↳ `id` | string | Application UUID |
-|   ↳ `status` | string | Application status \(Active, Hired, Archived, Lead\) |
-|   ↳ `candidate` | object | Associated candidate |
-|     ↳ `id` | string | Candidate UUID |
-|     ↳ `name` | string | Candidate name |
-|   ↳ `job` | object | Associated job |
-|     ↳ `id` | string | Job UUID |
-|     ↳ `title` | string | Job title |
-|   ↳ `currentInterviewStage` | object | Current interview stage |
-|     ↳ `id` | string | Stage UUID |
-|     ↳ `title` | string | Stage title |
-|     ↳ `type` | string | Stage type |
-|   ↳ `source` | object | Application source |
-|     ↳ `id` | string | Source UUID |
-|     ↳ `title` | string | Source title |
-|   ↳ `createdAt` | string | ISO 8601 creation timestamp |
-|   ↳ `updatedAt` | string | ISO 8601 last update timestamp |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
@@ -352,6 +556,7 @@ Lists all archive reasons configured in Ashby.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Ashby API Key |
+| `includeArchived` | boolean | No | Whether to include archived archive reasons in the response \(default false\) |
 
 #### Output
 
@@ -360,7 +565,7 @@ Lists all archive reasons configured in Ashby.
 | `archiveReasons` | array | List of archive reasons |
 |   ↳ `id` | string | Archive reason UUID |
 |   ↳ `text` | string | Archive reason text |
-|   ↳ `reasonType` | string | Reason type |
+|   ↳ `reasonType` | string | Reason type \(RejectedByCandidate, RejectedByOrg, Other\) |
 |   ↳ `isArchived` | boolean | Whether the reason is archived |
 
 ### `ashby_list_candidate_tags`
@@ -372,6 +577,10 @@ Lists all candidate tags configured in Ashby.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Ashby API Key |
+| `includeArchived` | boolean | No | Whether to include archived candidate tags \(default false\) |
+| `cursor` | string | No | Opaque pagination cursor from a previous response nextCursor value |
+| `syncToken` | string | No | Sync token from a previous response to fetch only changed results |
+| `perPage` | number | No | Number of results per page \(default 100\) |
 
 #### Output
 
@@ -381,6 +590,9 @@ Lists all candidate tags configured in Ashby.
 |   ↳ `id` | string | Tag UUID |
 |   ↳ `title` | string | Tag title |
 |   ↳ `isArchived` | boolean | Whether the tag is archived |
+| `moreDataAvailable` | boolean | Whether more pages of results exist |
+| `nextCursor` | string | Opaque cursor for fetching the next page |
+| `syncToken` | string | Sync token to use for incremental updates in future requests |
 
 ### `ashby_list_candidates`
 
@@ -399,18 +611,6 @@ Lists all candidates in an Ashby organization with cursor-based pagination.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `candidates` | array | List of candidates |
-|   ↳ `id` | string | Candidate UUID |
-|   ↳ `name` | string | Full name |
-|   ↳ `primaryEmailAddress` | object | Primary email contact info |
-|     ↳ `value` | string | Email address |
-|     ↳ `type` | string | Contact type \(Personal, Work, Other\) |
-|     ↳ `isPrimary` | boolean | Whether this is the primary email |
-|   ↳ `primaryPhoneNumber` | object | Primary phone contact info |
-|     ↳ `value` | string | Phone number |
-|     ↳ `type` | string | Contact type \(Personal, Work, Other\) |
-|     ↳ `isPrimary` | boolean | Whether this is the primary phone |
-|   ↳ `createdAt` | string | ISO 8601 creation timestamp |
-|   ↳ `updatedAt` | string | ISO 8601 last update timestamp |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
@@ -431,9 +631,15 @@ Lists all custom field definitions configured in Ashby.
 | `customFields` | array | List of custom field definitions |
 |   ↳ `id` | string | Custom field UUID |
 |   ↳ `title` | string | Custom field title |
-|   ↳ `fieldType` | string | Field type \(e.g. String, Number, Boolean\) |
-|   ↳ `objectType` | string | Object type the field applies to \(e.g. Candidate, Application, Job\) |
+|   ↳ `isPrivate` | boolean | Whether the custom field is private |
+|   ↳ `fieldType` | string | Field data type \(MultiValueSelect, NumberRange, String, Date, ValueSelect, Number, Currency, Boolean, LongText, CompensationRange\) |
+|   ↳ `objectType` | string | Object type the field applies to \(Application, Candidate, Employee, Job, Offer, Opening, Talent_Project\) |
 |   ↳ `isArchived` | boolean | Whether the custom field is archived |
+|   ↳ `isRequired` | boolean | Whether a value is required |
+|   ↳ `selectableValues` | array | Selectable values for MultiValueSelect fields \(empty for other field types\) |
+|     ↳ `label` | string | Display label |
+|     ↳ `value` | string | Stored value |
+|     ↳ `isArchived` | boolean | Whether archived |
 
 ### `ashby_list_departments`
 
@@ -452,8 +658,11 @@ Lists all departments in Ashby.
 | `departments` | array | List of departments |
 |   ↳ `id` | string | Department UUID |
 |   ↳ `name` | string | Department name |
+|   ↳ `externalName` | string | Candidate-facing name used on job boards |
 |   ↳ `isArchived` | boolean | Whether the department is archived |
 |   ↳ `parentId` | string | Parent department UUID |
+|   ↳ `createdAt` | string | ISO 8601 creation timestamp |
+|   ↳ `updatedAt` | string | ISO 8601 last update timestamp |
 
 ### `ashby_list_interviews`
 
@@ -475,10 +684,24 @@ Lists interview schedules in Ashby, optionally filtered by application or interv
 | --------- | ---- | ----------- |
 | `interviewSchedules` | array | List of interview schedules |
 |   ↳ `id` | string | Interview schedule UUID |
+|   ↳ `status` | string | Schedule status \(NeedsScheduling, WaitingOnCandidateBooking, Scheduled, Complete, Cancelled, OnHold, etc.\) |
 |   ↳ `applicationId` | string | Associated application UUID |
 |   ↳ `interviewStageId` | string | Interview stage UUID |
-|   ↳ `status` | string | Schedule status |
 |   ↳ `createdAt` | string | ISO 8601 creation timestamp |
+|   ↳ `updatedAt` | string | ISO 8601 last update timestamp |
+|   ↳ `interviewEvents` | array | Scheduled interview events on this schedule |
+|     ↳ `id` | string | Event UUID |
+|     ↳ `interviewId` | string | Interview template UUID |
+|     ↳ `interviewScheduleId` | string | Parent schedule UUID |
+|     ↳ `interviewerUserIds` | array | User UUIDs of interviewers assigned to the event |
+|     ↳ `createdAt` | string | Event creation timestamp |
+|     ↳ `updatedAt` | string | Event last updated timestamp |
+|     ↳ `startTime` | string | Event start time |
+|     ↳ `endTime` | string | Event end time |
+|     ↳ `feedbackLink` | string | URL to submit feedback for the event |
+|     ↳ `location` | string | Physical location |
+|     ↳ `meetingLink` | string | Virtual meeting URL |
+|     ↳ `hasSubmittedFeedback` | boolean | Whether any feedback has been submitted |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
@@ -500,11 +723,22 @@ Lists all job postings in Ashby.
 |   ↳ `id` | string | Job posting UUID |
 |   ↳ `title` | string | Job posting title |
 |   ↳ `jobId` | string | Associated job UUID |
-|   ↳ `locationName` | string | Location name |
 |   ↳ `departmentName` | string | Department name |
-|   ↳ `employmentType` | string | Employment type \(e.g. FullTime, PartTime, Contract\) |
+|   ↳ `teamName` | string | Team name |
+|   ↳ `locationName` | string | Primary location display name |
+|   ↳ `locationIds` | object | Primary and secondary location UUIDs |
+|     ↳ `primaryLocationId` | string | Primary location UUID |
+|     ↳ `secondaryLocationIds` | array | Secondary location UUIDs |
+|   ↳ `workplaceType` | string | Workplace type \(OnSite, Remote, Hybrid\) |
+|   ↳ `employmentType` | string | Employment type \(FullTime, PartTime, Intern, Contract, Temporary\) |
 |   ↳ `isListed` | boolean | Whether the posting is publicly listed |
 |   ↳ `publishedDate` | string | ISO 8601 published date |
+|   ↳ `applicationDeadline` | string | ISO 8601 application deadline |
+|   ↳ `externalLink` | string | External link to the job posting |
+|   ↳ `applyLink` | string | Direct apply link for the job posting |
+|   ↳ `compensationTierSummary` | string | Compensation tier summary for job boards |
+|   ↳ `shouldDisplayCompensationOnJobBoard` | boolean | Whether compensation is shown on the job board |
+|   ↳ `updatedAt` | string | ISO 8601 last update timestamp |
 
 ### `ashby_list_jobs`
 
@@ -524,14 +758,6 @@ Lists all jobs in an Ashby organization. By default returns Open, Closed, and Ar
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `jobs` | array | List of jobs |
-|   ↳ `id` | string | Job UUID |
-|   ↳ `title` | string | Job title |
-|   ↳ `status` | string | Job status \(Open, Closed, Archived, Draft\) |
-|   ↳ `employmentType` | string | Employment type \(FullTime, PartTime, Intern, Contract, Temporary\) |
-|   ↳ `departmentId` | string | Department UUID |
-|   ↳ `locationId` | string | Location UUID |
-|   ↳ `createdAt` | string | ISO 8601 creation timestamp |
-|   ↳ `updatedAt` | string | ISO 8601 last update timestamp |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
@@ -552,12 +778,18 @@ Lists all locations configured in Ashby.
 | `locations` | array | List of locations |
 |   ↳ `id` | string | Location UUID |
 |   ↳ `name` | string | Location name |
+|   ↳ `externalName` | string | Candidate-facing name used on job boards |
 |   ↳ `isArchived` | boolean | Whether the location is archived |
-|   ↳ `isRemote` | boolean | Whether this is a remote location |
-|   ↳ `address` | object | Location address |
-|     ↳ `city` | string | City |
-|     ↳ `region` | string | State or region |
-|     ↳ `country` | string | Country |
+|   ↳ `isRemote` | boolean | Whether the location is remote \(use workplaceType instead\) |
+|   ↳ `workplaceType` | string | Workplace type \(OnSite, Hybrid, Remote\) |
+|   ↳ `parentLocationId` | string | Parent location UUID |
+|   ↳ `type` | string | Location component type \(Location, LocationHierarchy\) |
+|   ↳ `address` | object | Location postal address |
+|     ↳ `addressCountry` | string | Country |
+|     ↳ `addressRegion` | string | State or region |
+|     ↳ `addressLocality` | string | City or locality |
+|     ↳ `postalCode` | string | Postal code |
+|     ↳ `streetAddress` | string | Street address |
 
 ### `ashby_list_notes`
 
@@ -579,6 +811,7 @@ Lists all notes on a candidate with pagination support.
 | `notes` | array | List of notes on the candidate |
 |   ↳ `id` | string | Note UUID |
 |   ↳ `content` | string | Note content |
+|   ↳ `isPrivate` | boolean | Whether the note is private |
 |   ↳ `author` | object | Note author |
 |     ↳ `id` | string | Author user UUID |
 |     ↳ `firstName` | string | First name |
@@ -605,16 +838,6 @@ Lists all offers with their latest version in an Ashby organization.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `offers` | array | List of offers |
-|   ↳ `id` | string | Offer UUID |
-|   ↳ `offerStatus` | string | Offer status |
-|   ↳ `acceptanceStatus` | string | Acceptance status |
-|   ↳ `applicationId` | string | Associated application UUID |
-|   ↳ `startDate` | string | Offer start date |
-|   ↳ `salary` | object | Salary details |
-|     ↳ `currencyCode` | string | ISO 4217 currency code |
-|     ↳ `value` | number | Salary amount |
-|   ↳ `openingId` | string | Associated opening UUID |
-|   ↳ `createdAt` | string | ISO 8601 creation timestamp |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
@@ -634,12 +857,6 @@ Lists all openings in Ashby with pagination.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `openings` | array | List of openings |
-|   ↳ `id` | string | Opening UUID |
-|   ↳ `openingState` | string | Opening state \(Approved, Closed, Draft, Filled, Open\) |
-|   ↳ `isArchived` | boolean | Whether the opening is archived |
-|   ↳ `openedAt` | string | ISO 8601 opened timestamp |
-|   ↳ `closedAt` | string | ISO 8601 closed timestamp |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
@@ -661,6 +878,10 @@ Lists all candidate sources configured in Ashby.
 |   ↳ `id` | string | Source UUID |
 |   ↳ `title` | string | Source title |
 |   ↳ `isArchived` | boolean | Whether the source is archived |
+|   ↳ `sourceType` | object | Source type grouping |
+|     ↳ `id` | string | Source type UUID |
+|     ↳ `title` | string | Source type title |
+|     ↳ `isArchived` | boolean | Whether archived |
 
 ### `ashby_list_users`
 
@@ -679,18 +900,12 @@ Lists all users in Ashby with pagination.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `users` | array | List of users |
-|   ↳ `id` | string | User UUID |
-|   ↳ `firstName` | string | First name |
-|   ↳ `lastName` | string | Last name |
-|   ↳ `email` | string | Email address |
-|   ↳ `isEnabled` | boolean | Whether the user account is enabled |
-|   ↳ `globalRole` | string | User role \(Organization Admin, Elevated Access, Limited Access, External Recruiter\) |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
 ### `ashby_remove_candidate_tag`
 
-Removes a tag from a candidate in Ashby.
+Removes a tag from a candidate in Ashby and returns the updated candidate.
 
 #### Input
 
@@ -704,7 +919,37 @@ Removes a tag from a candidate in Ashby.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the tag was successfully removed |
+| `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
+| `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
+| `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
+| `archiveReasons` | json | List of archive reasons \(id, text, reasonType \[RejectedByCandidate/RejectedByOrg/Other\], isArchived\) |
+| `sources` | json | List of sources \(id, title, isArchived, sourceType \{id, title, isArchived\}\) |
+| `customFields` | json | List of custom field definitions \(id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues\[\] \{label, value, isArchived\}\) |
+| `departments` | json | List of departments \(id, name, externalName, isArchived, parentId, createdAt, updatedAt\) |
+| `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
+| `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
+| `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
+| `tags` | json | List of candidate tags \(id, title, isArchived\) |
+| `id` | string | Resource UUID |
+| `name` | string | Resource name |
+| `title` | string | Job title or job posting title |
+| `status` | string | Status |
+| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
+| `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `content` | string | Note content |
+| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `isPrivate` | boolean | Whether the note is private |
+| `createdAt` | string | ISO 8601 creation timestamp |
+| `moreDataAvailable` | boolean | Whether more pages exist |
+| `nextCursor` | string | Pagination cursor for next page |
+| `syncToken` | string | Sync token for incremental updates |
 
 ### `ashby_search_candidates`
 
@@ -723,18 +968,6 @@ Searches for candidates by name and/or email with AND logic. Results are limited
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `candidates` | array | Matching candidates \(max 100 results\) |
-|   ↳ `id` | string | Candidate UUID |
-|   ↳ `name` | string | Full name |
-|   ↳ `primaryEmailAddress` | object | Primary email contact info |
-|     ↳ `value` | string | Email address |
-|     ↳ `type` | string | Contact type \(Personal, Work, Other\) |
-|     ↳ `isPrimary` | boolean | Whether this is the primary email |
-|   ↳ `primaryPhoneNumber` | object | Primary phone contact info |
-|     ↳ `value` | string | Phone number |
-|     ↳ `type` | string | Contact type \(Personal, Work, Other\) |
-|     ↳ `isPrimary` | boolean | Whether this is the primary phone |
-|   ↳ `createdAt` | string | ISO 8601 creation timestamp |
-|   ↳ `updatedAt` | string | ISO 8601 last update timestamp |
 
 ### `ashby_update_candidate`
 
@@ -758,26 +991,36 @@ Updates an existing candidate record in Ashby. Only provided fields are changed.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Candidate UUID |
-| `name` | string | Full name |
-| `primaryEmailAddress` | object | Primary email contact info |
-|   ↳ `value` | string | Email address |
-|   ↳ `type` | string | Contact type \(Personal, Work, Other\) |
-|   ↳ `isPrimary` | boolean | Whether this is the primary email |
-| `primaryPhoneNumber` | object | Primary phone contact info |
-|   ↳ `value` | string | Phone number |
-|   ↳ `type` | string | Contact type \(Personal, Work, Other\) |
-|   ↳ `isPrimary` | boolean | Whether this is the primary phone |
-| `profileUrl` | string | URL to the candidate Ashby profile |
-| `position` | string | Current position or title |
-| `company` | string | Current company |
-| `linkedInUrl` | string | LinkedIn profile URL |
-| `githubUrl` | string | GitHub profile URL |
-| `tags` | array | Tags applied to the candidate |
-|   ↳ `id` | string | Tag UUID |
-|   ↳ `title` | string | Tag title |
-| `applicationIds` | array | IDs of associated applications |
+| `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
+| `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
+| `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
+| `archiveReasons` | json | List of archive reasons \(id, text, reasonType \[RejectedByCandidate/RejectedByOrg/Other\], isArchived\) |
+| `sources` | json | List of sources \(id, title, isArchived, sourceType \{id, title, isArchived\}\) |
+| `customFields` | json | List of custom field definitions \(id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues\[\] \{label, value, isArchived\}\) |
+| `departments` | json | List of departments \(id, name, externalName, isArchived, parentId, createdAt, updatedAt\) |
+| `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
+| `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
+| `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
+| `tags` | json | List of candidate tags \(id, title, isArchived\) |
+| `id` | string | Resource UUID |
+| `name` | string | Resource name |
+| `title` | string | Job title or job posting title |
+| `status` | string | Status |
+| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
+| `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `content` | string | Note content |
+| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `isPrivate` | boolean | Whether the note is private |
 | `createdAt` | string | ISO 8601 creation timestamp |
-| `updatedAt` | string | ISO 8601 last update timestamp |
+| `moreDataAvailable` | boolean | Whether more pages exist |
+| `nextCursor` | string | Pagination cursor for next page |
+| `syncToken` | string | Sync token for incremental updates |
 
 

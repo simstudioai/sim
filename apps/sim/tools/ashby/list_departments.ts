@@ -4,14 +4,19 @@ interface AshbyListDepartmentsParams {
   apiKey: string
 }
 
+interface AshbyDepartment {
+  id: string
+  name: string
+  externalName: string | null
+  isArchived: boolean
+  parentId: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
 interface AshbyListDepartmentsResponse extends ToolResponse {
   output: {
-    departments: Array<{
-      id: string
-      name: string
-      isArchived: boolean
-      parentId: string | null
-    }>
+    departments: AshbyDepartment[]
   }
 }
 
@@ -54,10 +59,13 @@ export const listDepartmentsTool: ToolConfig<
       success: true,
       output: {
         departments: (data.results ?? []).map((d: Record<string, unknown>) => ({
-          id: d.id ?? null,
-          name: d.name ?? null,
-          isArchived: d.isArchived ?? false,
+          id: (d.id as string) ?? '',
+          name: (d.name as string) ?? '',
+          externalName: (d.externalName as string) ?? null,
+          isArchived: (d.isArchived as boolean) ?? false,
           parentId: (d.parentId as string) ?? null,
+          createdAt: (d.createdAt as string) ?? null,
+          updatedAt: (d.updatedAt as string) ?? null,
         })),
       },
     }
@@ -72,10 +80,25 @@ export const listDepartmentsTool: ToolConfig<
         properties: {
           id: { type: 'string', description: 'Department UUID' },
           name: { type: 'string', description: 'Department name' },
+          externalName: {
+            type: 'string',
+            description: 'Candidate-facing name used on job boards',
+            optional: true,
+          },
           isArchived: { type: 'boolean', description: 'Whether the department is archived' },
           parentId: {
             type: 'string',
             description: 'Parent department UUID',
+            optional: true,
+          },
+          createdAt: {
+            type: 'string',
+            description: 'ISO 8601 creation timestamp',
+            optional: true,
+          },
+          updatedAt: {
+            type: 'string',
+            description: 'ISO 8601 last update timestamp',
             optional: true,
           },
         },

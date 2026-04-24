@@ -1,5 +1,9 @@
+import type {
+  AshbyListApplicationsParams,
+  AshbyListApplicationsResponse,
+} from '@/tools/ashby/types'
+import { APPLICATION_OUTPUTS, mapApplication } from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
-import type { AshbyListApplicationsParams, AshbyListApplicationsResponse } from './types'
 
 export const listApplicationsTool: ToolConfig<
   AshbyListApplicationsParams,
@@ -8,7 +12,7 @@ export const listApplicationsTool: ToolConfig<
   id: 'ashby_list_applications',
   name: 'Ashby List Applications',
   description:
-    'Lists all applications in an Ashby organization with pagination and optional filters for status, job, candidate, and creation date.',
+    'Lists all applications in an Ashby organization with pagination and optional filters for status, job, and creation date.',
   version: '1.0.0',
 
   params: {
@@ -42,12 +46,6 @@ export const listApplicationsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Filter applications by a specific job UUID',
     },
-    candidateId: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter applications by a specific candidate UUID',
-    },
     createdAfter: {
       type: 'string',
       required: false,
@@ -68,10 +66,12 @@ export const listApplicationsTool: ToolConfig<
       const body: Record<string, unknown> = {}
       if (params.cursor) body.cursor = params.cursor
       if (params.perPage) body.limit = params.perPage
-      if (params.status) body.status = [params.status]
-      if (params.jobId) body.jobId = params.jobId
-      if (params.candidateId) body.candidateId = params.candidateId
-      if (params.createdAfter) body.createdAfter = new Date(params.createdAfter).getTime()
+      if (params.status) body.status = params.status
+      if (params.jobId) body.jobId = params.jobId.trim()
+      if (params.createdAfter) {
+        const ms = new Date(params.createdAfter).getTime()
+        if (!Number.isNaN(ms)) body.createdAfter = ms
+      }
       return body
     },
   },
@@ -86,42 +86,7 @@ export const listApplicationsTool: ToolConfig<
     return {
       success: true,
       output: {
-        applications: (data.results ?? []).map(
-          (
-            a: Record<string, unknown> & {
-              candidate?: { id?: string; name?: string }
-              job?: { id?: string; title?: string }
-              currentInterviewStage?: { id?: string; title?: string; type?: string } | null
-              source?: { id?: string; title?: string } | null
-            }
-          ) => ({
-            id: a.id ?? null,
-            status: a.status ?? null,
-            candidate: {
-              id: a.candidate?.id ?? null,
-              name: a.candidate?.name ?? null,
-            },
-            job: {
-              id: a.job?.id ?? null,
-              title: a.job?.title ?? null,
-            },
-            currentInterviewStage: a.currentInterviewStage
-              ? {
-                  id: a.currentInterviewStage.id ?? null,
-                  title: a.currentInterviewStage.title ?? null,
-                  type: a.currentInterviewStage.type ?? null,
-                }
-              : null,
-            source: a.source
-              ? {
-                  id: a.source.id ?? null,
-                  title: a.source.title ?? null,
-                }
-              : null,
-            createdAt: a.createdAt ?? null,
-            updatedAt: a.updatedAt ?? null,
-          })
-        ),
+        applications: (data.results ?? []).map(mapApplication),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
       },
@@ -134,50 +99,7 @@ export const listApplicationsTool: ToolConfig<
       description: 'List of applications',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Application UUID' },
-          status: {
-            type: 'string',
-            description: 'Application status (Active, Hired, Archived, Lead)',
-          },
-          candidate: {
-            type: 'object',
-            description: 'Associated candidate',
-            properties: {
-              id: { type: 'string', description: 'Candidate UUID' },
-              name: { type: 'string', description: 'Candidate name' },
-            },
-          },
-          job: {
-            type: 'object',
-            description: 'Associated job',
-            properties: {
-              id: { type: 'string', description: 'Job UUID' },
-              title: { type: 'string', description: 'Job title' },
-            },
-          },
-          currentInterviewStage: {
-            type: 'object',
-            description: 'Current interview stage',
-            optional: true,
-            properties: {
-              id: { type: 'string', description: 'Stage UUID' },
-              title: { type: 'string', description: 'Stage title' },
-              type: { type: 'string', description: 'Stage type' },
-            },
-          },
-          source: {
-            type: 'object',
-            description: 'Application source',
-            optional: true,
-            properties: {
-              id: { type: 'string', description: 'Source UUID' },
-              title: { type: 'string', description: 'Source title' },
-            },
-          },
-          createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
-          updatedAt: { type: 'string', description: 'ISO 8601 last update timestamp' },
-        },
+        properties: APPLICATION_OUTPUTS,
       },
     },
     moreDataAvailable: {

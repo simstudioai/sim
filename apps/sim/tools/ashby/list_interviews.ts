@@ -1,3 +1,5 @@
+import type { AshbyUserSummary } from '@/tools/ashby/types'
+import { mapUserSummary, USER_SUMMARY_OUTPUT } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListInterviewSchedulesParams {
@@ -8,17 +10,78 @@ interface AshbyListInterviewSchedulesParams {
   perPage?: number
 }
 
+interface AshbyInterviewEvent {
+  id: string
+  interviewId: string | null
+  interviewScheduleId: string | null
+  interviewerUserIds: string[]
+  createdAt: string | null
+  updatedAt: string | null
+  startTime: string | null
+  endTime: string | null
+  feedbackLink: string | null
+  location: string | null
+  meetingLink: string | null
+  hasSubmittedFeedback: boolean
+}
+
+interface AshbyInterviewSchedule {
+  id: string
+  status: string | null
+  applicationId: string
+  interviewStageId: string | null
+  scheduledBy: AshbyUserSummary | null
+  createdAt: string | null
+  updatedAt: string | null
+  interviewEvents: AshbyInterviewEvent[]
+}
+
 interface AshbyListInterviewSchedulesResponse extends ToolResponse {
   output: {
-    interviewSchedules: Array<{
-      id: string
-      applicationId: string
-      interviewStageId: string | null
-      status: string | null
-      createdAt: string
-    }>
+    interviewSchedules: AshbyInterviewSchedule[]
     moreDataAvailable: boolean
     nextCursor: string | null
+  }
+}
+
+type UnknownRecord = Record<string, unknown>
+
+function mapInterviewEvent(raw: unknown): AshbyInterviewEvent | null {
+  if (!raw || typeof raw !== 'object') return null
+  const e = raw as UnknownRecord
+  return {
+    id: (e.id as string) ?? '',
+    interviewId: (e.interviewId as string) ?? null,
+    interviewScheduleId: (e.interviewScheduleId as string) ?? null,
+    interviewerUserIds: Array.isArray(e.interviewerUserIds)
+      ? (e.interviewerUserIds as string[])
+      : [],
+    createdAt: (e.createdAt as string) ?? null,
+    updatedAt: (e.updatedAt as string) ?? null,
+    startTime: (e.startTime as string) ?? null,
+    endTime: (e.endTime as string) ?? null,
+    feedbackLink: (e.feedbackLink as string) ?? null,
+    location: (e.location as string) ?? null,
+    meetingLink: (e.meetingLink as string) ?? null,
+    hasSubmittedFeedback: (e.hasSubmittedFeedback as boolean) ?? false,
+  }
+}
+
+function mapInterviewSchedule(raw: unknown): AshbyInterviewSchedule {
+  const s = (raw ?? {}) as UnknownRecord
+  return {
+    id: (s.id as string) ?? '',
+    status: (s.status as string) ?? null,
+    applicationId: (s.applicationId as string) ?? '',
+    interviewStageId: (s.interviewStageId as string) ?? null,
+    scheduledBy: mapUserSummary(s.scheduledBy),
+    createdAt: (s.createdAt as string) ?? null,
+    updatedAt: (s.updatedAt as string) ?? null,
+    interviewEvents: Array.isArray(s.interviewEvents)
+      ? (s.interviewEvents as unknown[])
+          .map(mapInterviewEvent)
+          .filter((e): e is AshbyInterviewEvent => e !== null)
+      : [],
   }
 }
 
@@ -74,8 +137,8 @@ export const listInterviewsTool: ToolConfig<
     }),
     body: (params) => {
       const body: Record<string, unknown> = {}
-      if (params.applicationId) body.applicationId = params.applicationId
-      if (params.interviewStageId) body.interviewStageId = params.interviewStageId
+      if (params.applicationId) body.applicationId = params.applicationId.trim()
+      if (params.interviewStageId) body.interviewStageId = params.interviewStageId.trim()
       if (params.cursor) body.cursor = params.cursor
       if (params.perPage) body.limit = params.perPage
       return body
@@ -92,13 +155,7 @@ export const listInterviewsTool: ToolConfig<
     return {
       success: true,
       output: {
-        interviewSchedules: (data.results ?? []).map((s: Record<string, unknown>) => ({
-          id: s.id ?? null,
-          applicationId: s.applicationId ?? null,
-          interviewStageId: s.interviewStageId ?? null,
-          status: s.status ?? null,
-          createdAt: s.createdAt ?? null,
-        })),
+        interviewSchedules: (data.results ?? []).map(mapInterviewSchedule),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
       },
@@ -113,14 +170,92 @@ export const listInterviewsTool: ToolConfig<
         type: 'object',
         properties: {
           id: { type: 'string', description: 'Interview schedule UUID' },
+          status: {
+            type: 'string',
+            description:
+              'Schedule status (NeedsScheduling, WaitingOnCandidateBooking, Scheduled, Complete, Cancelled, OnHold, etc.)',
+            optional: true,
+          },
           applicationId: { type: 'string', description: 'Associated application UUID' },
           interviewStageId: {
             type: 'string',
             description: 'Interview stage UUID',
             optional: true,
           },
-          status: { type: 'string', description: 'Schedule status', optional: true },
-          createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
+          scheduledBy: {
+            ...USER_SUMMARY_OUTPUT,
+            description: 'User who scheduled the interview (null if not yet scheduled)',
+          },
+          createdAt: {
+            type: 'string',
+            description: 'ISO 8601 creation timestamp',
+            optional: true,
+          },
+          updatedAt: {
+            type: 'string',
+            description: 'ISO 8601 last update timestamp',
+            optional: true,
+          },
+          interviewEvents: {
+            type: 'array',
+            description: 'Scheduled interview events on this schedule',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'Event UUID' },
+                interviewId: {
+                  type: 'string',
+                  description: 'Interview template UUID',
+                  optional: true,
+                },
+                interviewScheduleId: {
+                  type: 'string',
+                  description: 'Parent schedule UUID',
+                  optional: true,
+                },
+                interviewerUserIds: {
+                  type: 'array',
+                  description: 'User UUIDs of interviewers assigned to the event',
+                  items: { type: 'string', description: 'User UUID' },
+                },
+                createdAt: {
+                  type: 'string',
+                  description: 'Event creation timestamp',
+                  optional: true,
+                },
+                updatedAt: {
+                  type: 'string',
+                  description: 'Event last updated timestamp',
+                  optional: true,
+                },
+                startTime: {
+                  type: 'string',
+                  description: 'Event start time',
+                  optional: true,
+                },
+                endTime: { type: 'string', description: 'Event end time', optional: true },
+                feedbackLink: {
+                  type: 'string',
+                  description: 'URL to submit feedback for the event',
+                  optional: true,
+                },
+                location: {
+                  type: 'string',
+                  description: 'Physical location',
+                  optional: true,
+                },
+                meetingLink: {
+                  type: 'string',
+                  description: 'Virtual meeting URL',
+                  optional: true,
+                },
+                hasSubmittedFeedback: {
+                  type: 'boolean',
+                  description: 'Whether any feedback has been submitted',
+                },
+              },
+            },
+          },
         },
       },
     },

@@ -1,3 +1,5 @@
+import type { AshbyCandidate } from '@/tools/ashby/types'
+import { CANDIDATE_OUTPUTS, mapCandidate } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyAddCandidateTagParams {
@@ -7,9 +9,7 @@ interface AshbyAddCandidateTagParams {
 }
 
 interface AshbyAddCandidateTagResponse extends ToolResponse {
-  output: {
-    success: boolean
-  }
+  output: AshbyCandidate
 }
 
 export const addCandidateTagTool: ToolConfig<
@@ -18,7 +18,7 @@ export const addCandidateTagTool: ToolConfig<
 > = {
   id: 'ashby_add_candidate_tag',
   name: 'Ashby Add Candidate Tag',
-  description: 'Adds a tag to a candidate in Ashby.',
+  description: 'Adds a tag to a candidate in Ashby and returns the updated candidate.',
   version: '1.0.0',
 
   params: {
@@ -50,8 +50,8 @@ export const addCandidateTagTool: ToolConfig<
       Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
     }),
     body: (params) => ({
-      candidateId: params.candidateId,
-      tagId: params.tagId,
+      candidateId: params.candidateId.trim(),
+      tagId: params.tagId.trim(),
     }),
   },
 
@@ -64,13 +64,9 @@ export const addCandidateTagTool: ToolConfig<
 
     return {
       success: true,
-      output: {
-        success: true,
-      },
+      output: mapCandidate(data.results),
     }
   },
 
-  outputs: {
-    success: { type: 'boolean', description: 'Whether the tag was successfully added' },
-  },
+  outputs: CANDIDATE_OUTPUTS,
 }
