@@ -137,6 +137,21 @@ end
 `
 
 /**
+ * Lua script for safe lock TTL extension.
+ * Only refreshes the expiry if the value matches (ownership verification),
+ * so a stale heartbeat from a prior owner cannot extend a lock currently
+ * held by someone else after a TTL eviction.
+ * Returns 1 if the TTL was extended, 0 if not (value mismatch or key gone).
+ */
+const EXTEND_LOCK_SCRIPT = `
+if redis.call("get", KEYS[1]) == ARGV[1] then
+  return redis.call("expire", KEYS[1], ARGV[2])
+else
+  return 0
+end
+`
+
+/**
  * Acquire a distributed lock using Redis SET NX.
  * Returns true if lock acquired, false if already held.
  *
@@ -172,6 +187,29 @@ export async function releaseLock(lockKey: string, value: string): Promise<boole
   }
 
   const result = await redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, value)
+  return result === 1
+}
+
+/**
+ * Extend the TTL of a distributed lock if still owned by the caller.
+ * Returns true if the caller still owns the lock and the TTL was refreshed,
+ * false if the lock has been taken over by another owner or has expired.
+ *
+ * When Redis is not available, returns true (no-op) to match the behavior
+ * of `acquireLock` / `releaseLock`: single-replica deployments without
+ * Redis never held a real lock, so heartbeat success is implicit.
+ */
+export async function extendLock(
+  lockKey: string,
+  value: string,
+  expirySeconds: number
+): Promise<boolean> {
+  const redis = getRedisClient()
+  if (!redis) {
+    return true
+  }
+
+  const result = await redis.eval(EXTEND_LOCK_SCRIPT, 1, lockKey, value, expirySeconds)
   return result === 1
 }
 

@@ -56,6 +56,9 @@ export function createMockRedis() {
       exec: vi.fn().mockResolvedValue([]),
     })),
 
+    // Scripting
+    eval: vi.fn().mockResolvedValue(0),
+
     // Connection
     ping: vi.fn().mockResolvedValue('PONG'),
     quit: vi.fn().mockResolvedValue('OK'),
