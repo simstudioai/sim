@@ -165,6 +165,7 @@ function isStreamRef(value: unknown): value is MothershipStreamV1StreamRef {
   return (
     isRecord(value) &&
     typeof value.streamId === 'string' &&
+    value.streamId.length > 0 &&
     isOptionalString(value.chatId) &&
     isOptionalString(value.cursor)
   )
