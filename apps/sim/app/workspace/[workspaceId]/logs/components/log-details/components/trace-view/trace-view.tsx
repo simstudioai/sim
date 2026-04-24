@@ -2,6 +2,7 @@
 
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { formatDuration } from '@sim/utils/formatting'
 import {
   ArrowDown,
   ArrowUp,
@@ -14,29 +15,33 @@ import {
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
+  Badge,
   Button,
   ChevronDown,
   Code,
+  Copy as CopyIcon,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Input,
+  Search as SearchIcon,
   Tooltip,
 } from '@/components/emcn'
-import { Copy as CopyIcon, Search as SearchIcon } from '@/components/emcn/icons'
 import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { formatDuration } from '@/lib/core/utils/formatting'
 import type { TraceSpan } from '@/lib/logs/types'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getBlock, getBlockByToolName } from '@/blocks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
+import { PROVIDER_DEFINITIONS } from '@/providers/models'
 
 const DEFAULT_BLOCK_COLOR = '#6b7280'
-const TREE_PANE_WIDTH = 300
+const DEFAULT_TREE_PANE_WIDTH = 360
+const MIN_TREE_PANE_WIDTH = 200
+const MAX_TREE_PANE_WIDTH = 600
 const INDENT_PX = 12
 const ROW_BASE_PADDING_LEFT = 14
 const MIN_BAR_PCT = 0.5
@@ -145,7 +150,7 @@ function getDisplayChildren(span: TraceSpan): TraceSpan[] {
 /**
  * Resolves the block icon and accent color for a trace span type.
  */
-function getBlockAppearance(type: string, toolName?: string): BlockAppearance {
+function getBlockAppearance(type: string, toolName?: string, provider?: string): BlockAppearance {
   const lowerType = type.toLowerCase()
   if (lowerType === 'tool' && toolName) {
     if (toolName === 'load_skill') return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
@@ -157,10 +162,26 @@ function getBlockAppearance(type: string, toolName?: string): BlockAppearance {
   if (lowerType === 'parallel' || lowerType === 'parallel-iteration')
     return { icon: ParallelTool.icon, bgColor: ParallelTool.bgColor }
   if (lowerType === 'workflow') return { icon: WorkflowIcon, bgColor: '#6366F1' }
+  if (lowerType === 'model' && provider) {
+    const providerDef = PROVIDER_DEFINITIONS[provider]
+    if (providerDef?.icon) {
+      return { icon: providerDef.icon, bgColor: providerDef.color ?? DEFAULT_BLOCK_COLOR }
+    }
+  }
   const blockType = lowerType === 'model' ? 'agent' : lowerType
   const blockConfig = getBlock(blockType)
   if (blockConfig) return { icon: blockConfig.icon, bgColor: blockConfig.bgColor }
   return { icon: null, bgColor: DEFAULT_BLOCK_COLOR }
+}
+
+/** Returns 'text-white' for dark backgrounds, dark text for light ones. */
+function iconColorClass(bgColor: string): string {
+  const hex = bgColor.replace('#', '')
+  if (hex.length !== 6) return 'text-white'
+  const r = Number.parseInt(hex.slice(0, 2), 16)
+  const g = Number.parseInt(hex.slice(2, 4), 16)
+  const b = Number.parseInt(hex.slice(4, 6), 16)
+  return r * 299 + g * 587 + b * 114 > 160_000 ? 'text-[#111111]' : 'text-white'
 }
 
 function formatTokenCount(value: number | undefined): string | undefined {
@@ -228,6 +249,28 @@ function collectAllIds(spans: TraceSpan[]): string[] {
   }
   walk(spans)
   return out
+}
+
+/**
+ * Finds the leaf-most errored span — the actual error source rather than a
+ * parent span that has its status propagated up from a child. When an errored
+ * span has errored children, we recurse into those children first; we only
+ * return the current span if none of its descendants are also errored.
+ */
+function findLeafErrorSpan(spans: TraceSpan[]): TraceSpan | null {
+  for (const span of spans) {
+    if (span.status === 'error') {
+      const children = getDisplayChildren(span)
+      const childError = findLeafErrorSpan(children)
+      return childError ?? span
+    }
+    const children = getDisplayChildren(span)
+    if (children.length > 0) {
+      const found = findLeafErrorSpan(children)
+      if (found) return found
+    }
+  }
+  return null
 }
 
 /**
@@ -313,11 +356,11 @@ const TraceTreeRow = memo(function TraceTreeRow({
   const duration = span.duration || endMs - startMs
   const isRootWorkflow = depth === 0 && span.type?.toLowerCase() === 'workflow'
   const hasError = isRootWorkflow ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
-  const { icon: BlockIcon, bgColor } = getBlockAppearance(span.type, span.name)
+  const { icon: BlockIcon, bgColor } = getBlockAppearance(span.type, span.name, span.provider)
   const nameMatches = !!matchQuery && spanMatchesQuery(span, matchQuery)
 
   const offsetMs = runStartMs > 0 ? Math.max(0, startMs - runStartMs) : 0
-  const offsetPct = runTotalMs > 0 ? Math.min(100, (offsetMs / runTotalMs) * 100) : 0
+  const offsetPct = runTotalMs > 0 ? Math.min(100 - MIN_BAR_PCT, (offsetMs / runTotalMs) * 100) : 0
   const rawDurationPct = runTotalMs > 0 ? (duration / runTotalMs) * 100 : 0
   const durationPct = Math.max(MIN_BAR_PCT, Math.min(100 - offsetPct, rawDurationPct))
   const pctOfTotal = runTotalMs > 0 ? (duration / runTotalMs) * 100 : null
@@ -349,9 +392,10 @@ const TraceTreeRow = memo(function TraceTreeRow({
         style={{ paddingLeft: ROW_BASE_PADDING_LEFT + depth * INDENT_PX }}
       >
         {canExpand ? (
-          <button
+          <Button
             type='button'
-            className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-sm text-[var(--text-tertiary)] transition-colors hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
+            variant='ghost'
+            className='h-[14px] w-[14px] flex-shrink-0 p-0 text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
             onClick={(e) => {
               e.stopPropagation()
               onToggleExpand(id)
@@ -364,7 +408,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
                 !isExpanded && '-rotate-90'
               )}
             />
-          </button>
+          </Button>
         ) : (
           <div className='h-[14px] w-[14px] flex-shrink-0' />
         )}
@@ -373,7 +417,9 @@ const TraceTreeRow = memo(function TraceTreeRow({
             className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
+            {BlockIcon && (
+              <BlockIcon className={cn('h-[10px] w-[10px]', iconColorClass(bgColor))} />
+            )}
           </div>
         )}
         <Tooltip.Root>
@@ -410,7 +456,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
           {formatDuration(duration, { precision: 2 })}
         </span>
       </div>
-      <div className='px-3.5 pt-[3px] pb-[5px]'>
+      <div className='pt-[3px] pr-3.5 pb-[5px] pl-[14px]'>
         <div className='relative h-[3px] w-full overflow-hidden rounded-full bg-[var(--border)]'>
           <div
             className='absolute h-full rounded-full'
@@ -467,26 +513,24 @@ function DetailCodeSection({
     return JSON.stringify(data, null, 2)
   }, [data])
 
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+  function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
     setContextMenuPosition({ x: e.clientX, y: e.clientY })
     setIsContextMenuOpen(true)
-  }, [])
+  }
 
-  const closeContextMenu = useCallback(() => setIsContextMenuOpen(false), [])
-
-  const handleCopy = useCallback(() => {
+  function handleCopy() {
     navigator.clipboard.writeText(jsonString)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
-    closeContextMenu()
-  }, [jsonString, closeContextMenu])
+    setIsContextMenuOpen(false)
+  }
 
-  const handleSearch = useCallback(() => {
+  function handleSearch() {
     activateSearch()
-    closeContextMenu()
-  }, [activateSearch, closeContextMenu])
+    setIsContextMenuOpen(false)
+  }
 
   return (
     <div className='relative flex min-w-0 flex-col gap-1.5'>
@@ -624,7 +668,11 @@ function DetailCodeSection({
           )}
           {typeof document !== 'undefined' &&
             createPortal(
-              <DropdownMenu open={isContextMenuOpen} onOpenChange={closeContextMenu} modal={false}>
+              <DropdownMenu
+                open={isContextMenuOpen}
+                onOpenChange={() => setIsContextMenuOpen(false)}
+                modal={false}
+              >
                 <DropdownMenuTrigger asChild>
                   <div
                     style={{
@@ -690,7 +738,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   }
 
   const duration = span.duration || parseTime(span.endTime) - parseTime(span.startTime)
-  const { icon: BlockIcon, bgColor } = getBlockAppearance(span.type, span.name)
+  const { icon: BlockIcon, bgColor } = getBlockAppearance(span.type, span.name, span.provider)
   const isRootWorkflow = span.type?.toLowerCase() === 'workflow'
   const hasError = isRootWorkflow ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
   const isDirectError = span.status === 'error'
@@ -722,11 +770,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   if (cacheWrite) metaEntries.push({ label: 'Cache write', value: cacheWrite })
   if (reasoning) metaEntries.push({ label: 'Reasoning tokens', value: reasoning })
   const costTotal = formatCostAmount(span.cost?.total)
-  const costInput = formatCostAmount(span.cost?.input)
-  const costOutput = formatCostAmount(span.cost?.output)
   if (costTotal) metaEntries.push({ label: 'Cost', value: costTotal })
-  if (costInput) metaEntries.push({ label: 'Cost input', value: costInput })
-  if (costOutput) metaEntries.push({ label: 'Cost output', value: costOutput })
   if (span.errorType) metaEntries.push({ label: 'Error type', value: span.errorType })
   if (span.iterationIndex !== undefined)
     metaEntries.push({ label: 'Iteration', value: String(span.iterationIndex + 1) })
@@ -741,7 +785,9 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
             className='mt-[2px] flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className='h-[11px] w-[11px] text-white' />}
+            {BlockIcon && (
+              <BlockIcon className={cn('h-[12px] w-[12px]', iconColorClass(bgColor))} />
+            )}
           </div>
         )}
         <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
@@ -754,16 +800,9 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
             {span.name}
           </h3>
           <div className='flex items-center gap-1.5 font-medium text-[var(--text-tertiary)] text-caption'>
-            <span
-              className={cn(
-                'rounded-[3px] px-1.5 py-[1px]',
-                hasError
-                  ? 'bg-[var(--badge-error-bg)] text-[var(--badge-error-text)]'
-                  : 'bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]'
-              )}
-            >
+            <Badge variant={hasError ? 'red' : 'green'} size='sm'>
               {statusLabel}
-            </span>
+            </Badge>
             <span>·</span>
             <span>{formatDuration(duration, { precision: 2 }) || '—'}</span>
             {Number.isFinite(startedAt) && startedAt > 0 && (
@@ -816,8 +855,12 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
 
       {Number.isFinite(startedAt) && Number.isFinite(endedAt) && startedAt > 0 && endedAt > 0 && (
         <div className='flex items-center justify-between font-medium text-[var(--text-tertiary)] text-caption'>
-          <span>Started {new Date(startedAt).toISOString()}</span>
-          <span>Ended {new Date(endedAt).toISOString()}</span>
+          <span title={new Date(startedAt).toISOString()}>
+            Started {new Date(startedAt).toLocaleTimeString()}
+          </span>
+          <span title={new Date(endedAt).toISOString()}>
+            Ended {new Date(endedAt).toLocaleTimeString()}
+          </span>
         </div>
       )}
     </div>
@@ -833,38 +876,77 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
 export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps) {
   const treeRef = useRef<HTMLDivElement>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [treePaneWidth, setTreePaneWidth] = useState(DEFAULT_TREE_PANE_WIDTH)
+  const treePaneWidthRef = useRef(DEFAULT_TREE_PANE_WIDTH)
+  treePaneWidthRef.current = treePaneWidth
+  const isResizingRef = useRef(false)
+  const startXRef = useRef(0)
+  const startWidthRef = useRef(0)
 
-  const { normalizedSpans, allIds, totalDuration, runStartMs, firstRootId, blockCount } =
-    useMemo(() => {
-      const sorted = normalizeAndSort(traceSpans ?? [])
-      let earliest = Number.POSITIVE_INFINITY
-      let latest = 0
-      for (const span of sorted) {
-        const s = parseTime(span.startTime)
-        const e = parseTime(span.endTime)
-        if (s < earliest) earliest = s
-        if (e > latest) latest = e
-      }
-      const ids = collectAllIds(sorted)
-      const count = ids.length
-      const runStart = earliest !== Number.POSITIVE_INFINITY ? earliest : 0
-      return {
-        normalizedSpans: sorted,
-        allIds: ids,
-        totalDuration: latest > runStart ? latest - runStart : 0,
-        runStartMs: runStart,
-        firstRootId: sorted.length > 0 ? getSpanId(sorted[0]) : null,
-        blockCount: count,
-      }
-    }, [traceSpans])
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current) return
+      const delta = e.clientX - startXRef.current
+      setTreePaneWidth(
+        Math.max(MIN_TREE_PANE_WIDTH, Math.min(MAX_TREE_PANE_WIDTH, startWidthRef.current + delta))
+      )
+    }
+    const handleMouseUp = () => {
+      if (!isResizingRef.current) return
+      isResizingRef.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [])
+
+  const {
+    normalizedSpans,
+    allIds,
+    totalDuration,
+    runStartMs,
+    firstRootId,
+    firstErrorId,
+    blockCount,
+  } = useMemo(() => {
+    const sorted = normalizeAndSort(traceSpans ?? [])
+    let earliest = Number.POSITIVE_INFINITY
+    let latest = 0
+    for (const span of sorted) {
+      const s = parseTime(span.startTime)
+      const e = parseTime(span.endTime)
+      if (s < earliest) earliest = s
+      if (e > latest) latest = e
+    }
+    const ids = collectAllIds(sorted)
+    const count = ids.length
+    const runStart = earliest !== Number.POSITIVE_INFINITY ? earliest : 0
+    const firstError = findLeafErrorSpan(sorted)
+    return {
+      normalizedSpans: sorted,
+      allIds: ids,
+      totalDuration: latest > runStart ? latest - runStart : 0,
+      runStartMs: runStart,
+      firstRootId: sorted.length > 0 ? getSpanId(sorted[0]) : null,
+      firstErrorId: firstError ? getSpanId(firstError) : null,
+      blockCount: count,
+    }
+  }, [traceSpans])
 
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set(allIds))
-  const [selectedId, setSelectedId] = useState<string | null>(firstRootId)
+  const [selectedId, setSelectedId] = useState<string | null>(firstErrorId ?? firstRootId)
   const [prevAllIds, setPrevAllIds] = useState(allIds)
   if (prevAllIds !== allIds) {
     setPrevAllIds(allIds)
     setExpandedNodes(new Set(allIds))
-    setSelectedId(firstRootId)
+    setSelectedId(firstErrorId ?? firstRootId)
   }
 
   const matchingIds = useMemo(
@@ -901,9 +983,6 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
       return next
     })
   }, [])
-
-  const handleExpandAll = useCallback(() => setExpandedNodes(new Set(allIds)), [allIds])
-  const handleCollapseAll = useCallback(() => setExpandedNodes(new Set()), [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -972,22 +1051,37 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
     <div className='-mx-3.5 flex h-full min-h-0 flex-col'>
       {/* Header strip */}
       <div className='flex items-center gap-2 border-[var(--border)] border-b px-3.5 pb-2'>
-        <span
-          className={cn(
-            'flex-shrink-0 rounded-[3px] px-1.5 py-[1px] font-medium text-caption',
-            runStatus === 'error'
-              ? 'bg-[var(--badge-error-bg)] text-[var(--badge-error-text)]'
-              : 'bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]'
-          )}
+        <Badge
+          variant={runStatus === 'error' ? 'red' : 'green'}
+          size='sm'
+          className='flex-shrink-0'
         >
           {runStatus === 'error' ? 'Error' : 'Success'}
-        </span>
+        </Badge>
+        {firstErrorId && (
+          <Button
+            type='button'
+            variant='ghost'
+            size='sm'
+            onClick={() => setSelectedId(firstErrorId)}
+          >
+            Jump to error
+          </Button>
+        )}
         <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
           {formatDuration(totalDuration, { precision: 2 }) || '—'}
         </span>
         <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
           {blockCount} {blockCount === 1 ? 'span' : 'spans'}
         </span>
+        {(() => {
+          const rootCost = formatCostAmount(normalizedSpans[0]?.cost?.total)
+          return rootCost ? (
+            <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption tabular-nums'>
+              {rootCost}
+            </span>
+          ) : null
+        })()}
         <div className='ml-auto flex items-center gap-1'>
           <div className='relative'>
             <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-[7px] h-[11px] w-[11px] text-[var(--text-tertiary)]' />
@@ -1005,7 +1099,7 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
                 type='button'
                 variant='ghost'
                 className='!p-1'
-                onClick={handleExpandAll}
+                onClick={() => setExpandedNodes(new Set(allIds))}
                 aria-label='Expand all'
               >
                 <ChevronsUpDown className='h-[12px] w-[12px]' />
@@ -1019,7 +1113,7 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
                 type='button'
                 variant='ghost'
                 className='!p-1'
-                onClick={handleCollapseAll}
+                onClick={() => setExpandedNodes(new Set())}
                 aria-label='Collapse all'
               >
                 <ChevronsDownUp className='h-[12px] w-[12px]' />
@@ -1034,8 +1128,8 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
       <div className='flex min-h-0 flex-1'>
         <div
           ref={treeRef}
-          className='flex flex-shrink-0 flex-col overflow-y-auto border-[var(--border)] border-r pt-2'
-          style={{ width: TREE_PANE_WIDTH }}
+          className='flex flex-shrink-0 flex-col overflow-y-auto pt-2'
+          style={{ width: treePaneWidth }}
           role='tree'
         >
           {flatList.length === 0 && (
@@ -1059,6 +1153,19 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
               />
             )
           })}
+        </div>
+        {/* Resize handle */}
+        <div
+          className='relative w-px flex-shrink-0 cursor-ew-resize bg-[var(--border)] transition-colors hover-hover:bg-[var(--border-1)]'
+          onMouseDown={(e) => {
+            isResizingRef.current = true
+            startXRef.current = e.clientX
+            startWidthRef.current = treePaneWidthRef.current
+            document.body.style.cursor = 'ew-resize'
+            document.body.style.userSelect = 'none'
+          }}
+        >
+          <div className='-left-1 -right-1 absolute inset-y-0' />
         </div>
         <div className='flex min-h-0 min-w-0 flex-1 flex-col'>
           <TraceDetailPane span={selectedSpan} />

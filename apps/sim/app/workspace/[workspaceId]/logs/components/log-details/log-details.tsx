@@ -1,29 +1,30 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
-import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Eye, Search, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
   Button,
   Code,
+  Copy as CopyIcon,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Input,
+  Redo,
+  Search as SearchIcon,
   SModalTabs,
   SModalTabsContent,
   SModalTabsList,
   SModalTabsTrigger,
   Tooltip,
 } from '@/components/emcn'
-import { Copy as CopyIcon, Redo, Search as SearchIcon } from '@/components/emcn/icons'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { cn } from '@/lib/core/utils/cn'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
-import type { TraceSpan } from '@/lib/logs/types'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   ExecutionSnapshot,
@@ -39,7 +40,6 @@ import {
   StatusBadge,
   TriggerBadge,
 } from '@/app/workspace/[workspaceId]/logs/utils'
-import { getBlock } from '@/blocks/registry'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
@@ -75,24 +75,20 @@ export const WorkflowOutputSection = memo(
 
     const jsonString = useMemo(() => JSON.stringify(output, null, 2), [output])
 
-    const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    function handleContextMenu(e: React.MouseEvent) {
       e.preventDefault()
       e.stopPropagation()
       setContextMenuPosition({ x: e.clientX, y: e.clientY })
       setIsContextMenuOpen(true)
-    }, [])
+    }
 
-    const closeContextMenu = useCallback(() => {
-      setIsContextMenuOpen(false)
-    }, [])
-
-    const handleCopy = useCallback(() => {
+    function handleCopy() {
       navigator.clipboard.writeText(jsonString)
       setCopied(true)
       if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current)
       copyTimerRef.current = window.setTimeout(() => setCopied(false), 1500)
-      closeContextMenu()
-    }, [jsonString, closeContextMenu])
+      setIsContextMenuOpen(false)
+    }
 
     useEffect(() => {
       return () => {
@@ -100,10 +96,10 @@ export const WorkflowOutputSection = memo(
       }
     }, [])
 
-    const handleSearch = useCallback(() => {
+    function handleSearch() {
       activateSearch()
-      closeContextMenu()
-    }, [activateSearch, closeContextMenu])
+      setIsContextMenuOpen(false)
+    }
 
     return (
       <div className='relative flex min-w-0 flex-col overflow-hidden'>
@@ -214,7 +210,11 @@ export const WorkflowOutputSection = memo(
         {/* Context Menu - rendered in portal to avoid transform/overflow clipping */}
         {typeof document !== 'undefined' &&
           createPortal(
-            <DropdownMenu open={isContextMenuOpen} onOpenChange={closeContextMenu} modal={false}>
+            <DropdownMenu
+              open={isContextMenuOpen}
+              onOpenChange={() => setIsContextMenuOpen(false)}
+              modal={false}
+            >
               <DropdownMenuTrigger asChild>
                 <div
                   style={{
@@ -253,97 +253,6 @@ export const WorkflowOutputSection = memo(
   },
   (prev, next) => prev.output === next.output
 )
-
-/**
- * Compact horizontal timeline showing each block's execution as a proportional colored segment.
- */
-function ExecutionTimeline({ traceSpans }: { traceSpans: TraceSpan[] }) {
-  const { segments, totalDuration } = useMemo(() => {
-    if (!traceSpans || traceSpans.length === 0) return { segments: [], totalDuration: 0 }
-
-    const rootSpan = traceSpans[0]
-    if (!rootSpan) return { segments: [], totalDuration: 0 }
-
-    const rootStart = new Date(rootSpan.startTime).getTime()
-    const rootEnd = new Date(rootSpan.endTime).getTime()
-    const total = rootSpan.duration || rootEnd - rootStart
-    if (total <= 0) return { segments: [], totalDuration: 0 }
-
-    const children = (rootSpan.children || []).filter(
-      (c) => c.type.toLowerCase() !== 'workflow' && c.name !== 'Start'
-    )
-    const segs = children.map((child) => {
-      const childStart = new Date(child.startTime).getTime()
-      const childEnd = new Date(child.endTime).getTime()
-      const childDuration = child.duration || childEnd - childStart
-      const startPct = ((childStart - rootStart) / total) * 100
-      const widthPct = (childDuration / total) * 100
-
-      const lowerType = child.type.toLowerCase()
-      const blockType = lowerType === 'model' ? 'agent' : lowerType
-      const blockConfig = getBlock(blockType)
-      const color =
-        lowerType === 'workflow'
-          ? '#6366F1'
-          : lowerType === 'loop' || lowerType === 'loop-iteration'
-            ? '#F59E0B'
-            : lowerType === 'parallel' || lowerType === 'parallel-iteration'
-              ? '#10B981'
-              : (blockConfig?.bgColor ?? '#6366F1')
-
-      return {
-        name: child.name,
-        color,
-        startPct: Math.max(0, Math.min(100, startPct)),
-        widthPct: Math.max(0.5, Math.min(100, widthPct)),
-        duration: childDuration,
-        status: child.status,
-      }
-    })
-
-    return { segments: segs, totalDuration: total }
-  }, [traceSpans])
-
-  if (segments.length === 0) return null
-
-  return (
-    <div className='flex flex-col gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
-      <div className='flex items-center justify-between'>
-        <span className='font-medium text-[var(--text-tertiary)] text-caption'>Execution</span>
-        <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-          {formatDuration(totalDuration, { precision: 2 })}
-        </span>
-      </div>
-      <div className='relative h-2 w-full overflow-hidden rounded-full bg-[var(--divider)]'>
-        {segments.map((seg, i) => (
-          <div
-            key={i}
-            className='absolute h-full opacity-80'
-            style={{
-              left: `${seg.startPct}%`,
-              width: `${seg.widthPct}%`,
-              backgroundColor: seg.color,
-            }}
-          />
-        ))}
-      </div>
-      <div className='flex flex-wrap gap-x-3 gap-y-1'>
-        {segments.map((seg, i) => (
-          <div key={i} className='flex items-center gap-1.5'>
-            <div
-              className='h-1.5 w-1.5 flex-shrink-0 rounded-full opacity-80'
-              style={{ backgroundColor: seg.color }}
-            />
-            <span className='font-medium text-[var(--text-tertiary)] text-caption'>{seg.name}</span>
-            <span className='font-medium text-[var(--text-subtle)] text-caption tabular-nums'>
-              {formatDuration(seg.duration, { precision: 1 })}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 interface LogDetailsProps {
   /** The log to display details for */
@@ -479,7 +388,7 @@ export const LogDetails = memo(function LogDetails({
       {/* Resize Handle - positioned outside the panel */}
       {isOpen && (
         <div
-          className='absolute top-0 bottom-0 z-[60] w-[8px] cursor-ew-resize'
+          className='absolute top-0 bottom-0 z-[var(--z-dropdown)] w-[8px] cursor-ew-resize'
           style={{ right: `calc(${effectiveWidth} - 4px)` }}
           onMouseDown={handleMouseDown}
           role='separator'
@@ -489,9 +398,10 @@ export const LogDetails = memo(function LogDetails({
       )}
 
       <div
-        className={`absolute top-[0px] right-0 bottom-0 z-50 transform overflow-hidden border-l bg-[var(--bg)] shadow-md transition-transform duration-200 ease-out ${
+        className={cn(
+          'absolute top-0 right-0 bottom-0 z-50 overflow-hidden border-l bg-[var(--bg)] shadow-md transition-transform duration-200 ease-out',
           isOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
+        )}
         style={{ width: effectiveWidth }}
         aria-label='Log details sidebar'
       >
@@ -501,6 +411,22 @@ export const LogDetails = memo(function LogDetails({
             <div className='flex items-center justify-between'>
               <h2 className='font-medium text-[var(--text-primary)] text-sm'>Log Details</h2>
               <div className='flex items-center gap-[1px]'>
+                {log?.status === 'failed' && (log?.workflow?.id || log?.workflowId) && (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <Button
+                        variant='ghost'
+                        className='!p-1'
+                        onClick={() => onRetryExecution?.()}
+                        disabled={isRetryPending}
+                        aria-label='Retry execution'
+                      >
+                        <Redo className='h-[14px] w-[14px]' />
+                      </Button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='bottom'>Retry</Tooltip.Content>
+                  </Tooltip.Root>
+                )}
                 <Button
                   variant='ghost'
                   className='!p-1'
@@ -519,22 +445,6 @@ export const LogDetails = memo(function LogDetails({
                 >
                   <ChevronUp className='h-[14px] w-[14px] rotate-180' />
                 </Button>
-                {log?.status === 'failed' && (log?.workflow?.id || log?.workflowId) && (
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        variant='ghost'
-                        className='!p-1'
-                        onClick={() => onRetryExecution?.()}
-                        disabled={isRetryPending}
-                        aria-label='Retry execution'
-                      >
-                        <Redo className='h-[14px] w-[14px]' />
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='bottom'>Retry</Tooltip.Content>
-                  </Tooltip.Root>
-                )}
                 <Button variant='ghost' className='!p-1' onClick={onClose} aria-label='Close'>
                   <X className='h-[14px] w-[14px]' />
                 </Button>
@@ -562,30 +472,20 @@ export const LogDetails = memo(function LogDetails({
                 className='mt-4 min-h-0 flex-1 overflow-y-auto'
               >
                 <div className='flex flex-col gap-2.5 pb-4'>
-                  {/* Execution Timeline */}
-                  {isWorkflowExecutionLog &&
-                    log.executionData?.traceSpans &&
-                    !permissionConfig.hideTraceSpans && (
-                      <ExecutionTimeline traceSpans={log.executionData.traceSpans} />
-                    )}
-
-                  {/* Details Section */}
-                  <div className='overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
-                    {/* Timestamp */}
-                    <div className='flex h-12 min-w-0 items-center justify-between gap-4 px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
-                      <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+                  {/* Timestamp + Workflow header */}
+                  <div className='grid grid-cols-2 gap-x-3 pb-0.5'>
+                    <div className='flex min-w-0 flex-col gap-0.5'>
+                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                         Timestamp
                       </span>
-                      <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                      <span className='font-medium text-[var(--text-secondary)] text-sm tabular-nums'>
                         {formattedTimestamp
                           ? `${formattedTimestamp.compactDate} ${formattedTimestamp.compactTime}`
-                          : 'N/A'}
+                          : '—'}
                       </span>
                     </div>
-
-                    {/* Workflow / Job */}
-                    <div className='flex h-12 min-w-0 items-center justify-between gap-4 border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
-                      <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+                    <div className='flex min-w-0 flex-col gap-0.5'>
+                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                         {log.trigger === 'mothership' ? 'Job' : 'Workflow'}
                       </span>
                       <div className='flex min-w-0 items-center gap-1.5'>
@@ -606,7 +506,7 @@ export const LogDetails = memo(function LogDetails({
                             />
                           )
                         })()}
-                        <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-caption'>
+                        <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-sm'>
                           {log.trigger === 'mothership'
                             ? log.jobTitle || 'Untitled Job'
                             : log.workflow?.name ||
@@ -614,11 +514,14 @@ export const LogDetails = memo(function LogDetails({
                         </span>
                       </div>
                     </div>
+                  </div>
 
+                  {/* Details Section */}
+                  <div className='divide-y divide-[var(--border)] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
                     {/* Run ID — click to copy */}
                     {log.executionId && (
                       <div
-                        className='flex h-10 min-w-0 cursor-pointer items-center justify-between gap-4 border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'
+                        className='flex h-10 min-w-0 cursor-pointer items-center justify-between gap-4 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'
                         onClick={() => {
                           navigator.clipboard.writeText(log.executionId!)
                           if (copiedRunIdTimerRef.current) clearTimeout(copiedRunIdTimerRef.current)
@@ -632,21 +535,14 @@ export const LogDetails = memo(function LogDetails({
                         <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
                           Run ID
                         </span>
-                        <span
-                          className={cn(
-                            'min-w-0 truncate font-medium text-caption tabular-nums transition-colors',
-                            copiedRunId
-                              ? 'text-[var(--text-success)]'
-                              : 'text-[var(--text-secondary)]'
-                          )}
-                        >
+                        <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
                           {copiedRunId ? 'Copied!' : log.executionId}
                         </span>
                       </div>
                     )}
 
                     {/* Level */}
-                    <div className='flex h-10 items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                    <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                       <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                         Level
                       </span>
@@ -654,7 +550,7 @@ export const LogDetails = memo(function LogDetails({
                     </div>
 
                     {/* Trigger */}
-                    <div className='flex h-10 items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                    <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                       <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                         Trigger
                       </span>
@@ -668,7 +564,7 @@ export const LogDetails = memo(function LogDetails({
                     </div>
 
                     {/* Duration */}
-                    <div className='flex h-10 items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                    <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                       <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                         Duration
                       </span>
@@ -679,7 +575,7 @@ export const LogDetails = memo(function LogDetails({
 
                     {/* Version */}
                     {log.deploymentVersion && (
-                      <div className='flex h-10 items-center gap-2 border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                      <div className='flex h-10 items-center gap-2 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                         <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
                           Version
                         </span>
@@ -691,18 +587,21 @@ export const LogDetails = memo(function LogDetails({
                       </div>
                     )}
 
-                    {/* Workflow State */}
+                    {/* Snapshot */}
                     {showWorkflowState && (
-                      <div
-                        className='flex h-10 cursor-pointer items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'
-                        onClick={() => setIsExecutionSnapshotOpen(true)}
-                      >
+                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                         <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                          Workflow State
+                          Snapshot
                         </span>
-                        <span className='font-medium text-[var(--text-secondary)] text-caption transition-colors hover:text-[var(--text-primary)]'>
+                        <Button
+                          variant='default'
+                          size='sm'
+                          className='gap-1'
+                          onClick={() => setIsExecutionSnapshotOpen(true)}
+                        >
+                          <Eye className='h-3 w-3' />
                           View Snapshot
-                        </span>
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -741,8 +640,8 @@ export const LogDetails = memo(function LogDetails({
 
                   {/* Cost Breakdown */}
                   {hasCostInfo && (
-                    <div className='overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
-                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                    <div className='divide-y divide-[var(--border)] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
+                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                         <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                           Base Run
                         </span>
@@ -750,7 +649,7 @@ export const LogDetails = memo(function LogDetails({
                           {formatCost(BASE_EXECUTION_CHARGE)}
                         </span>
                       </div>
-                      <div className='flex h-10 items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                         <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                           Model Input
                         </span>
@@ -758,7 +657,7 @@ export const LogDetails = memo(function LogDetails({
                           {formatCost(log.cost?.input || 0)}
                         </span>
                       </div>
-                      <div className='flex h-10 items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                         <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                           Model Output
                         </span>
@@ -774,7 +673,7 @@ export const LogDetails = memo(function LogDetails({
                           ? Object.values(models).reduce((sum, m) => sum + (m?.toolCost || 0), 0)
                           : 0
                         return totalToolCost > 0 ? (
-                          <div className='flex h-10 items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                          <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                             <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                               Tool Usage
                             </span>
@@ -784,8 +683,7 @@ export const LogDetails = memo(function LogDetails({
                           </div>
                         ) : null
                       })()}
-                      <div className='border-[var(--border)] border-t' />
-                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                         <span className='font-medium text-[var(--text-secondary)] text-caption'>
                           Total
                         </span>
@@ -793,7 +691,7 @@ export const LogDetails = memo(function LogDetails({
                           {formatCost(log.cost?.total || 0)}
                         </span>
                       </div>
-                      <div className='flex h-10 items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
                         <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                           Tokens
                         </span>
@@ -802,7 +700,7 @@ export const LogDetails = memo(function LogDetails({
                           {log.cost?.tokens?.output || log.cost?.tokens?.completion || 0} out
                         </span>
                       </div>
-                      <div className='border-[var(--border)] border-t px-3 py-2'>
+                      <div className='px-3 py-2'>
                         <p className='font-medium text-[var(--text-tertiary)] text-xs'>
                           Total includes a {formatCost(BASE_EXECUTION_CHARGE)} base charge plus
                           model and tool usage.

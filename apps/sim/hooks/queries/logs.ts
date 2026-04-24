@@ -25,9 +25,9 @@ export const logKeys = {
     [...logKeys.lists(), workspaceId ?? '', filters] as const,
   details: () => [...logKeys.all, 'detail'] as const,
   detail: (logId: string | undefined) => [...logKeys.details(), logId ?? ''] as const,
-  statsAll: () => [...logKeys.all, 'stats'] as const,
-  stats: (workspaceId: string | undefined, filters: object) =>
-    [...logKeys.statsAll(), workspaceId ?? '', filters] as const,
+  stats: () => [...logKeys.all, 'stats'] as const,
+  stat: (workspaceId: string | undefined, filters: object) =>
+    [...logKeys.stats(), workspaceId ?? '', filters] as const,
   executionSnapshots: () => [...logKeys.all, 'executionSnapshot'] as const,
   executionSnapshot: (executionId: string | undefined) =>
     [...logKeys.executionSnapshots(), executionId ?? ''] as const,
@@ -223,7 +223,7 @@ export function useDashboardStats(
   options?: UseDashboardStatsOptions
 ) {
   return useQuery({
-    queryKey: logKeys.stats(workspaceId, filters),
+    queryKey: logKeys.stat(workspaceId, filters),
     queryFn: ({ signal }) => fetchDashboardStats(workspaceId as string, filters, signal),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
@@ -328,7 +328,7 @@ export function useCancelExecution() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: logKeys.lists() })
       queryClient.invalidateQueries({ queryKey: logKeys.details() })
-      queryClient.invalidateQueries({ queryKey: logKeys.statsAll() })
+      queryClient.invalidateQueries({ queryKey: logKeys.stats() })
     },
   })
 }
@@ -359,7 +359,7 @@ export function useRetryExecution() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: logKeys.lists() })
       queryClient.invalidateQueries({ queryKey: logKeys.details() })
-      queryClient.invalidateQueries({ queryKey: logKeys.statsAll() })
+      queryClient.invalidateQueries({ queryKey: logKeys.stats() })
     },
   })
 }

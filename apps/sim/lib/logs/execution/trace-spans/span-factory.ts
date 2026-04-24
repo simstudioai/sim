@@ -236,6 +236,9 @@ function buildChildrenFromTimeSegments(
     if (typeof segment.ttft === 'number' && segment.ttft >= 0) {
       modelChild.ttft = segment.ttft
     }
+    if (span.model) {
+      modelChild.model = span.model
+    }
     if (segment.provider) {
       modelChild.provider = segment.provider
     }
