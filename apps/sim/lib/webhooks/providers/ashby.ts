@@ -2,8 +2,10 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { generateId } from '@sim/utils/id'
+import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
+  AuthContext,
   DeleteSubscriptionContext,
   EventMatchContext,
   FormatInputContext,
@@ -12,7 +14,6 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Ashby')
 
@@ -53,12 +54,34 @@ export const ashbyHandler: WebhookProviderHandler = {
     }
   },
 
-  verifyAuth: createHmacVerifier({
-    configKey: 'secretToken',
-    headerName: 'ashby-signature',
-    validateFn: validateAshbySignature,
-    providerLabel: 'Ashby',
-  }),
+  verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext): NextResponse | null {
+    const secretToken = (providerConfig.secretToken as string | undefined)?.trim()
+    if (!secretToken) {
+      logger.warn(
+        `[${requestId}] Ashby webhook missing secretToken in providerConfig — rejecting request`
+      )
+      return new NextResponse(
+        'Unauthorized - Ashby webhook signing secret is not configured. Re-save the trigger so a webhook can be registered.',
+        { status: 401 }
+      )
+    }
+
+    const signature = request.headers.get('ashby-signature')
+    if (!signature) {
+      logger.warn(`[${requestId}] Ashby webhook missing signature header`)
+      return new NextResponse('Unauthorized - Missing Ashby signature', { status: 401 })
+    }
+
+    if (!validateAshbySignature(secretToken, signature, rawBody)) {
+      logger.warn(`[${requestId}] Ashby signature verification failed`, {
+        signatureLength: signature.length,
+        secretLength: secretToken.length,
+      })
+      return new NextResponse('Unauthorized - Invalid Ashby signature', { status: 401 })
+    }
+
+    return null
+  },
 
   async matchEvent({
     webhook,

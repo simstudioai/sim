@@ -26,7 +26,7 @@ export const createCandidateTool: ToolConfig<
     },
     email: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'Primary email address for the candidate',
     },
@@ -66,8 +66,8 @@ export const createCandidateTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {
         name: params.name,
-        email: params.email,
       }
+      if (params.email) body.email = params.email
       if (params.phoneNumber) body.phoneNumber = params.phoneNumber
       if (params.linkedInUrl) body.linkedInUrl = params.linkedInUrl
       if (params.githubUrl) body.githubUrl = params.githubUrl

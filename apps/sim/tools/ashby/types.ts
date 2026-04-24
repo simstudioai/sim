@@ -102,7 +102,7 @@ export interface AshbyGetCandidateParams extends AshbyBaseParams {
 
 export interface AshbyCreateCandidateParams extends AshbyBaseParams {
   name: string
-  email: string
+  email?: string
   phoneNumber?: string
   linkedInUrl?: string
   githubUrl?: string

@@ -113,7 +113,6 @@ export const AshbyBlock: BlockConfig = {
       id: 'email',
       title: 'Email',
       type: 'short-input',
-      required: { field: 'operation', value: 'create_candidate' },
       placeholder: 'Email address',
       condition: { field: 'operation', value: ['create_candidate', 'update_candidate'] },
     },
