@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 interface ProgressiveListOptions {
   /** Number of items to render in the initial batch (most recent items) */
@@ -54,6 +54,11 @@ export function useProgressiveList<T>(
   const initialBatch = Math.max(0, options?.initialBatch ?? DEFAULTS.initialBatch)
   const batchSize = Math.max(1, options?.batchSize ?? DEFAULTS.batchSize)
   const [state, setState] = useState(() => createInitialState(key, items.length, initialBatch))
+  const latestItemCountRef = useRef(items.length)
+
+  useLayoutEffect(() => {
+    latestItemCountRef.current = items.length
+  }, [items.length])
 
   const renderState =
     state.key === key && (state.count > 0 || items.length === 0 || state.caughtUp)
@@ -105,11 +110,12 @@ export function useProgressiveList<T>(
           return prev
         }
 
-        const count = Math.min(items.length, prev.count + batchSize)
+        const itemCount = latestItemCountRef.current
+        const count = Math.min(itemCount, prev.count + batchSize)
         return {
           key,
           count,
-          caughtUp: count >= items.length,
+          caughtUp: count >= itemCount,
         }
       })
     })

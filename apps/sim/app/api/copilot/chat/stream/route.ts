@@ -322,7 +322,6 @@ async function handleResumeRequestBody({
     const flushEvents = async () => {
       const events = await readEvents(streamId, cursor)
       if (events.length > 0) {
-        totalEventsFlushed += events.length
         logger.debug('[Resume] Flushing events', {
           streamId,
           afterCursor: cursor,
@@ -330,13 +329,14 @@ async function handleResumeRequestBody({
         })
       }
       for (const envelope of events) {
+        if (!enqueueEvent(envelope)) {
+          break
+        }
+        totalEventsFlushed += 1
         cursor = envelope.stream.cursor ?? String(envelope.seq)
         currentRequestId = extractEnvelopeRequestId(envelope) || currentRequestId
         if (envelope.type === MothershipStreamV1EventType.complete) {
           sawTerminalEvent = true
-        }
-        if (!enqueueEvent(envelope)) {
-          break
         }
       }
     }
@@ -357,12 +357,12 @@ async function handleResumeRequestBody({
         reason: options?.reason,
         requestId: currentRequestId,
       })) {
+        if (!enqueueEvent(envelope)) {
+          break
+        }
         cursor = envelope.stream.cursor ?? String(envelope.seq)
         if (envelope.type === MothershipStreamV1EventType.complete) {
           sawTerminalEvent = true
-        }
-        if (!enqueueEvent(envelope)) {
-          break
         }
       }
     }
@@ -373,13 +373,13 @@ async function handleResumeRequestBody({
       const gap = await checkForReplayGap(streamId, afterCursor, currentRequestId)
       if (gap) {
         for (const envelope of gap.envelopes) {
+          if (!enqueueEvent(envelope)) {
+            break
+          }
           cursor = envelope.stream.cursor ?? String(envelope.seq)
           currentRequestId = extractEnvelopeRequestId(envelope) || currentRequestId
           if (envelope.type === MothershipStreamV1EventType.complete) {
             sawTerminalEvent = true
-          }
-          if (!enqueueEvent(envelope)) {
-            break
           }
         }
         return
