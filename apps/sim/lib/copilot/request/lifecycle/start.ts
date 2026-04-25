@@ -266,7 +266,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             //   3. Otherwise → error.
             outcome = result.success
               ? RequestTraceV1Outcome.success
-              : abortController.signal.aborted || publisher.clientDisconnected
+              : result.cancelled || abortController.signal.aborted || publisher.clientDisconnected
                 ? RequestTraceV1Outcome.cancelled
                 : RequestTraceV1Outcome.error
             if (outcome === RequestTraceV1Outcome.cancelled) {

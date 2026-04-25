@@ -31,6 +31,7 @@ import {
 import { getCopilotTracer } from '@/lib/copilot/request/otel'
 import {
   eventToStreamEvent,
+  hasAbortMarker,
   isSubagentSpanStreamEvent,
   parsePersistedStreamEventEnvelope,
 } from '@/lib/copilot/request/session'
@@ -436,16 +437,31 @@ export async function runStreamLoop(
     })
 
     if (!context.streamComplete && !abortSignal?.aborted && !context.wasAborted) {
-      const streamPath = new URL(fetchUrl).pathname
-      const message = `Copilot backend stream ended before a terminal event on ${streamPath}`
-      context.errors.push(message)
-      logger.error('Copilot backend stream ended before a terminal event', {
-        path: streamPath,
-        requestId: context.requestId,
-        messageId: context.messageId,
-      })
-      endedOn = CopilotSseCloseReason.ClosedNoTerminal
-      throw new CopilotBackendError(message, { status: 503 })
+      let abortRequested = false
+      try {
+        abortRequested = await hasAbortMarker(context.messageId)
+      } catch (error) {
+        logger.warn('Failed to read abort marker at body close', {
+          streamId: context.messageId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+
+      if (abortRequested) {
+        context.wasAborted = true
+        endedOn = CopilotSseCloseReason.Aborted
+      } else {
+        const streamPath = new URL(fetchUrl).pathname
+        const message = `Copilot backend stream ended before a terminal event on ${streamPath}`
+        context.errors.push(message)
+        logger.error('Copilot backend stream ended before a terminal event', {
+          path: streamPath,
+          requestId: context.requestId,
+          messageId: context.messageId,
+        })
+        endedOn = CopilotSseCloseReason.ClosedNoTerminal
+        throw new CopilotBackendError(message, { status: 503 })
+      }
     }
   } catch (error) {
     if (error instanceof FatalSseEventError && !context.errors.includes(error.message)) {
