@@ -53,12 +53,11 @@ export async function runHeadlessCopilotLifecycle(
           simRequestId,
           otelContext,
         })
-        outcome =
-          options.abortSignal?.aborted || result.cancelled
+        outcome = result.success
+          ? RequestTraceV1Outcome.success
+          : options.abortSignal?.aborted || result.cancelled
             ? RequestTraceV1Outcome.cancelled
-            : result.success
-              ? RequestTraceV1Outcome.success
-              : RequestTraceV1Outcome.error
+            : RequestTraceV1Outcome.error
         return result
       } catch (error) {
         outcome = options.abortSignal?.aborted

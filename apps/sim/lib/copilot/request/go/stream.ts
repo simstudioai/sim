@@ -30,6 +30,7 @@ import {
 } from '@/lib/copilot/request/handlers/types'
 import { getCopilotTracer } from '@/lib/copilot/request/otel'
 import {
+  AbortReason,
   eventToStreamEvent,
   hasAbortMarker,
   isSubagentSpanStreamEvent,
@@ -448,6 +449,7 @@ export async function runStreamLoop(
       }
 
       if (abortRequested) {
+        options.onAbortObserved?.(AbortReason.MarkerObservedAtBodyClose)
         context.wasAborted = true
         endedOn = CopilotSseCloseReason.Aborted
       } else {

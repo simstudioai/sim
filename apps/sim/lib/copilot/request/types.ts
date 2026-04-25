@@ -136,6 +136,14 @@ export interface OrchestratorOptions {
   onComplete?: (result: OrchestratorResult) => void | Promise<void>
   onError?: (error: Error) => void | Promise<void>
   abortSignal?: AbortSignal
+  /**
+   * Invoked when the orchestrator infers that the run was aborted via
+   * an out-of-band signal (currently: a Redis abort marker observed
+   * at SSE body close). Callers wire this to fire their local
+   * `AbortController` so `signal.reason` is set and `recordCancelled`
+   * classifies as `explicit_stop` rather than `unknown`.
+   */
+  onAbortObserved?: (reason: string) => void
   interactive?: boolean
 }
 

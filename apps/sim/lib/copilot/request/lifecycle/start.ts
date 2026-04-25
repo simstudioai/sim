@@ -249,6 +249,11 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               onEvent: async (event) => {
                 await publisher.publish(event)
               },
+              onAbortObserved: (reason) => {
+                if (!abortController.signal.aborted) {
+                  abortController.abort(reason)
+                }
+              },
             })
 
             lifecycleResult = result
