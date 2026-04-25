@@ -211,7 +211,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           nativeStructuredOutputs: true,
-          computerUse: true,
           reasoningEffort: {
             values: ['none', 'low', 'medium', 'high', 'xhigh'],
           },
@@ -260,7 +259,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1050000,
         releaseDate: '2026-03-05',
-        recommended: true,
       },
       {
         id: 'gpt-5.4-mini',
