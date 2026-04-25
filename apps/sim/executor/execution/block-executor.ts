@@ -686,32 +686,34 @@ export class BlockExecutor {
     }
 
     const fullContent = accumulated.join('')
-    if (fullContent) {
-      const executionOutput = streamingExec.execution?.output
-      if (executionOutput && typeof executionOutput === 'object') {
-        let parsedForFormat = false
-        if (responseFormat) {
-          try {
-            const parsed = JSON.parse(fullContent.trim())
-            streamingExec.execution.output = {
-              ...parsed,
-              tokens: executionOutput.tokens,
-              toolCalls: executionOutput.toolCalls,
-              providerTiming: executionOutput.providerTiming,
-              cost: executionOutput.cost,
-              model: executionOutput.model,
-            }
-            parsedForFormat = true
-          } catch (error) {
-            this.execLogger.warn('Failed to parse streamed content for response format', {
-              blockId,
-              error,
-            })
+    if (!fullContent) {
+      return
+    }
+
+    const executionOutput = streamingExec.execution?.output
+    if (executionOutput && typeof executionOutput === 'object') {
+      let parsedForFormat = false
+      if (responseFormat) {
+        try {
+          const parsed = JSON.parse(fullContent.trim())
+          streamingExec.execution.output = {
+            ...parsed,
+            tokens: executionOutput.tokens,
+            toolCalls: executionOutput.toolCalls,
+            providerTiming: executionOutput.providerTiming,
+            cost: executionOutput.cost,
+            model: executionOutput.model,
           }
+          parsedForFormat = true
+        } catch (error) {
+          this.execLogger.warn('Failed to parse streamed content for response format', {
+            blockId,
+            error,
+          })
         }
-        if (!parsedForFormat) {
-          executionOutput.content = fullContent
-        }
+      }
+      if (!parsedForFormat) {
+        executionOutput.content = fullContent
       }
     }
 
