@@ -17,7 +17,7 @@ const pendingChatStreams = new Map<
   { promise: Promise<void>; resolve: () => void; streamId: string }
 >()
 
-const DEFAULT_ABORT_POLL_MS = 1000
+const DEFAULT_ABORT_POLL_MS = 250
 
 /**
  * TTL for the per-chat stream lock. Kept short so that if the Sim pod

@@ -6,7 +6,10 @@ import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
+import {
+  MothershipStreamV1CompletionStatus,
+  MothershipStreamV1EventType,
+} from '@/lib/copilot/generated/mothership-stream-v1'
 
 const {
   runCopilotLifecycle,
@@ -60,6 +63,7 @@ vi.mock('@/lib/copilot/request/session', () => ({
   registerActiveStream: vi.fn(),
   unregisterActiveStream: vi.fn(),
   startAbortPoller: vi.fn().mockReturnValue(setInterval(() => {}, 999999)),
+  isExplicitStopReason: vi.fn().mockReturnValue(false),
   SSE_RESPONSE_HEADERS: {},
   StreamWriter: vi.fn().mockImplementation(() => ({
     attach: vi.fn().mockImplementation((ctrl: ReadableStreamDefaultController) => {
@@ -209,6 +213,46 @@ describe('createSSEStream terminal error handling', () => {
       })
     )
     expect(scheduleBufferCleanup).toHaveBeenCalledWith('stream-1')
+  })
+
+  it('publishes a cancelled completion (not an error) when the orchestrator reports cancelled without abortSignal aborted', async () => {
+    runCopilotLifecycle.mockResolvedValue({
+      success: false,
+      cancelled: true,
+      content: '',
+      contentBlocks: [],
+      toolCalls: [],
+    })
+
+    const stream = createSSEStream({
+      requestPayload: { message: 'hello' },
+      userId: 'user-1',
+      streamId: 'stream-1',
+      executionId: 'exec-1',
+      runId: 'run-1',
+      currentChat: null,
+      isNewChat: false,
+      message: 'hello',
+      titleModel: 'gpt-5.4',
+      requestId: 'req-cancelled',
+      orchestrateOptions: {},
+    })
+
+    await drainStream(stream)
+
+    expect(appendEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: MothershipStreamV1EventType.error,
+      })
+    )
+    expect(appendEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: MothershipStreamV1EventType.complete,
+        payload: expect.objectContaining({
+          status: MothershipStreamV1CompletionStatus.cancelled,
+        }),
+      })
+    )
   })
 
   it('passes an OTel context into the streaming lifecycle', async () => {

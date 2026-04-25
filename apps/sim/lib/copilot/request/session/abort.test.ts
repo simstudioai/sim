@@ -98,6 +98,47 @@ describe('startAbortPoller heartbeat', () => {
     }
   })
 
+  it('aborts the controller before clearing the marker so the marker is never observable as cleared while the signal is still unaborted', async () => {
+    const controller = new AbortController()
+    const streamId = 'stream-order-1'
+
+    let signalAbortedWhenMarkerCleared: boolean | null = null
+    mockClearAbortMarker.mockImplementationOnce(async () => {
+      signalAbortedWhenMarkerCleared = controller.signal.aborted
+    })
+    mockHasAbortMarker.mockResolvedValueOnce(true)
+
+    const interval = startAbortPoller(streamId, controller, {})
+
+    try {
+      await vi.advanceTimersByTimeAsync(300)
+
+      expect(mockClearAbortMarker).toHaveBeenCalledWith(streamId)
+      expect(signalAbortedWhenMarkerCleared).toBe(true)
+      expect(controller.signal.aborted).toBe(true)
+    } finally {
+      clearInterval(interval)
+    }
+  })
+
+  it('does not clear the marker when the signal is already aborted (no double abort)', async () => {
+    const controller = new AbortController()
+    controller.abort('preexisting')
+    const streamId = 'stream-order-2'
+
+    mockHasAbortMarker.mockResolvedValueOnce(true)
+
+    const interval = startAbortPoller(streamId, controller, {})
+
+    try {
+      await vi.advanceTimersByTimeAsync(300)
+
+      expect(mockClearAbortMarker).not.toHaveBeenCalled()
+    } finally {
+      clearInterval(interval)
+    }
+  })
+
   it('stops heartbeating after ownership is lost', async () => {
     const controller = new AbortController()
     const streamId = 'stream-lost'
