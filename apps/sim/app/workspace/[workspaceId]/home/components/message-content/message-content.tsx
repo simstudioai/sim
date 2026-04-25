@@ -161,6 +161,18 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     segments.push({ ...nextGroup, isOpen })
   }
 
+  const lastSubagentBlockIndex = new Map<string, number>()
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i]
+    if (block.type === 'subagent' && block.content) {
+      lastSubagentBlockIndex.set(block.content, i)
+    }
+  }
+  const hasSubagentBlockAfter = (name: string, index: number): boolean => {
+    const last = lastSubagentBlockIndex.get(name)
+    return last !== undefined && last > index
+  }
+
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
 
@@ -267,6 +279,9 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       const isDispatch = SUBAGENT_KEYS.has(tc.name) && !tc.calledBy
 
       if (isDispatch) {
+        if (hasSubagentBlockAfter(tc.name, i)) {
+          continue
+        }
         if (!group || group.agentName !== tc.name) {
           if (group) {
             pushGroup(group)

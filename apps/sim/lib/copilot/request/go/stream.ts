@@ -361,29 +361,26 @@ export async function runStreamLoop(
           flushSubagentThinkingBlock(context)
           flushThinkingBlock(context)
           if (spanEvt === MothershipStreamV1SpanLifecycleEvent.start) {
-            const lastParent = context.subAgentParentStack[context.subAgentParentStack.length - 1]
-            const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
             if (toolCallId) {
-              if (lastParent !== toolCallId) {
+              if (!context.subAgentParentStack.includes(toolCallId)) {
                 context.subAgentParentStack.push(toolCallId)
               }
               context.subAgentParentToolCallId = toolCallId
               context.subAgentContent[toolCallId] ??= ''
               context.subAgentToolCalls[toolCallId] ??= []
             }
-            if (
-              subagentName &&
-              !(
-                lastParent === toolCallId &&
-                lastBlock?.type === 'subagent' &&
-                lastBlock.content === subagentName
+            if (subagentName) {
+              const alreadyOpen = context.contentBlocks.some(
+                (b) =>
+                  b.type === 'subagent' && b.content === subagentName && b.endedAt === undefined
               )
-            ) {
-              context.contentBlocks.push({
-                type: 'subagent',
-                content: subagentName,
-                timestamp: Date.now(),
-              })
+              if (!alreadyOpen) {
+                context.contentBlocks.push({
+                  type: 'subagent',
+                  content: subagentName,
+                  timestamp: Date.now(),
+                })
+              }
             }
             return
           }
