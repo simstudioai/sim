@@ -524,7 +524,6 @@ describe('Model Capabilities', () => {
         (m) =>
           m.includes('gpt-5') &&
           !m.includes('chat-latest') &&
-          !m.includes('gpt-5.5-pro') &&
           !m.includes('gpt-5.4-pro') &&
           !m.includes('gpt-5.2-pro') &&
           !m.includes('gpt-5-pro')
@@ -533,9 +532,6 @@ describe('Model Capabilities', () => {
         (m) => m.includes('gpt-5') && !m.includes('chat-latest')
       )
       expect(gpt5ModelsWithReasoningEffort.sort()).toEqual(gpt5ModelsWithVerbosity.sort())
-
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.5-pro')
-      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.5-pro')
 
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.4-pro')
       expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.4-pro')

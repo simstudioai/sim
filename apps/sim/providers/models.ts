@@ -194,7 +194,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           nativeStructuredOutputs: true,
           reasoningEffort: {
-            values: ['medium', 'high', 'xhigh'],
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
           },
           maxOutputTokens: 128000,
         },
