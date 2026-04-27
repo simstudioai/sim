@@ -131,6 +131,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
   QueuedMessage,
+  ToolCallInfo,
 } from '../types'
 import { ToolCallStatus } from '../types'
 
@@ -1217,7 +1218,7 @@ export function useChat(
       reader: ReadableStreamDefaultReader<Uint8Array>,
       assistantId: string,
       expectedGen?: number,
-      options?: { preserveExistingState?: boolean }
+      options?: { preserveExistingState?: boolean; suppressWorkflowToolStarts?: boolean }
     ) => Promise<{ sawStreamError: boolean; sawComplete: boolean }>
   >(async () => ({ sawStreamError: false, sawComplete: false }))
   const attachToExistingStreamRef = useRef<
@@ -1457,8 +1458,50 @@ export function useChat(
         return
       }
       if (handledClientWorkflowToolIdsRef.current.has(toolCallId)) {
+        // #region agent log
+        fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '21c369' },
+          body: JSON.stringify({
+            sessionId: '21c369',
+            location: 'use-chat.ts:startClientWorkflowTool',
+            message: 'SKIPPED:handled',
+            data: { toolCallId },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {})
+        // #endregion
         return
       }
+      if (recoveringClientWorkflowToolIdsRef.current.has(toolCallId)) {
+        // #region agent log
+        fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '21c369' },
+          body: JSON.stringify({
+            sessionId: '21c369',
+            location: 'use-chat.ts:startClientWorkflowTool',
+            message: 'SKIPPED:recovering',
+            data: { toolCallId },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {})
+        // #endregion
+        return
+      }
+      // #region agent log
+      fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '21c369' },
+        body: JSON.stringify({
+          sessionId: '21c369',
+          location: 'use-chat.ts:startClientWorkflowTool',
+          message: 'FIRING',
+          data: { toolCallId, toolName },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {})
+      // #endregion
       handledClientWorkflowToolIdsRef.current.add(toolCallId)
 
       ensureWorkflowToolResource(toolArgs)
@@ -1469,41 +1512,68 @@ export function useChat(
 
   const recoverPendingClientWorkflowTools = useCallback(
     async (nextMessages: ChatMessage[]) => {
+      const pending: ToolCallInfo[] = []
+
       for (const message of nextMessages) {
         for (const block of message.contentBlocks ?? []) {
           const toolCall = block.toolCall
-          if (!toolCall || !isWorkflowToolName(toolCall.name)) {
-            continue
-          }
-          if (toolCall.status !== 'executing') {
-            continue
-          }
-
+          if (!toolCall || !isWorkflowToolName(toolCall.name)) continue
+          if (toolCall.status !== 'executing') continue
           if (
             handledClientWorkflowToolIdsRef.current.has(toolCall.id) ||
             recoveringClientWorkflowToolIdsRef.current.has(toolCall.id)
           ) {
             continue
           }
-
           recoveringClientWorkflowToolIdsRef.current.add(toolCall.id)
+          pending.push(toolCall)
+        }
+      }
 
-          try {
-            const toolArgs = toolCall.params ?? {}
-            const targetWorkflowId = ensureWorkflowToolResource(toolArgs)
+      // #region agent log
+      fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '21c369' },
+        body: JSON.stringify({
+          sessionId: '21c369',
+          location: 'use-chat.ts:recoverPending',
+          message: 'scan complete',
+          data: { pendingCount: pending.length, pendingIds: pending.map((t) => t.id) },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {})
+      // #endregion
 
-            if (targetWorkflowId) {
-              const rebound = await bindRunToolToExecution(toolCall.id, targetWorkflowId)
-              if (rebound) {
-                handledClientWorkflowToolIdsRef.current.add(toolCall.id)
-                continue
-              }
+      for (const toolCall of pending) {
+        try {
+          const toolArgs = toolCall.params ?? {}
+          const targetWorkflowId = ensureWorkflowToolResource(toolArgs)
+
+          if (targetWorkflowId) {
+            const rebound = await bindRunToolToExecution(toolCall.id, targetWorkflowId)
+            // #region agent log
+            fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '21c369' },
+              body: JSON.stringify({
+                sessionId: '21c369',
+                location: 'use-chat.ts:recoverPending',
+                message: 'bind result',
+                data: { toolCallId: toolCall.id, targetWorkflowId, rebound },
+                timestamp: Date.now(),
+              }),
+            }).catch(() => {})
+            // #endregion
+            if (rebound) {
+              handledClientWorkflowToolIdsRef.current.add(toolCall.id)
+              continue
             }
-
-            startClientWorkflowTool(toolCall.id, toolCall.name, toolArgs)
-          } finally {
-            recoveringClientWorkflowToolIdsRef.current.delete(toolCall.id)
           }
+
+          recoveringClientWorkflowToolIdsRef.current.delete(toolCall.id)
+          startClientWorkflowTool(toolCall.id, toolCall.name, toolArgs)
+        } finally {
+          recoveringClientWorkflowToolIdsRef.current.delete(toolCall.id)
         }
       }
     },
@@ -1703,7 +1773,7 @@ export function useChat(
       reader: ReadableStreamDefaultReader<Uint8Array>,
       assistantId: string,
       expectedGen?: number,
-      options?: { preserveExistingState?: boolean }
+      options?: { preserveExistingState?: boolean; suppressWorkflowToolStarts?: boolean }
     ) => {
       const decoder = new TextDecoder()
       streamReaderRef.current = reader
@@ -1816,6 +1886,19 @@ export function useChat(
           if (scoped) return scoped
         }
         return activeSubagent
+      }
+
+      const resolveParentForSubagentBlock = (
+        subagent: string | undefined,
+        scopedParent: string | undefined
+      ): string | undefined => {
+        if (!subagent) return undefined
+        if (scopedParent) return scopedParent
+        if (activeSubagent === subagent) return activeSubagentParentToolCallId
+        for (const [parent, name] of subagentByParentToolCallId) {
+          if (name === subagent) return parent
+        }
+        return undefined
       }
 
       const appendInlineErrorTag = (
@@ -2038,9 +2121,10 @@ export function useChat(
               if (chunk) {
                 const eventTs = typeof parsed.ts === 'string' ? parsed.ts : undefined
                 if (parsed.payload.channel === MothershipStreamV1TextChannel.thinking) {
-                  const scopedParentForBlock = scopedSubagent
-                    ? (scopedParentToolCallId ?? activeSubagentParentToolCallId)
-                    : undefined
+                  const scopedParentForBlock = resolveParentForSubagentBlock(
+                    scopedSubagent,
+                    scopedParentToolCallId
+                  )
                   const tb = ensureThinkingBlock(scopedSubagent, scopedParentForBlock, eventTs)
                   tb.content = (tb.content ?? '') + chunk
                   flushText()
@@ -2052,9 +2136,10 @@ export function useChat(
                   lastContentSource !== contentSource &&
                   runningText.length > 0 &&
                   !runningText.endsWith('\n')
-                const scopedParentForBlock = scopedSubagent
-                  ? (scopedParentToolCallId ?? activeSubagentParentToolCallId)
-                  : undefined
+                const scopedParentForBlock = resolveParentForSubagentBlock(
+                  scopedSubagent,
+                  scopedParentToolCallId
+                )
                 const tb = ensureTextBlock(scopedSubagent, scopedParentForBlock, eventTs)
                 const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
                 tb.content = (tb.content ?? '') + normalizedChunk
@@ -2391,12 +2476,17 @@ export function useChat(
                 }
               }
 
-              if (!toolMap.has(id)) {
+              const existingToolCall = toolMap.has(id)
+                ? blocks[toolMap.get(id)!]?.toolCall
+                : undefined
+              const isNewToolCall = !existingToolCall
+              if (isNewToolCall) {
                 stampBlockEnd(blocks[blocks.length - 1])
                 toolMap.set(id, blocks.length)
-                const parentToolCallIdForBlock = scopedSubagent
-                  ? (scopedParentToolCallId ?? activeSubagentParentToolCallId)
-                  : undefined
+                const parentToolCallIdForBlock = resolveParentForSubagentBlock(
+                  scopedSubagent,
+                  scopedParentToolCallId
+                )
                 blocks.push({
                   type: 'tool_call',
                   toolCall: {
@@ -2427,7 +2517,28 @@ export function useChat(
               flush()
 
               if (isWorkflowToolName(name) && !isPartial) {
-                startClientWorkflowTool(id, name, args ?? {})
+                const shouldStartWorkflowTool =
+                  !options?.suppressWorkflowToolStarts &&
+                  (isNewToolCall ||
+                    (existingToolCall?.status === ToolCallStatus.executing &&
+                      !existingToolCall.result))
+                if (shouldStartWorkflowTool) {
+                  startClientWorkflowTool(id, name, args ?? {})
+                } else {
+                  // #region agent log
+                  fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '21c369' },
+                    body: JSON.stringify({
+                      sessionId: '21c369',
+                      location: 'use-chat.ts:processSSE',
+                      message: 'SKIPPED:replay',
+                      data: { toolCallId: id, toolName: name },
+                      timestamp: Date.now(),
+                    }),
+                  }).catch(() => {})
+                  // #endregion
+                }
               }
               break
             }
@@ -2627,9 +2738,7 @@ export function useChat(
               appendInlineErrorTag(
                 buildInlineErrorTag(parsed.payload),
                 scopedSubagent,
-                scopedSubagent
-                  ? (scopedParentToolCallId ?? activeSubagentParentToolCallId)
-                  : undefined,
+                resolveParentForSubagentBlock(scopedSubagent, scopedParentToolCallId),
                 typeof parsed.ts === 'string' ? parsed.ts : undefined
               )
               break
@@ -2734,6 +2843,7 @@ export function useChat(
       let latestCursor = afterCursor
       let seedEvents = opts.initialBatch?.events ?? []
       let streamStatus = opts.initialBatch?.status ?? 'unknown'
+      let suppressSeedWorkflowStarts = seedEvents.length > 0
 
       const isStaleReconnect = () =>
         streamGenRef.current !== expectedGen || abortControllerRef.current?.signal.aborted === true
@@ -2752,11 +2862,15 @@ export function useChat(
               buildReplayStream(seedEvents).getReader(),
               assistantId,
               expectedGen,
-              { preserveExistingState: true }
+              {
+                preserveExistingState: true,
+                suppressWorkflowToolStarts: suppressSeedWorkflowStarts,
+              }
             )
             latestCursor = String(seedEvents[seedEvents.length - 1]?.eventId ?? latestCursor)
             lastCursorRef.current = latestCursor
             seedEvents = []
+            suppressSeedWorkflowStarts = false
 
             if (replayResult.sawStreamError) {
               return { error: true, aborted: false }
@@ -2800,7 +2914,7 @@ export function useChat(
             sseRes.body.getReader(),
             assistantId,
             expectedGen,
-            { preserveExistingState: true }
+            { preserveExistingState: true, suppressWorkflowToolStarts: true }
           )
 
           if (liveResult.sawStreamError) {

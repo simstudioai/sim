@@ -128,6 +128,19 @@ function buildLiveAssistantMessage(params: {
     return activeSubagent
   }
 
+  const resolveParentForSubagentBlock = (
+    subagent: string | undefined,
+    scopedParent: string | undefined
+  ): string | undefined => {
+    if (!subagent) return undefined
+    if (scopedParent) return scopedParent
+    if (activeSubagent === subagent) return activeSubagentParentToolCallId
+    for (const [parent, name] of subagentByParentToolCallId) {
+      if (name === subagent) return parent
+    }
+    return undefined
+  }
+
   const ensureToolBlock = (input: {
     toolCallId: string
     toolName: string
@@ -228,13 +241,10 @@ function buildLiveAssistantMessage(params: {
           runningText.length > 0 &&
           !runningText.endsWith('\n')
         const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
+        const parentForBlock = resolveParentForSubagentBlock(scopedSubagent, scopedParentToolCallId)
         appendTextBlock(blocks, normalizedChunk, {
           ...(scopedSubagent ? { lane: 'subagent' as const } : {}),
-          ...(scopedSubagent && scopedParentToolCallId
-            ? { parentToolCallId: scopedParentToolCallId }
-            : scopedSubagent && activeSubagentParentToolCallId
-              ? { parentToolCallId: activeSubagentParentToolCallId }
-              : {}),
+          ...(parentForBlock ? { parentToolCallId: parentForBlock } : {}),
         })
         runningText += normalizedChunk
         lastContentSource = contentSource
@@ -253,16 +263,14 @@ function buildLiveAssistantMessage(params: {
           continue
         }
 
+        const parentForBlock = resolveParentForSubagentBlock(scopedSubagent, scopedParentToolCallId)
+
         if (payload.phase === MothershipStreamV1ToolPhase.result) {
           ensureToolBlock({
             toolCallId,
             toolName: payload.toolName,
             calledBy: scopedSubagent,
-            ...(scopedSubagent && scopedParentToolCallId
-              ? { parentToolCallId: scopedParentToolCallId }
-              : scopedSubagent && activeSubagentParentToolCallId
-                ? { parentToolCallId: activeSubagentParentToolCallId }
-                : {}),
+            ...(parentForBlock ? { parentToolCallId: parentForBlock } : {}),
             state: resolveStreamToolOutcome(payload),
             result: {
               success: payload.success,
@@ -277,11 +285,7 @@ function buildLiveAssistantMessage(params: {
           toolCallId,
           toolName: payload.toolName,
           calledBy: scopedSubagent,
-          ...(scopedSubagent && scopedParentToolCallId
-            ? { parentToolCallId: scopedParentToolCallId }
-            : scopedSubagent && activeSubagentParentToolCallId
-              ? { parentToolCallId: activeSubagentParentToolCallId }
-              : {}),
+          ...(parentForBlock ? { parentToolCallId: parentForBlock } : {}),
           displayTitle,
           params: isRecord(payload.arguments) ? payload.arguments : undefined,
           state: typeof payload.status === 'string' ? payload.status : 'executing',
@@ -373,13 +377,10 @@ function buildLiveAssistantMessage(params: {
         }
         const prefix = runningText.length > 0 && !runningText.endsWith('\n') ? '\n' : ''
         const content = `${prefix}${tag}`
+        const errorParent = resolveParentForSubagentBlock(scopedSubagent, scopedParentToolCallId)
         appendTextBlock(blocks, content, {
           ...(scopedSubagent ? { lane: 'subagent' as const } : {}),
-          ...(scopedSubagent && scopedParentToolCallId
-            ? { parentToolCallId: scopedParentToolCallId }
-            : scopedSubagent && activeSubagentParentToolCallId
-              ? { parentToolCallId: activeSubagentParentToolCallId }
-              : {}),
+          ...(errorParent ? { parentToolCallId: errorParent } : {}),
         })
         runningText += content
         continue

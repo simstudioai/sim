@@ -182,9 +182,6 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     if (existing) return { group: existing, created: false }
     const group: AgentGroupSegment = {
       type: 'agent_group',
-      // Suffix with segments.length so a later flushLanes / explicit delete
-      // followed by re-ensure for the same key produces a fresh React key
-      // instead of colliding with the stranded prior segment.
       id: `agent-${key}-${segments.length}`,
       agentName: name,
       agentLabel: resolveAgentLabel(name),
@@ -211,11 +208,6 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
   }
 
   const flushLanes = () => {
-    // Finalize state on the already-pushed segments before we drop them from
-    // the map. Without this, a thinking/main text/options/stopped block landing
-    // between a subagent's start and its end strands the lane with stale
-    // isOpen/isDelegating flags — the later subagent_end iterates groupsByKey
-    // and can't find it to close.
     for (const g of groupsByKey.values()) {
       g.isOpen = false
       g.isDelegating = false
@@ -300,13 +292,10 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
           }
         }
       }
-      // Subagent lanes break the mothership lane: any mothership tool that
-      // arrives after this subagent finishes should render below the lane,
-      // not get back-filled into the mothership group sitting above it.
       groupsByKey.delete(groupKey('mothership', undefined))
       const { group: g } = ensureGroup(key, block.parentToolCallId)
       if (inheritedDelegation) g.isDelegating = true
-      g.isOpen = block.endedAt === undefined
+      g.isOpen = true
       activeGroupKey = resolveGroupKey(key, block.parentToolCallId)
       continue
     }
@@ -331,9 +320,6 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       if (tc.calledBy) {
         const { group: g, created } = ensureGroup(tc.calledBy, block.parentToolCallId)
         g.isDelegating = false
-        // Only mark the lane open when we just created it. Late tool_calls
-        // arriving after a subagent_end (out-of-order persistence, replay,
-        // partial state hand-off) must NOT reopen a closed lane.
         if (created && block.parentToolCallId) g.isOpen = true
         g.items.push({ type: 'tool', data: tool })
         activeGroupKey = resolveGroupKey(tc.calledBy, block.parentToolCallId)
@@ -363,11 +349,6 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
           activeGroupKey = null
         }
       } else {
-        // Unparented end blocks come from legacy/partial persisted streams
-        // that predate parentToolCallId. Close lanes that are themselves
-        // legacy-keyed without touching parented lanes — this avoids
-        // force-closing legitimate parallel parented lanes while still
-        // releasing stranded legacy lanes in mixed/migration streams.
         for (const [key, g] of groupsByKey) {
           if (key.endsWith(':legacy') && g.agentName !== 'mothership') {
             g.isOpen = false
