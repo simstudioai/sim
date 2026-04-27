@@ -151,9 +151,14 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       tool: () => 'browser_use_run_task',
       params: (params) => {
         const next: Record<string, any> = { ...params }
-        if (typeof next.maxSteps === 'string' && next.maxSteps.trim() !== '') {
-          const n = Number(next.maxSteps)
-          next.maxSteps = Number.isFinite(n) ? n : undefined
+        if (typeof next.maxSteps === 'string') {
+          const trimmed = next.maxSteps.trim()
+          if (trimmed === '') {
+            next.maxSteps = undefined
+          } else {
+            const n = Number(trimmed)
+            next.maxSteps = Number.isFinite(n) ? n : undefined
+          }
         }
         if (next.vision === 'true') next.vision = true
         else if (next.vision === 'false') next.vision = false
