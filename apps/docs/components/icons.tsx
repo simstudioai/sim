@@ -4099,11 +4099,12 @@ export function SalesforceIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export function SapS4HanaIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 412.38 204'>
       <defs>
         <linearGradient
-          id='sap-s4hana-gradient'
+          id={id}
           x1='206.19'
           y1='0'
           x2='206.19'
@@ -4118,7 +4119,7 @@ export function SapS4HanaIcon(props: SVGProps<SVGSVGElement>) {
         </linearGradient>
       </defs>
       <polyline
-        fill='url(#sap-s4hana-gradient)'
+        fill={`url(#${id})`}
         fillRule='evenodd'
         points='0 204 208.413 204 412.38 0 0 0 0 204'
       />
