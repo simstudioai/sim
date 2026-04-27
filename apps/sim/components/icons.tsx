@@ -4045,9 +4045,7 @@ export function AsanaIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export function PipedriveIcon(props: SVGProps<SVGSVGElement>) {
-  const id = useId()
-  const pathId = `${id}-path`
-  const maskId = `${id}-mask`
+  const pathId = useId()
   return (
     <svg
       {...props}
@@ -4072,9 +4070,6 @@ export function PipedriveIcon(props: SVGProps<SVGSVGElement>) {
         fillRule='evenodd'
       >
         <g transform='translate(67.000000, 44.000000)'>
-          <mask id={maskId} fill='white'>
-            <use href={`#${pathId}`} />
-          </mask>
           <use fill='#FFFFFF' xlinkHref={`#${pathId}`} />
         </g>
       </g>
