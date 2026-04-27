@@ -169,6 +169,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const modelName = provider === 'anthropic' ? 'anthropic/claude-sonnet-4-6' : 'openai/gpt-5'
 
+    let sessionId: string | null = null
+    let liveViewUrl: string | null = null
+
     try {
       logger.info('Initializing Stagehand with Browserbase (v3)', { provider, modelName })
 
@@ -191,8 +194,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       await stagehand.init()
       logger.info('Stagehand initialized successfully')
 
-      const sessionId = stagehand.browserbaseSessionID ?? null
-      let liveViewUrl: string | null = null
+      sessionId = stagehand.browserbaseSessionID ?? null
       if (sessionId) {
         try {
           const debugResponse = await fetch(
@@ -361,6 +363,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         {
           error: errorMessage,
           details: errorDetails,
+          liveViewUrl,
+          sessionId,
         },
         { status: 500 }
       )
