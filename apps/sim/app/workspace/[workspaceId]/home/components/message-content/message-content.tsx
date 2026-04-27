@@ -206,6 +206,15 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
   }
 
   const flushLanes = () => {
+    // Finalize state on the already-pushed segments before we drop them from
+    // the map. Without this, a thinking/main text/options/stopped block landing
+    // between a subagent's start and its end strands the lane with stale
+    // isOpen/isDelegating flags — the later subagent_end iterates groupsByKey
+    // and can't find it to close.
+    for (const g of groupsByKey.values()) {
+      g.isOpen = false
+      g.isDelegating = false
+    }
     groupsByKey.clear()
     activeGroupKey = null
   }
@@ -337,17 +346,24 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
             g.isDelegating = false
           }
         }
-      }
-      if (block.parentToolCallId && activeGroupKey?.endsWith(`:${block.parentToolCallId}`)) {
-        activeGroupKey = null
-      } else if (!block.parentToolCallId) {
-        for (const g of groupsByKey.values()) {
-          if (g.agentName !== 'mothership') {
-            g.isOpen = false
-            g.isDelegating = false
-          }
+        if (activeGroupKey?.endsWith(`:${block.parentToolCallId}`)) {
+          activeGroupKey = null
         }
-        activeGroupKey = null
+      } else {
+        // Unparented end blocks come from legacy/partial persisted streams
+        // that predate parentToolCallId. Only collapse a lane this way when
+        // we have no parented groups, so we don't force-close legitimate
+        // parallel lanes mid-render.
+        const hasParentedGroup = [...groupsByKey.keys()].some((key) => !key.endsWith(':legacy'))
+        if (!hasParentedGroup) {
+          for (const g of groupsByKey.values()) {
+            if (g.agentName !== 'mothership') {
+              g.isOpen = false
+              g.isDelegating = false
+            }
+          }
+          activeGroupKey = null
+        }
       }
       continue
     }
