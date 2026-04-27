@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -277,7 +278,10 @@ function resolveTokenUrl(req: ProxyRequest): string {
 }
 
 function tokenCacheKey(req: ProxyRequest): string {
-  return `${resolveTokenUrl(req)}::${req.clientId ?? ''}`
+  const secretHash = req.clientSecret
+    ? createHash('sha256').update(req.clientSecret).digest('hex').slice(0, 16)
+    : ''
+  return `${resolveTokenUrl(req)}::${req.clientId ?? ''}::${secretHash}`
 }
 
 function rememberToken(key: string, token: CachedToken): void {
@@ -402,6 +406,9 @@ function buildOdataUrl(req: ProxyRequest, pathOverride?: string): string {
   const normalized = subPath.startsWith('/') ? subPath : `/${subPath}`
   const base = `${host}${servicePath}${normalized}`
 
+  if (pathOverride !== undefined) {
+    return base
+  }
   if (!req.query || Object.keys(req.query).length === 0) {
     return base
   }
