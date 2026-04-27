@@ -1,10 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import {
-  authenticateCopilotRequestSessionOnly,
-  createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
+import { checkInternalApiKey, createUnauthorizedResponse } from '@/lib/copilot/request/http'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -27,8 +24,8 @@ const TrainingDataSchema = z.object({
 })
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
-  if (!isAuthenticated || !userId) {
+  const auth = checkInternalApiKey(request)
+  if (!auth.success) {
     return createUnauthorizedResponse()
   }
 
