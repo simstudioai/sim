@@ -362,9 +362,14 @@ Example 3 (Data Collection):
       },
       params: (params) => {
         const next: Record<string, any> = { ...params }
-        if (typeof next.maxSteps === 'string' && next.maxSteps.trim() !== '') {
-          const n = Number(next.maxSteps)
-          next.maxSteps = Number.isFinite(n) ? n : undefined
+        if (typeof next.maxSteps === 'string') {
+          const trimmed = next.maxSteps.trim()
+          if (trimmed === '') {
+            next.maxSteps = undefined
+          } else {
+            const n = Number(trimmed)
+            next.maxSteps = Number.isFinite(n) ? n : undefined
+          }
         }
         return next
       },

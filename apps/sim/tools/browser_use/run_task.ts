@@ -171,12 +171,16 @@ interface PollResult {
   output: any
   steps: any[]
   sessionId: string | null
+  liveUrl: string | null
+  publicShareUrl: string | null
   error?: string
 }
 
 async function pollForCompletion(taskId: string, apiKey: string): Promise<PollResult> {
   let consecutiveErrors = 0
   let sessionId: string | null = null
+  let liveUrl: string | null = null
+  let publicShareUrl: string | null = null
   const startTime = Date.now()
 
   while (Date.now() - startTime < MAX_POLL_TIME_MS) {
@@ -194,6 +198,8 @@ async function pollForCompletion(taskId: string, apiKey: string): Promise<PollRe
           output: null,
           steps: [],
           sessionId,
+          liveUrl,
+          publicShareUrl,
           error: `Failed to poll task status after ${MAX_CONSECUTIVE_ERRORS} attempts: ${result.error}`,
         }
       }
@@ -209,12 +215,23 @@ async function pollForCompletion(taskId: string, apiKey: string): Promise<PollRe
 
     logger.info(`BrowserUse task ${taskId} status: ${status}`)
 
+    if (sessionId && !liveUrl) {
+      const session = await fetchSessionLiveUrl(sessionId, apiKey)
+      if (session.liveUrl) {
+        liveUrl = session.liveUrl
+        logger.info(`BrowserUse live URL: ${liveUrl}`)
+      }
+      if (session.publicShareUrl) publicShareUrl = session.publicShareUrl
+    }
+
     if (['finished', 'failed', 'stopped'].includes(status)) {
       return {
         success: status === 'finished',
         output: taskData.output ?? null,
         steps: taskData.steps || [],
         sessionId,
+        liveUrl,
+        publicShareUrl,
       }
     }
 
@@ -228,6 +245,8 @@ async function pollForCompletion(taskId: string, apiKey: string): Promise<PollRe
       output: finalResult.data.output ?? null,
       steps: finalResult.data.steps || [],
       sessionId: finalResult.data.sessionId ?? sessionId,
+      liveUrl,
+      publicShareUrl,
     }
   }
 
@@ -236,6 +255,8 @@ async function pollForCompletion(taskId: string, apiKey: string): Promise<PollRe
     output: null,
     steps: [],
     sessionId,
+    liveUrl,
+    publicShareUrl,
     error: `Task did not complete within the maximum polling time (${MAX_POLL_TIME_MS / 1000}s)`,
   }
 }
@@ -418,21 +439,16 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
         }
       }
 
-      const data = (await response.json()) as { id: string; sessionId: string }
+      const data = (await response.json()) as { id: string; sessionId?: string }
       const taskId = data.id
-      const taskSessionId = sessionId ?? data.sessionId
-      logger.info(`Created BrowserUse task ${taskId} on session ${taskSessionId}`)
-
-      const liveSession = await fetchSessionLiveUrl(taskSessionId, params.apiKey)
-      if (liveSession.liveUrl) {
-        logger.info(`BrowserUse live URL: ${liveSession.liveUrl}`)
-      }
+      const initialSessionId = sessionId ?? data.sessionId ?? null
+      logger.info(`Created BrowserUse task ${taskId}`, { sessionId: initialSessionId })
 
       const result = await pollForCompletion(taskId, params.apiKey)
 
-      const finalSessionId = result.sessionId ?? taskSessionId ?? null
+      const finalSessionId = result.sessionId ?? initialSessionId
       const shareUrl =
-        liveSession.publicShareUrl ??
+        result.publicShareUrl ??
         (finalSessionId ? await createShareUrl(finalSessionId, params.apiKey) : null)
 
       if (sessionId) {
@@ -446,7 +462,7 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
           success: result.success,
           output: result.output,
           steps: result.steps,
-          liveUrl: liveSession.liveUrl,
+          liveUrl: result.liveUrl,
           shareUrl,
           sessionId: finalSessionId,
         },
