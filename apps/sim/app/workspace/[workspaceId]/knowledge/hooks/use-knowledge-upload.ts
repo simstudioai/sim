@@ -604,6 +604,10 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     const startTime = getHighResTime()
 
     try {
+      if (!options.workspaceId) {
+        throw new Error('workspaceId is required for multipart upload')
+      }
+
       const initiateResponse = await fetch('/api/files/multipart?action=initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -611,6 +615,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           fileName: file.name,
           contentType: getFileContentType(file),
           fileSize: file.size,
+          workspaceId: options.workspaceId,
         }),
       })
 
@@ -618,7 +623,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         throw new Error(`Failed to initiate multipart upload: ${initiateResponse.statusText}`)
       }
 
-      const { uploadId, key } = await initiateResponse.json()
+      const { uploadId, key, uploadToken } = await initiateResponse.json()
       logger.info(`Initiated multipart upload with ID: ${uploadId}`)
 
       const chunkSize = UPLOAD_CONFIG.CHUNK_SIZE
@@ -629,8 +634,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          uploadId,
-          key,
+          uploadToken,
           partNumbers,
         }),
       })
@@ -639,7 +643,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         await fetch('/api/files/multipart?action=abort', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uploadId, key }),
+          body: JSON.stringify({ uploadToken }),
         })
         throw new Error(`Failed to get part URLs: ${partUrlsResponse.statusText}`)
       }
@@ -723,8 +727,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          uploadId,
-          key,
+          uploadToken,
           parts: uploadedParts,
         }),
       })
