@@ -18,8 +18,8 @@ const ServiceName = z
   .string()
   .min(1, 'service is required')
   .regex(
-    /^[A-Z][A-Z0-9_]*$/,
-    'service must be an uppercase OData service name (e.g., API_BUSINESS_PARTNER)'
+    /^[A-Z][A-Z0-9_]*(;v=\d+)?$/,
+    'service must be an uppercase OData service name optionally suffixed with ";v=NNNN" (e.g., API_BUSINESS_PARTNER, API_OUTBOUND_DELIVERY_SRV;v=0002)'
   )
 
 const ServicePath = z
@@ -29,12 +29,22 @@ const ServicePath = z
     message: 'path must not contain ".." or "." segments',
   })
 
+const Subdomain = z
+  .string()
+  .regex(
+    /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i,
+    'subdomain must contain only letters, digits, and hyphens (1-63 chars)'
+  )
+
 const ProxyRequestSchema = z
   .object({
     deploymentType: DeploymentType.default('cloud_public'),
     authType: AuthType.default('oauth_client_credentials'),
-    subdomain: z.string().optional(),
-    region: z.string().optional(),
+    subdomain: Subdomain.optional(),
+    region: z
+      .string()
+      .regex(/^[a-z]{2,4}\d{1,3}$/i, 'region must be an SAP BTP region code (e.g., eu10, us30)')
+      .optional(),
     baseUrl: z.string().optional(),
     tokenUrl: z.string().optional(),
     clientId: z.string().optional(),
@@ -177,6 +187,34 @@ const FORBIDDEN_HOSTS = new Set([
   '[fd00:ec2::254]',
 ])
 
+function isPrivateIPv4(host: string): boolean {
+  const match = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
+  if (!match) return false
+  const octets = match.slice(1, 5).map(Number) as [number, number, number, number]
+  if (octets.some((o) => o < 0 || o > 255)) return false
+  const [a, b] = octets
+  if (a === 10) return true
+  if (a === 172 && b >= 16 && b <= 31) return true
+  if (a === 192 && b === 168) return true
+  if (a === 127) return true
+  if (a === 169 && b === 254) return true
+  if (a === 0) return true
+  return false
+}
+
+function extractIPv4MappedHost(host: string): string | null {
+  const stripped = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
+  const lower = stripped.toLowerCase()
+  const prefixes = ['::ffff:', '::']
+  for (const prefix of prefixes) {
+    if (lower.startsWith(prefix)) {
+      const candidate = lower.slice(prefix.length)
+      if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(candidate)) return candidate
+    }
+  }
+  return null
+}
+
 function checkExternalUrlSafety(
   rawUrl: string,
   label: string
@@ -194,8 +232,12 @@ function checkExternalUrlSafety(
   if (FORBIDDEN_HOSTS.has(host) || FORBIDDEN_HOSTS.has(`[${host}]`)) {
     return { ok: false, message: `${label} host is not allowed` }
   }
-  if (host.startsWith('169.254.')) {
-    return { ok: false, message: `${label} host is not allowed (link-local)` }
+  if (isPrivateIPv4(host)) {
+    return { ok: false, message: `${label} host is not allowed (private/loopback range)` }
+  }
+  const mapped = extractIPv4MappedHost(host)
+  if (mapped && isPrivateIPv4(mapped)) {
+    return { ok: false, message: `${label} host is not allowed (IPv4-mapped private range)` }
   }
   return { ok: true, url: parsed }
 }
@@ -326,7 +368,8 @@ function resolveHost(req: ProxyRequest): string {
     const trimmed = req.baseUrl.replace(/\/+$/, '')
     return assertSafeExternalUrl(trimmed, 'baseUrl').toString().replace(/\/+$/, '')
   }
-  return `https://${req.subdomain}-api.s4hana.ondemand.com`
+  const constructed = `https://${req.subdomain}-api.s4hana.ondemand.com`
+  return assertSafeExternalUrl(constructed, 'subdomain').toString().replace(/\/+$/, '')
 }
 
 function buildOdataUrl(req: ProxyRequest, pathOverride?: string): string {
