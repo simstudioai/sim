@@ -179,7 +179,10 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     if (!g) {
       g = {
         type: 'agent_group',
-        id: `agent-${key}`,
+        // Suffix with segments.length so a later flushLanes / explicit delete
+        // followed by re-ensure for the same key produces a fresh React key
+        // instead of colliding with the stranded prior segment.
+        id: `agent-${key}-${segments.length}`,
         agentName: name,
         agentLabel: resolveAgentLabel(name),
         items: [],
