@@ -125,8 +125,8 @@ export const createSalesOrderTool: ToolConfig<CreateSalesOrderParams, SapProxyRe
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => {
       const items = parseJsonInput<Array<Record<string, unknown>>>(params.items, 'items')
-      if (!Array.isArray(items)) {
-        throw new Error('items must be a JSON array of sales order item objects')
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new Error('items must be a non-empty JSON array of sales order item objects')
       }
       const extra = parseJsonInput<Record<string, unknown>>(params.body, 'body') ?? {}
       const payload: Record<string, unknown> = {

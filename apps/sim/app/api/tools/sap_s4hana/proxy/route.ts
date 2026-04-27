@@ -420,12 +420,13 @@ function buildOdataUrl(req: ProxyRequest, pathOverride?: string): string {
   if (!req.query || Object.keys(req.query).length === 0) {
     return base
   }
-  const search = new URLSearchParams()
+  const encode = (s: string) => encodeURIComponent(s).replace(/%24/g, '$')
+  const parts: string[] = []
   for (const [key, value] of Object.entries(req.query)) {
     if (value === undefined || value === null) continue
-    search.append(key, String(value))
+    parts.push(`${encode(key)}=${encode(String(value))}`)
   }
-  const queryString = search.toString()
+  const queryString = parts.join('&')
   if (!queryString) return base
   return base.includes('?') ? `${base}&${queryString}` : `${base}?${queryString}`
 }
