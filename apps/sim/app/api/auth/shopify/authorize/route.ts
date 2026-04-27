@@ -32,7 +32,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const returnUrl = request.nextUrl.searchParams.get('returnUrl')
 
     if (!shopDomain) {
-      const returnUrlParam = returnUrl ? encodeURIComponent(returnUrl) : ''
+      const safeReturnUrl =
+        returnUrl && isSameOrigin(returnUrl) ? encodeURIComponent(returnUrl) : ''
+      const returnUrlJsLiteral = JSON.stringify(safeReturnUrl)
       return new NextResponse(
         `<!DOCTYPE html>
 <html>
@@ -120,7 +122,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     </div>
 
     <script>
-      const returnUrl = '${returnUrlParam}';
+      const returnUrl = ${returnUrlJsLiteral};
       function handleSubmit(e) {
         e.preventDefault();
         let shop = document.getElementById('shop').value.trim().toLowerCase();
