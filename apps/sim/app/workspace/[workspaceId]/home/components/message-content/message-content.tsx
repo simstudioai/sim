@@ -359,17 +359,17 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
         }
       } else {
         // Unparented end blocks come from legacy/partial persisted streams
-        // that predate parentToolCallId. Only collapse a lane this way when
-        // we have no parented groups, so we don't force-close legitimate
-        // parallel lanes mid-render.
-        const hasParentedGroup = [...groupsByKey.keys()].some((key) => !key.endsWith(':legacy'))
-        if (!hasParentedGroup) {
-          for (const g of groupsByKey.values()) {
-            if (g.agentName !== 'mothership') {
-              g.isOpen = false
-              g.isDelegating = false
-            }
+        // that predate parentToolCallId. Close lanes that are themselves
+        // legacy-keyed without touching parented lanes — this avoids
+        // force-closing legitimate parallel parented lanes while still
+        // releasing stranded legacy lanes in mixed/migration streams.
+        for (const [key, g] of groupsByKey) {
+          if (key.endsWith(':legacy') && g.agentName !== 'mothership') {
+            g.isOpen = false
+            g.isDelegating = false
           }
+        }
+        if (activeGroupKey?.endsWith(':legacy')) {
           activeGroupKey = null
         }
       }
