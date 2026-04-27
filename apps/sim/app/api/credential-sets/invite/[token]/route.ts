@@ -12,6 +12,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { normalizeEmail } from '@/lib/invitations/core'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 
 const logger = createLogger('CredentialSetInviteToken')
@@ -109,6 +110,21 @@ export const POST = withRouteHandler(
           .where(eq(credentialSetInvitation.id, invitation.id))
 
         return NextResponse.json({ error: 'Invitation has expired' }, { status: 410 })
+      }
+
+      if (invitation.email) {
+        const sessionEmail = session.user.email
+        if (!sessionEmail || normalizeEmail(sessionEmail) !== normalizeEmail(invitation.email)) {
+          logger.warn('Rejected credential set invitation accept due to email mismatch', {
+            invitationId: invitation.id,
+            credentialSetId: invitation.credentialSetId,
+            userId: session.user.id,
+          })
+          return NextResponse.json(
+            { error: 'This invitation was sent to a different email address' },
+            { status: 403 }
+          )
+        }
       }
 
       const existingMember = await db
