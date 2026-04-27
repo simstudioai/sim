@@ -199,6 +199,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       for (const [key, g] of groupsByKey) {
         if (key.endsWith(`:${parentToolCallId}`)) return g
       }
+      return undefined
     }
     if (activeGroupKey) return groupsByKey.get(activeGroupKey)
     return undefined

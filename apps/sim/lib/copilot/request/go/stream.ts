@@ -380,6 +380,15 @@ export async function runStreamLoop(
                   timestamp: Date.now(),
                 })
               }
+            } else {
+              // Protocol invariant: every subagent_start carries scope.parentToolCallId
+              // (or data.tool_call_id) and a subagent name. If we see otherwise the
+              // group cannot be keyed and the lane will not render — log so a
+              // server-side regression is visible.
+              logger.warn('subagent start missing toolCallId or agent name', {
+                hasToolCallId: Boolean(toolCallId),
+                hasSubagentName: Boolean(subagentName),
+              })
             }
             return
           }
