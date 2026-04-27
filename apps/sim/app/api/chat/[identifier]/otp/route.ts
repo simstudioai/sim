@@ -8,15 +8,31 @@ import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { renderOTPEmail } from '@/components/emails'
 import { getRedisClient } from '@/lib/core/config/redis'
+import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
+import { RateLimiter } from '@/lib/core/rate-limiter'
 import { addCorsHeaders, isEmailAllowed } from '@/lib/core/security/deployment'
 import { getStorageMethod } from '@/lib/core/storage'
-import { generateRequestId } from '@/lib/core/utils/request'
+import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { setChatAuthCookie } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatOtpAPI')
+
+const rateLimiter = new RateLimiter()
+
+const OTP_IP_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 10,
+  refillRate: 10,
+  refillIntervalMs: 15 * 60_000,
+}
+
+const OTP_EMAIL_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 3,
+  refillRate: 3,
+  refillIntervalMs: 15 * 60_000,
+}
 
 function generateOTP(): string {
   return randomInt(100000, 1000000).toString()
@@ -214,6 +230,23 @@ export const POST = withRouteHandler(
     const requestId = generateRequestId()
 
     try {
+      const ip = getClientIp(request)
+      if (ip !== 'unknown') {
+        const ipRateLimit = await rateLimiter.checkRateLimitDirect(
+          `chat-otp:ip:${identifier}:${ip}`,
+          OTP_IP_RATE_LIMIT
+        )
+        if (!ipRateLimit.allowed) {
+          logger.warn(`[${requestId}] OTP IP rate limit exceeded for ${identifier} from ${ip}`)
+          const retryAfter = Math.ceil(
+            (ipRateLimit.retryAfterMs ?? OTP_IP_RATE_LIMIT.refillIntervalMs) / 1000
+          )
+          const response = createErrorResponse('Too many requests. Please try again later.', 429)
+          response.headers.set('Retry-After', String(retryAfter))
+          return addCorsHeaders(response, request)
+        }
+      }
+
       const body = await request.json()
       const { email } = otpRequestSchema.parse(body)
 
@@ -253,6 +286,25 @@ export const POST = withRouteHandler(
           createErrorResponse('Email not authorized for this chat', 403),
           request
         )
+      }
+
+      const emailRateLimit = await rateLimiter.checkRateLimitDirect(
+        `chat-otp:email:${deployment.id}:${email.toLowerCase()}`,
+        OTP_EMAIL_RATE_LIMIT
+      )
+      if (!emailRateLimit.allowed) {
+        logger.warn(
+          `[${requestId}] OTP email rate limit exceeded for ${email} on chat ${deployment.id}`
+        )
+        const retryAfter = Math.ceil(
+          (emailRateLimit.retryAfterMs ?? OTP_EMAIL_RATE_LIMIT.refillIntervalMs) / 1000
+        )
+        const response = createErrorResponse(
+          'Too many verification code requests. Please try again later.',
+          429
+        )
+        response.headers.set('Retry-After', String(retryAfter))
+        return addCorsHeaders(response, request)
       }
 
       const otp = generateOTP()

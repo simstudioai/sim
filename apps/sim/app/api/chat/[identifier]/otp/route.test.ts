@@ -112,6 +112,16 @@ vi.mock('@/lib/core/storage', () => ({
   getStorageMethod: mockGetStorageMethod,
 }))
 
+const { mockCheckRateLimitDirect } = vi.hoisted(() => ({
+  mockCheckRateLimitDirect: vi.fn(),
+}))
+
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mockCheckRateLimitDirect
+  },
+}))
+
 vi.mock('@/lib/messaging/email/mailer', () => ({
   sendEmail: mockSendEmail,
 }))
@@ -234,6 +244,13 @@ describe('Chat OTP API Route', () => {
     }))
 
     requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('req-123')
+    requestUtilsMockFns.mockGetClientIp.mockReturnValue('1.2.3.4')
+
+    mockCheckRateLimitDirect.mockResolvedValue({
+      allowed: true,
+      remaining: 10,
+      resetAt: new Date(Date.now() + 60_000),
+    })
 
     mockZodParse.mockImplementation((data: unknown) => data)
 
@@ -280,6 +297,134 @@ describe('Chat OTP API Route', () => {
       )
 
       expect(mockDbInsert).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('POST - Rate limiting', () => {
+    const buildDeploymentSelect = () =>
+      mockDbSelect.mockImplementationOnce(() => ({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([
+              {
+                id: mockChatId,
+                authType: 'email',
+                allowedEmails: [mockEmail],
+                title: 'Test Chat',
+              },
+            ]),
+          }),
+        }),
+      }))
+
+    it('returns 429 with Retry-After when IP rate limit is exceeded', async () => {
+      mockCheckRateLimitDirect.mockResolvedValueOnce({
+        allowed: false,
+        remaining: 0,
+        resetAt: new Date(Date.now() + 900_000),
+        retryAfterMs: 900_000,
+      })
+
+      const headerSet = vi.fn()
+      mockCreateErrorResponse.mockImplementationOnce((message: string, status: number) => ({
+        json: () => Promise.resolve({ error: message }),
+        status,
+        headers: { set: headerSet },
+      }))
+
+      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: mockEmail }),
+      })
+
+      const response = await POST(request, {
+        params: Promise.resolve({ identifier: mockIdentifier }),
+      })
+
+      expect(response.status).toBe(429)
+      expect(headerSet).toHaveBeenCalledWith('Retry-After', '900')
+      expect(mockSendEmail).not.toHaveBeenCalled()
+      expect(mockDbSelect).not.toHaveBeenCalled()
+    })
+
+    it('returns 429 with Retry-After when email rate limit is exceeded', async () => {
+      mockCheckRateLimitDirect
+        .mockResolvedValueOnce({
+          allowed: true,
+          remaining: 9,
+          resetAt: new Date(Date.now() + 60_000),
+        })
+        .mockResolvedValueOnce({
+          allowed: false,
+          remaining: 0,
+          resetAt: new Date(Date.now() + 900_000),
+          retryAfterMs: 900_000,
+        })
+
+      const headerSet = vi.fn()
+      mockCreateErrorResponse.mockImplementationOnce((message: string, status: number) => ({
+        json: () => Promise.resolve({ error: message }),
+        status,
+        headers: { set: headerSet },
+      }))
+
+      buildDeploymentSelect()
+
+      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: mockEmail }),
+      })
+
+      const response = await POST(request, {
+        params: Promise.resolve({ identifier: mockIdentifier }),
+      })
+
+      expect(response.status).toBe(429)
+      expect(headerSet).toHaveBeenCalledWith('Retry-After', '900')
+      expect(mockSendEmail).not.toHaveBeenCalled()
+    })
+
+    it('falls back to refill interval when retryAfterMs is missing', async () => {
+      mockCheckRateLimitDirect.mockResolvedValueOnce({
+        allowed: false,
+        remaining: 0,
+        resetAt: new Date(Date.now() + 900_000),
+      })
+
+      const headerSet = vi.fn()
+      mockCreateErrorResponse.mockImplementationOnce((message: string, status: number) => ({
+        json: () => Promise.resolve({ error: message }),
+        status,
+        headers: { set: headerSet },
+      }))
+
+      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: mockEmail }),
+      })
+
+      await POST(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
+
+      expect(headerSet).toHaveBeenCalledWith('Retry-After', '900')
+    })
+
+    it('skips IP rate limit when client IP is unknown', async () => {
+      requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce('unknown')
+      buildDeploymentSelect()
+
+      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: mockEmail }),
+      })
+
+      await POST(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
+
+      // Only the email-scoped check should run, not the IP-scoped one
+      expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(1)
+      expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
+        expect.stringContaining('chat-otp:email:'),
+        expect.any(Object)
+      )
     })
   })
 
