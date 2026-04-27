@@ -697,6 +697,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
       value: () => 'oauth_client_credentials',
       condition: { field: 'deploymentType', value: ['cloud_private', 'on_premise'] },
       required: { field: 'deploymentType', value: ['cloud_private', 'on_premise'] },
+      dependsOn: ['deploymentType'],
     },
 
     // Cloud Public: subdomain + region (SAP BTP UAA pattern)
@@ -783,8 +784,8 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
       type: 'short-input',
       placeholder: 'sb-...!b1234',
       password: true,
-      condition: { field: 'authType', value: 'oauth_client_credentials' },
-      required: { field: 'authType', value: 'oauth_client_credentials' },
+      condition: { field: 'authType', value: 'basic', not: true },
+      required: { field: 'authType', value: 'basic', not: true },
     },
     {
       id: 'clientSecret',
@@ -792,8 +793,8 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
       type: 'short-input',
       placeholder: 'Client secret from Communication Arrangement',
       password: true,
-      condition: { field: 'authType', value: 'oauth_client_credentials' },
-      required: { field: 'authType', value: 'oauth_client_credentials' },
+      condition: { field: 'authType', value: 'basic', not: true },
+      required: { field: 'authType', value: 'basic', not: true },
     },
 
     // Basic credentials (only surfaced on Private/On-Prem + Basic auth)

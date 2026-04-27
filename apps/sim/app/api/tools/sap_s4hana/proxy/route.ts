@@ -14,6 +14,21 @@ const HttpMethod = z.enum(['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'MERGE'])
 const DeploymentType = z.enum(['cloud_public', 'cloud_private', 'on_premise'])
 const AuthType = z.enum(['oauth_client_credentials', 'basic'])
 
+const ServiceName = z
+  .string()
+  .min(1, 'service is required')
+  .regex(
+    /^[A-Z][A-Z0-9_]*$/,
+    'service must be an uppercase OData service name (e.g., API_BUSINESS_PARTNER)'
+  )
+
+const ServicePath = z
+  .string()
+  .min(1, 'path is required')
+  .refine((p) => !p.split(/[/\\]/).some((seg) => seg === '..' || seg === '.'), {
+    message: 'path must not contain ".." or "." segments',
+  })
+
 const ProxyRequestSchema = z
   .object({
     deploymentType: DeploymentType.default('cloud_public'),
@@ -26,8 +41,8 @@ const ProxyRequestSchema = z
     clientSecret: z.string().optional(),
     username: z.string().optional(),
     password: z.string().optional(),
-    service: z.string().min(1, 'service is required'),
-    path: z.string().min(1, 'path is required'),
+    service: ServiceName,
+    path: ServicePath,
     method: HttpMethod.default('GET'),
     query: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
     body: z.unknown().optional(),
@@ -77,6 +92,15 @@ const ProxyRequestSchema = z
           path: ['baseUrl'],
           message: 'baseUrl is required for cloud_private and on_premise deployments',
         })
+      } else {
+        const baseUrlCheck = checkExternalUrlSafety(req.baseUrl, 'baseUrl')
+        if (!baseUrlCheck.ok) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['baseUrl'],
+            message: baseUrlCheck.message,
+          })
+        }
       }
       if (req.authType === 'oauth_client_credentials') {
         if (!req.tokenUrl) {
@@ -85,6 +109,15 @@ const ProxyRequestSchema = z
             path: ['tokenUrl'],
             message: 'tokenUrl is required for OAuth on cloud_private/on_premise',
           })
+        } else {
+          const tokenUrlCheck = checkExternalUrlSafety(req.tokenUrl, 'tokenUrl')
+          if (!tokenUrlCheck.ok) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['tokenUrl'],
+              message: tokenUrlCheck.message,
+            })
+          }
         }
         if (!req.clientId) {
           ctx.addIssue({
@@ -127,7 +160,51 @@ interface CachedToken {
 }
 
 const TOKEN_CACHE = new Map<string, CachedToken>()
+const TOKEN_CACHE_MAX_ENTRIES = 500
 const TOKEN_SAFETY_WINDOW_MS = 60_000
+const OUTBOUND_FETCH_TIMEOUT_MS = 30_000
+
+const FORBIDDEN_HOSTS = new Set([
+  'localhost',
+  '0.0.0.0',
+  '127.0.0.1',
+  '169.254.169.254',
+  'metadata.google.internal',
+  'metadata',
+  '[::1]',
+  '[::]',
+  '[::ffff:127.0.0.1]',
+  '[fd00:ec2::254]',
+])
+
+function checkExternalUrlSafety(
+  rawUrl: string,
+  label: string
+): { ok: true; url: URL } | { ok: false; message: string } {
+  let parsed: URL
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    return { ok: false, message: `${label} must be a valid URL` }
+  }
+  if (parsed.protocol !== 'https:') {
+    return { ok: false, message: `${label} must use https://` }
+  }
+  const host = parsed.hostname.toLowerCase()
+  if (FORBIDDEN_HOSTS.has(host) || FORBIDDEN_HOSTS.has(`[${host}]`)) {
+    return { ok: false, message: `${label} host is not allowed` }
+  }
+  if (host.startsWith('169.254.')) {
+    return { ok: false, message: `${label} host is not allowed (link-local)` }
+  }
+  return { ok: true, url: parsed }
+}
+
+function assertSafeExternalUrl(rawUrl: string, label: string): URL {
+  const result = checkExternalUrlSafety(rawUrl, label)
+  if (!result.ok) throw new Error(result.message)
+  return result.url
+}
 
 function resolveTokenUrl(req: ProxyRequest): string {
   if (req.tokenUrl) return req.tokenUrl
@@ -138,6 +215,16 @@ function tokenCacheKey(req: ProxyRequest): string {
   return `${resolveTokenUrl(req)}::${req.clientId ?? ''}`
 }
 
+function rememberToken(key: string, token: CachedToken): void {
+  if (TOKEN_CACHE.has(key)) TOKEN_CACHE.delete(key)
+  TOKEN_CACHE.set(key, token)
+  while (TOKEN_CACHE.size > TOKEN_CACHE_MAX_ENTRIES) {
+    const oldestKey = TOKEN_CACHE.keys().next().value
+    if (oldestKey === undefined) break
+    TOKEN_CACHE.delete(oldestKey)
+  }
+}
+
 async function fetchAccessToken(req: ProxyRequest, requestId: string): Promise<string> {
   const cacheKey = tokenCacheKey(req)
   const cached = TOKEN_CACHE.get(cacheKey)
@@ -145,7 +232,7 @@ async function fetchAccessToken(req: ProxyRequest, requestId: string): Promise<s
     return cached.accessToken
   }
 
-  const tokenUrl = resolveTokenUrl(req)
+  const tokenUrl = assertSafeExternalUrl(resolveTokenUrl(req), 'tokenUrl').toString()
   const basic = Buffer.from(`${req.clientId}:${req.clientSecret}`).toString('base64')
 
   const response = await fetch(tokenUrl, {
@@ -156,6 +243,7 @@ async function fetchAccessToken(req: ProxyRequest, requestId: string): Promise<s
       Accept: 'application/json',
     },
     body: 'grant_type=client_credentials',
+    signal: AbortSignal.timeout(OUTBOUND_FETCH_TIMEOUT_MS),
   })
 
   if (!response.ok) {
@@ -174,7 +262,7 @@ async function fetchAccessToken(req: ProxyRequest, requestId: string): Promise<s
   }
 
   const expiresInMs = (data.expires_in ?? 3600) * 1000
-  TOKEN_CACHE.set(cacheKey, {
+  rememberToken(cacheKey, {
     accessToken: data.access_token,
     expiresAt: Date.now() + expiresInMs,
   })
@@ -218,6 +306,7 @@ async function fetchCsrf(
       Accept: 'application/xml',
       'X-CSRF-Token': 'Fetch',
     },
+    signal: AbortSignal.timeout(OUTBOUND_FETCH_TIMEOUT_MS),
   })
 
   if (!response.ok) {
@@ -234,7 +323,8 @@ async function fetchCsrf(
 
 function resolveHost(req: ProxyRequest): string {
   if (req.baseUrl) {
-    return req.baseUrl.replace(/\/+$/, '')
+    const trimmed = req.baseUrl.replace(/\/+$/, '')
+    return assertSafeExternalUrl(trimmed, 'baseUrl').toString().replace(/\/+$/, '')
   }
   return `https://${req.subdomain}-api.s4hana.ondemand.com`
 }
@@ -293,6 +383,7 @@ async function callOdata(
     method: req.method,
     headers,
     body: hasBody ? JSON.stringify(req.body) : undefined,
+    signal: AbortSignal.timeout(OUTBOUND_FETCH_TIMEOUT_MS),
   })
 
   const raw = await response.text()

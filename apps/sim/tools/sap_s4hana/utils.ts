@@ -45,9 +45,9 @@ export function buildEntityQuery(opts: {
   return query
 }
 
-export function parseJsonInput<T = unknown>(input: unknown, fieldName: string): T {
+export function parseJsonInput<T = unknown>(input: unknown, fieldName: string): T | undefined {
   if (input === undefined || input === null || input === '') {
-    return undefined as unknown as T
+    return undefined
   }
   if (typeof input === 'object') return input as T
   if (typeof input !== 'string') {
