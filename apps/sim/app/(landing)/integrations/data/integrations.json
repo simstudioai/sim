@@ -11380,6 +11380,173 @@
     "tags": ["sales-engagement", "customer-support"]
   },
   {
+    "type": "sap_s4hana",
+    "slug": "sap-s-4hana",
+    "name": "SAP S/4HANA",
+    "description": "Read and write SAP S/4HANA Cloud business data via OData",
+    "longDescription": "Connect SAP S/4HANA Cloud Public Edition with per-tenant OAuth 2.0 client credentials configured in your Communication Arrangements. Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices, or run arbitrary OData v2 queries against any whitelisted Communication Scenario.",
+    "bgColor": "#0A6ED1",
+    "iconName": "SapS4HanaIcon",
+    "docsUrl": "https://docs.sim.ai/tools/sap_s4hana",
+    "operations": [
+      {
+        "name": "List Business Partners",
+        "description": "List business partners from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessPartner) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Business Partner",
+        "description": "Retrieve a single business partner by BusinessPartner key from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessPartner)."
+      },
+      {
+        "name": "Create Business Partner",
+        "description": "Create a business partner in SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessPartner). For Person category 1 provide FirstName and LastName. For Organization category 2 provide OrganizationBPName1."
+      },
+      {
+        "name": "Update Business Partner",
+        "description": "Update fields on an A_BusinessPartner entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+      },
+      {
+        "name": "List Customers",
+        "description": "List customers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Customer) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Customer",
+        "description": "Retrieve a single customer by Customer key from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Customer)."
+      },
+      {
+        "name": "Update Customer",
+        "description": "Update fields on an A_Customer entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. A_Customer PATCH is limited to modifiable fields such as OrderIsBlockedForCustomer, DeliveryIsBlock, BillingIsBlockedForCustomer, PostingIsBlocked, and DeletionIndicator. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+      },
+      {
+        "name": "List Suppliers",
+        "description": "List suppliers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Supplier) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Supplier",
+        "description": "Retrieve a single supplier by Supplier key from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Supplier)."
+      },
+      {
+        "name": "Update Supplier",
+        "description": "Update fields on an A_Supplier entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. A_Supplier PATCH is limited to modifiable fields such as PostingIsBlocked, PurchasingIsBlocked, PaymentIsBlockedForSupplier, DeletionIndicator, and SupplierAccountGroup. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+      },
+      {
+        "name": "List Sales Orders",
+        "description": "List sales orders from SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Sales Order",
+        "description": "Retrieve a single sales order by SalesOrder key from SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder)."
+      },
+      {
+        "name": "Create Sales Order",
+        "description": "Create a sales order in SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder) with deep insert of sales order items via to_Item."
+      },
+      {
+        "name": "Update Sales Order",
+        "description": "Update fields on an A_SalesOrder entity in SAP S/4HANA Cloud (API_SALES_ORDER_SRV). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+      },
+      {
+        "name": "Delete Sales Order",
+        "description": "Delete an A_SalesOrder entity in SAP S/4HANA Cloud (API_SALES_ORDER_SRV). Only orders without subsequent documents (deliveries, invoices) can be deleted; otherwise reject items via update instead."
+      },
+      {
+        "name": "List Outbound Deliveries",
+        "description": "List outbound deliveries from SAP S/4HANA Cloud (API_OUTBOUND_DELIVERY_SRV;v=0002, A_OutbDeliveryHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Outbound Delivery",
+        "description": "Retrieve a single outbound delivery by DeliveryDocument key from SAP S/4HANA Cloud (API_OUTBOUND_DELIVERY_SRV;v=0002, A_OutbDeliveryHeader)."
+      },
+      {
+        "name": "List Inbound Deliveries",
+        "description": "List inbound deliveries from SAP S/4HANA Cloud (API_INBOUND_DELIVERY_SRV;v=0002, A_InbDeliveryHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Inbound Delivery",
+        "description": "Retrieve a single inbound delivery by DeliveryDocument key from SAP S/4HANA Cloud (API_INBOUND_DELIVERY_SRV;v=0002, A_InbDeliveryHeader)."
+      },
+      {
+        "name": "List Billing Documents",
+        "description": "List billing documents (customer invoices) from SAP S/4HANA Cloud (API_BILLING_DOCUMENT_SRV, A_BillingDocument) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Billing Document",
+        "description": "Retrieve a single billing document (customer invoice) by BillingDocument key from SAP S/4HANA Cloud (API_BILLING_DOCUMENT_SRV, A_BillingDocument)."
+      },
+      {
+        "name": "List Products",
+        "description": "List products (materials) from SAP S/4HANA Cloud (API_PRODUCT_SRV, A_Product) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Product",
+        "description": "Retrieve a single product (material) by Product key from SAP S/4HANA Cloud (API_PRODUCT_SRV, A_Product)."
+      },
+      {
+        "name": "Update Product",
+        "description": "Update fields on an A_Product entity in SAP S/4HANA Cloud (API_PRODUCT_SRV). PATCH only sends the fields you provide; existing values are preserved. Flat scalar header fields only — deep/multi-entity updates across navigation properties are not supported by API_PRODUCT_SRV PATCH/PUT (see SAP KBA 2833338); update child entities (plant, valuation, sales data, etc.) via their own endpoints. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET."
+      },
+      {
+        "name": "List Material Stock",
+        "description": "List material stock quantities from SAP S/4HANA Cloud (API_MATERIAL_STOCK_SRV, A_MatlStkInAcctMod). The entity uses an 11-field composite key (Material, Plant, StorageLocation, Batch, Supplier, Customer, WBSElementInternalID, SDDocument, SDDocumentItem, InventorySpecialStockType, InventoryStockType) — query with $filter on these fields instead of a direct key lookup."
+      },
+      {
+        "name": "List Material Documents",
+        "description": "List material document headers (goods movements) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "List Purchase Requisitions",
+        "description": "List purchase requisitions from SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, A_PurchaseRequisitionHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand. Note: API_PURCHASEREQ_PROCESS_SRV is deprecated since S/4HANA Cloud Public Edition 2402; the successor is API_PURCHASEREQUISITION_2 (OData v4). This tool still works against tenants where the legacy service is enabled."
+      },
+      {
+        "name": "Get Purchase Requisition",
+        "description": "Retrieve a single purchase requisition by PurchaseRequisition key from SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, A_PurchaseRequisitionHeader). Note: API_PURCHASEREQ_PROCESS_SRV is deprecated since S/4HANA Cloud Public Edition 2402; the successor is API_PURCHASEREQUISITION_2 (OData v4). This tool still works against tenants where the legacy service is enabled."
+      },
+      {
+        "name": "Create Purchase Requisition",
+        "description": "Create a purchase requisition in SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, A_PurchaseRequisitionHeader). PurchaseRequisition is auto-assigned by SAP from the document number range; provide line items via the to_PurchaseReqnItem deep-insert array. Note: API_PURCHASEREQ_PROCESS_SRV is deprecated since S/4HANA Cloud Public Edition 2402; the successor is API_PURCHASEREQUISITION_2 (OData v4). This tool still works against tenants where the legacy service is enabled."
+      },
+      {
+        "name": "Update Purchase Requisition",
+        "description": "Update fields on an A_PurchaseRequisitionHeader entity in SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV; deprecated since S/4HANA 2402, successor is API_PURCHASEREQUISITION_2 OData v4). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+      },
+      {
+        "name": "List Purchase Orders",
+        "description": "List purchase orders from SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_PurchaseOrder) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Purchase Order",
+        "description": "Retrieve a single purchase order by PurchaseOrder key from SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_PurchaseOrder)."
+      },
+      {
+        "name": "Create Purchase Order",
+        "description": "Create a purchase order in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_PurchaseOrder). PurchaseOrder is auto-assigned by SAP from the document number range; provide line items via the body parameter."
+      },
+      {
+        "name": "Update Purchase Order",
+        "description": "Update fields on an A_PurchaseOrder entity in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+      },
+      {
+        "name": "List Supplier Invoices",
+        "description": "List supplier invoices from SAP S/4HANA Cloud (API_SUPPLIERINVOICE_PROCESS_SRV, A_SupplierInvoice) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Supplier Invoice",
+        "description": "Retrieve a single supplier invoice by composite key (SupplierInvoice + FiscalYear) from SAP S/4HANA Cloud (API_SUPPLIERINVOICE_PROCESS_SRV, A_SupplierInvoice)."
+      },
+      {
+        "name": "OData Query (advanced)",
+        "description": "Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Communication Scenario. Use when no dedicated tool exists for the entity. The proxy handles auth, CSRF, and OData unwrapping."
+      }
+    ],
+    "operationCount": 37,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["other", "developer-tools"],
+    "tags": ["automation"]
+  },
+  {
     "type": "search",
     "slug": "search",
     "name": "Search",

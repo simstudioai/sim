@@ -1,0 +1,1182 @@
+---
+title: SAP S/4HANA
+description: Read and write SAP S/4HANA Cloud business data via OData
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sap_s4hana"
+  color="#0A6ED1"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SAP S/4HANA](https://www.sap.com/products/erp/s4hana.html) is SAP's flagship intelligent ERP suite, running on the in-memory HANA database. It powers finance, supply chain, procurement, sales, and manufacturing for organizations of every size, and exposes its business data through a broad catalog of OData services on SAP Business Technology Platform (BTP).
+
+With SAP S/4HANA, you can:
+
+- **Run core business processes**: Manage finance, procurement, sales, logistics, inventory, and manufacturing on a single source of truth.
+- **Model master data at scale**: Maintain business partners, customers, suppliers, products, and organizational structures across multiple company codes, sales organizations, and plants.
+- **Execute transactional flows end to end**: Create and update sales orders, purchase requisitions, purchase orders, deliveries, billing documents, supplier invoices, and stock movements with full audit trails.
+- **Govern access cleanly**: Use Communication Arrangements, Communication Systems, and Communication Scopes to scope OAuth client credentials to exactly the services each integration needs.
+- **Integrate via standard OData**: Every entity supported here speaks OData v2 with consistent paging, filtering, expansion, and ETag-based optimistic concurrency.
+
+In Sim, the SAP S/4HANA integration lets your agents read and write directly against your tenant's OData services using per-tenant OAuth 2.0 client credentials. Agents can list and fetch master data, create and update transactional documents, run stock and material document queries, and execute arbitrary OData v2 calls against any whitelisted Communication Scenario — all routed through a single internal proxy that handles token acquisition, CSRF fetch-and-retry, and OData error normalization. Use it to automate order-to-cash, procure-to-pay, and inventory workflows, keep SAP in sync with the rest of your stack, or trigger downstream agent logic from SAP business events.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+{/* MANUAL-CONTENT-START:usage */}
+Connect any SAP S/4HANA tenant — **Cloud Public Edition**, **Cloud Private Edition (RISE)**, or **on-premise** — and read or write business data through the official OData v2 services. Each tool routes through a single internal proxy that handles token acquisition, CSRF fetch-and-retry for write operations, and OData error normalization.
+
+### Deployment modes
+
+Pick the deployment that matches your tenant in the **Deployment** dropdown:
+
+- **S/4HANA Cloud Public Edition** — provide your **BTP subaccount subdomain** and **region** (e.g., `eu10`, `us10`). The host is derived automatically as `{subdomain}-api.s4hana.ondemand.com`, and OAuth tokens are fetched from the matching BTP UAA endpoint. Authentication is OAuth 2.0 client credentials configured in a Communication Arrangement.
+- **S/4HANA Cloud Private Edition (RISE)** — provide your **OData Base URL** (e.g., `https://my-tenant.s4hana.cloud.sap`). Authenticate with **OAuth 2.0 client credentials** (provide the tenant's UAA `tokenUrl`, `clientId`, `clientSecret`) or **HTTP Basic** with a Communication User (`username`, `password`).
+- **On-premise S/4HANA** — provide your **OData Base URL** (e.g., `https://sap.internal.company.com:44300`). Authenticate with **OAuth 2.0 client credentials** issued by your on-prem identity provider, or **HTTP Basic** with a service user.
+
+### What you can do
+
+Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices. Update business partners, customers, suppliers, products, sales orders, purchase orders, and purchase requisitions with PATCH. Run arbitrary OData v2 queries against any whitelisted Communication Scenario or registered service.
+
+### Optimistic concurrency
+
+All update tools accept an optional `ifMatch` ETag. When omitted, `If-Match` defaults to a wildcard (unconditional). For safe concurrent updates, fetch the entity first, capture its ETag from the response, and pass it as `ifMatch` to detect lost updates.
+{/* MANUAL-CONTENT-END */}
+
+
+Connect SAP S/4HANA Cloud Public Edition with per-tenant OAuth 2.0 client credentials configured in your Communication Arrangements. Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices, or run arbitrary OData v2 queries against any whitelisted Communication Scenario.
+
+
+
+## Tools
+
+### `sap_s4hana_list_business_partners`
+
+List business partners from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessPartner) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `filter` | string | No | OData $filter expression \(e.g., "BusinessPartnerCategory eq \'1\'"\) |
+| `top` | number | No | Maximum results to return \($top\) |
+| `skip` | number | No | Number of results to skip \($skip\) |
+| `orderBy` | string | No | OData $orderby expression |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \($expand\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Array of A_BusinessPartner entities |
+
+### `sap_s4hana_get_business_partner`
+
+Retrieve a single business partner by BusinessPartner key from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessPartner).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `businessPartner` | string | Yes | BusinessPartner key \(string, up to 10 characters\) |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \($expand\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | A_BusinessPartner entity |
+
+### `sap_s4hana_create_business_partner`
+
+Create a business partner in SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessPartner). For Person category 1 provide FirstName and LastName. For Organization category 2 provide OrganizationBPName1.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `businessPartnerCategory` | string | Yes | BusinessPartnerCategory: "1" Person, "2" Organization, "3" Group |
+| `businessPartnerGrouping` | string | Yes | BusinessPartnerGrouping \(number range / role grouping configured in S/4HANA, e.g. "0001"\) |
+| `firstName` | string | No | FirstName \(required for Person\) |
+| `lastName` | string | No | LastName \(required for Person\) |
+| `organizationBPName1` | string | No | OrganizationBPName1 \(required for Organization\) |
+| `body` | json | No | Optional additional A_BusinessPartner fields merged into the create payload |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Created A_BusinessPartner entity |
+
+### `sap_s4hana_update_business_partner`
+
+Update fields on an A_BusinessPartner entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `businessPartner` | string | Yes | BusinessPartner key to update \(string, up to 10 characters\) |
+| `body` | json | Yes | JSON object with A_BusinessPartner fields to update \(e.g., \{"FirstName":"Jane","SearchTerm1":"VIP"\}\) |
+| `ifMatch` | string | No | If-Match ETag for optimistic concurrency. Defaults to "*" \(unconditional\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP \(204 on success\) |
+| `data` | json | Null on 204 success, or updated A_BusinessPartner entity if SAP returns one |
+
+### `sap_s4hana_list_customers`
+
+List customers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Customer) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `filter` | string | No | OData $filter expression \(e.g., "CustomerAccountGroup eq \'Z001\'"\) |
+| `top` | number | No | Maximum results to return \($top\) |
+| `skip` | number | No | Number of results to skip \($skip\) |
+| `orderBy` | string | No | OData $orderby expression |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_CustomerCompany,to_CustomerSalesArea"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Array of A_Customer entities |
+
+### `sap_s4hana_get_customer`
+
+Retrieve a single customer by Customer key from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Customer).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `customer` | string | Yes | Customer key \(string, up to 10 characters\) |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_CustomerCompany,to_CustomerSalesArea"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | A_Customer entity |
+
+### `sap_s4hana_update_customer`
+
+Update fields on an A_Customer entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. A_Customer PATCH is limited to modifiable fields such as OrderIsBlockedForCustomer, DeliveryIsBlock, BillingIsBlockedForCustomer, PostingIsBlocked, and DeletionIndicator. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `customer` | string | Yes | Customer key to update \(string, up to 10 characters\) |
+| `body` | json | Yes | JSON object with A_Customer fields to update \(e.g., \{"OrderIsBlockedForCustomer":true,"DeletionIndicator":false\}\) |
+| `ifMatch` | string | No | If-Match ETag for optimistic concurrency. Defaults to "*" \(unconditional\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP \(204 on success\) |
+| `data` | json | Null on 204 success, or updated A_Customer entity if SAP returns one |
+
+### `sap_s4hana_list_suppliers`
+
+List suppliers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Supplier) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `filter` | string | No | OData $filter expression \(e.g., "SupplierAccountGroup eq \'BP02\'"\) |
+| `top` | number | No | Maximum results to return \($top\) |
+| `skip` | number | No | Number of results to skip \($skip\) |
+| `orderBy` | string | No | OData $orderby expression |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_SupplierCompany,to_SupplierPurchasingOrg"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Array of A_Supplier entities |
+
+### `sap_s4hana_get_supplier`
+
+Retrieve a single supplier by Supplier key from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Supplier).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `supplier` | string | Yes | Supplier key \(string, up to 10 characters\) |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_SupplierCompany,to_SupplierPurchasingOrg"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | A_Supplier entity |
+
+### `sap_s4hana_update_supplier`
+
+Update fields on an A_Supplier entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. A_Supplier PATCH is limited to modifiable fields such as PostingIsBlocked, PurchasingIsBlocked, PaymentIsBlockedForSupplier, DeletionIndicator, and SupplierAccountGroup. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `supplier` | string | Yes | Supplier key to update \(string, up to 10 characters\) |
+| `body` | json | Yes | JSON object with A_Supplier fields to update \(e.g., \{"PaymentIsBlockedForSupplier":true,"PostingIsBlocked":true\}\) |
+| `ifMatch` | string | No | If-Match ETag for optimistic concurrency. Defaults to "*" \(unconditional\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP \(204 on success\) |
+| `data` | json | Null on 204 success, or updated A_Supplier entity if SAP returns one |
+
+### `sap_s4hana_list_sales_orders`
+
+List sales orders from SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `filter` | string | No | OData $filter expression \(e.g., "SalesOrganization eq \'1010\'"\) |
+| `top` | number | No | Maximum results to return \($top\) |
+| `skip` | number | No | Number of results to skip \($skip\) |
+| `orderBy` | string | No | OData $orderby expression |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_Item,to_Partner"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Array of A_SalesOrder entities |
+
+### `sap_s4hana_get_sales_order`
+
+Retrieve a single sales order by SalesOrder key from SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `salesOrder` | string | Yes | SalesOrder key \(string, up to 10 characters\) |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_Item"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | A_SalesOrder entity |
+
+### `sap_s4hana_create_sales_order`
+
+Create a sales order in SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder) with deep insert of sales order items via to_Item.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `salesOrderType` | string | Yes | SalesOrderType \(e.g., "OR" Standard Order\) |
+| `salesOrganization` | string | Yes | SalesOrganization \(4 chars, e.g., "1010"\) |
+| `distributionChannel` | string | Yes | DistributionChannel \(2 chars, e.g., "10"\) |
+| `organizationDivision` | string | Yes | OrganizationDivision \(2 chars, e.g., "00"\) |
+| `soldToParty` | string | Yes | SoldToParty business partner key \(up to 10 chars\) |
+| `items` | json | Yes | Array of sales order items for to_Item deep insert. Each item should include Material and RequestedQuantity \(e.g., \[\{"Material":"TG11","RequestedQuantity":"1"\}\]\). |
+| `body` | json | No | Optional additional A_SalesOrder fields merged into the create payload |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Created A_SalesOrder entity \(with deep-inserted items if expanded by SAP\) |
+
+### `sap_s4hana_update_sales_order`
+
+Update fields on an A_SalesOrder entity in SAP S/4HANA Cloud (API_SALES_ORDER_SRV). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `salesOrder` | string | Yes | SalesOrder key to update \(string, up to 10 characters\) |
+| `body` | json | Yes | JSON object with A_SalesOrder fields to update \(e.g., \{"PurchaseOrderByCustomer":"PO-12345","HeaderBillingBlockReason":"01"\}\) |
+| `ifMatch` | string | No | If-Match ETag for optimistic concurrency. Defaults to "*" \(unconditional\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP \(204 on success\) |
+| `data` | json | Null on 204 success, or updated A_SalesOrder entity if SAP returns one |
+
+### `sap_s4hana_delete_sales_order`
+
+Delete an A_SalesOrder entity in SAP S/4HANA Cloud (API_SALES_ORDER_SRV). Only orders without subsequent documents (deliveries, invoices) can be deleted; otherwise reject items via update instead.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `salesOrder` | string | Yes | SalesOrder key to delete \(string, up to 10 characters\) |
+| `ifMatch` | string | No | If-Match ETag for optimistic concurrency. Defaults to "*" \(unconditional\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP \(204 on success\) |
+| `data` | json | Null on successful deletion |
+
+### `sap_s4hana_list_outbound_deliveries`
+
+List outbound deliveries from SAP S/4HANA Cloud (API_OUTBOUND_DELIVERY_SRV;v=0002, A_OutbDeliveryHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `filter` | string | No | OData $filter expression \(e.g., "OverallDeliveryStatus eq \'C\'"\) |
+| `top` | number | No | Maximum results to return \($top\) |
+| `skip` | number | No | Number of results to skip \($skip\) |
+| `orderBy` | string | No | OData $orderby expression |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_DeliveryDocumentItem"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Array of A_OutbDeliveryHeader entities |
+
+### `sap_s4hana_get_outbound_delivery`
+
+Retrieve a single outbound delivery by DeliveryDocument key from SAP S/4HANA Cloud (API_OUTBOUND_DELIVERY_SRV;v=0002, A_OutbDeliveryHeader).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `deliveryDocument` | string | Yes | DeliveryDocument key \(string, up to 10 characters\) |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_DeliveryDocumentItem"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | A_OutbDeliveryHeader entity |
+
+### `sap_s4hana_list_inbound_deliveries`
+
+List inbound deliveries from SAP S/4HANA Cloud (API_INBOUND_DELIVERY_SRV;v=0002, A_InbDeliveryHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `filter` | string | No | OData $filter expression \(e.g., "ReceivingPlant eq \'1010\'"\) |
+| `top` | number | No | Maximum results to return \($top\) |
+| `skip` | number | No | Number of results to skip \($skip\) |
+| `orderBy` | string | No | OData $orderby expression |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_DeliveryDocumentItem"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Array of A_InbDeliveryHeader entities |
+
+### `sap_s4hana_get_inbound_delivery`
+
+Retrieve a single inbound delivery by DeliveryDocument key from SAP S/4HANA Cloud (API_INBOUND_DELIVERY_SRV;v=0002, A_InbDeliveryHeader).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `deliveryDocument` | string | Yes | DeliveryDocument key \(string, up to 10 characters\) |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_DeliveryDocumentItem"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | A_InbDeliveryHeader entity |
+
+### `sap_s4hana_list_billing_documents`
+
+List billing documents (customer invoices) from SAP S/4HANA Cloud (API_BILLING_DOCUMENT_SRV, A_BillingDocument) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `filter` | string | No | OData $filter expression \(e.g., "SoldToParty eq \'10100001\'"\) |
+| `top` | number | No | Maximum results to return \($top\) |
+| `skip` | number | No | Number of results to skip \($skip\) |
+| `orderBy` | string | No | OData $orderby expression |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_Item,to_Partner"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Array of A_BillingDocument entities |
+
+### `sap_s4hana_get_billing_document`
+
+Retrieve a single billing document (customer invoice) by BillingDocument key from SAP S/4HANA Cloud (API_BILLING_DOCUMENT_SRV, A_BillingDocument).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `billingDocument` | string | Yes | BillingDocument key \(string, up to 10 characters\) |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_Item,to_Partner"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | A_BillingDocument entity |
+
+### `sap_s4hana_list_products`
+
+List products (materials) from SAP S/4HANA Cloud (API_PRODUCT_SRV, A_Product) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `filter` | string | No | OData $filter expression \(e.g., "ProductType eq \'FERT\'"\) |
+| `top` | number | No | Maximum results to return \($top\) |
+| `skip` | number | No | Number of results to skip \($skip\) |
+| `orderBy` | string | No | OData $orderby expression |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \($expand\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Array of A_Product entities |
+
+### `sap_s4hana_get_product`
+
+Retrieve a single product (material) by Product key from SAP S/4HANA Cloud (API_PRODUCT_SRV, A_Product).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `product` | string | Yes | Product key \(string, up to 40 characters\) |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_Description"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | A_Product entity |
+
+### `sap_s4hana_update_product`
+
+Update fields on an A_Product entity in SAP S/4HANA Cloud (API_PRODUCT_SRV). PATCH only sends the fields you provide; existing values are preserved. Flat scalar header fields only — deep/multi-entity updates across navigation properties are not supported by API_PRODUCT_SRV PATCH/PUT (see SAP KBA 2833338); update child entities (plant, valuation, sales data, etc.) via their own endpoints. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `product` | string | Yes | Product key to update \(string, up to 40 characters\) |
+| `body` | json | Yes | JSON object with A_Product fields to update \(e.g., \{"ProductGroup":"L001","IsMarkedForDeletion":false\}\) |
+| `ifMatch` | string | No | If-Match ETag for optimistic concurrency. Defaults to "*" \(unconditional\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP \(204 on success\) |
+| `data` | json | Null on 204 success, or updated A_Product entity if SAP returns one |
+
+### `sap_s4hana_list_material_stock`
+
+List material stock quantities from SAP S/4HANA Cloud (API_MATERIAL_STOCK_SRV, A_MatlStkInAcctMod). The entity uses an 11-field composite key (Material, Plant, StorageLocation, Batch, Supplier, Customer, WBSElementInternalID, SDDocument, SDDocumentItem, InventorySpecialStockType, InventoryStockType) — query with $filter on these fields instead of a direct key lookup.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `filter` | string | No | OData $filter expression \(e.g., \"Material eq 'TG10' and Plant eq '1010' and InventoryStockType eq '01'\"\) |
+| `top` | number | No | Maximum results to return \($top\) |
+| `skip` | number | No | Number of results to skip \($skip\) |
+| `orderBy` | string | No | OData $orderby expression |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \($expand\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Array of A_MatlStkInAcctMod stock entries |
+
+### `sap_s4hana_list_material_documents`
+
+List material document headers (goods movements) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `filter` | string | No | OData $filter expression \(e.g., \"MaterialDocumentYear eq '2024' and PostingDate ge datetime'2024-01-01T00:00:00'\"\) |
+| `top` | number | No | Maximum results to return \($top\) |
+| `skip` | number | No | Number of results to skip \($skip\) |
+| `orderBy` | string | No | OData $orderby expression |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_MaterialDocumentItem"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Array of A_MaterialDocumentHeader entities |
+
+### `sap_s4hana_list_purchase_requisitions`
+
+List purchase requisitions from SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, A_PurchaseRequisitionHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand. Note: API_PURCHASEREQ_PROCESS_SRV is deprecated since S/4HANA Cloud Public Edition 2402; the successor is API_PURCHASEREQUISITION_2 (OData v4). This tool still works against tenants where the legacy service is enabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `filter` | string | No | OData $filter expression \(e.g., "PurchaseRequisitionType eq \'NB\'"\) |
+| `top` | number | No | Maximum results to return \($top\) |
+| `skip` | number | No | Number of results to skip \($skip\) |
+| `orderBy` | string | No | OData $orderby expression |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_PurchaseReqnItem"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Array of A_PurchaseRequisitionHeader entities |
+
+### `sap_s4hana_get_purchase_requisition`
+
+Retrieve a single purchase requisition by PurchaseRequisition key from SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, A_PurchaseRequisitionHeader). Note: API_PURCHASEREQ_PROCESS_SRV is deprecated since S/4HANA Cloud Public Edition 2402; the successor is API_PURCHASEREQUISITION_2 (OData v4). This tool still works against tenants where the legacy service is enabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `purchaseRequisition` | string | Yes | PurchaseRequisition key \(string, up to 10 characters\) |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_PurchaseReqnItem"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | A_PurchaseRequisitionHeader entity |
+
+### `sap_s4hana_create_purchase_requisition`
+
+Create a purchase requisition in SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, A_PurchaseRequisitionHeader). PurchaseRequisition is auto-assigned by SAP from the document number range; provide line items via the to_PurchaseReqnItem deep-insert array. Note: API_PURCHASEREQ_PROCESS_SRV is deprecated since S/4HANA Cloud Public Edition 2402; the successor is API_PURCHASEREQUISITION_2 (OData v4). This tool still works against tenants where the legacy service is enabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `purchaseRequisitionType` | string | Yes | PurchaseRequisitionType \(e.g., "NB" Standard PR\) |
+| `items` | json | Yes | to_PurchaseReqnItem deep-insert array \(e.g., \[\{"PurchaseRequisitionItem":"10","Material":"TG11","RequestedQuantity":"5","Plant":"1010","BaseUnit":"PC","DeliveryDate":"/Date\(1735689600000\)/"\}\]\) |
+| `body` | json | No | Additional A_PurchaseRequisitionHeader fields merged into the create payload \(e.g., \{"PurchaseRequisitionDescription":"Office supplies"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Created A_PurchaseRequisitionHeader entity |
+
+### `sap_s4hana_update_purchase_requisition`
+
+Update fields on an A_PurchaseRequisitionHeader entity in SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV; deprecated since S/4HANA 2402, successor is API_PURCHASEREQUISITION_2 OData v4). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `purchaseRequisition` | string | Yes | PurchaseRequisition key to update \(string, up to 10 characters\) |
+| `body` | json | Yes | JSON object with A_PurchaseRequisitionHeader fields to update \(e.g., \{"PurchaseRequisitionType":"NB"\}\) |
+| `ifMatch` | string | No | If-Match ETag for optimistic concurrency. Defaults to "*" \(unconditional\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP \(204 on success\) |
+| `data` | json | Null on 204 success, or updated A_PurchaseRequisitionHeader entity if SAP returns one |
+
+### `sap_s4hana_list_purchase_orders`
+
+List purchase orders from SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_PurchaseOrder) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `filter` | string | No | OData $filter expression \(e.g., "CompanyCode eq \'1010\'"\) |
+| `top` | number | No | Maximum results to return \($top\) |
+| `skip` | number | No | Number of results to skip \($skip\) |
+| `orderBy` | string | No | OData $orderby expression |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_PurchaseOrderItem"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Array of A_PurchaseOrder entities |
+
+### `sap_s4hana_get_purchase_order`
+
+Retrieve a single purchase order by PurchaseOrder key from SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_PurchaseOrder).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `purchaseOrder` | string | Yes | PurchaseOrder key \(string, up to 10 characters\) |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \(e.g., "to_PurchaseOrderItem"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | A_PurchaseOrder entity |
+
+### `sap_s4hana_create_purchase_order`
+
+Create a purchase order in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_PurchaseOrder). PurchaseOrder is auto-assigned by SAP from the document number range; provide line items via the body parameter.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `purchaseOrderType` | string | Yes | PurchaseOrderType \(e.g., "NB" Standard PO\) |
+| `companyCode` | string | Yes | CompanyCode \(4 chars, e.g., "1010"\) |
+| `purchasingOrganization` | string | Yes | PurchasingOrganization \(4 chars\) |
+| `purchasingGroup` | string | Yes | PurchasingGroup \(3 chars\) |
+| `supplier` | string | Yes | Supplier business partner key \(up to 10 chars\) |
+| `body` | json | No | Additional A_PurchaseOrder fields and to_PurchaseOrderItem deep-insert items merged into the create payload \(e.g., \{"to_PurchaseOrderItem":\[\{"PurchaseOrderItem":"10","Material":"TG11","OrderQuantity":"5","Plant":"1010","PurchaseOrderQuantityUnit":"PC","NetPriceAmount":"100.00","DocumentCurrency":"USD"\}\]\}\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Created A_PurchaseOrder entity |
+
+### `sap_s4hana_update_purchase_order`
+
+Update fields on an A_PurchaseOrder entity in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `purchaseOrder` | string | Yes | PurchaseOrder key to update \(string, up to 10 characters\) |
+| `body` | json | Yes | JSON object with A_PurchaseOrder fields to update \(e.g., \{"PurchasingGroup":"002","PurchaseOrderDate":"/Date\(1735689600000\)/"\}\) |
+| `ifMatch` | string | No | If-Match ETag for optimistic concurrency. Defaults to "*" \(unconditional\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP \(204 on success\) |
+| `data` | json | Null on 204 success, or updated A_PurchaseOrder entity if SAP returns one |
+
+### `sap_s4hana_list_supplier_invoices`
+
+List supplier invoices from SAP S/4HANA Cloud (API_SUPPLIERINVOICE_PROCESS_SRV, A_SupplierInvoice) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `filter` | string | No | OData $filter expression \(e.g., "InvoicingParty eq \'17300001\'"\) |
+| `top` | number | No | Maximum results to return \($top\) |
+| `skip` | number | No | Number of results to skip \($skip\) |
+| `orderBy` | string | No | OData $orderby expression |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \($expand\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Array of A_SupplierInvoice entities |
+
+### `sap_s4hana_get_supplier_invoice`
+
+Retrieve a single supplier invoice by composite key (SupplierInvoice + FiscalYear) from SAP S/4HANA Cloud (API_SUPPLIERINVOICE_PROCESS_SRV, A_SupplierInvoice).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `supplierInvoice` | string | Yes | SupplierInvoice key \(string, up to 10 characters\) |
+| `fiscalYear` | string | Yes | FiscalYear \(4-character year, e.g., "2024"\) |
+| `select` | string | No | Comma-separated fields to return \($select\) |
+| `expand` | string | No | Comma-separated navigation properties to expand \($expand\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | A_SupplierInvoice entity |
+
+### `sap_s4hana_odata_query`
+
+Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Communication Scenario. Use when no dedicated tool exists for the entity. The proxy handles auth, CSRF, and OData unwrapping.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subdomain` | string | Yes | SAP BTP subaccount subdomain \(technical name of your subaccount, not the S/4HANA host\) |
+| `region` | string | Yes | BTP region \(e.g. eu10, us10\) |
+| `clientId` | string | Yes | OAuth client ID from the S/4HANA Communication Arrangement |
+| `clientSecret` | string | Yes | OAuth client secret from the S/4HANA Communication Arrangement |
+| `deploymentType` | string | No | Deployment type: cloud_public \(default\), cloud_private, or on_premise |
+| `authType` | string | No | Authentication type: oauth_client_credentials \(default\) or basic |
+| `baseUrl` | string | No | Base URL of the S/4HANA host \(Cloud Private / On-Premise\) |
+| `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
+| `username` | string | No | Username for HTTP Basic auth |
+| `password` | string | No | Password for HTTP Basic auth |
+| `service` | string | Yes | OData service name \(e.g., "API_BUSINESS_PARTNER", "API_SALES_ORDER_SRV"\) |
+| `path` | string | Yes | Path inside the service \(e.g., "/A_BusinessPartner" or "/A_BusinessPartner\(\'1000123\'\)"\) |
+| `method` | string | No | HTTP method: GET \(default\), POST, PATCH, PUT, DELETE, MERGE |
+| `query` | json | No | OData query parameters as JSON object or query string \(e.g., \{"$filter":"BusinessPartnerCategory eq \'1\'","$top":10\}\). $format=json is added automatically when omitted. |
+| `body` | json | No | JSON request body for write operations |
+| `ifMatch` | string | No | ETag value for the If-Match header \(required by SAP for PATCH/PUT/DELETE on existing entities\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by SAP |
+| `data` | json | Parsed OData payload \(entity, collection, or null on 204\) |
+
+
