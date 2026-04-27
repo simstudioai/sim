@@ -4,169 +4,71 @@ import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { and, inArray, lt } from 'drizzle-orm'
 import { type CleanupJobPayload, resolveCleanupScope } from '@/lib/billing/cleanup-dispatcher'
+import {
+  batchDeleteByWorkspaceAndTimestamp,
+  chunkedBatchDelete,
+  type TableCleanupResult,
+} from '@/lib/cleanup/batch-delete'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 
 const logger = createLogger('CleanupLogs')
 
-const BATCH_SIZE = 2000
-const MAX_BATCHES_PER_TIER = 10
-
-interface TierResults {
-  total: number
-  deleted: number
-  deleteFailed: number
+interface FileDeleteStats {
   filesTotal: number
   filesDeleted: number
   filesDeleteFailed: number
 }
 
-function emptyTierResults(): TierResults {
-  return {
-    total: 0,
-    deleted: 0,
-    deleteFailed: 0,
-    filesTotal: 0,
-    filesDeleted: 0,
-    filesDeleteFailed: 0,
-  }
-}
-
-async function deleteExecutionFiles(files: unknown, results: TierResults): Promise<void> {
+async function deleteExecutionFiles(files: unknown, stats: FileDeleteStats): Promise<void> {
   if (!isUsingCloudStorage() || !files || !Array.isArray(files)) return
 
   const keys = files.filter((f) => f && typeof f === 'object' && f.key).map((f) => f.key as string)
-  results.filesTotal += keys.length
+  stats.filesTotal += keys.length
 
   await Promise.all(
     keys.map(async (key) => {
       try {
         await StorageService.deleteFile({ key, context: 'execution' })
         await deleteFileMetadata(key)
-        results.filesDeleted++
+        stats.filesDeleted++
       } catch (fileError) {
-        results.filesDeleteFailed++
+        stats.filesDeleteFailed++
         logger.error(`Failed to delete file ${key}:`, { fileError })
       }
     })
   )
 }
 
-async function cleanupTier(
+async function cleanupWorkflowExecutionLogs(
   workspaceIds: string[],
   retentionDate: Date,
   label: string
-): Promise<TierResults> {
-  const results = emptyTierResults()
-  if (workspaceIds.length === 0) return results
+): Promise<TableCleanupResult & FileDeleteStats> {
+  const fileStats: FileDeleteStats = { filesTotal: 0, filesDeleted: 0, filesDeleteFailed: 0 }
 
-  let batchesProcessed = 0
-  let hasMore = true
-
-  while (hasMore && batchesProcessed < MAX_BATCHES_PER_TIER) {
-    const batch = await db
-      .select({
-        id: workflowExecutionLogs.id,
-        files: workflowExecutionLogs.files,
-      })
-      .from(workflowExecutionLogs)
-      .where(
-        and(
-          inArray(workflowExecutionLogs.workspaceId, workspaceIds),
-          lt(workflowExecutionLogs.startedAt, retentionDate)
+  const dbStats = await chunkedBatchDelete({
+    tableDef: workflowExecutionLogs,
+    workspaceIds,
+    tableName: `${label}/workflow_execution_logs`,
+    selectChunk: (chunkIds, limit) =>
+      db
+        .select({ id: workflowExecutionLogs.id, files: workflowExecutionLogs.files })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            inArray(workflowExecutionLogs.workspaceId, chunkIds),
+            lt(workflowExecutionLogs.startedAt, retentionDate)
+          )
         )
-      )
-      .limit(BATCH_SIZE)
+        .limit(limit),
+    onBatch: async (rows) => {
+      for (const row of rows) await deleteExecutionFiles(row.files, fileStats)
+    },
+  })
 
-    results.total += batch.length
-
-    if (batch.length === 0) {
-      hasMore = false
-      break
-    }
-
-    for (const log of batch) {
-      await deleteExecutionFiles(log.files, results)
-    }
-
-    const logIds = batch.map((log) => log.id)
-    try {
-      const deleted = await db
-        .delete(workflowExecutionLogs)
-        .where(inArray(workflowExecutionLogs.id, logIds))
-        .returning({ id: workflowExecutionLogs.id })
-
-      results.deleted += deleted.length
-    } catch (deleteError) {
-      results.deleteFailed += logIds.length
-      logger.error(`Batch delete failed for ${label}:`, { deleteError })
-    }
-
-    batchesProcessed++
-    hasMore = batch.length === BATCH_SIZE
-
-    logger.info(`[${label}] Batch ${batchesProcessed}: ${batch.length} logs processed`)
-  }
-
-  return results
-}
-
-interface JobLogCleanupResults {
-  deleted: number
-  deleteFailed: number
-}
-
-async function cleanupJobExecutionLogsTier(
-  workspaceIds: string[],
-  retentionDate: Date,
-  label: string
-): Promise<JobLogCleanupResults> {
-  const results: JobLogCleanupResults = { deleted: 0, deleteFailed: 0 }
-  if (workspaceIds.length === 0) return results
-
-  let batchesProcessed = 0
-  let hasMore = true
-
-  while (hasMore && batchesProcessed < MAX_BATCHES_PER_TIER) {
-    const batch = await db
-      .select({ id: jobExecutionLogs.id })
-      .from(jobExecutionLogs)
-      .where(
-        and(
-          inArray(jobExecutionLogs.workspaceId, workspaceIds),
-          lt(jobExecutionLogs.startedAt, retentionDate)
-        )
-      )
-      .limit(BATCH_SIZE)
-
-    if (batch.length === 0) {
-      hasMore = false
-      break
-    }
-
-    const logIds = batch.map((log) => log.id)
-    try {
-      const deleted = await db
-        .delete(jobExecutionLogs)
-        .where(inArray(jobExecutionLogs.id, logIds))
-        .returning({ id: jobExecutionLogs.id })
-
-      results.deleted += deleted.length
-    } catch (deleteError) {
-      results.deleteFailed += logIds.length
-      logger.error(`Batch delete failed for ${label} (job_execution_logs):`, { deleteError })
-    }
-
-    batchesProcessed++
-    hasMore = batch.length === BATCH_SIZE
-
-    logger.info(
-      `[${label}] job_execution_logs batch ${batchesProcessed}: ${batch.length} rows processed`
-    )
-  }
-
-  return results
+  return { ...dbStats, ...fileStats }
 }
 
 export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> {
@@ -190,15 +92,19 @@ export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> 
     `[${label}] Cleaning ${workspaceIds.length} workspaces, cutoff: ${retentionDate.toISOString()}`
   )
 
-  const results = await cleanupTier(workspaceIds, retentionDate, label)
+  const workflowResults = await cleanupWorkflowExecutionLogs(workspaceIds, retentionDate, label)
   logger.info(
-    `[${label}] workflow_execution_logs: ${results.deleted} deleted, ${results.deleteFailed} failed out of ${results.total} candidates`
+    `[${label}] workflow_execution_logs files: ${workflowResults.filesDeleted}/${workflowResults.filesTotal} deleted, ${workflowResults.filesDeleteFailed} failed`
   )
 
-  const jobLogResults = await cleanupJobExecutionLogsTier(workspaceIds, retentionDate, label)
-  logger.info(
-    `[${label}] job_execution_logs: ${jobLogResults.deleted} deleted, ${jobLogResults.deleteFailed} failed`
-  )
+  await batchDeleteByWorkspaceAndTimestamp({
+    tableDef: jobExecutionLogs,
+    workspaceIdCol: jobExecutionLogs.workspaceId,
+    timestampCol: jobExecutionLogs.startedAt,
+    workspaceIds,
+    retentionDate,
+    tableName: `${label}/job_execution_logs`,
+  })
 
   // Snapshot cleanup runs only on the free job to avoid running it N times for N enterprise workspaces.
   if (payload.plan === 'free') {
