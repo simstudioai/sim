@@ -22,6 +22,15 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
       const parentToolCallId = getScopedParentToolCallId(event, context)
       if (!parentToolCallId) return
       if (event.payload.channel === MothershipStreamV1TextChannel.thinking) {
+        if (
+          context.currentSubagentThinkingBlock &&
+          context.currentSubagentThinkingBlock.parentToolCallId !== parentToolCallId
+        ) {
+          // Lane changed mid-stream (interleaved parallel subagents) — flush
+          // the prior block so the merged content stays attributed to the
+          // correct lane.
+          flushSubagentThinkingBlock(context)
+        }
         if (!context.currentSubagentThinkingBlock) {
           context.currentSubagentThinkingBlock = {
             type: 'subagent_thinking',

@@ -173,26 +173,28 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     return groupKey(name, undefined)
   }
 
-  const ensureGroup = (name: string, parentToolCallId: string | undefined): AgentGroupSegment => {
+  const ensureGroup = (
+    name: string,
+    parentToolCallId: string | undefined
+  ): { group: AgentGroupSegment; created: boolean } => {
     const key = resolveGroupKey(name, parentToolCallId)
-    let g = groupsByKey.get(key)
-    if (!g) {
-      g = {
-        type: 'agent_group',
-        // Suffix with segments.length so a later flushLanes / explicit delete
-        // followed by re-ensure for the same key produces a fresh React key
-        // instead of colliding with the stranded prior segment.
-        id: `agent-${key}-${segments.length}`,
-        agentName: name,
-        agentLabel: resolveAgentLabel(name),
-        items: [],
-        isDelegating: false,
-        isOpen: false,
-      }
-      segments.push(g)
-      groupsByKey.set(key, g)
+    const existing = groupsByKey.get(key)
+    if (existing) return { group: existing, created: false }
+    const group: AgentGroupSegment = {
+      type: 'agent_group',
+      // Suffix with segments.length so a later flushLanes / explicit delete
+      // followed by re-ensure for the same key produces a fresh React key
+      // instead of colliding with the stranded prior segment.
+      id: `agent-${key}-${segments.length}`,
+      agentName: name,
+      agentLabel: resolveAgentLabel(name),
+      items: [],
+      isDelegating: false,
+      isOpen: false,
     }
-    return g
+    segments.push(group)
+    groupsByKey.set(key, group)
+    return { group, created: true }
   }
 
   const findGroupForSubagentChunk = (
@@ -302,7 +304,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       // arrives after this subagent finishes should render below the lane,
       // not get back-filled into the mothership group sitting above it.
       groupsByKey.delete(groupKey('mothership', undefined))
-      const g = ensureGroup(key, block.parentToolCallId)
+      const { group: g } = ensureGroup(key, block.parentToolCallId)
       if (inheritedDelegation) g.isDelegating = true
       g.isOpen = block.endedAt === undefined
       activeGroupKey = resolveGroupKey(key, block.parentToolCallId)
@@ -318,7 +320,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
 
       if (isDispatch) {
         groupsByKey.delete(groupKey('mothership', undefined))
-        const g = ensureGroup(tc.name, tc.id)
+        const { group: g } = ensureGroup(tc.name, tc.id)
         g.isDelegating = isDelegatingTool(tc)
         g.isOpen = g.isDelegating
         continue
@@ -327,13 +329,16 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       const tool = toToolData(tc)
 
       if (tc.calledBy) {
-        const g = ensureGroup(tc.calledBy, block.parentToolCallId)
+        const { group: g, created } = ensureGroup(tc.calledBy, block.parentToolCallId)
         g.isDelegating = false
-        if (block.parentToolCallId) g.isOpen = true
+        // Only mark the lane open when we just created it. Late tool_calls
+        // arriving after a subagent_end (out-of-order persistence, replay,
+        // partial state hand-off) must NOT reopen a closed lane.
+        if (created && block.parentToolCallId) g.isOpen = true
         g.items.push({ type: 'tool', data: tool })
         activeGroupKey = resolveGroupKey(tc.calledBy, block.parentToolCallId)
       } else {
-        const g = ensureGroup('mothership', undefined)
+        const { group: g } = ensureGroup('mothership', undefined)
         g.items.push({ type: 'tool', data: tool })
       }
       continue

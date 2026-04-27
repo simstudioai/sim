@@ -405,7 +405,11 @@ export async function runStreamLoop(
               context.subAgentParentStack.length > 0
                 ? context.subAgentParentStack[context.subAgentParentStack.length - 1]
                 : undefined
-            if (toolCallId && subagentName) {
+            if (toolCallId) {
+              // The matching subagent block is uniquely keyed by parentToolCallId.
+              // Don't gate on subagentName: end events occasionally arrive without
+              // payload.agent, but the toolCallId is enough to close the lane and
+              // free the parent slot for future invocations of the same id.
               for (let i = context.contentBlocks.length - 1; i >= 0; i--) {
                 const b = context.contentBlocks[i]
                 if (
