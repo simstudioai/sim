@@ -1,37 +1,7 @@
-import type {
-  SlackCanvasFile,
-  SlackGetCanvasParams,
-  SlackGetCanvasResponse,
-} from '@/tools/slack/types'
+import type { SlackGetCanvasParams, SlackGetCanvasResponse } from '@/tools/slack/types'
 import { CANVAS_FILE_OUTPUT_PROPERTIES } from '@/tools/slack/types'
+import { mapCanvasFile } from '@/tools/slack/utils'
 import type { ToolConfig } from '@/tools/types'
-
-const mapCanvasFile = (file: SlackCanvasFile): SlackCanvasFile => ({
-  id: file.id,
-  created: file.created ?? null,
-  timestamp: file.timestamp ?? null,
-  name: file.name ?? null,
-  title: file.title ?? null,
-  mimetype: file.mimetype ?? null,
-  filetype: file.filetype ?? null,
-  pretty_type: file.pretty_type ?? null,
-  user: file.user ?? null,
-  editable: file.editable ?? null,
-  size: file.size ?? null,
-  mode: file.mode ?? null,
-  is_external: file.is_external ?? null,
-  is_public: file.is_public ?? null,
-  url_private: file.url_private ?? null,
-  url_private_download: file.url_private_download ?? null,
-  permalink: file.permalink ?? null,
-  channels: file.channels ?? [],
-  groups: file.groups ?? [],
-  ims: file.ims ?? [],
-  canvas_readtime: file.canvas_readtime ?? null,
-  is_channel_space: file.is_channel_space ?? null,
-  linked_channel_id: file.linked_channel_id ?? null,
-  canvas_creator_id: file.canvas_creator_id ?? null,
-})
 
 export const slackGetCanvasTool: ToolConfig<SlackGetCanvasParams, SlackGetCanvasResponse> = {
   id: 'slack_get_canvas',
