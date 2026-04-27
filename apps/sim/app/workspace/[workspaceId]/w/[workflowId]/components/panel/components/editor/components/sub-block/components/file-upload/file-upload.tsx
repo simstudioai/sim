@@ -328,7 +328,8 @@ export function FileUpload({
           const data = await response.json()
 
           if (!response.ok) {
-            const errorMessage = data.error || `Failed to upload file: ${response.status}`
+            const errorMessage =
+              data.message || data.error || `Failed to upload file: ${response.status}`
             uploadErrors.push(`${file.name}: ${errorMessage}`)
 
             setUploadError(errorMessage)
