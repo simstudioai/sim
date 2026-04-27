@@ -239,7 +239,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             })
           )
 
-          logger.info(`Completed ${data.uploads.length} multipart uploads`)
+          logger.info(`Completed ${verifiedEntries.length} multipart uploads`)
           return NextResponse.json({ results })
         }
 

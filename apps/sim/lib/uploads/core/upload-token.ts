@@ -41,10 +41,12 @@ export type UploadTokenVerification =
   | { valid: false }
 
 export function verifyUploadToken(token: string): UploadTokenVerification {
-  if (typeof token !== 'string' || !token.includes('.')) {
+  if (typeof token !== 'string') {
     return { valid: false }
   }
-  const [encoded, signature] = token.split('.', 2)
+  const parts = token.split('.')
+  if (parts.length !== 2) return { valid: false }
+  const [encoded, signature] = parts
   if (!encoded || !signature) return { valid: false }
 
   const expected = sign(encoded)

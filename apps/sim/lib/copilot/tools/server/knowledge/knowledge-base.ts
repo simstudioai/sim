@@ -37,7 +37,11 @@ import {
 import { StorageService } from '@/lib/uploads'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/search/utils'
-import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
+import {
+  checkDocumentWriteAccess,
+  checkKnowledgeBaseAccess,
+  checkKnowledgeBaseWriteAccess,
+} from '@/app/api/knowledge/utils'
 
 const logger = createLogger('KnowledgeBaseServerTool')
 
@@ -485,23 +489,21 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const writeAccess = await checkKnowledgeBaseWriteAccess(
-            args.knowledgeBaseId,
-            context.userId
-          )
-          if (!writeAccess.hasAccess) {
-            return {
-              success: false,
-              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
-            }
-          }
-
           const deleted: string[] = []
           const failed: string[] = []
 
           for (const docId of docIds) {
-            const requestId = generateId().slice(0, 8)
             assertNotAborted()
+            const docAccess = await checkDocumentWriteAccess(
+              args.knowledgeBaseId,
+              docId,
+              context.userId
+            )
+            if (!docAccess.hasAccess) {
+              failed.push(docId)
+              continue
+            }
+            const requestId = generateId().slice(0, 8)
             const result = await deleteDocument(docId, requestId)
             if (result.success) {
               deleted.push(docId)
@@ -537,14 +539,15 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               message: 'At least one of filename or enabled is required for update_document',
             }
           }
-          const writeAccess = await checkKnowledgeBaseWriteAccess(
+          const docAccess = await checkDocumentWriteAccess(
             args.knowledgeBaseId,
+            args.documentId,
             context.userId
           )
-          if (!writeAccess.hasAccess) {
+          if (!docAccess.hasAccess) {
             return {
               success: false,
-              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
+              message: `Document with ID "${args.documentId}" not found`,
             }
           }
           const requestId = generateId().slice(0, 8)
