@@ -151,7 +151,6 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
             'get_user_presence',
             'edit_canvas',
             'get_canvas',
-            'list_canvases',
             'lookup_canvas_sections',
             'delete_canvas',
             'create_conversation',
@@ -168,7 +167,11 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           },
         }
       },
-      required: true,
+      required: {
+        field: 'operation',
+        value: 'list_canvases',
+        not: true,
+      },
     },
     {
       id: 'manualChannel',
@@ -191,7 +194,6 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
             'get_user_presence',
             'edit_canvas',
             'get_canvas',
-            'list_canvases',
             'lookup_canvas_sections',
             'delete_canvas',
             'create_conversation',
@@ -208,7 +210,11 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           },
         }
       },
-      required: true,
+      required: {
+        field: 'operation',
+        value: 'list_canvases',
+        not: true,
+      },
     },
     {
       id: 'dmUserId',
@@ -846,17 +852,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     },
     // List Canvases specific fields
     {
-      id: 'canvasListChannel',
-      title: 'Channel ID',
-      type: 'short-input',
-      placeholder: 'Optional channel filter (e.g., C1234567890)',
-      condition: {
-        field: 'operation',
-        value: 'list_canvases',
-      },
-      mode: 'advanced',
-    },
-    {
       id: 'canvasListCount',
       title: 'Canvas Limit',
       type: 'short-input',
@@ -1315,7 +1310,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
           channelCanvasTitle,
           channelCanvasContent,
           getCanvasId,
-          canvasListChannel,
           canvasListCount,
           canvasListPage,
           canvasListUser,
@@ -1509,9 +1503,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
             break
 
           case 'list_canvases':
-            if (canvasListChannel) {
-              baseParams.channel = String(canvasListChannel).trim()
-            }
             if (canvasListCount) {
               const parsedCount = Number.parseInt(canvasListCount, 10)
               if (!Number.isNaN(parsedCount) && parsedCount > 0) {
@@ -1667,7 +1658,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
     channelCanvasContent: { type: 'string', description: 'Content for channel canvas' },
     // Canvas management inputs
     getCanvasId: { type: 'string', description: 'Canvas ID to retrieve' },
-    canvasListChannel: { type: 'string', description: 'Optional channel filter for canvases' },
     canvasListCount: { type: 'string', description: 'Maximum number of canvases to return' },
     canvasListPage: { type: 'string', description: 'Canvas list page number' },
     canvasListUser: { type: 'string', description: 'Optional canvas creator user filter' },
