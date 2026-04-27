@@ -30,9 +30,11 @@ const ServicePath = z
     (p) =>
       !p.split(/[/\\]/).some((seg) => seg === '..' || seg === '.') &&
       !p.includes('?') &&
-      !p.includes('#'),
+      !p.includes('#') &&
+      !/%(?:2[eEfF]|5[cC]|3[fF]|23)/.test(p),
     {
-      message: 'path must not contain ".." or "." segments, "?", or "#"',
+      message:
+        'path must not contain ".." or "." segments, "?", "#", or percent-encoded path/query/fragment characters',
     }
   )
 
@@ -353,7 +355,7 @@ function joinSetCookies(headers: Headers): string {
   const cookies =
     typeof (headers as { getSetCookie?: () => string[] }).getSetCookie === 'function'
       ? (headers as { getSetCookie: () => string[] }).getSetCookie()
-      : (headers.get('set-cookie') ?? '').split(/,(?=[^ ;]+=)/)
+      : (headers.get('set-cookie') ?? '').split(/,\s*(?=[^=,;\s]+=)/)
   return cookies
     .map((c) => c.split(';')[0]?.trim())
     .filter(Boolean)
