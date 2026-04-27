@@ -12,7 +12,7 @@ export const updateSupplierTool: ToolConfig<UpdateSupplierParams, SapProxyRespon
   id: 'sap_s4hana_update_supplier',
   name: 'SAP S/4HANA Update Supplier',
   description:
-    'Update fields on an A_Supplier entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. Note: API_BUSINESS_PARTNER limits A_Supplier PATCH to a small set of modifiable fields (e.g., PostingIsBlocked, PurchasingIsBlocked, PaymentIsBlockedForSupplier, DeletionIndicator, SupplierAccountGroup). Company-code fields like PaymentBlockingReason live on A_SupplierCompany. Most descriptive supplier attributes are read-only here and must be updated via the BusinessPartner entity. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
+    'Update fields on an A_Supplier entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. A_Supplier PATCH is limited to modifiable fields such as PostingIsBlocked, PurchasingIsBlocked, PaymentIsBlockedForSupplier, DeletionIndicator, and SupplierAccountGroup. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
   version: '1.0.0',
   params: {
     subdomain: {

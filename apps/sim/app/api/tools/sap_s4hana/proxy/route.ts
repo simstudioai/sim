@@ -26,9 +26,15 @@ const ServiceName = z
 const ServicePath = z
   .string()
   .min(1, 'path is required')
-  .refine((p) => !p.split(/[/\\]/).some((seg) => seg === '..' || seg === '.'), {
-    message: 'path must not contain ".." or "." segments',
-  })
+  .refine(
+    (p) =>
+      !p.split(/[/\\]/).some((seg) => seg === '..' || seg === '.') &&
+      !p.includes('?') &&
+      !p.includes('#'),
+    {
+      message: 'path must not contain ".." or "." segments, "?", or "#"',
+    }
+  )
 
 const Subdomain = z
   .string()

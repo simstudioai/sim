@@ -12,7 +12,7 @@ export const updateCustomerTool: ToolConfig<UpdateCustomerParams, SapProxyRespon
   id: 'sap_s4hana_update_customer',
   name: 'SAP S/4HANA Update Customer',
   description:
-    'Update fields on an A_Customer entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. Note: API_BUSINESS_PARTNER limits A_Customer PATCH to a small set of modifiable fields (e.g., OrderIsBlockedForCustomer, DeliveryIsBlock, BillingIsBlockedForCustomer, PostingIsBlocked, DeletionIndicator). Company-code attributes like PaymentBlockingReason live on A_CustomerCompany. Most descriptive customer attributes are read-only here and must be updated via the BusinessPartner entity. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
+    'Update fields on an A_Customer entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. A_Customer PATCH is limited to modifiable fields such as OrderIsBlockedForCustomer, DeliveryIsBlock, BillingIsBlockedForCustomer, PostingIsBlocked, and DeletionIndicator. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
   version: '1.0.0',
   params: {
     subdomain: {
