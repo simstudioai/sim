@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import {
@@ -254,7 +254,6 @@ export function useTasks(workspaceId?: string) {
     queryKey: taskKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchTasks(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
-    placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
   })
 }
@@ -535,6 +534,10 @@ async function markTaskUnread(chatId: string): Promise<void> {
 
 /**
  * Marks a task as read with optimistic update.
+ *
+ * The server only updates `lastSeenAt`, never `updatedAt`, so we deliberately
+ * do not invalidate the list cache — that would trigger a refetch that can
+ * reorder the sidebar if any unrelated server-side update landed in between.
  */
 export function useMarkTaskRead(workspaceId?: string) {
   const queryClient = useQueryClient()
@@ -556,14 +559,14 @@ export function useMarkTaskRead(workspaceId?: string) {
         queryClient.setQueryData(taskKeys.list(workspaceId), context.previousTasks)
       }
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
-    },
   })
 }
 
 /**
  * Marks a task as unread with optimistic update.
+ *
+ * Same rationale as `useMarkTaskRead` — no list invalidation, since the server
+ * only flips `lastSeenAt` and the optimistic update fully reflects the change.
  */
 export function useMarkTaskUnread(workspaceId?: string) {
   const queryClient = useQueryClient()
@@ -584,9 +587,6 @@ export function useMarkTaskUnread(workspaceId?: string) {
       if (context?.previousTasks) {
         queryClient.setQueryData(taskKeys.list(workspaceId), context.previousTasks)
       }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
     },
   })
 }
