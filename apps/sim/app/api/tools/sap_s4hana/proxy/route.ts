@@ -399,12 +399,15 @@ async function fetchCsrf(
 }
 
 function resolveHost(req: ProxyRequest): string {
-  if (req.baseUrl) {
-    const trimmed = req.baseUrl.replace(/\/+$/, '')
-    return assertSafeExternalUrl(trimmed, 'baseUrl').toString().replace(/\/+$/, '')
+  if (req.deploymentType === 'cloud_public') {
+    const constructed = `https://${req.subdomain}-api.s4hana.ondemand.com`
+    return assertSafeExternalUrl(constructed, 'subdomain').toString().replace(/\/+$/, '')
   }
-  const constructed = `https://${req.subdomain}-api.s4hana.ondemand.com`
-  return assertSafeExternalUrl(constructed, 'subdomain').toString().replace(/\/+$/, '')
+  if (!req.baseUrl) {
+    throw new Error('baseUrl is required for cloud_private and on_premise deployments')
+  }
+  const trimmed = req.baseUrl.replace(/\/+$/, '')
+  return assertSafeExternalUrl(trimmed, 'baseUrl').toString().replace(/\/+$/, '')
 }
 
 function buildOdataUrl(req: ProxyRequest, pathOverride?: string): string {
