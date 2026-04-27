@@ -49,7 +49,7 @@ Environment variables store sensitive values like API keys, tokens, and configur
 
 | Scope | Visibility | Use case |
 |-------|-----------|----------|
-| **Workspace** | All workspace members | Shared API keys, team configuration |
+| **Workspace** | All workspace members, including external workspace members | Shared API keys, team configuration |
 | **Personal** | Only you | Your personal tokens, dev credentials |
 
 When both a workspace and personal variable share the same key, the workspace value takes precedence.
@@ -84,7 +84,7 @@ If a workflow variable and a block output share the same name, Sim resolves the 
 <FAQ items={[
   { question: "What's the difference between workflow variables and environment variables?", answer: "Workflow variables store runtime data (text, numbers, objects, arrays) that blocks can read and modify during execution. They use <variable.name> syntax. Environment variables store sensitive configuration like API keys using {{KEY}} syntax. They never appear in logs and are managed at the workspace or personal level." },
   { question: "Can I use environment variables in the Function block?", answer: "Yes. Use the double curly brace syntax {{KEY}} directly in your code. The value is substituted before execution, so the actual secret never appears in logs or outputs." },
-  { question: "How do I share an API key with my team?", answer: "Create a workspace-scoped environment variable in Settings → Secrets. All workspace members will be able to use it in their workflows via {{KEY}} syntax." },
+  { question: "How do I share an API key with my team?", answer: "Create a workspace-scoped environment variable in Settings → Secrets. All workspace members, including external workspace members, will be able to use it in their workflows via {{KEY}} syntax." },
   { question: "What happens if a variable name has spaces or mixed case?", answer: "Variable resolution is case-insensitive and ignores spaces. A variable named 'My Counter' can be referenced as <variable.mycounter> or <variable.My Counter>. However, using consistent naming (like camelCase) is recommended." },
   { question: "Can I reference environment variables in the Agent system prompt?", answer: "Yes. You can use {{KEY}} syntax in any text field, including system prompts, to inject environment variable values." },
 ]} />

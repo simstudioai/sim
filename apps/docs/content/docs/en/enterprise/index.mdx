@@ -13,6 +13,8 @@ Sim Enterprise provides advanced features for organizations with enhanced securi
 
 Define permission groups on a workspace to control what features and integrations its members can use. Permission groups are scoped to a single workspace — a user can belong to different groups (or no group) in different workspaces.
 
+External workspace members can be assigned to permission groups just like internal organization members, but they remain outside the organization roster and do not consume seats.
+
 ### Features
 
 - **Allowed Model Providers** - Restrict which AI providers users can access (OpenAI, Anthropic, Google, etc.)
@@ -81,4 +83,4 @@ Self-hosted deployments enable enterprise features via environment variables ins
 | `INBOX_ENABLED`, `NEXT_PUBLIC_INBOX_ENABLED` | Sim Mailer inbox |
 | `DISABLE_INVITATIONS`, `NEXT_PUBLIC_DISABLE_INVITATIONS` | Disable invitations; manage membership via Admin API |
 
-Once enabled, each feature is configured through the same Settings UI as Sim Cloud. When invitations are disabled, use the Admin API (`x-admin-key` header) to manage organization and workspace membership.
+Once enabled, each feature is configured through the same Settings UI as Sim Cloud. When invitations are disabled, use the Admin API (`x-admin-key` header) to manage organization membership and workspace access. Internal members join the organization; external workspace members only receive access to a specific workspace.

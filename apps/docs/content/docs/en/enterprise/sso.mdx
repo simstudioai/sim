@@ -221,6 +221,8 @@ Once SSO is configured, users with your domain (`company.com`) can sign in throu
 
 Users who sign in via SSO for the first time are automatically provisioned and added to your organization — no manual invite required.
 
+SSO provisioning creates internal organization members. External workspace members are different: they are invited to a specific workspace without joining your organization or consuming one of your seats.
+
 <Callout type="info">
   Password-based login remains available. Forcing all organization members to use SSO exclusively is not yet supported.
 </Callout>
@@ -242,7 +244,7 @@ Users who sign in via SSO for the first time are automatically provisioned and a
   },
   {
     question: "What happens when a user signs in with SSO for the first time?",
-    answer: "Sim creates an account for them automatically and adds them to your organization. No manual invite is needed. They are assigned the member role by default."
+    answer: "Sim creates an account for them automatically and adds them to your organization. No manual invite is needed. They are assigned the member role by default. External workspace members are not provisioned through SSO into your organization; they are invited directly to a workspace and remain outside your org roster."
   },
   {
     question: "Can I still use email/password login after enabling SSO?",

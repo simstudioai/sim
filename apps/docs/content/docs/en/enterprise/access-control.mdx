@@ -130,6 +130,8 @@ Controls visibility of platform features and modules.
 
 Open the group's **Details** view and add members by searching for users by name or email. Only users who already have workspace-level access can be added. A user can only belong to one group per workspace — adding a user to a new group within the same workspace removes them from their current group for that workspace.
 
+External workspace members are treated like other workspace members for access-control purposes. They can be assigned to permission groups in any workspace they have access to, but they do not become organization members or appear in the organization roster.
+
 ---
 
 ## Enforcement
@@ -159,6 +161,7 @@ When a user opens Mothership, their permission group is read before any block or
 - Moving a user to a new group within a workspace automatically removes them from their previous group in that workspace.
 - Users not assigned to any group in a workspace have no restrictions applied in that workspace (all blocks, providers, and features are available to them there).
 - If **Auto-add new members** is enabled on a group, new members of that workspace are automatically placed in the group. Only one group per workspace can have this setting active.
+- External workspace members follow the same per-workspace permission group rules as internal members.
 
 ---
 
