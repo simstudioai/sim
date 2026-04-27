@@ -132,7 +132,8 @@ function buildRequestBody(
   if (typeof params.thinking === 'boolean') body.thinking = params.thinking
   if (typeof params.vision === 'boolean' || params.vision === 'auto') body.vision = params.vision
   if (params.systemPromptExtension) body.systemPromptExtension = params.systemPromptExtension
-  body.highlightElements = params.highlightElements ?? true
+  if (typeof params.highlightElements === 'boolean')
+    body.highlightElements = params.highlightElements
 
   const allowedDomains = parseAllowedDomains(params.allowedDomains)
   if (allowedDomains) body.allowedDomains = allowedDomains
