@@ -295,6 +295,10 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
           }
         }
       }
+      // Subagent lanes break the mothership lane: any mothership tool that
+      // arrives after this subagent finishes should render below the lane,
+      // not get back-filled into the mothership group sitting above it.
+      groupsByKey.delete(groupKey('mothership', undefined))
       const g = ensureGroup(key, block.parentToolCallId)
       if (inheritedDelegation) g.isDelegating = true
       g.isOpen = block.endedAt === undefined
@@ -310,6 +314,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       const isDispatch = SUBAGENT_KEYS.has(tc.name) && !tc.calledBy
 
       if (isDispatch) {
+        groupsByKey.delete(groupKey('mothership', undefined))
         const g = ensureGroup(tc.name, tc.id)
         g.isDelegating = isDelegatingTool(tc)
         g.isOpen = g.isDelegating
