@@ -17,6 +17,7 @@ export interface PendingInvitationRow {
   workspaceId: string
   email: string
   permission: 'admin' | 'write' | 'read'
+  membershipIntent?: 'internal' | 'external'
   status: string
   createdAt: string
 }
@@ -25,6 +26,7 @@ export interface WorkspaceInvitation {
   email: string
   permissionType: 'admin' | 'write' | 'read'
   isPendingInvitation: boolean
+  isExternal: boolean
   invitationId?: string
 }
 
@@ -49,6 +51,7 @@ async function fetchPendingInvitations(
         email: inv.email,
         permissionType: inv.permission,
         isPendingInvitation: true,
+        isExternal: inv.membershipIntent === 'external',
         invitationId: inv.id,
       })) || []
   )

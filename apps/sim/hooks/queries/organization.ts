@@ -46,6 +46,7 @@ export type RosterPendingInvitation = {
   email: string
   role: string
   kind: 'organization' | 'workspace'
+  membershipIntent?: 'internal' | 'external'
   createdAt: string
   expiresAt: string
   inviteeName: string | null

@@ -1387,6 +1387,13 @@
       "when": 1777054484443,
       "tag": "0198_tables_race_free_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 199,
+      "version": "7",
+      "when": 1777325415453,
+      "tag": "0199_invitation_membership_intent",
+      "breakpoints": true
     }
   ]
 }

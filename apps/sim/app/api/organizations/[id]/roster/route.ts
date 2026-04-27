@@ -8,7 +8,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -124,6 +124,7 @@ export const GET = withRouteHandler(
           email: invitation.email,
           role: invitation.role,
           kind: invitation.kind,
+          membershipIntent: invitation.membershipIntent,
           createdAt: invitation.createdAt,
           expiresAt: invitation.expiresAt,
           inviteeName: user.name,
@@ -131,7 +132,13 @@ export const GET = withRouteHandler(
         })
         .from(invitation)
         .leftJoin(user, sql`lower(${user.email}) = lower(${invitation.email})`)
-        .where(and(eq(invitation.organizationId, organizationId), eq(invitation.status, 'pending')))
+        .where(
+          and(
+            eq(invitation.organizationId, organizationId),
+            eq(invitation.status, 'pending'),
+            ne(invitation.membershipIntent, 'external')
+          )
+        )
 
       const pendingInvitationIds = pendingInvitationRows.map((row) => row.id)
       const pendingGrants =
@@ -162,6 +169,7 @@ export const GET = withRouteHandler(
         email: row.email,
         role: row.role,
         kind: row.kind,
+        membershipIntent: row.membershipIntent,
         createdAt: row.createdAt,
         expiresAt: row.expiresAt,
         inviteeName: row.inviteeName,

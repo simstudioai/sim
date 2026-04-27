@@ -88,6 +88,7 @@ export interface PostHogEventMap {
   workspace_member_invited: {
     workspace_id: string
     invitee_role: string
+    membership_intent?: string
   }
 
   workspace_member_removed: {

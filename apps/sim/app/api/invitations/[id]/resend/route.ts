@@ -146,6 +146,7 @@ export const POST = withRouteHandler(
           targetEmail: inv.email,
           targetRole: inv.role,
           kind: inv.kind,
+          membershipIntent: inv.membershipIntent,
         },
         request,
       })

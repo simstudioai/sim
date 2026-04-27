@@ -15,6 +15,7 @@ export interface Invitation {
   id: string
   email: string
   status: string
+  membershipIntent?: 'internal' | 'external'
 }
 
 export interface Organization {

@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   type InvitationKind,
+  type InvitationMembershipIntent,
   type InvitationStatus,
   invitation,
   invitationWorkspaceGrant,
@@ -35,6 +36,7 @@ export interface InvitationWithGrants {
   kind: InvitationKind
   email: string
   organizationId: string | null
+  membershipIntent: InvitationMembershipIntent
   inviterId: string
   role: string
   status: InvitationStatus
@@ -100,6 +102,7 @@ async function hydrateInvitation(
     kind: row.kind,
     email: row.email,
     organizationId: row.organizationId,
+    membershipIntent: row.membershipIntent,
     inviterId: row.inviterId,
     role: row.role,
     status: row.status,
@@ -254,8 +257,9 @@ export async function acceptInvitation(
   }
 
   let membershipAlreadyExists = false
+  const shouldJoinOrganization = Boolean(inv.organizationId && inv.membershipIntent !== 'external')
 
-  if (inv.organizationId) {
+  if (shouldJoinOrganization && inv.organizationId) {
     const membershipResult = await ensureUserInOrganization({
       userId: input.userId,
       organizationId: inv.organizationId,
@@ -331,7 +335,7 @@ export async function acceptInvitation(
     }
   })
 
-  if (inv.organizationId) {
+  if (shouldJoinOrganization && inv.organizationId) {
     try {
       await setActiveOrganizationForCurrentSession(inv.organizationId)
     } catch (activeOrgError) {
@@ -369,7 +373,7 @@ export async function acceptInvitation(
     }
   }
 
-  if (inv.organizationId && !membershipAlreadyExists) {
+  if (shouldJoinOrganization && inv.organizationId && !membershipAlreadyExists) {
     try {
       await syncUsageLimitsFromSubscription(input.userId)
     } catch (syncError) {
@@ -444,6 +448,7 @@ export async function listPendingInvitationsForOrganization(organizationId: stri
       kind: invitation.kind,
       email: invitation.email,
       role: invitation.role,
+      membershipIntent: invitation.membershipIntent,
       status: invitation.status,
       expiresAt: invitation.expiresAt,
       createdAt: invitation.createdAt,
@@ -468,6 +473,7 @@ export async function listInvitationsForWorkspaces(workspaceIds: string[]) {
       createdAt: invitation.createdAt,
       updatedAt: invitation.updatedAt,
       organizationId: invitation.organizationId,
+      membershipIntent: invitation.membershipIntent,
       inviterId: invitation.inviterId,
       workspaceId: invitationWorkspaceGrant.workspaceId,
       permission: invitationWorkspaceGrant.permission,

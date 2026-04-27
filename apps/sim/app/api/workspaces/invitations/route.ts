@@ -1,6 +1,12 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { permissions, type permissionTypeEnum, user, workspace } from '@sim/db/schema'
+import {
+  type InvitationMembershipIntent,
+  permissions,
+  type permissionTypeEnum,
+  user,
+  workspace,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -123,6 +129,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
+    let membershipIntent: InvitationMembershipIntent = 'internal'
+
     const existingUser = await db
       .select()
       .from(user)
@@ -152,23 +160,14 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         )
       }
 
-      if (invitePolicy.requiresSeat && invitePolicy.organizationId) {
+      if (invitePolicy.organizationId) {
         const existingMembership = await getUserOrganization(existingUser.id)
         if (
           existingMembership &&
           existingMembership.organizationId !== invitePolicy.organizationId
         ) {
-          return NextResponse.json(
-            {
-              error:
-                'This user is already a member of another organization. They must leave it before joining this workspace.',
-              email: normalizedEmail,
-            },
-            { status: 409 }
-          )
-        }
-
-        if (!existingMembership) {
+          membershipIntent = 'external'
+        } else if (invitePolicy.requiresSeat && !existingMembership) {
           const seatValidation = await validateSeatAvailability(invitePolicy.organizationId, 1)
           if (!seatValidation.canInvite) {
             return NextResponse.json(
@@ -213,6 +212,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       email: normalizedEmail,
       inviterId: session.user.id,
       organizationId: workspaceDetails.organizationId,
+      membershipIntent,
       role: 'member',
       grants: [
         {
@@ -228,6 +228,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         invitedBy: session.user.id,
         inviteeEmail: normalizedEmail,
         role: permission,
+        membershipIntent,
       })
     } catch {
       // telemetry must not fail the operation
@@ -236,7 +237,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     captureServerEvent(
       session.user.id,
       'workspace_member_invited',
-      { workspace_id: workspaceId, invitee_role: permission },
+      { workspace_id: workspaceId, invitee_role: permission, membership_intent: membershipIntent },
       {
         groups: { workspace: workspaceId },
         setOnce: { first_invitation_sent_at: new Date().toISOString() },
@@ -275,6 +276,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       metadata: {
         targetEmail: normalizedEmail,
         targetRole: permission,
+        membershipIntent,
         workspaceName: workspaceDetails.name,
         invitationId,
       },
@@ -288,6 +290,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         workspaceId,
         email: normalizedEmail,
         permission,
+        membershipIntent,
         expiresAt: undefined,
       },
     })

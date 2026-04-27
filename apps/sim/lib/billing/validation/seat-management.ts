@@ -82,6 +82,7 @@ export async function validateSeatAvailability(
     const pendingFilters = [
       eq(invitation.organizationId, organizationId),
       eq(invitation.status, 'pending'),
+      ne(invitation.membershipIntent, 'external'),
       gt(invitation.expiresAt, new Date()),
     ]
     if (options.excludePendingInvitationId) {
@@ -164,6 +165,7 @@ export async function getOrganizationSeatInfo(
         and(
           eq(invitation.organizationId, organizationId),
           eq(invitation.status, 'pending'),
+          ne(invitation.membershipIntent, 'external'),
           gt(invitation.expiresAt, new Date())
         )
       )
@@ -247,6 +249,7 @@ export async function validateBulkInvitations(
         and(
           eq(invitation.organizationId, organizationId),
           eq(invitation.status, 'pending'),
+          ne(invitation.membershipIntent, 'external'),
           gt(invitation.expiresAt, new Date())
         )
       )

@@ -253,7 +253,7 @@ describe('POST /api/workspaces/invitations', () => {
     expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
   })
 
-  it('rejects org-owned invites for users already in another organization', async () => {
+  it('creates an external workspace invitation for users already in another organization', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValueOnce({
       id: 'workspace-1',
       name: 'Org Workspace',
@@ -288,9 +288,19 @@ describe('POST /api/workspaces/invitations', () => {
     const response = await POST(request)
     const data = await response.json()
 
-    expect(response.status).toBe(409)
-    expect(data.error).toContain('already a member of another organization')
-    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(data.invitation.membershipIntent).toBe('external')
+    expect(mockValidateSeatAvailability).not.toHaveBeenCalled()
+    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'workspace',
+        email: 'new@example.com',
+        organizationId: 'org-1',
+        membershipIntent: 'external',
+        grants: [{ workspaceId: 'workspace-1', permission: 'read' }],
+      })
+    )
   })
 
   it('creates a unified workspace invitation for a grandfathered workspace', async () => {

@@ -35,7 +35,10 @@ vi.mock('@/lib/messaging/email/validation', () => ({
   quickValidateEmail: vi.fn((email: string) => ({ isValid: email.includes('@') })),
 }))
 
-import { getOrganizationSeatInfo } from '@/lib/billing/validation/seat-management'
+import {
+  getOrganizationSeatInfo,
+  validateSeatAvailability,
+} from '@/lib/billing/validation/seat-management'
 
 /**
  * Queues the next N responses for `db.select().from(...).where(...)` calls,
@@ -80,5 +83,32 @@ describe('getOrganizationSeatInfo', () => {
       canAddSeats: false,
     })
     expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
+  })
+})
+
+describe('validateSeatAvailability', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockFeatureFlags.isBillingEnabled = true
+    mockGetOrganizationSubscription.mockResolvedValue({
+      id: 'sub-1',
+      plan: 'team',
+      status: 'active',
+      seats: 10,
+    })
+  })
+
+  it('uses the internal pending invitation count when checking seats', async () => {
+    queueSelectResponses([[{ count: 2 }], [{ count: 1 }]])
+
+    const result = await validateSeatAvailability('org-1', 1)
+
+    expect(result).toMatchObject({
+      canInvite: true,
+      currentSeats: 3,
+      maxSeats: 10,
+      availableSeats: 7,
+    })
   })
 })

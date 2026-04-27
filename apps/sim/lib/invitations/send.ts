@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   type InvitationKind,
+  type InvitationMembershipIntent,
   invitation,
   invitationWorkspaceGrant,
   organization,
@@ -8,7 +9,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import {
   getEmailSubject,
   renderBatchInvitationEmail,
@@ -32,6 +33,7 @@ export interface CreatePendingInvitationInput {
   email: string
   inviterId: string
   organizationId: string | null
+  membershipIntent?: InvitationMembershipIntent
   role: 'admin' | 'member'
   grants: WorkspaceGrantInput[]
   expiresAt?: Date
@@ -58,6 +60,7 @@ export async function createPendingInvitation(
       email: normalizeEmail(input.email),
       inviterId: input.inviterId,
       organizationId: input.organizationId,
+      membershipIntent: input.membershipIntent ?? 'internal',
       role: input.role,
       status: 'pending',
       token,
@@ -87,7 +90,13 @@ export async function countPendingInvitationsForOrganization(
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(invitation)
-    .where(and(eq(invitation.organizationId, organizationId), eq(invitation.status, 'pending')))
+    .where(
+      and(
+        eq(invitation.organizationId, organizationId),
+        eq(invitation.status, 'pending'),
+        ne(invitation.membershipIntent, 'external')
+      )
+    )
   return row?.count ?? 0
 }
 

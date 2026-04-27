@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import {
   Button,
   type FileInputOptions,
@@ -47,7 +47,6 @@ export function InviteModal({
   inviteDisabledReason = null,
   organizationId = null,
 }: InviteModalProps) {
-  const router = useRouter()
   const formRef = useRef<HTMLFormElement>(null)
   const [emailItems, setEmailItems] = useState<TagItem[]>([])
   const [userPermissions, setUserPermissions] = useState<UserPermissions[]>([])
@@ -103,9 +102,9 @@ export function InviteModal({
   const isOutOfSeats = exceedsSeatCapacity || isAtSeatCapacity
   const seatLimitReason = hasSeatData
     ? availableSeats === 0
-      ? `No available seats. Using ${usedSeats} of ${totalSeats}.`
+      ? `Internal invites may fail: using ${usedSeats} of ${totalSeats} seats. External workspace invites do not require seats.`
       : exceedsSeatCapacity
-        ? `Only ${availableSeats} seat${availableSeats === 1 ? '' : 's'} available.`
+        ? `Only ${availableSeats} internal seat${availableSeats === 1 ? '' : 's'} available. External workspace invites do not require seats.`
         : null
     : null
 
@@ -421,22 +420,11 @@ export function InviteModal({
     [workspaceId, userPerms.canAdmin, resendCooldowns, resendingInvitationIds, resendInvitation]
   )
 
-  const handleUpgradeRedirect = useCallback(() => {
-    if (!workspaceId) return
-    onOpenChange(false)
-    router.push(`/workspace/${workspaceId}/settings/subscription`)
-  }, [onOpenChange, router, workspaceId])
-
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault()
 
       setErrorMessage(null)
-
-      if (isOutOfSeats) {
-        handleUpgradeRedirect()
-        return
-      }
 
       if (!canInviteMembers || validEmails.length === 0 || !workspaceId) {
         return
@@ -472,15 +460,7 @@ export function InviteModal({
         }
       )
     },
-    [
-      canInviteMembers,
-      isOutOfSeats,
-      handleUpgradeRedirect,
-      validEmails,
-      workspaceId,
-      userPermissions,
-      batchSendInvitations,
-    ]
+    [canInviteMembers, validEmails, workspaceId, userPermissions, batchSendInvitations]
   )
 
   const resetState = useCallback(() => {
@@ -504,6 +484,7 @@ export function InviteModal({
         email: inv.email,
         permissionType: inv.permissionType,
         isPendingInvitation: true,
+        isExternal: inv.isExternal,
         invitationId: inv.invitationId,
       })),
     [pendingInvitations]
@@ -641,10 +622,6 @@ export function InviteModal({
               type='button'
               variant='primary'
               onClick={() => {
-                if (isOutOfSeats) {
-                  handleUpgradeRedirect()
-                  return
-                }
                 formRef.current?.requestSubmit()
               }}
               disabled={
@@ -653,7 +630,7 @@ export function InviteModal({
                 isSubmitting ||
                 isSaving ||
                 !workspaceId ||
-                (!isOutOfSeats && !hasNewInvites)
+                !hasNewInvites
               }
               className='ml-auto'
             >
@@ -663,9 +640,7 @@ export function InviteModal({
                   ? 'Admin Access Required'
                   : isSubmitting
                     ? 'Inviting...'
-                    : isOutOfSeats
-                      ? 'Upgrade to invite'
-                      : 'Invite'}
+                    : 'Invite'}
             </Button>
           </ModalFooter>
         </form>
