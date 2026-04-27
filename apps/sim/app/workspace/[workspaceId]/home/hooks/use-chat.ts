@@ -1458,50 +1458,11 @@ export function useChat(
         return
       }
       if (handledClientWorkflowToolIdsRef.current.has(toolCallId)) {
-        // #region agent log
-        fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '21c369' },
-          body: JSON.stringify({
-            sessionId: '21c369',
-            location: 'use-chat.ts:startClientWorkflowTool',
-            message: 'SKIPPED:handled',
-            data: { toolCallId },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {})
-        // #endregion
         return
       }
       if (recoveringClientWorkflowToolIdsRef.current.has(toolCallId)) {
-        // #region agent log
-        fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '21c369' },
-          body: JSON.stringify({
-            sessionId: '21c369',
-            location: 'use-chat.ts:startClientWorkflowTool',
-            message: 'SKIPPED:recovering',
-            data: { toolCallId },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {})
-        // #endregion
         return
       }
-      // #region agent log
-      fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '21c369' },
-        body: JSON.stringify({
-          sessionId: '21c369',
-          location: 'use-chat.ts:startClientWorkflowTool',
-          message: 'FIRING',
-          data: { toolCallId, toolName },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {})
-      // #endregion
       handledClientWorkflowToolIdsRef.current.add(toolCallId)
 
       ensureWorkflowToolResource(toolArgs)
@@ -1530,20 +1491,6 @@ export function useChat(
         }
       }
 
-      // #region agent log
-      fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '21c369' },
-        body: JSON.stringify({
-          sessionId: '21c369',
-          location: 'use-chat.ts:recoverPending',
-          message: 'scan complete',
-          data: { pendingCount: pending.length, pendingIds: pending.map((t) => t.id) },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {})
-      // #endregion
-
       for (const toolCall of pending) {
         try {
           const toolArgs = toolCall.params ?? {}
@@ -1551,19 +1498,6 @@ export function useChat(
 
           if (targetWorkflowId) {
             const rebound = await bindRunToolToExecution(toolCall.id, targetWorkflowId)
-            // #region agent log
-            fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '21c369' },
-              body: JSON.stringify({
-                sessionId: '21c369',
-                location: 'use-chat.ts:recoverPending',
-                message: 'bind result',
-                data: { toolCallId: toolCall.id, targetWorkflowId, rebound },
-                timestamp: Date.now(),
-              }),
-            }).catch(() => {})
-            // #endregion
             if (rebound) {
               handledClientWorkflowToolIdsRef.current.add(toolCall.id)
               continue
@@ -2524,20 +2458,6 @@ export function useChat(
                       !existingToolCall.result))
                 if (shouldStartWorkflowTool) {
                   startClientWorkflowTool(id, name, args ?? {})
-                } else {
-                  // #region agent log
-                  fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '21c369' },
-                    body: JSON.stringify({
-                      sessionId: '21c369',
-                      location: 'use-chat.ts:processSSE',
-                      message: 'SKIPPED:replay',
-                      data: { toolCallId: id, toolName: name },
-                      timestamp: Date.now(),
-                    }),
-                  }).catch(() => {})
-                  // #endregion
                 }
               }
               break
@@ -2914,7 +2834,7 @@ export function useChat(
             sseRes.body.getReader(),
             assistantId,
             expectedGen,
-            { preserveExistingState: true, suppressWorkflowToolStarts: true }
+            { preserveExistingState: true }
           )
 
           if (liveResult.sawStreamError) {
