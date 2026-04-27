@@ -41,13 +41,13 @@ export function handleTaskStatusEvent(
   workspaceId: string,
   data: unknown
 ): void {
-  queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
-
   const payload = parseTaskStatusEventPayload(data)
   if (!payload) {
     logger.warn('Received invalid task_status payload')
     return
   }
+
+  queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
 }
 
 /**

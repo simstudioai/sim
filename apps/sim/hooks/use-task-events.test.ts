@@ -50,12 +50,9 @@ describe('handleTaskStatusEvent', () => {
     })
   })
 
-  it('preserves list invalidation when task event payload is invalid', () => {
+  it('does not invalidate when task event payload is invalid', () => {
     handleTaskStatusEvent(queryClient, 'ws-1', '{')
 
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
-    })
+    expect(queryClient.invalidateQueries).not.toHaveBeenCalled()
   })
 })
