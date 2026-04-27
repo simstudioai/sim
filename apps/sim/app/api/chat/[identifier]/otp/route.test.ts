@@ -112,6 +112,14 @@ vi.mock('@/lib/core/storage', () => ({
   getStorageMethod: mockGetStorageMethod,
 }))
 
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    async checkRateLimitDirect() {
+      return { allowed: true, remaining: 10, resetAt: new Date(Date.now() + 60_000) }
+    }
+  },
+}))
+
 vi.mock('@/lib/messaging/email/mailer', () => ({
   sendEmail: mockSendEmail,
 }))
