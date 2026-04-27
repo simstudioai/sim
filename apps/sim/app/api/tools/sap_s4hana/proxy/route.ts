@@ -281,8 +281,13 @@ function assertSafeExternalUrl(rawUrl: string, label: string): URL {
 }
 
 function resolveTokenUrl(req: ProxyRequest): string {
-  if (req.tokenUrl) return req.tokenUrl
-  return `https://${req.subdomain}.authentication.${req.region}.hana.ondemand.com/oauth/token`
+  if (req.deploymentType === 'cloud_public') {
+    return `https://${req.subdomain}.authentication.${req.region}.hana.ondemand.com/oauth/token`
+  }
+  if (!req.tokenUrl) {
+    throw new Error('tokenUrl is required for OAuth on cloud_private/on_premise')
+  }
+  return req.tokenUrl
 }
 
 function tokenCacheKey(req: ProxyRequest): string {
