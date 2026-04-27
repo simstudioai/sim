@@ -16,6 +16,14 @@ function getMothershipUrl(environment: string): string | null {
   return ENV_URLS[environment] ?? null
 }
 
+const ENDPOINT_PATTERN = /^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/
+
+function isValidEndpoint(endpoint: string): boolean {
+  if (!endpoint) return false
+  if (endpoint.includes('..')) return false
+  return ENDPOINT_PATTERN.test(endpoint)
+}
+
 async function isAdminRequestAuthorized() {
   const session = await getSession()
   if (!session?.user?.id) return false
@@ -55,6 +63,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
   if (!endpoint) {
     return NextResponse.json({ error: 'endpoint query param required' }, { status: 400 })
+  }
+
+  if (!isValidEndpoint(endpoint)) {
+    return NextResponse.json({ error: 'invalid endpoint' }, { status: 400 })
   }
 
   const baseUrl = getMothershipUrl(environment)
@@ -106,6 +118,10 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
 
   if (!endpoint) {
     return NextResponse.json({ error: 'endpoint query param required' }, { status: 400 })
+  }
+
+  if (!isValidEndpoint(endpoint)) {
+    return NextResponse.json({ error: 'invalid endpoint' }, { status: 400 })
   }
 
   const baseUrl = getMothershipUrl(environment)
