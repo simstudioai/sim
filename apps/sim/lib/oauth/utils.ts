@@ -278,7 +278,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'users:read.email': 'View user email addresses',
   'files:write': 'Upload files',
   'files:read': 'Download and read files',
-  'canvases:write': 'Create canvas documents',
+  'canvases:read': 'Read canvas sections',
+  'canvases:write': 'Create, edit, and delete canvas documents',
   'reactions:write': 'Add emoji reactions to messages',
 
   // Webflow scopes

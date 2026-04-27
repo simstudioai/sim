@@ -564,6 +564,18 @@ export async function updateFolderRecord(
   await db.update(workflowFolder).set(setData).where(eq(workflowFolder.id, folderId))
 }
 
+export async function verifyFolderWorkspace(
+  folderId: string,
+  workspaceId: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: workflowFolder.id })
+    .from(workflowFolder)
+    .where(and(eq(workflowFolder.id, folderId), eq(workflowFolder.workspaceId, workspaceId)))
+    .limit(1)
+  return Boolean(row)
+}
+
 export async function deleteFolderRecord(folderId: string): Promise<boolean> {
   const [folder] = await db
     .select({ parentId: workflowFolder.parentId })

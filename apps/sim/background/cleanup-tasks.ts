@@ -13,9 +13,8 @@ import { and, inArray, lt, sql } from 'drizzle-orm'
 import { type CleanupJobPayload, resolveCleanupScope } from '@/lib/billing/cleanup-dispatcher'
 import {
   batchDeleteByWorkspaceAndTimestamp,
-  DEFAULT_BATCH_SIZE,
-  DEFAULT_MAX_BATCHES_PER_TABLE,
   deleteRowsById,
+  selectRowsByIdChunks,
   type TableCleanupResult,
 } from '@/lib/cleanup/batch-delete'
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
@@ -67,13 +66,15 @@ async function cleanupRunChildren(
 ): Promise<TableCleanupResult[]> {
   if (workspaceIds.length === 0) return []
 
-  const runIds = await db
-    .select({ id: copilotRuns.id })
-    .from(copilotRuns)
-    .where(
-      and(inArray(copilotRuns.workspaceId, workspaceIds), lt(copilotRuns.updatedAt, retentionDate))
-    )
-    .limit(DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE)
+  const runIds = await selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
+    db
+      .select({ id: copilotRuns.id })
+      .from(copilotRuns)
+      .where(
+        and(inArray(copilotRuns.workspaceId, chunkIds), lt(copilotRuns.updatedAt, retentionDate))
+      )
+      .limit(chunkLimit)
+  )
 
   if (runIds.length === 0) {
     return RUN_CHILD_TABLES.map((t) => ({ table: `${label}/${t.name}`, deleted: 0, failed: 0 }))
@@ -107,17 +108,15 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
     `[${label}] Processing ${workspaceIds.length} workspaces, cutoff: ${retentionDate.toISOString()}`
   )
 
-  // Collect chat IDs before deleting so we can clean up the copilot backend after
-  const doomedChats = await db
-    .select({ id: copilotChats.id })
-    .from(copilotChats)
-    .where(
-      and(
-        inArray(copilotChats.workspaceId, workspaceIds),
-        lt(copilotChats.updatedAt, retentionDate)
+  const doomedChats = await selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
+    db
+      .select({ id: copilotChats.id })
+      .from(copilotChats)
+      .where(
+        and(inArray(copilotChats.workspaceId, chunkIds), lt(copilotChats.updatedAt, retentionDate))
       )
-    )
-    .limit(DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE)
+      .limit(chunkLimit)
+  )
 
   const doomedChatIds = doomedChats.map((c) => c.id)
 

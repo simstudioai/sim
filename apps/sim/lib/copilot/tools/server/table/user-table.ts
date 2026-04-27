@@ -223,9 +223,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!args.tableId) {
             return { success: false, message: 'Table ID is required' }
           }
+          if (!workspaceId) {
+            return { success: false, message: 'Workspace ID is required' }
+          }
 
           const table = await getTableById(args.tableId)
-          if (!table) {
+          if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
 
@@ -240,9 +243,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!args.tableId) {
             return { success: false, message: 'Table ID is required' }
           }
+          if (!workspaceId) {
+            return { success: false, message: 'Workspace ID is required' }
+          }
 
           const table = await getTableById(args.tableId)
-          if (!table) {
+          if (!table || table.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
 
@@ -816,6 +822,9 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!args.tableId) {
             return { success: false, message: 'Table ID is required' }
           }
+          if (!workspaceId) {
+            return { success: false, message: 'Workspace ID is required' }
+          }
           const col = (args as Record<string, unknown>).column as
             | {
                 name: string
@@ -829,6 +838,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               success: false,
               message: 'column with name and type is required for add_column',
             }
+          }
+          const tableForAdd = await getTableById(args.tableId)
+          if (!tableForAdd || tableForAdd.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
           }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
@@ -844,10 +857,17 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!args.tableId) {
             return { success: false, message: 'Table ID is required' }
           }
+          if (!workspaceId) {
+            return { success: false, message: 'Workspace ID is required' }
+          }
           const colName = (args as Record<string, unknown>).columnName as string | undefined
           const newColName = (args as Record<string, unknown>).newName as string | undefined
           if (!colName || !newColName) {
             return { success: false, message: 'columnName and newName are required' }
+          }
+          const tableForRename = await getTableById(args.tableId)
+          if (!tableForRename || tableForRename.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
           }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
@@ -866,11 +886,18 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!args.tableId) {
             return { success: false, message: 'Table ID is required' }
           }
+          if (!workspaceId) {
+            return { success: false, message: 'Workspace ID is required' }
+          }
           const colName = (args as Record<string, unknown>).columnName as string | undefined
           const colNames = (args as Record<string, unknown>).columnNames as string[] | undefined
           const names = colNames ?? (colName ? [colName] : null)
           if (!names || names.length === 0) {
             return { success: false, message: 'columnName or columnNames is required' }
+          }
+          const tableForDelete = await getTableById(args.tableId)
+          if (!tableForDelete || tableForDelete.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
           }
           const requestId = generateId().slice(0, 8)
           if (names.length === 1) {
@@ -901,6 +928,9 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!args.tableId) {
             return { success: false, message: 'Table ID is required' }
           }
+          if (!workspaceId) {
+            return { success: false, message: 'Workspace ID is required' }
+          }
           const colName = (args as Record<string, unknown>).columnName as string | undefined
           if (!colName) {
             return { success: false, message: 'columnName is required' }
@@ -912,6 +942,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               success: false,
               message: 'At least one of newType or unique must be provided',
             }
+          }
+          const tableForUpdate = await getTableById(args.tableId)
+          if (!tableForUpdate || tableForUpdate.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
           }
           const requestId = generateId().slice(0, 8)
           let result: TableDefinition | undefined

@@ -704,7 +704,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     services: {
       slack: {
         name: 'Slack',
-        description: 'Send messages using a bot for Slack.',
+        description: 'Use Slack messaging, files, reactions, views, and canvases.',
         providerId: 'slack',
         icon: SlackIcon,
         baseProviderIcon: SlackIcon,
@@ -722,6 +722,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           // TODO: Add 'users:read.email' once Slack app review is approved
           'files:write',
           'files:read',
+          'canvases:read',
           'canvases:write',
           'reactions:write',
         ],

@@ -105,11 +105,12 @@ export const getJobLogsServerTool: BaseServerTool<GetJobLogsArgs, JobLogEntry[]>
     }
 
     const wsId = workspaceId || context.workspaceId
-    if (wsId) {
-      const access = await checkWorkspaceAccess(wsId, context.userId)
-      if (!access.hasAccess) {
-        throw new Error('Unauthorized workspace access')
-      }
+    if (!wsId) {
+      throw new Error('Workspace context required')
+    }
+    const access = await checkWorkspaceAccess(wsId, context.userId)
+    if (!access.hasAccess) {
+      throw new Error('Unauthorized workspace access')
     }
 
     const clampedLimit = Math.min(Math.max(1, limit), 5)
@@ -121,7 +122,10 @@ export const getJobLogsServerTool: BaseServerTool<GetJobLogsArgs, JobLogEntry[]>
       includeDetails,
     })
 
-    const conditions = [eq(jobExecutionLogs.scheduleId, jobId)]
+    const conditions = [
+      eq(jobExecutionLogs.scheduleId, jobId),
+      eq(jobExecutionLogs.workspaceId, wsId),
+    ]
     if (executionId) {
       conditions.push(eq(jobExecutionLogs.executionId, executionId))
     }

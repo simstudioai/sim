@@ -28,6 +28,7 @@ import {
   setWorkflowVariables,
   updateFolderRecord,
   updateWorkflowRecord,
+  verifyFolderWorkspace,
 } from '@/lib/workflows/utils'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -522,7 +523,13 @@ export async function executeMoveWorkflow(
 
     for (const workflowId of workflowIds) {
       try {
-        await ensureWorkflowAccess(workflowId, context.userId, 'write')
+        const { workspaceId } = await ensureWorkflowAccess(workflowId, context.userId, 'write')
+        if (folderId) {
+          if (!workspaceId || !(await verifyFolderWorkspace(folderId, workspaceId))) {
+            failed.push(workflowId)
+            continue
+          }
+        }
         assertWorkflowMutationNotAborted(context)
         await updateWorkflowRecord(workflowId, { folderId })
         moved.push(workflowId)
@@ -562,6 +569,14 @@ export async function executeMoveFolder(
 
     const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+
+    if (!(await verifyFolderWorkspace(folderId, workspaceId))) {
+      return { success: false, error: 'Folder not found' }
+    }
+    if (parentId && !(await verifyFolderWorkspace(parentId, workspaceId))) {
+      return { success: false, error: 'Parent folder not found' }
+    }
+
     assertWorkflowMutationNotAborted(context)
     await updateFolderRecord(folderId, { parentId })
 
@@ -1007,6 +1022,11 @@ export async function executeRenameFolder(
 
     const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+
+    if (!(await verifyFolderWorkspace(folderId, workspaceId))) {
+      return { success: false, error: 'Folder not found' }
+    }
+
     assertWorkflowMutationNotAborted(context)
     await updateFolderRecord(folderId, { name })
 
