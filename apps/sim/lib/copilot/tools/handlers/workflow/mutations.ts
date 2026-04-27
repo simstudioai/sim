@@ -524,9 +524,11 @@ export async function executeMoveWorkflow(
     for (const workflowId of workflowIds) {
       try {
         const { workspaceId } = await ensureWorkflowAccess(workflowId, context.userId, 'write')
-        if (folderId && workspaceId && !(await verifyFolderWorkspace(folderId, workspaceId))) {
-          failed.push(workflowId)
-          continue
+        if (folderId) {
+          if (!workspaceId || !(await verifyFolderWorkspace(folderId, workspaceId))) {
+            failed.push(workflowId)
+            continue
+          }
         }
         assertWorkflowMutationNotAborted(context)
         await updateWorkflowRecord(workflowId, { folderId })
