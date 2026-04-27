@@ -494,8 +494,9 @@ export function useWorkflowExecution() {
                       logger.error('Unexpected upload response format:', uploadResult)
                     }
                   } else {
-                    const errorText = await response.text()
-                    const message = `Failed to upload ${fileData.name}: ${response.status} ${errorText}`
+                    const errorData = await response.json().catch(() => null)
+                    const reason = errorData?.message || errorData?.error || `${response.status}`
+                    const message = `Failed to upload ${fileData.name}: ${reason}`
                     logger.error(message)
                     if (isUploadErrorCapable(workflowInput)) {
                       try {
