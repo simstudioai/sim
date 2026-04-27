@@ -205,14 +205,34 @@ function isPrivateIPv4(host: string): boolean {
 function extractIPv4MappedHost(host: string): string | null {
   const stripped = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
   const lower = stripped.toLowerCase()
-  const prefixes = ['::ffff:', '::']
-  for (const prefix of prefixes) {
+  for (const prefix of ['::ffff:', '::']) {
     if (lower.startsWith(prefix)) {
       const candidate = lower.slice(prefix.length)
       if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(candidate)) return candidate
     }
   }
+  const hexMatch = lower.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/)
+  if (hexMatch) {
+    const high = Number.parseInt(hexMatch[1] as string, 16)
+    const low = Number.parseInt(hexMatch[2] as string, 16)
+    if (high >= 0 && high <= 0xffff && low >= 0 && low <= 0xffff) {
+      const a = (high >> 8) & 0xff
+      const b = high & 0xff
+      const c = (low >> 8) & 0xff
+      const d = low & 0xff
+      return `${a}.${b}.${c}.${d}`
+    }
+  }
   return null
+}
+
+function isPrivateOrLoopbackIPv6(host: string): boolean {
+  const stripped = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
+  const lower = stripped.toLowerCase()
+  if (lower === '::' || lower === '::1') return true
+  if (/^fc[0-9a-f]{2}:/.test(lower) || /^fd[0-9a-f]{2}:/.test(lower)) return true
+  if (lower.startsWith('fe80:')) return true
+  return false
 }
 
 function checkExternalUrlSafety(
@@ -238,6 +258,9 @@ function checkExternalUrlSafety(
   const mapped = extractIPv4MappedHost(host)
   if (mapped && isPrivateIPv4(mapped)) {
     return { ok: false, message: `${label} host is not allowed (IPv4-mapped private range)` }
+  }
+  if (isPrivateOrLoopbackIPv6(host)) {
+    return { ok: false, message: `${label} host is not allowed (IPv6 private/loopback)` }
   }
   return { ok: true, url: parsed }
 }
