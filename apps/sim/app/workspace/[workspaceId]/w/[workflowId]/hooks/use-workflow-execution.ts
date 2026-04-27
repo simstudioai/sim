@@ -1916,6 +1916,26 @@ export function useWorkflowExecution() {
           handler(data)
         }
 
+      const cleanupFailedReconnect = () => {
+        const currentId = useExecutionStore.getState().getCurrentExecutionId(reconnectWorkflowId)
+        if (currentId && currentId !== capturedExecutionId) return
+
+        const hasRunningEntry = useTerminalConsoleStore
+          .getState()
+          .getWorkflowEntries(reconnectWorkflowId)
+          .some((entry) => entry.isRunning && entry.executionId === capturedExecutionId)
+
+        if (activated || hasRunningEntry) {
+          cancelRunningEntries(reconnectWorkflowId)
+        }
+
+        if (currentId === capturedExecutionId) {
+          setCurrentExecutionId(reconnectWorkflowId, null)
+          setIsExecuting(reconnectWorkflowId, false)
+          setActiveBlocks(reconnectWorkflowId, new Set())
+        }
+      }
+
       const attemptReconnect = async (attempt: number): Promise<void> => {
         if (cleanupRan || reconnectionComplete) return
 
@@ -2004,17 +2024,7 @@ export function useWorkflowExecution() {
             reconnectionComplete = true
             activeReconnections.delete(reconnectWorkflowId)
             clearExecutionPointer(reconnectWorkflowId)
-            if (activated) {
-              const currentId = useExecutionStore
-                .getState()
-                .getCurrentExecutionId(reconnectWorkflowId)
-              if (currentId === capturedExecutionId) {
-                cancelRunningEntries(reconnectWorkflowId)
-                setCurrentExecutionId(reconnectWorkflowId, null)
-                setIsExecuting(reconnectWorkflowId, false)
-                setActiveBlocks(reconnectWorkflowId, new Set())
-              }
-            }
+            cleanupFailedReconnect()
             return
           }
 
@@ -2025,6 +2035,12 @@ export function useWorkflowExecution() {
           })
           if (!cleanupRan && !reconnectionComplete && attempt < MAX_ATTEMPTS) {
             return attemptReconnect(attempt + 1)
+          }
+          if (!cleanupRan && !reconnectionComplete) {
+            reconnectionComplete = true
+            activeReconnections.delete(reconnectWorkflowId)
+            cleanupFailedReconnect()
+            return
           }
         }
 
