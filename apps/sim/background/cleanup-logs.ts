@@ -93,11 +93,9 @@ export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> 
   )
 
   const workflowResults = await cleanupWorkflowExecutionLogs(workspaceIds, retentionDate, label)
-  if (workflowResults.filesTotal > 0) {
-    logger.info(
-      `[${label}] workflow_execution_logs files: ${workflowResults.filesDeleted}/${workflowResults.filesTotal} deleted, ${workflowResults.filesDeleteFailed} failed`
-    )
-  }
+  logger.info(
+    `[${label}] workflow_execution_logs files: ${workflowResults.filesDeleted}/${workflowResults.filesTotal} deleted, ${workflowResults.filesDeleteFailed} failed`
+  )
 
   await batchDeleteByWorkspaceAndTimestamp({
     tableDef: jobExecutionLogs,

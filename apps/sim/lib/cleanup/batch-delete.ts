@@ -21,30 +21,34 @@ export function chunkArray<T>(arr: T[], size: number): T[][] {
   return out
 }
 
-export interface SelectByWorkspaceChunksOptions {
+export interface SelectByIdChunksOptions {
   /** Cap on rows returned across all chunks. Defaults to a full per-table cleanup budget. */
   overallLimit?: number
-  workspaceChunkSize?: number
+  chunkSize?: number
 }
 
 /**
- * Run a SELECT query once per workspace chunk and concatenate results up to
+ * Run a SELECT query once per ID chunk and concatenate results up to
  * `overallLimit`. Each chunk's query is passed the remaining row budget so the
  * total never exceeds the cap. Use this when you need the selected row set
  * (e.g. to drive S3 or copilot-backend cleanup alongside the DB delete).
+ *
+ * Works for any large ID set — workspace IDs, workflow IDs, etc. Avoids
+ * sending one massive `IN (...)` list that would blow Postgres's statement
+ * timeout.
  */
-export async function selectRowsByWorkspaceChunks<T>(
-  workspaceIds: string[],
+export async function selectRowsByIdChunks<T>(
+  ids: string[],
   query: (chunkIds: string[], chunkLimit: number) => Promise<T[]>,
   {
     overallLimit = DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
-    workspaceChunkSize = DEFAULT_WORKSPACE_CHUNK_SIZE,
-  }: SelectByWorkspaceChunksOptions = {}
+    chunkSize = DEFAULT_WORKSPACE_CHUNK_SIZE,
+  }: SelectByIdChunksOptions = {}
 ): Promise<T[]> {
-  if (workspaceIds.length === 0) return []
+  if (ids.length === 0) return []
 
   const rows: T[] = []
-  for (const chunkIds of chunkArray(workspaceIds, workspaceChunkSize)) {
+  for (const chunkIds of chunkArray(ids, chunkSize)) {
     if (rows.length >= overallLimit) break
     const remaining = overallLimit - rows.length
     const chunkRows = await query(chunkIds, remaining)
@@ -68,8 +72,14 @@ export interface ChunkedBatchDeleteOptions<TRow extends { id: string }> {
   /** Runs between SELECT and DELETE; receives the just-selected rows. */
   onBatch?: (rows: TRow[]) => Promise<void>
   batchSize?: number
-  /** Max batches per workspace chunk. Total per-run cap = chunks * maxBatches * batchSize. */
+  /** Max batches per workspace chunk. */
   maxBatches?: number
+  /**
+   * Hard cap on rows processed (deleted + failed) across all chunks per call.
+   * Defaults to `DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE`. Cron
+   * runs frequently enough to catch up the backlog over multiple invocations.
+   */
+  totalRowLimit?: number
   workspaceChunkSize?: number
 }
 
@@ -78,7 +88,8 @@ export interface ChunkedBatchDeleteOptions<TRow extends { id: string }> {
  *
  * For each workspace chunk: SELECT a batch of eligible rows → run optional
  * `onBatch` hook (e.g. to delete S3 files) → DELETE those rows by ID. Repeats
- * until exhausted or `maxBatches` is hit, then moves to the next chunk.
+ * until exhausted or `maxBatches` is hit, then moves to the next chunk. Stops
+ * the whole call once `totalRowLimit` rows have been processed.
  *
  * Workspace IDs are chunked before the SELECT — see
  * `DEFAULT_WORKSPACE_CHUNK_SIZE` for why.
@@ -91,6 +102,7 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
   onBatch,
   batchSize = DEFAULT_BATCH_SIZE,
   maxBatches = DEFAULT_MAX_BATCHES_PER_TABLE,
+  totalRowLimit = DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
   workspaceChunkSize = DEFAULT_WORKSPACE_CHUNK_SIZE,
 }: ChunkedBatchDeleteOptions<TRow>): Promise<TableCleanupResult> {
   const result: TableCleanupResult = { table: tableName, deleted: 0, failed: 0 }
@@ -101,14 +113,25 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
   }
 
   const chunks = chunkArray(workspaceIds, workspaceChunkSize)
+  let stoppedEarly = false
 
   for (const [chunkIdx, chunkIds] of chunks.entries()) {
+    if (result.deleted + result.failed >= totalRowLimit) {
+      stoppedEarly = true
+      break
+    }
+
     let batchesProcessed = 0
     let hasMore = true
 
-    while (hasMore && batchesProcessed < maxBatches) {
+    while (
+      hasMore &&
+      batchesProcessed < maxBatches &&
+      result.deleted + result.failed < totalRowLimit
+    ) {
+      let rows: TRow[] = []
       try {
-        const rows = await selectChunk(chunkIds, batchSize)
+        rows = await selectChunk(chunkIds, batchSize)
 
         if (rows.length === 0) {
           hasMore = false
@@ -127,17 +150,19 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
         hasMore = rows.length === batchSize
         batchesProcessed++
       } catch (error) {
-        result.failed++
-        logger.error(`[${tableName}] Batch failed (chunk ${chunkIdx + 1}/${chunks.length}):`, {
-          error,
-        })
+        // Count rows we tried to delete; SELECT-stage errors leave rows=[].
+        result.failed += rows.length
+        logger.error(
+          `[${tableName}] Batch failed (chunk ${chunkIdx + 1}/${chunks.length}, ${rows.length} rows):`,
+          { error }
+        )
         hasMore = false
       }
     }
   }
 
   logger.info(
-    `[${tableName}] Complete: ${result.deleted} rows deleted across ${chunks.length} chunks (${result.failed} chunk failures)`
+    `[${tableName}] Complete: ${result.deleted} deleted, ${result.failed} failed across ${chunks.length} chunks${stoppedEarly ? ' (row-limit reached, remaining chunks deferred to next run)' : ''}`
   )
 
   return result

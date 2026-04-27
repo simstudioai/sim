@@ -18,10 +18,8 @@ import { and, inArray, isNotNull, lt } from 'drizzle-orm'
 import { type CleanupJobPayload, resolveCleanupScope } from '@/lib/billing/cleanup-dispatcher'
 import {
   batchDeleteByWorkspaceAndTimestamp,
-  DEFAULT_BATCH_SIZE,
-  DEFAULT_MAX_BATCHES_PER_TABLE,
   deleteRowsById,
-  selectRowsByWorkspaceChunks,
+  selectRowsByIdChunks,
 } from '@/lib/cleanup/batch-delete'
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
 import type { StorageContext } from '@/lib/uploads'
@@ -46,7 +44,7 @@ async function selectExpiredWorkspaceFiles(
   retentionDate: Date
 ): Promise<WorkspaceFileScope> {
   const [legacyRows, multiContextRows] = await Promise.all([
-    selectRowsByWorkspaceChunks(workspaceIds, (chunkIds, chunkLimit) =>
+    selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
       db
         .select({ id: workspaceFile.id, key: workspaceFile.key })
         .from(workspaceFile)
@@ -59,7 +57,7 @@ async function selectExpiredWorkspaceFiles(
         )
         .limit(chunkLimit)
     ),
-    selectRowsByWorkspaceChunks(workspaceIds, (chunkIds, chunkLimit) =>
+    selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
       db
         .select({
           id: workspaceFiles.id,
@@ -185,7 +183,7 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
   // (chats + S3) AND the DB deletes below — selecting twice could return
   // different subsets above the LIMIT cap and orphan or prematurely purge data.
   const [doomedWorkflows, fileScope] = await Promise.all([
-    selectRowsByWorkspaceChunks(workspaceIds, (chunkIds, chunkLimit) =>
+    selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
       db
         .select({ id: workflow.id })
         .from(workflow)
@@ -205,11 +203,13 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
   let chatCleanup: { execute: () => Promise<void> } | null = null
 
   if (doomedWorkflowIds.length > 0) {
-    const doomedChats = await db
-      .select({ id: copilotChats.id })
-      .from(copilotChats)
-      .where(inArray(copilotChats.workflowId, doomedWorkflowIds))
-      .limit(DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE)
+    const doomedChats = await selectRowsByIdChunks(doomedWorkflowIds, (chunkIds, chunkLimit) =>
+      db
+        .select({ id: copilotChats.id })
+        .from(copilotChats)
+        .where(inArray(copilotChats.workflowId, chunkIds))
+        .limit(chunkLimit)
+    )
 
     const doomedChatIds = doomedChats.map((c) => c.id)
     if (doomedChatIds.length > 0) {

@@ -14,7 +14,7 @@ import { type CleanupJobPayload, resolveCleanupScope } from '@/lib/billing/clean
 import {
   batchDeleteByWorkspaceAndTimestamp,
   deleteRowsById,
-  selectRowsByWorkspaceChunks,
+  selectRowsByIdChunks,
   type TableCleanupResult,
 } from '@/lib/cleanup/batch-delete'
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
@@ -66,7 +66,7 @@ async function cleanupRunChildren(
 ): Promise<TableCleanupResult[]> {
   if (workspaceIds.length === 0) return []
 
-  const runIds = await selectRowsByWorkspaceChunks(workspaceIds, (chunkIds, chunkLimit) =>
+  const runIds = await selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
     db
       .select({ id: copilotRuns.id })
       .from(copilotRuns)
@@ -108,7 +108,7 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
     `[${label}] Processing ${workspaceIds.length} workspaces, cutoff: ${retentionDate.toISOString()}`
   )
 
-  const doomedChats = await selectRowsByWorkspaceChunks(workspaceIds, (chunkIds, chunkLimit) =>
+  const doomedChats = await selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
     db
       .select({ id: copilotChats.id })
       .from(copilotChats)
