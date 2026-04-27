@@ -131,6 +131,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
   QueuedMessage,
+  ToolCallInfo,
 } from '../types'
 import { ToolCallStatus } from '../types'
 
@@ -701,7 +702,9 @@ function parseStreamBatchResponse(value: unknown): StreamBatchResponse {
 
 function toRawPersistedContentBlock(block: ContentBlock): Record<string, unknown> | null {
   const persisted = toRawPersistedContentBlockBody(block)
-  return persisted ? withBlockTiming(persisted, block) : null
+  if (!persisted) return null
+  if (block.parentToolCallId) persisted.parentToolCallId = block.parentToolCallId
+  return withBlockTiming(persisted, block)
 }
 
 function toRawPersistedContentBlockBody(block: ContentBlock): Record<string, unknown> | null {
@@ -1215,7 +1218,7 @@ export function useChat(
       reader: ReadableStreamDefaultReader<Uint8Array>,
       assistantId: string,
       expectedGen?: number,
-      options?: { preserveExistingState?: boolean }
+      options?: { preserveExistingState?: boolean; suppressWorkflowToolStarts?: boolean }
     ) => Promise<{ sawStreamError: boolean; sawComplete: boolean }>
   >(async () => ({ sawStreamError: false, sawComplete: false }))
   const attachToExistingStreamRef = useRef<
@@ -1457,6 +1460,9 @@ export function useChat(
       if (handledClientWorkflowToolIdsRef.current.has(toolCallId)) {
         return
       }
+      if (recoveringClientWorkflowToolIdsRef.current.has(toolCallId)) {
+        return
+      }
       handledClientWorkflowToolIdsRef.current.add(toolCallId)
 
       ensureWorkflowToolResource(toolArgs)
@@ -1467,41 +1473,41 @@ export function useChat(
 
   const recoverPendingClientWorkflowTools = useCallback(
     async (nextMessages: ChatMessage[]) => {
+      const pending: ToolCallInfo[] = []
+
       for (const message of nextMessages) {
         for (const block of message.contentBlocks ?? []) {
           const toolCall = block.toolCall
-          if (!toolCall || !isWorkflowToolName(toolCall.name)) {
-            continue
-          }
-          if (toolCall.status !== 'executing') {
-            continue
-          }
-
+          if (!toolCall || !isWorkflowToolName(toolCall.name)) continue
+          if (toolCall.status !== 'executing') continue
           if (
             handledClientWorkflowToolIdsRef.current.has(toolCall.id) ||
             recoveringClientWorkflowToolIdsRef.current.has(toolCall.id)
           ) {
             continue
           }
-
           recoveringClientWorkflowToolIdsRef.current.add(toolCall.id)
+          pending.push(toolCall)
+        }
+      }
 
-          try {
-            const toolArgs = toolCall.params ?? {}
-            const targetWorkflowId = ensureWorkflowToolResource(toolArgs)
+      for (const toolCall of pending) {
+        try {
+          const toolArgs = toolCall.params ?? {}
+          const targetWorkflowId = ensureWorkflowToolResource(toolArgs)
 
-            if (targetWorkflowId) {
-              const rebound = await bindRunToolToExecution(toolCall.id, targetWorkflowId)
-              if (rebound) {
-                handledClientWorkflowToolIdsRef.current.add(toolCall.id)
-                continue
-              }
+          if (targetWorkflowId) {
+            const rebound = await bindRunToolToExecution(toolCall.id, targetWorkflowId)
+            if (rebound) {
+              handledClientWorkflowToolIdsRef.current.add(toolCall.id)
+              continue
             }
-
-            startClientWorkflowTool(toolCall.id, toolCall.name, toolArgs)
-          } finally {
-            recoveringClientWorkflowToolIdsRef.current.delete(toolCall.id)
           }
+
+          recoveringClientWorkflowToolIdsRef.current.delete(toolCall.id)
+          startClientWorkflowTool(toolCall.id, toolCall.name, toolArgs)
+        } finally {
+          recoveringClientWorkflowToolIdsRef.current.delete(toolCall.id)
         }
       }
     },
@@ -1701,7 +1707,7 @@ export function useChat(
       reader: ReadableStreamDefaultReader<Uint8Array>,
       assistantId: string,
       expectedGen?: number,
-      options?: { preserveExistingState?: boolean }
+      options?: { preserveExistingState?: boolean; suppressWorkflowToolStarts?: boolean }
     ) => {
       const decoder = new TextDecoder()
       streamReaderRef.current = reader
@@ -1731,6 +1737,7 @@ export function useChat(
         for (let i = blocks.length - 1; i >= 0; i--) {
           if (blocks[i].type === 'subagent' && blocks[i].content) {
             activeSubagent = blocks[i].content
+            activeSubagentParentToolCallId = blocks[i].parentToolCallId
             break
           }
           if (blocks[i].type === 'subagent_end') {
@@ -1760,23 +1767,45 @@ export function useChat(
         if (block && block.endedAt === undefined) block.endedAt = toEventMs(ts)
       }
 
-      const ensureTextBlock = (subagentName: string | undefined, ts?: string): ContentBlock => {
+      const ensureTextBlock = (
+        subagentName: string | undefined,
+        parentToolCallId: string | undefined,
+        ts?: string
+      ): ContentBlock => {
         const last = blocks[blocks.length - 1]
-        if (last?.type === 'text' && last.subagent === subagentName) return last
+        if (
+          last?.type === 'text' &&
+          last.subagent === subagentName &&
+          last.parentToolCallId === parentToolCallId
+        ) {
+          return last
+        }
         stampBlockEnd(last, ts)
         const b: ContentBlock = { type: 'text', content: '', timestamp: toEventMs(ts) }
         if (subagentName) b.subagent = subagentName
+        if (parentToolCallId) b.parentToolCallId = parentToolCallId
         blocks.push(b)
         return b
       }
 
-      const ensureThinkingBlock = (subagentName: string | undefined, ts?: string): ContentBlock => {
+      const ensureThinkingBlock = (
+        subagentName: string | undefined,
+        parentToolCallId: string | undefined,
+        ts?: string
+      ): ContentBlock => {
         const targetType = subagentName ? 'subagent_thinking' : 'thinking'
         const last = blocks[blocks.length - 1]
-        if (last?.type === targetType && last.subagent === subagentName) return last
+        if (
+          last?.type === targetType &&
+          last.subagent === subagentName &&
+          last.parentToolCallId === parentToolCallId
+        ) {
+          return last
+        }
         stampBlockEnd(last, ts)
         const b: ContentBlock = { type: targetType, content: '', timestamp: toEventMs(ts) }
         if (subagentName) b.subagent = subagentName
+        if (parentToolCallId) b.parentToolCallId = parentToolCallId
         blocks.push(b)
         return b
       }
@@ -1793,9 +1822,27 @@ export function useChat(
         return activeSubagent
       }
 
-      const appendInlineErrorTag = (tag: string, subagentName?: string, ts?: string) => {
+      const resolveParentForSubagentBlock = (
+        subagent: string | undefined,
+        scopedParent: string | undefined
+      ): string | undefined => {
+        if (!subagent) return undefined
+        if (scopedParent) return scopedParent
+        if (activeSubagent === subagent) return activeSubagentParentToolCallId
+        for (const [parent, name] of subagentByParentToolCallId) {
+          if (name === subagent) return parent
+        }
+        return undefined
+      }
+
+      const appendInlineErrorTag = (
+        tag: string,
+        subagentName?: string,
+        parentToolCallId?: string,
+        ts?: string
+      ) => {
         if (runningText.includes(tag)) return
-        const tb = ensureTextBlock(subagentName, ts)
+        const tb = ensureTextBlock(subagentName, parentToolCallId, ts)
         const prefix = runningText.length > 0 && !runningText.endsWith('\n') ? '\n' : ''
         tb.content = `${tb.content ?? ''}${prefix}${tag}`
         runningText += `${prefix}${tag}`
@@ -2008,7 +2055,11 @@ export function useChat(
               if (chunk) {
                 const eventTs = typeof parsed.ts === 'string' ? parsed.ts : undefined
                 if (parsed.payload.channel === MothershipStreamV1TextChannel.thinking) {
-                  const tb = ensureThinkingBlock(scopedSubagent, eventTs)
+                  const scopedParentForBlock = resolveParentForSubagentBlock(
+                    scopedSubagent,
+                    scopedParentToolCallId
+                  )
+                  const tb = ensureThinkingBlock(scopedSubagent, scopedParentForBlock, eventTs)
                   tb.content = (tb.content ?? '') + chunk
                   flushText()
                   break
@@ -2019,7 +2070,11 @@ export function useChat(
                   lastContentSource !== contentSource &&
                   runningText.length > 0 &&
                   !runningText.endsWith('\n')
-                const tb = ensureTextBlock(scopedSubagent, eventTs)
+                const scopedParentForBlock = resolveParentForSubagentBlock(
+                  scopedSubagent,
+                  scopedParentToolCallId
+                )
+                const tb = ensureTextBlock(scopedSubagent, scopedParentForBlock, eventTs)
                 const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
                 tb.content = (tb.content ?? '') + normalizedChunk
                 runningText += normalizedChunk
@@ -2355,9 +2410,17 @@ export function useChat(
                 }
               }
 
-              if (!toolMap.has(id)) {
+              const existingToolCall = toolMap.has(id)
+                ? blocks[toolMap.get(id)!]?.toolCall
+                : undefined
+              const isNewToolCall = !existingToolCall
+              if (isNewToolCall) {
                 stampBlockEnd(blocks[blocks.length - 1])
                 toolMap.set(id, blocks.length)
+                const parentToolCallIdForBlock = resolveParentForSubagentBlock(
+                  scopedSubagent,
+                  scopedParentToolCallId
+                )
                 blocks.push({
                   type: 'tool_call',
                   toolCall: {
@@ -2368,6 +2431,9 @@ export function useChat(
                     params: args,
                     calledBy: scopedSubagent,
                   },
+                  ...(parentToolCallIdForBlock
+                    ? { parentToolCallId: parentToolCallIdForBlock }
+                    : {}),
                   timestamp: Date.now(),
                 })
                 if (name === ReadTool.id || isResourceToolName(name)) {
@@ -2385,7 +2451,14 @@ export function useChat(
               flush()
 
               if (isWorkflowToolName(name) && !isPartial) {
-                startClientWorkflowTool(id, name, args ?? {})
+                const shouldStartWorkflowTool =
+                  !options?.suppressWorkflowToolStarts &&
+                  (isNewToolCall ||
+                    (existingToolCall?.status === ToolCallStatus.executing &&
+                      !existingToolCall.result))
+                if (shouldStartWorkflowTool) {
+                  startClientWorkflowTool(id, name, args ?? {})
+                }
               }
               break
             }
@@ -2488,9 +2561,13 @@ export function useChat(
                 break
               }
               const spanData = asPayloadRecord(payload.data)
-              const parentToolCallId =
-                scopedParentToolCallId ??
-                (typeof spanData?.tool_call_id === 'string' ? spanData.tool_call_id : undefined)
+              const parentToolCallIdFromData =
+                typeof spanData?.tool_call_id === 'string'
+                  ? spanData.tool_call_id
+                  : typeof spanData?.toolCallId === 'string'
+                    ? spanData.toolCallId
+                    : undefined
+              const parentToolCallId = scopedParentToolCallId ?? parentToolCallIdFromData
               const isPendingPause = spanData?.pending === true
               const name = typeof payload.agent === 'string' ? payload.agent : scopedAgentId
               if (payload.event === MothershipStreamV1SpanLifecycleEvent.start && name) {
@@ -2505,7 +2582,12 @@ export function useChat(
                 activeSubagentParentToolCallId = parentToolCallId
                 if (!isSameActiveSubagent) {
                   stampBlockEnd(blocks[blocks.length - 1])
-                  blocks.push({ type: 'subagent', content: name, timestamp: Date.now() })
+                  blocks.push({
+                    type: 'subagent',
+                    content: name,
+                    ...(parentToolCallId ? { parentToolCallId } : {}),
+                    timestamp: Date.now(),
+                  })
                 }
                 if (name === FILE_SUBAGENT_ID && !isSameActiveSubagent) {
                   applyPreviewSessionUpdate({
@@ -2549,14 +2631,23 @@ export function useChat(
                 if (name) {
                   for (let i = blocks.length - 1; i >= 0; i--) {
                     const b = blocks[i]
-                    if (b.type === 'subagent' && b.content === name && b.endedAt === undefined) {
+                    if (
+                      b.type === 'subagent' &&
+                      b.content === name &&
+                      b.endedAt === undefined &&
+                      (!parentToolCallId || b.parentToolCallId === parentToolCallId)
+                    ) {
                       b.endedAt = endNow
                       break
                     }
                   }
                 }
                 stampBlockEnd(blocks[blocks.length - 1])
-                blocks.push({ type: 'subagent_end', timestamp: endNow })
+                blocks.push({
+                  type: 'subagent_end',
+                  ...(parentToolCallId ? { parentToolCallId } : {}),
+                  timestamp: endNow,
+                })
                 flush()
               }
               break
@@ -2567,6 +2658,7 @@ export function useChat(
               appendInlineErrorTag(
                 buildInlineErrorTag(parsed.payload),
                 scopedSubagent,
+                resolveParentForSubagentBlock(scopedSubagent, scopedParentToolCallId),
                 typeof parsed.ts === 'string' ? parsed.ts : undefined
               )
               break
@@ -2671,6 +2763,7 @@ export function useChat(
       let latestCursor = afterCursor
       let seedEvents = opts.initialBatch?.events ?? []
       let streamStatus = opts.initialBatch?.status ?? 'unknown'
+      let suppressSeedWorkflowStarts = seedEvents.length > 0
 
       const isStaleReconnect = () =>
         streamGenRef.current !== expectedGen || abortControllerRef.current?.signal.aborted === true
@@ -2689,11 +2782,15 @@ export function useChat(
               buildReplayStream(seedEvents).getReader(),
               assistantId,
               expectedGen,
-              { preserveExistingState: true }
+              {
+                preserveExistingState: true,
+                suppressWorkflowToolStarts: suppressSeedWorkflowStarts,
+              }
             )
             latestCursor = String(seedEvents[seedEvents.length - 1]?.eventId ?? latestCursor)
             lastCursorRef.current = latestCursor
             seedEvents = []
+            suppressSeedWorkflowStarts = false
 
             if (replayResult.sawStreamError) {
               return { error: true, aborted: false }
@@ -2998,6 +3095,7 @@ export function useChat(
               ...(display ? { display } : {}),
               calledBy: block.toolCall.calledBy,
             },
+            ...(block.parentToolCallId ? { parentToolCallId: block.parentToolCallId } : {}),
             ...timing,
           }
         }
@@ -3005,6 +3103,7 @@ export function useChat(
           type: block.type,
           content: block.content,
           ...(block.subagent ? { lane: 'subagent' } : {}),
+          ...(block.parentToolCallId ? { parentToolCallId: block.parentToolCallId } : {}),
           ...timing,
         }
       })

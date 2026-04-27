@@ -361,28 +361,29 @@ export async function runStreamLoop(
           flushSubagentThinkingBlock(context)
           flushThinkingBlock(context)
           if (spanEvt === MothershipStreamV1SpanLifecycleEvent.start) {
-            const lastParent = context.subAgentParentStack[context.subAgentParentStack.length - 1]
-            const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
             if (toolCallId) {
-              if (lastParent !== toolCallId) {
+              if (!context.subAgentParentStack.includes(toolCallId)) {
                 context.subAgentParentStack.push(toolCallId)
               }
               context.subAgentParentToolCallId = toolCallId
               context.subAgentContent[toolCallId] ??= ''
               context.subAgentToolCalls[toolCallId] ??= []
             }
-            if (
-              subagentName &&
-              !(
-                lastParent === toolCallId &&
-                lastBlock?.type === 'subagent' &&
-                lastBlock.content === subagentName
-              )
-            ) {
-              context.contentBlocks.push({
-                type: 'subagent',
-                content: subagentName,
-                timestamp: Date.now(),
+            if (toolCallId && subagentName) {
+              const openParents = (context.openSubagentParents ??= new Set<string>())
+              if (!openParents.has(toolCallId)) {
+                openParents.add(toolCallId)
+                context.contentBlocks.push({
+                  type: 'subagent',
+                  content: subagentName,
+                  parentToolCallId: toolCallId,
+                  timestamp: Date.now(),
+                })
+              }
+            } else {
+              logger.warn('subagent start missing toolCallId or agent name', {
+                hasToolCallId: Boolean(toolCallId),
+                hasSubagentName: Boolean(subagentName),
               })
             }
             return
@@ -391,27 +392,33 @@ export async function runStreamLoop(
             if (isPendingPause) {
               return
             }
-            if (context.subAgentParentStack.length > 0) {
-              context.subAgentParentStack.pop()
+            if (toolCallId) {
+              const idx = context.subAgentParentStack.lastIndexOf(toolCallId)
+              if (idx >= 0) {
+                context.subAgentParentStack.splice(idx, 1)
+              } else {
+                logger.warn('subagent end without matching start', { toolCallId })
+              }
             } else {
-              logger.warn('subagent end without matching start')
+              logger.warn('subagent end missing toolCallId')
             }
             context.subAgentParentToolCallId =
               context.subAgentParentStack.length > 0
                 ? context.subAgentParentStack[context.subAgentParentStack.length - 1]
                 : undefined
-            if (subagentName) {
+            if (toolCallId) {
               for (let i = context.contentBlocks.length - 1; i >= 0; i--) {
                 const b = context.contentBlocks[i]
                 if (
                   b.type === 'subagent' &&
-                  b.content === subagentName &&
-                  b.endedAt === undefined
+                  b.endedAt === undefined &&
+                  b.parentToolCallId === toolCallId
                 ) {
                   b.endedAt = Date.now()
                   break
                 }
               }
+              context.openSubagentParents?.delete(toolCallId)
             }
             return
           }

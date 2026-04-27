@@ -340,6 +340,7 @@ function registerSubagentToolCall(
         type: 'tool_call',
         toolCall,
         calledBy: parentToolCall?.name,
+        parentToolCallId,
       })
     }
   }

@@ -133,6 +133,7 @@ export interface ContentBlock {
   options?: OptionItem[]
   timestamp?: number
   endedAt?: number
+  parentToolCallId?: string
 }
 
 export interface ChatMessageAttachment {
