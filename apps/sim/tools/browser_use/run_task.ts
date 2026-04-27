@@ -141,7 +141,12 @@ function buildRequestBody(
   const secrets = normalizeSecrets(params.variables)
   if (Object.keys(secrets).length > 0) body.secrets = secrets
 
-  if (params.metadata && typeof params.metadata === 'object') body.metadata = params.metadata
+  if (
+    params.metadata &&
+    typeof params.metadata === 'object' &&
+    Object.keys(params.metadata).length > 0
+  )
+    body.metadata = params.metadata
 
   return body
 }
