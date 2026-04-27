@@ -369,15 +369,14 @@ export async function runStreamLoop(
               context.subAgentContent[toolCallId] ??= ''
               context.subAgentToolCalls[toolCallId] ??= []
             }
-            if (subagentName) {
-              const alreadyOpen = context.contentBlocks.some(
-                (b) =>
-                  b.type === 'subagent' && b.content === subagentName && b.endedAt === undefined
-              )
-              if (!alreadyOpen) {
+            if (toolCallId && subagentName) {
+              const openParents = (context.openSubagentParents ??= new Set<string>())
+              if (!openParents.has(toolCallId)) {
+                openParents.add(toolCallId)
                 context.contentBlocks.push({
                   type: 'subagent',
                   content: subagentName,
+                  parentToolCallId: toolCallId,
                   timestamp: Date.now(),
                 })
               }
@@ -397,18 +396,19 @@ export async function runStreamLoop(
               context.subAgentParentStack.length > 0
                 ? context.subAgentParentStack[context.subAgentParentStack.length - 1]
                 : undefined
-            if (subagentName) {
+            if (toolCallId && subagentName) {
               for (let i = context.contentBlocks.length - 1; i >= 0; i--) {
                 const b = context.contentBlocks[i]
                 if (
                   b.type === 'subagent' &&
-                  b.content === subagentName &&
-                  b.endedAt === undefined
+                  b.endedAt === undefined &&
+                  b.parentToolCallId === toolCallId
                 ) {
                   b.endedAt = Date.now()
                   break
                 }
               }
+              context.openSubagentParents?.delete(toolCallId)
             }
             return
           }

@@ -41,6 +41,7 @@ export interface PersistedContentBlock {
   toolCall?: PersistedToolCall
   timestamp?: number
   endedAt?: number
+  parentToolCallId?: string
 }
 
 export interface PersistedFileAttachment {
@@ -101,9 +102,16 @@ export function withBlockTiming<T>(target: T, src: { timestamp?: number; endedAt
   return target
 }
 
+function withBlockParent<T>(target: T, src: { parentToolCallId?: string }): T {
+  if (src.parentToolCallId) {
+    ;(target as { parentToolCallId?: string }).parentToolCallId = src.parentToolCallId
+  }
+  return target
+}
+
 function mapContentBlock(block: ContentBlock): PersistedContentBlock {
   const persisted = mapContentBlockBody(block)
-  return withBlockTiming(persisted, block)
+  return withBlockParent(withBlockTiming(persisted, block), block)
 }
 
 function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
@@ -265,6 +273,7 @@ interface RawBlock {
   status?: string
   timestamp?: number
   endedAt?: number
+  parentToolCallId?: string
   toolCall?: {
     id?: string
     name?: string
@@ -321,6 +330,7 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
   if (block.kind) result.kind = block.kind as MothershipStreamV1SpanPayloadKind
   if (block.lifecycle) result.lifecycle = block.lifecycle as MothershipStreamV1SpanLifecycleEvent
   if (block.status) result.status = block.status as MothershipStreamV1CompletionStatus
+  if (block.parentToolCallId) result.parentToolCallId = block.parentToolCallId
   if (block.toolCall) {
     result.toolCall = {
       id: block.toolCall.id ?? '',
@@ -437,6 +447,9 @@ function normalizeBlock(block: RawBlock): PersistedContentBlock {
   }
   if (typeof block.endedAt === 'number' && result.endedAt === undefined) {
     result.endedAt = block.endedAt
+  }
+  if (block.parentToolCallId && result.parentToolCallId === undefined) {
+    result.parentToolCallId = block.parentToolCallId
   }
   return result
 }

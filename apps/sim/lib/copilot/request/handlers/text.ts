@@ -26,6 +26,7 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
           context.currentSubagentThinkingBlock = {
             type: 'subagent_thinking',
             content: '',
+            parentToolCallId,
             timestamp: Date.now(),
           }
         }
@@ -40,7 +41,7 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
       }
       context.subAgentContent[parentToolCallId] =
         (context.subAgentContent[parentToolCallId] || '') + chunk
-      addContentBlock(context, { type: 'subagent_text', content: chunk })
+      addContentBlock(context, { type: 'subagent_text', content: chunk, parentToolCallId })
       return
     }
 

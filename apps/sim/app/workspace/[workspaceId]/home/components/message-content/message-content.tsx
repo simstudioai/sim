@@ -156,44 +156,79 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
  */
 function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
   const segments: MessageSegment[] = []
-  let group: AgentGroupSegment | null = null
-  const pushGroup = (nextGroup: AgentGroupSegment, isOpen = false) => {
-    segments.push({ ...nextGroup, isOpen })
+  const groupsByKey = new Map<string, AgentGroupSegment>()
+  let activeGroupKey: string | null = null
+
+  const groupKey = (name: string, parentToolCallId: string | undefined) =>
+    parentToolCallId ? `${name}:${parentToolCallId}` : `${name}:legacy`
+
+  const resolveGroupKey = (name: string, parentToolCallId: string | undefined) => {
+    if (parentToolCallId) return groupKey(name, parentToolCallId)
+    if (activeGroupKey && groupsByKey.get(activeGroupKey)?.agentName === name) {
+      return activeGroupKey
+    }
+    for (const [key, g] of groupsByKey) {
+      if (g.agentName === name && g.isOpen) return key
+    }
+    return groupKey(name, undefined)
   }
 
-  const lastSubagentBlockIndex = new Map<string, number>()
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i]
-    if (block.type === 'subagent' && block.content) {
-      lastSubagentBlockIndex.set(block.content, i)
+  const ensureGroup = (name: string, parentToolCallId: string | undefined): AgentGroupSegment => {
+    const key = resolveGroupKey(name, parentToolCallId)
+    let g = groupsByKey.get(key)
+    if (!g) {
+      g = {
+        type: 'agent_group',
+        id: `agent-${key}`,
+        agentName: name,
+        agentLabel: resolveAgentLabel(name),
+        items: [],
+        isDelegating: false,
+        isOpen: false,
+      }
+      segments.push(g)
+      groupsByKey.set(key, g)
     }
+    return g
   }
-  const hasSubagentBlockAfter = (name: string, index: number): boolean => {
-    const last = lastSubagentBlockIndex.get(name)
-    return last !== undefined && last > index
+
+  const findGroupForSubagentChunk = (
+    parentToolCallId: string | undefined
+  ): AgentGroupSegment | undefined => {
+    if (parentToolCallId) {
+      for (const [key, g] of groupsByKey) {
+        if (key.endsWith(`:${parentToolCallId}`)) return g
+      }
+    }
+    if (activeGroupKey) return groupsByKey.get(activeGroupKey)
+    return undefined
+  }
+
+  const flushLanes = () => {
+    groupsByKey.clear()
+    activeGroupKey = null
   }
 
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
 
     if (block.type === 'subagent_text' || block.type === 'subagent_thinking') {
-      if (!block.content || !group) continue
-      group.isDelegating = false
-      const lastItem = group.items[group.items.length - 1]
+      if (!block.content) continue
+      const g = findGroupForSubagentChunk(block.parentToolCallId)
+      if (!g) continue
+      g.isDelegating = false
+      const lastItem = g.items[g.items.length - 1]
       if (lastItem?.type === 'text') {
         lastItem.content += block.content
       } else {
-        group.items.push({ type: 'text', content: block.content })
+        g.items.push({ type: 'text', content: block.content })
       }
       continue
     }
 
     if (block.type === 'thinking') {
       if (!block.content?.trim()) continue
-      if (group) {
-        pushGroup(group)
-        group = null
-      }
+      flushLanes()
       const last = segments[segments.length - 1]
       if (last?.type === 'thinking' && last.endedAt === undefined) {
         last.content += block.content
@@ -213,21 +248,19 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     if (block.type === 'text') {
       if (!block.content) continue
       if (block.subagent) {
-        if (group && group.agentName === block.subagent) {
-          group.isDelegating = false
-          const lastItem = group.items[group.items.length - 1]
+        const g = groupsByKey.get(resolveGroupKey(block.subagent, block.parentToolCallId))
+        if (g) {
+          g.isDelegating = false
+          const lastItem = g.items[g.items.length - 1]
           if (lastItem?.type === 'text') {
             lastItem.content += block.content
           } else {
-            group.items.push({ type: 'text', content: block.content })
+            g.items.push({ type: 'text', content: block.content })
           }
           continue
         }
       }
-      if (group) {
-        pushGroup(group)
-        group = null
-      }
+      flushLanes()
       const last = segments[segments.length - 1]
       if (last?.type === 'text') {
         last.content += block.content
@@ -240,34 +273,22 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     if (block.type === 'subagent') {
       if (!block.content) continue
       const key = block.content
-      if (group && group.agentName === key) continue
-
-      const dispatchToolName = SUBAGENT_DISPATCH_TOOLS[key]
       let inheritedDelegation = false
-      if (group && dispatchToolName) {
-        const last: AgentGroupItem | undefined = group.items[group.items.length - 1]
-        if (last?.type === 'tool' && last.data.toolName === dispatchToolName) {
-          inheritedDelegation = !isToolDone(last.data.status) && Boolean(last.data.streamingArgs)
-          group.items.pop()
+      const dispatchToolName = SUBAGENT_DISPATCH_TOOLS[key]
+      if (dispatchToolName) {
+        const mship = groupsByKey.get(groupKey('mothership', undefined))
+        if (mship) {
+          const last = mship.items[mship.items.length - 1]
+          if (last?.type === 'tool' && last.data.toolName === dispatchToolName) {
+            inheritedDelegation = !isToolDone(last.data.status) && Boolean(last.data.streamingArgs)
+            mship.items.pop()
+          }
         }
-        if (group.items.length > 0) {
-          pushGroup(group)
-        }
-        group = null
-      } else if (group) {
-        pushGroup(group)
-        group = null
       }
-
-      group = {
-        type: 'agent_group',
-        id: `agent-${key}-${i}`,
-        agentName: key,
-        agentLabel: resolveAgentLabel(key),
-        items: [],
-        isDelegating: inheritedDelegation,
-        isOpen: false,
-      }
+      const g = ensureGroup(key, block.parentToolCallId)
+      if (inheritedDelegation) g.isDelegating = true
+      g.isOpen = block.endedAt === undefined
+      activeGroupKey = resolveGroupKey(key, block.parentToolCallId)
       continue
     }
 
@@ -279,98 +300,72 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       const isDispatch = SUBAGENT_KEYS.has(tc.name) && !tc.calledBy
 
       if (isDispatch) {
-        if (hasSubagentBlockAfter(tc.name, i)) {
-          continue
-        }
-        if (!group || group.agentName !== tc.name) {
-          if (group) {
-            pushGroup(group)
-            group = null
-          }
-          group = {
-            type: 'agent_group',
-            id: `agent-${tc.name}-${i}`,
-            agentName: tc.name,
-            agentLabel: resolveAgentLabel(tc.name),
-            items: [],
-            isDelegating: false,
-            isOpen: false,
-          }
-        }
-        group.isDelegating = isDelegatingTool(tc)
+        const g = ensureGroup(tc.name, tc.id)
+        g.isDelegating = isDelegatingTool(tc)
+        g.isOpen = g.isDelegating
         continue
       }
 
       const tool = toToolData(tc)
 
-      if (tc.calledBy && group && group.agentName === tc.calledBy) {
-        group.isDelegating = false
-        group.items.push({ type: 'tool', data: tool })
-      } else if (tc.calledBy) {
-        if (group) {
-          pushGroup(group)
-          group = null
-        }
-        group = {
-          type: 'agent_group',
-          id: `agent-${tc.calledBy}-${i}`,
-          agentName: tc.calledBy,
-          agentLabel: resolveAgentLabel(tc.calledBy),
-          items: [{ type: 'tool', data: tool }],
-          isDelegating: false,
-          isOpen: false,
-        }
+      if (tc.calledBy) {
+        const g = ensureGroup(tc.calledBy, block.parentToolCallId)
+        g.isDelegating = false
+        if (block.parentToolCallId) g.isOpen = true
+        g.items.push({ type: 'tool', data: tool })
+        activeGroupKey = resolveGroupKey(tc.calledBy, block.parentToolCallId)
       } else {
-        if (group && group.agentName === 'mothership') {
-          group.items.push({ type: 'tool', data: tool })
-        } else {
-          if (group) {
-            pushGroup(group)
-            group = null
-          }
-          group = {
-            type: 'agent_group',
-            id: `agent-mothership-${i}`,
-            agentName: 'mothership',
-            agentLabel: 'Mothership',
-            items: [{ type: 'tool', data: tool }],
-            isDelegating: false,
-            isOpen: false,
-          }
-        }
+        const g = ensureGroup('mothership', undefined)
+        g.items.push({ type: 'tool', data: tool })
       }
       continue
     }
 
     if (block.type === 'options') {
       if (!block.options?.length) continue
-      if (group) {
-        pushGroup(group)
-        group = null
-      }
+      flushLanes()
       segments.push({ type: 'options', items: block.options })
       continue
     }
 
     if (block.type === 'subagent_end') {
-      if (group) {
-        pushGroup(group)
-        group = null
+      if (block.parentToolCallId) {
+        for (const [key, g] of groupsByKey) {
+          if (key.endsWith(`:${block.parentToolCallId}`)) {
+            g.isOpen = false
+            g.isDelegating = false
+          }
+        }
+      }
+      if (block.parentToolCallId && activeGroupKey?.endsWith(`:${block.parentToolCallId}`)) {
+        activeGroupKey = null
+      } else if (!block.parentToolCallId) {
+        for (const g of groupsByKey.values()) {
+          if (g.agentName !== 'mothership') {
+            g.isOpen = false
+            g.isDelegating = false
+          }
+        }
+        activeGroupKey = null
       }
       continue
     }
 
     if (block.type === 'stopped') {
-      if (group) {
-        pushGroup(group)
-        group = null
-      }
+      flushLanes()
       segments.push({ type: 'stopped' })
     }
   }
 
-  if (group) pushGroup(group, true)
-  return segments
+  const visibleSegments = segments.filter(
+    (segment) =>
+      segment.type !== 'agent_group' ||
+      segment.items.length > 0 ||
+      segment.isDelegating ||
+      segment.isOpen
+  )
+
+  return visibleSegments
 }
 
 /**
@@ -443,12 +438,6 @@ export function MessageContent({
     isStreaming &&
     !hasTrailingContent &&
     (lastSegment.type === 'thinking' || hasSubagentEnded || allLastGroupToolsDone)
-  const lastOpenSubagentGroupId = [...segments]
-    .reverse()
-    .find(
-      (segment): segment is AgentGroupSegment =>
-        segment.type === 'agent_group' && segment.agentName !== 'mothership' && segment.isOpen
-    )?.id
 
   return (
     <div className='space-y-[10px]'>
@@ -503,8 +492,8 @@ export function MessageContent({
                   items={segment.items}
                   isDelegating={segment.isDelegating}
                   isStreaming={isStreaming}
-                  autoCollapse={allToolsDone && hasFollowingText}
-                  defaultExpanded={segment.id === lastOpenSubagentGroupId}
+                  autoCollapse={!segment.isOpen && allToolsDone && hasFollowingText}
+                  defaultExpanded={segment.isOpen}
                 />
               </div>
             )
