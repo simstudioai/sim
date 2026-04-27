@@ -396,10 +396,21 @@ export async function runStreamLoop(
             if (isPendingPause) {
               return
             }
-            if (context.subAgentParentStack.length > 0) {
-              context.subAgentParentStack.pop()
+            // Pop by id, not by position: parallel subagents can end out of
+            // order, and a positional pop would otherwise remove the wrong
+            // parent and leave subAgentParentToolCallId pointing at the
+            // just-ended lane. Every subagent_end carries a toolCallId in
+            // current protocol; if one ever doesn't, prefer leaving the stack
+            // intact over guessing the wrong parent.
+            if (toolCallId) {
+              const idx = context.subAgentParentStack.lastIndexOf(toolCallId)
+              if (idx >= 0) {
+                context.subAgentParentStack.splice(idx, 1)
+              } else {
+                logger.warn('subagent end without matching start', { toolCallId })
+              }
             } else {
-              logger.warn('subagent end without matching start')
+              logger.warn('subagent end missing toolCallId')
             }
             context.subAgentParentToolCallId =
               context.subAgentParentStack.length > 0
