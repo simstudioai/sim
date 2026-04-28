@@ -133,7 +133,7 @@ const VIDEO_PREVIEWABLE_MIME_TYPES = new Set([
   'video/x-matroska',
   'video/webm',
 ])
-const VIDEO_PREVIEWABLE_EXTENSIONS = new Set(['mp4', 'mov', 'avi', 'mkv'])
+const VIDEO_PREVIEWABLE_EXTENSIONS = new Set(['mp4', 'mov', 'avi', 'mkv', 'webm'])
 
 const PPTX_PREVIEWABLE_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',

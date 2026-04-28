@@ -302,6 +302,7 @@ const MermaidDiagram = memo(function MermaidDiagram({ definition }: { definition
 })
 
 const STATIC_MARKDOWN_COMPONENTS = {
+  pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className='mb-3 break-words text-[14px] text-[var(--text-primary)] leading-[1.6] last:mb-0'>
       {children}

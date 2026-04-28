@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function FilesFilePage() {
   return (
-    <Suspense>
+    <Suspense fallback={null}>
       <Files />
     </Suspense>
   )
