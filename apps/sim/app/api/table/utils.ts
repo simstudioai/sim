@@ -171,7 +171,14 @@ export const CreateColumnSchema = z.object({
       .object({
         workflowId: z.string().min(1),
         dependencies: z.array(z.string()).optional(),
-        outputPath: z.string().optional(),
+        outputs: z
+          .array(
+            z.object({
+              blockId: z.string().min(1),
+              path: z.string().min(1),
+            })
+          )
+          .optional(),
       })
       .optional(),
   }),
@@ -189,7 +196,14 @@ export const UpdateColumnSchema = z.object({
       .object({
         workflowId: z.string().min(1),
         dependencies: z.array(z.string()).optional(),
-        outputPath: z.string().optional(),
+        outputs: z
+          .array(
+            z.object({
+              blockId: z.string().min(1),
+              path: z.string().min(1),
+            })
+          )
+          .optional(),
       })
       .optional(),
   }),

@@ -4,16 +4,7 @@ import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { RepeatIcon, SplitIcon, X } from 'lucide-react'
-import {
-  Button,
-  Checkbox,
-  Combobox,
-  type ComboboxOptionGroup,
-  Input,
-  Label,
-  Switch,
-  toast,
-} from '@/components/emcn'
+import { Button, Checkbox, Combobox, Input, Label, Switch, toast } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
@@ -50,8 +41,6 @@ interface ColumnSidebarProps {
   workflowColumnBatchSize: number | undefined
 }
 
-const FULL_OUTPUT = '__full__'
-const NO_OUTPUT = ''
 const OUTPUT_VALUE_SEPARATOR = '::'
 const BATCH_SIZE_MIN = 1
 const BATCH_SIZE_MAX = 100
@@ -62,14 +51,24 @@ const DASHED_DIVIDER_STYLE = {
     'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
 } as const
 
-/** Encodes blockId + path so duplicate field names across blocks stay distinct. */
+/** Encodes blockId + path so duplicate field names across blocks stay distinct in the picker UI. */
 const encodeOutputValue = (blockId: string, path: string) =>
   `${blockId}${OUTPUT_VALUE_SEPARATOR}${path}`
 
-/** Strips the blockId prefix; returns the bare path that gets persisted as outputPath. */
-const decodeOutputPath = (value: string) => {
+/** Splits an encoded `${blockId}::${path}` into its components for persistence. */
+const decodeOutputValue = (value: string): { blockId: string; path: string } => {
   const idx = value.indexOf(OUTPUT_VALUE_SEPARATOR)
-  return idx === -1 ? value : value.slice(idx + OUTPUT_VALUE_SEPARATOR.length)
+  if (idx === -1) return { blockId: '', path: value }
+  return { blockId: value.slice(0, idx), path: value.slice(idx + OUTPUT_VALUE_SEPARATOR.length) }
+}
+
+interface BlockOutputGroup {
+  blockId: string
+  blockName: string
+  blockType: string
+  blockIcon: string | React.ComponentType<{ className?: string }>
+  blockColor: string
+  paths: string[]
 }
 
 const TagIcon: React.FC<{
@@ -143,7 +142,8 @@ export function ColumnSidebar({
   const [uniqueInput, setUniqueInput] = useState<boolean>(false)
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>('')
   const [deps, setDeps] = useState<string[]>([])
-  const [outputValue, setOutputValue] = useState<string>(NO_OUTPUT)
+  /** Encoded `${blockId}::${path}` values — disambiguates duplicate paths in the picker. */
+  const [selectedOutputs, setSelectedOutputs] = useState<string[]>([])
   const [batchSizeInput, setBatchSizeInput] = useState<string>('')
 
   const existingColumnRef = useRef(existingColumn)
@@ -168,11 +168,11 @@ export function ColumnSidebar({
           existing.workflowConfig.dependencies ??
             cols.filter((c) => c.name !== existing.name).map((c) => c.name)
         )
-        setOutputValue(existing.workflowConfig.outputPath ?? NO_OUTPUT)
+        setSelectedOutputs([]) // re-encoded against current workflow blocks below
       } else {
         setSelectedWorkflowId('')
         setDeps([])
-        setOutputValue(NO_OUTPUT)
+        setSelectedOutputs([])
       }
     } else {
       setTypeInput('workflow')
@@ -180,7 +180,7 @@ export function ColumnSidebar({
       setNameInput(configState.proposedName)
       setSelectedWorkflowId(configState.workflowId)
       setDeps(cols.filter((c) => c.name !== configState.columnName).map((c) => c.name))
-      setOutputValue(NO_OUTPUT)
+      setSelectedOutputs([])
     }
     setBatchSizeInput(
       String(workflowColumnBatchSizeRef.current ?? TABLE_LIMITS.WORKFLOW_COLUMN_BATCH_SIZE)
@@ -191,7 +191,7 @@ export function ColumnSidebar({
     open && typeInput === 'workflow' && selectedWorkflowId ? selectedWorkflowId : undefined
   )
 
-  const outputComboboxGroups = useMemo<ComboboxOptionGroup[]>(() => {
+  const blockOutputGroups = useMemo<BlockOutputGroup[]>(() => {
     const state = workflowState.data as
       | {
           blocks?: Record<string, FlattenOutputsBlockInput>
@@ -205,54 +205,61 @@ export function ColumnSidebar({
     const flat = flattenWorkflowOutputs(blocks, state.edges ?? [])
     if (flat.length === 0) return []
 
-    const groupsByBlock = new Map<string, typeof flat>()
+    const groupsByBlockId = new Map<string, BlockOutputGroup>()
     for (const f of flat) {
-      const list = groupsByBlock.get(f.blockName) ?? []
-      list.push(f)
-      groupsByBlock.set(f.blockName, list)
-    }
-
-    return Array.from(groupsByBlock.entries()).map(([blockName, items]) => {
-      const first = items[0]
-      const blockConfig = getBlock(first.blockType)
-      const blockColor = blockConfig?.bgColor || '#2F55FF'
-      let blockIcon: string | React.ComponentType<{ className?: string }> = blockName
-        .charAt(0)
-        .toUpperCase()
-      if (blockConfig?.icon) blockIcon = blockConfig.icon
-      else if (first.blockType === 'loop') blockIcon = RepeatIcon
-      else if (first.blockType === 'parallel') blockIcon = SplitIcon
-
-      return {
-        sectionElement: (
-          <div className='flex items-center gap-1.5 px-1.5 py-1'>
-            <TagIcon icon={blockIcon} color={blockColor} />
-            <span className='font-medium text-small'>{blockName}</span>
-          </div>
-        ),
-        items: items.map((f) => ({
-          label: f.path,
-          value: encodeOutputValue(f.blockId, f.path),
-        })),
+      let group = groupsByBlockId.get(f.blockId)
+      if (!group) {
+        const blockConfig = getBlock(f.blockType)
+        const blockColor = blockConfig?.bgColor || '#2F55FF'
+        let blockIcon: string | React.ComponentType<{ className?: string }> = f.blockName
+          .charAt(0)
+          .toUpperCase()
+        if (blockConfig?.icon) blockIcon = blockConfig.icon
+        else if (f.blockType === 'loop') blockIcon = RepeatIcon
+        else if (f.blockType === 'parallel') blockIcon = SplitIcon
+        group = {
+          blockId: f.blockId,
+          blockName: f.blockName,
+          blockType: f.blockType,
+          blockIcon,
+          blockColor,
+          paths: [],
+        }
+        groupsByBlockId.set(f.blockId, group)
       }
-    })
+      group.paths.push(f.path)
+    }
+    return Array.from(groupsByBlockId.values())
   }, [workflowState.data])
 
+  /**
+   * Re-encode persisted `{blockId, path}` entries into the picker's encoded form
+   * once the workflow's blocks are loaded. Stale entries (block deleted or path
+   * removed) are dropped silently — the user can re-pick on save.
+   */
   useEffect(() => {
-    if (!outputValue || outputValue === FULL_OUTPUT) return
-    if (outputValue.includes(OUTPUT_VALUE_SEPARATOR)) return
-    for (const group of outputComboboxGroups) {
-      for (const item of group.items) {
-        if (decodeOutputPath(item.value) === outputValue) {
-          setOutputValue(item.value)
-          return
-        }
-      }
+    if (!existingColumnRef.current?.workflowConfig?.outputs?.length) return
+    if (selectedOutputs.length > 0) return
+    if (blockOutputGroups.length === 0) return
+    const saved = existingColumnRef.current.workflowConfig.outputs
+    const encoded: string[] = []
+    for (const entry of saved) {
+      const match = blockOutputGroups.find(
+        (g) => g.blockId === entry.blockId && g.paths.includes(entry.path)
+      )
+      if (match) encoded.push(encodeOutputValue(entry.blockId, entry.path))
     }
-  }, [outputComboboxGroups, outputValue])
+    if (encoded.length > 0) setSelectedOutputs(encoded)
+  }, [blockOutputGroups, selectedOutputs.length])
 
   const toggleDep = (name: string) => {
     setDeps((prev) => (prev.includes(name) ? prev.filter((d) => d !== name) : [...prev, name]))
+  }
+
+  const toggleOutput = (encoded: string) => {
+    setSelectedOutputs((prev) =>
+      prev.includes(encoded) ? prev.filter((v) => v !== encoded) : [...prev, encoded]
+    )
   }
 
   const parsedBatchSize = Number.parseInt(batchSizeInput, 10)
@@ -288,13 +295,23 @@ export function ColumnSidebar({
         toast.error(`Run concurrency must be between ${BATCH_SIZE_MIN} and ${BATCH_SIZE_MAX}`)
         return
       }
+      const outputs =
+        selectedOutputs.length === 0
+          ? undefined
+          : (() => {
+              const seen = new Set<string>()
+              const list: Array<{ blockId: string; path: string }> = []
+              for (const encoded of selectedOutputs) {
+                if (seen.has(encoded)) continue
+                seen.add(encoded)
+                list.push(decodeOutputValue(encoded))
+              }
+              return list
+            })()
       workflowConfig = {
         workflowId: selectedWorkflowId,
         dependencies: deps,
-        outputPath:
-          outputValue === FULL_OUTPUT || outputValue === NO_OUTPUT
-            ? undefined
-            : decodeOutputPath(outputValue),
+        ...(outputs ? { outputs } : {}),
       }
     }
 
@@ -440,22 +457,67 @@ export function ColumnSidebar({
               <FieldDivider />
 
               <div className='flex flex-col gap-[9.5px]'>
-                <Label className='pl-0.5'>Output field</Label>
-                <Combobox
-                  groups={[
-                    ...outputComboboxGroups,
-                    { items: [{ label: 'Full output', value: FULL_OUTPUT }] },
-                  ]}
-                  options={[]}
-                  value={outputValue}
-                  onChange={(v) => setOutputValue(v)}
-                  placeholder='Select outputs'
-                  isLoading={workflowState.isLoading}
-                  maxHeight={260}
-                  emptyMessage='No outputs found'
-                />
+                <Label className='pl-0.5'>Output fields</Label>
+                <div className='flex max-h-[280px] min-w-0 flex-col overflow-y-auto rounded-md border border-[var(--border)]'>
+                  {workflowState.isLoading ? (
+                    <div className='px-2 py-3 text-[var(--text-tertiary)] text-small'>
+                      Loading workflow…
+                    </div>
+                  ) : blockOutputGroups.length === 0 ? (
+                    <div className='px-2 py-3 text-[var(--text-tertiary)] text-small'>
+                      No outputs found.
+                    </div>
+                  ) : (
+                    blockOutputGroups.map((group, gi) => (
+                      <div
+                        key={group.blockId}
+                        className={cn(
+                          gi < blockOutputGroups.length - 1 &&
+                            'border-[var(--border)] border-b'
+                        )}
+                      >
+                        <div className='flex items-center gap-1.5 bg-[var(--surface-2)] px-2.5 py-1.5'>
+                          <TagIcon icon={group.blockIcon} color={group.blockColor} />
+                          <span className='font-medium text-[var(--text-secondary)] text-small'>
+                            {group.blockName}
+                          </span>
+                        </div>
+                        {group.paths.map((path) => {
+                          const encoded = encodeOutputValue(group.blockId, path)
+                          const checked = selectedOutputs.includes(encoded)
+                          return (
+                            <div
+                              key={encoded}
+                              role='checkbox'
+                              aria-checked={checked}
+                              tabIndex={0}
+                              onClick={() => toggleOutput(encoded)}
+                              onKeyDown={(e) => {
+                                if (e.key === ' ' || e.key === 'Enter') {
+                                  e.preventDefault()
+                                  toggleOutput(encoded)
+                                }
+                              }}
+                              className='flex h-[36px] flex-shrink-0 cursor-pointer items-center gap-2.5 px-2.5 hover:bg-[var(--surface-2)]'
+                            >
+                              <Checkbox
+                                size='sm'
+                                checked={checked}
+                                className='pointer-events-none'
+                              />
+                              <span className='font-medium text-[var(--text-secondary)] text-small'>
+                                {path}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ))
+                  )}
+                </div>
                 <p className='pl-0.5 text-[var(--text-tertiary)] text-caption'>
-                  Pick one field from the workflow, or store the full output.
+                  Pick fields to fan out as separate columns. Leave empty to store the full
+                  workflow output in a single JSON column.
                 </p>
               </div>
 

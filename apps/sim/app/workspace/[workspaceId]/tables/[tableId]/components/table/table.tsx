@@ -52,6 +52,7 @@ import type {
   TableRow as TableRowType,
   WorkflowCellValue,
 } from '@/lib/table'
+import { pluckByPath } from '@/lib/table/pluck'
 import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
 import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -102,7 +103,81 @@ interface NormalizedSelection {
   anchorCol: number
 }
 
-const EMPTY_COLUMNS: never[] = []
+/**
+ * One visual column in the rendered grid. Extends `ColumnDefinition` so existing
+ * accessors (`name`, `type`, `workflowConfig`) keep meaning the **logical** column.
+ * Workflow columns with multi-output config fan out into multiple `DisplayColumn`s
+ * sharing the same logical column.
+ */
+interface DisplayColumn extends ColumnDefinition {
+  /** Stable per-visual-column identifier. Equals `name` when not fanned out. */
+  key: string
+  /** Pluck path for fanned-out workflow visual columns. */
+  outputPath?: string
+  /** Source block id for fanned-out columns; used to read `cell.blockOutputs[blockId]`. */
+  outputBlockId?: string
+  isFannedOut: boolean
+  /** Sibling count (1 if not fanned). */
+  groupSize: number
+  /** colIndex of the first sibling within `displayColumns`. */
+  groupStartColIndex: number
+  /** Header label shown above this visual column. */
+  headerLabel: string
+  /** True when this is the leftmost sibling (or the only one). */
+  isGroupStart: boolean
+}
+
+function expandToDisplayColumns(columns: ColumnDefinition[]): DisplayColumn[] {
+  const out: DisplayColumn[] = []
+  for (const column of columns) {
+    const outputs = column.type === 'workflow' ? column.workflowConfig?.outputs : undefined
+    if (outputs && outputs.length > 0) {
+      const startIdx = out.length
+      for (let i = 0; i < outputs.length; i++) {
+        const { blockId, path } = outputs[i]
+        out.push({
+          ...column,
+          key: `${column.name}::${blockId}::${path}`,
+          outputPath: path,
+          outputBlockId: blockId,
+          isFannedOut: true,
+          groupSize: outputs.length,
+          groupStartColIndex: startIdx,
+          headerLabel: path,
+          isGroupStart: i === 0,
+        })
+      }
+    } else {
+      out.push({
+        ...column,
+        key: column.name,
+        outputPath: undefined,
+        outputBlockId: undefined,
+        isFannedOut: false,
+        groupSize: 1,
+        groupStartColIndex: out.length,
+        headerLabel: column.name,
+        isGroupStart: true,
+      })
+    }
+  }
+  return out
+}
+
+function snapSelectionToGroups(
+  rect: NormalizedSelection,
+  cols: DisplayColumn[]
+): NormalizedSelection {
+  let { startCol, endCol } = rect
+  const startGroup = cols[startCol]
+  if (startGroup?.isFannedOut) startCol = startGroup.groupStartColIndex
+  const endGroup = cols[endCol]
+  if (endGroup?.isFannedOut) endCol = endGroup.groupStartColIndex + endGroup.groupSize - 1
+  if (startCol === rect.startCol && endCol === rect.endCol) return rect
+  return { ...rect, startCol, endCol }
+}
+
+const EMPTY_COLUMNS: DisplayColumn[] = []
 const EMPTY_CHECKED_ROWS = new Set<number>()
 const COL_WIDTH = 160
 const COL_WIDTH_MIN = 80
@@ -278,10 +353,24 @@ export function Table({
   }, [])
 
   const handleColumnRename = useCallback((oldName: string, newName: string) => {
+    // Width keys are either the logical name (non-fanned) or `${name}::${path}` (fanned).
+    // Rename rewrites every entry whose key matches the renamed column, preserving the suffix.
     let updatedWidths = columnWidthsRef.current
-    if (oldName in updatedWidths) {
-      const { [oldName]: width, ...rest } = updatedWidths
-      updatedWidths = { ...rest, [newName]: width }
+    let widthsChanged = false
+    const nextWidths: Record<string, number> = {}
+    for (const [key, width] of Object.entries(updatedWidths)) {
+      if (key === oldName) {
+        nextWidths[newName] = width
+        widthsChanged = true
+      } else if (key.startsWith(`${oldName}::`)) {
+        nextWidths[`${newName}${key.slice(oldName.length)}`] = width
+        widthsChanged = true
+      } else {
+        nextWidths[key] = width
+      }
+    }
+    if (widthsChanged) {
+      updatedWidths = nextWidths
       setColumnWidths(updatedWidths)
     }
     const updatedOrder = columnOrderRef.current?.map((n) => (n === oldName ? newName : n))
@@ -318,21 +407,25 @@ export function Table({
     [tableData?.schema?.columns]
   )
 
-  const displayColumns = useMemo(() => {
-    if (!columnOrder || columnOrder.length === 0) return columns
-    const colMap = new Map(columns.map((c) => [c.name, c]))
-    const ordered: ColumnDefinition[] = []
-    for (const name of columnOrder) {
-      const col = colMap.get(name)
-      if (col) {
+  const displayColumns = useMemo<DisplayColumn[]>(() => {
+    let ordered: ColumnDefinition[]
+    if (!columnOrder || columnOrder.length === 0) {
+      ordered = columns
+    } else {
+      const colMap = new Map(columns.map((c) => [c.name, c]))
+      ordered = []
+      for (const name of columnOrder) {
+        const col = colMap.get(name)
+        if (col) {
+          ordered.push(col)
+          colMap.delete(name)
+        }
+      }
+      for (const col of colMap.values()) {
         ordered.push(col)
-        colMap.delete(name)
       }
     }
-    for (const col of colMap.values()) {
-      ordered.push(col)
-    }
-    return ordered
+    return expandToDisplayColumns(ordered)
   }, [columns, columnOrder])
 
   const maxPosition = useMemo(() => (rows.length > 0 ? rows[rows.length - 1].position : -1), [rows])
@@ -349,16 +442,17 @@ export function Table({
   const positionMapRef = useRef(positionMap)
   positionMapRef.current = positionMap
 
-  const normalizedSelection = useMemo(
-    () => computeNormalizedSelection(selectionAnchor, selectionFocus),
-    [selectionAnchor, selectionFocus]
-  )
+  const normalizedSelection = useMemo(() => {
+    const raw = computeNormalizedSelection(selectionAnchor, selectionFocus)
+    if (!raw) return null
+    return snapSelectionToGroups(raw, displayColumns)
+  }, [selectionAnchor, selectionFocus, displayColumns])
 
   const displayColCount = isLoadingTable ? SKELETON_COL_COUNT : displayColumns.length
   const tableWidth = useMemo(() => {
     const colsWidth = isLoadingTable
       ? displayColCount * COL_WIDTH
-      : displayColumns.reduce((sum, col) => sum + (columnWidths[col.name] ?? COL_WIDTH), 0)
+      : displayColumns.reduce((sum, col) => sum + (columnWidths[col.key] ?? COL_WIDTH), 0)
     return CHECKBOX_COL_WIDTH + colsWidth + ADD_COL_WIDTH
   }, [isLoadingTable, displayColCount, displayColumns, columnWidths])
 
@@ -366,8 +460,8 @@ export function Table({
     if (!resizingColumn) return 0
     let left = CHECKBOX_COL_WIDTH
     for (const col of displayColumns) {
-      left += columnWidths[col.name] ?? COL_WIDTH
-      if (col.name === resizingColumn) return left
+      left += columnWidths[col.key] ?? COL_WIDTH
+      if (col.key === resizingColumn) return left
     }
     return 0
   }, [resizingColumn, displayColumns, columnWidths])
@@ -376,21 +470,32 @@ export function Table({
     if (!dropTargetColumnName || !dragColumnName) return null
     if (dropTargetColumnName === dragColumnName) return null
 
-    const dragIndex = displayColumns.findIndex((c) => c.name === dragColumnName)
-    const targetIndex = displayColumns.findIndex((c) => c.name === dropTargetColumnName)
-    if (dragIndex === -1 || targetIndex === -1) return null
+    // Drag/drop targets are LOGICAL columns; with fan-out, multiple visual columns
+    // share the same `name`. Compute the group's left edge and total width by
+    // accumulating across siblings.
+    const cols = displayColumns
+    const dragGroup = cols.findIndex((c) => c.name === dragColumnName)
+    const targetGroupStart = cols.findIndex((c) => c.name === dropTargetColumnName)
+    if (dragGroup === -1 || targetGroupStart === -1) return null
 
+    const dragGroupSize = cols[dragGroup].groupSize
+    const targetGroupSize = cols[targetGroupStart].groupSize
     const wouldBeNoOp =
-      (dropSide === 'right' && targetIndex === dragIndex - 1) ||
-      (dropSide === 'left' && targetIndex === dragIndex + 1)
+      (dropSide === 'right' && targetGroupStart + targetGroupSize === dragGroup) ||
+      (dropSide === 'left' && targetGroupStart === dragGroup + dragGroupSize)
     if (wouldBeNoOp) return null
 
     let left = CHECKBOX_COL_WIDTH
-    for (const col of displayColumns) {
-      const w = columnWidths[col.name] ?? COL_WIDTH
-      if (col.name === dropTargetColumnName) {
-        const lineLeft = dropSide === 'left' ? left : left + w
-        return { left, width: w, lineLeft }
+    for (let i = 0; i < cols.length; i++) {
+      const col = cols[i]
+      const w = columnWidths[col.key] ?? COL_WIDTH
+      if (i === targetGroupStart) {
+        let groupWidth = 0
+        for (let j = 0; j < targetGroupSize; j++) {
+          groupWidth += columnWidths[cols[i + j].key] ?? COL_WIDTH
+        }
+        const lineLeft = dropSide === 'left' ? left : left + groupWidth
+        return { left, width: groupWidth, lineLeft }
       }
       left += w
     }
@@ -776,12 +881,12 @@ export function Table({
     }
   }, [handleClearSelection, handleSelectAllRows])
 
-  const handleColumnResizeStart = useCallback((columnName: string) => {
-    setResizingColumn(columnName)
+  const handleColumnResizeStart = useCallback((columnKey: string) => {
+    setResizingColumn(columnKey)
   }, [])
 
-  const handleColumnResize = useCallback((columnName: string, width: number) => {
-    setColumnWidths((prev) => ({ ...prev, [columnName]: Math.max(COL_WIDTH_MIN, width) }))
+  const handleColumnResize = useCallback((columnKey: string, width: number) => {
+    setColumnWidths((prev) => ({ ...prev, [columnKey]: Math.max(COL_WIDTH_MIN, width) }))
   }, [])
 
   const handleColumnResizeEnd = useCallback(() => {
@@ -789,9 +894,9 @@ export function Table({
     updateMetadataRef.current({ columnWidths: columnWidthsRef.current })
   }, [])
 
-  const handleColumnAutoResize = useCallback((columnName: string) => {
+  const handleColumnAutoResize = useCallback((columnKey: string) => {
     const cols = columnsRef.current
-    const colIndex = cols.findIndex((c) => c.name === columnName)
+    const colIndex = cols.findIndex((c) => c.key === columnKey)
     if (colIndex === -1) return
 
     const column = cols[colIndex]
@@ -807,19 +912,36 @@ export function Table({
 
     try {
       measure.className = 'font-medium text-small'
-      measure.textContent = columnName
+      measure.textContent = column.headerLabel
       maxWidth = Math.max(maxWidth, measure.getBoundingClientRect().width + 57)
 
       measure.className = 'text-small'
       for (const row of currentRows) {
-        const val = row.data[columnName]
+        const rawVal = row.data[column.name]
+        let val: unknown = rawVal
+        if (column.type === 'workflow') {
+          const cell = rawVal as WorkflowCellValue | null | undefined
+          // Fanned-out columns can measure live per-block outputs even mid-run.
+          if (column.isFannedOut && column.outputBlockId && column.outputPath) {
+            const blockResult = cell?.blockOutputs?.[column.outputBlockId]
+            if (blockResult === undefined) continue
+            val = pluckByPath(blockResult, column.outputPath)
+          } else {
+            if (cell?.status !== 'completed' || cell.output == null) continue
+            val = column.outputPath ? pluckByPath(cell.output, column.outputPath) : cell.output
+          }
+        }
         if (val == null) continue
         let text: string
-        if (column.type === 'json') {
-          try {
-            text = JSON.stringify(val)
-          } catch {
-            text = String(val)
+        if (column.type === 'json' || column.type === 'workflow') {
+          if (typeof val === 'string') {
+            text = val
+          } else {
+            try {
+              text = JSON.stringify(val)
+            } catch {
+              text = String(val)
+            }
           }
         } else if (column.type === 'date') {
           text = storageToDisplay(String(val))
@@ -834,8 +956,8 @@ export function Table({
     }
 
     const newWidth = Math.min(Math.ceil(maxWidth), 600)
-    setColumnWidths((prev) => ({ ...prev, [columnName]: newWidth }))
-    const updated = { ...columnWidthsRef.current, [columnName]: newWidth }
+    setColumnWidths((prev) => ({ ...prev, [columnKey]: newWidth }))
+    const updated = { ...columnWidthsRef.current, [columnKey]: newWidth }
     columnWidthsRef.current = updated
     updateMetadataRef.current({ columnWidths: updated })
   }, [])
@@ -912,10 +1034,17 @@ export function Table({
 
     const cols = columnsRef.current
     let left = CHECKBOX_COL_WIDTH
-    for (const col of cols) {
-      const w = columnWidthsRef.current[col.name] ?? COL_WIDTH
-      if (cursorX < left + w) {
-        const midX = left + w / 2
+    let i = 0
+    while (i < cols.length) {
+      const col = cols[i]
+      // Treat fanned-out groups as monolithic drop targets; accumulate across siblings.
+      const groupSize = col.groupSize
+      let groupWidth = 0
+      for (let j = 0; j < groupSize; j++) {
+        groupWidth += columnWidthsRef.current[cols[i + j].key] ?? COL_WIDTH
+      }
+      if (cursorX < left + groupWidth) {
+        const midX = left + groupWidth / 2
         const side = cursorX < midX ? 'left' : 'right'
         if (col.name !== dropTargetColumnNameRef.current || side !== dropSideRef.current) {
           setDropTargetColumnName(col.name)
@@ -923,7 +1052,8 @@ export function Table({
         }
         return
       }
-      left += w
+      left += groupWidth
+      i += groupSize
     }
   }, [])
 
@@ -2330,7 +2460,7 @@ export function Table({
                     />
                     {displayColumns.map((column, idx) => (
                       <ColumnHeaderMenu
-                        key={column.name}
+                        key={column.key}
                         column={column}
                         colIndex={idx}
                         readOnly={!userPermissions.canEdit}
@@ -2525,7 +2655,7 @@ export function Table({
         expandedCell={expandedCell}
         onClose={() => setExpandedCell(null)}
         rows={rows}
-        columns={columns}
+        columns={displayColumns}
         onSave={handleInlineSave}
         canEdit={userPermissions.canEdit}
         scrollContainer={scrollRef.current}
@@ -2632,7 +2762,7 @@ const GAP_CHECKBOX_CLASS = cn(CELL_CHECKBOX, 'group/checkbox cursor-pointer text
 interface PositionGapRowsProps {
   count: number
   startPosition: number
-  columns: ColumnDefinition[]
+  columns: DisplayColumn[]
   normalizedSelection: NormalizedSelection | null
   checkedRows: Set<number>
   firstRowUnderHeader?: boolean
@@ -2709,7 +2839,7 @@ const PositionGapRows = React.memo(
 
                 return (
                   <td
-                    key={col.name}
+                    key={col.key}
                     data-row={position}
                     data-col={colIndex}
                     className={cn(CELL, (isHighlighted || isAnchor) && 'relative')}
@@ -2776,14 +2906,14 @@ const TableColGroup = React.memo(function TableColGroup({
   columns,
   columnWidths,
 }: {
-  columns: ColumnDefinition[]
+  columns: DisplayColumn[]
   columnWidths: Record<string, number>
 }) {
   return (
     <colgroup>
       <col style={{ width: CHECKBOX_COL_WIDTH }} />
       {columns.map((col) => (
-        <col key={col.name} style={{ width: columnWidths[col.name] ?? COL_WIDTH }} />
+        <col key={col.key} style={{ width: columnWidths[col.key] ?? COL_WIDTH }} />
       ))}
       <col style={{ width: ADD_COL_WIDTH }} />
     </colgroup>
@@ -2792,7 +2922,7 @@ const TableColGroup = React.memo(function TableColGroup({
 
 interface DataRowProps {
   row: TableRowType
-  columns: ColumnDefinition[]
+  columns: DisplayColumn[]
   rowIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
@@ -2992,7 +3122,7 @@ const DataRow = React.memo(function DataRow({
 
         return (
           <td
-            key={column.name}
+            key={column.key}
             data-row={rowIndex}
             data-col={colIndex}
             className={cn(CELL, (isHighlighted || isAnchor || isEditing) && 'relative')}
@@ -3049,7 +3179,7 @@ function CellContent({
   workflowNameById,
 }: {
   value: unknown
-  column: ColumnDefinition
+  column: DisplayColumn
   isEditing: boolean
   initialCharacter?: string | null
   onSave: (value: unknown, reason: SaveReason) => void
@@ -3061,7 +3191,27 @@ function CellContent({
   let displayContent: React.ReactNode = null
   if (column.type === 'workflow') {
     const cell = value as WorkflowCellValue | null
-    if (cell?.status === 'running') {
+
+    // Fanned-out columns: prefer the per-block output (live-streamed during the run).
+    // If the source block has completed, render its plucked value regardless of the
+    // overall workflow status — completed blocks stay visible during run, error, cancel.
+    let perBlockText: string | null = null
+    if (column.isFannedOut && column.outputBlockId && column.outputPath) {
+      const blockResult = cell?.blockOutputs?.[column.outputBlockId]
+      if (blockResult !== undefined) {
+        const picked = pluckByPath(blockResult, column.outputPath)
+        perBlockText =
+          picked == null ? '' : typeof picked === 'string' ? picked : JSON.stringify(picked)
+      }
+    }
+
+    if (perBlockText !== null) {
+      displayContent = (
+        <span className='block overflow-clip text-ellipsis text-[var(--text-primary)]'>
+          {perBlockText}
+        </span>
+      )
+    } else if (cell?.status === 'running') {
       const workflowName =
         (cell.workflowId ? workflowNameById?.[cell.workflowId] : undefined) ?? 'workflow'
       displayContent = (
@@ -3073,9 +3223,16 @@ function CellContent({
         </div>
       )
     } else if (cell?.status === 'completed' && cell.output != null) {
+      const picked = column.outputPath ? pluckByPath(cell.output, column.outputPath) : cell.output
+      const text =
+        picked == null
+          ? ''
+          : typeof picked === 'string'
+            ? picked
+            : JSON.stringify(picked)
       displayContent = (
         <span className='block overflow-clip text-ellipsis text-[var(--text-primary)]'>
-          {typeof cell.output === 'string' ? cell.output : JSON.stringify(cell.output)}
+          {text}
         </span>
       )
     } else if (cell?.status === 'error') {
@@ -3426,7 +3583,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onChangeToWorkflow,
   onOpenConfig,
 }: {
-  column: ColumnDefinition
+  column: DisplayColumn
   colIndex: number
   readOnly?: boolean
   isRenaming: boolean
@@ -3442,10 +3599,10 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onInsertRight: (columnName: string) => void
   onToggleUnique: (columnName: string) => void
   onDeleteColumn: (columnName: string) => void
-  onResizeStart: (columnName: string) => void
-  onResize: (columnName: string, width: number) => void
+  onResizeStart: (columnKey: string) => void
+  onResize: (columnKey: string, width: number) => void
   onResizeEnd: () => void
-  onAutoResize: (columnName: string) => void
+  onAutoResize: (columnKey: string) => void
   onDragStart?: (columnName: string) => void
   onDragOver?: (columnName: string, side: 'left' | 'right') => void
   onDragEnd?: () => void
@@ -3482,10 +3639,10 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       const target = e.currentTarget as HTMLElement
       target.setPointerCapture(e.pointerId)
 
-      onResizeStart(column.name)
+      onResizeStart(column.key)
 
       const handlePointerMove = (ev: PointerEvent) => {
-        onResize(column.name, startWidth + (ev.clientX - startX))
+        onResize(column.key, startWidth + (ev.clientX - startX))
       }
 
       const cleanup = () => {
@@ -3499,7 +3656,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       target.addEventListener('pointerup', cleanup)
       target.addEventListener('pointercancel', cleanup)
     },
-    [column.name, onResizeStart, onResize, onResizeEnd]
+    [column.key, onResizeStart, onResize, onResizeEnd]
   )
 
   const handleDragStart = useCallback(
@@ -3623,9 +3780,22 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       ) : readOnly ? (
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon type={column.type} workflowColor={workflowColor} />
-          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
-            {column.name}
-          </span>
+          {column.isFannedOut ? (
+            <div className='ml-1.5 flex min-w-0 flex-col'>
+              {column.isGroupStart && (
+                <span className='truncate text-[var(--text-tertiary)] text-caption leading-tight'>
+                  {column.name}
+                </span>
+              )}
+              <span className='truncate font-medium text-[13px] text-[var(--text-primary)] leading-tight'>
+                {column.headerLabel}
+              </span>
+            </div>
+          ) : (
+            <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
+              {column.name}
+            </span>
+          )}
         </div>
       ) : (
         <div className='flex h-full w-full min-w-0 items-center'>
@@ -3636,9 +3806,22 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             draggable={false}
           >
             <ColumnTypeIcon type={column.type} workflowColor={workflowColor} />
-            <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
-              {column.name}
-            </span>
+            {column.isFannedOut ? (
+              <div className='ml-1.5 flex min-w-0 flex-col items-start'>
+                {column.isGroupStart && (
+                  <span className='truncate text-[10px] text-[var(--text-tertiary)] leading-tight'>
+                    {column.name}
+                  </span>
+                )}
+                <span className='truncate font-medium text-[var(--text-primary)] text-small leading-tight'>
+                  {column.headerLabel}
+                </span>
+              </div>
+            ) : (
+              <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
+                {column.name}
+              </span>
+            )}
           </button>
           <button
             type='button'
@@ -3749,7 +3932,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         onDoubleClick={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          onAutoResize(column.name)
+          onAutoResize(column.key)
         }}
       />
     </th>
@@ -3760,7 +3943,7 @@ interface ExpandedCellPopoverProps {
   expandedCell: EditingCell | null
   onClose: () => void
   rows: TableRowType[]
-  columns: ColumnDefinition[]
+  columns: DisplayColumn[]
   onSave: (rowId: string, columnName: string, value: unknown, reason: SaveReason) => void
   canEdit: boolean
   scrollContainer: HTMLElement | null

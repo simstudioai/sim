@@ -13,7 +13,9 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, gt, gte, inArray, isNull, sql } from 'drizzle-orm'
+import { env } from '@/lib/core/config/env'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import { fireTableTrigger } from './trigger'
@@ -57,6 +59,58 @@ import {
 import { scheduleWorkflowColumnRuns } from './workflow-columns'
 
 const logger = createLogger('TableService')
+
+/**
+ * Fire-and-forget bridge to the realtime socket server. Mirrors the
+ * `notifyWorkflowArchived` pattern in `lib/workflows/lifecycle.ts:35`.
+ * Failures are logged but never thrown — sockets are best-effort, polling
+ * is the fallback. Each helper sends a single row delta so the realtime
+ * server can broadcast to subscribed clients in the table room.
+ */
+function notifyTableRowUpdated(tableId: string, row: TableRow): void {
+  void fetch(`${getSocketServerUrl()}/api/table-row-updated`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.INTERNAL_API_SECRET,
+    },
+    body: JSON.stringify({
+      tableId,
+      rowId: row.id,
+      data: row.data,
+      position: row.position,
+      updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
+    }),
+  }).catch((err) => {
+    logger.warn(`table-row-updated bridge failed for ${tableId}/${row.id}:`, err)
+  })
+}
+
+function notifyTableRowDeleted(tableId: string, rowId: string): void {
+  void fetch(`${getSocketServerUrl()}/api/table-row-deleted`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.INTERNAL_API_SECRET,
+    },
+    body: JSON.stringify({ tableId, rowId }),
+  }).catch((err) => {
+    logger.warn(`table-row-deleted bridge failed for ${tableId}/${rowId}:`, err)
+  })
+}
+
+function notifyTableDeleted(tableId: string): void {
+  void fetch(`${getSocketServerUrl()}/api/table-deleted`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.INTERNAL_API_SECRET,
+    },
+    body: JSON.stringify({ tableId }),
+  }).catch((err) => {
+    logger.warn(`table-deleted bridge failed for ${tableId}:`, err)
+  })
+}
 
 export class TableConflictError extends Error {
   readonly code = 'TABLE_EXISTS' as const
@@ -341,7 +395,7 @@ export async function addTableColumn(
     workflowConfig?: {
       workflowId: string
       dependencies?: string[]
-      outputPath?: string
+      outputs?: Array<{ blockId: string; path: string }>
     }
   },
   requestId: string
@@ -527,6 +581,7 @@ export async function deleteTable(tableId: string, requestId: string): Promise<v
     .where(eq(userTableDefinitions.id, tableId))
 
   logger.info(`[${requestId}] Archived table ${tableId}`)
+  notifyTableDeleted(tableId)
 }
 
 /**
@@ -723,6 +778,7 @@ export async function insertRow(
     requestId
   )
   void scheduleWorkflowColumnRuns(table, [insertedRow])
+  notifyTableRowUpdated(data.tableId, insertedRow)
 
   return insertedRow
 }
@@ -843,6 +899,7 @@ export async function batchInsertRows(
 
   void fireTableTrigger(data.tableId, table.name, 'insert', result, null, table.schema, requestId)
   void scheduleWorkflowColumnRuns(table, result)
+  for (const row of result) notifyTableRowUpdated(data.tableId, row)
 
   return result
 }
@@ -1162,6 +1219,7 @@ export async function upsertRow(
     )
   }
   void scheduleWorkflowColumnRuns(table, [result.row])
+  notifyTableRowUpdated(data.tableId, result.row)
 
   return result
 }
@@ -1363,6 +1421,7 @@ export async function updateRow(
     requestId
   )
   void scheduleWorkflowColumnRuns(table, [updatedRow])
+  notifyTableRowUpdated(data.tableId, updatedRow)
 
   return updatedRow
 }
@@ -1403,6 +1462,7 @@ export async function deleteRow(
   })
 
   logger.info(`[${requestId}] Deleted row ${rowId} from table ${tableId}`)
+  notifyTableRowDeleted(tableId, rowId)
 }
 
 /**
@@ -1528,6 +1588,7 @@ export async function updateRowsByFilter(
     requestId
   )
   void scheduleWorkflowColumnRuns(table, updatedRows)
+  for (const row of updatedRows) notifyTableRowUpdated(data.tableId, row)
 
   return {
     affectedCount: matchingRows.length,
@@ -1636,6 +1697,7 @@ export async function batchUpdateRows(
     requestId
   )
   void scheduleWorkflowColumnRuns(table, updatedRowsForTrigger)
+  for (const row of updatedRowsForTrigger) notifyTableRowUpdated(data.tableId, row)
 
   return {
     affectedCount: mergedUpdates.length,
@@ -1723,6 +1785,7 @@ export async function deleteRowsByFilter(
   })
 
   logger.info(`[${requestId}] Deleted ${matchingRows.length} rows from table ${data.tableId}`)
+  for (const id of rowIds) notifyTableRowDeleted(data.tableId, id)
 
   return {
     affectedCount: matchingRows.length,
@@ -1773,6 +1836,7 @@ export async function deleteRowsByIds(
   const missingRowIds = uniqueRequestedRowIds.filter((id) => !deletedIdSet.has(id))
 
   logger.info(`[${requestId}] Deleted ${deletedIds.length} rows by ID from table ${data.tableId}`)
+  for (const id of deletedIds) notifyTableRowDeleted(data.tableId, id)
 
   return {
     deletedCount: deletedIds.length,

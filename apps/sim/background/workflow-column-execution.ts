@@ -6,26 +6,6 @@ import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import type { RowData, WorkflowCellValue } from '@/lib/table/types'
 
-/**
- * Walk a dot-and-bracket path into a value (e.g. `a.b[0].c` or `result.items.0`).
- * Returns undefined for any missing segment. Used by workflow columns that specify
- * an `outputPath` to pick one field out of a workflow's full output.
- */
-function pluckByPath(source: unknown, path: string): unknown {
-  if (source === null || source === undefined || !path) return source
-  const segments = path
-    .replace(/\[(\w+)\]/g, '.$1')
-    .split('.')
-    .filter(Boolean)
-  let cursor: unknown = source
-  for (const seg of segments) {
-    if (cursor === null || cursor === undefined) return undefined
-    if (typeof cursor !== 'object') return undefined
-    cursor = (cursor as Record<string, unknown>)[seg]
-  }
-  return cursor
-}
-
 const logger = createLogger('TriggerWorkflowColumnExecution')
 
 export type WorkflowColumnExecutionPayload = {
@@ -147,9 +127,6 @@ export async function executeWorkflowColumnJob(
         return
       }
 
-      const columnDef = table.schema.columns.find((c) => c.name === columnName)
-      const outputPath = columnDef?.workflowConfig?.outputPath
-
       const inputRow: Record<string, unknown> = {}
       for (const key of Object.keys(row.data)) {
         if (key === columnName) continue
@@ -176,6 +153,50 @@ export async function executeWorkflowColumnJob(
         timestamp: new Date().toISOString(),
       }
 
+      // Per-block live updates: as each block completes, accumulate its output
+      // and push a partial cell write so the row's visual columns light up live.
+      // Writes are serialized through a Promise chain to prevent lost-update
+      // races when blocks complete in parallel (loops, parallels).
+      const blockOutputs: Record<string, unknown> = {}
+      let writeChain: Promise<void> = Promise.resolve()
+      const writePartialBlockOutputs = (snapshot: Record<string, unknown>) => {
+        writeChain = writeChain
+          .then(async () => {
+            if (signal?.aborted) return
+            const t = await getTableById(tableId)
+            if (!t) return
+            const r = await getRowById(tableId, rowId, workspaceId)
+            if (!r) return
+            const cell = r.data[columnName] as WorkflowCellValue | null | undefined
+            // Bail if this run was cancelled, replaced, or already terminal.
+            if (!cell || cell.executionId !== executionId || cell.status !== 'running') return
+            const updatedCell: WorkflowCellValue = { ...cell, blockOutputs: snapshot }
+            const mergedData: RowData = {
+              ...r.data,
+              [columnName]: updatedCell as unknown as RowData[string],
+            }
+            await updateRow({ tableId, rowId, data: mergedData, workspaceId }, t, requestId)
+          })
+          .catch((err) => {
+            logger.warn(
+              `Per-block cell write failed (table=${tableId} row=${rowId} col=${columnName}):`,
+              err
+            )
+          })
+      }
+
+      const onBlockComplete = async (blockId: string, output: unknown): Promise<void> => {
+        // executor hands us `{ input?, output: NormalizedBlockOutput, executionTime, ... }`.
+        // Persist just the inner `output` so saved column paths pluck against the same
+        // shape `flattenWorkflowOutputs` introspected from the block definitions.
+        const blockResult =
+          output && typeof output === 'object' && 'output' in (output as object)
+            ? (output as { output: unknown }).output
+            : output
+        blockOutputs[blockId] = blockResult
+        writePartialBlockOutputs({ ...blockOutputs })
+      }
+
       const result = await executeWorkflow(
         {
           id: workflowRecord.id,
@@ -192,20 +213,25 @@ export async function executeWorkflowColumnJob(
           workflowTriggerType: 'table',
           triggerBlockId: startBlock.id,
           abortSignal: signal,
+          onBlockComplete,
         },
         executionId
       )
 
+      // Drain pending partial writes so the terminal write isn't clobbered by a
+      // late `running` partial that followed it on the chain.
+      await writeChain.catch(() => {})
+
       if (result.success) {
         const rawOutput = (result.output as unknown) ?? null
-        const pickedOutput = outputPath ? pluckByPath(rawOutput, outputPath) : rawOutput
         await writeCell({
           executionId,
           jobId: null,
           workflowId,
           status: 'completed',
-          output: pickedOutput ?? null,
+          output: rawOutput,
           error: null,
+          blockOutputs,
         })
       } else {
         await writeCell({
@@ -215,6 +241,7 @@ export async function executeWorkflowColumnJob(
           status: 'error',
           output: null,
           error: result.error ?? 'Workflow execution failed',
+          blockOutputs,
         })
       }
     } catch (err) {

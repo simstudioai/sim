@@ -21,6 +21,13 @@ export interface ColumnOption {
   label: string
 }
 
+export interface WorkflowColumnOutput {
+  /** Source block id within the configured workflow. */
+  blockId: string
+  /** Dot-path into that block's output (e.g. `summary`, `result.items[0]`). */
+  path: string
+}
+
 export interface WorkflowColumnConfig {
   workflowId: string
   /**
@@ -30,11 +37,14 @@ export interface WorkflowColumnConfig {
    */
   dependencies?: string[]
   /**
-   * Dot-path into the workflow's final output to use as the cell's displayed value.
-   * Example: `summary` selects `output.summary`, `result.items[0]` selects the first
-   * item. When unset, the full output object is stored.
+   * Outputs to display as visual columns. Each entry renders as its own column,
+   * sharing one underlying execution per row. As each block completes the row's
+   * `WorkflowCellValue.blockOutputs[blockId]` is populated, and the visual column
+   * plucks `path` from there — so columns light up live as their source block
+   * finishes. Empty/undefined → render the workflow's full final output as a
+   * single JSON column.
    */
-  outputPath?: string
+  outputs?: WorkflowColumnOutput[]
 }
 
 export interface ColumnDefinition {
@@ -57,6 +67,13 @@ export interface WorkflowCellValue {
   status: 'pending' | 'running' | 'completed' | 'error' | 'cancelled'
   output: unknown
   error: string | null
+  /**
+   * Per-block outputs accumulated as the workflow runs. The background executor's
+   * `onBlockComplete` callback writes `blockOutputs[blockId] = blockResult` after
+   * each block finishes, so visual columns sourced from completed blocks light up
+   * before the whole workflow terminates. Undefined for legacy cells.
+   */
+  blockOutputs?: Record<string, unknown>
 }
 
 export interface TableSchema {
