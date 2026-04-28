@@ -567,6 +567,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return await handleMcpRequestWithSdk(request, parsedBody)
   } catch (error) {
+    if (request.signal.aborted || (error as Error)?.name === 'AbortError') {
+      return NextResponse.json(
+        createError(0, ErrorCode.ConnectionClosed, 'Client cancelled request'),
+        { status: 499 }
+      )
+    }
+
     logger.error('Error handling MCP request', { error })
     return NextResponse.json(createError(0, ErrorCode.InternalError, 'Internal error'), {
       status: 500,
