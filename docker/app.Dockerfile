@@ -80,6 +80,12 @@ COPY packages/workflow-authz/package.json ./packages/workflow-authz/package.json
 COPY packages/workflow-persistence/package.json ./packages/workflow-persistence/package.json
 COPY packages/workflow-types/package.json ./packages/workflow-types/package.json
 
+# Install full dependency set. The deps stage installed --omit=dev for the
+# runtime image; the build needs devDeps like tailwindcss/postcss. Placed
+# before source copy so it stays cached on source-only changes.
+RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
+    HUSKY=0 bun install --ignore-scripts --linker=hoisted
+
 # Copy workspace configuration files (needed for turbo)
 COPY apps/sim/next.config.ts ./apps/sim/next.config.ts
 COPY apps/sim/tsconfig.json ./apps/sim/tsconfig.json
