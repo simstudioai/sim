@@ -549,7 +549,7 @@ const DOCUMENT_SKELETON = (
   </div>
 )
 
-export interface TextEditorProps {
+interface TextEditorProps {
   file: WorkspaceFileRecord
   workspaceId: string
   canEdit: boolean
