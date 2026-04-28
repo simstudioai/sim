@@ -29,10 +29,14 @@ RUN turbo prune sim --docker
 FROM base AS deps
 WORKDIR /app
 
-# Pruned manifests + lockfile from the pruner stage. This layer only invalidates
-# when package.json/bun.lock content changes — not on source edits.
+# Pruned manifests from the pruner stage. This layer only invalidates when
+# package.json/bun.lock content changes — not on source edits.
 COPY --from=pruner /app/out/json/ ./
-COPY --from=pruner /app/out/bun.lock ./bun.lock
+# Use the full bun.lock (not the pruned out/bun.lock). turbo prune emits a
+# bun.lock that bun 1.3.x rejects with "Failed to resolve prod dependency",
+# forcing a slow fresh resolve. The full lockfile parses cleanly and bun
+# only installs what the pruned package.jsons reference.
+COPY --from=pruner /app/bun.lock ./bun.lock
 
 # Install all dependencies (including devDependencies — tailwindcss/postcss are
 # devDeps but required at build time). Then rebuild isolated-vm against Node.js.
@@ -54,6 +58,12 @@ COPY --from=deps /app/node_modules ./node_modules
 
 # Copy pruned source tree (apps/sim + workspace packages it depends on)
 COPY --from=pruner /app/out/full/ ./
+
+# Next.js 16 / Turbopack workspace-root detection looks for a lockfile next to
+# the workspace package.json. Without it, `next build` fails with
+# "couldn't find next/package.json from /app/apps/sim". turbo also warns
+# "Lockfile not found at /app/bun.lock" without it.
+COPY --from=pruner /app/bun.lock ./bun.lock
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     VERCEL_TELEMETRY_DISABLED=1 \
