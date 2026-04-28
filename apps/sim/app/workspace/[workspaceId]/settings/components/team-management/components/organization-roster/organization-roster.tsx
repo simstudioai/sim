@@ -521,6 +521,7 @@ export function OrganizationRoster({
                 const rowKey = `member-${m.memberId}`
                 const expanded = expandedRows.has(rowKey)
                 const isSelf = m.email === currentUserEmail
+                const isExternal = m.role === 'external'
                 const credits = memberCredits[m.userId] ?? 0
                 const canRemove = isAdminOrOwner && m.role !== 'owner' && !isSelf
                 const canTransferAndLeave = isSelf && m.role === 'owner' && !!onTransferOwnership
@@ -545,7 +546,10 @@ export function OrganizationRoster({
                         </button>
                       </TableCell>
                       <TableCell>
-                        {m.role === 'owner' || !canEditRoles || m.userId === currentUserId ? (
+                        {m.role === 'owner' ||
+                        isExternal ||
+                        !canEditRoles ||
+                        m.userId === currentUserId ? (
                           <RoleBadge role={m.role} />
                         ) : (
                           <OrgRoleSelector

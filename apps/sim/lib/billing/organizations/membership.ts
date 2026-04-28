@@ -9,6 +9,7 @@ import { db } from '@sim/db'
 import {
   member,
   organization,
+  permissionGroupMember,
   permissions,
   subscription as subscriptionTable,
   user,
@@ -266,6 +267,13 @@ export interface RemoveMemberResult {
     usageRestored: boolean
     workspaceAccessRevoked: number
   }
+}
+
+export interface RemoveExternalWorkspaceAccessResult {
+  success: boolean
+  error?: string
+  workspaceAccessRevoked: number
+  permissionGroupsRevoked: number
 }
 
 export interface MembershipValidationResult {
@@ -740,12 +748,7 @@ export async function removeUserFromOrganization(
       const orgWorkspaces = await tx
         .select({ id: workspace.id })
         .from(workspace)
-        .where(
-          and(
-            eq(workspace.organizationId, organizationId),
-            eq(workspace.workspaceMode, 'organization')
-          )
-        )
+        .where(eq(workspace.organizationId, organizationId))
 
       if (orgWorkspaces.length === 0) {
         return { workspaceIdsToRevoke: [] as string[], usageCaptured: capturedUsage }
@@ -763,6 +766,15 @@ export async function removeUserFromOrganization(
           )
         )
         .returning({ entityId: permissions.entityId })
+
+      await tx
+        .delete(permissionGroupMember)
+        .where(
+          and(
+            eq(permissionGroupMember.userId, userId),
+            inArray(permissionGroupMember.workspaceId, workspaceIds)
+          )
+        )
 
       return {
         workspaceIdsToRevoke: deletedPerms.map((row) => row.entityId),
@@ -849,6 +861,127 @@ export async function removeUserFromOrganization(
       error,
     })
     return { success: false, error: 'Failed to remove user from organization', billingActions }
+  }
+}
+
+/**
+ * Removes a non-member's access from every workspace owned by an organization.
+ * External workspace members have workspace permissions but no organization member row.
+ */
+export async function removeExternalUserFromOrganizationWorkspaces(params: {
+  userId: string
+  organizationId: string
+}): Promise<RemoveExternalWorkspaceAccessResult> {
+  const { userId, organizationId } = params
+
+  try {
+    const [existingMember] = await db
+      .select({ id: member.id })
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
+      .limit(1)
+
+    if (existingMember) {
+      return {
+        success: false,
+        error: 'User is an organization member',
+        workspaceAccessRevoked: 0,
+        permissionGroupsRevoked: 0,
+      }
+    }
+
+    const { workspaceIds, workspaceAccessRevoked, permissionGroupsRevoked } = await db.transaction(
+      async (tx) => {
+        const orgWorkspaces = await tx
+          .select({ id: workspace.id })
+          .from(workspace)
+          .where(eq(workspace.organizationId, organizationId))
+
+        if (orgWorkspaces.length === 0) {
+          return {
+            workspaceIds: [] as string[],
+            workspaceAccessRevoked: 0,
+            permissionGroupsRevoked: 0,
+          }
+        }
+
+        const workspaceIds = orgWorkspaces.map((w) => w.id)
+
+        const deletedPermissions = await tx
+          .delete(permissions)
+          .where(
+            and(
+              eq(permissions.userId, userId),
+              eq(permissions.entityType, 'workspace'),
+              inArray(permissions.entityId, workspaceIds)
+            )
+          )
+          .returning({ entityId: permissions.entityId })
+
+        const deletedPermissionGroups = await tx
+          .delete(permissionGroupMember)
+          .where(
+            and(
+              eq(permissionGroupMember.userId, userId),
+              inArray(permissionGroupMember.workspaceId, workspaceIds)
+            )
+          )
+          .returning({ id: permissionGroupMember.id })
+
+        return {
+          workspaceIds,
+          workspaceAccessRevoked: deletedPermissions.length,
+          permissionGroupsRevoked: deletedPermissionGroups.length,
+        }
+      }
+    )
+
+    if (workspaceAccessRevoked === 0 && permissionGroupsRevoked === 0) {
+      return {
+        success: false,
+        error: 'External workspace member not found',
+        workspaceAccessRevoked,
+        permissionGroupsRevoked,
+      }
+    }
+
+    for (const workspaceId of workspaceIds) {
+      try {
+        await revokeWorkspaceCredentialMemberships(workspaceId, userId)
+      } catch (credentialError) {
+        logger.error('Failed to revoke workspace credential memberships for external member', {
+          organizationId,
+          userId,
+          workspaceId,
+          error: credentialError,
+        })
+      }
+    }
+
+    logger.info('Removed external workspace member from organization workspaces', {
+      organizationId,
+      userId,
+      workspaceAccessRevoked,
+      permissionGroupsRevoked,
+    })
+
+    return {
+      success: true,
+      workspaceAccessRevoked,
+      permissionGroupsRevoked,
+    }
+  } catch (error) {
+    logger.error('Failed to remove external workspace member from organization workspaces', {
+      organizationId,
+      userId,
+      error,
+    })
+    return {
+      success: false,
+      error: 'Failed to remove external workspace member',
+      workspaceAccessRevoked: 0,
+      permissionGroupsRevoked: 0,
+    }
   }
 }
 

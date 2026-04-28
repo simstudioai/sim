@@ -8,7 +8,10 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { getUserUsageData } from '@/lib/billing/core/usage'
-import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
+import {
+  removeExternalUserFromOrganizationWorkspaces,
+  removeUserFromOrganization,
+} from '@/lib/billing/organizations/membership'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationMemberAPI')
@@ -311,7 +314,68 @@ export const DELETE = withRouteHandler(
         .limit(1)
 
       if (targetMember.length === 0) {
-        return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+        const [targetUser] = await db
+          .select({ id: user.id, email: user.email, name: user.name })
+          .from(user)
+          .where(eq(user.id, targetUserId))
+          .limit(1)
+
+        if (!targetUser) {
+          return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+        }
+
+        const externalResult = await removeExternalUserFromOrganizationWorkspaces({
+          userId: targetUserId,
+          organizationId,
+        })
+
+        if (!externalResult.success) {
+          return NextResponse.json(
+            { error: externalResult.error || 'External workspace member not found' },
+            { status: externalResult.error === 'External workspace member not found' ? 404 : 500 }
+          )
+        }
+
+        logger.info('External workspace member removed from organization workspaces', {
+          organizationId,
+          removedMemberId: targetUserId,
+          removedBy: session.user.id,
+          workspaceAccessRevoked: externalResult.workspaceAccessRevoked,
+          permissionGroupsRevoked: externalResult.permissionGroupsRevoked,
+        })
+
+        recordAudit({
+          workspaceId: null,
+          actorId: session.user.id,
+          action: AuditAction.ORG_MEMBER_REMOVED,
+          resourceType: AuditResourceType.ORGANIZATION,
+          resourceId: organizationId,
+          actorName: session.user.name ?? undefined,
+          actorEmail: session.user.email ?? undefined,
+          description: `Removed external workspace member ${targetUserId} from organization`,
+          metadata: {
+            targetUserId,
+            targetEmail: targetUser.email ?? undefined,
+            targetName: targetUser.name ?? undefined,
+            membershipType: 'external',
+            workspaceAccessRevoked: externalResult.workspaceAccessRevoked,
+            permissionGroupsRevoked: externalResult.permissionGroupsRevoked,
+          },
+          request,
+        })
+
+        return NextResponse.json({
+          success: true,
+          message: 'External member removed successfully',
+          data: {
+            removedMemberId: targetUserId,
+            removedBy: session.user.id,
+            removedAt: new Date().toISOString(),
+            membershipType: 'external',
+            workspaceAccessRevoked: externalResult.workspaceAccessRevoked,
+            permissionGroupsRevoked: externalResult.permissionGroupsRevoked,
+          },
+        })
       }
 
       const result = await removeUserFromOrganization({

@@ -33,7 +33,7 @@ export type RosterWorkspaceAccess = {
 export type RosterMember = {
   memberId: string
   userId: string
-  role: string
+  role: 'owner' | 'admin' | 'member' | 'external'
   createdAt: string
   name: string
   email: string

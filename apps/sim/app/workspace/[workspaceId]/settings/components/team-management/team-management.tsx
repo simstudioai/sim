@@ -8,12 +8,7 @@ import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { getPlanTierCredits, getPlanTierDollars } from '@/lib/billing/plan-helpers'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import {
-  generateSlug,
-  getUsedSeats,
-  isAdminOrOwner,
-  type Member,
-} from '@/lib/workspaces/organization'
+import { generateSlug, isAdminOrOwner, type Member } from '@/lib/workspaces/organization'
 import {
   MemberInvitationCard,
   NoOrganizationView,
@@ -93,6 +88,7 @@ export function TeamManagement() {
     memberName: string
     shouldReduceSeats: boolean
     isSelfRemoval?: boolean
+    isExternalRemoval?: boolean
   }>({ open: false, memberId: '', memberName: '', shouldReduceSeats: false })
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [transferPortalError, setTransferPortalError] = useState<string | null>(null)
@@ -108,8 +104,8 @@ export function TeamManagement() {
   )
 
   const adminOrOwner = isAdminOrOwner(organization, session?.user?.email)
-  const usedSeats = getUsedSeats(organization)
   const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
+  const usedSeats = organizationBillingData?.data?.usedSeats ?? 0
 
   useEffect(() => {
     if ((hasTeamPlan || hasEnterprisePlan) && session?.user?.name && !orgName) {
@@ -209,6 +205,7 @@ export function TeamManagement() {
         memberName: displayName,
         shouldReduceSeats: false,
         isSelfRemoval: isLeavingSelf,
+        isExternalRemoval: member.role === 'external',
       })
     },
     [session?.user, activeOrganization?.id]
@@ -230,6 +227,7 @@ export function TeamManagement() {
           memberId: '',
           memberName: '',
           shouldReduceSeats: false,
+          isExternalRemoval: false,
         })
 
         if (isSelfRemoval) {
@@ -446,7 +444,7 @@ export function TeamManagement() {
           subscriptionData={subscriptionData || null}
           isLoadingSubscription={isLoadingSubscription}
           totalSeats={totalSeats}
-          usedSeats={usedSeats.used}
+          usedSeats={usedSeats}
           isLoading={isLoading}
           onAddSeatDialog={handleAddSeatDialog}
         />
@@ -466,7 +464,7 @@ export function TeamManagement() {
             onLoadUserWorkspaces={async () => {}}
             onWorkspaceToggle={handleWorkspaceToggle}
             inviteSuccess={inviteSuccess}
-            availableSeats={Math.max(0, totalSeats - usedSeats.used)}
+            availableSeats={Math.max(0, totalSeats - usedSeats)}
             maxSeats={totalSeats}
             invitationError={inviteMutation.error}
             isLoadingWorkspaces={isLoadingWorkspaces}
@@ -505,6 +503,7 @@ export function TeamManagement() {
         memberName={removeMemberDialog.memberName}
         shouldReduceSeats={removeMemberDialog.shouldReduceSeats}
         isSelfRemoval={removeMemberDialog.isSelfRemoval}
+        isExternalRemoval={removeMemberDialog.isExternalRemoval}
         error={removeMemberMutation.error}
         onOpenChange={(open: boolean) => {
           if (!open) setRemoveMemberDialog({ ...removeMemberDialog, open: false })
@@ -523,6 +522,7 @@ export function TeamManagement() {
             memberName: '',
             shouldReduceSeats: false,
             isSelfRemoval: false,
+            isExternalRemoval: false,
           })
         }
       />
