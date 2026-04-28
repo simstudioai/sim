@@ -799,6 +799,8 @@ function TextEditor({
   const lastSyncedContentRef = useRef('')
   const hasAutoFocusedRef = useRef(false)
   const contentRef = useRef('')
+  const textareaStuckRef = useRef(false)
+  const suppressScrollListenerRef = useRef(false)
 
   const [splitPct, setSplitPct] = useState(SPLIT_DEFAULT_PCT)
   const [isResizing, setIsResizing] = useState(false)
@@ -852,17 +854,30 @@ function TextEditor({
     if (monacoValue === content) return
 
     if (isStreamInteractionLocked || monacoValue === lastSyncedContentRef.current) {
-      // Preserve the user's scroll position during streaming updates, unless they
-      // are already at the bottom (in which case Effect 3 will scroll to the new bottom).
+      if (isStreamInteractionLocked) {
+        // Measure BEFORE setValue — scrollHeight hasn't grown yet, so the
+        // "at bottom" check is accurate. Re-engage auto-scroll if at bottom;
+        // never disengage here (user scroll events do that via Effect 2).
+        const scrollTop = editor.getScrollTop()
+        const scrollHeight = editor.getScrollHeight()
+        const { height } = editor.getLayoutInfo()
+        if (scrollHeight - scrollTop - height < 80) {
+          textareaStuckRef.current = true
+        }
+      }
+      // Preserve the user's scroll position when they've scrolled away from the
+      // bottom. Suppress the onDidScrollChange listener so programmatic scroll
+      // changes (setValue / restoreViewState) don't falsely disengage auto-scroll.
       const viewState =
         isStreamInteractionLocked && !textareaStuckRef.current ? editor.saveViewState() : null
+      suppressScrollListenerRef.current = true
       model.setValue(content)
       if (viewState) editor.restoreViewState(viewState)
+      suppressScrollListenerRef.current = false
       lastSyncedContentRef.current = content
     }
   }, [content, isStreamInteractionLocked])
 
-  const textareaStuckRef = useRef(true)
   useEffect(() => {
     const editor = monacoEditorRef.current
     if (!editor || !isStreamInteractionLocked || disableStreamingAutoScroll) {
@@ -870,19 +885,18 @@ function TextEditor({
       return
     }
 
-    const isAtBottom = () => {
+    // Effect 1 re-engages auto-scroll (sets true) immediately before each setValue,
+    // measuring scroll position while scrollHeight is still accurate. This listener
+    // only needs to disengage when the user physically scrolls away from the bottom.
+    // Suppressed during programmatic setValue/restoreViewState in Effect 1.
+    const disposable = editor.onDidScrollChange(() => {
+      if (suppressScrollListenerRef.current) return
       const scrollTop = editor.getScrollTop()
       const scrollHeight = editor.getScrollHeight()
       const { height } = editor.getLayoutInfo()
-      return scrollHeight - scrollTop - height < 80
-    }
-
-    // Initialize from actual position — only follow if already at the bottom.
-    textareaStuckRef.current = isAtBottom()
-
-    // Use Monaco's scroll API so trackpad, scrollbar drag, and keyboard all update the flag.
-    const disposable = editor.onDidScrollChange(() => {
-      textareaStuckRef.current = isAtBottom()
+      if (scrollHeight - scrollTop - height >= 80) {
+        textareaStuckRef.current = false
+      }
     })
 
     return () => {
