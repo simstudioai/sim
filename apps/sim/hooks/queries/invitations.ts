@@ -1,11 +1,8 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { workspaceKeys } from './workspace'
 
-/**
- * Query key factory for invitation-related queries.
- * Provides hierarchical cache keys for workspace invitations.
- */
 export const invitationKeys = {
   all: ['invitations'] as const,
   lists: () => [...invitationKeys.all, 'list'] as const,
@@ -73,6 +70,7 @@ export function usePendingInvitations(workspaceId: string | undefined) {
 
 interface BatchSendInvitationsParams {
   workspaceId: string
+  organizationId?: string | null
   invitations: Array<{ email: string; permission: 'admin' | 'write' | 'read' }>
 }
 
@@ -93,8 +91,11 @@ export function useBatchSendWorkspaceInvitations() {
       workspaceId,
       invitations,
     }: BatchSendInvitationsParams): Promise<BatchInvitationResult> => {
-      const results = await Promise.allSettled(
-        invitations.map(async ({ email, permission }) => {
+      const successful: string[] = []
+      const failed: Array<{ email: string; error: string }> = []
+
+      for (const { email, permission } of invitations) {
+        try {
           const response = await fetch('/api/workspaces/invitations', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -110,28 +111,29 @@ export function useBatchSendWorkspaceInvitations() {
             throw new Error(error.error || 'Failed to send invitation')
           }
 
-          return { email, data: await response.json() }
-        })
-      )
-
-      const successful: string[] = []
-      const failed: Array<{ email: string; error: string }> = []
-
-      results.forEach((result, index) => {
-        const email = invitations[index].email
-        if (result.status === 'fulfilled') {
           successful.push(email)
-        } else {
-          failed.push({ email, error: result.reason?.message || 'Unknown error' })
+        } catch (error) {
+          failed.push({
+            email,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          })
         }
-      })
+      }
 
       return { successful, failed }
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: invitationKeys.list(variables.workspaceId),
       })
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.roster(variables.organizationId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.billing(variables.organizationId),
+        })
+      }
     },
   })
 }
@@ -139,6 +141,7 @@ export function useBatchSendWorkspaceInvitations() {
 interface CancelInvitationParams {
   invitationId: string
   workspaceId: string
+  organizationId?: string | null
 }
 
 /**
@@ -162,10 +165,18 @@ export function useCancelWorkspaceInvitation() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: invitationKeys.list(variables.workspaceId),
       })
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.roster(variables.organizationId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.billing(variables.organizationId),
+        })
+      }
     },
   })
 }
@@ -207,6 +218,7 @@ export function useResendWorkspaceInvitation() {
 interface RemoveMemberParams {
   userId: string
   workspaceId: string
+  organizationId?: string | null
 }
 
 /**
@@ -235,6 +247,17 @@ export function useRemoveWorkspaceMember() {
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.permissions(variables.workspaceId),
       })
+      queryClient.invalidateQueries({
+        queryKey: workspaceKeys.members(variables.workspaceId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: workspaceCredentialKeys.all,
+      })
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.roster(variables.organizationId),
+        })
+      }
     },
   })
 }

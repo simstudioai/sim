@@ -7,6 +7,9 @@
 
 import { db } from '@sim/db'
 import {
+  credential,
+  credentialMember,
+  invitation,
   member,
   organization,
   permissionGroupMember,
@@ -26,7 +29,7 @@ import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
-import { revokeWorkspaceCredentialMemberships } from '@/lib/credentials/access'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('OrganizationMembership')
 
@@ -266,6 +269,7 @@ export interface RemoveMemberResult {
     proRestored: boolean
     usageRestored: boolean
     workspaceAccessRevoked: number
+    pendingInvitationsCancelled: number
   }
 }
 
@@ -274,6 +278,178 @@ export interface RemoveExternalWorkspaceAccessResult {
   error?: string
   workspaceAccessRevoked: number
   permissionGroupsRevoked: number
+  credentialMembershipsRevoked: number
+  pendingInvitationsCancelled: number
+}
+
+async function reassignOwnedOrganizationWorkspacesTx({
+  tx,
+  userId,
+  organizationId,
+  workspaceIds,
+}: {
+  tx: DbOrTx
+  userId: string
+  organizationId: string
+  workspaceIds: string[]
+}) {
+  const [ownerMembership] = await tx
+    .select({ userId: member.userId })
+    .from(member)
+    .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
+    .limit(1)
+
+  const ownerId = ownerMembership?.userId
+  if (!ownerId || ownerId === userId || workspaceIds.length === 0) return 0
+
+  const reassignedWorkspaces = await tx
+    .update(workspace)
+    .set({ ownerId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(workspace.organizationId, organizationId),
+        eq(workspace.ownerId, userId),
+        inArray(workspace.id, workspaceIds)
+      )
+    )
+    .returning({ id: workspace.id })
+
+  if (reassignedWorkspaces.length === 0) return 0
+
+  const now = new Date()
+  await tx
+    .update(permissions)
+    .set({ permissionType: 'admin', updatedAt: now })
+    .where(
+      and(
+        eq(permissions.userId, ownerId),
+        eq(permissions.entityType, 'workspace'),
+        inArray(
+          permissions.entityId,
+          reassignedWorkspaces.map((row) => row.id)
+        )
+      )
+    )
+
+  await tx
+    .insert(permissions)
+    .values(
+      reassignedWorkspaces.map((row) => ({
+        id: generateId(),
+        userId: ownerId,
+        entityType: 'workspace',
+        entityId: row.id,
+        permissionType: 'admin' as const,
+        createdAt: now,
+        updatedAt: now,
+      }))
+    )
+    .onConflictDoNothing()
+
+  return reassignedWorkspaces.length
+}
+
+async function revokeWorkspaceCredentialMembershipsTx({
+  tx,
+  workspaceIds,
+  userId,
+}: {
+  tx: DbOrTx
+  workspaceIds: string[]
+  userId: string
+}) {
+  if (workspaceIds.length === 0) return 0
+
+  const workspaceCredentialRows = await tx
+    .select({
+      credentialId: credential.id,
+      workspaceId: credential.workspaceId,
+      ownerId: workspace.ownerId,
+    })
+    .from(credential)
+    .innerJoin(workspace, eq(credential.workspaceId, workspace.id))
+    .where(inArray(credential.workspaceId, workspaceIds))
+
+  if (workspaceCredentialRows.length === 0) return 0
+
+  const credentialIds = workspaceCredentialRows.map((row) => row.credentialId)
+  const ownerByCredentialId = new Map(
+    workspaceCredentialRows.map((row) => [row.credentialId, row.ownerId])
+  )
+
+  const userAdminMemberships = await tx
+    .select({ credentialId: credentialMember.credentialId })
+    .from(credentialMember)
+    .where(
+      and(
+        eq(credentialMember.userId, userId),
+        eq(credentialMember.role, 'admin'),
+        eq(credentialMember.status, 'active'),
+        inArray(credentialMember.credentialId, credentialIds)
+      )
+    )
+
+  for (const { credentialId } of userAdminMemberships) {
+    const ownerId = ownerByCredentialId.get(credentialId)
+    if (!ownerId || ownerId === userId) continue
+
+    const otherAdmins = await tx
+      .select({ id: credentialMember.id })
+      .from(credentialMember)
+      .where(
+        and(
+          eq(credentialMember.credentialId, credentialId),
+          eq(credentialMember.role, 'admin'),
+          eq(credentialMember.status, 'active'),
+          ne(credentialMember.userId, userId)
+        )
+      )
+      .limit(1)
+
+    if (otherAdmins.length > 0) continue
+
+    const now = new Date()
+    const [existingOwnerMembership] = await tx
+      .select({ id: credentialMember.id })
+      .from(credentialMember)
+      .where(
+        and(eq(credentialMember.credentialId, credentialId), eq(credentialMember.userId, ownerId))
+      )
+      .limit(1)
+
+    if (existingOwnerMembership) {
+      await tx
+        .update(credentialMember)
+        .set({ role: 'admin', status: 'active', updatedAt: now })
+        .where(eq(credentialMember.id, existingOwnerMembership.id))
+    } else {
+      await tx.insert(credentialMember).values({
+        id: generateId(),
+        credentialId,
+        userId: ownerId,
+        role: 'admin',
+        status: 'active',
+        joinedAt: now,
+        invitedBy: ownerId,
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+  }
+
+  const revokedMemberships = await tx
+    .update(credentialMember)
+    .set({ status: 'revoked', updatedAt: new Date() })
+    .where(
+      and(
+        eq(credentialMember.userId, userId),
+        eq(credentialMember.status, 'active'),
+        inArray(credentialMember.credentialId, credentialIds)
+      )
+    )
+    .returning({ credentialId: credentialMember.credentialId })
+
+  return revokedMemberships.length
 }
 
 export interface MembershipValidationResult {
@@ -684,6 +860,7 @@ export async function removeUserFromOrganization(
     proRestored: false,
     usageRestored: false,
     workspaceAccessRevoked: 0,
+    pendingInvitationsCancelled: 0,
   }
 
   try {
@@ -705,7 +882,12 @@ export async function removeUserFromOrganization(
       return { success: false, error: 'Cannot remove organization owner', billingActions }
     }
 
-    const { workspaceIdsToRevoke, usageCaptured } = await db.transaction(async (tx) => {
+    const {
+      workspaceIdsToRevoke,
+      usageCaptured,
+      credentialMembershipsRevoked,
+      pendingInvitationsCancelled,
+    } = await db.transaction(async (tx) => {
       const deletedMember = await tx
         .delete(member)
         .where(and(eq(member.id, memberId), ne(member.role, 'owner')))
@@ -745,16 +927,48 @@ export async function removeUserFromOrganization(
         }
       }
 
+      const [targetUser] = await tx
+        .select({ email: user.email })
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1)
+
+      const cancelledInvitations = targetUser?.email
+        ? await tx
+            .update(invitation)
+            .set({ status: 'cancelled', updatedAt: new Date() })
+            .where(
+              and(
+                eq(invitation.organizationId, organizationId),
+                eq(invitation.status, 'pending'),
+                sql`lower(${invitation.email}) = lower(${targetUser.email})`
+              )
+            )
+            .returning({ id: invitation.id })
+        : []
+
       const orgWorkspaces = await tx
         .select({ id: workspace.id })
         .from(workspace)
         .where(eq(workspace.organizationId, organizationId))
 
       if (orgWorkspaces.length === 0) {
-        return { workspaceIdsToRevoke: [] as string[], usageCaptured: capturedUsage }
+        return {
+          workspaceIdsToRevoke: [] as string[],
+          usageCaptured: capturedUsage,
+          credentialMembershipsRevoked: 0,
+          pendingInvitationsCancelled: cancelledInvitations.length,
+        }
       }
 
       const workspaceIds = orgWorkspaces.map((w) => w.id)
+
+      await reassignOwnedOrganizationWorkspacesTx({
+        tx,
+        userId,
+        organizationId,
+        workspaceIds,
+      })
 
       const deletedPerms = await tx
         .delete(permissions)
@@ -776,14 +990,23 @@ export async function removeUserFromOrganization(
           )
         )
 
+      const credentialMembershipsRevoked = await revokeWorkspaceCredentialMembershipsTx({
+        tx,
+        workspaceIds,
+        userId,
+      })
+
       return {
         workspaceIdsToRevoke: deletedPerms.map((row) => row.entityId),
         usageCaptured: capturedUsage,
+        credentialMembershipsRevoked,
+        pendingInvitationsCancelled: cancelledInvitations.length,
       }
     })
 
     billingActions.usageCaptured = usageCaptured
     billingActions.workspaceAccessRevoked = workspaceIdsToRevoke.length
+    billingActions.pendingInvitationsCancelled = pendingInvitationsCancelled
 
     if (usageCaptured > 0) {
       logger.info('Captured departed member usage', {
@@ -798,20 +1021,9 @@ export async function removeUserFromOrganization(
       userId,
       memberId,
       workspaceAccessRevoked: workspaceIdsToRevoke.length,
+      credentialMembershipsRevoked,
+      pendingInvitationsCancelled,
     })
-
-    for (const workspaceId of workspaceIdsToRevoke) {
-      try {
-        await revokeWorkspaceCredentialMemberships(workspaceId, userId)
-      } catch (credentialError) {
-        logger.error('Failed to revoke workspace credential memberships on org leave', {
-          organizationId,
-          userId,
-          workspaceId,
-          error: credentialError,
-        })
-      }
-    }
 
     if (!skipBillingLogic) {
       try {
@@ -887,74 +1099,108 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
         error: 'User is an organization member',
         workspaceAccessRevoked: 0,
         permissionGroupsRevoked: 0,
+        credentialMembershipsRevoked: 0,
+        pendingInvitationsCancelled: 0,
       }
     }
 
-    const { workspaceIds, workspaceAccessRevoked, permissionGroupsRevoked } = await db.transaction(
-      async (tx) => {
-        const orgWorkspaces = await tx
-          .select({ id: workspace.id })
-          .from(workspace)
-          .where(eq(workspace.organizationId, organizationId))
+    const {
+      workspaceAccessRevoked,
+      permissionGroupsRevoked,
+      credentialMembershipsRevoked,
+      pendingInvitationsCancelled,
+    } = await db.transaction(async (tx) => {
+      const orgWorkspaces = await tx
+        .select({ id: workspace.id })
+        .from(workspace)
+        .where(eq(workspace.organizationId, organizationId))
 
-        if (orgWorkspaces.length === 0) {
-          return {
-            workspaceIds: [] as string[],
-            workspaceAccessRevoked: 0,
-            permissionGroupsRevoked: 0,
-          }
-        }
-
-        const workspaceIds = orgWorkspaces.map((w) => w.id)
-
-        const deletedPermissions = await tx
-          .delete(permissions)
-          .where(
-            and(
-              eq(permissions.userId, userId),
-              eq(permissions.entityType, 'workspace'),
-              inArray(permissions.entityId, workspaceIds)
-            )
-          )
-          .returning({ entityId: permissions.entityId })
-
-        const deletedPermissionGroups = await tx
-          .delete(permissionGroupMember)
-          .where(
-            and(
-              eq(permissionGroupMember.userId, userId),
-              inArray(permissionGroupMember.workspaceId, workspaceIds)
-            )
-          )
-          .returning({ id: permissionGroupMember.id })
-
+      if (orgWorkspaces.length === 0) {
         return {
-          workspaceIds,
-          workspaceAccessRevoked: deletedPermissions.length,
-          permissionGroupsRevoked: deletedPermissionGroups.length,
+          workspaceAccessRevoked: 0,
+          permissionGroupsRevoked: 0,
+          credentialMembershipsRevoked: 0,
+          pendingInvitationsCancelled: 0,
         }
       }
-    )
 
-    if (workspaceAccessRevoked === 0 && permissionGroupsRevoked === 0) {
+      const workspaceIds = orgWorkspaces.map((w) => w.id)
+      const [targetUser] = await tx
+        .select({ email: user.email })
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1)
+
+      await reassignOwnedOrganizationWorkspacesTx({
+        tx,
+        userId,
+        organizationId,
+        workspaceIds,
+      })
+
+      const deletedPermissions = await tx
+        .delete(permissions)
+        .where(
+          and(
+            eq(permissions.userId, userId),
+            eq(permissions.entityType, 'workspace'),
+            inArray(permissions.entityId, workspaceIds)
+          )
+        )
+        .returning({ entityId: permissions.entityId })
+
+      const deletedPermissionGroups = await tx
+        .delete(permissionGroupMember)
+        .where(
+          and(
+            eq(permissionGroupMember.userId, userId),
+            inArray(permissionGroupMember.workspaceId, workspaceIds)
+          )
+        )
+        .returning({ id: permissionGroupMember.id })
+
+      const credentialMembershipsRevoked = await revokeWorkspaceCredentialMembershipsTx({
+        tx,
+        workspaceIds,
+        userId,
+      })
+
+      const cancelledInvitations = targetUser?.email
+        ? await tx
+            .update(invitation)
+            .set({ status: 'cancelled', updatedAt: new Date() })
+            .where(
+              and(
+                eq(invitation.organizationId, organizationId),
+                eq(invitation.status, 'pending'),
+                eq(invitation.membershipIntent, 'external'),
+                sql`lower(${invitation.email}) = lower(${targetUser.email})`
+              )
+            )
+            .returning({ id: invitation.id })
+        : []
+
+      return {
+        workspaceAccessRevoked: deletedPermissions.length,
+        permissionGroupsRevoked: deletedPermissionGroups.length,
+        credentialMembershipsRevoked,
+        pendingInvitationsCancelled: cancelledInvitations.length,
+      }
+    })
+
+    if (
+      workspaceAccessRevoked === 0 &&
+      permissionGroupsRevoked === 0 &&
+      credentialMembershipsRevoked === 0 &&
+      pendingInvitationsCancelled === 0
+    ) {
       return {
         success: false,
         error: 'External workspace member not found',
         workspaceAccessRevoked,
         permissionGroupsRevoked,
-      }
-    }
-
-    for (const workspaceId of workspaceIds) {
-      try {
-        await revokeWorkspaceCredentialMemberships(workspaceId, userId)
-      } catch (credentialError) {
-        logger.error('Failed to revoke workspace credential memberships for external member', {
-          organizationId,
-          userId,
-          workspaceId,
-          error: credentialError,
-        })
+        credentialMembershipsRevoked,
+        pendingInvitationsCancelled,
       }
     }
 
@@ -963,12 +1209,16 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
       userId,
       workspaceAccessRevoked,
       permissionGroupsRevoked,
+      credentialMembershipsRevoked,
+      pendingInvitationsCancelled,
     })
 
     return {
       success: true,
       workspaceAccessRevoked,
       permissionGroupsRevoked,
+      credentialMembershipsRevoked,
+      pendingInvitationsCancelled,
     }
   } catch (error) {
     logger.error('Failed to remove external workspace member from organization workspaces', {
@@ -981,6 +1231,8 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
       error: 'Failed to remove external workspace member',
       workspaceAccessRevoked: 0,
       permissionGroupsRevoked: 0,
+      credentialMembershipsRevoked: 0,
+      pendingInvitationsCancelled: 0,
     }
   }
 }

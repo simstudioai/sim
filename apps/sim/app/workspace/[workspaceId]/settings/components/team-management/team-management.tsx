@@ -222,6 +222,18 @@ export function TeamManagement() {
           orgId: activeOrganization?.id,
           shouldReduceSeats,
         })
+
+        if (shouldReduceSeats && totalSeats > 1) {
+          try {
+            await updateSeatsMutation.mutateAsync({
+              orgId: activeOrganization.id,
+              seats: totalSeats - 1,
+            })
+          } catch (seatError) {
+            logger.error('Failed to reduce seats after removing member', seatError)
+          }
+        }
+
         setRemoveMemberDialog({
           open: false,
           memberId: '',
@@ -243,6 +255,8 @@ export function TeamManagement() {
       session?.user?.id,
       activeOrganization?.id,
       removeMemberMutation,
+      totalSeats,
+      updateSeatsMutation,
     ]
   )
 
@@ -504,6 +518,7 @@ export function TeamManagement() {
         shouldReduceSeats={removeMemberDialog.shouldReduceSeats}
         isSelfRemoval={removeMemberDialog.isSelfRemoval}
         isExternalRemoval={removeMemberDialog.isExternalRemoval}
+        isSubmitting={removeMemberMutation.isPending}
         error={removeMemberMutation.error}
         onOpenChange={(open: boolean) => {
           if (!open) setRemoveMemberDialog({ ...removeMemberDialog, open: false })

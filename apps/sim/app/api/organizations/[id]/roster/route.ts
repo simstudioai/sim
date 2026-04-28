@@ -8,7 +8,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -57,7 +57,7 @@ export const GET = withRouteHandler(
       const orgWorkspaces = await db
         .select({ id: workspace.id, name: workspace.name })
         .from(workspace)
-        .where(eq(workspace.organizationId, organizationId))
+        .where(and(eq(workspace.organizationId, organizationId), isNull(workspace.archivedAt)))
 
       const orgWorkspaceIds = orgWorkspaces.map((ws) => ws.id)
       const workspaceNameById = new Map(orgWorkspaces.map((ws) => [ws.id, ws.name]))
@@ -201,13 +201,7 @@ export const GET = withRouteHandler(
         })
         .from(invitation)
         .leftJoin(user, sql`lower(${user.email}) = lower(${invitation.email})`)
-        .where(
-          and(
-            eq(invitation.organizationId, organizationId),
-            eq(invitation.status, 'pending'),
-            ne(invitation.membershipIntent, 'external')
-          )
-        )
+        .where(and(eq(invitation.organizationId, organizationId), eq(invitation.status, 'pending')))
 
       const pendingInvitationIds = pendingInvitationRows.map((row) => row.id)
       const pendingGrants =
@@ -236,7 +230,7 @@ export const GET = withRouteHandler(
       const pendingInvitations = pendingInvitationRows.map((row) => ({
         id: row.id,
         email: row.email,
-        role: row.role,
+        role: row.membershipIntent === 'external' ? 'external' : row.role,
         kind: row.kind,
         membershipIntent: row.membershipIntent,
         createdAt: row.createdAt,

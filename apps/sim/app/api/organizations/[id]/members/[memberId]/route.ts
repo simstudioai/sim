@@ -342,6 +342,8 @@ export const DELETE = withRouteHandler(
           removedBy: session.user.id,
           workspaceAccessRevoked: externalResult.workspaceAccessRevoked,
           permissionGroupsRevoked: externalResult.permissionGroupsRevoked,
+          credentialMembershipsRevoked: externalResult.credentialMembershipsRevoked,
+          pendingInvitationsCancelled: externalResult.pendingInvitationsCancelled,
         })
 
         recordAudit({
@@ -360,6 +362,8 @@ export const DELETE = withRouteHandler(
             membershipType: 'external',
             workspaceAccessRevoked: externalResult.workspaceAccessRevoked,
             permissionGroupsRevoked: externalResult.permissionGroupsRevoked,
+            credentialMembershipsRevoked: externalResult.credentialMembershipsRevoked,
+            pendingInvitationsCancelled: externalResult.pendingInvitationsCancelled,
           },
           request,
         })
@@ -374,6 +378,8 @@ export const DELETE = withRouteHandler(
             membershipType: 'external',
             workspaceAccessRevoked: externalResult.workspaceAccessRevoked,
             permissionGroupsRevoked: externalResult.permissionGroupsRevoked,
+            credentialMembershipsRevoked: externalResult.credentialMembershipsRevoked,
+            pendingInvitationsCancelled: externalResult.pendingInvitationsCancelled,
           },
         })
       }

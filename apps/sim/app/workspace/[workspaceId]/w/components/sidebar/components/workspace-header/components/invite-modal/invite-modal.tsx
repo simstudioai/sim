@@ -234,7 +234,7 @@ export function InviteModal({
     }))
 
     updatePermissionsMutation.mutate(
-      { workspaceId, updates },
+      { workspaceId, organizationId: organizationId ?? undefined, updates },
       {
         onSuccess: (data) => {
           if (data.users && data.total !== undefined) {
@@ -252,6 +252,7 @@ export function InviteModal({
     userPerms.canAdmin,
     hasPendingChanges,
     workspaceId,
+    organizationId,
     existingUserPermissionChanges,
     updatePermissions,
     updatePermissionsMutation,
@@ -283,7 +284,7 @@ export function InviteModal({
     }
 
     removeMember.mutate(
-      { userId: memberToRemove.userId, workspaceId },
+      { userId: memberToRemove.userId, workspaceId, organizationId },
       {
         onSuccess: () => {
           if (workspacePermissions) {
@@ -317,6 +318,7 @@ export function InviteModal({
     workspacePermissions,
     updatePermissions,
     removeMember,
+    organizationId,
   ])
 
   const handleRemoveMemberCancel = useCallback(() => {
@@ -333,7 +335,7 @@ export function InviteModal({
     setErrorMessage(null)
 
     cancelInvitation.mutate(
-      { invitationId: invitationToRemove.invitationId, workspaceId },
+      { invitationId: invitationToRemove.invitationId, workspaceId, organizationId },
       {
         onSuccess: () => {
           setInvitationToRemove(null)
@@ -345,7 +347,7 @@ export function InviteModal({
         },
       }
     )
-  }, [invitationToRemove, workspaceId, userPerms.canAdmin, cancelInvitation])
+  }, [invitationToRemove, workspaceId, userPerms.canAdmin, cancelInvitation, organizationId])
 
   const handleRemoveInvitationCancel = useCallback(() => {
     setInvitationToRemove(null)
@@ -439,7 +441,7 @@ export function InviteModal({
       })
 
       batchSendInvitations.mutate(
-        { workspaceId, invitations },
+        { workspaceId, organizationId, invitations },
         {
           onSuccess: (result) => {
             if (result.failed.length > 0) {
@@ -460,7 +462,14 @@ export function InviteModal({
         }
       )
     },
-    [canInviteMembers, validEmails, workspaceId, userPermissions, batchSendInvitations]
+    [
+      canInviteMembers,
+      validEmails,
+      workspaceId,
+      organizationId,
+      userPermissions,
+      batchSendInvitations,
+    ]
   )
 
   const resetState = useCallback(() => {

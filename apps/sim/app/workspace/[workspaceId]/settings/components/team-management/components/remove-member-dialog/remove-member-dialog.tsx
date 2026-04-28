@@ -14,6 +14,7 @@ interface RemoveMemberDialogProps {
   shouldReduceSeats: boolean
   isSelfRemoval?: boolean
   isExternalRemoval?: boolean
+  isSubmitting?: boolean
   error?: Error | null
   onOpenChange: (open: boolean) => void
   onShouldReduceSeatsChange: (shouldReduce: boolean) => void
@@ -32,6 +33,7 @@ export function RemoveMemberDialog({
   onCancel,
   isSelfRemoval = false,
   isExternalRemoval = false,
+  isSubmitting = false,
 }: RemoveMemberDialogProps) {
   const title = isSelfRemoval
     ? 'Leave Organization'
@@ -92,11 +94,12 @@ export function RemoveMemberDialog({
           )}
         </ModalBody>
         <ModalFooter>
-          <Button variant='default' onClick={onCancel}>
+          <Button variant='default' disabled={isSubmitting} onClick={onCancel}>
             Cancel
           </Button>
           <Button
             variant='destructive'
+            disabled={isSubmitting}
             onClick={() => onConfirmRemove(isExternalRemoval ? false : shouldReduceSeats)}
           >
             {isSelfRemoval ? 'Leave Organization' : 'Remove'}

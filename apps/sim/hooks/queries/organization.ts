@@ -3,10 +3,12 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { client } from '@/lib/auth/auth-client'
 import { isEnterprise, isPaid, isTeam } from '@/lib/billing/plan-helpers'
 import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
+import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
 const logger = createLogger('OrganizationQueries')
+const invitationListsKey = ['invitations', 'list'] as const
 
 /**
  * Query key factories for organization-related queries
@@ -402,6 +404,9 @@ export function useRemoveMember() {
       queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.all })
+      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.all })
+      queryClient.invalidateQueries({ queryKey: invitationListsKey })
     },
   })
 }
@@ -532,7 +537,9 @@ export function useCancelInvitation() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: invitationListsKey })
     },
   })
 }
