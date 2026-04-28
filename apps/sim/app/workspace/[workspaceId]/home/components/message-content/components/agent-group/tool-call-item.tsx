@@ -1,4 +1,6 @@
+import { useMemo } from 'react'
 import { PillsRing } from '@/components/emcn'
+import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ToolCallStatus } from '../../../../types'
 import { getToolIcon } from '../../utils'
 
@@ -58,15 +60,47 @@ interface ToolCallItemProps {
   toolName: string
   displayTitle: string
   status: ToolCallStatus
+  streamingArgs?: string
 }
 
-export function ToolCallItem({ toolName, displayTitle, status }: ToolCallItemProps) {
+export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: ToolCallItemProps) {
+  const liveWorkspaceFileTitle = useMemo(() => {
+    if (toolName !== WorkspaceFile.id || !streamingArgs) return null
+    const titleMatch = streamingArgs.match(/"title"\s*:\s*"([^"]+)"/)
+    if (!titleMatch?.[1]) return null
+    const opMatch = streamingArgs.match(/"operation"\s*:\s*"(\w+)"/)
+    const op = opMatch?.[1] ?? ''
+    const verb =
+      op === 'create'
+        ? 'Creating'
+        : op === 'append'
+          ? 'Adding'
+          : op === 'patch'
+            ? 'Editing'
+            : op === 'update'
+              ? 'Writing'
+              : op === 'rename'
+                ? 'Renaming'
+                : op === 'delete'
+                  ? 'Deleting'
+                  : 'Writing'
+    const unescaped = titleMatch[1]
+      .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) =>
+        String.fromCharCode(Number.parseInt(hex, 16))
+      )
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\')
+    return `${verb} ${unescaped}`
+  }, [toolName, streamingArgs])
+
   return (
     <div className='flex items-center gap-[8px] pl-[24px]'>
       <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
         <StatusIcon status={status} toolName={toolName} />
       </div>
-      <span className='font-base text-[13px] text-[var(--text-secondary)]'>{displayTitle}</span>
+      <span className='font-base text-[13px] text-[var(--text-secondary)]'>
+        {liveWorkspaceFileTitle || displayTitle}
+      </span>
     </div>
   )
 }

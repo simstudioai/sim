@@ -1,23 +1,20 @@
 /**
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
+import { permissionsMock, permissionsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetActiveWorkflowContext, mockGetUserEntityPermissions } = vi.hoisted(() => ({
+const { mockGetActiveWorkflowContext } = vi.hoisted(() => ({
   mockGetActiveWorkflowContext: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => loggerMock)
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
-vi.mock('@/lib/workflows/active-context', () => ({
+vi.mock('@sim/workflow-authz', () => ({
   getActiveWorkflowContext: mockGetActiveWorkflowContext,
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { createPermissionError, verifyWorkflowAccess } from '@/lib/copilot/auth/permissions'
 

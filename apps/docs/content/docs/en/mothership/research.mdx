@@ -1,0 +1,44 @@
+---
+title: Research
+description: Ask Mothership to research anything — it searches, reads, and synthesizes from the web.
+---
+
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
+
+<Video src="mothership/research-agent.mp4" width={700} height={450} />
+
+Ask Mothership to research anything and it figures out the best approach — searching the web, reading specific pages, crawling sites, looking up technical docs. Just describe what you want to know.
+
+## Asking Questions
+
+Ask anything — about a company, a competitor, a market, a technical question, or a specific URL:
+
+- "What did Salesforce, HubSpot, and Gong each ship in the past 30 days? Summarize the key product updates."
+- "What's Acme Corp's tech stack, recent hires, and open engineering roles?"
+- "Find everything published about [competitor] in the past 90 days — press, product changes, job postings."
+- "What are the current rate limits on the Anthropic API?"
+- "Read [URL] and tell me what changed in this release"
+- "What does Stripe's API say about handling webhooks with idempotency keys?"
+- "Who are the main players in AI-powered revenue operations, and how do they differentiate?"
+
+Mothership returns an answer directly in the chat. For anything that needs a longer written output, ask it to save the result as a file.
+
+## Research Reports
+
+When you need a structured, saved document rather than a chat answer, ask Mothership to write it up. It searches, reads, and cross-references multiple sources until it has enough to produce a full report. The output is saved as a file in your workspace and opened in the resource panel.
+
+{/* TODO: Screenshot of a completed research report open in the resource panel as a file — showing a structured markdown document with sections, findings, and citations. */}
+
+- "Research the top 10 AI SDR tools — pricing, features, positioning, and what customers say. Save as a competitive analysis."
+- "Do a full market landscape for AI in healthcare diagnostics — major players, funding, use cases, and regulatory environment."
+- "Research how our top 5 competitors handle multi-tenant auth — pricing, architecture, and any known vulnerabilities. Write it up as a report."
+- "Find every public case study on AI agents in financial compliance from the past 2 years. Summarize the key outcomes and save as a markdown file."
+- "Build a battle card for [competitor] — their positioning, pricing, strengths, weaknesses, and how we win against them."
+
+<FAQ items={[
+  { question: "Does Mothership have access to real-time information?", answer: "Yes. Mothership queries live internet data. Results reflect current information, not a training cutoff." },
+  { question: "Can Mothership read pages that require login?", answer: "No. Mothership can only read publicly accessible pages." },
+  { question: "Where are research reports saved?", answer: "Reports are saved as files in your workspace and opened in the resource panel. You can find them in the Files section of the sidebar." },
+]} />

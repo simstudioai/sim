@@ -3,6 +3,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { calculateStreamingCost } from '@/lib/tokenization/calculators'
 import { TOKENIZATION_CONFIG } from '@/lib/tokenization/constants'
 import {
@@ -82,7 +83,7 @@ export function processStreamingBlockLog(log: BlockLog, streamedContent: string)
   } catch (error) {
     logger.error(`Streaming tokenization failed for block ${log.blockId}`, {
       blockType: log.blockType,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       contentLength: streamedContent?.length || 0,
     })
 

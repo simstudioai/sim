@@ -1,14 +1,15 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { environment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncPersonalEnvCredentialsForUser } from '@/lib/credentials/environment'
 import type { EnvironmentVariable } from '@/lib/environment/api'
 
@@ -18,7 +19,7 @@ const EnvVarSchema = z.object({
   variables: z.record(z.string()),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -67,8 +68,13 @@ export async function POST(req: NextRequest) {
         actorEmail: session.user.email,
         action: AuditAction.ENVIRONMENT_UPDATED,
         resourceType: AuditResourceType.ENVIRONMENT,
-        description: 'Updated global environment variables',
-        metadata: { variableCount: Object.keys(variables).length },
+        resourceId: session.user.id,
+        description: `Updated ${Object.keys(variables).length} personal environment variable(s)`,
+        metadata: {
+          variableCount: Object.keys(variables).length,
+          updatedKeys: Object.keys(variables),
+          scope: 'personal',
+        },
         request: req,
       })
 
@@ -89,9 +95,9 @@ export async function POST(req: NextRequest) {
     logger.error(`[${requestId}] Error updating environment variables`, error)
     return NextResponse.json({ error: 'Failed to update environment variables' }, { status: 500 })
   }
-}
+})
 
-export async function GET(request: Request) {
+export const GET = withRouteHandler(async (request: Request) => {
   const requestId = generateRequestId()
 
   try {
@@ -131,4 +137,4 @@ export async function GET(request: Request) {
     logger.error(`[${requestId}] Environment fetch error`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})

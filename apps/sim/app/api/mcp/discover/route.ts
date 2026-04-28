@@ -5,6 +5,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('McpDiscoverAPI')
 
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic'
 /**
  * Discover all MCP servers available to the authenticated user.
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkHybridAuth(request, { requireWorkflowId: false })
 
@@ -111,4 +112,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

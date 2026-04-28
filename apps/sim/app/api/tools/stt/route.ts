@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { extractAudioFromVideo, isVideoFile } from '@/lib/audio/extractor'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
@@ -7,7 +9,7 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getMimeTypeFromExtension, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import {
   downloadFileFromStorage,
@@ -45,7 +47,7 @@ interface SttRequestBody {
   executionId?: string
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId()
   logger.info(`[${requestId}] STT transcription request started`)
 
@@ -305,7 +307,7 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
-}
+})
 
 async function transcribeWithWhisper(
   audioBuffer: Buffer,
@@ -663,7 +665,7 @@ async function transcribeWithAssemblyAI(
       throw new Error(`AssemblyAI transcription failed: ${transcript.error}`)
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 5000))
+    await sleep(5000)
     attempts++
   }
 

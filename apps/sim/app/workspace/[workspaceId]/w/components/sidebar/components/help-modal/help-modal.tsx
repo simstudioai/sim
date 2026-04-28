@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
+import { useMutation } from '@tanstack/react-query'
 import imageCompression from 'browser-image-compression'
 import { X } from 'lucide-react'
 import Image from 'next/image'
@@ -23,8 +24,8 @@ import { cn } from '@/lib/core/utils/cn'
 
 const logger = createLogger('HelpModal')
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB maximum upload size
-const TARGET_SIZE_MB = 2 // Target size after compression
+const MAX_FILE_SIZE = 20 * 1024 * 1024
+const TARGET_SIZE_MB = 2
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
 
 const SCROLL_DELAY_MS = 100
@@ -60,11 +61,69 @@ interface HelpModalProps {
   workspaceId: string
 }
 
+interface SubmitHelpVariables {
+  data: FormValues
+  images: ImageWithPreview[]
+  workflowId?: string
+  workspaceId: string
+}
+
+async function compressImage(file: File): Promise<File> {
+  if (file.size < TARGET_SIZE_MB * 1024 * 1024 || file.type === 'image/gif') {
+    return file
+  }
+
+  try {
+    const compressedFile = await imageCompression(file, {
+      maxSizeMB: TARGET_SIZE_MB,
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+      fileType: file.type,
+      initialQuality: 0.8,
+      alwaysKeepResolution: true,
+    })
+
+    return new File([compressedFile], file.name, {
+      type: file.type,
+      lastModified: Date.now(),
+    })
+  } catch (error) {
+    logger.warn('Image compression failed, using original file:', { error })
+    return file
+  }
+}
+
+async function submitHelpRequest({ data, images, workflowId, workspaceId }: SubmitHelpVariables) {
+  const formData = new FormData()
+  formData.append('subject', data.subject)
+  formData.append('message', data.message)
+  formData.append('type', data.type)
+  formData.append('workspaceId', workspaceId)
+  formData.append('userAgent', navigator.userAgent)
+  if (workflowId) {
+    formData.append('workflowId', workflowId)
+  }
+
+  images.forEach((image, index) => {
+    formData.append(`image_${index}`, image)
+  })
+
+  const response = await fetch('/api/help', {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null)
+    throw new Error(errorData?.error || 'Failed to submit help request')
+  }
+}
+
 export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const imagesRef = useRef<ImageWithPreview[]>([])
 
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null)
   const [images, setImages] = useState<ImageWithPreview[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
@@ -87,119 +146,50 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
     mode: 'onSubmit',
   })
 
-  /**
-   * Reset all form and UI state to prepare for a fresh modal session
-   */
-  const resetModalState = useCallback(() => {
-    setSubmitStatus(null)
-    setImages([])
-    setIsDragging(false)
-    setIsProcessing(false)
-    reset({
-      subject: '',
-      message: '',
-      type: DEFAULT_REQUEST_TYPE,
-    })
-  }, [reset])
+  const helpMutation = useMutation({
+    mutationFn: submitHelpRequest,
+    onSuccess: (_data, variables) => {
+      setSubmitStatus('success')
+      reset()
+      variables.images.forEach((image) => URL.revokeObjectURL(image.preview))
+      setImages([])
+    },
+    onError: (error) => {
+      logger.error('Error submitting help request:', { error })
+      setSubmitStatus('error')
+    },
+  })
+
+  useEffect(() => {
+    imagesRef.current = images
+  }, [images])
 
   useEffect(() => {
     if (open) {
-      resetModalState()
-    }
-  }, [open, resetModalState])
-
-  /**
-   * Fix z-index for popover/dropdown when inside modal
-   */
-  useEffect(() => {
-    if (!open) return
-
-    const updatePopoverZIndex = () => {
-      const allDivs = document.querySelectorAll('div')
-      allDivs.forEach((div) => {
-        const element = div as HTMLElement
-        const computedZIndex = window.getComputedStyle(element).zIndex
-        const zIndexNum = Number.parseInt(computedZIndex) || 0
-
-        if (zIndexNum === 10000001 || (zIndexNum > 0 && zIndexNum <= 10000100)) {
-          const hasPopoverStructure =
-            element.hasAttribute('data-radix-popover-content') ||
-            (element.hasAttribute('role') && element.getAttribute('role') === 'dialog') ||
-            element.querySelector('[role="listbox"]') !== null ||
-            element.classList.contains('rounded-lg') ||
-            element.classList.contains('rounded-sm')
-
-          if (hasPopoverStructure && element.offsetParent !== null) {
-            element.style.zIndex = '10000101'
-          }
-        }
+      setSubmitStatus(null)
+      setIsDragging(false)
+      setIsProcessing(false)
+      helpMutation.reset()
+      reset({
+        subject: '',
+        message: '',
+        type: DEFAULT_REQUEST_TYPE,
       })
-    }
-
-    // Create a style element to override popover z-index
-    const styleId = 'help-modal-popover-z-index'
-    let styleElement = document.getElementById(styleId) as HTMLStyleElement | null
-
-    if (!styleElement) {
-      styleElement = document.createElement('style')
-      styleElement.id = styleId
-      document.head.appendChild(styleElement)
-    }
-
-    styleElement.textContent = `
-      [data-radix-popover-content] {
-        z-index: 10000101 !important;
+    } else {
+      const previewsToRevoke = imagesRef.current
+      if (previewsToRevoke.length > 0) {
+        previewsToRevoke.forEach((image) => URL.revokeObjectURL(image.preview))
+        setImages([])
       }
-      div[style*="z-index: 10000001"],
-      div[style*="z-index:10000001"] {
-        z-index: 10000101 !important;
-      }
-    `
-
-    const observer = new MutationObserver(() => {
-      updatePopoverZIndex()
-    })
-
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['style', 'class'],
-    })
-
-    updatePopoverZIndex()
-
-    const intervalId = setInterval(updatePopoverZIndex, 100)
-
-    return () => {
-      const element = document.getElementById(styleId)
-      if (element) {
-        element.remove()
-      }
-      observer.disconnect()
-      clearInterval(intervalId)
     }
-  }, [open])
+  }, [open, reset])
 
-  /**
-   * Set default form value for request type
-   */
-  useEffect(() => {
-    setValue('type', DEFAULT_REQUEST_TYPE)
-  }, [setValue])
-
-  /**
-   * Clean up image preview URLs to prevent memory leaks
-   */
   useEffect(() => {
     return () => {
-      images.forEach((image) => URL.revokeObjectURL(image.preview))
+      imagesRef.current.forEach((image) => URL.revokeObjectURL(image.preview))
     }
-  }, [images])
+  }, [])
 
-  /**
-   * Reset submit status back to normal after showing success for 2 seconds
-   */
   useEffect(() => {
     if (submitStatus === 'success') {
       const timer = setTimeout(() => {
@@ -209,217 +199,106 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
     }
   }, [submitStatus])
 
-  /**
-   * Smooth scroll to bottom when new images are added
-   */
   useEffect(() => {
     if (images.length > 0 && scrollContainerRef.current) {
       const scrollContainer = scrollContainerRef.current
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         scrollContainer.scrollTo({
           top: scrollContainer.scrollHeight,
           behavior: 'smooth',
         })
       }, SCROLL_DELAY_MS)
+      return () => clearTimeout(timer)
     }
   }, [images.length])
 
-  /**
-   * Compress image files to reduce upload size while maintaining quality
-   * @param file - The image file to compress
-   * @returns The compressed file or original if compression fails/is unnecessary
-   */
-  const compressImage = useCallback(async (file: File): Promise<File> => {
-    // Skip compression for small files or GIFs (which don't compress well)
-    if (file.size < TARGET_SIZE_MB * 1024 * 1024 || file.type === 'image/gif') {
-      return file
-    }
+  async function processFiles(files: FileList | File[]) {
+    if (!files || files.length === 0) return
 
-    const options = {
-      maxSizeMB: TARGET_SIZE_MB,
-      maxWidthOrHeight: 1920,
-      useWebWorker: true,
-      fileType: file.type,
-      initialQuality: 0.8,
-      alwaysKeepResolution: true,
-    }
+    setIsProcessing(true)
 
     try {
-      const compressedFile = await imageCompression(file, options)
+      const newImages: ImageWithPreview[] = []
+      let hasError = false
 
-      // Preserve original file metadata for compatibility
-      return new File([compressedFile], file.name, {
-        type: file.type,
-        lastModified: Date.now(),
-      })
+      for (const file of Array.from(files)) {
+        if (file.size > MAX_FILE_SIZE) {
+          hasError = true
+          continue
+        }
+
+        if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+          hasError = true
+          continue
+        }
+
+        const compressedFile = await compressImage(file)
+        const imageWithPreview = Object.assign(compressedFile, {
+          preview: URL.createObjectURL(compressedFile),
+        }) as ImageWithPreview
+
+        newImages.push(imageWithPreview)
+      }
+
+      if (!hasError && newImages.length > 0) {
+        setImages((prev) => [...prev, ...newImages])
+      }
     } catch (error) {
-      logger.warn('Image compression failed, using original file:', { error })
-      return file
+      logger.error('Error processing images:', { error })
+    } finally {
+      setIsProcessing(false)
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
     }
-  }, [])
+  }
 
-  /**
-   * Process uploaded files: validate, compress, and prepare for preview
-   * @param files - FileList or array of files to process
-   */
-  const processFiles = useCallback(
-    async (files: FileList | File[]) => {
-      if (!files || files.length === 0) return
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files) {
+      await processFiles(e.target.files)
+    }
+  }
 
-      setIsProcessing(true)
-
-      try {
-        const newImages: ImageWithPreview[] = []
-        let hasError = false
-
-        for (const file of Array.from(files)) {
-          // Validate file size
-          if (file.size > MAX_FILE_SIZE) {
-            hasError = true
-            continue
-          }
-
-          // Validate file type
-          if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-            hasError = true
-            continue
-          }
-
-          // Compress and prepare image
-          const compressedFile = await compressImage(file)
-          const imageWithPreview = Object.assign(compressedFile, {
-            preview: URL.createObjectURL(compressedFile),
-          }) as ImageWithPreview
-
-          newImages.push(imageWithPreview)
-        }
-
-        if (!hasError && newImages.length > 0) {
-          setImages((prev) => [...prev, ...newImages])
-        }
-      } catch (error) {
-        logger.error('Error processing images:', { error })
-      } finally {
-        setIsProcessing(false)
-
-        // Reset file input
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ''
-        }
-      }
-    },
-    [compressImage]
-  )
-
-  /**
-   * Handle file input change event
-   */
-  const handleFileChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files) {
-        await processFiles(e.target.files)
-      }
-    },
-    [processFiles]
-  )
-
-  /**
-   * Drag and drop event handlers
-   */
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
+  function handleDragEnter(e: React.DragEvent) {
     e.preventDefault()
     e.stopPropagation()
     setIsDragging(true)
-  }, [])
+  }
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
+  function handleDragLeave(e: React.DragEvent) {
     e.preventDefault()
     e.stopPropagation()
     setIsDragging(false)
-  }, [])
+  }
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
+  function handleDragOver(e: React.DragEvent) {
     e.preventDefault()
     e.stopPropagation()
-  }, [])
+  }
 
-  const handleDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setIsDragging(false)
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
 
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        await processFiles(e.dataTransfer.files)
-      }
-    },
-    [processFiles]
-  )
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await processFiles(e.dataTransfer.files)
+    }
+  }
 
-  /**
-   * Remove an uploaded image and clean up its preview URL
-   */
-  const removeImage = useCallback((index: number) => {
+  function removeImage(index: number) {
     setImages((prev) => {
       URL.revokeObjectURL(prev[index].preview)
       return prev.filter((_, i) => i !== index)
     })
-  }, [])
+  }
 
-  /**
-   * Handle form submission with image attachments
-   */
-  const onSubmit = useCallback(
-    async (data: FormValues) => {
-      setIsSubmitting(true)
-      setSubmitStatus(null)
-
-      try {
-        const formData = new FormData()
-        formData.append('subject', data.subject)
-        formData.append('message', data.message)
-        formData.append('type', data.type)
-        formData.append('workspaceId', workspaceId)
-        formData.append('userAgent', navigator.userAgent)
-        if (workflowId) {
-          formData.append('workflowId', workflowId)
-        }
-
-        images.forEach((image, index) => {
-          formData.append(`image_${index}`, image)
-        })
-
-        const response = await fetch('/api/help', {
-          method: 'POST',
-          body: formData,
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Failed to submit help request')
-        }
-
-        setSubmitStatus('success')
-        reset()
-
-        images.forEach((image) => URL.revokeObjectURL(image.preview))
-        setImages([])
-      } catch (error) {
-        logger.error('Error submitting help request:', { error })
-        setSubmitStatus('error')
-      } finally {
-        setIsSubmitting(false)
-      }
-    },
-    [images, reset, workflowId, workspaceId]
-  )
-
-  /**
-   * Handle modal close action
-   */
-  const handleClose = useCallback(() => {
-    onOpenChange(false)
-  }, [onOpenChange])
+  function onSubmit(data: FormValues) {
+    if (helpMutation.isPending) return
+    setSubmitStatus(null)
+    helpMutation.mutate({ data, images, workflowId, workspaceId })
+  }
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
@@ -513,7 +392,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                       {images.map((image, index) => (
                         <div
                           className='group relative overflow-hidden rounded-sm border'
-                          key={index}
+                          key={image.preview}
                         >
                           <div className='relative flex max-h-[120px] min-h-[80px] w-full items-center justify-center'>
                             <Image
@@ -543,11 +422,20 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
           </ModalBody>
 
           <ModalFooter>
-            <Button variant='default' onClick={handleClose} type='button' disabled={isSubmitting}>
+            <Button
+              variant='default'
+              onClick={() => onOpenChange(false)}
+              type='button'
+              disabled={helpMutation.isPending}
+            >
               Cancel
             </Button>
-            <Button type='submit' variant='primary' disabled={isSubmitting || isProcessing}>
-              {isSubmitting
+            <Button
+              type='submit'
+              variant='primary'
+              disabled={helpMutation.isPending || isProcessing}
+            >
+              {helpMutation.isPending
                 ? 'Submitting...'
                 : submitStatus === 'error'
                   ? 'Error'

@@ -1,14 +1,16 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
   createInternalServerErrorResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
+} from '@/lib/copilot/request/http'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const BodySchema = z.object({
   messageId: z.string(),
@@ -16,7 +18,7 @@ const BodySchema = z.object({
   diffAccepted: z.boolean(),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const tracker = createRequestTracker()
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
@@ -39,13 +41,15 @@ export async function POST(req: NextRequest) {
       diffAccepted,
     }
 
-    const agentRes = await fetch(`${SIM_AGENT_API_URL}/api/stats`, {
+    const agentRes = await fetchGo(`${SIM_AGENT_API_URL}/api/stats`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
       },
       body: JSON.stringify(payload),
+      spanName: 'sim → go /api/stats',
+      operation: 'stats_ingest',
     })
 
     // Prefer not to block clients; still relay status
@@ -63,4 +67,4 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return createInternalServerErrorResponse('Failed to forward copilot stats')
   }
-}
+})

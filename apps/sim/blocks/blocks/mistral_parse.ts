@@ -1,3 +1,4 @@
+import { toError } from '@sim/utils/errors'
 import { MistralIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType, type SubBlockType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
@@ -118,7 +119,7 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
               pagesArray = undefined
             }
           } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage = toError(error).message
             throw new Error(`Page number format error: ${errorMessage}`)
           }
         }
@@ -248,7 +249,7 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
               pagesArray = undefined
             }
           } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage = toError(error).message
             throw new Error(`Page number format error: ${errorMessage}`)
           }
         }
@@ -371,7 +372,7 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
               pagesArray = undefined
             }
           } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage = toError(error).message
             throw new Error(`Page number format error: ${errorMessage}`)
           }
         }

@@ -1,9 +1,9 @@
-import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { workflowExecutionLogs, workflowExecutionSnapshots } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
+import { generateId } from '@sim/utils/id'
 import { and, eq, lt, notExists, sql } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 import type {
   SnapshotService as ISnapshotService,
   SnapshotCreationResult,
@@ -85,7 +85,7 @@ export class SnapshotService implements ISnapshotService {
   computeStateHash(state: WorkflowState): string {
     const normalizedState = normalizeWorkflowState(state)
     const stateString = normalizedStringify(normalizedState)
-    return createHash('sha256').update(stateString).digest('hex')
+    return sha256Hex(stateString)
   }
 
   async cleanupOrphanedSnapshots(olderThanDays: number): Promise<number> {

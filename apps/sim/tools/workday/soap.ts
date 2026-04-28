@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import * as soap from 'soap'
+import { validateWorkdayTenantUrl } from '@/lib/core/security/input-validation'
 
 const logger = createLogger('WorkdaySoapClient')
 
@@ -128,14 +129,20 @@ export interface WorkdayClient extends soap.Client {
 /**
  * Builds the WSDL URL for a Workday SOAP service.
  * Pattern: {tenantUrl}/ccx/service/{tenant}/{serviceName}/{version}?wsdl
+ *
+ * @throws Error if tenantUrl is not a trusted Workday-hosted URL (SSRF guard)
  */
 export function buildWsdlUrl(
   tenantUrl: string,
   tenant: string,
   service: WorkdayServiceKey
 ): string {
+  const validation = validateWorkdayTenantUrl(tenantUrl)
+  if (!validation.isValid) {
+    throw new Error(validation.error ?? 'Invalid tenantUrl')
+  }
   const svc = WORKDAY_SERVICES[service]
-  const baseUrl = tenantUrl.replace(/\/$/, '')
+  const baseUrl = (validation.sanitized ?? tenantUrl).replace(/\/$/, '')
   return `${baseUrl}/ccx/service/${tenant}/${svc.name}/${svc.version}?wsdl`
 }
 

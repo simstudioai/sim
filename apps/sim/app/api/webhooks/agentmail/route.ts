@@ -8,12 +8,13 @@ import {
   workspace,
 } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
 import { and, eq, gt, ne, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { Webhook } from 'svix'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
 import type { AgentMailWebhookPayload, RejectionReason } from '@/lib/mothership/inbox/types'
 
@@ -22,7 +23,7 @@ const logger = createLogger('AgentMailWebhook')
 const AUTOMATED_SENDERS = ['mailer-daemon@', 'noreply@', 'no-reply@', 'postmaster@']
 const MAX_EMAILS_PER_HOUR = 20
 
-export async function POST(req: Request) {
+export const POST = withRouteHandler(async (req: Request) => {
   try {
     const rawBody = await req.text()
     const svixId = req.headers.get('svix-id')
@@ -202,7 +203,7 @@ export async function POST(req: Request) {
     })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 async function isSenderAllowed(email: string, workspaceId: string): Promise<boolean> {
   const [allowedSenderResult, memberResult] = await Promise.all([

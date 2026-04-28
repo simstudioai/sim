@@ -4,8 +4,9 @@ import { z } from 'zod'
 import {
   authenticateCopilotRequestSessionOnly,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
+} from '@/lib/copilot/request/http'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotTrainingAPI')
 
@@ -25,7 +26,7 @@ const TrainingDataSchema = z.object({
   operations: z.array(OperationSchema),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
   if (!isAuthenticated || !userId) {
     return createUnauthorizedResponse()
@@ -109,4 +110,4 @@ export async function POST(request: NextRequest) {
       { status: 502 }
     )
   }
-}
+})

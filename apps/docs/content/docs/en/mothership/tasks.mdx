@@ -1,0 +1,131 @@
+---
+title: Automation & Configuration
+description: Schedule recurring jobs, take immediate actions, connect integrations, and configure your workspace.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
+
+<Video src="mothership/job-create.mp4" width={700} height={450} />
+
+Mothership can act on your behalf right now — send a message, create an issue, call an API — or on a schedule, running a prompt automatically every hour, day, or week. It can also connect integrations, set environment variables, add MCP servers, and create custom tools.
+
+## Scheduled Jobs
+
+A scheduled job is a Mothership task that runs on a cron schedule. On each run, Mothership reads the current workspace state and executes the job's prompt as if you had just sent it.
+
+### Creating a Job
+
+Describe the recurring task and how often it should run:
+
+- "Every morning at 8am, check the leads table for new entries and post a summary to #sales in Slack"
+- "Every Monday at 9am, pull last week's workflow run counts and write a report to the workspace"
+- "Run the data sync workflow every 6 hours"
+- "On the first of every month, export the billing table to CSV and email it to finance@example.com"
+- "Every weekday at 7am, check for new funding announcements from companies in our ICP and post the top 5 to #market-intel in Slack"
+- "Every Sunday night, run the lead enrichment workflow on all prospects added in the past week and update their scores in the table"
+- "Daily at 6am, pull the previous day's workflow errors, summarize the top issues, and post to #eng-alerts"
+
+Mothership sets the cron expression and stores the job prompt. The first run happens at the next scheduled time.
+
+### Viewing Job Logs
+
+- "Show me the last 5 runs of the weekly report job"
+- "Did the sync job run successfully this morning?"
+- "What did the Monday digest job do last week?"
+
+Logs show run time, status (completed, failed), and a summary of what the agent did.
+
+### Managing Jobs
+
+- "Pause the morning summary job"
+- "Change the sync job to run every 3 hours instead of 6"
+- "Delete the onboarding digest job"
+- "What scheduled jobs are currently active?"
+
+## Taking Direct Action
+
+For requests that should happen right now — without building a workflow — just ask. Mothership acts immediately using the credentials connected to your workspace.
+
+{/* TODO: Screenshot of Mothership chat showing the "Taking action" subagent label active during a direct action — e.g., posting to Slack or sending an email. Shows the subagent inline in the chat thread. */}
+
+| Request | What happens |
+|---------|-------------|
+| "Send a Slack message to #eng that the deploy finished" | Posts to Slack immediately |
+| "Email the Q3 report to jane@example.com" | Sends via connected Gmail or Outlook |
+| "Create a GitHub issue: auth tokens not rotating on logout" | Opens an issue in the specified repo |
+| "Add a contact to HubSpot: Acme Corp, ceo@acme.com" | Creates the contact via HubSpot API |
+| "Call the webhook at [URL] with this JSON payload" | Makes the HTTP request |
+
+If an integration isn't connected, Mothership walks you through connecting it.
+
+## Connecting Integrations
+
+Mothership can connect new OAuth integrations and API credentials on demand:
+
+- "Connect my Google account"
+- "Add the Slack workspace for our team"
+- "Set up GitHub with my personal access token"
+
+{/* TODO: Screenshot of Mothership walking through connecting an integration — e.g., the Integration subagent active with an OAuth prompt or confirmation that a credential was connected. */}
+
+Once connected, credentials are available to Mothership for direct actions and scheduled jobs, and to all workflows in the workspace.
+
+<Callout type="info">
+  Connected credentials are shared across the workspace. Any workflow that uses the same integration will automatically use the same credential.
+</Callout>
+
+See [Credentials](/credentials) for managing connected accounts.
+
+## Environment Variables
+
+Environment variables are workspace-scoped values — API keys, connection strings, and configuration that workflows reference via `{{ENV_VAR}}` syntax rather than hardcoding. Set them once and every workflow in the workspace can use them.
+
+- "Set the DATABASE_URL environment variable to 'postgres://...'"
+- "Add an OPENAI_API_KEY environment variable"
+- "Add a WEBHOOK_SECRET variable for the inbound webhook workflow"
+- "Update the SCORING_API_URL variable to point to the new endpoint"
+- "What environment variables are currently set?"
+
+{/* TODO: Screenshot of Mothership confirming an environment variable was set — e.g., a response message showing the variable name was saved. */}
+
+## MCP Servers
+
+MCP (Model Context Protocol) servers expose tools from external services that Agent blocks can call inside workflows. Connecting an MCP server makes all of its tools available in the workflow editor's tool picker — no custom integration code required.
+
+Mothership can add and manage MCP servers connected to your workspace:
+
+- "Add the Stripe MCP server using my API key"
+- "Remove the old analytics MCP server"
+- "What MCP servers are connected to this workspace?"
+- "Update the endpoint for the internal tools MCP server to [URL]"
+
+Once added, MCP tools appear in the workflow editor's tool picker and can be called from any Agent block.
+
+{/* TODO: Screenshot of Mothership confirming an MCP server was added or updated — showing the server name and its status. */}
+
+## Custom Tools
+
+Custom tools are single HTTP endpoints you define manually — useful for internal APIs and services that don't have a built-in Sim integration or an MCP server. Once created, they appear in the workflow editor alongside built-in tools and can be called from any Agent block.
+
+Mothership can build custom tools from a description:
+
+- "Create a custom tool that calls our internal scoring API at [URL] with a POST request and returns the score field"
+- "Build a tool for our Zendesk instance that creates a ticket with a subject and body"
+- "Create a tool that hits our internal enrichment API with a domain and returns company size, industry, and funding stage"
+- "Add a tool that calls our CRM's REST API to look up a contact by email and return their account owner"
+
+Custom tools appear in the workflow editor and are callable from any Agent block alongside built-in tools.
+
+{/* TODO: Screenshot of Mothership with the Custom Tool subagent active — showing it building a tool definition. */}
+
+<FAQ items={[
+  { question: "What's the difference between a scheduled job and a deployed workflow?", answer: "A scheduled job runs a Mothership prompt on a cron schedule — Mothership decides what to do each time based on current workspace state. A deployed workflow runs a fixed, deterministic graph of blocks. Use jobs when you want Mothership to reason and adapt; use workflows when you want predictable, auditable execution." },
+  { question: "Can a scheduled job trigger a workflow?", answer: "Yes. Include it in the job prompt: 'Run the invoice sync workflow and then post the results to Slack.'" },
+  { question: "How do I know what integrations are connected?", answer: "Ask Mothership: 'What integrations are connected to this workspace?' or check Settings → Credentials." },
+  { question: "Can direct actions be undone?", answer: "No. Actions like sending emails, posting to Slack, or creating records are immediate and irreversible. Confirm the details before asking Mothership to act." },
+  { question: "Are environment variables visible to all workflows?", answer: "Yes. Environment variables are workspace-scoped and available to every workflow via {{ENV_VAR}} syntax." },
+  { question: "What's the difference between MCP servers and custom tools?", answer: "MCP servers expose a set of tools from an external service over the MCP protocol — you connect an existing MCP-compatible server. Custom tools are single HTTP endpoints you define manually — useful for internal APIs that don't have an MCP server." },
+]} />

@@ -1,10 +1,11 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createKnowledgeBase,
   getKnowledgeBases,
@@ -15,14 +16,6 @@ import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('KnowledgeBaseAPI')
 
-/**
- * Schema for creating a knowledge base
- *
- * Chunking config units:
- * - maxSize: tokens (1 token ≈ 4 characters)
- * - minSize: characters
- * - overlap: tokens (1 token ≈ 4 characters)
- */
 const CreateKnowledgeBaseSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
@@ -31,12 +24,20 @@ const CreateKnowledgeBaseSchema = z.object({
   embeddingDimension: z.literal(1536).default(1536),
   chunkingConfig: z
     .object({
-      /** Maximum chunk size in tokens (1 token ≈ 4 characters) */
       maxSize: z.number().min(100).max(4000).default(1024),
-      /** Minimum chunk size in characters */
       minSize: z.number().min(1).max(2000).default(100),
-      /** Overlap between chunks in tokens (1 token ≈ 4 characters) */
       overlap: z.number().min(0).max(500).default(200),
+      strategy: z
+        .enum(['auto', 'text', 'regex', 'recursive', 'sentence', 'token'])
+        .default('auto')
+        .optional(),
+      strategyOptions: z
+        .object({
+          pattern: z.string().max(500).optional(),
+          separators: z.array(z.string()).optional(),
+          recipe: z.enum(['plain', 'markdown', 'code']).optional(),
+        })
+        .optional(),
     })
     .default({
       maxSize: 1024,
@@ -45,17 +46,35 @@ const CreateKnowledgeBaseSchema = z.object({
     })
     .refine(
       (data) => {
-        // Convert maxSize from tokens to characters for comparison (1 token ≈ 4 chars)
         const maxSizeInChars = data.maxSize * 4
         return data.minSize < maxSizeInChars
       },
       {
         message: 'Min chunk size (characters) must be less than max chunk size (tokens × 4)',
       }
+    )
+    .refine(
+      (data) => {
+        return data.overlap < data.maxSize
+      },
+      {
+        message: 'Overlap must be less than max chunk size',
+      }
+    )
+    .refine(
+      (data) => {
+        if (data.strategy === 'regex' && !data.strategyOptions?.pattern) {
+          return false
+        }
+        return true
+      },
+      {
+        message: 'Regex pattern is required when using the regex chunking strategy',
+      }
     ),
 })
 
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -82,9 +101,9 @@ export async function GET(req: NextRequest) {
     logger.error(`[${requestId}] Error fetching knowledge bases`, error)
     return NextResponse.json({ error: 'Failed to fetch knowledge bases' }, { status: 500 })
   }
-}
+})
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -144,7 +163,16 @@ export async function POST(req: NextRequest) {
         resourceId: newKnowledgeBase.id,
         resourceName: validatedData.name,
         description: `Created knowledge base "${validatedData.name}"`,
-        metadata: { name: validatedData.name },
+        metadata: {
+          name: validatedData.name,
+          description: validatedData.description,
+          embeddingModel: validatedData.embeddingModel,
+          embeddingDimension: validatedData.embeddingDimension,
+          chunkingStrategy: validatedData.chunkingConfig.strategy,
+          chunkMaxSize: validatedData.chunkingConfig.maxSize,
+          chunkMinSize: validatedData.chunkingConfig.minSize,
+          chunkOverlap: validatedData.chunkingConfig.overlap,
+        },
         request: req,
       })
 
@@ -172,4 +200,4 @@ export async function POST(req: NextRequest) {
     logger.error(`[${requestId}] Error creating knowledge base`, error)
     return NextResponse.json({ error: 'Failed to create knowledge base' }, { status: 500 })
   }
-}
+})

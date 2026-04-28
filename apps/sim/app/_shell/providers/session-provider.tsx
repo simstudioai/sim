@@ -2,6 +2,7 @@
 
 import type React from 'react'
 import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/auth/auth-client'
 import { extractSessionDataFromAuthClientResult } from '@/lib/auth/session-response'
@@ -34,6 +35,8 @@ export type SessionHookResult = {
 
 export const SessionContext = createContext<SessionHookResult | null>(null)
 
+const logger = createLogger('SessionProvider')
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppSession>(null)
   const [isPending, setIsPending] = useState(true)
@@ -49,14 +52,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         : await client.getSession()
       const session = extractSessionDataFromAuthClientResult(res) as AppSession
       setData(session)
+      return session
     } catch (e) {
       setError(e instanceof Error ? e : new Error('Failed to fetch session'))
+      return null
     } finally {
       setIsPending(false)
     }
   }, [])
 
   useEffect(() => {
+    let isCancelled = false
+
     // Check if user was redirected after plan upgrade
     const params = new URLSearchParams(window.location.search)
     const wasUpgraded = params.get('upgraded') === 'true'
@@ -69,12 +76,51 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       window.history.replaceState({}, '', newUrl)
     }
 
-    loadSession(wasUpgraded).then(() => {
-      if (wasUpgraded) {
-        queryClient.invalidateQueries({ queryKey: ['organizations'] })
-        queryClient.invalidateQueries({ queryKey: ['subscription'] })
+    const initializeSession = async () => {
+      const session = await loadSession(wasUpgraded)
+
+      if (!wasUpgraded || isCancelled) {
+        return
       }
-    })
+
+      queryClient.invalidateQueries({ queryKey: ['organizations'] })
+      queryClient.invalidateQueries({ queryKey: ['subscription'] })
+
+      const activeOrganizationId = session?.session?.activeOrganizationId ?? null
+      if (activeOrganizationId) {
+        return
+      }
+
+      try {
+        const response = await fetch('/api/organizations')
+        if (!response.ok) {
+          return
+        }
+
+        const orgData = (await response.json()) as {
+          organizations?: Array<{ id: string }>
+        }
+        const organizationId = orgData.organizations?.[0]?.id
+
+        if (!organizationId || isCancelled) {
+          return
+        }
+
+        await client.organization.setActive({ organizationId })
+
+        if (!isCancelled) {
+          await loadSession(true)
+        }
+      } catch (error) {
+        logger.warn('Failed to activate organization after subscription upgrade', { error })
+      }
+    }
+
+    void initializeSession()
+
+    return () => {
+      isCancelled = true
+    }
   }, [loadSession, queryClient])
 
   useEffect(() => {
@@ -92,6 +138,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
               email_verified: data.user.emailVerified,
               created_at: data.user.createdAt,
             })
+            if (
+              typeof posthog.startSessionRecording === 'function' &&
+              typeof posthog.sessionRecordingStarted === 'function' &&
+              !posthog.sessionRecordingStarted()
+            ) {
+              posthog.startSessionRecording()
+            }
           } else {
             posthog.reset()
           }
@@ -100,9 +153,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       .catch(() => {})
   }, [data, isPending])
 
+  const refetch = useCallback(async () => {
+    await loadSession()
+  }, [loadSession])
+
   const value = useMemo<SessionHookResult>(
-    () => ({ data, isPending, error, refetch: loadSession }),
-    [data, isPending, error, loadSession]
+    () => ({ data, isPending, error, refetch }),
+    [data, isPending, error, refetch]
   )
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

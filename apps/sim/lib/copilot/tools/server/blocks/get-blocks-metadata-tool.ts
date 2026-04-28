@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { createLogger } from '@sim/logger'
-import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
+import { toError } from '@sim/utils/errors'
+import { z } from 'zod'
+import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot/tools/shared/schemas'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/feature-flags'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { registry as blockRegistry } from '@/blocks/registry'
@@ -100,21 +101,27 @@ export interface CopilotBlockMetadata {
   yamlDocumentation?: string
 }
 
+const GetBlocksMetadataInputSchema = z.object({ blockIds: z.array(z.string()).min(1) })
+const GetBlocksMetadataResultSchema = z.object({ metadata: z.record(z.any()) })
+
 export const getBlocksMetadataServerTool: BaseServerTool<
-  ReturnType<typeof GetBlocksMetadataInput.parse>,
-  ReturnType<typeof GetBlocksMetadataResult.parse>
+  z.infer<typeof GetBlocksMetadataInputSchema>,
+  z.infer<typeof GetBlocksMetadataResultSchema>
 > = {
   name: 'get_blocks_metadata',
-  inputSchema: GetBlocksMetadataInput,
-  outputSchema: GetBlocksMetadataResult,
+  inputSchema: GetBlocksMetadataInputSchema,
+  outputSchema: GetBlocksMetadataResultSchema,
   async execute(
-    { blockIds }: ReturnType<typeof GetBlocksMetadataInput.parse>,
-    context?: { userId: string }
-  ): Promise<ReturnType<typeof GetBlocksMetadataResult.parse>> {
+    { blockIds }: z.infer<typeof GetBlocksMetadataInputSchema>,
+    context?: { userId: string; workspaceId?: string }
+  ): Promise<z.infer<typeof GetBlocksMetadataResultSchema>> {
     const logger = createLogger('GetBlocksMetadataServerTool')
     logger.debug('Executing get_blocks_metadata', { count: blockIds?.length })
 
-    const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
+    const permissionConfig =
+      context?.userId && context?.workspaceId
+        ? await getUserPermissionConfig(context.userId, context.workspaceId)
+        : null
     const allowedIntegrations =
       permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
 
@@ -310,7 +317,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         }
       } catch (error) {
         logger.warn('Failed to read YAML documentation file', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
 
@@ -324,7 +331,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
       transformedResult[blockId] = transformBlockMetadata(metadata)
     }
 
-    return GetBlocksMetadataResult.parse({ metadata: transformedResult })
+    return GetBlocksMetadataResultSchema.parse({ metadata: transformedResult })
   },
 }
 
@@ -997,7 +1004,7 @@ function resolveToolIdForOperation(blockConfig: BlockConfig, opId: string): stri
   } catch (error) {
     const toolLogger = createLogger('GetBlocksMetadataServerTool')
     toolLogger.warn('Failed to resolve tool ID for operation', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
   return undefined

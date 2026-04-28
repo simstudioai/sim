@@ -9,6 +9,8 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { BackLink } from '@/app/(landing)/blog/[slug]/back-link'
 import { ShareButton } from '@/app/(landing)/blog/[slug]/share-button'
 
+export const dynamicParams = false
+
 export async function generateStaticParams() {
   const posts = await getAllPostMeta()
   return posts.map((p) => ({ slug: p.slug }))
@@ -161,7 +163,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                     <h3 className='font-[430] font-season text-lg text-white leading-tight tracking-[-0.01em]'>
                       {p.title}
                     </h3>
-                    <p className='line-clamp-2 text-[#F6F6F0]/50 text-sm leading-[150%]'>
+                    <p className='line-clamp-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
                       {p.description}
                     </p>
                   </div>

@@ -74,10 +74,6 @@ docker compose -f docker-compose.prod.yml up -d
 
 Open [http://localhost:3000](http://localhost:3000)
 
-#### Background worker note
-
-The Docker Compose stack starts a dedicated worker container by default. If `REDIS_URL` is not configured, the worker will start, log that it is idle, and do no queue processing. This is expected. Queue-backed API, webhook, and schedule execution requires Redis; installs without Redis continue to use the inline execution path.
-
 Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https://docs.vllm.ai/) — see the [Docker self-hosting docs](https://docs.sim.ai/self-hosting/docker) for setup details.
 
 ### Self-hosted: Manual Setup
@@ -123,12 +119,10 @@ cd packages/db && bun run db:migrate
 5. Start development servers:
 
 ```bash
-bun run dev:full  # Starts Next.js app, realtime socket server, and the BullMQ worker
+bun run dev:full  # Starts Next.js app and realtime socket server
 ```
 
-If `REDIS_URL` is not configured, the worker will remain idle and execution continues inline.
-
-Or run separately: `bun run dev` (Next.js), `cd apps/sim && bun run dev:sockets` (realtime), and `cd apps/sim && bun run worker` (BullMQ worker).
+Or run separately: `bun run dev` (Next.js) and `cd apps/sim && bun run dev:sockets` (realtime).
 
 ## Copilot API Keys
 
@@ -148,13 +142,15 @@ See the [environment variables reference](https://docs.sim.ai/self-hosting/envir
 - **Database**: PostgreSQL with [Drizzle ORM](https://orm.drizzle.team)
 - **Authentication**: [Better Auth](https://better-auth.com)
 - **UI**: [Shadcn](https://ui.shadcn.com/), [Tailwind CSS](https://tailwindcss.com)
-- **State Management**: [Zustand](https://zustand-demo.pmnd.rs/)
+- **Streaming Markdown**: [Streamdown](https://github.com/vercel/streamdown)
+- **State Management**: [Zustand](https://zustand-demo.pmnd.rs/), [TanStack Query](https://tanstack.com/query)
 - **Flow Editor**: [ReactFlow](https://reactflow.dev/)
 - **Docs**: [Fumadocs](https://fumadocs.vercel.app/)
 - **Monorepo**: [Turborepo](https://turborepo.org/)
 - **Realtime**: [Socket.io](https://socket.io/)
 - **Background Jobs**: [Trigger.dev](https://trigger.dev/)
 - **Remote Code Execution**: [E2B](https://www.e2b.dev/)
+- **Isolated Code Execution**: [isolated-vm](https://github.com/laverdet/isolated-vm)
 
 ## Contributing
 

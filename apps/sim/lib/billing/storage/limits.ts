@@ -13,7 +13,8 @@ import {
 import { organization, subscription, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { getPlanTypeForLimits, isEnterprise, isFree, isOrgPlan } from '@/lib/billing/plan-helpers'
+import { getPlanTypeForLimits, isEnterprise, isFree } from '@/lib/billing/plan-helpers'
+import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { getEnv } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
@@ -78,7 +79,6 @@ export function getStorageLimitForPlan(plan: string, metadata?: any): number {
  */
 export async function getUserStorageLimit(userId: string): Promise<number> {
   try {
-    // Check if user is in a team/enterprise org
     const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
     const sub = await getHighestPrioritySubscription(userId)
 
@@ -88,18 +88,9 @@ export async function getUserStorageLimit(userId: string): Promise<number> {
       return limits.free
     }
 
-    if (!isOrgPlan(sub.plan)) {
-      const effectivePlan = getPlanTypeForLimits(sub.plan)
-      const limitByPlan: Record<'free' | 'pro' | 'team', number> = {
-        free: limits.free,
-        pro: limits.pro,
-        team: limits.team,
-      }
-      return limitByPlan[effectivePlan as 'free' | 'pro' | 'team'] ?? limits.free
-    }
-
-    if (isOrgPlan(sub.plan)) {
-      // Get organization storage limit
+    // Org-scoped subs use pooled org-level storage. Custom limits come from the
+    // subscription metadata; otherwise use the team/enterprise default.
+    if (isOrgScopedSubscription(sub, userId)) {
       const orgRecord = await db
         .select({ metadata: subscription.metadata })
         .from(subscription)
@@ -113,11 +104,17 @@ export async function getUserStorageLimit(userId: string): Promise<number> {
         }
       }
 
-      // Default for team/enterprise
       return isEnterprise(sub.plan) ? limits.enterpriseDefault : limits.team
     }
 
-    return limits.free
+    // Personally-scoped plans use the per-plan default storage cap.
+    const effectivePlan = getPlanTypeForLimits(sub.plan)
+    const limitByPlan: Record<'free' | 'pro' | 'team', number> = {
+      free: limits.free,
+      pro: limits.pro,
+      team: limits.team,
+    }
+    return limitByPlan[effectivePlan as 'free' | 'pro' | 'team'] ?? limits.free
   } catch (error) {
     logger.error('Error getting user storage limit:', error)
     return getStorageLimits().free
@@ -130,11 +127,12 @@ export async function getUserStorageLimit(userId: string): Promise<number> {
  */
 export async function getUserStorageUsage(userId: string): Promise<number> {
   try {
-    // Check if user is in a team/enterprise org
     const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
     const sub = await getHighestPrioritySubscription(userId)
 
-    if (sub && isOrgPlan(sub.plan)) {
+    // Org-scoped subs share pooled `organization.storageUsedBytes`;
+    // personal plans use `userStats`.
+    if (isOrgScopedSubscription(sub, userId) && sub) {
       const orgRecord = await db
         .select({ storageUsedBytes: organization.storageUsedBytes })
         .from(organization)
@@ -144,7 +142,6 @@ export async function getUserStorageUsage(userId: string): Promise<number> {
       return orgRecord.length > 0 ? orgRecord[0].storageUsedBytes || 0 : 0
     }
 
-    // Free/Pro: Use user stats
     const stats = await db
       .select({ storageUsedBytes: userStats.storageUsedBytes })
       .from(userStats)

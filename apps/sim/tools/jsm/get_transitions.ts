@@ -14,8 +14,6 @@ export const jsmGetTransitionsTool: ToolConfig<JsmGetTransitionsParams, JsmGetTr
       provider: 'jira',
     },
 
-    errorExtractor: 'atlassian-errors',
-
     params: {
       accessToken: {
         type: 'string',

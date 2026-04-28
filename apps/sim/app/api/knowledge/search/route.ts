@@ -1,15 +1,16 @@
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import {
   generateSearchEmbedding,
   getDocumentNamesByIds,
@@ -70,7 +71,7 @@ const VectorSearchSchema = z
     }
   )
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -449,4 +450,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

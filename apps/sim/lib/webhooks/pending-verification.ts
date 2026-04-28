@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { getRedisClient } from '@/lib/core/config/redis'
 
 const logger = createLogger('WebhookPendingVerification')
@@ -159,7 +160,7 @@ export async function getPendingWebhookVerification(
     } catch (error) {
       logger.warn('Failed to parse pending webhook verification entry', {
         path,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       await redis.del(getRedisKey(path))
       return null

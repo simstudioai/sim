@@ -1,13 +1,21 @@
 import { CloudWatchClient, ListMetricsCommand } from '@aws-sdk/client-cloudwatch'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { validateAwsRegion } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CloudWatchListMetrics')
 
 const ListMetricsSchema = z.object({
-  region: z.string().min(1, 'AWS region is required'),
+  region: z
+    .string()
+    .min(1, 'AWS region is required')
+    .refine((v) => validateAwsRegion(v).isValid, {
+      message: 'Invalid AWS region format (e.g., us-east-1, eu-west-2)',
+    }),
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
   namespace: z.string().optional(),
@@ -19,7 +27,7 @@ const ListMetricsSchema = z.object({
   ),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -29,6 +37,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = ListMetricsSchema.parse(body)
 
+    logger.info('Listing CloudWatch metrics')
+
     const client = new CloudWatchClient({
       region: validatedData.region,
       credentials: {
@@ -37,40 +47,47 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const limit = validatedData.limit ?? 500
+    try {
+      const limit = validatedData.limit ?? 500
 
-    const command = new ListMetricsCommand({
-      ...(validatedData.namespace && { Namespace: validatedData.namespace }),
-      ...(validatedData.metricName && { MetricName: validatedData.metricName }),
-      ...(validatedData.recentlyActive && { RecentlyActive: 'PT3H' }),
-      ...(limit <= 500 && { MaxResults: limit }),
-    })
+      const command = new ListMetricsCommand({
+        ...(validatedData.namespace && { Namespace: validatedData.namespace }),
+        ...(validatedData.metricName && { MetricName: validatedData.metricName }),
+        ...(validatedData.recentlyActive && { RecentlyActive: 'PT3H' }),
+      })
 
-    const response = await client.send(command)
+      const response = await client.send(command)
 
-    const metrics = (response.Metrics ?? []).slice(0, limit).map((m) => ({
-      namespace: m.Namespace ?? '',
-      metricName: m.MetricName ?? '',
-      dimensions: (m.Dimensions ?? []).map((d) => ({
-        name: d.Name ?? '',
-        value: d.Value ?? '',
-      })),
-    }))
+      const metrics = (response.Metrics ?? []).slice(0, limit).map((m) => ({
+        namespace: m.Namespace ?? '',
+        metricName: m.MetricName ?? '',
+        dimensions: (m.Dimensions ?? []).map((d) => ({
+          name: d.Name ?? '',
+          value: d.Value ?? '',
+        })),
+      }))
 
-    return NextResponse.json({
-      success: true,
-      output: { metrics },
-    })
+      logger.info(`Successfully listed ${metrics.length} metrics`)
+
+      return NextResponse.json({
+        success: true,
+        output: { metrics },
+      })
+    } finally {
+      client.destroy()
+    }
   } catch (error) {
     if (error instanceof z.ZodError) {
+      logger.warn('Invalid request data', { errors: error.errors })
       return NextResponse.json(
         { error: error.errors[0]?.message ?? 'Invalid request' },
         { status: 400 }
       )
     }
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to list CloudWatch metrics'
-    logger.error('ListMetrics failed', { error: errorMessage })
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    logger.error('ListMetrics failed', { error: toError(error).message })
+    return NextResponse.json(
+      { error: `Failed to list CloudWatch metrics: ${toError(error).message}` },
+      { status: 500 }
+    )
   }
-}
+})

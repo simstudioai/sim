@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Plus, Search } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import {
   Avatar,
   AvatarFallback,
@@ -24,12 +25,9 @@ import {
   Switch,
 } from '@/components/emcn'
 import { Input as BaseInput } from '@/components/ui'
-import { useSession } from '@/lib/auth/auth-client'
-import { getSubscriptionAccessState } from '@/lib/billing/client'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getUserColor } from '@/lib/workspaces/colors'
-import { getUserRole } from '@/lib/workspaces/organization'
 import { getAllBlocks } from '@/blocks'
 import {
   type PermissionGroup,
@@ -40,22 +38,33 @@ import {
   usePermissionGroups,
   useRemovePermissionGroupMember,
   useUpdatePermissionGroup,
+  useUserPermissionConfig,
 } from '@/ee/access-control/hooks/permission-groups'
-import { useOrganization, useOrganizations } from '@/hooks/queries/organization'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
+import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { getAllProviderIds } from '@/providers/utils'
 
 const logger = createLogger('AccessControl')
 
+interface WorkspaceMemberOption {
+  userId: string
+  user: {
+    name: string | null
+    email: string
+    image?: string | null
+  }
+}
+
 interface AddMembersModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  availableMembers: any[]
+  availableMembers: WorkspaceMemberOption[]
   selectedMemberIds: Set<string>
   setSelectedMemberIds: React.Dispatch<React.SetStateAction<Set<string>>>
   onAddMembers: () => void
   isAdding: boolean
+  errorMessage: string | null
 }
 
 function AddMembersModal({
@@ -66,13 +75,14 @@ function AddMembersModal({
   setSelectedMemberIds,
   onAddMembers,
   isAdding,
+  errorMessage,
 }: AddMembersModalProps) {
   const [searchTerm, setSearchTerm] = useState('')
 
   const filteredMembers = useMemo(() => {
     if (!searchTerm.trim()) return availableMembers
     const query = searchTerm.toLowerCase()
-    return availableMembers.filter((m: any) => {
+    return availableMembers.filter((m) => {
       const name = m.user?.name || ''
       const email = m.user?.email || ''
       return name.toLowerCase().includes(query) || email.toLowerCase().includes(query)
@@ -81,12 +91,12 @@ function AddMembersModal({
 
   const allFilteredSelected = useMemo(() => {
     if (filteredMembers.length === 0) return false
-    return filteredMembers.every((m: any) => selectedMemberIds.has(m.userId))
+    return filteredMembers.every((m) => selectedMemberIds.has(m.userId))
   }, [filteredMembers, selectedMemberIds])
 
   const handleToggleAll = () => {
     if (allFilteredSelected) {
-      const filteredIds = new Set(filteredMembers.map((m: any) => m.userId))
+      const filteredIds = new Set(filteredMembers.map((m) => m.userId))
       setSelectedMemberIds((prev) => {
         const next = new Set(prev)
         filteredIds.forEach((id) => next.delete(id))
@@ -95,7 +105,7 @@ function AddMembersModal({
     } else {
       setSelectedMemberIds((prev) => {
         const next = new Set(prev)
-        filteredMembers.forEach((m: any) => next.add(m.userId))
+        filteredMembers.forEach((m) => next.add(m.userId))
         return next
       })
     }
@@ -126,7 +136,7 @@ function AddMembersModal({
         <ModalBody className='!pb-4'>
           {availableMembers.length === 0 ? (
             <p className='text-[var(--text-muted)] text-sm'>
-              All organization members are already in this group.
+              All workspace members are already in this group.
             </p>
           ) : (
             <div className='flex flex-col gap-3'>
@@ -140,7 +150,7 @@ function AddMembersModal({
                     className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
                   />
                 </div>
-                <Button variant='primary' onClick={handleToggleAll}>
+                <Button variant='default' onClick={handleToggleAll}>
                   {allFilteredSelected ? 'Deselect All' : 'Select All'}
                 </Button>
               </div>
@@ -152,7 +162,7 @@ function AddMembersModal({
                   </p>
                 ) : (
                   <div className='flex flex-col'>
-                    {filteredMembers.map((member: any) => {
+                    {filteredMembers.map((member) => {
                       const name = member.user?.name || 'Unknown'
                       const email = member.user?.email || ''
                       const avatarInitial = name.charAt(0).toUpperCase()
@@ -190,6 +200,9 @@ function AddMembersModal({
                 )}
               </div>
             </div>
+          )}
+          {errorMessage && (
+            <p className='mt-3 text-[var(--text-destructive)] text-xs'>{errorMessage}</p>
           )}
         </ModalBody>
         <ModalFooter>
@@ -236,27 +249,26 @@ function AccessControlSkeleton() {
 }
 
 export function AccessControl() {
-  const { data: session } = useSession()
-  const { data: organizationsData, isPending: orgsLoading } = useOrganizations()
-  const { data: subscriptionData, isPending: subLoading } = useSubscriptionData()
+  const params = useParams()
+  const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
 
-  const activeOrganization = organizationsData?.activeOrganization
-  const subscriptionStatus = getSubscriptionAccessState(subscriptionData?.data)
-  const hasEnterprisePlan = subscriptionStatus.hasUsableEnterpriseAccess
-  const userRole = getUserRole(activeOrganization, session?.user?.email)
-  const isOwner = userRole === 'owner'
-  const isAdmin = userRole === 'admin'
-  const isOrgAdminOrOwner = isOwner || isAdmin
-  const canManage = hasEnterprisePlan && isOrgAdminOrOwner && !!activeOrganization?.id
-
-  const queryEnabled = !!activeOrganization?.id
   const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(
-    activeOrganization?.id,
-    queryEnabled
+    workspaceId,
+    !!workspaceId
   )
+  const { data: workspacePermissionsData, isPending: permsLoading } = useWorkspacePermissionsQuery(
+    workspaceId ?? null
+  )
+  const { data: userPermissionConfig, isPending: entitlementLoading } =
+    useUserPermissionConfig(workspaceId)
 
-  const isLoading = orgsLoading || subLoading || (queryEnabled && groupsLoading)
-  const { data: organization } = useOrganization(activeOrganization?.id || '')
+  const currentUserIsWorkspaceAdmin = workspacePermissionsData?.viewer?.isAdmin ?? false
+
+  const accessControlEnabledLocally = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
+  const isEntitled = accessControlEnabledLocally || !!userPermissionConfig?.entitled
+  const canManage = isEntitled && currentUserIsWorkspaceAdmin
+
+  const isLoading = !workspaceId || groupsLoading || permsLoading || entitlementLoading
 
   const createPermissionGroup = useCreatePermissionGroup()
   const updatePermissionGroup = useUpdatePermissionGroup()
@@ -274,6 +286,7 @@ export function AccessControl() {
   const [deletingGroupIds, setDeletingGroupIds] = useState<Set<string>>(() => new Set())
 
   const { data: members = [], isPending: membersLoading } = usePermissionGroupMembers(
+    workspaceId,
     viewingGroup?.id
   )
   const removeMember = useRemovePermissionGroupMember()
@@ -281,6 +294,7 @@ export function AccessControl() {
   const [showConfigModal, setShowConfigModal] = useState(false)
   const [editingConfig, setEditingConfig] = useState<PermissionGroupConfig | null>(null)
   const [showAddMembersModal, setShowAddMembersModal] = useState(false)
+  const [addMembersError, setAddMembersError] = useState<string | null>(null)
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(() => new Set())
   const [providerSearchTerm, setProviderSearchTerm] = useState('')
   const [integrationSearchTerm, setIntegrationSearchTerm] = useState('')
@@ -302,28 +316,28 @@ export function AccessControl() {
         configKey: 'hideTablesTab' as const,
       },
       {
-        id: 'hide-templates',
-        label: 'Templates',
-        category: 'Sidebar',
-        configKey: 'hideTemplates' as const,
-      },
-      {
         id: 'hide-copilot',
         label: 'Copilot',
         category: 'Workflow Panel',
         configKey: 'hideCopilot' as const,
       },
       {
+        id: 'hide-integrations',
+        label: 'Integrations',
+        category: 'Settings Tabs',
+        configKey: 'hideIntegrationsTab' as const,
+      },
+      {
+        id: 'hide-secrets',
+        label: 'Secrets',
+        category: 'Settings Tabs',
+        configKey: 'hideSecretsTab' as const,
+      },
+      {
         id: 'hide-api-keys',
         label: 'API Keys',
         category: 'Settings Tabs',
         configKey: 'hideApiKeysTab' as const,
-      },
-      {
-        id: 'hide-environment',
-        label: 'Environment',
-        category: 'Settings Tabs',
-        configKey: 'hideEnvironmentTab' as const,
       },
       {
         id: 'hide-files',
@@ -392,6 +406,12 @@ export function AccessControl() {
         configKey: 'disableInvitations' as const,
       },
       {
+        id: 'hide-inbox',
+        label: 'Sim Mailer',
+        category: 'Features',
+        configKey: 'hideInboxTab' as const,
+      },
+      {
         id: 'disable-public-api',
         label: 'Public API',
         category: 'Features',
@@ -420,6 +440,29 @@ export function AccessControl() {
     return categories
   }, [filteredPlatformFeatures])
 
+  const platformCategoryColumns = useMemo(() => {
+    const categoryGroups = [
+      ['Sidebar', 'Deploy Tabs', 'Collaboration'],
+      ['Workflow Panel', 'Tools', 'Features'],
+      ['Settings Tabs', 'Logs'],
+    ]
+
+    const assignedCategories = new Set(categoryGroups.flat())
+    const unassigned = Object.keys(platformCategories).filter((c) => !assignedCategories.has(c))
+    const groups = unassigned.length > 0 ? [...categoryGroups, unassigned] : categoryGroups
+
+    return groups
+      .map((column) =>
+        column
+          .map((category) => ({
+            category,
+            features: platformCategories[category] ?? [],
+          }))
+          .filter((section) => section.features.length > 0)
+      )
+      .filter((column) => column.length > 0)
+  }, [platformCategories])
+
   const hasConfigChanges = useMemo(() => {
     if (!viewingGroup || !editingConfig) return false
     const original = viewingGroup.config
@@ -436,7 +479,14 @@ export function AccessControl() {
       return a.name.localeCompare(b.name)
     })
   }, [])
-  const allProviderIds = useMemo(() => getAllProviderIds(), [])
+  const { data: blacklistedProvidersData } = useBlacklistedProviders({ enabled: showConfigModal })
+
+  const allProviderIds = useMemo(() => {
+    const allIds = getAllProviderIds()
+    const blacklist = blacklistedProvidersData?.blacklistedProviders ?? []
+    if (blacklist.length === 0) return allIds
+    return allIds.filter((id) => !blacklist.includes(id.toLowerCase()))
+  }, [blacklistedProvidersData])
 
   const filteredProviders = useMemo(() => {
     if (!providerSearchTerm.trim()) return allProviderIds
@@ -450,9 +500,27 @@ export function AccessControl() {
     return allBlocks.filter((b) => b.name.toLowerCase().includes(query))
   }, [allBlocks, integrationSearchTerm])
 
-  const orgMembers = useMemo(() => {
-    return organization?.members || []
-  }, [organization])
+  const filteredCoreBlocks = useMemo(() => {
+    return filteredBlocks.filter((block) => block.category === 'blocks')
+  }, [filteredBlocks])
+
+  const filteredToolBlocks = useMemo(() => {
+    return filteredBlocks
+      .filter((block) => block.category === 'tools' || block.category === 'triggers')
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [filteredBlocks])
+
+  const workspaceMembers = useMemo<WorkspaceMemberOption[]>(() => {
+    if (!workspacePermissionsData) return []
+    return workspacePermissionsData.users.map((u) => ({
+      userId: u.userId,
+      user: {
+        name: u.name,
+        email: u.email,
+        image: u.image,
+      },
+    }))
+  }, [workspacePermissionsData])
 
   const filteredGroups = useMemo(() => {
     if (!searchTerm.trim()) return permissionGroups
@@ -461,11 +529,11 @@ export function AccessControl() {
   }, [permissionGroups, searchTerm])
 
   const handleCreatePermissionGroup = useCallback(async () => {
-    if (!newGroupName.trim() || !activeOrganization?.id) return
+    if (!newGroupName.trim() || !workspaceId) return
     setCreateError(null)
     try {
       await createPermissionGroup.mutateAsync({
-        organizationId: activeOrganization.id,
+        workspaceId,
         name: newGroupName.trim(),
         description: newGroupDescription.trim() || undefined,
         autoAddNewMembers: newGroupAutoAdd,
@@ -482,13 +550,7 @@ export function AccessControl() {
         setCreateError('Failed to create permission group')
       }
     }
-  }, [
-    newGroupName,
-    newGroupDescription,
-    newGroupAutoAdd,
-    activeOrganization?.id,
-    createPermissionGroup,
-  ])
+  }, [newGroupName, newGroupDescription, newGroupAutoAdd, workspaceId, createPermissionGroup])
 
   const handleCloseCreateModal = useCallback(() => {
     setShowCreateModal(false)
@@ -507,12 +569,12 @@ export function AccessControl() {
   }, [])
 
   const confirmDelete = useCallback(async () => {
-    if (!deletingGroup || !activeOrganization?.id) return
+    if (!deletingGroup || !workspaceId) return
     setDeletingGroupIds((prev) => new Set(prev).add(deletingGroup.id))
     try {
       await deletePermissionGroup.mutateAsync({
         permissionGroupId: deletingGroup.id,
-        organizationId: activeOrganization.id,
+        workspaceId,
       })
       setDeletingGroup(null)
       if (viewingGroup?.id === deletingGroup.id) {
@@ -527,13 +589,14 @@ export function AccessControl() {
         return next
       })
     }
-  }, [deletingGroup, activeOrganization?.id, deletePermissionGroup, viewingGroup?.id])
+  }, [deletingGroup, workspaceId, deletePermissionGroup, viewingGroup?.id])
 
   const handleRemoveMember = useCallback(
     async (memberId: string) => {
-      if (!viewingGroup) return
+      if (!viewingGroup || !workspaceId) return
       try {
         await removeMember.mutateAsync({
+          workspaceId,
           permissionGroupId: viewingGroup.id,
           memberId,
         })
@@ -541,7 +604,7 @@ export function AccessControl() {
         logger.error('Failed to remove member', error)
       }
     },
-    [viewingGroup, removeMember]
+    [viewingGroup, workspaceId, removeMember]
   )
 
   const handleOpenConfigModal = useCallback(() => {
@@ -551,11 +614,11 @@ export function AccessControl() {
   }, [viewingGroup])
 
   const handleSaveConfig = useCallback(async () => {
-    if (!viewingGroup || !editingConfig || !activeOrganization?.id) return
+    if (!viewingGroup || !editingConfig || !workspaceId) return
     try {
       await updatePermissionGroup.mutateAsync({
         id: viewingGroup.id,
-        organizationId: activeOrganization.id,
+        workspaceId,
         config: editingConfig,
       })
       setShowConfigModal(false)
@@ -567,17 +630,20 @@ export function AccessControl() {
     } catch (error) {
       logger.error('Failed to update config', error)
     }
-  }, [viewingGroup, editingConfig, activeOrganization?.id, updatePermissionGroup])
+  }, [viewingGroup, editingConfig, workspaceId, updatePermissionGroup])
 
   const handleOpenAddMembersModal = useCallback(() => {
     setSelectedMemberIds(new Set())
+    setAddMembersError(null)
     setShowAddMembersModal(true)
   }, [])
 
   const handleAddSelectedMembers = useCallback(async () => {
-    if (!viewingGroup || selectedMemberIds.size === 0) return
+    if (!viewingGroup || !workspaceId || selectedMemberIds.size === 0) return
+    setAddMembersError(null)
     try {
       await bulkAddMembers.mutateAsync({
+        workspaceId,
         permissionGroupId: viewingGroup.id,
         userIds: Array.from(selectedMemberIds),
       })
@@ -585,16 +651,19 @@ export function AccessControl() {
       setSelectedMemberIds(new Set())
     } catch (error) {
       logger.error('Failed to add members', error)
+      setAddMembersError(
+        error instanceof Error && error.message ? error.message : 'Failed to add members'
+      )
     }
-  }, [viewingGroup, selectedMemberIds, bulkAddMembers])
+  }, [viewingGroup, workspaceId, selectedMemberIds, bulkAddMembers])
 
   const handleToggleAutoAdd = useCallback(
     async (enabled: boolean) => {
-      if (!viewingGroup || !activeOrganization?.id) return
+      if (!viewingGroup || !workspaceId) return
       try {
         await updatePermissionGroup.mutateAsync({
           id: viewingGroup.id,
-          organizationId: activeOrganization.id,
+          workspaceId,
           autoAddNewMembers: enabled,
         })
         setViewingGroup((prev) => (prev ? { ...prev, autoAddNewMembers: enabled } : null))
@@ -602,7 +671,7 @@ export function AccessControl() {
         logger.error('Failed to toggle auto-add', error)
       }
     },
-    [viewingGroup, activeOrganization?.id, updatePermissionGroup]
+    [viewingGroup, workspaceId, updatePermissionGroup]
   )
 
   const toggleIntegration = useCallback(
@@ -677,35 +746,19 @@ export function AccessControl() {
 
   const availableMembersToAdd = useMemo(() => {
     const existingMemberUserIds = new Set(members.map((m) => m.userId))
-    return orgMembers.filter((m: any) => !existingMemberUserIds.has(m.userId))
-  }, [orgMembers, members])
+    return workspaceMembers.filter((m) => !existingMemberUserIds.has(m.userId))
+  }, [workspaceMembers, members])
 
   if (isLoading) {
     return <AccessControlSkeleton />
   }
 
-  if (isBillingEnabled && !canManage) {
-    if (!activeOrganization) {
-      return (
-        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
-          You must be part of an organization to manage Access Control.
-        </div>
-      )
-    }
-    if (!hasEnterprisePlan) {
-      return (
-        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
-          Access Control is available on Enterprise plans only.
-        </div>
-      )
-    }
-    if (!isOrgAdminOrOwner) {
-      return (
-        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
-          Only organization owners and admins can manage Access Control settings.
-        </div>
-      )
-    }
+  if (!canManage) {
+    return (
+      <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
+        Only workspace admins on Enterprise plans can manage Access Control settings.
+      </div>
+    )
   }
 
   if (viewingGroup) {
@@ -732,7 +785,7 @@ export function AccessControl() {
                 Auto-add new members
               </span>
               <span className='text-[var(--text-muted)] text-small'>
-                Automatically add new organization members to this group
+                Automatically add new workspace members to this group
               </span>
             </div>
             <Switch
@@ -841,249 +894,259 @@ export function AccessControl() {
             }
           }}
         >
-          <ModalContent size='xl' className='max-h-[80vh]'>
+          <ModalContent size='xl' className='h-[76vh]'>
             <ModalHeader>Configure Permissions</ModalHeader>
-            <ModalTabs defaultValue='providers'>
+            <ModalTabs defaultValue='providers' className='flex min-h-0 flex-1 flex-col'>
               <ModalTabsList>
                 <ModalTabsTrigger value='providers'>Model Providers</ModalTabsTrigger>
                 <ModalTabsTrigger value='blocks'>Blocks</ModalTabsTrigger>
                 <ModalTabsTrigger value='platform'>Platform</ModalTabsTrigger>
               </ModalTabsList>
 
-              <ModalTabsContent value='providers'>
-                <ModalBody className='h-[400px]'>
-                  <div className='flex flex-col gap-2'>
-                    <div className='flex items-center gap-2'>
-                      <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                        <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                        <BaseInput
-                          placeholder='Search providers...'
-                          value={providerSearchTerm}
-                          onChange={(e) => setProviderSearchTerm(e.target.value)}
-                          className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                        />
-                      </div>
-                      <Button
-                        variant='primary'
-                        onClick={() => {
-                          const allAllowed =
-                            editingConfig?.allowedModelProviders === null ||
-                            editingConfig?.allowedModelProviders?.length === allProviderIds.length
-                          setEditingConfig((prev) =>
-                            prev ? { ...prev, allowedModelProviders: allAllowed ? [] : null } : prev
-                          )
-                        }}
-                      >
-                        {editingConfig?.allowedModelProviders === null ||
-                        editingConfig?.allowedModelProviders?.length === allProviderIds.length
-                          ? 'Deselect All'
-                          : 'Select All'}
-                      </Button>
+              <ModalBody className='min-h-0 flex-1'>
+                <ModalTabsContent value='providers'>
+                  <div className='flex items-center gap-2 pb-3'>
+                    <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
+                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <BaseInput
+                        placeholder='Search providers...'
+                        value={providerSearchTerm}
+                        onChange={(e) => setProviderSearchTerm(e.target.value)}
+                        className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                      />
                     </div>
-                    <div className='grid max-h-[340px] grid-cols-3 gap-2 overflow-y-auto'>
-                      {filteredProviders.map((providerId) => {
-                        const ProviderIcon = PROVIDER_DEFINITIONS[providerId]?.icon
-                        const providerName =
-                          PROVIDER_DEFINITIONS[providerId]?.name ||
-                          providerId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-                        return (
-                          <div key={providerId} className='flex items-center gap-2'>
-                            <Checkbox
-                              checked={isProviderAllowed(providerId)}
-                              onCheckedChange={() => toggleProvider(providerId)}
-                            />
-                            <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-                              {ProviderIcon && <ProviderIcon className='!h-[16px] !w-[16px]' />}
-                            </div>
-                            <span className='truncate font-medium text-sm'>{providerName}</span>
-                          </div>
+                    <Button
+                      variant='default'
+                      className='h-8'
+                      onClick={() => {
+                        const allAllowed =
+                          editingConfig?.allowedModelProviders === null ||
+                          allProviderIds.every((id) =>
+                            editingConfig?.allowedModelProviders?.includes(id)
+                          )
+                        setEditingConfig((prev) =>
+                          prev ? { ...prev, allowedModelProviders: allAllowed ? [] : null } : prev
                         )
-                      })}
-                    </div>
+                      }}
+                    >
+                      {editingConfig?.allowedModelProviders === null ||
+                      allProviderIds.every((id) =>
+                        editingConfig?.allowedModelProviders?.includes(id)
+                      )
+                        ? 'Deselect All'
+                        : 'Select All'}
+                    </Button>
                   </div>
-                </ModalBody>
-              </ModalTabsContent>
-
-              <ModalTabsContent value='blocks'>
-                <ModalBody className='h-[400px]'>
-                  <div className='flex flex-col gap-2'>
-                    <div className='flex items-center gap-2'>
-                      <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                        <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                        <BaseInput
-                          placeholder='Search blocks...'
-                          value={integrationSearchTerm}
-                          onChange={(e) => setIntegrationSearchTerm(e.target.value)}
-                          className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                        />
-                      </div>
-                      <Button
-                        variant='primary'
-                        onClick={() => {
-                          const allAllowed =
-                            editingConfig?.allowedIntegrations === null ||
-                            editingConfig?.allowedIntegrations?.length === allBlocks.length
-                          setEditingConfig((prev) =>
-                            prev
-                              ? {
-                                  ...prev,
-                                  allowedIntegrations: allAllowed ? ['start_trigger'] : null,
-                                }
-                              : prev
-                          )
-                        }}
-                      >
-                        {editingConfig?.allowedIntegrations === null ||
-                        editingConfig?.allowedIntegrations?.length === allBlocks.length
-                          ? 'Deselect All'
-                          : 'Select All'}
-                      </Button>
-                    </div>
-                    <div className='grid max-h-[340px] grid-cols-3 gap-2 overflow-y-auto'>
-                      {filteredBlocks.map((block) => {
-                        const BlockIcon = block.icon
-                        return (
-                          <div key={block.type} className='flex items-center gap-2'>
-                            <Checkbox
-                              checked={isIntegrationAllowed(block.type)}
-                              onCheckedChange={() => toggleIntegration(block.type)}
-                            />
-                            <div
-                              className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
-                              style={{ background: block.bgColor }}
-                            >
-                              {BlockIcon && (
-                                <BlockIcon className='!h-[10px] !w-[10px] text-white' />
-                              )}
-                            </div>
-                            <span className='truncate font-medium text-sm'>{block.name}</span>
+                  <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
+                    {filteredProviders.map((providerId) => {
+                      const ProviderIcon = PROVIDER_DEFINITIONS[providerId]?.icon
+                      const providerName =
+                        PROVIDER_DEFINITIONS[providerId]?.name ||
+                        providerId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+                      const checkboxId = `provider-${providerId}`
+                      return (
+                        <label
+                          key={providerId}
+                          htmlFor={checkboxId}
+                          className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
+                        >
+                          <Checkbox
+                            id={checkboxId}
+                            checked={isProviderAllowed(providerId)}
+                            onCheckedChange={() => toggleProvider(providerId)}
+                          />
+                          <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+                            {ProviderIcon && <ProviderIcon className='!h-[16px] !w-[16px]' />}
                           </div>
-                        )
-                      })}
-                    </div>
+                          <span className='truncate font-medium text-sm'>{providerName}</span>
+                        </label>
+                      )
+                    })}
                   </div>
-                </ModalBody>
-              </ModalTabsContent>
+                </ModalTabsContent>
 
-              <ModalTabsContent value='platform'>
-                <ModalBody className='h-[400px]'>
-                  <div className='flex flex-col gap-2'>
-                    <div className='flex items-center gap-2'>
-                      <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                        <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                        <BaseInput
-                          placeholder='Search features...'
-                          value={platformSearchTerm}
-                          onChange={(e) => setPlatformSearchTerm(e.target.value)}
-                          className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                        />
-                      </div>
-                      <Button
-                        variant='primary'
-                        onClick={() => {
-                          const allVisible =
-                            !editingConfig?.hideKnowledgeBaseTab &&
-                            !editingConfig?.hideTablesTab &&
-                            !editingConfig?.hideTemplates &&
-                            !editingConfig?.hideCopilot &&
-                            !editingConfig?.hideApiKeysTab &&
-                            !editingConfig?.hideEnvironmentTab &&
-                            !editingConfig?.hideFilesTab &&
-                            !editingConfig?.disableMcpTools &&
-                            !editingConfig?.disableCustomTools &&
-                            !editingConfig?.disableSkills &&
-                            !editingConfig?.hideTraceSpans &&
-                            !editingConfig?.disableInvitations &&
-                            !editingConfig?.disablePublicApi &&
-                            !editingConfig?.hideDeployApi &&
-                            !editingConfig?.hideDeployMcp &&
-                            !editingConfig?.hideDeployA2a &&
-                            !editingConfig?.hideDeployChatbot &&
-                            !editingConfig?.hideDeployTemplate
-                          setEditingConfig((prev) =>
-                            prev
-                              ? {
-                                  ...prev,
-                                  hideKnowledgeBaseTab: allVisible,
-                                  hideTablesTab: allVisible,
-                                  hideTemplates: allVisible,
-                                  hideCopilot: allVisible,
-                                  hideApiKeysTab: allVisible,
-                                  hideEnvironmentTab: allVisible,
-                                  hideFilesTab: allVisible,
-                                  disableMcpTools: allVisible,
-                                  disableCustomTools: allVisible,
-                                  disableSkills: allVisible,
-                                  hideTraceSpans: allVisible,
-                                  disableInvitations: allVisible,
-                                  disablePublicApi: allVisible,
-                                  hideDeployApi: allVisible,
-                                  hideDeployMcp: allVisible,
-                                  hideDeployA2a: allVisible,
-                                  hideDeployChatbot: allVisible,
-                                  hideDeployTemplate: allVisible,
-                                }
-                              : prev
-                          )
-                        }}
-                      >
-                        {!editingConfig?.hideKnowledgeBaseTab &&
-                        !editingConfig?.hideTablesTab &&
-                        !editingConfig?.hideTemplates &&
-                        !editingConfig?.hideCopilot &&
-                        !editingConfig?.hideApiKeysTab &&
-                        !editingConfig?.hideEnvironmentTab &&
-                        !editingConfig?.hideFilesTab &&
-                        !editingConfig?.disableMcpTools &&
-                        !editingConfig?.disableCustomTools &&
-                        !editingConfig?.disableSkills &&
-                        !editingConfig?.hideTraceSpans &&
-                        !editingConfig?.disableInvitations &&
-                        !editingConfig?.disablePublicApi &&
-                        !editingConfig?.hideDeployApi &&
-                        !editingConfig?.hideDeployMcp &&
-                        !editingConfig?.hideDeployA2a &&
-                        !editingConfig?.hideDeployChatbot &&
-                        !editingConfig?.hideDeployTemplate
-                          ? 'Deselect All'
-                          : 'Select All'}
-                      </Button>
+                <ModalTabsContent value='blocks'>
+                  <div className='flex items-center gap-2 pb-3'>
+                    <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
+                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <BaseInput
+                        placeholder='Search blocks...'
+                        value={integrationSearchTerm}
+                        onChange={(e) => setIntegrationSearchTerm(e.target.value)}
+                        className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                      />
                     </div>
-                    <div className='grid max-h-[340px] grid-cols-3 gap-x-6 gap-y-4 overflow-y-auto'>
-                      {Object.entries(platformCategories).map(([category, features]) => (
-                        <div key={category} className='flex flex-col gap-2'>
-                          <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
-                            {category}
-                          </span>
-                          <div className='flex flex-col gap-2'>
-                            {features.map((feature) => (
-                              <div key={feature.id} className='flex items-center gap-2'>
+                    <Button
+                      variant='default'
+                      className='h-8'
+                      onClick={() => {
+                        const allAllowed =
+                          editingConfig?.allowedIntegrations === null ||
+                          allBlocks.every((b) =>
+                            editingConfig?.allowedIntegrations?.includes(b.type)
+                          )
+                        setEditingConfig((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                allowedIntegrations: allAllowed ? ['start_trigger'] : null,
+                              }
+                            : prev
+                        )
+                      }}
+                    >
+                      {editingConfig?.allowedIntegrations === null ||
+                      allBlocks.every((b) => editingConfig?.allowedIntegrations?.includes(b.type))
+                        ? 'Deselect All'
+                        : 'Select All'}
+                    </Button>
+                  </div>
+                  <div className='flex flex-col gap-4'>
+                    {filteredCoreBlocks.length > 0 && (
+                      <div className='flex flex-col gap-1.5'>
+                        <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
+                          Core Blocks
+                        </span>
+                        <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
+                          {filteredCoreBlocks.map((block) => {
+                            const BlockIcon = block.icon
+                            const checkboxId = `block-${block.type}`
+                            return (
+                              <label
+                                key={block.type}
+                                htmlFor={checkboxId}
+                                className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
+                              >
                                 <Checkbox
-                                  id={feature.id}
-                                  checked={!editingConfig?.[feature.configKey]}
-                                  onCheckedChange={(checked) =>
-                                    setEditingConfig((prev) =>
-                                      prev
-                                        ? { ...prev, [feature.configKey]: checked !== true }
-                                        : prev
-                                    )
-                                  }
+                                  id={checkboxId}
+                                  checked={isIntegrationAllowed(block.type)}
+                                  onCheckedChange={() => toggleIntegration(block.type)}
                                 />
-                                <Label
-                                  htmlFor={feature.id}
-                                  className='cursor-pointer font-normal text-sm'
+                                <div
+                                  className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                                  style={{ background: block.bgColor }}
                                 >
-                                  {feature.label}
-                                </Label>
-                              </div>
-                            ))}
-                          </div>
+                                  {BlockIcon && (
+                                    <BlockIcon className='!h-[10px] !w-[10px] text-white' />
+                                  )}
+                                </div>
+                                <span className='truncate font-medium text-sm'>{block.name}</span>
+                              </label>
+                            )
+                          })}
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    )}
+                    {filteredToolBlocks.length > 0 && (
+                      <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
+                        <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
+                          Tools
+                        </span>
+                        <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
+                          {filteredToolBlocks.map((block) => {
+                            const BlockIcon = block.icon
+                            const checkboxId = `block-${block.type}`
+                            return (
+                              <label
+                                key={block.type}
+                                htmlFor={checkboxId}
+                                className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
+                              >
+                                <Checkbox
+                                  id={checkboxId}
+                                  checked={isIntegrationAllowed(block.type)}
+                                  onCheckedChange={() => toggleIntegration(block.type)}
+                                />
+                                <div
+                                  className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                                  style={{ background: block.bgColor }}
+                                >
+                                  {BlockIcon && (
+                                    <BlockIcon className='!h-[10px] !w-[10px] text-white' />
+                                  )}
+                                </div>
+                                <span className='truncate font-medium text-sm'>{block.name}</span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </ModalBody>
-              </ModalTabsContent>
+                </ModalTabsContent>
+
+                <ModalTabsContent value='platform'>
+                  <div className='flex items-center gap-2 pb-3'>
+                    <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
+                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <BaseInput
+                        placeholder='Search features...'
+                        value={platformSearchTerm}
+                        onChange={(e) => setPlatformSearchTerm(e.target.value)}
+                        className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                      />
+                    </div>
+                    <Button
+                      variant='default'
+                      className='h-8'
+                      onClick={() => {
+                        const allVisible = platformFeatures.every(
+                          (f) => !editingConfig?.[f.configKey]
+                        )
+                        setEditingConfig((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                ...Object.fromEntries(
+                                  platformFeatures.map((f) => [f.configKey, allVisible])
+                                ),
+                              }
+                            : prev
+                        )
+                      }}
+                    >
+                      {platformFeatures.every((f) => !editingConfig?.[f.configKey])
+                        ? 'Deselect All'
+                        : 'Select All'}
+                    </Button>
+                  </div>
+                  <div className='grid grid-cols-3 gap-x-6'>
+                    {platformCategoryColumns.map((column, columnIndex) => (
+                      <div key={columnIndex} className='flex flex-col gap-8'>
+                        {column.map(({ category, features }) => (
+                          <div key={category} className='flex flex-col gap-1.5'>
+                            <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
+                              {category}
+                            </span>
+                            <div className='flex flex-col gap-0.5'>
+                              {features.map((feature) => (
+                                <label
+                                  key={feature.id}
+                                  htmlFor={feature.id}
+                                  className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
+                                >
+                                  <Checkbox
+                                    id={feature.id}
+                                    checked={!editingConfig?.[feature.configKey]}
+                                    onCheckedChange={(checked) =>
+                                      setEditingConfig((prev) =>
+                                        prev
+                                          ? { ...prev, [feature.configKey]: checked !== true }
+                                          : prev
+                                      )
+                                    }
+                                  />
+                                  <span className='font-normal text-sm'>{feature.label}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </ModalTabsContent>
+              </ModalBody>
             </ModalTabs>
             <ModalFooter>
               <Button
@@ -1150,12 +1213,16 @@ export function AccessControl() {
 
         <AddMembersModal
           open={showAddMembersModal}
-          onOpenChange={setShowAddMembersModal}
+          onOpenChange={(open) => {
+            setShowAddMembersModal(open)
+            if (!open) setAddMembersError(null)
+          }}
           availableMembers={availableMembersToAdd}
           selectedMemberIds={selectedMemberIds}
           setSelectedMemberIds={setSelectedMemberIds}
           onAddMembers={handleAddSelectedMembers}
           isAdding={bulkAddMembers.isPending}
+          errorMessage={addMembersError}
         />
       </>
     )
@@ -1259,7 +1326,7 @@ export function AccessControl() {
                   onCheckedChange={(checked) => setNewGroupAutoAdd(checked === true)}
                 />
                 <Label htmlFor='auto-add-members' className='cursor-pointer font-normal'>
-                  Auto-add new organization members
+                  Auto-add new workspace members
                 </Label>
               </div>
               {createError && <p className='text-[var(--text-error)] text-small'>{createError}</p>}

@@ -1,25 +1,37 @@
 'use client'
 
-import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components'
+import {
+  Read as ReadTool,
+  ToolSearchToolRegex,
+  WorkspaceFile,
+} from '@/lib/copilot/generated/tool-catalog-v1'
+import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
+import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
+import type { ContentBlock, MothershipResource, OptionItem, ToolCallData } from '../../types'
+import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '../../types'
+import type { AgentGroupItem } from './components'
 import {
   AgentGroup,
   ChatContent,
   CircleStop,
   Options,
   PendingTagIndicator,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components'
-import type {
-  ContentBlock,
-  MothershipToolName,
-  OptionItem,
-  SubagentName,
-  ToolCallData,
-} from '@/app/workspace/[workspaceId]/home/types'
-import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '@/app/workspace/[workspaceId]/home/types'
+  ThinkingBlock,
+} from './components'
+
+const FILE_SUBAGENT_ID = 'file'
 
 interface TextSegment {
   type: 'text'
   content: string
+}
+
+interface ThinkingSegment {
+  type: 'thinking'
+  id: string
+  content: string
+  startedAt?: number
+  endedAt?: number
 }
 
 interface AgentGroupSegment {
@@ -41,38 +53,94 @@ interface StoppedSegment {
   type: 'stopped'
 }
 
-type MessageSegment = TextSegment | AgentGroupSegment | OptionsSegment | StoppedSegment
+type MessageSegment =
+  | TextSegment
+  | ThinkingSegment
+  | AgentGroupSegment
+  | OptionsSegment
+  | StoppedSegment
 
 const SUBAGENT_KEYS = new Set(Object.keys(SUBAGENT_LABELS))
 
 /**
  * Maps subagent names to the Mothership tool that dispatches them when the
- * tool name differs from the subagent name (e.g. `workspace_file` → `file_write`).
+ * tool name differs from the subagent name (e.g. `workspace_file` → `file`).
  * When a `subagent` block arrives, any trailing dispatch tool in the previous
  * group is absorbed so it doesn't render as a separate Mothership entry.
  */
 const SUBAGENT_DISPATCH_TOOLS: Record<string, string> = {
-  file_write: 'workspace_file',
+  [FILE_SUBAGENT_ID]: WorkspaceFile.id,
+}
+
+function isToolResultRead(params?: Record<string, unknown>): boolean {
+  const path = params?.path
+  return typeof path === 'string' && path.startsWith('internal/tool-results/')
+}
+
+function formatToolName(name: string): string {
+  return name
+    .replace(/_v\d+$/, '')
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
 }
 
 function resolveAgentLabel(key: string): string {
-  return SUBAGENT_LABELS[key as SubagentName] ?? key
+  return SUBAGENT_LABELS[key] ?? formatToolName(key)
 }
 
 function isToolDone(status: ToolCallData['status']): boolean {
-  return status === 'success' || status === 'error' || status === 'cancelled'
+  return (
+    status === 'success' ||
+    status === 'error' ||
+    status === 'cancelled' ||
+    status === 'skipped' ||
+    status === 'rejected'
+  )
 }
 
 function isDelegatingTool(tc: NonNullable<ContentBlock['toolCall']>): boolean {
   return tc.status === 'executing'
 }
 
+function mapToolStatusToClientState(
+  status: ContentBlock['toolCall'] extends { status: infer T } ? T : string
+) {
+  switch (status) {
+    case 'success':
+      return ClientToolCallState.success
+    case 'error':
+      return ClientToolCallState.error
+    case 'cancelled':
+      return ClientToolCallState.cancelled
+    case 'skipped':
+      return ClientToolCallState.aborted
+    case 'rejected':
+      return ClientToolCallState.rejected
+    default:
+      return ClientToolCallState.executing
+  }
+}
+
+function getOverrideDisplayTitle(tc: NonNullable<ContentBlock['toolCall']>): string | undefined {
+  if (tc.name === ReadTool.id || tc.name === 'respond' || tc.name.endsWith('_respond')) {
+    return resolveToolDisplay(tc.name, mapToolStatusToClientState(tc.status), tc.params)?.text
+  }
+  return undefined
+}
+
 function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
+  const overrideDisplayTitle = getOverrideDisplayTitle(tc)
+  const displayTitle =
+    overrideDisplayTitle ||
+    tc.displayTitle ||
+    TOOL_UI_METADATA[tc.name as keyof typeof TOOL_UI_METADATA]?.title ||
+    formatToolName(tc.name)
+
   return {
     id: tc.id,
     toolName: tc.name,
-    displayTitle:
-      tc.displayTitle ?? TOOL_UI_METADATA[tc.name as MothershipToolName]?.title ?? tc.name,
+    displayTitle,
     status: tc.status,
     params: tc.params,
     result: tc.result,
@@ -96,7 +164,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
 
-    if (block.type === 'subagent_text') {
+    if (block.type === 'subagent_text' || block.type === 'subagent_thinking') {
       if (!block.content || !group) continue
       group.isDelegating = false
       const lastItem = group.items[group.items.length - 1]
@@ -108,8 +176,30 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       continue
     }
 
-    if (block.type === 'text') {
+    if (block.type === 'thinking') {
       if (!block.content?.trim()) continue
+      if (group) {
+        pushGroup(group)
+        group = null
+      }
+      const last = segments[segments.length - 1]
+      if (last?.type === 'thinking' && last.endedAt === undefined) {
+        last.content += block.content
+        if (block.endedAt !== undefined) last.endedAt = block.endedAt
+      } else {
+        segments.push({
+          type: 'thinking',
+          id: `thinking-${i}`,
+          content: block.content,
+          startedAt: block.timestamp,
+          endedAt: block.endedAt,
+        })
+      }
+      continue
+    }
+
+    if (block.type === 'text') {
+      if (!block.content) continue
       if (block.subagent) {
         if (group && group.agentName === block.subagent) {
           group.isDelegating = false
@@ -172,7 +262,8 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     if (block.type === 'tool_call') {
       if (!block.toolCall) continue
       const tc = block.toolCall
-      if (tc.name === 'tool_search_tool_regex') continue
+      if (tc.name === ToolSearchToolRegex.id) continue
+      if (tc.name === ReadTool.id && isToolResultRead(tc.params)) continue
       const isDispatch = SUBAGENT_KEYS.has(tc.name) && !tc.calledBy
 
       if (isDispatch) {
@@ -292,6 +383,7 @@ interface MessageContentProps {
   fallbackContent: string
   isStreaming: boolean
   onOptionSelect?: (id: string) => void
+  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
 }
 
 export function MessageContent({
@@ -299,6 +391,7 @@ export function MessageContent({
   fallbackContent,
   isStreaming = false,
   onOptionSelect,
+  onWorkspaceResourceSelect,
 }: MessageContentProps) {
   const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
 
@@ -312,7 +405,7 @@ export function MessageContent({
   if (segments.length === 0) {
     if (isStreaming) {
       return (
-        <div className='space-y-2.5'>
+        <div className='space-y-[10px]'>
           <PendingTagIndicator />
         </div>
       )
@@ -332,7 +425,9 @@ export function MessageContent({
 
   const hasSubagentEnded = blocks.some((b) => b.type === 'subagent_end')
   const showTrailingThinking =
-    isStreaming && !hasTrailingContent && (hasSubagentEnded || allLastGroupToolsDone)
+    isStreaming &&
+    !hasTrailingContent &&
+    (lastSegment.type === 'thinking' || hasSubagentEnded || allLastGroupToolsDone)
   const lastOpenSubagentGroupId = [...segments]
     .reverse()
     .find(
@@ -341,7 +436,7 @@ export function MessageContent({
     )?.id
 
   return (
-    <div className='space-y-2.5'>
+    <div className='space-y-[10px]'>
       {segments.map((segment, i) => {
         switch (segment.type) {
           case 'text':
@@ -351,8 +446,33 @@ export function MessageContent({
                 content={segment.content}
                 isStreaming={isStreaming}
                 onOptionSelect={onOptionSelect}
+                onWorkspaceResourceSelect={onWorkspaceResourceSelect}
               />
             )
+          case 'thinking': {
+            const isActive =
+              isStreaming && i === segments.length - 1 && segment.endedAt === undefined
+            const elapsedMs =
+              segment.startedAt !== undefined && segment.endedAt !== undefined
+                ? segment.endedAt - segment.startedAt
+                : undefined
+            // Hide completed thinking that took 3s or less — quick thinking
+            // isn't worth the visual noise. Still show while active (unknown
+            // duration yet) and still show when timing is missing (old
+            // persisted blocks) so we don't drop historical content.
+            if (elapsedMs !== undefined && elapsedMs <= 3000) return null
+            return (
+              <div key={segment.id} className={isStreaming ? 'animate-stream-fade-in' : undefined}>
+                <ThinkingBlock
+                  content={segment.content}
+                  isActive={isActive}
+                  isStreaming={isStreaming}
+                  startedAt={segment.startedAt}
+                  endedAt={segment.endedAt}
+                />
+              </div>
+            )
+          }
           case 'agent_group': {
             const toolItems = segment.items.filter((item) => item.type === 'tool')
             const allToolsDone =
@@ -367,6 +487,7 @@ export function MessageContent({
                   agentLabel={segment.agentLabel}
                   items={segment.items}
                   isDelegating={segment.isDelegating}
+                  isStreaming={isStreaming}
                   autoCollapse={allToolsDone && hasFollowingText}
                   defaultExpanded={segment.id === lastOpenSubagentGroupId}
                 />
@@ -384,9 +505,11 @@ export function MessageContent({
             )
           case 'stopped':
             return (
-              <div key={`stopped-${i}`} className='flex items-center gap-2'>
+              <div key={`stopped-${i}`} className='flex items-center gap-[8px]'>
                 <CircleStop className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                <span className='font-base text-[var(--text-body)] text-sm'>Stopped by user</span>
+                <span className='font-base text-[14px] text-[var(--text-body)]'>
+                  Stopped by user
+                </span>
               </div>
             )
         }

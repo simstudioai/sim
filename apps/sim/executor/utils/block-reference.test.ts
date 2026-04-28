@@ -162,7 +162,11 @@ describe('resolveBlockReference', () => {
       expect(result).toEqual({ value: undefined, blockId: 'block-1' })
     })
 
-    it('should validate path when block has no output yet', () => {
+    it('should not validate path when block has no output yet', () => {
+      // Blocks with no output typically live on a branched path that wasn't
+      // taken this run. We resolve such references to undefined (which the
+      // caller maps to RESOLVED_EMPTY) rather than throwing on every nested
+      // path the schema doesn't pre-declare.
       const ctx = createContext({
         blockData: {},
         blockOutputSchemas: {
@@ -170,7 +174,8 @@ describe('resolveBlockReference', () => {
         },
       })
 
-      expect(() => resolveBlockReference('start', ['invalid'], ctx)).toThrow(InvalidFieldError)
+      const result = resolveBlockReference('start', ['invalid'], ctx)
+      expect(result).toEqual({ value: undefined, blockId: 'block-1' })
     })
 
     it('should return undefined for valid field when block has no output', () => {
@@ -183,6 +188,57 @@ describe('resolveBlockReference', () => {
 
       const result = resolveBlockReference('start', ['input'], ctx)
       expect(result).toEqual({ value: undefined, blockId: 'block-1' })
+    })
+
+    it('should return undefined for nested path under json field when block has no output', () => {
+      // Repro for the branched-path bug: a function block with a dynamic
+      // `json` result that never ran should resolve to undefined regardless
+      // of the nested path, not throw.
+      const ctx = createContext({
+        blockData: {},
+        blockOutputSchemas: {
+          'block-1': {
+            result: { type: 'json' },
+            stdout: { type: 'string' },
+          },
+        },
+      })
+
+      const result = resolveBlockReference('start', ['result', 'summary'], ctx)
+      expect(result).toEqual({ value: undefined, blockId: 'block-1' })
+    })
+
+    it('should not throw for nested path under json field on executed block', () => {
+      // A `json` field declares dynamic shape, so drilling into it must be
+      // permitted even when the runtime data doesn't happen to include that
+      // key on this run.
+      const ctx = createContext({
+        blockData: { 'block-1': { result: { foo: 1 } } },
+        blockOutputSchemas: {
+          'block-1': {
+            result: { type: 'json' },
+            stdout: { type: 'string' },
+          },
+        },
+      })
+
+      const result = resolveBlockReference('start', ['result', 'summary'], ctx)
+      expect(result).toEqual({ value: undefined, blockId: 'block-1' })
+    })
+
+    it('should resolve values nested under json field on executed block', () => {
+      const ctx = createContext({
+        blockData: { 'block-1': { result: { summary: 'hello' } } },
+        blockOutputSchemas: {
+          'block-1': {
+            result: { type: 'json' },
+            stdout: { type: 'string' },
+          },
+        },
+      })
+
+      const result = resolveBlockReference('start', ['result', 'summary'], ctx)
+      expect(result).toEqual({ value: 'hello', blockId: 'block-1' })
     })
   })
 

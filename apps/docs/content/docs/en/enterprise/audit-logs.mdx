@@ -1,0 +1,143 @@
+---
+title: Audit Logs
+description: Track every action taken across your organization's workspaces
+---
+
+import { FAQ } from '@/components/ui/faq'
+import { Image } from '@/components/ui/image'
+
+Audit logs give your organization a tamper-evident record of every significant action taken across workspaces — who did what, when, and on which resource. Use them for security reviews, compliance investigations, and incident response.
+
+---
+
+## Viewing audit logs
+
+### In the UI
+
+Go to **Settings → Enterprise → Audit Logs** in your workspace. Logs are displayed in a table with the following columns:
+
+<Image src="/static/enterprise/audit-logs.png" alt="Audit Logs settings showing a table of events with columns for Timestamp, Event, Description, and Actor, along with search and filter controls" width={900} height={500} />
+
+| Column | Description |
+|--------|-------------|
+| **Timestamp** | When the action occurred. |
+| **Event** | The action taken, e.g. `workflow.created`. |
+| **Description** | A human-readable summary of the action. |
+| **Actor** | The email address of the user who performed the action. |
+
+Use the search bar, event type filter, and date range selector to narrow results.
+
+### Via API
+
+Audit logs are also accessible through the Sim API for integration with external SIEM or log management tools.
+
+```http
+GET /api/v1/audit-logs
+Authorization: Bearer <api-key>
+```
+
+**Query parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `action` | string | Filter by event type (e.g. `workflow.created`) |
+| `resourceType` | string | Filter by resource type (e.g. `workflow`) |
+| `resourceId` | string | Filter by a specific resource ID |
+| `workspaceId` | string | Filter by workspace |
+| `actorId` | string | Filter by user ID (must be an org member) |
+| `startDate` | string | ISO 8601 date — return logs on or after this date |
+| `endDate` | string | ISO 8601 date — return logs on or before this date |
+| `includeDeparted` | boolean | Include logs from members who have since left the organization (default `false`) |
+| `limit` | number | Results per page (1–100, default 50) |
+| `cursor` | string | Opaque cursor for fetching the next page |
+
+**Example response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "abc123",
+      "action": "workflow.created",
+      "resourceType": "workflow",
+      "resourceId": "wf_xyz",
+      "resourceName": "Customer Onboarding",
+      "description": "Created workflow \"Customer Onboarding\"",
+      "actorId": "usr_abc",
+      "actorName": "Alice Smith",
+      "actorEmail": "alice@company.com",
+      "workspaceId": "ws_def",
+      "metadata": {},
+      "createdAt": "2026-04-20T21:16:00.000Z"
+    }
+  ],
+  "nextCursor": "eyJpZCI6ImFiYzEyMyJ9"
+}
+```
+
+Paginate by passing the `nextCursor` value as the `cursor` parameter in the next request. When `nextCursor` is absent, you have reached the last page.
+
+The API accepts both personal and workspace-scoped API keys. Rate limits apply — the response includes `X-RateLimit-*` headers with your current limit and remaining quota.
+
+---
+
+## Event types
+
+Audit log events follow a `resource.action` naming pattern. The table below lists the main categories.
+
+| Category | Example events |
+|----------|---------------|
+| **Workflows** | `workflow.created`, `workflow.deleted`, `workflow.deployed`, `workflow.locked` |
+| **Workspaces** | `workspace.created`, `workspace.updated`, `workspace.deleted` |
+| **Members** | `member.invited`, `member.removed`, `member.role_changed` |
+| **Permission groups** | `permission_group.created`, `permission_group.updated`, `permission_group.deleted` |
+| **Environments** | `environment.updated`, `environment.deleted` |
+| **Knowledge bases** | `knowledge_base.created`, `knowledge_base.deleted`, `connector.synced` |
+| **Tables** | `table.created`, `table.updated`, `table.deleted` |
+| **API keys** | `api_key.created`, `api_key.revoked` |
+| **Credentials** | `credential.created`, `credential.deleted`, `oauth.disconnected` |
+| **Organization** | `organization.updated`, `org_member.added`, `org_member.role_changed` |
+
+---
+
+<FAQ items={[
+  {
+    question: "Who can view audit logs?",
+    answer: "Organization owners and admins can view audit logs. On Sim Cloud, you must be on the Enterprise plan."
+  },
+  {
+    question: "Are audit logs tamper-proof?",
+    answer: "Audit log entries are append-only and cannot be modified or deleted through the Sim interface or API. They represent a reliable record of actions taken in your organization."
+  },
+  {
+    question: "Can I export audit logs?",
+    answer: "Yes. Use the API to export logs programmatically. Paginate through all records using the cursor parameter and store them in your own data warehouse or SIEM."
+  },
+  {
+    question: "Are logs scoped to a single workspace or the whole organization?",
+    answer: "Audit logs are scoped to your organization and include activity across all workspaces within it. You can filter by workspaceId to narrow results to a specific workspace."
+  },
+  {
+    question: "What information is included in each log entry?",
+    answer: "Each entry includes the event type, a description, the actor's name and email, the affected resource, the workspace, and a timestamp. IP addresses and user agents are not exposed through the API."
+  },
+  {
+    question: "Can I filter logs by a specific user?",
+    answer: "Yes. Pass the actorId query parameter to filter logs by a specific user. The actor must be a current or former member of your organization."
+  }
+]} />
+
+---
+
+## Self-hosted setup
+
+Self-hosted deployments use environment variables instead of the billing/plan check.
+
+### Environment variables
+
+```bash
+AUDIT_LOGS_ENABLED=true
+NEXT_PUBLIC_AUDIT_LOGS_ENABLED=true
+```
+
+Once enabled, audit logs are viewable in **Settings → Enterprise → Audit Logs** and accessible via the API.

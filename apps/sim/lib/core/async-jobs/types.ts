@@ -25,6 +25,9 @@ export type JobType =
   | 'schedule-execution'
   | 'webhook-execution'
   | 'resume-execution'
+  | 'cleanup-logs'
+  | 'cleanup-soft-deletes'
+  | 'cleanup-tasks'
 
 export type AsyncExecutionCorrelationSource = 'workflow' | 'schedule' | 'webhook'
 
@@ -105,4 +108,4 @@ export interface JobQueueBackend {
   markJobFailed(jobId: string, error: string): Promise<void>
 }
 
-export type AsyncBackendType = 'trigger-dev' | 'bullmq' | 'database'
+export type AsyncBackendType = 'trigger-dev' | 'database'

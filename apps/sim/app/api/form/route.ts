@@ -1,15 +1,17 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { form } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { notifySocketDeploymentChanged } from '@/lib/workflows/orchestration'
 import { deployWorkflow } from '@/lib/workflows/persistence/utils'
 import {
   checkWorkflowAccessForFormCreation,
@@ -65,7 +67,7 @@ const formSchema = z.object({
   showBranding: z.boolean().optional().default(true),
 })
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
 
@@ -83,9 +85,9 @@ export async function GET(request: NextRequest) {
     logger.error('Error fetching form deployments:', error)
     return createErrorResponse(error.message || 'Failed to fetch form deployments', 500)
   }
-}
+})
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
 
@@ -152,6 +154,8 @@ export async function POST(request: NextRequest) {
         `${workflowRecord.isDeployed ? 'Redeployed' : 'Auto-deployed'} workflow ${workflowId} for form (v${result.version})`
       )
 
+      await notifySocketDeploymentChanged(workflowId)
+
       let encryptedPassword = null
       if (authType === 'password' && password) {
         const { encrypted } = await encryptSecret(password)
@@ -208,6 +212,7 @@ export async function POST(request: NextRequest) {
         actorEmail: session.user.email ?? undefined,
         resourceName: title,
         description: `Created form "${title}" for workflow ${workflowId}`,
+        metadata: { identifier, workflowId, authType, formUrl, showBranding },
         request,
       })
 
@@ -227,4 +232,4 @@ export async function POST(request: NextRequest) {
     logger.error('Error creating form deployment:', error)
     return createErrorResponse(error.message || 'Failed to create form deployment', 500)
   }
-}
+})

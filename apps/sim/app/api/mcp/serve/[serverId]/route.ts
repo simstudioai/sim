@@ -10,9 +10,10 @@ import {
   isJSONRPCRequest,
   type JSONRPCError,
   type JSONRPCMessage,
-  type JSONRPCResponse,
+  type JSONRPCResultResponse,
   type ListToolsResult,
   type RequestId,
+  type Tool,
 } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
 import { workflow, workflowMcpServer, workflowMcpTool, workspace } from '@sim/db/schema'
@@ -23,6 +24,7 @@ import { type AuthResult, AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { SIM_VIA_HEADER } from '@/lib/execution/call-chain'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -40,11 +42,11 @@ interface ExecuteAuthContext {
   apiKey?: string | null
 }
 
-function createResponse(id: RequestId, result: unknown): JSONRPCResponse {
+function createResponse(id: RequestId, result: unknown): JSONRPCResultResponse {
   return {
     jsonrpc: '2.0',
     id,
-    result: result as JSONRPCResponse['result'],
+    result: result as JSONRPCResultResponse['result'],
   }
 }
 
@@ -79,143 +81,147 @@ async function getServer(serverId: string) {
   return server
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
-  const { serverId } = await params
+export const GET = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
+    const { serverId } = await params
 
-  try {
-    const server = await getServer(serverId)
-    if (!server) {
-      return NextResponse.json({ error: 'Server not found' }, { status: 404 })
-    }
-
-    if (!server.isPublic) {
-      const auth = await checkHybridAuth(request, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    try {
+      const server = await getServer(serverId)
+      if (!server) {
+        return NextResponse.json({ error: 'Server not found' }, { status: 404 })
       }
 
-      if (auth.apiKeyType === 'workspace' && auth.workspaceId !== server.workspaceId) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-
-      const workspacePermission = await getUserEntityPermissions(
-        auth.userId,
-        'workspace',
-        server.workspaceId
-      )
-      if (workspacePermission === null) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-    }
-
-    return NextResponse.json({
-      name: server.name,
-      version: '1.0.0',
-      protocolVersion: '2024-11-05',
-      capabilities: { tools: {} },
-    })
-  } catch (error) {
-    logger.error('Error getting MCP server info:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
-
-export async function POST(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
-  const { serverId } = await params
-
-  try {
-    const server = await getServer(serverId)
-    if (!server) {
-      return NextResponse.json({ error: 'Server not found' }, { status: 404 })
-    }
-
-    let executeAuthContext: ExecuteAuthContext | null = null
-    if (!server.isPublic) {
-      const auth = await checkHybridAuth(request, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      if (auth.apiKeyType === 'workspace' && auth.workspaceId !== server.workspaceId) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-
-      const workspacePermission = await getUserEntityPermissions(
-        auth.userId,
-        'workspace',
-        server.workspaceId
-      )
-      if (workspacePermission === null) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-
-      executeAuthContext = {
-        authType: auth.authType,
-        userId: auth.userId,
-        apiKey: auth.authType === AuthType.API_KEY ? request.headers.get('X-API-Key') : null,
-      }
-    }
-
-    const body = await request.json()
-    const message = body as JSONRPCMessage
-
-    if (isJSONRPCNotification(message)) {
-      logger.info(`Received notification: ${message.method}`)
-      return new NextResponse(null, { status: 202 })
-    }
-
-    if (!isJSONRPCRequest(message)) {
-      return NextResponse.json(
-        createError(0, ErrorCode.InvalidRequest, 'Invalid JSON-RPC message'),
-        {
-          status: 400,
+      if (!server.isPublic) {
+        const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+        if (!auth.success || !auth.userId) {
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
-      )
-    }
 
-    const { id, method, params: rpcParams } = message
-
-    switch (method) {
-      case 'initialize': {
-        const result: InitializeResult = {
-          protocolVersion: '2024-11-05',
-          capabilities: { tools: {} },
-          serverInfo: { name: server.name, version: '1.0.0' },
+        if (auth.apiKeyType === 'workspace' && auth.workspaceId !== server.workspaceId) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
         }
-        return NextResponse.json(createResponse(id, result))
-      }
 
-      case 'ping':
-        return NextResponse.json(createResponse(id, {}))
-
-      case 'tools/list':
-        return handleToolsList(id, serverId)
-
-      case 'tools/call':
-        return handleToolsCall(
-          id,
-          serverId,
-          rpcParams as { name: string; arguments?: Record<string, unknown> },
-          executeAuthContext,
-          server.isPublic ? server.createdBy : undefined,
-          request.headers.get(SIM_VIA_HEADER)
+        const workspacePermission = await getUserEntityPermissions(
+          auth.userId,
+          'workspace',
+          server.workspaceId
         )
+        if (workspacePermission === null) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+      }
 
-      default:
+      return NextResponse.json({
+        name: server.name,
+        version: '1.0.0',
+        protocolVersion: '2024-11-05',
+        capabilities: { tools: {} },
+      })
+    } catch (error) {
+      logger.error('Error getting MCP server info:', error)
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    }
+  }
+)
+
+export const POST = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
+    const { serverId } = await params
+
+    try {
+      const server = await getServer(serverId)
+      if (!server) {
+        return NextResponse.json({ error: 'Server not found' }, { status: 404 })
+      }
+
+      let executeAuthContext: ExecuteAuthContext | null = null
+      if (!server.isPublic) {
+        const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+        if (!auth.success || !auth.userId) {
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        if (auth.apiKeyType === 'workspace' && auth.workspaceId !== server.workspaceId) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+
+        const workspacePermission = await getUserEntityPermissions(
+          auth.userId,
+          'workspace',
+          server.workspaceId
+        )
+        if (workspacePermission === null) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+
+        executeAuthContext = {
+          authType: auth.authType,
+          userId: auth.userId,
+          apiKey: auth.authType === AuthType.API_KEY ? request.headers.get('X-API-Key') : null,
+        }
+      }
+
+      const body = await request.json()
+      const message = body as JSONRPCMessage
+
+      if (isJSONRPCNotification(message)) {
+        logger.info(`Received notification: ${message.method}`)
+        return new NextResponse(null, { status: 202 })
+      }
+
+      if (!isJSONRPCRequest(message)) {
         return NextResponse.json(
-          createError(id, ErrorCode.MethodNotFound, `Method not found: ${method}`),
+          createError(0, ErrorCode.InvalidRequest, 'Invalid JSON-RPC message'),
           {
-            status: 404,
+            status: 400,
           }
         )
+      }
+
+      const { id, method, params: rpcParams } = message
+
+      switch (method) {
+        case 'initialize': {
+          const result: InitializeResult = {
+            protocolVersion: '2024-11-05',
+            capabilities: { tools: {} },
+            serverInfo: { name: server.name, version: '1.0.0' },
+          }
+          return NextResponse.json(createResponse(id, result))
+        }
+
+        case 'ping':
+          return NextResponse.json(createResponse(id, {}))
+
+        case 'tools/list':
+          return handleToolsList(id, serverId)
+
+        case 'tools/call':
+          return handleToolsCall(
+            id,
+            serverId,
+            rpcParams as { name: string; arguments?: Record<string, unknown> },
+            executeAuthContext,
+            server.isPublic ? server.createdBy : undefined,
+            request.headers.get(SIM_VIA_HEADER)
+          )
+
+        default:
+          return NextResponse.json(
+            createError(id, ErrorCode.MethodNotFound, `Method not found: ${method}`),
+            {
+              status: 404,
+            }
+          )
+      }
+    } catch (error) {
+      logger.error('Error handling MCP request:', error)
+      return NextResponse.json(createError(0, ErrorCode.InternalError, 'Internal error'), {
+        status: 500,
+      })
     }
-  } catch (error) {
-    logger.error('Error handling MCP request:', error)
-    return NextResponse.json(createError(0, ErrorCode.InternalError, 'Internal error'), {
-      status: 500,
-    })
   }
-}
+)
 
 async function handleToolsList(id: RequestId, serverId: string): Promise<NextResponse> {
   try {
@@ -230,11 +236,7 @@ async function handleToolsList(id: RequestId, serverId: string): Promise<NextRes
 
     const result: ListToolsResult = {
       tools: tools.map((tool) => {
-        const schema = tool.parameterSchema as {
-          type?: string
-          properties?: Record<string, unknown>
-          required?: string[]
-        } | null
+        const schema = tool.parameterSchema as Partial<Tool['inputSchema']> | null
         return {
           name: tool.toolName,
           description: tool.toolDescription || `Execute workflow: ${tool.toolName}`,
@@ -366,35 +368,37 @@ async function handleToolsCall(
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
-  const { serverId } = await params
+export const DELETE = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
+    const { serverId } = await params
 
-  try {
-    const server = await getServer(serverId)
-    if (!server) {
-      return NextResponse.json({ error: 'Server not found' }, { status: 404 })
-    }
-
-    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
-    if (!auth.success || !auth.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (!server.isPublic) {
-      const workspacePermission = await getUserEntityPermissions(
-        auth.userId,
-        'workspace',
-        server.workspaceId
-      )
-      if (workspacePermission === null) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    try {
+      const server = await getServer(serverId)
+      if (!server) {
+        return NextResponse.json({ error: 'Server not found' }, { status: 404 })
       }
-    }
 
-    logger.info(`MCP session terminated for server ${serverId}`)
-    return new NextResponse(null, { status: 204 })
-  } catch (error) {
-    logger.error('Error handling MCP DELETE request:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+      const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+      if (!auth.success || !auth.userId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      if (!server.isPublic) {
+        const workspacePermission = await getUserEntityPermissions(
+          auth.userId,
+          'workspace',
+          server.workspaceId
+        )
+        if (workspacePermission === null) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+      }
+
+      logger.info(`MCP session terminated for server ${serverId}`)
+      return new NextResponse(null, { status: 204 })
+    } catch (error) {
+      logger.error('Error handling MCP DELETE request:', error)
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    }
   }
-}
+)

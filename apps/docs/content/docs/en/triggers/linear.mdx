@@ -1,0 +1,703 @@
+---
+title: Linear
+description: Available Linear triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="linear"
+  color="#5E6AD2"
+/>
+
+Linear provides 15 triggers for automating workflows based on events.
+
+## Triggers
+
+### Linear Comment Created
+
+Trigger workflow when a new comment is created in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Comment\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `body` | string | Comment body text |
+|   ↳ `edited` | boolean | Whether the comment body has been edited \(Linear webhook payload field\) |
+|   ↳ `url` | string | Comment URL |
+|   ↳ `issueId` | string | Issue ID this comment belongs to |
+|   ↳ `userId` | string | User ID of the comment author |
+|   ↳ `editedAt` | string | Last edited timestamp |
+|   ↳ `createdAt` | string | Comment creation timestamp |
+|   ↳ `updatedAt` | string | Comment last update timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `resolvedAt` | string | Resolved timestamp \(for comment threads\) |
+|   ↳ `parent` | object | Parent comment object \(if this is a reply\) |
+|   ↳ `reactionData` | object | Reaction data for the comment |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+
+---
+
+### Linear Comment Updated
+
+Trigger workflow when a comment is updated in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Comment\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `body` | string | Comment body text |
+|   ↳ `edited` | boolean | Whether the comment body has been edited \(Linear webhook payload field\) |
+|   ↳ `url` | string | Comment URL |
+|   ↳ `issueId` | string | Issue ID this comment belongs to |
+|   ↳ `userId` | string | User ID of the comment author |
+|   ↳ `editedAt` | string | Last edited timestamp |
+|   ↳ `createdAt` | string | Comment creation timestamp |
+|   ↳ `updatedAt` | string | Comment last update timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `resolvedAt` | string | Resolved timestamp \(for comment threads\) |
+|   ↳ `parent` | object | Parent comment object \(if this is a reply\) |
+|   ↳ `reactionData` | object | Reaction data for the comment |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+
+---
+
+### Linear Customer Request Created
+
+Trigger workflow when a new customer request is created in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(CustomerNeed\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Customer request ID |
+|   ↳ `body` | string | Request body content \(Markdown\) |
+|   ↳ `priority` | number | Request priority \(0 = Not important, 1 = Important\) |
+|   ↳ `customerId` | string | Customer ID |
+|   ↳ `issueId` | string | Linked issue ID |
+|   ↳ `projectId` | string | Associated project ID |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `url` | string | Customer request URL |
+|   ↳ `createdAt` | string | Request creation timestamp |
+|   ↳ `updatedAt` | string | Request last update timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+
+---
+
+### Linear Customer Request Updated
+
+Trigger workflow when a customer request is updated in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(CustomerNeed\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Customer request ID |
+|   ↳ `body` | string | Request body content \(Markdown\) |
+|   ↳ `priority` | number | Request priority \(0 = Not important, 1 = Important\) |
+|   ↳ `customerId` | string | Customer ID |
+|   ↳ `issueId` | string | Linked issue ID |
+|   ↳ `projectId` | string | Associated project ID |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `url` | string | Customer request URL |
+|   ↳ `createdAt` | string | Request creation timestamp |
+|   ↳ `updatedAt` | string | Request last update timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+
+---
+
+### Linear Cycle Created
+
+Trigger workflow when a new cycle is created in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Cycle\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Cycle ID |
+|   ↳ `number` | number | Cycle number |
+|   ↳ `name` | string | Cycle name |
+|   ↳ `description` | string | Cycle description |
+|   ↳ `teamId` | string | Team ID |
+|   ↳ `startsAt` | string | Cycle start date |
+|   ↳ `endsAt` | string | Cycle end date |
+|   ↳ `completedAt` | string | Completed timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `autoArchivedAt` | string | Auto-archived timestamp |
+|   ↳ `createdAt` | string | Cycle creation timestamp |
+|   ↳ `updatedAt` | string | Cycle last update timestamp |
+|   ↳ `progress` | number | Cycle progress \(0-1\) |
+|   ↳ `scopeHistory` | array | History of scope changes |
+|   ↳ `completedScopeHistory` | array | History of completed scope |
+|   ↳ `inProgressScopeHistory` | array | History of in-progress scope |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+
+---
+
+### Linear Cycle Updated
+
+Trigger workflow when a cycle is updated in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Cycle\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Cycle ID |
+|   ↳ `number` | number | Cycle number |
+|   ↳ `name` | string | Cycle name |
+|   ↳ `description` | string | Cycle description |
+|   ↳ `teamId` | string | Team ID |
+|   ↳ `startsAt` | string | Cycle start date |
+|   ↳ `endsAt` | string | Cycle end date |
+|   ↳ `completedAt` | string | Completed timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `autoArchivedAt` | string | Auto-archived timestamp |
+|   ↳ `createdAt` | string | Cycle creation timestamp |
+|   ↳ `updatedAt` | string | Cycle last update timestamp |
+|   ↳ `progress` | number | Cycle progress \(0-1\) |
+|   ↳ `scopeHistory` | array | History of scope changes |
+|   ↳ `completedScopeHistory` | array | History of completed scope |
+|   ↳ `inProgressScopeHistory` | array | History of in-progress scope |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+
+---
+
+### Linear Issue Created
+
+Trigger workflow when a new issue is created in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Issue\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Issue ID |
+|   ↳ `title` | string | Issue title |
+|   ↳ `description` | string | Issue description |
+|   ↳ `identifier` | string | Issue identifier \(e.g., ENG-123\) |
+|   ↳ `number` | number | Issue number |
+|   ↳ `priority` | number | Issue priority \(0 = None, 1 = Urgent, 2 = High, 3 = Medium, 4 = Low\) |
+|   ↳ `estimate` | number | Issue estimate |
+|   ↳ `sortOrder` | number | Issue sort order |
+|   ↳ `teamId` | string | Team ID |
+|   ↳ `stateId` | string | Workflow state ID |
+|   ↳ `assigneeId` | string | Assignee user ID |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `projectId` | string | Project ID |
+|   ↳ `cycleId` | string | Cycle ID |
+|   ↳ `parentId` | string | Parent issue ID \(for sub-issues\) |
+|   ↳ `labelIds` | array | Array of label IDs |
+|   ↳ `subscriberIds` | array | Array of subscriber user IDs |
+|   ↳ `url` | string | Issue URL |
+|   ↳ `branchName` | string | Git branch name |
+|   ↳ `customerTicketCount` | number | Number of customer tickets |
+|   ↳ `dueDate` | string | Issue due date |
+|   ↳ `snoozedUntilAt` | string | Snoozed until timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `canceledAt` | string | Canceled timestamp |
+|   ↳ `completedAt` | string | Completed timestamp |
+|   ↳ `startedAt` | string | Started timestamp |
+|   ↳ `triagedAt` | string | Triaged timestamp |
+|   ↳ `createdAt` | string | Issue creation timestamp |
+|   ↳ `updatedAt` | string | Issue last update timestamp |
+|   ↳ `autoArchivedAt` | string | Auto-archived timestamp |
+|   ↳ `autoClosedAt` | string | Auto-closed timestamp |
+|   ↳ `previousIdentifiers` | array | Array of previous issue identifiers \(when an issue is moved between teams\) |
+|   ↳ `integrationSourceType` | string | Integration source type \(if created from an integration\) |
+|   ↳ `slaStartedAt` | string | SLA timer started timestamp |
+|   ↳ `slaBreachesAt` | string | SLA breach timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+
+---
+
+### Linear Issue Removed
+
+Trigger workflow when an issue is removed/deleted in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Issue\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Issue ID |
+|   ↳ `title` | string | Issue title |
+|   ↳ `description` | string | Issue description |
+|   ↳ `identifier` | string | Issue identifier \(e.g., ENG-123\) |
+|   ↳ `number` | number | Issue number |
+|   ↳ `priority` | number | Issue priority \(0 = None, 1 = Urgent, 2 = High, 3 = Medium, 4 = Low\) |
+|   ↳ `estimate` | number | Issue estimate |
+|   ↳ `sortOrder` | number | Issue sort order |
+|   ↳ `teamId` | string | Team ID |
+|   ↳ `stateId` | string | Workflow state ID |
+|   ↳ `assigneeId` | string | Assignee user ID |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `projectId` | string | Project ID |
+|   ↳ `cycleId` | string | Cycle ID |
+|   ↳ `parentId` | string | Parent issue ID \(for sub-issues\) |
+|   ↳ `labelIds` | array | Array of label IDs |
+|   ↳ `subscriberIds` | array | Array of subscriber user IDs |
+|   ↳ `url` | string | Issue URL |
+|   ↳ `branchName` | string | Git branch name |
+|   ↳ `customerTicketCount` | number | Number of customer tickets |
+|   ↳ `dueDate` | string | Issue due date |
+|   ↳ `snoozedUntilAt` | string | Snoozed until timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `canceledAt` | string | Canceled timestamp |
+|   ↳ `completedAt` | string | Completed timestamp |
+|   ↳ `startedAt` | string | Started timestamp |
+|   ↳ `triagedAt` | string | Triaged timestamp |
+|   ↳ `createdAt` | string | Issue creation timestamp |
+|   ↳ `updatedAt` | string | Issue last update timestamp |
+|   ↳ `autoArchivedAt` | string | Auto-archived timestamp |
+|   ↳ `autoClosedAt` | string | Auto-closed timestamp |
+|   ↳ `previousIdentifiers` | array | Array of previous issue identifiers \(when an issue is moved between teams\) |
+|   ↳ `integrationSourceType` | string | Integration source type \(if created from an integration\) |
+|   ↳ `slaStartedAt` | string | SLA timer started timestamp |
+|   ↳ `slaBreachesAt` | string | SLA breach timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+
+---
+
+### Linear Issue Updated
+
+Trigger workflow when an issue is updated in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Issue\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Issue ID |
+|   ↳ `title` | string | Issue title |
+|   ↳ `description` | string | Issue description |
+|   ↳ `identifier` | string | Issue identifier \(e.g., ENG-123\) |
+|   ↳ `number` | number | Issue number |
+|   ↳ `priority` | number | Issue priority \(0 = None, 1 = Urgent, 2 = High, 3 = Medium, 4 = Low\) |
+|   ↳ `estimate` | number | Issue estimate |
+|   ↳ `sortOrder` | number | Issue sort order |
+|   ↳ `teamId` | string | Team ID |
+|   ↳ `stateId` | string | Workflow state ID |
+|   ↳ `assigneeId` | string | Assignee user ID |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `projectId` | string | Project ID |
+|   ↳ `cycleId` | string | Cycle ID |
+|   ↳ `parentId` | string | Parent issue ID \(for sub-issues\) |
+|   ↳ `labelIds` | array | Array of label IDs |
+|   ↳ `subscriberIds` | array | Array of subscriber user IDs |
+|   ↳ `url` | string | Issue URL |
+|   ↳ `branchName` | string | Git branch name |
+|   ↳ `customerTicketCount` | number | Number of customer tickets |
+|   ↳ `dueDate` | string | Issue due date |
+|   ↳ `snoozedUntilAt` | string | Snoozed until timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `canceledAt` | string | Canceled timestamp |
+|   ↳ `completedAt` | string | Completed timestamp |
+|   ↳ `startedAt` | string | Started timestamp |
+|   ↳ `triagedAt` | string | Triaged timestamp |
+|   ↳ `createdAt` | string | Issue creation timestamp |
+|   ↳ `updatedAt` | string | Issue last update timestamp |
+|   ↳ `autoArchivedAt` | string | Auto-archived timestamp |
+|   ↳ `autoClosedAt` | string | Auto-closed timestamp |
+|   ↳ `previousIdentifiers` | array | Array of previous issue identifiers \(when an issue is moved between teams\) |
+|   ↳ `integrationSourceType` | string | Integration source type \(if created from an integration\) |
+|   ↳ `slaStartedAt` | string | SLA timer started timestamp |
+|   ↳ `slaBreachesAt` | string | SLA breach timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+
+---
+
+### Linear Label Created
+
+Trigger workflow when a new label is created in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(IssueLabel\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Label ID |
+|   ↳ `name` | string | Label name |
+|   ↳ `description` | string | Label description |
+|   ↳ `color` | string | Label color \(hex code\) |
+|   ↳ `organizationId` | string | Organization ID |
+|   ↳ `teamId` | string | Team ID \(if team-specific label\) |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `isGroup` | boolean | Whether this is a label group |
+|   ↳ `parentId` | string | Parent label ID \(for nested labels\) |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `createdAt` | string | Label creation timestamp |
+|   ↳ `updatedAt` | string | Label last update timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+
+---
+
+### Linear Label Updated
+
+Trigger workflow when a label is updated in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(IssueLabel\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Label ID |
+|   ↳ `name` | string | Label name |
+|   ↳ `description` | string | Label description |
+|   ↳ `color` | string | Label color \(hex code\) |
+|   ↳ `organizationId` | string | Organization ID |
+|   ↳ `teamId` | string | Team ID \(if team-specific label\) |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `isGroup` | boolean | Whether this is a label group |
+|   ↳ `parentId` | string | Parent label ID \(for nested labels\) |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `createdAt` | string | Label creation timestamp |
+|   ↳ `updatedAt` | string | Label last update timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+
+---
+
+### Linear Project Created
+
+Trigger workflow when a new project is created in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Project\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `description` | string | Project description |
+|   ↳ `icon` | string | Project icon |
+|   ↳ `color` | string | Project color |
+|   ↳ `state` | string | Project state \(planned, started, completed, canceled, backlog\) |
+|   ↳ `slugId` | string | Project slug ID |
+|   ↳ `url` | string | Project URL |
+|   ↳ `leadId` | string | Project lead user ID |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `memberIds` | array | Array of member user IDs |
+|   ↳ `teamIds` | array | Array of team IDs |
+|   ↳ `priority` | number | Project priority |
+|   ↳ `sortOrder` | number | Project sort order |
+|   ↳ `startDate` | string | Project start date |
+|   ↳ `targetDate` | string | Project target date |
+|   ↳ `startedAt` | string | Started timestamp |
+|   ↳ `completedAt` | string | Completed timestamp |
+|   ↳ `canceledAt` | string | Canceled timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `createdAt` | string | Project creation timestamp |
+|   ↳ `updatedAt` | string | Project last update timestamp |
+|   ↳ `progress` | number | Project progress \(0-1\) |
+|   ↳ `scope` | number | Project scope estimate |
+|   ↳ `statusId` | string | Project status ID |
+|   ↳ `bodyData` | object | Project body data \(rich text content\) |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+
+---
+
+### Linear Project Update Created
+
+Trigger workflow when a new project update is posted in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(ProjectUpdate\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Project update ID |
+|   ↳ `body` | string | Update body content |
+|   ↳ `url` | string | Project update URL |
+|   ↳ `projectId` | string | Project ID |
+|   ↳ `userId` | string | User ID of the author |
+|   ↳ `health` | string | Project health \(onTrack, atRisk, offTrack\) |
+|   ↳ `editedAt` | string | Last edited timestamp |
+|   ↳ `createdAt` | string | Update creation timestamp |
+|   ↳ `updatedAt` | string | Update last update timestamp |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+
+---
+
+### Linear Project Updated
+
+Trigger workflow when a project is updated in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Project\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `description` | string | Project description |
+|   ↳ `icon` | string | Project icon |
+|   ↳ `color` | string | Project color |
+|   ↳ `state` | string | Project state \(planned, started, completed, canceled, backlog\) |
+|   ↳ `slugId` | string | Project slug ID |
+|   ↳ `url` | string | Project URL |
+|   ↳ `leadId` | string | Project lead user ID |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `memberIds` | array | Array of member user IDs |
+|   ↳ `teamIds` | array | Array of team IDs |
+|   ↳ `priority` | number | Project priority |
+|   ↳ `sortOrder` | number | Project sort order |
+|   ↳ `startDate` | string | Project start date |
+|   ↳ `targetDate` | string | Project target date |
+|   ↳ `startedAt` | string | Started timestamp |
+|   ↳ `completedAt` | string | Completed timestamp |
+|   ↳ `canceledAt` | string | Canceled timestamp |
+|   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `createdAt` | string | Project creation timestamp |
+|   ↳ `updatedAt` | string | Project last update timestamp |
+|   ↳ `progress` | number | Project progress \(0-1\) |
+|   ↳ `scope` | number | Project scope estimate |
+|   ↳ `statusId` | string | Project status ID |
+|   ↳ `bodyData` | object | Project body data \(rich text content\) |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+
+---
+
+### Linear Webhook
+
+Trigger workflow from Linear events you select when creating the webhook in Linear (not guaranteed to be every model or event type).
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Issue, Comment, Project, Cycle, IssueLabel, ProjectUpdate, etc.\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | Complete entity data object |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+

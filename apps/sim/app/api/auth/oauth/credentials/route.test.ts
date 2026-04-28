@@ -4,74 +4,17 @@
  * @vitest-environment node
  */
 
+import { hybridAuthMockFns, permissionsMock, workflowsUtilsMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockCheckSessionOrInternalAuth, mockLogger } = vi.hoisted(() => {
-  const logger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: vi.fn(),
-  }
-  return {
-    mockCheckSessionOrInternalAuth: vi.fn(),
-    mockLogger: logger,
-  }
-})
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-}))
-
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('mock-request-id'),
-}))
 
 vi.mock('@/lib/credentials/oauth', () => ({
   syncWorkspaceOAuthCredentialsForUser: vi.fn(),
 }))
 
-vi.mock('@/lib/workflows/utils', () => ({
-  authorizeWorkflowByWorkspacePermission: vi.fn(),
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: vi.fn(),
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  account: {
-    userId: 'userId',
-    providerId: 'providerId',
-    id: 'id',
-    scope: 'scope',
-    updatedAt: 'updatedAt',
-  },
-  credential: {
-    id: 'id',
-    workspaceId: 'workspaceId',
-    type: 'type',
-    displayName: 'displayName',
-    providerId: 'providerId',
-    accountId: 'accountId',
-  },
-  credentialMember: {
-    id: 'id',
-    credentialId: 'credentialId',
-    userId: 'userId',
-    status: 'status',
-  },
-  user: { email: 'email', id: 'id' },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue(mockLogger),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { GET } from '@/app/api/auth/oauth/credentials/route'
 
@@ -86,7 +29,7 @@ describe('OAuth Credentials API Route', () => {
   })
 
   it('should handle unauthenticated user', async () => {
-    mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
       success: false,
       error: 'Authentication required',
     })
@@ -98,11 +41,10 @@ describe('OAuth Credentials API Route', () => {
 
     expect(response.status).toBe(401)
     expect(data.error).toBe('User not authenticated')
-    expect(mockLogger.warn).toHaveBeenCalled()
   })
 
   it('should handle missing provider parameter', async () => {
-    mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
       success: true,
       userId: 'user-123',
       authType: 'session',
@@ -115,11 +57,10 @@ describe('OAuth Credentials API Route', () => {
 
     expect(response.status).toBe(400)
     expect(data.error).toBe('Provider or credentialId is required')
-    expect(mockLogger.warn).toHaveBeenCalled()
   })
 
   it('should handle no credentials found', async () => {
-    mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
       success: true,
       userId: 'user-123',
       authType: 'session',
@@ -135,7 +76,7 @@ describe('OAuth Credentials API Route', () => {
   })
 
   it('should return empty credentials when no workspace context', async () => {
-    mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
       success: true,
       userId: 'user-123',
       authType: 'session',

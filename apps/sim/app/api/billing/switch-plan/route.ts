@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -9,14 +10,16 @@ import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { writeBillingInterval } from '@/lib/billing/core/subscription'
-import { getPlanType, isEnterprise, isOrgPlan } from '@/lib/billing/plan-helpers'
+import { getPlanType, isEnterprise } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import {
   hasUsableSubscriptionAccess,
   hasUsableSubscriptionStatus,
+  isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('SwitchPlan')
@@ -37,7 +40,7 @@ const switchPlanSchema = z.object({
  *   targetPlanName: string  -- e.g. 'pro_6000', 'team_25000'
  *   interval?: 'month' | 'year'  -- if omitted, keeps the current interval
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
 
   try {
@@ -92,7 +95,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (isOrgPlan(sub.plan)) {
+    if (isOrgScopedSubscription(sub, userId)) {
       const hasPermission = await isOrganizationOwnerOrAdmin(userId, sub.referenceId)
       if (!hasPermission) {
         return NextResponse.json({ error: 'Only team admins can change the plan' }, { status: 403 })
@@ -185,11 +188,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('Failed to switch subscription', {
       userId: session?.user?.id,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to switch plan' },
       { status: 500 }
     )
   }
-}
+})

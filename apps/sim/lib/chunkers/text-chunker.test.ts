@@ -30,7 +30,7 @@ describe('TextChunker', () => {
 
     it.concurrent('should include token count in chunk metadata', async () => {
       const chunker = new TextChunker({ chunkSize: 100 })
-      const text = 'Hello world' // ~3 tokens (11 chars / 4)
+      const text = 'Hello world'
       const chunks = await chunker.chunk(text)
 
       expect(chunks[0].tokenCount).toBe(3)
@@ -201,7 +201,6 @@ describe('TextChunker', () => {
 
     it.concurrent('should use default minCharactersPerChunk of 100', async () => {
       const chunker = new TextChunker({ chunkSize: 10 })
-      // Text with 150+ characters to ensure chunks pass the 100 character minimum
       const text = 'This is a longer sentence with more content. '.repeat(5)
       const chunks = await chunker.chunk(text)
 
@@ -266,7 +265,6 @@ describe('TextChunker', () => {
   describe('boundary conditions', () => {
     it.concurrent('should handle text exactly at chunk size boundary', async () => {
       const chunker = new TextChunker({ chunkSize: 10 })
-      // 40 characters = 10 tokens exactly
       const text = 'A'.repeat(40)
       const chunks = await chunker.chunk(text)
 
@@ -276,7 +274,6 @@ describe('TextChunker', () => {
 
     it.concurrent('should handle text one token over chunk size', async () => {
       const chunker = new TextChunker({ chunkSize: 10 })
-      // 44 characters = 11 tokens, just over limit
       const text = 'A'.repeat(44)
       const chunks = await chunker.chunk(text)
 
@@ -300,7 +297,6 @@ describe('TextChunker', () => {
     })
 
     it.concurrent('should clamp overlap to max 50% of chunk size', async () => {
-      // Overlap of 60 should be clamped to 10 (50% of chunkSize 20)
       const chunker = new TextChunker({ chunkSize: 20, chunkOverlap: 60 })
       const text = 'First paragraph here.\n\nSecond paragraph here.\n\nThird paragraph here.'
       const chunks = await chunker.chunk(text)
@@ -359,7 +355,6 @@ describe('TextChunker', () => {
 
     it.concurrent('should handle combining diacritics', async () => {
       const chunker = new TextChunker({ chunkSize: 100 })
-      // e + combining acute accent
       const text = 'cafe\u0301 resume\u0301 naive\u0308'
       const chunks = await chunker.chunk(text)
 
@@ -368,7 +363,6 @@ describe('TextChunker', () => {
 
     it.concurrent('should handle zero-width characters', async () => {
       const chunker = new TextChunker({ chunkSize: 100 })
-      // Zero-width space, zero-width non-joiner, zero-width joiner
       const text = 'Hello\u200B\u200C\u200DWorld'
       const chunks = await chunker.chunk(text)
 
@@ -391,14 +385,12 @@ describe('TextChunker', () => {
       const chunks = await chunker.chunk(text)
 
       expect(chunks.length).toBeGreaterThan(1)
-      // Verify all content is preserved
       const totalChars = chunks.reduce((sum, c) => sum + c.text.length, 0)
       expect(totalChars).toBeGreaterThan(0)
     })
 
     it.concurrent('should handle 1MB of text', async () => {
       const chunker = new TextChunker({ chunkSize: 500 })
-      // 1MB of text
       const text = 'Lorem ipsum dolor sit amet. '.repeat(40000)
       const chunks = await chunker.chunk(text)
 
@@ -407,7 +399,6 @@ describe('TextChunker', () => {
 
     it.concurrent('should handle very long single line', async () => {
       const chunker = new TextChunker({ chunkSize: 50 })
-      // Single line with no natural break points
       const text = 'Word'.repeat(10000)
       const chunks = await chunker.chunk(text)
 

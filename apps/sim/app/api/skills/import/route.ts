@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SkillsImportAPI')
 
@@ -42,7 +43,7 @@ function toRawGitHubUrl(url: string): string {
 }
 
 /** POST - Fetch a SKILL.md from a GitHub URL and return its raw content */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -104,4 +105,4 @@ export async function POST(req: NextRequest) {
     logger.error(`[${requestId}] Error importing skill`, error)
     return NextResponse.json({ error: 'Failed to import skill' }, { status: 500 })
   }
-}
+})

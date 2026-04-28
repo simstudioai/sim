@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
@@ -14,7 +15,6 @@ import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
-import { mergeSubblockStateWithValues } from '@/lib/workflows/subblocks'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor'
@@ -369,7 +369,11 @@ export async function executeWorkflowCore(
       })
     } else if (!triggerBlockId) {
       const executionKind =
-        triggerType === 'api' || triggerType === 'chat' ? (triggerType as 'api' | 'chat') : 'manual'
+        triggerType === 'api' || triggerType === 'chat'
+          ? (triggerType as 'api' | 'chat')
+          : triggerType === 'webhook' || triggerType === 'schedule'
+            ? 'external'
+            : 'manual'
 
       const startBlock = TriggerUtils.findStartBlock(mergedStates, executionKind, false)
 

@@ -1,6 +1,9 @@
 import { db } from '@sim/db'
 import { member, userStats } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+
+const logger = createLogger('BillingAccess')
 
 export interface EffectiveBillingStatus {
   billingBlocked: boolean
@@ -92,6 +95,10 @@ export async function isOrganizationBillingBlocked(organizationId: string): Prom
     .limit(1)
 
   if (!owner) {
+    logger.error(
+      'Organization has no owner when checking billing-blocked state — data integrity issue',
+      { organizationId }
+    )
     return false
   }
 

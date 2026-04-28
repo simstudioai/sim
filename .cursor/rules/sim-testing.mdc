@@ -3,6 +3,7 @@ description: Testing patterns with Vitest and @sim/testing
 globs: ["apps/sim/**/*.test.ts", "apps/sim/**/*.test.tsx"]
 ---
 
+
 # Testing Patterns
 
 Use Vitest. Test files: `feature.ts` → `feature.test.ts`
@@ -12,8 +13,12 @@ Use Vitest. Test files: `feature.ts` → `feature.test.ts`
 These modules are mocked globally — do NOT re-mock them in test files unless you need to override behavior:
 
 - `@sim/db` → `databaseMock`
+- `@sim/db/schema` → `schemaMock`
 - `drizzle-orm` → `drizzleOrmMock`
 - `@sim/logger` → `loggerMock`
+- `@/lib/auth` → `authMock`
+- `@/lib/auth/hybrid` → `hybridAuthMock` (with default session-delegating behavior)
+- `@/lib/core/utils/request` → `requestUtilsMock`
 - `@/stores/console/store`, `@/stores/terminal`, `@/stores/execution/store`
 - `@/blocks/registry`
 - `@trigger.dev/sdk`
@@ -101,10 +106,6 @@ vi.mock('@/lib/workspaces/utils', () => ({
 }))
 ```
 
-### NEVER use `mockAuth()`, `mockConsoleLogger()`, or `setupCommonApiMocks()` from `@sim/testing`
-
-These helpers internally use `vi.doMock()` which is slow. Use direct `vi.hoisted()` + `vi.mock()` instead.
-
 ### Mock heavy transitive dependencies
 
 If a module under test imports `@/blocks` (200+ files), `@/tools/registry`, or other heavy modules, mock them:
@@ -134,38 +135,61 @@ await new Promise(r => setTimeout(r, 1))
 vi.useFakeTimers()
 ```
 
-## Mock Pattern Reference
+## Centralized Mocks (prefer over local declarations)
+
+`@sim/testing` exports ready-to-use mock modules for common dependencies. Import and pass directly to `vi.mock()` — no `vi.hoisted()` boilerplate needed. Each paired `*MockFns` object exposes the underlying `vi.fn()`s for per-test overrides.
+
+| Module mocked | Import | Factory form |
+|---|---|---|
+| `@/app/api/auth/oauth/utils` | `authOAuthUtilsMock`, `authOAuthUtilsMockFns` | `vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)` |
+| `@/app/api/knowledge/utils` | `knowledgeApiUtilsMock`, `knowledgeApiUtilsMockFns` | `vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)` |
+| `@/app/api/workflows/utils` | `workflowsApiUtilsMock`, `workflowsApiUtilsMockFns` | `vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)` |
+| `@sim/audit` | `auditMock`, `auditMockFns` | `vi.mock('@sim/audit', () => auditMock)` |
+| `@/lib/auth` | `authMock`, `authMockFns` | `vi.mock('@/lib/auth', () => authMock)` |
+| `@/lib/auth/hybrid` | `hybridAuthMock`, `hybridAuthMockFns` | `vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)` |
+| `@/lib/copilot/request/http` | `copilotHttpMock`, `copilotHttpMockFns` | `vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)` |
+| `@/lib/core/config/env` | `envMock`, `createEnvMock(overrides)` | `vi.mock('@/lib/core/config/env', () => envMock)` |
+| `@/lib/core/config/feature-flags` | `featureFlagsMock` | `vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)` |
+| `@/lib/core/config/redis` | `redisConfigMock`, `redisConfigMockFns` | `vi.mock('@/lib/core/config/redis', () => redisConfigMock)` |
+| `@/lib/core/security/encryption` | `encryptionMock`, `encryptionMockFns` | `vi.mock('@/lib/core/security/encryption', () => encryptionMock)` |
+| `@/lib/core/security/input-validation.server` | `inputValidationMock`, `inputValidationMockFns` | `vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)` |
+| `@/lib/core/utils/request` | `requestUtilsMock`, `requestUtilsMockFns` | `vi.mock('@/lib/core/utils/request', () => requestUtilsMock)` |
+| `@/lib/core/utils/urls` | `urlsMock`, `urlsMockFns` | `vi.mock('@/lib/core/utils/urls', () => urlsMock)` |
+| `@/lib/execution/preprocessing` | `executionPreprocessingMock`, `executionPreprocessingMockFns` | `vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)` |
+| `@/lib/logs/execution/logging-session` | `loggingSessionMock`, `loggingSessionMockFns`, `LoggingSessionMock` | `vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)` |
+| `@/lib/workflows/orchestration` | `workflowsOrchestrationMock`, `workflowsOrchestrationMockFns` | `vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)` |
+| `@/lib/workflows/persistence/utils` | `workflowsPersistenceUtilsMock`, `workflowsPersistenceUtilsMockFns` | `vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)` |
+| `@/lib/workflows/utils` | `workflowsUtilsMock`, `workflowsUtilsMockFns` | `vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)` |
+| `@/lib/workspaces/permissions/utils` | `permissionsMock`, `permissionsMockFns` | `vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)` |
+| `@sim/db/schema` | `schemaMock` | `vi.mock('@sim/db/schema', () => schemaMock)` |
 
 ### Auth mocking (API routes)
 
 ```typescript
-const { mockGetSession } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-}))
+import { authMock, authMockFns } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
+vi.mock('@/lib/auth', () => authMock)
 
-// In tests:
-mockGetSession.mockResolvedValue({ user: { id: 'user-1', email: 'test@example.com' } })
-mockGetSession.mockResolvedValue(null) // unauthenticated
+import { GET } from '@/app/api/my-route/route'
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+})
 ```
+
+Only define a local `vi.mock('@/lib/auth', ...)` if the module under test consumes exports outside the centralized shape (e.g., `auth.api.verifyOneTimeToken`, `auth.api.resetPassword`).
 
 ### Hybrid auth mocking
 
 ```typescript
-const { mockCheckSessionOrInternalAuth } = vi.hoisted(() => ({
-  mockCheckSessionOrInternalAuth: vi.fn(),
-}))
+import { hybridAuthMock, hybridAuthMockFns } from '@sim/testing'
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-}))
+vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
 // In tests:
-mockCheckSessionOrInternalAuth.mockResolvedValue({
+hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
   success: true, userId: 'user-1', authType: 'session',
 })
 ```
@@ -196,21 +220,23 @@ Always prefer over local test data.
 
 | Category | Utilities |
 |----------|-----------|
-| **Mocks** | `loggerMock`, `databaseMock`, `drizzleOrmMock`, `setupGlobalFetchMock()` |
+| **Module mocks** | See "Centralized Mocks" table above |
+| **Logger helpers** | `loggerMock`, `createMockLogger()`, `getLoggerCalls()`, `clearLoggerMocks()` |
+| **Database helpers** | `databaseMock`, `drizzleOrmMock`, `createMockDb()`, `createMockSql()`, `createMockSqlOperators()` |
+| **Fetch helpers** | `setupGlobalFetchMock()`, `createMockFetch()`, `createMockResponse()`, `mockFetchError()` |
 | **Factories** | `createSession()`, `createWorkflowRecord()`, `createBlock()`, `createExecutionContext()` |
 | **Builders** | `WorkflowBuilder`, `ExecutionContextBuilder` |
 | **Assertions** | `expectWorkflowAccessGranted()`, `expectBlockExecuted()` |
-| **Requests** | `createMockRequest()`, `createEnvMock()` |
+| **Requests** | `createMockRequest()`, `createMockFormDataRequest()` |
 
 ## Rules Summary
 
 1. `@vitest-environment node` unless DOM is required
-2. `vi.hoisted()` + `vi.mock()` + static imports — never `vi.resetModules()` + `vi.doMock()` + dynamic imports
-3. `vi.mock()` calls before importing mocked modules
-4. `@sim/testing` utilities over local mocks
+2. Prefer centralized mocks from `@sim/testing` (see table above) over local `vi.hoisted()` + `vi.mock()` boilerplate
+3. `vi.hoisted()` + `vi.mock()` + static imports — never `vi.resetModules()` + `vi.doMock()` + dynamic imports
+4. `vi.mock()` calls before importing mocked modules
 5. `beforeEach(() => vi.clearAllMocks())` to reset state — no redundant `afterEach`
 6. No `vi.importActual()` — mock everything explicitly
-7. No `mockAuth()`, `mockConsoleLogger()`, `setupCommonApiMocks()` — use direct mocks
-8. Mock heavy deps (`@/blocks`, `@/tools/registry`, `@/triggers`) in tests that don't need them
-9. Use absolute imports in test files
-10. Avoid real timers — use 1ms delays or `vi.useFakeTimers()`
+7. Mock heavy deps (`@/blocks`, `@/tools/registry`, `@/triggers`) in tests that don't need them
+8. Use absolute imports in test files
+9. Avoid real timers — use 1ms delays or `vi.useFakeTimers()`

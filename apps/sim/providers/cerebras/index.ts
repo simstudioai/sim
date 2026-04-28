@@ -1,5 +1,6 @@
 import { Cerebras } from '@cerebras/cerebras_cloud_sdk'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import type { CerebrasResponse } from '@/providers/cerebras/types'
@@ -267,7 +268,7 @@ export const cerebrasProvider: ProviderConfig = {
             } catch (error) {
               const toolCallEndTime = Date.now()
               logger.error('Error processing tool call (Cerebras):', {
-                error: error instanceof Error ? error.message : String(error),
+                error: toError(error).message,
                 toolName,
               })
 
@@ -555,7 +556,7 @@ export const cerebrasProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      throw new ProviderError(error instanceof Error ? error.message : String(error), {
+      throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,

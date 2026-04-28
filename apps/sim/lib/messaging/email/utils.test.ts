@@ -1,5 +1,5 @@
-import { createEnvMock } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
+import { createEnvMock, urlsMock, urlsMockFns } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   EMAIL_HEADER_CONTROL_CHARS_REGEX,
   getFromEmailAddress,
@@ -22,9 +22,11 @@ vi.mock('@/lib/core/config/env', () =>
   })
 )
 
-vi.mock('@/lib/core/utils/urls', () => ({
-  getEmailDomain: vi.fn().mockReturnValue('fallback.com'),
-}))
+vi.mock('@/lib/core/utils/urls', () => urlsMock)
+
+beforeEach(() => {
+  urlsMockFns.mockGetEmailDomain.mockReturnValue('fallback.com')
+})
 
 describe('getFromEmailAddress', () => {
   it('should return the configured FROM_EMAIL_ADDRESS', () => {

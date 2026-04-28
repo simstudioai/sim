@@ -1,12 +1,14 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { createRunSegment } from '@/lib/copilot/async-runs/repository'
-import { buildIntegrationToolSchemas } from '@/lib/copilot/chat-payload'
-import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
-import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
-import { generateId } from '@/lib/core/utils/uuid'
+import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
+import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
+import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
@@ -27,7 +29,15 @@ const ExecuteRequestSchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId is required'),
   userId: z.string().min(1, 'userId is required'),
   chatId: z.string().optional(),
+  messageId: z.string().optional(),
+  requestId: z.string().optional(),
+  workflowId: z.string().optional(),
+  executionId: z.string().optional(),
 })
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
 
 /**
  * POST /api/mothership/execute
@@ -36,8 +46,9 @@ const ExecuteRequestSchema = z.object({
  * Called by the executor via internal JWT auth, not by the browser directly.
  * Consumes the Go SSE stream internally and returns a single JSON response.
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   let messageId: string | undefined
+  let requestId: string | undefined
 
   try {
     const auth = await checkInternalAuth(req, { requireWorkflowId: false })
@@ -46,17 +57,32 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { messages, responseFormat, workspaceId, userId, chatId } =
-      ExecuteRequestSchema.parse(body)
+    const {
+      messages,
+      responseFormat,
+      workspaceId,
+      userId,
+      chatId,
+      messageId: providedMessageId,
+      requestId: providedRequestId,
+      workflowId,
+      executionId,
+    } = ExecuteRequestSchema.parse(body)
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
 
     const effectiveChatId = chatId || generateId()
-    messageId = generateId()
-    const reqLogger = logger.withMetadata({ messageId })
+    messageId = providedMessageId || generateId()
+    requestId = providedRequestId || generateId()
+    const reqLogger = logger.withMetadata({
+      messageId,
+      requestId,
+      workflowId,
+      executionId,
+    })
     const [workspaceContext, integrationTools, userPermission] = await Promise.all([
       generateWorkspaceContext(workspaceId, userId),
-      buildIntegrationToolSchemas(userId, messageId),
+      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
       getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
     ])
 
@@ -73,61 +99,96 @@ export async function POST(req: NextRequest) {
       ...(userPermission ? { userPermission } : {}),
     }
 
-    const executionId = generateId()
-    const runId = generateId()
+    let allowExplicitAbort = true
+    let explicitAbortRequest: Promise<void> | undefined
+    const onAbort = () => {
+      if (!allowExplicitAbort || explicitAbortRequest || !messageId) {
+        return
+      }
 
-    await createRunSegment({
-      id: runId,
-      executionId,
-      chatId: effectiveChatId,
-      userId,
-      workspaceId,
-      streamId: messageId,
-    }).catch(() => {})
-
-    const result = await orchestrateCopilotStream(requestPayload, {
-      userId,
-      workspaceId,
-      chatId: effectiveChatId,
-      executionId,
-      runId,
-      goRoute: '/api/mothership/execute',
-      autoExecuteTools: true,
-      interactive: false,
-    })
-
-    if (!result.success) {
-      reqLogger.error('Mothership execute failed', {
-        error: result.error,
-        errors: result.errors,
+      explicitAbortRequest = requestExplicitStreamAbort({
+        streamId: messageId,
+        userId,
+        chatId: effectiveChatId,
+      }).catch((error) => {
+        reqLogger.warn('Failed to send explicit abort for mothership execution', {
+          error: toError(error).message,
+        })
       })
-      return NextResponse.json(
-        {
-          error: result.error || 'Mothership execution failed',
-          content: result.content || '',
-        },
-        { status: 500 }
-      )
     }
 
-    const clientToolNames = new Set(integrationTools.map((t) => t.name))
-    const clientToolCalls = (result.toolCalls || []).filter(
-      (tc: { name: string }) => clientToolNames.has(tc.name) || tc.name.startsWith('mcp-')
-    )
+    if (req.signal.aborted) {
+      onAbort()
+    } else {
+      req.signal.addEventListener('abort', onAbort, { once: true })
+    }
 
-    return NextResponse.json({
-      content: result.content,
-      model: 'mothership',
-      tokens: result.usage
-        ? {
-            prompt: result.usage.prompt,
-            completion: result.usage.completion,
-            total: (result.usage.prompt || 0) + (result.usage.completion || 0),
+    try {
+      const result = await runHeadlessCopilotLifecycle(requestPayload, {
+        userId,
+        workspaceId,
+        chatId: effectiveChatId,
+        workflowId,
+        executionId,
+        simRequestId: requestId,
+        goRoute: '/api/mothership/execute',
+        autoExecuteTools: true,
+        interactive: false,
+        abortSignal: req.signal,
+      })
+
+      allowExplicitAbort = false
+
+      if (req.signal.aborted) {
+        reqLogger.info('Mothership execute aborted after lifecycle completion')
+        return NextResponse.json({ error: 'Mothership execution aborted' }, { status: 499 })
+      }
+
+      if (!result.success) {
+        logger.error(
+          messageId
+            ? `Mothership execute failed [messageId:${messageId}]`
+            : 'Mothership execute failed',
+          {
+            requestId,
+            workflowId,
+            executionId,
+            error: result.error,
+            errors: result.errors,
           }
-        : {},
-      cost: result.cost || undefined,
-      toolCalls: clientToolCalls,
-    })
+        )
+        return NextResponse.json(
+          {
+            error: result.error || 'Mothership execution failed',
+            content: result.content || '',
+          },
+          { status: 500 }
+        )
+      }
+
+      const clientToolNames = new Set(integrationTools.map((t) => t.name))
+      const clientToolCalls = (result.toolCalls || []).filter(
+        (tc: { name: string }) => clientToolNames.has(tc.name) || tc.name.startsWith('mcp-')
+      )
+
+      return NextResponse.json({
+        content: result.content,
+        model: 'mothership',
+        tokens: result.usage
+          ? {
+              prompt: result.usage.prompt,
+              completion: result.usage.completion,
+              total: (result.usage.prompt || 0) + (result.usage.completion || 0),
+            }
+          : {},
+        cost: result.cost || undefined,
+        toolCalls: clientToolCalls,
+      })
+    } finally {
+      allowExplicitAbort = false
+      req.signal.removeEventListener('abort', onAbort)
+      await explicitAbortRequest
+    }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -136,13 +197,30 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    logger.withMetadata({ messageId }).error('Mothership execute error', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+    if (req.signal.aborted || isAbortError(error)) {
+      logger.info(
+        messageId
+          ? `Mothership execute aborted [messageId:${messageId}]`
+          : 'Mothership execute aborted',
+        {
+          requestId,
+        }
+      )
+
+      return NextResponse.json({ error: 'Mothership execution aborted' }, { status: 499 })
+    }
+
+    logger.error(
+      messageId ? `Mothership execute error [messageId:${messageId}]` : 'Mothership execute error',
+      {
+        requestId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    )
 
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     )
   }
-}
+})

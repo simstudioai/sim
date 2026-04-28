@@ -6,6 +6,7 @@
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
   checkStorageQuota,
@@ -13,7 +14,6 @@ import {
   incrementStorageUsage,
 } from '@/lib/billing/storage'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
-import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { getServePathPrefix } from '@/lib/uploads'
 import { downloadFile, hasCloudStorage, uploadFile } from '@/lib/uploads/core/storage-service'
@@ -45,6 +45,7 @@ export interface WorkspaceFileRecord {
   uploadedBy: string
   deletedAt?: Date | null
   uploadedAt: Date
+  updatedAt: Date
   /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads). */
   storageContext?: 'workspace' | 'mothership'
 }
@@ -375,6 +376,7 @@ export async function getWorkspaceFileByName(
     uploadedBy: file.userId,
     deletedAt: file.deletedAt,
     uploadedAt: file.uploadedAt,
+    updatedAt: file.updatedAt,
   }
 }
 
@@ -423,6 +425,7 @@ export async function listWorkspaceFiles(
       uploadedBy: file.userId,
       deletedAt: file.deletedAt,
       uploadedAt: file.uploadedAt,
+      updatedAt: file.updatedAt,
     }))
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
@@ -437,17 +440,29 @@ export async function listWorkspaceFiles(
  */
 export function normalizeWorkspaceFileReference(fileReference: string): string {
   const trimmed = fileReference.trim().replace(/^\/+/, '')
+  const withoutDeletedPrefix = trimmed.startsWith('recently-deleted/')
+    ? trimmed.slice('recently-deleted/'.length)
+    : trimmed
 
-  if (trimmed.startsWith('files/by-id/')) {
-    const byIdRef = trimmed.slice('files/by-id/'.length)
+  if (withoutDeletedPrefix.startsWith('files/by-id/')) {
+    const byIdRef = withoutDeletedPrefix.slice('files/by-id/'.length)
     const match = byIdRef.match(/^([^/]+)(?:\/(?:meta\.json|content))?$/)
     if (match?.[1]) {
       return match[1]
     }
   }
 
-  if (trimmed.startsWith('files/')) {
-    const withoutPrefix = trimmed.slice('files/'.length)
+  if (withoutDeletedPrefix.startsWith('by-id/')) {
+    const match = withoutDeletedPrefix
+      .slice('by-id/'.length)
+      .match(/^([^/]+)(?:\/(?:meta\.json|content))?$/)
+    if (match?.[1]) {
+      return match[1]
+    }
+  }
+
+  if (withoutDeletedPrefix.startsWith('files/')) {
+    const withoutPrefix = withoutDeletedPrefix.slice('files/'.length)
     if (withoutPrefix.endsWith('/meta.json')) {
       return withoutPrefix.slice(0, -'/meta.json'.length)
     }
@@ -457,7 +472,7 @@ export function normalizeWorkspaceFileReference(fileReference: string): string {
     return withoutPrefix
   }
 
-  return trimmed
+  return withoutDeletedPrefix
 }
 
 /**
@@ -548,6 +563,7 @@ export async function getWorkspaceFile(
       uploadedBy: file.userId,
       deletedAt: file.deletedAt,
       uploadedAt: file.uploadedAt,
+      updatedAt: file.updatedAt,
     }
   } catch (error) {
     logger.error(`Failed to get workspace file ${fileId}:`, error)
@@ -626,7 +642,7 @@ export async function updateWorkspaceFileContent(
 
     await db
       .update(workspaceFiles)
-      .set({ size: content.length, contentType: nextContentType })
+      .set({ size: content.length, contentType: nextContentType, updatedAt: new Date() })
       .where(
         and(
           eq(workspaceFiles.id, fileId),
@@ -695,7 +711,7 @@ export async function renameWorkspaceFile(
   try {
     updated = await db
       .update(workspaceFiles)
-      .set({ originalName: trimmedName })
+      .set({ originalName: trimmedName, updatedAt: new Date() })
       .where(
         and(
           eq(workspaceFiles.id, fileId),
@@ -795,7 +811,7 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
 
       await db
         .update(workspaceFiles)
-        .set({ deletedAt: null, originalName: newName })
+        .set({ deletedAt: null, originalName: newName, updatedAt: new Date() })
         .where(
           and(
             eq(workspaceFiles.id, fileId),

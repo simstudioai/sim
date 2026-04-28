@@ -1,10 +1,11 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getCreditBalance } from '@/lib/billing/credits/balance'
 import { purchaseCredits } from '@/lib/billing/credits/purchase'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CreditsAPI')
 
@@ -13,7 +14,7 @@ const PurchaseSchema = z.object({
   requestId: z.string().uuid(),
 })
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   const session = await getSession()
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -29,9 +30,9 @@ export async function GET() {
     logger.error('Failed to get credit balance', { error, userId: session.user.id })
     return NextResponse.json({ error: 'Failed to get credit balance' }, { status: 500 })
   }
-}
+})
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -64,8 +65,12 @@ export async function POST(request: NextRequest) {
       actorEmail: session.user.email,
       action: AuditAction.CREDIT_PURCHASED,
       resourceType: AuditResourceType.BILLING,
+      resourceId: validation.data.requestId,
       description: `Purchased $${validation.data.amount} in credits`,
-      metadata: { amount: validation.data.amount, requestId: validation.data.requestId },
+      metadata: {
+        amountDollars: validation.data.amount,
+        requestId: validation.data.requestId,
+      },
       request,
     })
 
@@ -74,4 +79,4 @@ export async function POST(request: NextRequest) {
     logger.error('Failed to purchase credits', { error, userId: session.user.id })
     return NextResponse.json({ error: 'Failed to purchase credits' }, { status: 500 })
   }
-}
+})

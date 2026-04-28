@@ -1,12 +1,13 @@
 import { db } from '@sim/db'
 import { member, templateCreators } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
 
 const logger = createLogger('CreatorProfilesAPI')
@@ -28,7 +29,7 @@ const CreateCreatorProfileSchema = z.object({
 })
 
 // GET /api/creators - Get creator profiles for current user
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   const { searchParams } = new URL(request.url)
   const userId = searchParams.get('userId')
@@ -79,10 +80,10 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching creator profiles`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 // POST /api/creators - Create a new creator profile
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -186,4 +187,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[${requestId}] Error creating creator profile`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

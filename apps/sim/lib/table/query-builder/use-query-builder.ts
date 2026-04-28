@@ -2,8 +2,8 @@
  * Hooks for query builder UI state management (filters and sorting).
  */
 
-import { useCallback, useMemo } from 'react'
-import { generateShortId } from '@/lib/core/utils/uuid'
+import { useCallback } from 'react'
+import { generateShortId } from '@sim/utils/id'
 import type { ColumnOption } from '../types'
 import {
   COMPARISON_OPERATORS,
@@ -15,6 +15,21 @@ import {
 
 export type { ColumnOption }
 
+const comparisonOptions: ColumnOption[] = COMPARISON_OPERATORS.map((op) => ({
+  value: op.value,
+  label: op.label,
+}))
+
+const logicalOptions: ColumnOption[] = LOGICAL_OPERATORS.map((op) => ({
+  value: op.value,
+  label: op.label,
+}))
+
+const sortDirectionOptions: ColumnOption[] = SORT_DIRECTIONS.map((d) => ({
+  value: d.value,
+  label: d.label,
+}))
+
 /** Manages filter rule state with add/remove/update operations. */
 export function useFilterBuilder({
   columns,
@@ -22,21 +37,6 @@ export function useFilterBuilder({
   setRules,
   isReadOnly = false,
 }: UseFilterBuilderProps): UseFilterBuilderReturn {
-  const comparisonOptions = useMemo(
-    () => COMPARISON_OPERATORS.map((op) => ({ value: op.value, label: op.label })),
-    []
-  )
-
-  const logicalOptions = useMemo(
-    () => LOGICAL_OPERATORS.map((op) => ({ value: op.value, label: op.label })),
-    []
-  )
-
-  const sortDirectionOptions = useMemo(
-    () => SORT_DIRECTIONS.map((d) => ({ value: d.value, label: d.label })),
-    []
-  )
-
   const createDefaultRule = useCallback((): FilterRule => {
     return {
       id: generateShortId(),
@@ -85,11 +85,6 @@ export function useSortBuilder({
   sortRule,
   setSortRule,
 }: UseSortBuilderProps): UseSortBuilderReturn {
-  const sortDirectionOptions = useMemo(
-    () => SORT_DIRECTIONS.map((d) => ({ value: d.value, label: d.label })),
-    []
-  )
-
   const addSort = useCallback(() => {
     setSortRule({
       id: generateShortId(),

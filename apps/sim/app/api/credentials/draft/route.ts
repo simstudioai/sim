@@ -1,11 +1,12 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, pendingCredentialDraft } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, lt } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialDraftAPI')
@@ -20,7 +21,7 @@ const createDraftSchema = z.object({
   credentialId: z.string().min(1).optional(),
 })
 
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: Request) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -114,4 +115,4 @@ export async function POST(request: Request) {
     logger.error('Failed to save credential draft', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

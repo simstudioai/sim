@@ -7,6 +7,11 @@ export interface CodeExecutionInput {
   useLocalVM?: boolean
   timeout?: number
   memoryLimit?: number
+  outputPath?: string
+  outputFormat?: 'json' | 'csv' | 'txt' | 'md' | 'html'
+  outputTable?: string
+  outputSandboxPath?: string
+  outputMimeType?: string
   envVars?: Record<string, string>
   workflowVariables?: Record<string, unknown>
   blockData?: Record<string, unknown>
@@ -15,6 +20,7 @@ export interface CodeExecutionInput {
   _context?: {
     workflowId?: string
     userId?: string
+    workspaceId?: string
   }
   isCustomTool?: boolean
   _sandboxFiles?: Array<{ path: string; content: string }>

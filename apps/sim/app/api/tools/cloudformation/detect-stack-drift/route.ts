@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CloudFormationDetectStackDrift')
 
@@ -13,7 +14,7 @@ const DetectStackDriftSchema = z.object({
   stackName: z.string().min(1, 'Stack name is required'),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -59,4 +60,4 @@ export async function POST(request: NextRequest) {
     logger.error('DetectStackDrift failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
-}
+})

@@ -40,7 +40,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
 import { isMacPlatform } from '@/lib/core/utils/platform'
-import { buildFolderTree } from '@/lib/folders/tree'
+import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   START_NAV_TOUR_EVENT,
@@ -71,9 +71,11 @@ import {
   useSidebarResize,
   useTaskSelection,
   useWorkflowOperations,
+  useWorkspaceLogoUpload,
   useWorkspaceManagement,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
+  compareByOrder,
   createSidebarDragGhost,
   groupWorkflowsByFolder,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
@@ -96,6 +98,7 @@ import {
   useTasks,
 } from '@/hooks/queries/tasks'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
+import type { Workspace } from '@/hooks/queries/workspace'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -445,17 +448,38 @@ export const Sidebar = memo(function Sidebar() {
 
   const {
     workspaces,
+    workspaceCreationPolicy,
     activeWorkspace,
     isWorkspacesLoading,
     switchWorkspace,
     handleCreateWorkspace,
     isCreatingWorkspace,
+    isDeletingWorkspace,
+    isLeavingWorkspace,
     updateWorkspace,
     confirmDeleteWorkspace,
     handleLeaveWorkspace,
   } = useWorkspaceManagement({
     workspaceId,
     sessionUserId: sessionData?.user?.id,
+  })
+
+  const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId)
+  const logoTargetWorkspaceIdRef = useRef<string>(workspaceId)
+
+  const {
+    fileInputRef: logoFileInputRef,
+    handleFileChange: handleLogoFileChange,
+    setTargetWorkspaceId: setLogoTargetWorkspaceId,
+  } = useWorkspaceLogoUpload({
+    workspaceId,
+    currentLogoUrl: activeWorkspaceFull?.logoUrl,
+    onUpload: (url) => {
+      updateWorkspace(logoTargetWorkspaceIdRef.current, { logoUrl: url })
+    },
+    onError: (error) => {
+      logger.error('Workspace logo upload error:', error)
+    },
   })
 
   const { handleMouseDown, isResizing } = useSidebarResize()
@@ -484,6 +508,42 @@ export const Sidebar = memo(function Sidebar() {
     () => (isCollapsed ? groupWorkflowsByFolder(regularWorkflows) : {}),
     [isCollapsed, regularWorkflows]
   )
+
+  const collapsedRootItems = useMemo(() => {
+    type RootItem =
+      | {
+          kind: 'folder'
+          sortOrder: number
+          createdAt?: Date
+          id: string
+          node: (typeof folderTree)[number]
+        }
+      | {
+          kind: 'workflow'
+          sortOrder: number
+          createdAt?: Date
+          id: string
+          workflow: (typeof regularWorkflows)[number]
+        }
+    const items: RootItem[] = [
+      ...folderTree.map((node) => ({
+        kind: 'folder' as const,
+        sortOrder: node.sortOrder,
+        createdAt: node.createdAt,
+        id: node.id,
+        node,
+      })),
+      ...(workflowsByFolder.root ?? []).map((w) => ({
+        kind: 'workflow' as const,
+        sortOrder: w.sortOrder,
+        createdAt: w.createdAt,
+        id: w.id,
+        workflow: w,
+      })),
+    ]
+    items.sort(compareByOrder)
+    return items
+  }, [folderTree, workflowsByFolder])
 
   const [activeNavItemHref, setActiveNavItemHref] = useState<string | null>(null)
   const {
@@ -613,14 +673,20 @@ export const Sidebar = memo(function Sidebar() {
 
   const searchModalWorkflows = useMemo(
     () =>
-      regularWorkflows.map((workflow) => ({
-        id: workflow.id,
-        name: workflow.name,
-        href: `/workspace/${workspaceId}/w/${workflow.id}`,
-        color: workflow.color,
-        isCurrent: workflow.id === workflowId,
-      })),
-    [regularWorkflows, workspaceId, workflowId]
+      regularWorkflows.map((workflow) => {
+        const folderPath = workflow.folderId
+          ? getFolderPath(folderMap, workflow.folderId).map((folder) => folder.name)
+          : []
+        return {
+          id: workflow.id,
+          name: workflow.name,
+          href: `/workspace/${workspaceId}/w/${workflow.id}`,
+          color: workflow.color,
+          folderPath: folderPath.length > 0 ? folderPath : undefined,
+          isCurrent: workflow.id === workflowId,
+        }
+      }),
+    [regularWorkflows, folderMap, workspaceId, workflowId]
   )
 
   const searchModalWorkspaces = useMemo(
@@ -978,7 +1044,7 @@ export const Sidebar = memo(function Sidebar() {
   }, [])
 
   const handleWorkspaceSwitch = useCallback(
-    async (workspace: { id: string; name: string; ownerId: string; role?: string }) => {
+    async (workspace: Workspace) => {
       if (workspace.id === workspaceId) {
         setIsWorkspaceMenuOpen(false)
         return
@@ -1011,6 +1077,22 @@ export const Sidebar = memo(function Sidebar() {
   const handleColorChangeWorkspace = useCallback(
     async (workspaceIdToUpdate: string, color: string) => {
       await updateWorkspace(workspaceIdToUpdate, { color })
+    },
+    [updateWorkspace]
+  )
+
+  const handleUploadLogo = useCallback(
+    (workspaceIdToUpdate: string) => {
+      logoTargetWorkspaceIdRef.current = workspaceIdToUpdate
+      setLogoTargetWorkspaceId(workspaceIdToUpdate)
+      logoFileInputRef.current?.click()
+    },
+    [logoFileInputRef, setLogoTargetWorkspaceId]
+  )
+
+  const handleRemoveLogo = useCallback(
+    async (workspaceIdToUpdate: string) => {
+      await updateWorkspace(workspaceIdToUpdate, { logoUrl: null })
     },
     [updateWorkspace]
   )
@@ -1230,6 +1312,13 @@ export const Sidebar = memo(function Sidebar() {
 
   return (
     <>
+      <input
+        ref={logoFileInputRef}
+        type='file'
+        accept='image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
+        className='hidden'
+        onChange={handleLogoFileChange}
+      />
       <div className='relative h-full'>
         <aside
           ref={sidebarRef}
@@ -1318,6 +1407,7 @@ export const Sidebar = memo(function Sidebar() {
                 activeWorkspace={activeWorkspace}
                 workspaceId={workspaceId}
                 workspaces={workspaces}
+                workspaceCreationPolicy={workspaceCreationPolicy}
                 isWorkspacesLoading={isWorkspacesLoading}
                 isCreatingWorkspace={isCreatingWorkspace}
                 isWorkspaceMenuOpen={isWorkspaceMenuOpen}
@@ -1326,12 +1416,16 @@ export const Sidebar = memo(function Sidebar() {
                 onCreateWorkspace={handleCreateWorkspace}
                 onRenameWorkspace={handleRenameWorkspace}
                 onDeleteWorkspace={handleDeleteWorkspace}
+                isDeletingWorkspace={isDeletingWorkspace}
                 onDuplicateWorkspace={handleDuplicateWorkspace}
                 onExportWorkspace={exportWorkspace}
                 onImportWorkspace={handleImportWorkspace}
                 isImportingWorkspace={isImportingWorkspace}
                 onColorChange={handleColorChangeWorkspace}
+                onUploadLogo={handleUploadLogo}
+                onRemoveLogo={handleRemoveLogo}
                 onLeaveWorkspace={handleLeaveWorkspaceWrapper}
+                isLeavingWorkspace={isLeavingWorkspace}
                 sessionUserId={sessionData?.user?.id}
                 isCollapsed={isCollapsed}
               />
@@ -1600,42 +1694,46 @@ export const Sidebar = memo(function Sidebar() {
                             <DropdownMenuItem disabled>No workflows yet</DropdownMenuItem>
                           ) : (
                             <>
-                              <CollapsedFolderItems
-                                nodes={folderTree}
-                                workflowsByFolder={workflowsByFolder}
-                                workspaceId={workspaceId}
-                                currentWorkflowId={workflowId}
-                                editingWorkflowId={workflowFlyoutRename.editingId}
-                                editingValue={workflowFlyoutRename.value}
-                                editInputRef={workflowFlyoutRename.inputRef}
-                                isRenamingWorkflow={workflowFlyoutRename.isSaving}
-                                onEditValueChange={workflowFlyoutRename.setValue}
-                                onEditKeyDown={workflowFlyoutRename.handleKeyDown}
-                                onEditBlur={handleWorkflowRenameBlur}
-                                onWorkflowOpenInNewTab={handleCollapsedWorkflowOpenInNewTab}
-                                onWorkflowRename={handleCollapsedWorkflowRename}
-                                canRenameWorkflow={canEdit}
-                              />
-                              {(workflowsByFolder.root || []).map((workflow) => (
-                                <CollapsedWorkflowFlyoutItem
-                                  key={workflow.id}
-                                  workflow={workflow}
-                                  href={`/workspace/${workspaceId}/w/${workflow.id}`}
-                                  isCurrentRoute={workflow.id === workflowId}
-                                  isEditing={workflow.id === workflowFlyoutRename.editingId}
-                                  editValue={workflowFlyoutRename.value}
-                                  inputRef={workflowFlyoutRename.inputRef}
-                                  isRenaming={workflowFlyoutRename.isSaving}
-                                  onEditValueChange={workflowFlyoutRename.setValue}
-                                  onEditKeyDown={workflowFlyoutRename.handleKeyDown}
-                                  onEditBlur={handleWorkflowRenameBlur}
-                                  onOpenInNewTab={() =>
-                                    handleCollapsedWorkflowOpenInNewTab(workflow)
-                                  }
-                                  onRename={() => handleCollapsedWorkflowRename(workflow)}
-                                  canRename={canEdit}
-                                />
-                              ))}
+                              {collapsedRootItems.map((item) =>
+                                item.kind === 'folder' ? (
+                                  <CollapsedFolderItems
+                                    key={item.id}
+                                    nodes={[item.node]}
+                                    workflowsByFolder={workflowsByFolder}
+                                    workspaceId={workspaceId}
+                                    currentWorkflowId={workflowId}
+                                    editingWorkflowId={workflowFlyoutRename.editingId}
+                                    editingValue={workflowFlyoutRename.value}
+                                    editInputRef={workflowFlyoutRename.inputRef}
+                                    isRenamingWorkflow={workflowFlyoutRename.isSaving}
+                                    onEditValueChange={workflowFlyoutRename.setValue}
+                                    onEditKeyDown={workflowFlyoutRename.handleKeyDown}
+                                    onEditBlur={handleWorkflowRenameBlur}
+                                    onWorkflowOpenInNewTab={handleCollapsedWorkflowOpenInNewTab}
+                                    onWorkflowRename={handleCollapsedWorkflowRename}
+                                    canRenameWorkflow={canEdit}
+                                  />
+                                ) : (
+                                  <CollapsedWorkflowFlyoutItem
+                                    key={item.id}
+                                    workflow={item.workflow}
+                                    href={`/workspace/${workspaceId}/w/${item.workflow.id}`}
+                                    isCurrentRoute={item.workflow.id === workflowId}
+                                    isEditing={item.workflow.id === workflowFlyoutRename.editingId}
+                                    editValue={workflowFlyoutRename.value}
+                                    inputRef={workflowFlyoutRename.inputRef}
+                                    isRenaming={workflowFlyoutRename.isSaving}
+                                    onEditValueChange={workflowFlyoutRename.setValue}
+                                    onEditKeyDown={workflowFlyoutRename.handleKeyDown}
+                                    onEditBlur={handleWorkflowRenameBlur}
+                                    onOpenInNewTab={() =>
+                                      handleCollapsedWorkflowOpenInNewTab(item.workflow)
+                                    }
+                                    onRename={() => handleCollapsedWorkflowRename(item.workflow)}
+                                    canRename={canEdit}
+                                  />
+                                )
+                              )}
                             </>
                           )}
                         </CollapsedSidebarMenu>

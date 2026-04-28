@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateNumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -19,7 +20,7 @@ const DiscordSendMessageSchema = z.object({
   files: RawFileInputArraySchema.optional().nullable(),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -199,4 +200,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

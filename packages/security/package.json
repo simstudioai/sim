@@ -1,0 +1,50 @@
+{
+  "name": "@sim/security",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "bun": ">=1.2.13",
+    "node": ">=20.0.0"
+  },
+  "exports": {
+    "./compare": {
+      "types": "./src/compare.ts",
+      "default": "./src/compare.ts"
+    },
+    "./encryption": {
+      "types": "./src/encryption.ts",
+      "default": "./src/encryption.ts"
+    },
+    "./hash": {
+      "types": "./src/hash.ts",
+      "default": "./src/hash.ts"
+    },
+    "./hmac": {
+      "types": "./src/hmac.ts",
+      "default": "./src/hmac.ts"
+    },
+    "./tokens": {
+      "types": "./src/tokens.ts",
+      "default": "./src/tokens.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "@types/node": "24.2.1",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.8"
+  }
+}

@@ -6,6 +6,7 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import {
   getFromEmailAddress,
@@ -24,7 +25,7 @@ const helpFormSchema = z.object({
   type: z.enum(['bug', 'feedback', 'feature_request', 'other']),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -159,4 +160,4 @@ ${message}
     logger.error(`[${requestId}] Error processing help request`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

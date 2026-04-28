@@ -2,19 +2,16 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
-import { getJiraCloudId } from '@/tools/jira/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JiraIssuesAPI')
 
-const createErrorResponse = async (response: Response, defaultMessage: string) => {
-  try {
-    const errorData = await response.json()
-    return errorData.message || errorData.errorMessages?.[0] || defaultMessage
-  } catch {
-    return defaultMessage
-  }
+const createErrorResponse = async (response: Response) => {
+  const errorText = await response.text().catch(() => '')
+  return parseAtlassianErrorMessage(response.status, response.statusText, errorText)
 }
 
 const validateRequiredParams = (domain: string | null, accessToken: string | null) => {
@@ -27,7 +24,7 @@ const validateRequiredParams = (domain: string | null, accessToken: string | nul
   return null
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -70,10 +67,7 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       logger.error(`Jira API error: ${response.status} ${response.statusText}`)
-      const errorMessage = await createErrorResponse(
-        response,
-        `Failed to fetch Jira issues (${response.status})`
-      )
+      const errorMessage = await createErrorResponse(response)
       if (response.status === 401 || response.status === 403) {
         return NextResponse.json(
           {
@@ -105,9 +99,9 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -199,10 +193,7 @@ export async function GET(request: NextRequest) {
         })
 
         if (!response.ok) {
-          const errorMessage = await createErrorResponse(
-            response,
-            `Failed to fetch issues (${response.status})`
-          )
+          const errorMessage = await createErrorResponse(response)
           if (response.status === 401 || response.status === 403) {
             return NextResponse.json(
               {
@@ -240,4 +231,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

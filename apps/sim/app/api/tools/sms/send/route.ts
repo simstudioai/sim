@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { type SMSOptions, sendSMS } from '@/lib/messaging/sms/service'
 
 export const dynamic = 'force-dynamic'
@@ -15,7 +16,7 @@ const SMSSendSchema = z.object({
   body: z.string().min(1, 'SMS body is required'),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -96,4 +97,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

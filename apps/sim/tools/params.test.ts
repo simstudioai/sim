@@ -141,6 +141,96 @@ describe('Tool Parameters Utils', () => {
       expect(schema.required).not.toContain('accessToken')
       expect(schema.properties).toHaveProperty('message')
     })
+
+    it.concurrent('adds credentialId only for copilot-facing oauth schemas', () => {
+      const oauthTool = {
+        ...mockToolConfig,
+        id: 'oauth_schema_tool',
+        oauth: {
+          required: true,
+          provider: 'google-email',
+        },
+        params: {
+          message: {
+            type: 'string',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Message to send',
+          },
+          accessToken: {
+            type: 'string',
+            required: true,
+            visibility: 'hidden' as ParameterVisibility,
+            description: 'OAuth access token',
+          },
+        },
+      }
+
+      const defaultSchema = createUserToolSchema(oauthTool)
+      const copilotSchema = createUserToolSchema(oauthTool, { surface: 'copilot' })
+
+      expect(defaultSchema.properties).not.toHaveProperty('credentialId')
+      expect(copilotSchema.properties).toHaveProperty('credentialId')
+      expect(copilotSchema.properties.credentialId).toMatchObject({
+        type: 'string',
+      })
+      expect(copilotSchema.required).toContain('credentialId')
+    })
+
+    it.concurrent('keeps shared file params unchanged by default', () => {
+      const toolWithFileParam = {
+        ...mockToolConfig,
+        id: 'file_schema_tool',
+        params: {
+          attachment: {
+            type: 'file',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Attachment file',
+          },
+        },
+      }
+
+      const schema = createUserToolSchema(toolWithFileParam)
+
+      expect(schema.properties.attachment).toMatchObject({
+        type: 'file',
+        description: 'Attachment file',
+      })
+    })
+
+    it.concurrent('expands file params for copilot-facing schemas', () => {
+      const toolWithFileParams = {
+        ...mockToolConfig,
+        id: 'copilot_file_schema_tool',
+        params: {
+          attachment: {
+            type: 'file',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Attachment file',
+          },
+          attachments: {
+            type: 'file[]',
+            required: false,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Attachment files',
+          },
+        },
+      }
+
+      const schema = createUserToolSchema(toolWithFileParams, { surface: 'copilot' })
+
+      expect(schema.properties.attachment).toMatchObject({
+        type: 'object',
+        required: ['id', 'name', 'url', 'size', 'type', 'key'],
+      })
+      expect(schema.properties.attachment.description).toContain('canonical workspace file IDs')
+      expect(schema.properties.attachments).toMatchObject({
+        type: 'array',
+      })
+      expect(schema.properties.attachments.description).toContain('canonical workspace file IDs')
+    })
   })
 
   describe('createExecutionToolSchema', () => {

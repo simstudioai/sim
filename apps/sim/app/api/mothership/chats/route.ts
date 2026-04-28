@@ -9,8 +9,9 @@ import {
   createBadRequestResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
-import { taskPubSub } from '@/lib/copilot/task-events'
+} from '@/lib/copilot/request/http'
+import { taskPubSub } from '@/lib/copilot/tasks'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -20,7 +21,7 @@ const logger = createLogger('MothershipChatsAPI')
  * GET /api/mothership/chats?workspaceId=xxx
  * Returns mothership (home) chats for the authenticated user in the given workspace.
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
         id: copilotChats.id,
         title: copilotChats.title,
         updatedAt: copilotChats.updatedAt,
-        conversationId: copilotChats.conversationId,
+        activeStreamId: copilotChats.conversationId,
         lastSeenAt: copilotChats.lastSeenAt,
       })
       .from(copilotChats)
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
     logger.error('Error fetching mothership chats:', error)
     return createInternalServerErrorResponse('Failed to fetch chats')
   }
-}
+})
 
 const CreateChatSchema = z.object({
   workspaceId: z.string().min(1),
@@ -67,7 +68,7 @@ const CreateChatSchema = z.object({
  * POST /api/mothership/chats
  * Creates an empty mothership chat and returns its ID.
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
@@ -113,4 +114,4 @@ export async function POST(request: NextRequest) {
     logger.error('Error creating mothership chat:', error)
     return createInternalServerErrorResponse('Failed to create chat')
   }
-}
+})

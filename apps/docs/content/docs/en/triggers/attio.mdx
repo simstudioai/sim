@@ -1,0 +1,513 @@
+---
+title: Attio
+description: Available Attio triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="attio"
+  color="#1D1E20"
+/>
+
+Attio provides 22 triggers for automating workflows based on events.
+
+## Triggers
+
+### Attio Comment Created
+
+Trigger workflow when a new comment is created in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `threadId` | string | The thread ID |
+| `commentId` | string | The comment ID |
+| `objectId` | string | The object type ID |
+| `recordId` | string | The record ID |
+| `listId` | string | The list ID \(if comment is on a list entry\) |
+| `entryId` | string | The list entry ID \(if comment is on a list entry\) |
+
+
+---
+
+### Attio Comment Deleted
+
+Trigger workflow when a comment is deleted in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `threadId` | string | The thread ID |
+| `commentId` | string | The comment ID |
+| `objectId` | string | The object type ID |
+| `recordId` | string | The record ID |
+| `listId` | string | The list ID \(if comment is on a list entry\) |
+| `entryId` | string | The list entry ID \(if comment is on a list entry\) |
+
+
+---
+
+### Attio Comment Resolved
+
+Trigger workflow when a comment thread is resolved in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `threadId` | string | The thread ID |
+| `commentId` | string | The comment ID |
+| `objectId` | string | The object type ID |
+| `recordId` | string | The record ID |
+| `listId` | string | The list ID \(if comment is on a list entry\) |
+| `entryId` | string | The list entry ID \(if comment is on a list entry\) |
+
+
+---
+
+### Attio Comment Unresolved
+
+Trigger workflow when a comment thread is unresolved in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `threadId` | string | The thread ID |
+| `commentId` | string | The comment ID |
+| `objectId` | string | The object type ID |
+| `recordId` | string | The record ID |
+| `listId` | string | The list ID \(if comment is on a list entry\) |
+| `entryId` | string | The list entry ID \(if comment is on a list entry\) |
+
+
+---
+
+### Attio List Created
+
+Trigger workflow when a list is created in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `listId` | string | The list ID |
+
+
+---
+
+### Attio List Deleted
+
+Trigger workflow when a list is deleted in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `listId` | string | The list ID |
+
+
+---
+
+### Attio List Entry Created
+
+Trigger workflow when a new list entry is created in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `listId` | string | The list ID |
+| `entryId` | string | The list entry ID |
+
+
+---
+
+### Attio List Entry Deleted
+
+Trigger workflow when a list entry is deleted in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `listId` | string | The list ID |
+| `entryId` | string | The list entry ID |
+
+
+---
+
+### Attio List Entry Updated
+
+Trigger workflow when a list entry is updated in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `listId` | string | The list ID |
+| `entryId` | string | The list entry ID |
+| `attributeId` | string | The ID of the attribute that was updated on the list entry |
+
+
+---
+
+### Attio List Updated
+
+Trigger workflow when a list is updated in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `listId` | string | The list ID |
+
+
+---
+
+### Attio Note Created
+
+Trigger workflow when a new note is created in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `noteId` | string | The note ID |
+| `parentObjectId` | string | The parent object type ID |
+| `parentRecordId` | string | The parent record ID |
+
+
+---
+
+### Attio Note Deleted
+
+Trigger workflow when a note is deleted in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `noteId` | string | The note ID |
+| `parentObjectId` | string | The parent object type ID |
+| `parentRecordId` | string | The parent record ID |
+
+
+---
+
+### Attio Note Updated
+
+Trigger workflow when a note is updated in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `noteId` | string | The note ID |
+| `parentObjectId` | string | The parent object type ID |
+| `parentRecordId` | string | The parent record ID |
+
+
+---
+
+### Attio Record Created
+
+Trigger workflow when a new record is created in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `objectId` | string | The object type ID \(e.g. people, companies\) |
+| `recordId` | string | The record ID |
+
+
+---
+
+### Attio Record Deleted
+
+Trigger workflow when a record is deleted in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `objectId` | string | The object type ID \(e.g. people, companies\) |
+| `recordId` | string | The record ID |
+
+
+---
+
+### Attio Record Merged
+
+Trigger workflow when two records are merged in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `objectId` | string | The object type ID of the surviving record |
+| `recordId` | string | The surviving record ID after merge |
+| `duplicateObjectId` | string | The object type ID of the merged-away record |
+| `duplicateRecordId` | string | The record ID that was merged away |
+
+
+---
+
+### Attio Record Updated
+
+Trigger workflow when a record is updated in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `objectId` | string | The object type ID \(e.g. people, companies\) |
+| `recordId` | string | The record ID |
+| `attributeId` | string | The ID of the attribute that was updated on the record |
+
+
+---
+
+### Attio Task Created
+
+Trigger workflow when a new task is created in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `taskId` | string | The task ID |
+
+
+---
+
+### Attio Task Deleted
+
+Trigger workflow when a task is deleted in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `taskId` | string | The task ID |
+
+
+---
+
+### Attio Task Updated
+
+Trigger workflow when a task is updated in Attio
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `taskId` | string | The task ID |
+
+
+---
+
+### Attio Webhook (All Events)
+
+Trigger workflow on any Attio webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `id` | json | The event ID object containing resource identifiers |
+| `parentObjectId` | string | The parent object type ID \(if applicable\) |
+| `parentRecordId` | string | The parent record ID \(if applicable\) |
+
+
+---
+
+### Attio Workspace Member Created
+
+Trigger workflow when a new member is added to the Attio workspace
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Attio Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g. record.created, note.created\) |
+| `workspaceId` | string | The workspace ID |
+| `workspaceMemberId` | string | The workspace member ID |
+

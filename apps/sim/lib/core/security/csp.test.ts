@@ -1,4 +1,4 @@
-import { createEnvMock } from '@sim/testing'
+import { createEnvMock, featureFlagsMock } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/env', () =>
@@ -17,11 +17,7 @@ vi.mock('@/lib/core/config/env', () =>
   })
 )
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isDev: false,
-  isHosted: false,
-  isReactGrabEnabled: false,
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import {
   addCSPSource,
@@ -174,6 +170,16 @@ describe('generateRuntimeCSP', () => {
 
     expect(csp).not.toMatch(/\s{3,}/)
     expect(csp.trim()).toBe(csp)
+  })
+
+  it('should allow blob URLs for iframe-based PDF previews', () => {
+    const csp = generateRuntimeCSP()
+    const frameSrcDirective = csp
+      .split('; ')
+      .find((directive) => directive.startsWith('frame-src '))
+
+    expect(frameSrcDirective).toBeDefined()
+    expect(frameSrcDirective).toContain('blob:')
   })
 })
 

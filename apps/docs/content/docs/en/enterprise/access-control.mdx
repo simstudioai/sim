@@ -1,0 +1,216 @@
+---
+title: Access Control
+description: Restrict which models, blocks, and platform features each group of users can access
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+import { Image } from '@/components/ui/image'
+
+Access Control lets workspace admins define permission groups that restrict what each set of workspace members can do — which AI model providers they can use, which workflow blocks they can place, and which platform features are visible to them. Permission groups are scoped to a single workspace: a user can be in different groups (or no group) in different workspaces. Restrictions are enforced both in the workflow executor and in Mothership, based on the workflow's workspace.
+
+---
+
+## How it works
+
+Access control is built around **permission groups**. Each group belongs to a specific workspace and has a name, an optional description, and a configuration that defines what its members can and cannot do. A user can belong to at most one permission group **per workspace**, but can belong to different groups in different workspaces.
+
+When a user runs a workflow or uses Mothership, Sim reads their group's configuration and applies it:
+
+- **In the executor:** If a workflow uses a disallowed block type or model provider, execution halts immediately with an error. This applies to both manual runs and scheduled or API-triggered deployments.
+- **In Mothership:** Disallowed blocks are filtered out of the block list so they cannot be added to a workflow. Disallowed tool types (MCP, custom tools, skills) are skipped if Mothership attempts to use them.
+
+---
+
+## Setup
+
+### 1. Open Access Control settings
+
+Go to **Settings → Enterprise → Access Control** in the workspace you want to manage. Each workspace has its own set of permission groups.
+
+<Image src="/static/enterprise/access-control-groups.png" alt="Access Control settings showing a list of permission groups: Contractors, Sales, Engineering, and Marketing, each with Details and Delete actions" width={900} height={500} />
+
+### 2. Create a permission group
+
+Click **+ Create** and enter a name (required) and optional description. You can also enable **Auto-add new members** — when active, any new member who joins this workspace is automatically added to this group. Only one group per workspace can have this setting enabled at a time.
+
+### 3. Configure permissions
+
+Click **Details** on a group, then open **Configure Permissions**. There are three tabs.
+
+#### Model Providers
+
+Controls which AI model providers members of this group can use.
+
+<Image src="/static/enterprise/access-control-model-providers.png" alt="Model Providers tab showing a grid of AI providers including Ollama, vLLM, OpenAI, Anthropic, Google, Azure OpenAI, and others with checkboxes to allow or restrict access" width={900} height={500} /> The list shows all providers available in Sim.
+
+- **All checked (default):** All providers are allowed.
+- **Subset checked:** Only the selected providers are allowed. Any workflow block or agent using a provider not on the list will fail at execution time.
+
+#### Blocks
+
+Controls which workflow blocks members can place and execute.
+
+<Image src="/static/enterprise/access-control-blocks.png" alt="Blocks tab showing Core Blocks (Agent, API, Condition, Function, Knowledge, etc.) and Tools (integrations like 1Password, A2A, Ahrefs, Airtable, and more) with checkboxes to allow or restrict each" width={900} height={500} /> Blocks are split into two sections: **Core Blocks** (Agent, API, Condition, Function, etc.) and **Tools** (all integration blocks).
+
+- **All checked (default):** All blocks are allowed.
+- **Subset checked:** Only the selected blocks are allowed. Workflows that already contain a disallowed block will fail when run — they are not automatically modified.
+
+<Callout type="info">
+  The `start_trigger` block (the entry point of every workflow) is always allowed and cannot be restricted.
+</Callout>
+
+#### Platform
+
+Controls visibility of platform features and modules.
+
+<Image src="/static/enterprise/access-control-platform.png" alt="Platform tab showing feature toggles grouped by category: Sidebar (Knowledge Base, Tables, Templates), Workflow Panel (Copilot), Settings Tabs, Tools, Deploy Tabs, Features, Logs, and Collaboration" width={900} height={500} /> Each checkbox maps to a specific feature; checking it hides or disables that feature for group members.
+
+**Sidebar**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| Knowledge Base | Hides the Knowledge Base section from the sidebar |
+| Tables | Hides the Tables section from the sidebar |
+| Templates | Hides the Templates section from the sidebar |
+
+**Workflow Panel**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| Copilot | Hides the Copilot panel inside the workflow editor |
+
+**Settings Tabs**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| Integrations | Hides the Integrations tab in Settings |
+| Secrets | Hides the Secrets tab in Settings |
+| API Keys | Hides the Sim Keys tab in Settings |
+| Files | Hides the Files tab in Settings |
+
+**Tools**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| MCP Tools | Disables the use of MCP tools in workflows and agents |
+| Custom Tools | Disables the use of custom tools in workflows and agents |
+| Skills | Disables the use of Sim Skills in workflows and agents |
+
+**Deploy Tabs**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| API | Hides the API deployment tab |
+| MCP | Hides the MCP deployment tab |
+| A2A | Hides the A2A deployment tab |
+| Chat | Hides the Chat deployment tab |
+| Template | Hides the Template deployment tab |
+
+**Features**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| Sim Mailer | Hides the Sim Mailer (Inbox) feature |
+| Public API | Disables public API access for deployed workflows |
+
+**Logs**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| Trace Spans | Hides trace span details in execution logs |
+
+**Collaboration**
+
+| Feature | Effect when checked |
+|---------|-------------------|
+| Invitations | Disables the ability to invite new members to the workspace |
+
+### 4. Add members
+
+Open the group's **Details** view and add members by searching for users by name or email. Only users who already have workspace-level access can be added. A user can only belong to one group per workspace — adding a user to a new group within the same workspace removes them from their current group for that workspace.
+
+---
+
+## Enforcement
+
+### Workflow execution
+
+Restrictions are enforced at the point of execution, not at save time. If a group's configuration changes after a workflow is built:
+
+- **Block restrictions:** Any workflow run that reaches a disallowed block halts immediately with an error. The workflow is not modified — only execution is blocked.
+- **Model provider restrictions:** Any block or agent that uses a disallowed provider halts immediately with an error.
+- **Tool restrictions (MCP, custom tools, skills):** Agents that use a disallowed tool type halt immediately with an error.
+
+This applies regardless of how the workflow is triggered — manually, via API, via schedule, or via webhook.
+
+### Mothership
+
+When a user opens Mothership, their permission group is read before any block or tool suggestions are made:
+
+- Blocks not in the allowed list are filtered out of the block picker entirely — they do not appear as options.
+- If Mothership generates a workflow step that would use a disallowed tool (MCP, custom, or skills), that step is skipped and the reason is noted.
+
+---
+
+## User membership rules
+
+- A user can belong to **at most one** permission group **per workspace**, but may be in different groups across different workspaces.
+- Moving a user to a new group within a workspace automatically removes them from their previous group in that workspace.
+- Users not assigned to any group in a workspace have no restrictions applied in that workspace (all blocks, providers, and features are available to them there).
+- If **Auto-add new members** is enabled on a group, new members of that workspace are automatically placed in the group. Only one group per workspace can have this setting active.
+
+---
+
+<FAQ items={[
+  {
+    question: "Who can create and manage permission groups?",
+    answer: "Any workspace admin on an Enterprise-entitled workspace can create, edit, and delete permission groups for that workspace. The workspace's billed account must be on the Enterprise plan."
+  },
+  {
+    question: "What happens to a workflow that was built before a block was restricted?",
+    answer: "The workflow is not modified — it still exists and can be edited. However, any run that reaches a disallowed block will halt immediately with an error. The block must be removed or the user's group configuration must be updated before the workflow can run successfully."
+  },
+  {
+    question: "Can a user be in multiple permission groups?",
+    answer: "A user can belong to at most one permission group per workspace, but can belong to different groups in different workspaces. Adding a user to a new group within the same workspace automatically removes them from their previous group in that workspace."
+  },
+  {
+    question: "What does a user see if they have no permission group assigned in a workspace?",
+    answer: "Users with no group in a given workspace have no restrictions in that workspace. All blocks, model providers, and platform features are fully available to them there. Restrictions only apply in the specific workspaces where they are assigned to a group."
+  },
+  {
+    question: "Does Mothership respect the same restrictions as the executor?",
+    answer: "Yes. Mothership reads the user's permission group for the active workspace before suggesting blocks or tools. Disallowed blocks are filtered out of the block picker, and disallowed tool types are skipped during workflow generation."
+  },
+  {
+    question: "Can I restrict access to specific workflows or workspaces?",
+    answer: "Access Control operates at the feature and block level within a workspace. To restrict who can access the workspace itself, use workspace invitations and permissions. To apply different restrictions to different workflows, put them in different workspaces with distinct permission groups."
+  },
+  {
+    question: "What is Auto-add new members?",
+    answer: "When a group has Auto-add new members enabled, any new member who joins the workspace is automatically added to that group. Only one group per workspace can have this setting enabled at a time."
+  }
+]} />
+
+---
+
+## Self-hosted setup
+
+Self-hosted deployments use environment variables instead of the billing/plan check.
+
+### Environment variables
+
+```bash
+ACCESS_CONTROL_ENABLED=true
+NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true
+```
+
+You can also set a server-level block allowlist using the `ALLOWED_INTEGRATIONS` environment variable. This is applied as an additional constraint on top of any permission group configuration — a block must be allowed by both the environment allowlist and the user's group to be usable.
+
+```bash
+# Only these block types are available across the entire instance
+ALLOWED_INTEGRATIONS=slack,gmail,agent,function,condition
+```
+
+Once enabled, permission groups are managed through **Settings → Enterprise → Access Control** the same way as Sim Cloud.

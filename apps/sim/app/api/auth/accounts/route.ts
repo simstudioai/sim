@@ -4,10 +4,11 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('AuthAccountsAPI')
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -54,4 +55,4 @@ export async function GET(request: NextRequest) {
     logger.error('Failed to fetch accounts', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

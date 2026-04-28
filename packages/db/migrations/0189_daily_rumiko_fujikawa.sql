@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "last_active_workspace_id" text;

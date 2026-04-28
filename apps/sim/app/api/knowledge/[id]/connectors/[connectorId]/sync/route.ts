@@ -1,11 +1,12 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
@@ -17,7 +18,7 @@ type RouteParams = { params: Promise<{ id: string; connectorId: string }> }
 /**
  * POST /api/knowledge/[id]/connectors/[connectorId]/sync - Trigger a manual sync
  */
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
   const { id: knowledgeBaseId, connectorId } = await params
 
@@ -78,7 +79,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       resourceId: connectorId,
       resourceName: connectorRows[0].connectorType,
       description: `Triggered manual sync for connector on knowledge base "${writeCheck.knowledgeBase.name}"`,
-      metadata: { knowledgeBaseId },
+      metadata: {
+        knowledgeBaseId,
+        knowledgeBaseName: writeCheck.knowledgeBase.name,
+        connectorType: connectorRows[0].connectorType,
+        connectorStatus: connectorRows[0].status,
+        syncType: 'manual',
+      },
       request,
     })
 
@@ -97,4 +104,4 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     logger.error(`[${requestId}] Error triggering manual sync`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

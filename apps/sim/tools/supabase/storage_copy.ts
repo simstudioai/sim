@@ -3,6 +3,7 @@ import {
   type SupabaseStorageCopyParams,
   type SupabaseStorageCopyResponse,
 } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const storageCopyTool: ToolConfig<SupabaseStorageCopyParams, SupabaseStorageCopyResponse> = {
@@ -46,7 +47,7 @@ export const storageCopyTool: ToolConfig<SupabaseStorageCopyParams, SupabaseStor
 
   request: {
     url: (params) => {
-      return `https://${params.projectId}.supabase.co/storage/v1/object/copy`
+      return `${supabaseBaseUrl(params.projectId)}/storage/v1/object/copy`
     },
     method: 'POST',
     headers: (params) => ({

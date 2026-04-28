@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
-import { getJiraCloudId } from '@/tools/jira/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getJiraCloudId, parseAtlassianErrorMessage, toAdf } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,21 +17,21 @@ const jiraUpdateSchema = z.object({
   issueKey: z.string().min(1, 'Issue key is required'),
   summary: z.string().optional(),
   title: z.string().optional(),
-  description: z.string().optional(),
+  description: z.union([z.string(), z.record(z.unknown())]).optional(),
   priority: z.string().optional(),
   assignee: z.string().optional(),
   labels: z.array(z.string()).optional(),
   components: z.array(z.string()).optional(),
   duedate: z.string().optional(),
   fixVersions: z.array(z.string()).optional(),
-  environment: z.string().optional(),
+  environment: z.union([z.string(), z.record(z.unknown())]).optional(),
   customFieldId: z.string().optional(),
   customFieldValue: z.string().optional(),
   notifyUsers: z.boolean().optional(),
   cloudId: z.string().optional(),
 })
 
-export async function PUT(request: NextRequest) {
+export const PUT = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -91,21 +93,7 @@ export async function PUT(request: NextRequest) {
     }
 
     if (description !== undefined && description !== null && description !== '') {
-      fields.description = {
-        type: 'doc',
-        version: 1,
-        content: [
-          {
-            type: 'paragraph',
-            content: [
-              {
-                type: 'text',
-                text: description,
-              },
-            ],
-          },
-        ],
-      }
+      fields.description = toAdf(description)
     }
 
     if (priority !== undefined && priority !== null && priority !== '') {
@@ -136,21 +124,7 @@ export async function PUT(request: NextRequest) {
     }
 
     if (environment !== undefined && environment !== null && environment !== '') {
-      fields.environment = {
-        type: 'doc',
-        version: 1,
-        content: [
-          {
-            type: 'paragraph',
-            content: [
-              {
-                type: 'text',
-                text: environment,
-              },
-            ],
-          },
-        ],
-      }
+      fields.environment = toAdf(environment)
     }
 
     if (
@@ -188,7 +162,10 @@ export async function PUT(request: NextRequest) {
       })
 
       return NextResponse.json(
-        { error: `Jira API error: ${response.status} ${response.statusText}`, details: errorText },
+        {
+          error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
+          details: errorText,
+        },
         { status: response.status }
       )
     }
@@ -207,7 +184,7 @@ export async function PUT(request: NextRequest) {
     })
   } catch (error: any) {
     logger.error('Error updating Jira issue:', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
 
@@ -219,4 +196,4 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

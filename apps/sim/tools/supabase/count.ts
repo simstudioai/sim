@@ -1,4 +1,5 @@
 import type { SupabaseCountParams, SupabaseCountResponse } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const countTool: ToolConfig<SupabaseCountParams, SupabaseCountResponse> = {
@@ -49,7 +50,7 @@ export const countTool: ToolConfig<SupabaseCountParams, SupabaseCountResponse> =
 
   request: {
     url: (params) => {
-      let url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`
+      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=*`
 
       // Add filters if provided
       if (params.filter?.trim()) {

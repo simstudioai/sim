@@ -1,4 +1,6 @@
+import { db, member, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auth, getSession } from '@/lib/auth'
@@ -9,6 +11,8 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SSORegisterRoute')
 
@@ -32,6 +36,7 @@ const ssoRegistrationSchema = z.discriminatedUnion('providerType', [
     providerId: z.string().min(1, 'Provider ID is required'),
     issuer: z.string().url('Issuer must be a valid URL'),
     domain: z.string().min(1, 'Domain is required'),
+    orgId: z.string().optional(),
     mapping: mappingSchema,
     clientId: z.string().min(1, 'Client ID is required for OIDC'),
     clientSecret: z.string().min(1, 'Client Secret is required for OIDC'),
@@ -57,6 +62,7 @@ const ssoRegistrationSchema = z.discriminatedUnion('providerType', [
     providerId: z.string().min(1, 'Provider ID is required'),
     issuer: z.string().url('Issuer must be a valid URL'),
     domain: z.string().min(1, 'Domain is required'),
+    orgId: z.string().optional(),
     mapping: mappingSchema,
     entryPoint: z.string().url('Entry point must be a valid URL for SAML'),
     cert: z.string().min(1, 'Certificate is required for SAML'),
@@ -70,7 +76,7 @@ const ssoRegistrationSchema = z.discriminatedUnion('providerType', [
   }),
 ])
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     if (!env.SSO_ENABLED) {
       return NextResponse.json({ error: 'SSO is not enabled' }, { status: 400 })
@@ -107,7 +113,21 @@ export async function POST(request: NextRequest) {
     }
 
     const body = parseResult.data
-    const { providerId, issuer, domain, providerType, mapping } = body
+    const { providerId, issuer, domain, providerType, mapping, orgId } = body
+
+    if (orgId) {
+      const [membership] = await db
+        .select({ organizationId: member.organizationId, role: member.role })
+        .from(member)
+        .where(and(eq(member.userId, session.user.id), eq(member.organizationId, orgId)))
+        .limit(1)
+      if (!membership) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      if (membership.role !== 'owner' && membership.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
 
     const headers: Record<string, string> = {}
     request.headers.forEach((value, key) => {
@@ -119,12 +139,13 @@ export async function POST(request: NextRequest) {
       issuer,
       domain,
       mapping,
+      ...(orgId ? { organizationId: orgId } : {}),
     }
 
     if (providerType === 'oidc') {
       const {
         clientId,
-        clientSecret,
+        clientSecret: rawClientSecret,
         scopes,
         pkce,
         authorizationEndpoint,
@@ -132,6 +153,34 @@ export async function POST(request: NextRequest) {
         userInfoEndpoint,
         jwksEndpoint,
       } = body
+
+      let clientSecret = rawClientSecret
+      if (rawClientSecret === REDACTED_MARKER) {
+        const ownerClause = orgId
+          ? and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.organizationId, orgId))
+          : and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.userId, session.user.id))
+        const [existing] = await db
+          .select({ oidcConfig: ssoProvider.oidcConfig })
+          .from(ssoProvider)
+          .where(ownerClause)
+          .limit(1)
+        if (!existing?.oidcConfig) {
+          return NextResponse.json(
+            { error: 'Cannot update: existing provider not found. Re-enter your client secret.' },
+            { status: 400 }
+          )
+        }
+        try {
+          clientSecret = JSON.parse(existing.oidcConfig).clientSecret
+        } catch {
+          return NextResponse.json(
+            {
+              error: 'Cannot update: failed to read existing secret. Re-enter your client secret.',
+            },
+            { status: 400 }
+          )
+        }
+      }
 
       const oidcConfig: any = {
         clientId,
@@ -146,6 +195,32 @@ export async function POST(request: NextRequest) {
       oidcConfig.tokenEndpoint = tokenEndpoint
       oidcConfig.userInfoEndpoint = userInfoEndpoint
       oidcConfig.jwksEndpoint = jwksEndpoint
+
+      const userProvidedEndpoints: Record<string, string | undefined> = {
+        authorizationEndpoint,
+        tokenEndpoint,
+        userInfoEndpoint,
+        jwksEndpoint,
+      }
+
+      for (const [name, endpointUrl] of Object.entries(userProvidedEndpoints)) {
+        if (endpointUrl) {
+          const endpointValidation = await validateUrlWithDNS(endpointUrl, `OIDC ${name}`)
+          if (!endpointValidation.isValid) {
+            logger.warn('Explicitly provided OIDC endpoint failed SSRF validation', {
+              endpoint: name,
+              url: endpointUrl,
+              error: endpointValidation.error,
+            })
+            return NextResponse.json(
+              {
+                error: `OIDC ${name} failed security validation: ${endpointValidation.error}`,
+              },
+              { status: 400 }
+            )
+          }
+        }
+      }
 
       const needsDiscovery =
         !oidcConfig.authorizationEndpoint || !oidcConfig.tokenEndpoint || !oidcConfig.jwksEndpoint
@@ -298,7 +373,7 @@ export async function POST(request: NextRequest) {
       } = body
 
       const computedCallbackUrl =
-        callbackUrl || `${issuer.replace('/metadata', '')}/callback/${providerId}`
+        callbackUrl || `${getBaseUrl()}/api/auth/sso/saml2/callback/${providerId}`
 
       const escapeXml = (str: string) =>
         str.replace(/[<>&"']/g, (c) => {
@@ -319,11 +394,33 @@ export async function POST(request: NextRequest) {
         })
 
       const spMetadataXml = `<?xml version="1.0" encoding="UTF-8"?>
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(issuer)}">
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(getBaseUrl())}">
   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
     <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${escapeXml(computedCallbackUrl)}" index="1"/>
   </md:SPSSODescriptor>
 </md:EntityDescriptor>`
+
+      const certBase64 = cert
+        .replace(/-----BEGIN CERTIFICATE-----/g, '')
+        .replace(/-----END CERTIFICATE-----/g, '')
+        .replace(/\s/g, '')
+
+      const computedIdpMetadataXml =
+        idpMetadata ||
+        `<?xml version="1.0"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(issuer)}">
+  <IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <KeyDescriptor use="signing">
+      <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+        <ds:X509Data>
+          <ds:X509Certificate>${certBase64}</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </KeyDescriptor>
+    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${escapeXml(entryPoint)}"/>
+    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${escapeXml(entryPoint)}"/>
+  </IDPSSODescriptor>
+</EntityDescriptor>`
 
       const samlConfig: any = {
         entryPoint,
@@ -332,7 +429,9 @@ export async function POST(request: NextRequest) {
         spMetadata: {
           metadata: spMetadataXml,
         },
-        mapping,
+        idpMetadata: {
+          metadata: computedIdpMetadataXml,
+        },
       }
 
       if (audience) samlConfig.audience = audience
@@ -340,14 +439,8 @@ export async function POST(request: NextRequest) {
       if (signatureAlgorithm) samlConfig.signatureAlgorithm = signatureAlgorithm
       if (digestAlgorithm) samlConfig.digestAlgorithm = digestAlgorithm
       if (identifierFormat) samlConfig.identifierFormat = identifierFormat
-      if (idpMetadata) {
-        samlConfig.idpMetadata = {
-          metadata: idpMetadata,
-        }
-      }
 
       providerConfig.samlConfig = samlConfig
-      providerConfig.mapping = undefined
     }
 
     logger.info('Calling Better Auth registerSSOProvider with config:', {
@@ -406,9 +499,8 @@ export async function POST(request: NextRequest) {
       {
         error: 'Failed to register SSO provider',
         details: error instanceof Error ? error.message : 'Unknown error',
-        fullError: JSON.stringify(error),
       },
       { status: 500 }
     )
   }
-}
+})

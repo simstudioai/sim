@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { format } from 'date-fns'
 import { AlertCircle, Loader2, Pencil, Plus, Tag, X } from 'lucide-react'
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -25,7 +26,6 @@ import {
 import { Database, DatabaseX } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { cn } from '@/lib/core/utils/cn'
-import { generateId } from '@/lib/core/utils/uuid'
 import { ADD_CONNECTOR_SEARCH_PARAM } from '@/lib/credentials/client-state'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'

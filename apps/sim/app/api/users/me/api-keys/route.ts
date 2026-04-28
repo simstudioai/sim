@@ -1,17 +1,19 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { hashApiKey } from '@/lib/api-key/crypto'
 import { getSession } from '@/lib/auth'
-import { generateShortId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('ApiKeysAPI')
 
 // GET /api/users/me/api-keys - Get all API keys for the current user
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -49,10 +51,10 @@ export async function GET(request: NextRequest) {
     logger.error('Failed to fetch API keys', { error })
     return NextResponse.json({ error: 'Failed to fetch API keys' }, { status: 500 })
   }
-}
+})
 
 // POST /api/users/me/api-keys - Create a new API key
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -101,6 +103,7 @@ export async function POST(request: NextRequest) {
         workspaceId: null,
         name,
         key: encryptedKey,
+        keyHash: hashApiKey(plainKey),
         type: 'personal',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -134,4 +137,4 @@ export async function POST(request: NextRequest) {
     logger.error('Failed to create API key', { error })
     return NextResponse.json({ error: 'Failed to create API key' }, { status: 500 })
   }
-}
+})

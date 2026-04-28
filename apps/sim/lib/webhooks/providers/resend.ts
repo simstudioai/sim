@@ -1,7 +1,7 @@
-import crypto from 'node:crypto'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Base64 } from '@sim/security/hmac'
 import { NextResponse } from 'next/server'
-import { safeCompare } from '@/lib/core/security/encryption'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -41,10 +41,7 @@ function verifySvixSignature(
 
     const secretBytes = Buffer.from(secret.replace(/^whsec_/, ''), 'base64')
     const toSign = `${msgId}.${timestamp}.${rawBody}`
-    const expectedSignature = crypto
-      .createHmac('sha256', secretBytes)
-      .update(toSign, 'utf8')
-      .digest('base64')
+    const expectedSignature = hmacSha256Base64(toSign, secretBytes)
 
     const providedSignatures = signatures.split(' ')
     for (const versionedSig of providedSignatures) {

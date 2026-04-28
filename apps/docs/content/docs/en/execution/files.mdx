@@ -156,7 +156,7 @@ Use `url` for direct downloads or `base64` for inline processing.
 - **Dropbox** - Dropbox file operations
 
 <Callout type="info">
-  Files are automatically available to downstream blocks. The execution engine handles all file transfer and format conversion.
+  Files are automatically available to downstream blocks. The engine handles all file transfer and format conversion.
 </Callout>
 
 ## Best Practices
@@ -165,15 +165,15 @@ Use `url` for direct downloads or `base64` for inline processing.
 
 2. **Check file types** - Ensure the file type matches what the receiving block expects. The Vision block needs images, the File block handles documents.
 
-3. **Consider file size** - Large files increase execution time. For very large files, consider using storage blocks (S3, Supabase) for intermediate storage.
+3. **Consider file size** - Large files increase run time. For very large files, consider using storage blocks (S3, Supabase) for intermediate storage.
 
 import { FAQ } from '@/components/ui/faq'
 
 <FAQ items={[
-  { question: "What is the maximum file size for uploads?", answer: "The maximum file size for files processed during workflow execution is 20 MB. Files exceeding this limit will be rejected with an error indicating the actual file size. For larger files, use storage blocks like S3 or Supabase for intermediate storage." },
+  { question: "What is the maximum file size for uploads?", answer: "The maximum file size for files processed during a workflow run is 20 MB. Files exceeding this limit will be rejected with an error indicating the actual file size. For larger files, use storage blocks like S3 or Supabase for intermediate storage." },
   { question: "What file input formats are supported via the API?", answer: "When triggering a workflow via API, you can send files as base64-encoded data (using a data URI with the format 'data:{mime};base64,{data}') or as a URL pointing to a publicly accessible file. In both cases, include the file name and MIME type in the request." },
   { question: "How are files passed between blocks internally?", answer: "Files are represented as standardized UserFile objects with name, url, base64, type, and size properties. Most blocks accept the full file object and extract what they need automatically, so you typically pass the entire object rather than individual properties." },
   { question: "Which blocks can output files?", answer: "Gmail outputs email attachments, Slack outputs downloaded files, TTS generates audio files, Video Generator and Image Generator produce media files. Storage blocks like S3, Supabase, Google Drive, and Dropbox can also retrieve files for use in downstream blocks." },
   { question: "Do I need to extract base64 or URL from file objects manually?", answer: "No. Most blocks accept the full file object and handle the format conversion automatically. Simply pass the entire file reference (e.g., <gmail.attachments[0]>) and the receiving block will extract the data it needs." },
-  { question: "How do file fields work in the Start block's input format?", answer: "When you define a field with type 'file[]' in the Start block's input format, the execution engine automatically processes incoming file data (base64 or URL) and uploads it to storage, converting it into UserFile objects before the workflow runs." },
+  { question: "How do file fields work in the Start block's input format?", answer: "When you define a field with type 'file[]' in the Start block's input format, the engine automatically processes incoming file data (base64 or URL) and uploads it to storage, converting it into UserFile objects before the workflow runs." },
 ]} />

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auth } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,7 @@ const resetPasswordSchema = z.object({
     .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const body = await request.json()
 
@@ -58,4 +59,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

@@ -1,6 +1,8 @@
 import { A2ABlock } from '@/blocks/blocks/a2a'
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { AgentMailBlock } from '@/blocks/blocks/agentmail'
+import { AgentPhoneBlock } from '@/blocks/blocks/agentphone'
+import { AgiloftBlock } from '@/blocks/blocks/agiloft'
 import { AhrefsBlock } from '@/blocks/blocks/ahrefs'
 import { AirtableBlock } from '@/blocks/blocks/airtable'
 import { AirweaveBlock } from '@/blocks/blocks/airweave'
@@ -17,6 +19,7 @@ import { AthenaBlock } from '@/blocks/blocks/athena'
 import { AttioBlock } from '@/blocks/blocks/attio'
 import { BoxBlock } from '@/blocks/blocks/box'
 import { BrandfetchBlock } from '@/blocks/blocks/brandfetch'
+import { BrightDataBlock } from '@/blocks/blocks/brightdata'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { CalComBlock } from '@/blocks/blocks/calcom'
 import { CalendlyBlock } from '@/blocks/blocks/calendly'
@@ -30,6 +33,7 @@ import { CloudWatchBlock } from '@/blocks/blocks/cloudwatch'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceV2Block } from '@/blocks/blocks/confluence'
 import { CredentialBlock } from '@/blocks/blocks/credential'
+import { CrowdStrikeBlock } from '@/blocks/blocks/crowdstrike'
 import { CursorBlock, CursorV2Block } from '@/blocks/blocks/cursor'
 import { DagsterBlock } from '@/blocks/blocks/dagster'
 import { DatabricksBlock } from '@/blocks/blocks/databricks'
@@ -89,6 +93,8 @@ import { HubSpotBlock } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock } from '@/blocks/blocks/huggingface'
 import { HumanInTheLoopBlock } from '@/blocks/blocks/human_in_the_loop'
 import { HunterBlock } from '@/blocks/blocks/hunter'
+import { IAMBlock } from '@/blocks/blocks/iam'
+import { IdentityCenterBlock } from '@/blocks/blocks/identity_center'
 import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
 import { ImapBlock } from '@/blocks/blocks/imap'
 import { IncidentioBlock } from '@/blocks/blocks/incidentio'
@@ -125,6 +131,7 @@ import {
   MistralParseV2Block,
   MistralParseV3Block,
 } from '@/blocks/blocks/mistral_parse'
+import { MondayBlock } from '@/blocks/blocks/monday'
 import { MongoDBBlock } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
 import { MySQLBlock } from '@/blocks/blocks/mysql'
@@ -169,6 +176,7 @@ import { SendGridBlock } from '@/blocks/blocks/sendgrid'
 import { SentryBlock } from '@/blocks/blocks/sentry'
 import { SerperBlock } from '@/blocks/blocks/serper'
 import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
+import { SESBlock } from '@/blocks/blocks/ses'
 import { SftpBlock } from '@/blocks/blocks/sftp'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { ShopifyBlock } from '@/blocks/blocks/shopify'
@@ -183,6 +191,7 @@ import { StagehandBlock } from '@/blocks/blocks/stagehand'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { StarterBlock } from '@/blocks/blocks/starter'
 import { StripeBlock } from '@/blocks/blocks/stripe'
+import { STSBlock } from '@/blocks/blocks/sts'
 import { SttBlock, SttV2Block } from '@/blocks/blocks/stt'
 import { SupabaseBlock } from '@/blocks/blocks/supabase'
 import { TableBlock } from '@/blocks/blocks/table'
@@ -225,6 +234,8 @@ export const registry: Record<string, BlockConfig> = {
   a2a: A2ABlock,
   agent: AgentBlock,
   agentmail: AgentMailBlock,
+  agentphone: AgentPhoneBlock,
+  agiloft: AgiloftBlock,
   ahrefs: AhrefsBlock,
   airtable: AirtableBlock,
   airweave: AirweaveBlock,
@@ -239,8 +250,9 @@ export const registry: Record<string, BlockConfig> = {
   ashby: AshbyBlock,
   athena: AthenaBlock,
   attio: AttioBlock,
-  brandfetch: BrandfetchBlock,
   box: BoxBlock,
+  brandfetch: BrandfetchBlock,
+  brightdata: BrightDataBlock,
   browser_use: BrowserUseBlock,
   calcom: CalComBlock,
   calendly: CalendlyBlock,
@@ -249,6 +261,7 @@ export const registry: Record<string, BlockConfig> = {
   cloudflare: CloudflareBlock,
   cloudformation: CloudFormationBlock,
   cloudwatch: CloudWatchBlock,
+  crowdstrike: CrowdStrikeBlock,
   clay: ClayBlock,
   clerk: ClerkBlock,
   condition: ConditionBlock,
@@ -324,6 +337,8 @@ export const registry: Record<string, BlockConfig> = {
   huggingface: HuggingFaceBlock,
   human_in_the_loop: HumanInTheLoopBlock,
   hunter: HunterBlock,
+  iam: IAMBlock,
+  identity_center: IdentityCenterBlock,
   image_generator: ImageGeneratorBlock,
   imap: ImapBlock,
   incidentio: IncidentioBlock,
@@ -362,6 +377,7 @@ export const registry: Record<string, BlockConfig> = {
   mistral_parse: MistralParseBlock,
   mistral_parse_v2: MistralParseV2Block,
   mistral_parse_v3: MistralParseV3Block,
+  monday: MondayBlock,
   mongodb: MongoDBBlock,
   mothership: MothershipBlock,
   mysql: MySQLBlock,
@@ -418,8 +434,10 @@ export const registry: Record<string, BlockConfig> = {
   smtp: SmtpBlock,
   spotify: SpotifyBlock,
   secrets_manager: SecretsManagerBlock,
+  ses: SESBlock,
   sqs: SQSBlock,
   ssh: SSHBlock,
+  sts: STSBlock,
   stagehand: StagehandBlock,
   start_trigger: StartTriggerBlock,
   starter: StarterBlock,

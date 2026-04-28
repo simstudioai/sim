@@ -1,11 +1,12 @@
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatStatusAPI')
@@ -13,68 +14,70 @@ const logger = createLogger('ChatStatusAPI')
 /**
  * GET endpoint to check if a workflow has an active chat deployment
  */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const requestId = generateRequestId()
+export const GET = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const { id } = await params
+    const requestId = generateRequestId()
 
-  try {
-    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!auth.success || !auth.userId) {
-      return createErrorResponse('Unauthorized', 401)
-    }
+    try {
+      const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+      if (!auth.success || !auth.userId) {
+        return createErrorResponse('Unauthorized', 401)
+      }
 
-    const authorization = await authorizeWorkflowByWorkspacePermission({
-      workflowId: id,
-      userId: auth.userId,
-      action: 'read',
-    })
-    if (!authorization.allowed) {
-      return createErrorResponse(
-        authorization.message || 'Access denied',
-        authorization.status || 403
-      )
-    }
-
-    // Find any active chat deployments for this workflow
-    const deploymentResults = await db
-      .select({
-        id: chat.id,
-        identifier: chat.identifier,
-        title: chat.title,
-        description: chat.description,
-        customizations: chat.customizations,
-        authType: chat.authType,
-        allowedEmails: chat.allowedEmails,
-        outputConfigs: chat.outputConfigs,
-        password: chat.password,
-        isActive: chat.isActive,
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId: id,
+        userId: auth.userId,
+        action: 'read',
       })
-      .from(chat)
-      .where(and(eq(chat.workflowId, id), isNull(chat.archivedAt)))
-      .limit(1)
+      if (!authorization.allowed) {
+        return createErrorResponse(
+          authorization.message || 'Access denied',
+          authorization.status || 403
+        )
+      }
 
-    const isDeployed = deploymentResults.length > 0 && deploymentResults[0].isActive
-    const deploymentInfo =
-      deploymentResults.length > 0
-        ? {
-            id: deploymentResults[0].id,
-            identifier: deploymentResults[0].identifier,
-            title: deploymentResults[0].title,
-            description: deploymentResults[0].description,
-            customizations: deploymentResults[0].customizations,
-            authType: deploymentResults[0].authType,
-            allowedEmails: deploymentResults[0].allowedEmails,
-            outputConfigs: deploymentResults[0].outputConfigs,
-            hasPassword: Boolean(deploymentResults[0].password),
-          }
-        : null
+      // Find any active chat deployments for this workflow
+      const deploymentResults = await db
+        .select({
+          id: chat.id,
+          identifier: chat.identifier,
+          title: chat.title,
+          description: chat.description,
+          customizations: chat.customizations,
+          authType: chat.authType,
+          allowedEmails: chat.allowedEmails,
+          outputConfigs: chat.outputConfigs,
+          password: chat.password,
+          isActive: chat.isActive,
+        })
+        .from(chat)
+        .where(and(eq(chat.workflowId, id), isNull(chat.archivedAt)))
+        .limit(1)
 
-    return createSuccessResponse({
-      isDeployed,
-      deployment: deploymentInfo,
-    })
-  } catch (error: any) {
-    logger.error(`[${requestId}] Error checking chat deployment status:`, error)
-    return createErrorResponse(error.message || 'Failed to check chat deployment status', 500)
+      const isDeployed = deploymentResults.length > 0 && deploymentResults[0].isActive
+      const deploymentInfo =
+        deploymentResults.length > 0
+          ? {
+              id: deploymentResults[0].id,
+              identifier: deploymentResults[0].identifier,
+              title: deploymentResults[0].title,
+              description: deploymentResults[0].description,
+              customizations: deploymentResults[0].customizations,
+              authType: deploymentResults[0].authType,
+              allowedEmails: deploymentResults[0].allowedEmails,
+              outputConfigs: deploymentResults[0].outputConfigs,
+              hasPassword: Boolean(deploymentResults[0].password),
+            }
+          : null
+
+      return createSuccessResponse({
+        isDeployed,
+        deployment: deploymentInfo,
+      })
+    } catch (error: any) {
+      logger.error(`[${requestId}] Error checking chat deployment status:`, error)
+      return createErrorResponse(error.message || 'Failed to check chat deployment status', 500)
+    }
   }
-}
+)

@@ -1,10 +1,21 @@
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { validateAwsRegion } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createDynamoDBClient, getItem } from '@/app/api/tools/dynamodb/utils'
 
+const logger = createLogger('DynamoDBGetAPI')
+
 const GetSchema = z.object({
-  region: z.string().min(1, 'AWS region is required'),
+  region: z
+    .string()
+    .min(1, 'AWS region is required')
+    .refine((v) => validateAwsRegion(v).isValid, {
+      message: 'Invalid AWS region format (e.g., us-east-1, eu-west-2)',
+    }),
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
   tableName: z.string().min(1, 'Table name is required'),
@@ -20,7 +31,7 @@ const GetSchema = z.object({
     }),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -30,31 +41,41 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = GetSchema.parse(body)
 
+    logger.info(`Getting item from table '${validatedData.tableName}'`)
+
     const client = createDynamoDBClient({
       region: validatedData.region,
       accessKeyId: validatedData.accessKeyId,
       secretAccessKey: validatedData.secretAccessKey,
     })
 
-    const result = await getItem(
-      client,
-      validatedData.tableName,
-      validatedData.key,
-      validatedData.consistentRead
-    )
+    try {
+      const result = await getItem(
+        client,
+        validatedData.tableName,
+        validatedData.key,
+        validatedData.consistentRead
+      )
 
-    return NextResponse.json({
-      message: result.item ? 'Item retrieved successfully' : 'Item not found',
-      item: result.item,
-    })
+      logger.info(`Get item completed for table '${validatedData.tableName}'`)
+
+      return NextResponse.json({
+        message: result.item ? 'Item retrieved successfully' : 'Item not found',
+        item: result.item,
+      })
+    } finally {
+      client.destroy()
+    }
   } catch (error) {
     if (error instanceof z.ZodError) {
+      logger.warn('Invalid request data', { errors: error.errors })
       return NextResponse.json(
         { error: error.errors[0]?.message ?? 'Invalid request' },
         { status: 400 }
       )
     }
-    const errorMessage = error instanceof Error ? error.message : 'DynamoDB get failed'
+    const errorMessage = toError(error).message || 'DynamoDB get failed'
+    logger.error('DynamoDB get failed:', error)
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
-}
+})

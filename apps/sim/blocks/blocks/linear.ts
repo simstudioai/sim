@@ -2561,7 +2561,6 @@ export const LinearV2Block: BlockConfig<LinearResponse> = {
       (sb) =>
         !sb.id?.startsWith('webhookUrlDisplay') &&
         !sb.id?.startsWith('webhookSecret') &&
-        !sb.id?.startsWith('triggerSave') &&
         !sb.id?.startsWith('triggerInstructions') &&
         !sb.id?.startsWith('selectedTriggerId')
     ),

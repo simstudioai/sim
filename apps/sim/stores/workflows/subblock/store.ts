@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import { populateTriggerFieldsFromConfig } from '@/hooks/use-trigger-config-aggregation'

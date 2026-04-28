@@ -1,9 +1,10 @@
-import { type NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async () => {
   const baseUrl = getBaseUrl()
 
   return new NextResponse(
@@ -75,6 +76,11 @@ export async function GET(request: NextRequest) {
           const fragment = window.location.hash.substring(1);
           const params = new URLSearchParams(fragment);
           const token = params.get('token');
+          const authError = params.get('error');
+
+          if (authError) {
+            throw new Error(authError);
+          }
 
           if (!token) {
             throw new Error('No token received from Trello');
@@ -127,4 +133,4 @@ export async function GET(request: NextRequest) {
       },
     }
   )
-}
+})

@@ -3,7 +3,6 @@ import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import { season } from '@/app/_styles/fonts/season/season'
 import {
   Collaboration,
-  // Enterprise,
   Features,
   Footer,
   Hero,
@@ -31,7 +30,7 @@ import { LandingAnalytics } from '@/app/(landing)/landing-analytics'
  * - Section `id` attributes serve as fragment anchors for precise AI citations.
  * - Content ordering prioritizes answer-first patterns: definition (Hero) ->
  *   examples (Templates) -> capabilities (Features) -> social proof (Collaboration) ->
- *   enterprise (Enterprise) -> pricing (Pricing) -> testimonials (Testimonials).
+ *   pricing (Pricing) -> testimonials (Testimonials).
  */
 export default async function Landing() {
   const blogPosts = await getNavBlogPosts()
@@ -53,16 +52,18 @@ export default async function Landing() {
       </header>
       <main id='main-content'>
         <article itemScope itemType='https://schema.org/WebPage'>
-          <meta itemProp='name' content='Sim — Build AI Agents & Run Your Agentic Workforce' />
+          <meta
+            itemProp='name'
+            content='Sim — The AI Workspace | Build, Deploy & Manage AI Agents'
+          />
           <meta
             itemProp='description'
-            content='Sim is the open-source platform to build AI agents and run your agentic workforce.'
+            content='Sim is the open-source AI workspace where teams build, deploy, and manage AI agents.'
           />
           <Hero />
           <Templates />
           <Features />
           <Collaboration />
-          {/* <Enterprise /> */}
           <Pricing />
           <Testimonials />
         </article>

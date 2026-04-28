@@ -1,10 +1,10 @@
 import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, count, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
-import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
-import { generateId } from '@/lib/core/utils/uuid'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,

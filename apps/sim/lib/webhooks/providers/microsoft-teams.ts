@@ -1,10 +1,11 @@
-import crypto from 'crypto'
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Base64 } from '@sim/security/hmac'
+import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { safeCompare } from '@/lib/core/security/encryption'
 import { isMicrosoftContentUrl } from '@/lib/core/security/input-validation'
 import {
   type SecureFetchResponse,
@@ -45,8 +46,7 @@ function validateMicrosoftTeamsSignature(
     }
     const providedSignature = signature.substring(5)
     const secretBytes = Buffer.from(hmacSecret, 'base64')
-    const bodyBytes = Buffer.from(body, 'utf8')
-    const computedHash = crypto.createHmac('sha256', secretBytes).update(bodyBytes).digest('base64')
+    const computedHash = hmacSha256Base64(body, secretBytes)
     return safeCompare(computedHash, providedSignature)
   } catch (error) {
     logger.error('Error validating Microsoft Teams signature:', error)
@@ -93,7 +93,7 @@ async function fetchWithDNSPinning(
     return response
   } catch (error) {
     logger.error(`[${requestId}] Error fetching URL with DNS pinning`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       url: sanitizeUrlForLog(url),
     })
     return null

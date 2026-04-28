@@ -1,8 +1,11 @@
-import type { ShopifyCancelOrderParams, ShopifyOrderResponse } from '@/tools/shopify/types'
+import type { ShopifyCancelOrderParams, ShopifyCancelOrderResponse } from '@/tools/shopify/types'
 import { CANCEL_ORDER_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const shopifyCancelOrderTool: ToolConfig<ShopifyCancelOrderParams, ShopifyOrderResponse> = {
+export const shopifyCancelOrderTool: ToolConfig<
+  ShopifyCancelOrderParams,
+  ShopifyCancelOrderResponse
+> = {
   id: 'shopify_cancel_order',
   name: 'Shopify Cancel Order',
   description: 'Cancel an order in your Shopify store',
@@ -38,17 +41,18 @@ export const shopifyCancelOrderTool: ToolConfig<ShopifyCancelOrderParams, Shopif
       visibility: 'user-or-llm',
       description: 'Whether to notify the customer about the cancellation',
     },
-    refund: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Whether to refund the order',
-    },
     restock: {
       type: 'boolean',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Whether to restock the inventory committed to the order',
+    },
+    refundMethod: {
+      type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Whether to restock the inventory',
+      description:
+        'Optional refund method object, for example {"originalPaymentMethodsRefund": true}',
     },
     staffNote: {
       type: 'string',
@@ -78,11 +82,14 @@ export const shopifyCancelOrderTool: ToolConfig<ShopifyCancelOrderParams, Shopif
       if (!params.reason) {
         throw new Error('Cancellation reason is required')
       }
+      if (typeof params.restock !== 'boolean') {
+        throw new Error('Restock is required')
+      }
 
       return {
         query: `
-          mutation orderCancel($orderId: ID!, $reason: OrderCancelReason!, $notifyCustomer: Boolean, $refund: Boolean!, $restock: Boolean!, $staffNote: String) {
-            orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, refund: $refund, restock: $restock, staffNote: $staffNote) {
+          mutation orderCancel($orderId: ID!, $reason: OrderCancelReason!, $notifyCustomer: Boolean, $refundMethod: OrderCancelRefundMethodInput, $restock: Boolean!, $staffNote: String) {
+            orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, refundMethod: $refundMethod, restock: $restock, staffNote: $staffNote) {
               job {
                 id
                 done
@@ -96,12 +103,12 @@ export const shopifyCancelOrderTool: ToolConfig<ShopifyCancelOrderParams, Shopif
           }
         `,
         variables: {
-          orderId: params.orderId,
+          orderId: params.orderId.trim(),
           reason: params.reason,
           notifyCustomer: params.notifyCustomer ?? false,
-          refund: params.refund ?? false,
-          restock: params.restock ?? false,
-          staffNote: params.staffNote || null,
+          refundMethod: params.refundMethod ?? null,
+          restock: params.restock,
+          staffNote: params.staffNote?.trim() || null,
         },
       }
     },

@@ -1,0 +1,65 @@
+---
+title: Telegram
+description: Available Telegram triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="telegram"
+  color="#E0E0E0"
+/>
+
+Telegram provides 1 trigger for automating workflows based on events.
+
+## Triggers
+
+### Telegram Webhook
+
+Trigger workflow from Telegram bot messages and events
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | Your Telegram Bot Token from BotFather |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | object | Telegram message data |
+|   ↳ `id` | number | Telegram message ID |
+|   ↳ `text` | string | Message text content \(if present\) |
+|   ↳ `date` | number | Date the message was sent \(Unix timestamp\) |
+|   ↳ `messageType` | string | Detected content type: text, photo, document, audio, video, voice, sticker, location, contact, poll |
+|   ↳ `raw` | object | Raw Telegram message object |
+|     ↳ `message_id` | number | Original Telegram message_id |
+|     ↳ `date` | number | Original Telegram message date \(Unix timestamp\) |
+|     ↳ `text` | string | Original Telegram text \(if present\) |
+|     ↳ `caption` | string | Original Telegram caption \(if present\) |
+|     ↳ `chat` | object | Chat information |
+|       ↳ `id` | number | Chat identifier |
+|       ↳ `username` | string | Chat username \(if available\) |
+|       ↳ `first_name` | string | First name \(for private chats\) |
+|       ↳ `last_name` | string | Last name \(for private chats\) |
+|       ↳ `title` | string | Chat title \(for groups/channels\) |
+|     ↳ `from` | object | Sender information |
+|       ↳ `id` | number | Sender user ID |
+|       ↳ `is_bot` | boolean | Whether the sender is a bot |
+|       ↳ `first_name` | string | Sender first name |
+|       ↳ `last_name` | string | Sender last name |
+|       ↳ `username` | string | Sender username |
+|       ↳ `language_code` | string | Sender language code \(if available\) |
+|     ↳ `reply_to_message` | object | Original message being replied to |
+|     ↳ `entities` | array | Message entities \(mentions, hashtags, URLs, etc.\) |
+| `sender` | object | Sender information |
+|   ↳ `id` | number | Sender user ID |
+|   ↳ `username` | string | Sender username \(if available\) |
+|   ↳ `firstName` | string | Sender first name |
+|   ↳ `lastName` | string | Sender last name |
+|   ↳ `languageCode` | string | Sender language code \(if available\) |
+|   ↳ `isBot` | boolean | Whether the sender is a bot |
+| `updateId` | number | Update ID for this webhook delivery |
+| `updateType` | string | Type of update: message, edited_message, channel_post, edited_channel_post, unknown |
+

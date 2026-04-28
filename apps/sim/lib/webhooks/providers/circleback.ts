@@ -1,6 +1,6 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@/lib/core/security/encryption'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import type {
   FormatInputContext,
   FormatInputResult,
@@ -20,7 +20,7 @@ function validateCirclebackSignature(secret: string, signature: string, body: st
       })
       return false
     }
-    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+    const computedHash = hmacSha256Hex(body, secret)
     logger.debug('Circleback signature comparison', {
       computedSignature: `${computedHash.substring(0, 10)}...`,
       providedSignature: `${signature.substring(0, 10)}...`,

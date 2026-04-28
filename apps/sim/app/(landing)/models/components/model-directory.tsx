@@ -3,20 +3,14 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Input } from '@/components/emcn'
-import { SearchIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
+import { ChevronArrow, ProviderIcon } from '@/app/(landing)/models/components/model-primitives'
 import {
-  CapabilityTags,
-  DetailItem,
-  ModelCard,
-  ProviderIcon,
-  StatCard,
-} from '@/app/(landing)/models/components/model-primitives'
-import {
+  type CatalogModel,
   type CatalogProvider,
+  formatPrice,
+  formatTokenCount,
   MODEL_PROVIDERS_WITH_CATALOGS,
   MODEL_PROVIDERS_WITH_DYNAMIC_CATALOGS,
-  TOTAL_MODELS,
 } from '@/app/(landing)/models/utils'
 
 export function ModelDirectory() {
@@ -35,7 +29,7 @@ export function ModelDirectory() {
 
   const normalizedQuery = query.trim().toLowerCase()
 
-  const { filteredProviders, filteredDynamicProviders, visibleModelCount } = useMemo(() => {
+  const { filteredProviders, filteredDynamicProviders } = useMemo(() => {
     const filteredProviders = MODEL_PROVIDERS_WITH_CATALOGS.map((provider) => {
       const providerMatchesSearch =
         normalizedQuery.length > 0 && provider.searchText.includes(normalizedQuery)
@@ -77,15 +71,9 @@ export function ModelDirectory() {
       return provider.searchText.includes(normalizedQuery)
     })
 
-    const visibleModelCount = filteredProviders.reduce(
-      (count, provider) => count + provider.models.length,
-      0
-    )
-
     return {
       filteredProviders,
       filteredDynamicProviders,
-      visibleModelCount,
     }
   }, [activeProviderId, normalizedQuery])
 
@@ -93,170 +81,143 @@ export function ModelDirectory() {
 
   return (
     <div>
-      <div className='mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between'>
-        <div className='relative max-w-[560px] flex-1'>
-          <SearchIcon
+      <div className='mb-6 flex flex-col gap-4 px-6 sm:flex-row sm:items-center'>
+        <div className='relative max-w-[480px] flex-1'>
+          <svg
             aria-hidden='true'
-            className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-4 w-4 text-[var(--landing-text-muted)]'
-          />
+            className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-4 w-4 text-[#555]'
+            fill='none'
+            stroke='currentColor'
+            strokeWidth={2}
+            viewBox='0 0 24 24'
+          >
+            <circle cx={11} cy={11} r={8} />
+            <path d='m21 21-4.35-4.35' />
+          </svg>
           <Input
             type='search'
-            placeholder='Search models, providers, capabilities, or pricing details'
+            placeholder='Search models, providers, or capabilities…'
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className='h-11 border-[var(--landing-border)] bg-[var(--landing-bg-card)] pl-10 text-[var(--landing-text)] placeholder:text-[var(--landing-text-muted)]'
+            className='pl-9'
             aria-label='Search AI models'
           />
         </div>
-
-        <p className='text-[13px] text-[var(--landing-text-muted)] leading-relaxed'>
-          Showing {visibleModelCount.toLocaleString('en-US')} of{' '}
-          {TOTAL_MODELS.toLocaleString('en-US')} models
-          {activeProviderId ? ' in one provider' : ''}.
-        </p>
       </div>
 
-      <div className='mb-10 flex flex-wrap gap-2'>
-        <FilterButton
-          isActive={activeProviderId === null}
+      <div className='mb-6 flex flex-wrap gap-2 px-6'>
+        <button
+          type='button'
           onClick={() => setActiveProviderId(null)}
-          label={`All providers (${MODEL_PROVIDERS_WITH_CATALOGS.length})`}
-        />
+          className={`rounded-[5px] border px-[9px] py-0.5 text-[13.5px] transition-colors ${
+            activeProviderId === null
+              ? 'border-[var(--landing-border-strong)] bg-[var(--landing-bg-elevated)] text-[var(--landing-text)]'
+              : 'border-[var(--landing-border-strong)] text-[var(--landing-text)] hover:bg-[var(--landing-bg-elevated)]'
+          }`}
+        >
+          All
+        </button>
         {providerOptions.map((provider) => (
-          <FilterButton
+          <button
             key={provider.id}
-            isActive={activeProviderId === provider.id}
+            type='button'
             onClick={() =>
               setActiveProviderId(activeProviderId === provider.id ? null : provider.id)
             }
-            label={`${provider.name} (${provider.count})`}
-          />
+            className={`rounded-[5px] border px-[9px] py-0.5 text-[13.5px] transition-colors ${
+              activeProviderId === provider.id
+                ? 'border-[var(--landing-border-strong)] bg-[var(--landing-bg-elevated)] text-[var(--landing-text)]'
+                : 'border-[var(--landing-border-strong)] text-[var(--landing-text)] hover:bg-[var(--landing-bg-elevated)]'
+            }`}
+          >
+            {provider.name}
+          </button>
         ))}
       </div>
 
+      <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+
       {!hasResults ? (
-        <div className='rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-bg-card)] px-6 py-12 text-center'>
-          <h3 className='font-[500] text-[18px] text-[var(--landing-text)]'>No matches found</h3>
-          <p className='mt-2 text-[14px] text-[var(--landing-text-muted)] leading-relaxed'>
+        <div className='px-6 py-12 text-center'>
+          <h3 className='text-[18px] text-white'>No matches found</h3>
+          <p className='mt-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
             Try a provider name like OpenAI or Anthropic, or search for capabilities like
             &nbsp;structured outputs, reasoning, or deep research.
           </p>
         </div>
       ) : (
-        <div className='space-y-10'>
-          {filteredProviders.map((provider) => (
-            <section
-              key={provider.id}
-              aria-labelledby={`${provider.id}-heading`}
-              className='rounded-3xl border border-[var(--landing-border)] bg-[var(--landing-bg-card)] p-6 sm:p-8'
-            >
-              <div className='mb-6 flex flex-col gap-5 border-[var(--landing-border)] border-b pb-6 lg:flex-row lg:items-start lg:justify-between'>
-                <div className='min-w-0'>
-                  <div className='mb-3 flex items-center gap-3'>
-                    <ProviderIcon provider={provider} />
-                    <div>
-                      <p className='text-[12px] text-[var(--landing-text-muted)]'>Provider</p>
-                      <h2
-                        id={`${provider.id}-heading`}
-                        className='font-[500] text-[24px] text-[var(--landing-text)]'
-                      >
-                        {provider.name}
-                      </h2>
-                    </div>
-                  </div>
+        <div>
+          {filteredProviders.map((provider, index) => (
+            <section key={provider.id} aria-labelledby={`${provider.id}-heading`}>
+              {index > 0 && <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />}
 
-                  <p className='max-w-[720px] text-[15px] text-[var(--landing-text-muted)] leading-relaxed'>
-                    {provider.description}
-                  </p>
-                  <Link
-                    href={provider.href}
-                    className='mt-3 inline-flex text-[#555] text-[13px] transition-colors hover:text-[var(--landing-text-muted)]'
+              <Link
+                href={provider.href}
+                className='group/link flex items-center gap-3 px-6 py-4 transition-colors hover:bg-[var(--landing-bg-elevated)]'
+              >
+                <ProviderIcon
+                  provider={provider}
+                  className='h-8 w-8 rounded-[5px]'
+                  iconClassName='h-4 w-4'
+                />
+                <div className='min-w-0 flex-1'>
+                  <h2
+                    id={`${provider.id}-heading`}
+                    className='text-[14px] text-white leading-snug tracking-[-0.02em]'
                   >
-                    View provider page →
-                  </Link>
+                    {provider.name}
+                  </h2>
+                  <p className='line-clamp-1 hidden text-[12px] text-[var(--landing-text-muted)] leading-[150%] sm:block'>
+                    {provider.modelCount} models &middot; {provider.description}
+                  </p>
                 </div>
+                <ChevronArrow />
+              </Link>
 
-                <div className='grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-3'>
-                  <StatCard label='Models' value={provider.models.length.toString()} />
-                  <StatCard
-                    label='Default'
-                    value={provider.defaultModelDisplayName || 'Dynamic'}
-                    compact
-                  />
-                  <StatCard
-                    label='Context info'
-                    value={provider.contextInformationAvailable ? 'Tracked' : 'Limited'}
-                    compact
-                  />
-                </div>
-              </div>
-
-              <div className='mb-6'>
-                <CapabilityTags tags={provider.providerCapabilityTags} />
-              </div>
-
-              <div className='grid grid-cols-1 gap-4 xl:grid-cols-2'>
-                {provider.models.map((model) => (
-                  <ModelCard key={model.id} provider={provider} model={model} />
-                ))}
-              </div>
+              {provider.models.map((model) => (
+                <ModelRow key={model.id} provider={provider} model={model} />
+              ))}
             </section>
           ))}
 
           {filteredDynamicProviders.length > 0 && (
-            <section
-              aria-labelledby='dynamic-catalogs-heading'
-              className='rounded-3xl border border-[var(--landing-border)] bg-[var(--landing-bg-card)] p-6 sm:p-8'
-            >
-              <div className='mb-6'>
+            <section aria-labelledby='dynamic-catalogs-heading'>
+              <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+
+              <div className='px-6 pt-8 pb-6'>
                 <h2
                   id='dynamic-catalogs-heading'
-                  className='font-[500] text-[24px] text-[var(--landing-text)]'
+                  className='text-[18px] text-white leading-[100%] tracking-[-0.02em] lg:text-[20px]'
                 >
                   Dynamic model catalogs
                 </h2>
-                <p className='mt-2 max-w-[760px] text-[15px] text-[var(--landing-text-muted)] leading-relaxed'>
-                  These providers are supported by Sim, but their model lists are loaded dynamically
-                  at runtime rather than hard-coded into the public catalog.
+                <p className='mt-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
+                  These providers load their model lists dynamically at runtime.
                 </p>
               </div>
 
-              <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4'>
+              <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+
+              <nav aria-label='Dynamic catalog providers' className='flex flex-col lg:flex-row'>
                 {filteredDynamicProviders.map((provider) => (
-                  <article
+                  <div
                     key={provider.id}
-                    className='rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-bg-elevated)] p-5'
+                    className='flex flex-1 items-center gap-3 border-[var(--landing-bg-elevated)] border-t px-6 py-4 first:border-t-0 lg:border-t-0 lg:border-l lg:first:border-l-0'
                   >
-                    <div className='mb-4 flex items-center gap-3'>
-                      <ProviderIcon provider={provider} />
-                      <div className='min-w-0'>
-                        <h3 className='font-[500] text-[16px] text-[var(--landing-text)]'>
-                          {provider.name}
-                        </h3>
-                        <p className='text-[12px] text-[var(--landing-text-muted)]'>
-                          {provider.id}
-                        </p>
-                      </div>
+                    <ProviderIcon
+                      provider={provider}
+                      className='h-8 w-8 rounded-[5px]'
+                      iconClassName='h-4 w-4'
+                    />
+                    <div className='min-w-0 flex-1'>
+                      <h3 className='text-[14px] text-white leading-snug'>{provider.name}</h3>
+                      <p className='line-clamp-1 text-[12px] text-[var(--landing-text-muted)] leading-[150%]'>
+                        {provider.description}
+                      </p>
                     </div>
-
-                    <p className='text-[13px] text-[var(--landing-text-muted)] leading-relaxed'>
-                      {provider.description}
-                    </p>
-
-                    <div className='mt-4 space-y-3 text-[13px]'>
-                      <DetailItem
-                        label='Default'
-                        value={provider.defaultModelDisplayName || 'Selected at runtime'}
-                      />
-                      <DetailItem label='Catalog source' value='Loaded dynamically inside Sim' />
-                    </div>
-
-                    <div className='mt-4'>
-                      <CapabilityTags tags={provider.providerCapabilityTags} />
-                    </div>
-                  </article>
+                  </div>
                 ))}
-              </div>
+              </nav>
             </section>
           )}
         </div>
@@ -265,27 +226,33 @@ export function ModelDirectory() {
   )
 }
 
-function FilterButton({
-  isActive,
-  onClick,
-  label,
-}: {
-  isActive: boolean
-  onClick: () => void
-  label: string
-}) {
+function ModelRow({ provider, model }: { provider: CatalogProvider; model: CatalogModel }) {
   return (
-    <button
-      type='button'
-      onClick={onClick}
-      className={cn(
-        'rounded-full border px-3 py-1.5 text-[12px] transition-colors',
-        isActive
-          ? 'border-[#555] bg-[#333] text-[var(--landing-text)]'
-          : 'border-[var(--landing-border)] bg-transparent text-[var(--landing-text-muted)] hover:border-[var(--landing-border-strong)] hover:text-[var(--landing-text)]'
-      )}
-    >
-      {label}
-    </button>
+    <>
+      <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+      <Link
+        href={model.href}
+        className='group/link flex items-center gap-4 px-6 py-4 transition-colors hover:bg-[var(--landing-bg-elevated)]'
+      >
+        <ProviderIcon
+          provider={provider}
+          className='h-8 w-8 shrink-0 rounded-[5px]'
+          iconClassName='h-4 w-4'
+        />
+
+        <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+          <h3 className='text-[14px] text-white leading-snug tracking-[-0.02em]'>
+            {model.displayName}
+          </h3>
+          <p className='line-clamp-1 hidden text-[12px] text-[var(--landing-text-muted)] leading-[150%] sm:block'>
+            {model.id} &middot; Input {formatPrice(model.pricing.input)}/1M &middot; Output{' '}
+            {formatPrice(model.pricing.output)}/1M
+            {model.contextWindow ? ` · ${formatTokenCount(model.contextWindow)} context` : ''}
+          </p>
+        </div>
+
+        <ChevronArrow />
+      </Link>
+    </>
   )
 }

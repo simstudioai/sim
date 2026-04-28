@@ -2,6 +2,7 @@
 
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { formatDuration } from '@sim/utils/formatting'
 import clsx from 'clsx'
 import {
   ArrowDown,
@@ -25,7 +26,6 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { formatDuration } from '@/lib/core/utils/formatting'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
@@ -1115,7 +1115,6 @@ export const Terminal = memo(function Terminal() {
     if (selectedEntryId === lastNavEntry.entry.id) return
 
     setSelectedEntryId(lastNavEntry.entry.id)
-    focusTerminal()
 
     if (lastNavEntry.parentNodeIds.length > 0) {
       setExpandedNodes((prev) => {
@@ -1126,7 +1125,7 @@ export const Terminal = memo(function Terminal() {
         return next
       })
     }
-  }, [executionGroups, navigableEntries, autoSelectEnabled, selectedEntryId, focusTerminal])
+  }, [executionGroups, navigableEntries, autoSelectEnabled, selectedEntryId])
 
   /**
    * Clear filters when there are no logs
@@ -1247,20 +1246,14 @@ export const Terminal = memo(function Terminal() {
    * Closes the output panel if there's not enough space for the minimum width.
    */
   useEffect(() => {
+    const el = terminalRef.current
+    if (!el) return
+
     const handleResize = () => {
       if (!selectedEntry) return
 
-      const sidebarWidth = Number.parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
-      )
-      const panelWidth = Number.parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-      )
+      const maxWidth = el.getBoundingClientRect().width - TERMINAL_CONFIG.BLOCK_COLUMN_WIDTH_PX
 
-      const terminalWidth = window.innerWidth - sidebarWidth - panelWidth
-      const maxWidth = terminalWidth - TERMINAL_CONFIG.BLOCK_COLUMN_WIDTH_PX
-
-      // Close output panel if there's not enough space for minimum width
       if (maxWidth < MIN_OUTPUT_PANEL_WIDTH_PX) {
         setAutoSelectEnabled(false)
         setSelectedEntryId(null)
@@ -1274,21 +1267,10 @@ export const Terminal = memo(function Terminal() {
 
     handleResize()
 
-    window.addEventListener('resize', handleResize)
+    const observer = new ResizeObserver(handleResize)
+    observer.observe(el)
 
-    const observer = new MutationObserver(() => {
-      handleResize()
-    })
-
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['style'],
-    })
-
-    return () => {
-      window.removeEventListener('resize', handleResize)
-      observer.disconnect()
-    }
+    return () => observer.disconnect()
   }, [selectedEntry, outputPanelWidth, setOutputPanelWidth])
 
   return (

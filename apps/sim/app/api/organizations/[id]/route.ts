@@ -1,15 +1,16 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import {
   getOrganizationSeatAnalytics,
   getOrganizationSeatInfo,
 } from '@/lib/billing/validation/seat-management'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationAPI')
 
@@ -31,205 +32,209 @@ const updateOrganizationSchema = z.object({
  * GET /api/organizations/[id]
  * Get organization details including settings and seat information
  */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await getSession()
+export const GET = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    try {
+      const session = await getSession()
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { id: organizationId } = await params
-    const url = new URL(request.url)
-    const includeSeats = url.searchParams.get('include') === 'seats'
-
-    // Verify user has access to this organization
-    const memberEntry = await db
-      .select()
-      .from(member)
-      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
-      .limit(1)
-
-    if (memberEntry.length === 0) {
-      return NextResponse.json(
-        { error: 'Forbidden - Not a member of this organization' },
-        { status: 403 }
-      )
-    }
-
-    // Get organization data
-    const organizationEntry = await db
-      .select()
-      .from(organization)
-      .where(eq(organization.id, organizationId))
-      .limit(1)
-
-    if (organizationEntry.length === 0) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
-    }
-
-    const userRole = memberEntry[0].role
-    const hasAdminAccess = ['owner', 'admin'].includes(userRole)
-
-    const response: any = {
-      success: true,
-      data: {
-        id: organizationEntry[0].id,
-        name: organizationEntry[0].name,
-        slug: organizationEntry[0].slug,
-        logo: organizationEntry[0].logo,
-        metadata: organizationEntry[0].metadata,
-        createdAt: organizationEntry[0].createdAt,
-        updatedAt: organizationEntry[0].updatedAt,
-      },
-      userRole,
-      hasAdminAccess,
-    }
-
-    // Include seat information if requested
-    if (includeSeats) {
-      const seatInfo = await getOrganizationSeatInfo(organizationId)
-      if (seatInfo) {
-        response.data.seats = seatInfo
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      // Include analytics for admins
-      if (hasAdminAccess) {
-        const analytics = await getOrganizationSeatAnalytics(organizationId)
-        if (analytics) {
-          response.data.seatAnalytics = analytics
+      const { id: organizationId } = await params
+      const url = new URL(request.url)
+      const includeSeats = url.searchParams.get('include') === 'seats'
+
+      // Verify user has access to this organization
+      const memberEntry = await db
+        .select()
+        .from(member)
+        .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
+        .limit(1)
+
+      if (memberEntry.length === 0) {
+        return NextResponse.json(
+          { error: 'Forbidden - Not a member of this organization' },
+          { status: 403 }
+        )
+      }
+
+      // Get organization data
+      const organizationEntry = await db
+        .select()
+        .from(organization)
+        .where(eq(organization.id, organizationId))
+        .limit(1)
+
+      if (organizationEntry.length === 0) {
+        return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+      }
+
+      const userRole = memberEntry[0].role
+      const hasAdminAccess = ['owner', 'admin'].includes(userRole)
+
+      const response: any = {
+        success: true,
+        data: {
+          id: organizationEntry[0].id,
+          name: organizationEntry[0].name,
+          slug: organizationEntry[0].slug,
+          logo: organizationEntry[0].logo,
+          metadata: organizationEntry[0].metadata,
+          createdAt: organizationEntry[0].createdAt,
+          updatedAt: organizationEntry[0].updatedAt,
+        },
+        userRole,
+        hasAdminAccess,
+      }
+
+      // Include seat information if requested
+      if (includeSeats) {
+        const seatInfo = await getOrganizationSeatInfo(organizationId)
+        if (seatInfo) {
+          response.data.seats = seatInfo
+        }
+
+        // Include analytics for admins
+        if (hasAdminAccess) {
+          const analytics = await getOrganizationSeatAnalytics(organizationId)
+          if (analytics) {
+            response.data.seatAnalytics = analytics
+          }
         }
       }
+
+      return NextResponse.json(response)
+    } catch (error) {
+      logger.error('Failed to get organization', {
+        organizationId: (await params).id,
+        error,
+      })
+
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
-
-    return NextResponse.json(response)
-  } catch (error) {
-    logger.error('Failed to get organization', {
-      organizationId: (await params).id,
-      error,
-    })
-
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+)
 
 /**
  * PUT /api/organizations/[id]
  * Update organization settings (name, slug, logo)
  * Note: For seat updates, use PUT /api/organizations/[id]/seats instead
  */
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await getSession()
+export const PUT = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    try {
+      const session = await getSession()
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
 
-    const { id: organizationId } = await params
-    const body = await request.json()
+      const { id: organizationId } = await params
+      const body = await request.json()
 
-    const validation = updateOrganizationSchema.safeParse(body)
-    if (!validation.success) {
-      const firstError = validation.error.errors[0]
-      return NextResponse.json({ error: firstError.message }, { status: 400 })
-    }
+      const validation = updateOrganizationSchema.safeParse(body)
+      if (!validation.success) {
+        const firstError = validation.error.errors[0]
+        return NextResponse.json({ error: firstError.message }, { status: 400 })
+      }
 
-    const { name, slug, logo } = validation.data
+      const { name, slug, logo } = validation.data
 
-    // Verify user has admin access
-    const memberEntry = await db
-      .select()
-      .from(member)
-      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
-      .limit(1)
+      // Verify user has admin access
+      const memberEntry = await db
+        .select()
+        .from(member)
+        .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
+        .limit(1)
 
-    if (memberEntry.length === 0) {
-      return NextResponse.json(
-        { error: 'Forbidden - Not a member of this organization' },
-        { status: 403 }
-      )
-    }
+      if (memberEntry.length === 0) {
+        return NextResponse.json(
+          { error: 'Forbidden - Not a member of this organization' },
+          { status: 403 }
+        )
+      }
 
-    if (!['owner', 'admin'].includes(memberEntry[0].role)) {
-      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
-    }
+      if (!['owner', 'admin'].includes(memberEntry[0].role)) {
+        return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
+      }
 
-    // Handle settings update
-    if (name !== undefined || slug !== undefined || logo !== undefined) {
-      // Check if slug is already taken by another organization
-      if (slug !== undefined) {
-        const existingSlug = await db
-          .select()
-          .from(organization)
-          .where(and(eq(organization.slug, slug), ne(organization.id, organizationId)))
-          .limit(1)
+      // Handle settings update
+      if (name !== undefined || slug !== undefined || logo !== undefined) {
+        // Check if slug is already taken by another organization
+        if (slug !== undefined) {
+          const existingSlug = await db
+            .select()
+            .from(organization)
+            .where(and(eq(organization.slug, slug), ne(organization.id, organizationId)))
+            .limit(1)
 
-        if (existingSlug.length > 0) {
-          return NextResponse.json({ error: 'This slug is already taken' }, { status: 400 })
+          if (existingSlug.length > 0) {
+            return NextResponse.json({ error: 'This slug is already taken' }, { status: 400 })
+          }
         }
+
+        // Build update object with only provided fields
+        const updateData: any = { updatedAt: new Date() }
+        if (name !== undefined) updateData.name = name
+        if (slug !== undefined) updateData.slug = slug
+        if (logo !== undefined) updateData.logo = logo
+
+        // Update organization
+        const updatedOrg = await db
+          .update(organization)
+          .set(updateData)
+          .where(eq(organization.id, organizationId))
+          .returning()
+
+        if (updatedOrg.length === 0) {
+          return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+        }
+
+        logger.info('Organization settings updated', {
+          organizationId,
+          updatedBy: session.user.id,
+          changes: { name, slug, logo },
+        })
+
+        recordAudit({
+          workspaceId: null,
+          actorId: session.user.id,
+          action: AuditAction.ORGANIZATION_UPDATED,
+          resourceType: AuditResourceType.ORGANIZATION,
+          resourceId: organizationId,
+          actorName: session.user.name ?? undefined,
+          actorEmail: session.user.email ?? undefined,
+          resourceName: updatedOrg[0].name,
+          description: `Updated organization settings`,
+          metadata: { changes: { name, slug, logo } },
+          request,
+        })
+
+        return NextResponse.json({
+          success: true,
+          message: 'Organization updated successfully',
+          data: {
+            id: updatedOrg[0].id,
+            name: updatedOrg[0].name,
+            slug: updatedOrg[0].slug,
+            logo: updatedOrg[0].logo,
+            updatedAt: updatedOrg[0].updatedAt,
+          },
+        })
       }
 
-      // Build update object with only provided fields
-      const updateData: any = { updatedAt: new Date() }
-      if (name !== undefined) updateData.name = name
-      if (slug !== undefined) updateData.slug = slug
-      if (logo !== undefined) updateData.logo = logo
-
-      // Update organization
-      const updatedOrg = await db
-        .update(organization)
-        .set(updateData)
-        .where(eq(organization.id, organizationId))
-        .returning()
-
-      if (updatedOrg.length === 0) {
-        return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
-      }
-
-      logger.info('Organization settings updated', {
-        organizationId,
-        updatedBy: session.user.id,
-        changes: { name, slug, logo },
+      return NextResponse.json({ error: 'No valid fields provided for update' }, { status: 400 })
+    } catch (error) {
+      logger.error('Failed to update organization', {
+        organizationId: (await params).id,
+        error,
       })
 
-      recordAudit({
-        workspaceId: null,
-        actorId: session.user.id,
-        action: AuditAction.ORGANIZATION_UPDATED,
-        resourceType: AuditResourceType.ORGANIZATION,
-        resourceId: organizationId,
-        actorName: session.user.name ?? undefined,
-        actorEmail: session.user.email ?? undefined,
-        resourceName: updatedOrg[0].name,
-        description: `Updated organization settings`,
-        metadata: { changes: { name, slug, logo } },
-        request,
-      })
-
-      return NextResponse.json({
-        success: true,
-        message: 'Organization updated successfully',
-        data: {
-          id: updatedOrg[0].id,
-          name: updatedOrg[0].name,
-          slug: updatedOrg[0].slug,
-          logo: updatedOrg[0].logo,
-          updatedAt: updatedOrg[0].updatedAt,
-        },
-      })
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
-
-    return NextResponse.json({ error: 'No valid fields provided for update' }, { status: 400 })
-  } catch (error) {
-    logger.error('Failed to update organization', {
-      organizationId: (await params).id,
-      error,
-    })
-
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+)
 
 // DELETE method removed - organization deletion not implemented
 // If deletion is needed in the future, it should be implemented with proper

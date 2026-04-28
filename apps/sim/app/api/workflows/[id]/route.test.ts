@@ -5,16 +5,28 @@
  * @vitest-environment node
  */
 
-import { auditMock, envMock, loggerMock, requestUtilsMock, telemetryMock } from '@sim/testing'
+import {
+  auditMock,
+  envMock,
+  hybridAuthMockFns,
+  telemetryMock,
+  workflowAuthzMockFns,
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockCheckHybridAuth = vi.fn()
-const mockCheckSessionOrInternalAuth = vi.fn()
-const mockLoadWorkflowFromNormalizedTables = vi.fn()
-const mockGetWorkflowById = vi.fn()
-const mockAuthorizeWorkflowByWorkspacePermission = vi.fn()
-const mockPerformDeleteWorkflow = vi.fn()
+const mockLoadWorkflowFromNormalizedTables =
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+const mockGetWorkflowById = workflowsUtilsMockFns.mockGetWorkflowById
+const mockAuthorizeWorkflowByWorkspacePermission =
+  workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
+const mockPerformDeleteWorkflow = workflowsOrchestrationMockFns.mockPerformDeleteWorkflow
 const mockDbUpdate = vi.fn()
 const mockDbSelect = vi.fn()
 
@@ -23,51 +35,31 @@ const mockDbSelect = vi.fn()
  */
 function mockGetSession(session: { user: { id: string } } | null) {
   if (session) {
-    mockCheckHybridAuth.mockResolvedValue({ success: true, userId: session.user.id })
-    mockCheckSessionOrInternalAuth.mockResolvedValue({ success: true, userId: session.user.id })
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
+      success: true,
+      userId: session.user.id,
+    })
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: session.user.id,
+    })
   } else {
-    mockCheckHybridAuth.mockResolvedValue({ success: false })
-    mockCheckSessionOrInternalAuth.mockResolvedValue({ success: false })
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({ success: false })
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({ success: false })
   }
 }
-
-vi.mock('@/lib/auth', () => ({
-  getSession: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkHybridAuth: (...args: unknown[]) => mockCheckHybridAuth(...args),
-  checkSessionOrInternalAuth: (...args: unknown[]) => mockCheckSessionOrInternalAuth(...args),
-}))
 
 vi.mock('@/lib/core/config/env', () => envMock)
 
 vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: (workflowId: string) =>
-    mockLoadWorkflowFromNormalizedTables(workflowId),
-}))
-
-vi.mock('@/lib/workflows/utils', () => ({
-  getWorkflowById: (workflowId: string) => mockGetWorkflowById(workflowId),
-  authorizeWorkflowByWorkspacePermission: (params: {
-    workflowId: string
-    userId: string
-    action?: 'read' | 'write' | 'admin'
-  }) => mockAuthorizeWorkflowByWorkspacePermission(params),
-}))
-
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performDeleteWorkflow: (...args: unknown[]) => mockPerformDeleteWorkflow(...args),
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -88,10 +80,6 @@ describe('Workflow By ID API Route', () => {
     })
 
     mockLoadWorkflowFromNormalizedTables.mockResolvedValue(null)
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
   })
 
   describe('GET /api/workflows/[id]', () => {

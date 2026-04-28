@@ -1,12 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Mail } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { GmailIcon, OutlookIcon } from '@/components/icons'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { getProviderDisplayName, isPollingProvider } from '@/lib/credential-sets/providers'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
+
+const logger = createLogger('CredentialAccount')
 
 interface InvitationInfo {
   credentialSetName: string
@@ -113,7 +116,7 @@ export default function CredentialAccountInvitePage() {
             })
           } catch (oauthError) {
             // OAuth redirect will happen, this catch is for any pre-redirect errors
-            console.error('OAuth initiation error:', oauthError)
+            logger.error('OAuth initiation error:', oauthError)
             // If OAuth fails, redirect to workspace where they can connect manually
             router.push('/workspace')
           }

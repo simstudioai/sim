@@ -1,10 +1,11 @@
 import { db } from '@sim/db'
 import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, asc, desc, eq, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
-import { generateId } from '@/lib/core/utils/uuid'
 import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/event-buffer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -193,6 +194,10 @@ export class PauseResumeManager {
         throw new Error('Paused execution not found or already resumed')
       }
 
+      if (pausedExecution.status === 'cancelled') {
+        throw new Error('Execution has been cancelled')
+      }
+
       const pausePoints = pausedExecution.pausePoints as Record<string, any>
       const pausePoint = pausePoints?.[contextId]
       if (!pausePoint) {
@@ -351,11 +356,11 @@ export class PauseResumeManager {
           } catch (pauseError) {
             logger.error('Failed to persist pause result for resumed execution', {
               resumeExecutionId,
-              error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+              error: toError(pauseError).message,
             })
             await LoggingSession.markExecutionAsFailed(
               effectiveExecutionId,
-              `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
+              `Failed to persist pause state: ${toError(pauseError).message}`
             )
           }
         }
@@ -981,7 +986,7 @@ export class PauseResumeManager {
           logger.error('Error streaming block content during resume', {
             resumeExecutionId,
             blockId,
-            error: streamError instanceof Error ? streamError.message : String(streamError),
+            error: toError(streamError).message,
           })
         } finally {
           try {
@@ -1077,7 +1082,7 @@ export class PauseResumeManager {
         executionId: resumeExecutionId,
         workflowId,
         data: {
-          error: execError instanceof Error ? execError.message : String(execError),
+          error: toError(execError).message,
           duration: 0,
         },
       } as ExecutionEvent)
@@ -1090,7 +1095,7 @@ export class PauseResumeManager {
       } catch (closeError) {
         logger.warn('Failed to close event writer for resume', {
           resumeExecutionId,
-          error: closeError instanceof Error ? closeError.message : String(closeError),
+          error: toError(closeError).message,
         })
       }
       setExecutionMeta(resumeExecutionId, { status: finalMetaStatus }).catch(() => {})
@@ -1250,6 +1255,43 @@ export class PauseResumeManager {
     logger.info('Updated snapshot after resume', {
       pausedExecutionId,
       contextId,
+    })
+  }
+
+  /**
+   * Cancels a paused execution by updating both the paused execution record and the
+   * workflow execution log status to 'cancelled'. Returns true if a paused execution
+   * was found and cancelled, false if no paused execution exists for this executionId.
+   */
+  static async cancelPausedExecution(executionId: string): Promise<boolean> {
+    const now = new Date()
+
+    return await db.transaction(async (tx) => {
+      const pausedExecution = await tx
+        .select({ id: pausedExecutions.id })
+        .from(pausedExecutions)
+        .where(
+          and(eq(pausedExecutions.executionId, executionId), eq(pausedExecutions.status, 'paused'))
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (!pausedExecution) {
+        return false
+      }
+
+      await tx
+        .update(pausedExecutions)
+        .set({ status: 'cancelled', updatedAt: now })
+        .where(eq(pausedExecutions.id, pausedExecution.id))
+
+      await tx
+        .update(workflowExecutionLogs)
+        .set({ status: 'cancelled', endedAt: now })
+        .where(eq(workflowExecutionLogs.executionId, executionId))
+
+      return true
     })
   }
 

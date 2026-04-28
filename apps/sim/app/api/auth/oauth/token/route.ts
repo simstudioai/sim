@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   getCredential,
   getOAuthToken,
@@ -46,7 +47,7 @@ const tokenQuerySchema = z.object({
  * Supports both session-based authentication (for client-side requests)
  * and workflow-based authentication (for server-side requests)
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   logger.info(`[${requestId}] OAuth token API POST request received`)
@@ -204,12 +205,12 @@ export async function POST(request: NextRequest) {
     logger.error(`[${requestId}] Error getting access token`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 /**
  * Get the access token for a specific credential
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -293,4 +294,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching access token`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

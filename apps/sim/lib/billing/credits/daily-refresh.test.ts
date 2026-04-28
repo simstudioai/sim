@@ -1,53 +1,31 @@
 /**
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
+import { dbChainMock, dbChainMockFns, drizzleOrmMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockDbSelect = vi.fn()
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          groupBy: mockDbSelect,
-        }),
-      }),
-    }),
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  usageLog: {
-    userId: 'user_id',
-    createdAt: 'created_at',
-    cost: 'cost',
-  },
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('drizzle-orm', () => {
   const sqlTag = () => {
-    const obj = { as: () => obj }
+    const obj: { as: () => typeof obj } = { as: () => obj }
     return obj
   }
-  sqlTag.as = sqlTag
   return {
+    ...drizzleOrmMock,
     sql: Object.assign(sqlTag, { raw: sqlTag }),
-    and: vi.fn(),
-    gte: vi.fn(),
-    lt: vi.fn(),
-    inArray: vi.fn(),
     sum: () => ({ as: () => 'sum' }),
   }
 })
 
-vi.mock('@sim/logger', () => loggerMock)
 vi.mock('@/lib/billing/constants', () => ({
   DAILY_REFRESH_RATE: 0.01,
 }))
 
-import { computeDailyRefreshConsumed, getDailyRefreshDollars } from './daily-refresh'
+import {
+  computeDailyRefreshConsumed,
+  getDailyRefreshDollars,
+} from '@/lib/billing/credits/daily-refresh'
 
 describe('computeDailyRefreshConsumed', () => {
   beforeEach(() => {
@@ -61,7 +39,7 @@ describe('computeDailyRefreshConsumed', () => {
       planDollars: 0,
     })
     expect(result).toBe(0)
-    expect(mockDbSelect).not.toHaveBeenCalled()
+    expect(dbChainMockFns.groupBy).not.toHaveBeenCalled()
   })
 
   it('returns 0 when userIds is empty', async () => {
@@ -71,7 +49,7 @@ describe('computeDailyRefreshConsumed', () => {
       planDollars: 25,
     })
     expect(result).toBe(0)
-    expect(mockDbSelect).not.toHaveBeenCalled()
+    expect(dbChainMockFns.groupBy).not.toHaveBeenCalled()
   })
 
   it('returns 0 when periodEnd is before periodStart', async () => {
@@ -85,7 +63,7 @@ describe('computeDailyRefreshConsumed', () => {
   })
 
   it('caps each day at the daily refresh allowance', async () => {
-    mockDbSelect.mockResolvedValue([
+    dbChainMockFns.groupBy.mockResolvedValueOnce([
       { dayIndex: 0, dayTotal: '0.50' },
       { dayIndex: 1, dayTotal: '0.10' },
       { dayIndex: 2, dayTotal: '1.00' },
@@ -107,7 +85,7 @@ describe('computeDailyRefreshConsumed', () => {
   })
 
   it('returns 0 when no usage rows exist', async () => {
-    mockDbSelect.mockResolvedValue([])
+    dbChainMockFns.groupBy.mockResolvedValueOnce([])
 
     const result = await computeDailyRefreshConsumed({
       userIds: ['user-1'],
@@ -120,7 +98,7 @@ describe('computeDailyRefreshConsumed', () => {
   })
 
   it('multiplies daily refresh by seats', async () => {
-    mockDbSelect.mockResolvedValue([{ dayIndex: 0, dayTotal: '2.00' }])
+    dbChainMockFns.groupBy.mockResolvedValueOnce([{ dayIndex: 0, dayTotal: '2.00' }])
 
     const result = await computeDailyRefreshConsumed({
       userIds: ['user-1', 'user-2', 'user-3'],
@@ -136,7 +114,7 @@ describe('computeDailyRefreshConsumed', () => {
   })
 
   it('caps at refresh even with high usage and multiple seats', async () => {
-    mockDbSelect.mockResolvedValue([{ dayIndex: 0, dayTotal: '50.00' }])
+    dbChainMockFns.groupBy.mockResolvedValueOnce([{ dayIndex: 0, dayTotal: '50.00' }])
 
     const result = await computeDailyRefreshConsumed({
       userIds: ['user-1', 'user-2'],
@@ -152,7 +130,7 @@ describe('computeDailyRefreshConsumed', () => {
   })
 
   it('handles null dayTotal gracefully', async () => {
-    mockDbSelect.mockResolvedValue([{ dayIndex: 0, dayTotal: null }])
+    dbChainMockFns.groupBy.mockResolvedValueOnce([{ dayIndex: 0, dayTotal: null }])
 
     const result = await computeDailyRefreshConsumed({
       userIds: ['user-1'],

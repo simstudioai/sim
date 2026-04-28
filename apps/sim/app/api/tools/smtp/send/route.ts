@@ -1,10 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -33,7 +35,7 @@ const SmtpSendSchema = z.object({
   attachments: RawFileInputArraySchema.optional().nullable(),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -223,7 +225,7 @@ export async function POST(request: NextRequest) {
     }
 
     logger.error(`[${requestId}] Error sending email via SMTP:`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       code: isNodeError(error) ? error.code : undefined,
       responseCode: hasResponseCode(error) ? error.responseCode : undefined,
     })
@@ -236,4 +238,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

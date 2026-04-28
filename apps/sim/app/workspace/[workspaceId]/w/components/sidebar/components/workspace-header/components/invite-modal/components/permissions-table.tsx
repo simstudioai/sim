@@ -1,11 +1,11 @@
 import { useMemo, useRef } from 'react'
 import { Loader2, RotateCw, X } from 'lucide-react'
 import { Badge, Button, Skeleton, Tooltip } from '@/components/emcn'
+import { PermissionSelector } from '@/components/permissions'
 import { useSession } from '@/lib/auth/auth-client'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { WorkspacePermissions } from '@/hooks/queries/workspace'
-import { PermissionSelector } from './permission-selector'
 import type { UserPermissions } from './types'
 
 const PermissionsTableSkeleton = () => (

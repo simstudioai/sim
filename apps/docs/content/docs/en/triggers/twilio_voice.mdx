@@ -1,0 +1,66 @@
+---
+title: Twilio Voice
+description: Available Twilio Voice triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="twilio_voice"
+  color="#F22F46"
+/>
+
+Twilio Voice provides 1 trigger for automating workflows based on events.
+
+## Triggers
+
+### Twilio Voice Webhook
+
+Trigger workflow when phone calls are received via Twilio Voice
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accountSid` | string | Yes | Your Twilio Account SID from the Twilio Console |
+| `authToken` | string | Yes | Your Twilio Auth Token for webhook signature verification |
+| `twimlResponse` | string | No | TwiML instructions to return immediately to Twilio. Use square brackets instead of angle brackets \(e.g., \[Response\] instead of &lt;Response&gt;\). This controls what happens when the call comes in \(e.g., play a message, record, gather input\). Your workflow will execute in the background. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `callSid` | string | Unique identifier for this call |
+| `accountSid` | string | Twilio Account SID |
+| `from` | string | Caller's phone number \(E.164 format\) |
+| `to` | string | Recipient phone number \(your Twilio number\) |
+| `callStatus` | string | Status of the call \(queued, ringing, in-progress, completed, etc.\) |
+| `direction` | string | Call direction: inbound or outbound |
+| `apiVersion` | string | Twilio API version |
+| `callerName` | string | Caller ID name if available |
+| `forwardedFrom` | string | Phone number that forwarded this call |
+| `digits` | string | DTMF digits entered by caller \(from &lt;Gather&gt;\) |
+| `speechResult` | string | Speech recognition result \(if using &lt;Gather&gt; with speech\) |
+| `recordingUrl` | string | URL of call recording if available |
+| `recordingSid` | string | Recording SID if available |
+| `called` | string | Phone number that was called \(same as "to"\) |
+| `caller` | string | Phone number of the caller \(same as "from"\) |
+| `toCity` | string | City of the called number |
+| `toState` | string | State/province of the called number |
+| `toZip` | string | Zip/postal code of the called number |
+| `toCountry` | string | Country of the called number |
+| `fromCity` | string | City of the caller |
+| `fromState` | string | State/province of the caller |
+| `fromZip` | string | Zip/postal code of the caller |
+| `fromCountry` | string | Country of the caller |
+| `calledCity` | string | City of the called number \(same as toCity\) |
+| `calledState` | string | State of the called number \(same as toState\) |
+| `calledZip` | string | Zip code of the called number \(same as toZip\) |
+| `calledCountry` | string | Country of the called number \(same as toCountry\) |
+| `callerCity` | string | City of the caller \(same as fromCity\) |
+| `callerState` | string | State of the caller \(same as fromState\) |
+| `callerZip` | string | Zip code of the caller \(same as fromZip\) |
+| `callerCountry` | string | Country of the caller \(same as fromCountry\) |
+| `callToken` | string | Twilio call token for authentication |
+| `raw` | string | Complete raw webhook payload from Twilio as JSON string |
+

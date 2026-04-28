@@ -104,14 +104,6 @@ export const tableNewRowTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'table_new_row',
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

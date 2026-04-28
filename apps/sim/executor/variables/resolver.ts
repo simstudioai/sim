@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { BlockType } from '@/executor/constants'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
@@ -191,7 +192,7 @@ export class VariableResolver {
 
         return this.blockResolver.formatValueForBlock(resolved, blockType, language)
       } catch (error) {
-        replacementError = error instanceof Error ? error : new Error(String(error))
+        replacementError = toError(error)
         return match
       }
     })
@@ -250,7 +251,7 @@ export class VariableResolver {
         }
         return String(resolved)
       } catch (error) {
-        replacementError = error instanceof Error ? error : new Error(String(error))
+        replacementError = toError(error)
         return match
       }
     })

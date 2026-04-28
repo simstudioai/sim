@@ -1,9 +1,14 @@
 import {
+  authMock,
   databaseMock,
   drizzleOrmMock,
+  hybridAuthMock,
   loggerMock,
+  requestUtilsMock,
+  schemaMock,
   setupGlobalFetchMock,
   setupGlobalStorageMocks,
+  workflowAuthzMock,
 } from '@sim/testing'
 import { afterAll, vi } from 'vitest'
 import '@testing-library/jest-dom/vitest'
@@ -12,8 +17,13 @@ setupGlobalFetchMock()
 setupGlobalStorageMocks()
 
 vi.mock('@sim/db', () => databaseMock)
+vi.mock('@sim/db/schema', () => schemaMock)
 vi.mock('drizzle-orm', () => drizzleOrmMock)
 vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@sim/workflow-authz', () => workflowAuthzMock)
+vi.mock('@/lib/auth', () => authMock)
+vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
+vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 vi.mock('@/stores/console/store', () => ({
   useConsoleStore: {

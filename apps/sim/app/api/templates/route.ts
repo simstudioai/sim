@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   templateCreators,
@@ -7,19 +8,19 @@ import {
   workflowDeploymentVersion,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { canAccessTemplate, verifyEffectiveSuperUser } from '@/lib/templates/permissions'
 import {
   extractRequiredCredentials,
   sanitizeCredentials,
 } from '@/lib/workflows/credentials/credential-extractor'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('TemplatesAPI')
 
@@ -56,7 +57,7 @@ const QueryParamsSchema = z.object({
 })
 
 // GET /api/templates - Retrieve templates
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -220,10 +221,10 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching templates`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 // POST /api/templates - Create a new template
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -346,6 +347,14 @@ export async function POST(request: NextRequest) {
       resourceId: templateId,
       resourceName: data.name,
       description: `Created template "${data.name}"`,
+      metadata: {
+        templateName: data.name,
+        workflowId: data.workflowId,
+        creatorId: data.creatorId,
+        tags: data.tags,
+        tagline: data.details?.tagline || undefined,
+        status: 'pending',
+      },
       request,
     })
 
@@ -368,4 +377,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[${requestId}] Error creating template`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

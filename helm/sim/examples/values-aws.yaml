@@ -61,6 +61,7 @@ app:
     S3_COPILOT_BUCKET_NAME: "copilot-files"   # Copilot attachments
     S3_PROFILE_PICTURES_BUCKET_NAME: "profile-pictures"  # User avatars
     S3_OG_IMAGES_BUCKET_NAME: "og-images"                 # OpenGraph preview images
+    S3_WORKSPACE_LOGOS_BUCKET_NAME: "workspace-logos"     # Workspace logos
 
 # Realtime service
 realtime:

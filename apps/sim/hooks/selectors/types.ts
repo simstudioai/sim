@@ -40,6 +40,7 @@ export type SelectorKey =
   | 'onedrive.folders'
   | 'sharepoint.sites'
   | 'microsoft.excel'
+  | 'microsoft.excel.drives'
   | 'microsoft.excel.sheets'
   | 'microsoft.word'
   | 'microsoft.planner'
@@ -51,6 +52,8 @@ export type SelectorKey =
   | 'webflow.items'
   | 'cloudwatch.logGroups'
   | 'cloudwatch.logStreams'
+  | 'monday.boards'
+  | 'monday.groups'
   | 'sim.workflows'
 
 export interface SelectorOption {
@@ -75,11 +78,13 @@ export interface SelectorContext {
   siteId?: string
   collectionId?: string
   spreadsheetId?: string
+  driveId?: string
   excludeWorkflowId?: string
   baseId?: string
   datasetId?: string
   serviceDeskId?: string
   impersonateUserEmail?: string
+  boardId?: string
   awsAccessKeyId?: string
   awsSecretAccessKey?: string
   awsRegion?: string

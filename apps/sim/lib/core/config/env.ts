@@ -38,9 +38,6 @@ export const env = createEnv({
     AGENT_INDEXER_API_KEY:                 z.string().min(1).optional(),           // API key for agent indexer authentication
     COPILOT_STREAM_TTL_SECONDS:            z.number().optional(),                  // Redis TTL for copilot SSE buffer
     COPILOT_STREAM_EVENT_LIMIT:            z.number().optional(),                  // Max events retained per stream
-    COPILOT_STREAM_RESERVE_BATCH:          z.number().optional(),                  // Event ID reservation batch size
-    COPILOT_STREAM_FLUSH_INTERVAL_MS:      z.number().optional(),                  // Buffer flush interval in ms
-    COPILOT_STREAM_FLUSH_MAX_BATCH:        z.number().optional(),                  // Max events per flush batch
 
     // Database & Storage
     REDIS_URL:                             z.string().url().optional(),            // Redis connection string for caching/sessions
@@ -75,7 +72,7 @@ export const env = createEnv({
     STRIPE_PRICE_TEAM_25_YR:               z.string().min(1).optional(),           // Team Pro: $255/seat/yr
     STRIPE_PRICE_TEAM_100_MO:              z.string().min(1).optional(),           // Team Max: $100/seat/mo
     STRIPE_PRICE_TEAM_100_YR:              z.string().min(1).optional(),           // Team Max: $1,020/seat/yr
-    OVERAGE_THRESHOLD_DOLLARS:             z.number().optional().default(50),      // Dollar threshold for incremental overage billing (default: $50)
+    OVERAGE_THRESHOLD_DOLLARS:             z.number().optional().default(100),     // Dollar threshold for incremental overage billing (default: $100)
 
     // Email & Communication
     EMAIL_VERIFICATION_ENABLED:            z.boolean().optional(),                 // Enable email verification for user registration and login (defaults to false)
@@ -135,7 +132,6 @@ export const env = createEnv({
     TELEMETRY_ENDPOINT:                    z.string().url().optional(),            // Custom telemetry/analytics endpoint
     COST_MULTIPLIER:                       z.number().optional(),                  // Multiplier for cost calculations
     LOG_LEVEL:                             z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']).optional(), // Minimum log level to display (defaults to ERROR in production, DEBUG in development)
-    DRIZZLE_ODS_API_KEY:                   z.string().min(1).optional(),           // OneDollarStats API key for analytics tracking
     PROFOUND_API_KEY:                      z.string().min(1).optional(),           // Profound analytics API key
     PROFOUND_ENDPOINT:                     z.string().url().optional(),            // Profound analytics endpoint
 
@@ -146,6 +142,12 @@ export const env = createEnv({
 
     // Admin API
     ADMIN_API_KEY:                         z.string().min(32).optional(),          // Admin API key for self-hosted GitOps access (generate with: openssl rand -hex 32)
+
+    // Mothership Admin
+    MOTHERSHIP_API_ADMIN_KEY:              z.string().min(1).optional(),           // Admin API key for mothership/copilot admin endpoints
+    MOTHERSHIP_DEV_URL:                    z.string().url().optional(),            // Mothership dev environment URL
+    MOTHERSHIP_STAGING_URL:                z.string().url().optional(),            // Mothership staging environment URL
+    MOTHERSHIP_PROD_URL:                   z.string().url().optional(),            // Mothership production environment URL
 
     // Infrastructure & Deployment
     NEXT_RUNTIME:                          z.string().optional(),                  // Next.js runtime environment
@@ -170,6 +172,7 @@ export const env = createEnv({
     S3_COPILOT_BUCKET_NAME:                z.string().optional(),                  // S3 bucket for copilot files
     S3_PROFILE_PICTURES_BUCKET_NAME:       z.string().optional(),                  // S3 bucket for profile pictures
     S3_OG_IMAGES_BUCKET_NAME:              z.string().optional(),                  // S3 bucket for OpenGraph images
+    S3_WORKSPACE_LOGOS_BUCKET_NAME:        z.string().optional(),                  // S3 bucket for workspace logos
 
     // Cloud Storage - Azure Blob 
     AZURE_ACCOUNT_NAME:                    z.string().optional(),                  // Azure storage account name
@@ -182,15 +185,11 @@ export const env = createEnv({
     AZURE_STORAGE_COPILOT_CONTAINER_NAME:  z.string().optional(),                  // Azure container for copilot files
     AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME: z.string().optional(),          // Azure container for profile pictures
     AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: z.string().optional(),                 // Azure container for OpenGraph images
+    AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME: z.string().optional(),            // Azure container for workspace logos
 
-    // Data Retention
-    FREE_PLAN_LOG_RETENTION_DAYS:          z.string().optional(),                  // Log retention days for free plan users
 
     // Admission & Burst Protection
-    CONCURRENCY_CONTROL_ENABLED:           z.string().optional().default('false'),  // Set to 'true' to enable BullMQ-based concurrency control (default: inline execution)
     ADMISSION_GATE_MAX_INFLIGHT:           z.string().optional().default('500'),   // Max concurrent in-flight execution requests per pod
-    DISPATCH_MAX_QUEUE_PER_WORKSPACE:      z.string().optional().default('1000'),  // Max queued dispatch jobs per workspace
-    DISPATCH_MAX_QUEUE_GLOBAL:             z.string().optional().default('50000'), // Max queued dispatch jobs globally
 
     // Rate Limiting Configuration
     RATE_LIMIT_WINDOW_MS:                  z.string().optional().default('60000'), // Rate limit window duration in milliseconds (default: 1 minute)
@@ -203,11 +202,6 @@ export const env = createEnv({
     RATE_LIMIT_TEAM_ASYNC:                 z.string().optional().default('2500'),  // Team tier async API executions per minute
     RATE_LIMIT_ENTERPRISE_SYNC:            z.string().optional().default('600'),   // Enterprise tier sync API executions per minute
     RATE_LIMIT_ENTERPRISE_ASYNC:           z.string().optional().default('5000'),  // Enterprise tier async API executions per minute
-    WORKSPACE_CONCURRENCY_FREE:            z.string().optional().default('5'),     // Free tier concurrent workspace executions
-    WORKSPACE_CONCURRENCY_PRO:             z.string().optional().default('50'),    // Pro tier concurrent workspace executions
-    WORKSPACE_CONCURRENCY_TEAM:            z.string().optional().default('200'),   // Team/Max tier concurrent workspace executions
-    WORKSPACE_CONCURRENCY_ENTERPRISE:      z.string().optional().default('200'),   // Enterprise default concurrent workspace executions
-
     // Timeout Configuration
     EXECUTION_TIMEOUT_FREE:                z.string().optional().default('300'),   // 5 minutes
     EXECUTION_TIMEOUT_PRO:                 z.string().optional().default('3000'),  // 50 minutes
@@ -235,6 +229,10 @@ export const env = createEnv({
     IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER:z.string().optional().default('2200'),   // Max owner in-flight leases across replicas
     IVM_DISTRIBUTED_LEASE_MIN_TTL_MS:      z.string().optional().default('120000'), // Min TTL for distributed in-flight leases (ms)
     IVM_QUEUE_TIMEOUT_MS:                  z.string().optional().default('300000'), // Max queue wait before rejection (ms)
+    IVM_MAX_EXECUTIONS_PER_WORKER:         z.string().optional().default('500'),    // Max lifetime executions before worker is recycled
+    IVM_MAX_BROKER_ARGS_JSON_CHARS:        z.string().optional().default('262144'),  // Max JSON payload size for sandbox task broker args (isolate→host)
+    IVM_MAX_BROKER_RESULT_JSON_CHARS:      z.string().optional().default('16777216'),// Max JSON payload size for sandbox task broker results (host→isolate)
+    IVM_MAX_BROKERS_PER_EXECUTION:         z.string().optional().default('1000'),    // Max broker calls per sandbox task execution
 
     // Knowledge Base Processing Configuration - Shared across all processing methods
     KB_CONFIG_MAX_DURATION:                z.number().optional().default(600),     // Max processing duration in seconds (10 minutes)
@@ -250,7 +248,6 @@ export const env = createEnv({
 
     // Real-time Communication
     SOCKET_SERVER_URL:                     z.string().url().optional(),            // WebSocket server URL for real-time features
-    SOCKET_PORT:                           z.number().optional(),                  // Port for WebSocket server
     PORT:                                  z.number().optional(),                  // Main application port
     INTERNAL_API_BASE_URL:                 z.string().optional(),                  // Optional internal base URL for server-side self-calls; must include protocol if set (e.g., http://sim-app.namespace.svc.cluster.local:3000)
     ALLOWED_ORIGINS:                       z.string().optional(),                  // CORS allowed origins
@@ -278,6 +275,8 @@ export const env = createEnv({
     SUPABASE_CLIENT_SECRET:                z.string().optional(),                  // Supabase OAuth client secret
     NOTION_CLIENT_ID:                      z.string().optional(),                  // Notion OAuth client ID
     NOTION_CLIENT_SECRET:                  z.string().optional(),                  // Notion OAuth client secret
+    MONDAY_CLIENT_ID:                      z.string().optional(),                  // Monday.com OAuth client ID
+    MONDAY_CLIENT_SECRET:                  z.string().optional(),                  // Monday.com OAuth client secret
     DISCORD_CLIENT_ID:                     z.string().optional(),                  // Discord OAuth client ID
     DISCORD_CLIENT_SECRET:                 z.string().optional(),                  // Discord OAuth client secret
     DOCUSIGN_CLIENT_ID:                    z.string().optional(),                  // DocuSign OAuth client ID
@@ -327,12 +326,18 @@ export const env = createEnv({
     // E2B Remote Code Execution
     E2B_ENABLED:                           z.string().optional(),                  // Enable E2B remote code execution
     E2B_API_KEY:                           z.string().optional(),                  // E2B API key for sandbox creation
+    MOTHERSHIP_E2B_TEMPLATE_ID:             z.string().optional(),                  // Custom E2B template with pre-installed CLI tools for shell execution
 
     // Credential Sets (Email Polling) - for self-hosted deployments
     CREDENTIAL_SETS_ENABLED:               z.boolean().optional(),                 // Enable credential sets on self-hosted (bypasses plan requirements)
 
     // Access Control (Permission Groups) - for self-hosted deployments
     ACCESS_CONTROL_ENABLED:                z.boolean().optional(),                 // Enable access control on self-hosted (bypasses plan requirements)
+
+    // Enterprise Feature Overrides - for self-hosted deployments
+    WHITELABELING_ENABLED:                 z.boolean().optional(),                 // Enable whitelabeling on self-hosted (bypasses hosted requirements)
+    AUDIT_LOGS_ENABLED:                    z.boolean().optional(),                 // Enable audit logs on self-hosted (bypasses hosted requirements)
+    DATA_RETENTION_ENABLED:               z.boolean().optional(),                 // Enable data retention settings on self-hosted (bypasses hosted requirements)
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)
@@ -425,6 +430,9 @@ export const env = createEnv({
     NEXT_PUBLIC_SSO_ENABLED:               z.boolean().optional(),                   // Enable SSO login UI components
     NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED:   z.boolean().optional(),                   // Enable credential sets (email polling) on self-hosted
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED:    z.boolean().optional(),                   // Enable access control (permission groups) on self-hosted
+    NEXT_PUBLIC_WHITELABELING_ENABLED:     z.boolean().optional(),                   // Enable whitelabeling on self-hosted (bypasses hosted requirements)
+    NEXT_PUBLIC_AUDIT_LOGS_ENABLED:        z.boolean().optional(),                   // Enable audit logs on self-hosted (bypasses hosted requirements)
+    NEXT_PUBLIC_DATA_RETENTION_ENABLED:   z.boolean().optional(),                   // Enable data retention settings on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED:     z.boolean().optional(),                   // Enable organizations on self-hosted (bypasses plan requirements)
     NEXT_PUBLIC_DISABLE_INVITATIONS:       z.boolean().optional(),                   // Disable workspace invitations globally (for self-hosted deployments)
     NEXT_PUBLIC_DISABLE_PUBLIC_API:        z.boolean().optional(),                   // Disable public API access UI toggle globally
@@ -459,6 +467,9 @@ export const env = createEnv({
     NEXT_PUBLIC_SSO_ENABLED: process.env.NEXT_PUBLIC_SSO_ENABLED,
     NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED: process.env.NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED,
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: process.env.NEXT_PUBLIC_ACCESS_CONTROL_ENABLED,
+    NEXT_PUBLIC_WHITELABELING_ENABLED: process.env.NEXT_PUBLIC_WHITELABELING_ENABLED,
+    NEXT_PUBLIC_AUDIT_LOGS_ENABLED: process.env.NEXT_PUBLIC_AUDIT_LOGS_ENABLED,
+    NEXT_PUBLIC_DATA_RETENTION_ENABLED: process.env.NEXT_PUBLIC_DATA_RETENTION_ENABLED,
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED: process.env.NEXT_PUBLIC_ORGANIZATIONS_ENABLED,
     NEXT_PUBLIC_DISABLE_INVITATIONS: process.env.NEXT_PUBLIC_DISABLE_INVITATIONS,
     NEXT_PUBLIC_DISABLE_PUBLIC_API: process.env.NEXT_PUBLIC_DISABLE_PUBLIC_API,

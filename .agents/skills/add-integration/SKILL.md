@@ -29,6 +29,21 @@ Before writing any code:
    - Required vs optional parameters
    - Response structures
 
+### Hard Rule: No Guessed Response Schemas
+
+If the official docs do not clearly show the response JSON shape for an endpoint, you MUST stop and tell the user exactly which outputs are unknown.
+
+- Do NOT guess response field names
+- Do NOT infer nested JSON paths from related endpoints
+- Do NOT invent output properties just because they seem likely
+- Do NOT implement `transformResponse` against unverified payload shapes
+
+If response schemas are missing or incomplete, do one of the following before proceeding:
+1. Ask the user for sample responses
+2. Ask the user for test credentials so you can verify the live payload
+3. Reduce the scope to only endpoints whose response shapes are documented
+4. Leave the tool unimplemented and explicitly report why
+
 ## Step 2: Create Tools
 
 ### Directory Structure
@@ -103,6 +118,7 @@ export const {service}{Action}Tool: ToolConfig<Params, Response> = {
 - Set `optional: true` for outputs that may not exist
 - Never output raw JSON dumps - extract meaningful fields
 - When using `type: 'json'` and you know the object shape, define `properties` with the inner fields so downstream consumers know the structure. Only use bare `type: 'json'` when the shape is truly dynamic
+- If you do not know the response JSON shape from docs or verified examples, you MUST tell the user and stop. Never guess outputs or response mappings.
 
 ## Step 3: Create Block
 
@@ -450,6 +466,8 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Verified block subBlocks cover all required tool params with correct conditions
 - [ ] Verified block outputs match what the tools actually return
 - [ ] Verified `tools.config.params` correctly maps and coerces all param types
+- [ ] Verified every tool output and `transformResponse` path against documented or live-verified JSON responses
+- [ ] If any response schema remained unknown, explicitly told the user instead of guessing
 
 ## Example Command
 

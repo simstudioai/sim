@@ -51,7 +51,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "security",
+    "integrationTypes": ["security"],
     "tags": ["secrets-management", "identity"]
   },
   {
@@ -102,7 +102,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools", "ai"],
     "tags": ["agentic", "automation"]
   },
   {
@@ -205,8 +205,182 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "email",
+    "integrationTypes": ["email", "communication"],
     "tags": ["messaging"]
+  },
+  {
+    "type": "agentphone",
+    "slug": "agentphone",
+    "name": "AgentPhone",
+    "description": "Provision numbers, send SMS and iMessage, and place voice calls with AgentPhone",
+    "longDescription": "Give your workflow a phone. Provision SMS- and voice-enabled numbers, send messages and tapback reactions, place outbound voice calls, manage conversations and contacts, and track usage — all through a single AgentPhone API key.",
+    "bgColor": "linear-gradient(135deg, #1a1a1a 0%, #0a2a14 100%)",
+    "iconName": "AgentPhoneIcon",
+    "docsUrl": "https://docs.sim.ai/tools/agentphone",
+    "operations": [
+      {
+        "name": "Create Number",
+        "description": "Provision a new SMS- and voice-enabled phone number"
+      },
+      {
+        "name": "List Numbers",
+        "description": "List all phone numbers provisioned for this AgentPhone account"
+      },
+      {
+        "name": "Release Number",
+        "description": "Release (delete) a phone number. This action is irreversible."
+      },
+      {
+        "name": "Get Number Messages",
+        "description": "Fetch messages received on a specific phone number"
+      },
+      {
+        "name": "Create Call",
+        "description": "Initiate an outbound voice call from an AgentPhone agent"
+      },
+      {
+        "name": "List Calls",
+        "description": "List voice calls for this AgentPhone account"
+      },
+      {
+        "name": "Get Call",
+        "description": "Fetch a call and its full transcript"
+      },
+      {
+        "name": "Get Call Transcript",
+        "description": "Get the full ordered transcript for a call"
+      },
+      {
+        "name": "List Conversations",
+        "description": "List conversations (message threads) for this AgentPhone account"
+      },
+      {
+        "name": "Get Conversation",
+        "description": "Get a conversation along with its recent messages"
+      },
+      {
+        "name": "Update Conversation",
+        "description": "Update conversation metadata (stored state). Pass null to clear existing metadata."
+      },
+      {
+        "name": "Get Conversation Messages",
+        "description": "Get paginated messages for a conversation"
+      },
+      {
+        "name": "Send Message",
+        "description": "Send an outbound SMS or iMessage from an AgentPhone agent"
+      },
+      {
+        "name": "React to Message",
+        "description": "Send an iMessage tapback reaction to a message (iMessage only)"
+      },
+      {
+        "name": "Create Contact",
+        "description": "Create a new contact in AgentPhone"
+      },
+      {
+        "name": "List Contacts",
+        "description": "List contacts for this AgentPhone account"
+      },
+      {
+        "name": "Get Contact",
+        "description": "Fetch a single contact by ID"
+      },
+      {
+        "name": "Update Contact",
+        "description": "Update a contact"
+      },
+      {
+        "name": "Delete Contact",
+        "description": "Delete a contact by ID"
+      },
+      {
+        "name": "Get Usage",
+        "description": "Retrieve current usage statistics for the AgentPhone account"
+      },
+      {
+        "name": "Get Daily Usage",
+        "description": "Get a daily breakdown of usage (messages, calls, webhooks) for the last N days"
+      },
+      {
+        "name": "Get Monthly Usage",
+        "description": "Get monthly usage aggregation (messages, calls, webhooks) for the last N months"
+      }
+    ],
+    "operationCount": 22,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["communication", "developer-tools"],
+    "tags": ["messaging", "automation"]
+  },
+  {
+    "type": "agiloft",
+    "slug": "agiloft",
+    "name": "Agiloft",
+    "description": "Manage records in Agiloft CLM",
+    "longDescription": "Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.",
+    "bgColor": "#FFFFFF",
+    "iconName": "AgiloftIcon",
+    "docsUrl": "https://docs.sim.ai/tools/agiloft",
+    "operations": [
+      {
+        "name": "Create Record",
+        "description": "Create a new record in an Agiloft table."
+      },
+      {
+        "name": "Read Record",
+        "description": "Read a record by ID from an Agiloft table."
+      },
+      {
+        "name": "Update Record",
+        "description": "Update an existing record in an Agiloft table."
+      },
+      {
+        "name": "Delete Record",
+        "description": "Delete a record from an Agiloft table."
+      },
+      {
+        "name": "Search Records",
+        "description": "Search for records in an Agiloft table using a query."
+      },
+      {
+        "name": "Select Records",
+        "description": "Select record IDs matching a SQL WHERE clause from an Agiloft table."
+      },
+      {
+        "name": "Saved Search",
+        "description": "List saved searches defined for an Agiloft table."
+      },
+      {
+        "name": "Attach File",
+        "description": "Attach a file to a field in an Agiloft record."
+      },
+      {
+        "name": "Retrieve Attachment",
+        "description": "Download an attached file from an Agiloft record field."
+      },
+      {
+        "name": "Remove Attachment",
+        "description": "Remove an attached file from a field in an Agiloft record."
+      },
+      {
+        "name": "Attachment Info",
+        "description": "Get information about file attachments on a record field."
+      },
+      {
+        "name": "Lock Record",
+        "description": "Lock, unlock, or check the lock status of an Agiloft record."
+      }
+    ],
+    "operationCount": 12,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["productivity", "developer-tools"],
+    "tags": ["automation"]
   },
   {
     "type": "ahrefs",
@@ -256,7 +430,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics", "search"],
     "tags": ["seo", "marketing", "data-analytics"]
   },
   {
@@ -313,7 +487,7 @@
     "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "developer-tools", "productivity"],
     "tags": ["spreadsheet", "automation"]
   },
   {
@@ -331,7 +505,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "search",
+    "integrationTypes": ["search", "ai", "documents"],
     "tags": ["vector-search", "knowledge-base"]
   },
   {
@@ -410,14 +584,14 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "search",
+    "integrationTypes": ["search", "ai", "documents"],
     "tags": ["vector-search", "knowledge-base"]
   },
   {
     "type": "dynamodb",
     "slug": "amazon-dynamodb",
     "name": "Amazon DynamoDB",
-    "description": "Connect to Amazon DynamoDB",
+    "description": "Get, put, query, scan, update, and delete items in Amazon DynamoDB tables",
     "longDescription": "Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.",
     "bgColor": "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)",
     "iconName": "DynamoDBIcon",
@@ -457,7 +631,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "developer-tools"],
     "tags": ["cloud", "data-warehouse"]
   },
   {
@@ -500,7 +674,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "developer-tools"],
     "tags": ["cloud", "data-warehouse"]
   },
   {
@@ -523,7 +697,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools", "communication"],
     "tags": ["cloud", "messaging", "automation"]
   },
   {
@@ -586,7 +760,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics"],
     "tags": ["data-analytics", "marketing"]
   },
   {
@@ -613,7 +787,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "automation",
+    "integrationTypes": ["search", "analytics", "developer-tools"],
     "tags": ["web-scraping", "automation", "data-analytics"]
   },
   {
@@ -732,7 +906,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "sales-intelligence",
+    "integrationTypes": ["sales"],
     "tags": ["enrichment", "sales-engagement"]
   },
   {
@@ -763,7 +937,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "search",
+    "integrationTypes": ["search", "documents"],
     "tags": ["document-processing", "knowledge-base"]
   },
   {
@@ -806,7 +980,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "productivity",
+    "integrationTypes": ["productivity", "customer-support", "developer-tools"],
     "tags": ["project-management", "ticketing", "automation"]
   },
   {
@@ -968,7 +1142,7 @@
     "triggerCount": 6,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "hr",
+    "integrationTypes": ["hr"],
     "tags": ["hiring"]
   },
   {
@@ -1019,7 +1193,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics", "developer-tools"],
     "tags": ["cloud", "data-analytics"]
   },
   {
@@ -1313,8 +1487,178 @@
     "triggerCount": 22,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "crm",
+    "integrationTypes": ["crm", "sales"],
     "tags": ["sales-engagement", "enrichment"]
+  },
+  {
+    "type": "iam",
+    "slug": "aws-iam",
+    "name": "AWS IAM",
+    "description": "Manage AWS IAM users, roles, policies, and groups",
+    "longDescription": "Integrate AWS Identity and Access Management into your workflow. Create and manage users, roles, policies, groups, and access keys.",
+    "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
+    "iconName": "IAMIcon",
+    "docsUrl": "https://docs.sim.ai/tools/iam",
+    "operations": [
+      {
+        "name": "List Users",
+        "description": "List IAM users in your AWS account"
+      },
+      {
+        "name": "Get User",
+        "description": "Get detailed information about an IAM user"
+      },
+      {
+        "name": "Create User",
+        "description": "Create a new IAM user"
+      },
+      {
+        "name": "Delete User",
+        "description": "Delete an IAM user"
+      },
+      {
+        "name": "List Roles",
+        "description": "List IAM roles in your AWS account"
+      },
+      {
+        "name": "Get Role",
+        "description": "Get detailed information about an IAM role"
+      },
+      {
+        "name": "Create Role",
+        "description": "Create a new IAM role with a trust policy"
+      },
+      {
+        "name": "Delete Role",
+        "description": "Delete an IAM role"
+      },
+      {
+        "name": "Attach User Policy",
+        "description": "Attach a managed policy to an IAM user"
+      },
+      {
+        "name": "Detach User Policy",
+        "description": "Remove a managed policy from an IAM user"
+      },
+      {
+        "name": "Attach Role Policy",
+        "description": "Attach a managed policy to an IAM role"
+      },
+      {
+        "name": "Detach Role Policy",
+        "description": "Remove a managed policy from an IAM role"
+      },
+      {
+        "name": "List Policies",
+        "description": "List managed IAM policies"
+      },
+      {
+        "name": "Create Access Key",
+        "description": "Create a new access key pair for an IAM user"
+      },
+      {
+        "name": "Delete Access Key",
+        "description": "Delete an access key pair for an IAM user"
+      },
+      {
+        "name": "List Groups",
+        "description": "List IAM groups in your AWS account"
+      },
+      {
+        "name": "Add User to Group",
+        "description": "Add an IAM user to a group"
+      },
+      {
+        "name": "Remove User from Group",
+        "description": "Remove an IAM user from a group"
+      },
+      {
+        "name": "List Attached Role Policies",
+        "description": "List all managed policies attached to an IAM role"
+      },
+      {
+        "name": "List Attached User Policies",
+        "description": "List all managed policies attached to an IAM user"
+      },
+      {
+        "name": "Simulate Principal Policy",
+        "description": "Simulate whether a user, role, or group is allowed to perform specific AWS actions — useful for pre-flight access checks"
+      }
+    ],
+    "operationCount": 21,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["developer-tools", "security"],
+    "tags": ["cloud", "identity"]
+  },
+  {
+    "type": "identity_center",
+    "slug": "aws-identity-center",
+    "name": "AWS Identity Center",
+    "description": "Manage temporary elevated access in AWS IAM Identity Center",
+    "longDescription": "Provision and revoke temporary access to AWS accounts via IAM Identity Center (SSO). Assign permission sets to users or groups, look up users by email, and list accounts and permission sets for access request workflows.",
+    "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
+    "iconName": "IdentityCenterIcon",
+    "docsUrl": "https://docs.sim.ai/tools/identity-center",
+    "operations": [
+      {
+        "name": "List Instances",
+        "description": "List all AWS IAM Identity Center instances in your account"
+      },
+      {
+        "name": "List Accounts",
+        "description": "List all AWS accounts in your organization"
+      },
+      {
+        "name": "Describe Account",
+        "description": "Retrieve details about a specific AWS account by its ID"
+      },
+      {
+        "name": "List Permission Sets",
+        "description": "List all permission sets defined in an IAM Identity Center instance"
+      },
+      {
+        "name": "Get User",
+        "description": "Look up a user in the Identity Store by email address"
+      },
+      {
+        "name": "Get Group",
+        "description": "Look up a group in the Identity Store by display name"
+      },
+      {
+        "name": "List Groups",
+        "description": "List all groups in the Identity Store"
+      },
+      {
+        "name": "Create Account Assignment",
+        "description": "Grant a user or group access to an AWS account via a permission set (temporary elevated access)"
+      },
+      {
+        "name": "Delete Account Assignment",
+        "description": "Revoke a user or group access to an AWS account by removing a permission set assignment"
+      },
+      {
+        "name": "Check Assignment Status",
+        "description": "Check the provisioning status of an account assignment creation request"
+      },
+      {
+        "name": "Check Assignment Deletion Status",
+        "description": "Check the deprovisioning status of an account assignment deletion request"
+      },
+      {
+        "name": "List Account Assignments",
+        "description": "List all account assignments for a specific user or group across all accounts"
+      }
+    ],
+    "operationCount": 12,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["security", "developer-tools"],
+    "tags": ["cloud", "identity"]
   },
   {
     "type": "secrets_manager",
@@ -1352,8 +1696,98 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools", "security"],
     "tags": ["cloud", "secrets-management"]
+  },
+  {
+    "type": "ses",
+    "slug": "aws-ses",
+    "name": "AWS SES",
+    "description": "Send emails and manage templates with AWS Simple Email Service",
+    "longDescription": "Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates and retrieve account sending quota and verified identity information.",
+    "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
+    "iconName": "SESIcon",
+    "docsUrl": "https://docs.sim.ai/tools/ses",
+    "operations": [
+      {
+        "name": "Send Email",
+        "description": "Send an email via AWS SES using simple or HTML content"
+      },
+      {
+        "name": "Send Templated Email",
+        "description": "Send an email using an SES email template with dynamic template data"
+      },
+      {
+        "name": "Send Bulk Email",
+        "description": "Send emails to multiple recipients using an SES template with per-recipient data"
+      },
+      {
+        "name": "List Identities",
+        "description": "List all verified email identities (email addresses and domains) in your SES account"
+      },
+      {
+        "name": "Get Account",
+        "description": "Get SES account sending quota and status information"
+      },
+      {
+        "name": "Create Template",
+        "description": "Create a new SES email template for use with templated email sending"
+      },
+      {
+        "name": "Get Template",
+        "description": "Retrieve the content and details of an SES email template"
+      },
+      {
+        "name": "List Templates",
+        "description": "List all SES email templates in your account"
+      },
+      {
+        "name": "Delete Template",
+        "description": "Delete an existing SES email template"
+      }
+    ],
+    "operationCount": 9,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["email", "analytics", "developer-tools"],
+    "tags": ["cloud", "marketing"]
+  },
+  {
+    "type": "sts",
+    "slug": "aws-sts",
+    "name": "AWS STS",
+    "description": "Connect to AWS Security Token Service",
+    "longDescription": "Integrate AWS STS into the workflow. Assume roles, get temporary credentials, verify caller identity, and look up access key information.",
+    "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
+    "iconName": "STSIcon",
+    "docsUrl": "https://docs.sim.ai/tools/sts",
+    "operations": [
+      {
+        "name": "Assume Role",
+        "description": "Assume an IAM role and receive temporary security credentials"
+      },
+      {
+        "name": "Get Caller Identity",
+        "description": "Get details about the IAM user or role whose credentials are used to call the API"
+      },
+      {
+        "name": "Get Session Token",
+        "description": "Get temporary security credentials for an IAM user, optionally with MFA"
+      },
+      {
+        "name": "Get Access Key Info",
+        "description": "Get the AWS account ID associated with an access key"
+      }
+    ],
+    "operationCount": 4,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["security", "developer-tools"],
+    "tags": ["cloud"]
   },
   {
     "type": "textract_v2",
@@ -1370,7 +1804,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "developer-tools", "documents"],
     "tags": ["document-processing", "ocr", "cloud"]
   },
   {
@@ -1441,7 +1875,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "security",
+    "integrationTypes": ["security"],
     "tags": ["identity", "microsoft-365"]
   },
   {
@@ -1520,7 +1954,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "file-storage",
+    "integrationTypes": ["file-storage", "developer-tools", "documents"],
     "tags": ["cloud", "content-management", "e-signatures"]
   },
   {
@@ -1547,8 +1981,59 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "sales-intelligence",
+    "integrationTypes": ["sales", "analytics"],
     "tags": ["enrichment", "marketing"]
+  },
+  {
+    "type": "brightdata",
+    "slug": "bright-data",
+    "name": "Bright Data",
+    "description": "Scrape websites, search engines, and extract structured data",
+    "longDescription": "Integrate Bright Data into the workflow. Scrape any URL with Web Unlocker, search Google and other engines with SERP API, discover web content ranked by intent, or trigger pre-built scrapers for structured data extraction.",
+    "bgColor": "#FFFFFF",
+    "iconName": "BrightDataIcon",
+    "docsUrl": "https://docs.sim.ai/tools/brightdata",
+    "operations": [
+      {
+        "name": "Scrape URL",
+        "description": "Fetch content from any URL using Bright Data Web Unlocker. Bypasses anti-bot protections, CAPTCHAs, and IP blocks automatically."
+      },
+      {
+        "name": "SERP Search",
+        "description": "Search Google, Bing, DuckDuckGo, or Yandex and get structured search results using Bright Data SERP API."
+      },
+      {
+        "name": "Discover",
+        "description": "AI-powered web discovery that finds and ranks results by intent. Returns up to 1,000 results with optional cleaned page content for RAG and verification."
+      },
+      {
+        "name": "Sync Scrape",
+        "description": "Scrape URLs synchronously using a Bright Data pre-built scraper and get structured results directly. Supports up to 20 URLs with a 1-minute timeout."
+      },
+      {
+        "name": "Scrape Dataset",
+        "description": "Trigger a Bright Data pre-built scraper to extract structured data from URLs. Supports 660+ scrapers for platforms like Amazon, LinkedIn, Instagram, and more."
+      },
+      {
+        "name": "Snapshot Status",
+        "description": "Check the progress of an async Bright Data scraping job. Returns status: starting, running, ready, or failed."
+      },
+      {
+        "name": "Download Snapshot",
+        "description": "Download the results of a completed Bright Data scraping job using its snapshot ID. The snapshot must have ready status."
+      },
+      {
+        "name": "Cancel Snapshot",
+        "description": "Cancel an active Bright Data scraping job using its snapshot ID. Terminates data collection in progress."
+      }
+    ],
+    "operationCount": 8,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["search", "developer-tools"],
+    "tags": ["web-scraping", "automation"]
   },
   {
     "type": "browser_use",
@@ -1565,7 +2050,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "automation",
+    "integrationTypes": ["ai", "developer-tools", "search"],
     "tags": ["web-scraping", "automation", "agentic"]
   },
   {
@@ -1706,7 +2191,7 @@
     "triggerCount": 9,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "productivity",
+    "integrationTypes": ["productivity", "communication"],
     "tags": ["scheduling", "calendar", "meeting"]
   },
   {
@@ -1774,7 +2259,7 @@
     "triggerCount": 4,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "productivity",
+    "integrationTypes": ["productivity", "communication"],
     "tags": ["scheduling", "calendar", "meeting"]
   },
   {
@@ -1808,7 +2293,7 @@
     "triggerCount": 3,
     "authType": "none",
     "category": "triggers",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "communication", "developer-tools", "documents", "productivity"],
     "tags": ["meeting", "note-taking", "automation"]
   },
   {
@@ -1826,7 +2311,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "sales-intelligence",
+    "integrationTypes": ["sales", "analytics"],
     "tags": ["enrichment", "sales-engagement", "data-analytics"]
   },
   {
@@ -1889,7 +2374,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "security",
+    "integrationTypes": ["security", "developer-tools"],
     "tags": ["identity", "automation"]
   },
   {
@@ -1960,7 +2445,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools", "analytics"],
     "tags": ["cloud", "monitoring"]
   },
   {
@@ -2007,7 +2492,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools"],
     "tags": ["cloud"]
   },
   {
@@ -2058,7 +2543,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics", "developer-tools"],
     "tags": ["cloud", "monitoring"]
   },
   {
@@ -2279,6 +2764,16 @@
         "description": "Trigger workflow when a page is moved in Confluence"
       },
       {
+        "id": "confluence_page_restored",
+        "name": "Confluence Page Restored",
+        "description": "Trigger workflow when a page is restored from trash in Confluence"
+      },
+      {
+        "id": "confluence_page_permissions_updated",
+        "name": "Confluence Page Permissions Updated",
+        "description": "Trigger workflow when page permissions are changed in Confluence"
+      },
+      {
         "id": "confluence_comment_created",
         "name": "Confluence Comment Created",
         "description": "Trigger workflow when a comment is created in Confluence"
@@ -2287,6 +2782,11 @@
         "id": "confluence_comment_removed",
         "name": "Confluence Comment Removed",
         "description": "Trigger workflow when a comment is removed in Confluence"
+      },
+      {
+        "id": "confluence_comment_updated",
+        "name": "Confluence Comment Updated",
+        "description": "Trigger workflow when a comment is updated in Confluence"
       },
       {
         "id": "confluence_blog_created",
@@ -2304,6 +2804,11 @@
         "description": "Trigger workflow when a blog post is removed in Confluence"
       },
       {
+        "id": "confluence_blog_restored",
+        "name": "Confluence Blog Post Restored",
+        "description": "Trigger workflow when a blog post is restored from trash in Confluence"
+      },
+      {
         "id": "confluence_attachment_created",
         "name": "Confluence Attachment Created",
         "description": "Trigger workflow when an attachment is uploaded in Confluence"
@@ -2312,6 +2817,11 @@
         "id": "confluence_attachment_removed",
         "name": "Confluence Attachment Removed",
         "description": "Trigger workflow when an attachment is removed in Confluence"
+      },
+      {
+        "id": "confluence_attachment_updated",
+        "name": "Confluence Attachment Updated",
+        "description": "Trigger workflow when an attachment is updated in Confluence"
       },
       {
         "id": "confluence_space_created",
@@ -2324,6 +2834,11 @@
         "description": "Trigger workflow when a space is updated in Confluence"
       },
       {
+        "id": "confluence_space_removed",
+        "name": "Confluence Space Removed",
+        "description": "Trigger workflow when a space is removed in Confluence"
+      },
+      {
         "id": "confluence_label_added",
         "name": "Confluence Label Added",
         "description": "Trigger workflow when a label is added to content in Confluence"
@@ -2334,16 +2849,52 @@
         "description": "Trigger workflow when a label is removed from content in Confluence"
       },
       {
+        "id": "confluence_user_created",
+        "name": "Confluence User Created",
+        "description": "Trigger workflow when a new user is added to Confluence"
+      },
+      {
         "id": "confluence_webhook",
         "name": "Confluence Webhook (All Events)",
         "description": "Trigger workflow on any Confluence webhook event"
       }
     ],
-    "triggerCount": 16,
+    "triggerCount": 23,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "documents",
+    "integrationTypes": ["documents", "productivity", "search"],
     "tags": ["knowledge-base", "content-management", "note-taking"]
+  },
+  {
+    "type": "crowdstrike",
+    "slug": "crowdstrike",
+    "name": "CrowdStrike",
+    "description": "Query CrowdStrike Identity Protection sensors and documented aggregates",
+    "longDescription": "Integrate CrowdStrike Identity Protection into workflows to search sensors, fetch documented sensor details by device ID, and run documented sensor aggregate queries.",
+    "bgColor": "#E01F3D",
+    "iconName": "CrowdStrikeIcon",
+    "docsUrl": "https://docs.sim.ai/tools/crowdstrike",
+    "operations": [
+      {
+        "name": "Query Sensors",
+        "description": "Search CrowdStrike identity protection sensors by hostname, IP, or related fields"
+      },
+      {
+        "name": "Get Sensor Details",
+        "description": "Get documented CrowdStrike Identity Protection sensor details for one or more device IDs"
+      },
+      {
+        "name": "Get Sensor Aggregates",
+        "description": "Get documented CrowdStrike Identity Protection sensor aggregates from a JSON aggregate query body"
+      }
+    ],
+    "operationCount": 3,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["security", "analytics", "developer-tools"],
+    "tags": ["identity", "monitoring"]
   },
   {
     "type": "cursor_v2",
@@ -2397,7 +2948,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools", "ai"],
     "tags": ["agentic", "automation"]
   },
   {
@@ -2472,7 +3023,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "automation",
+    "integrationTypes": ["analytics", "developer-tools"],
     "tags": ["data-analytics", "automation"]
   },
   {
@@ -2523,7 +3074,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "analytics", "developer-tools"],
     "tags": ["data-warehouse", "data-analytics", "cloud"]
   },
   {
@@ -2590,7 +3141,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics", "developer-tools"],
     "tags": ["monitoring", "incident-management", "error-tracking"]
   },
   {
@@ -2625,7 +3176,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools", "ai"],
     "tags": ["agentic", "automation"]
   },
   {
@@ -2784,7 +3335,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "communication",
+    "integrationTypes": ["communication", "developer-tools"],
     "tags": ["messaging", "webhooks", "automation"]
   },
   {
@@ -2835,7 +3386,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "documents",
+    "integrationTypes": ["documents"],
     "tags": ["e-signatures", "document-processing"]
   },
   {
@@ -2894,7 +3445,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "file-storage",
+    "integrationTypes": ["file-storage", "developer-tools", "documents"],
     "tags": ["cloud", "document-processing"]
   },
   {
@@ -2925,7 +3476,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "developer-tools"],
     "tags": ["llm", "agentic", "automation"]
   },
   {
@@ -2972,7 +3523,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools", "analytics"],
     "tags": ["link-management", "marketing", "data-analytics"]
   },
   {
@@ -2990,7 +3541,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "search",
+    "integrationTypes": ["search", "analytics"],
     "tags": ["web-scraping", "seo"]
   },
   {
@@ -3061,7 +3612,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "ai", "analytics", "search"],
     "tags": ["vector-search", "data-analytics"]
   },
   {
@@ -3079,7 +3630,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "media",
+    "integrationTypes": ["ai"],
     "tags": ["text-to-speech"]
   },
   {
@@ -3097,7 +3648,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "search"],
     "tags": ["llm", "vector-search"]
   },
   {
@@ -3232,7 +3783,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "sales-intelligence",
+    "integrationTypes": ["sales", "analytics"],
     "tags": ["enrichment", "data-analytics"]
   },
   {
@@ -3295,7 +3846,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "documents",
+    "integrationTypes": ["documents", "productivity", "search"],
     "tags": ["note-taking", "knowledge-base"]
   },
   {
@@ -3334,7 +3885,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "search",
+    "integrationTypes": ["search", "sales"],
     "tags": ["web-scraping", "enrichment"]
   },
   {
@@ -3352,7 +3903,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "documents"],
     "tags": ["document-processing", "ocr"]
   },
   {
@@ -3402,7 +3953,7 @@
     "triggerCount": 2,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics", "communication", "documents", "productivity"],
     "tags": ["meeting", "note-taking"]
   },
   {
@@ -3433,7 +3984,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "file-storage",
+    "integrationTypes": ["file-storage", "documents"],
     "tags": ["document-processing"]
   },
   {
@@ -3476,7 +4027,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "automation",
+    "integrationTypes": ["search", "developer-tools"],
     "tags": ["web-scraping", "automation"]
   },
   {
@@ -3541,7 +4092,7 @@
     "triggerCount": 1,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "media",
+    "integrationTypes": ["productivity", "ai", "communication", "documents"],
     "tags": ["meeting", "speech-to-text", "note-taking"]
   },
   {
@@ -3580,7 +4131,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "design",
+    "integrationTypes": ["design", "documents"],
     "tags": ["document-processing", "content-management"]
   },
   {
@@ -3987,7 +4538,7 @@
     "triggerCount": 11,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools"],
     "tags": ["version-control", "ci-cd"]
   },
   {
@@ -4082,7 +4633,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools"],
     "tags": ["version-control", "ci-cd"]
   },
   {
@@ -4155,7 +4706,7 @@
     "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "email",
+    "integrationTypes": ["email", "communication"],
     "tags": ["google-workspace", "messaging"]
   },
   {
@@ -4257,7 +4808,7 @@
     "triggerCount": 2,
     "authType": "none",
     "category": "tools",
-    "integrationType": "sales-intelligence",
+    "integrationTypes": ["sales", "ai", "communication", "productivity"],
     "tags": ["meeting", "sales-engagement", "speech-to-text"]
   },
   {
@@ -4300,7 +4851,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics"],
     "tags": ["marketing", "google-workspace", "data-analytics"]
   },
   {
@@ -4339,7 +4890,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "analytics"],
     "tags": ["data-warehouse", "google-workspace", "data-analytics"]
   },
   {
@@ -4366,7 +4917,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "search",
+    "integrationTypes": ["search", "documents"],
     "tags": ["google-workspace", "knowledge-base", "content-management"]
   },
   {
@@ -4431,7 +4982,7 @@
     "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "productivity",
+    "integrationTypes": ["productivity"],
     "tags": ["calendar", "scheduling", "google-workspace"]
   },
   {
@@ -4474,7 +5025,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "productivity",
+    "integrationTypes": ["productivity", "customer-support", "sales"],
     "tags": ["google-workspace", "customer-support", "enrichment"]
   },
   {
@@ -4505,7 +5056,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "documents",
+    "integrationTypes": ["documents"],
     "tags": ["google-workspace", "document-processing", "content-management"]
   },
   {
@@ -4586,7 +5137,7 @@
     "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "file-storage",
+    "integrationTypes": ["file-storage", "developer-tools", "documents"],
     "tags": ["cloud", "google-workspace", "document-processing"]
   },
   {
@@ -4647,7 +5198,7 @@
     "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "documents",
+    "integrationTypes": ["documents", "analytics", "productivity"],
     "tags": ["google-workspace", "forms", "data-analytics"]
   },
   {
@@ -4730,7 +5281,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "communication",
+    "integrationTypes": ["communication", "security"],
     "tags": ["google-workspace", "messaging", "identity"]
   },
   {
@@ -4801,7 +5352,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools", "sales"],
     "tags": ["google-workspace", "enrichment"]
   },
   {
@@ -4844,7 +5395,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "communication",
+    "integrationTypes": ["communication", "productivity"],
     "tags": ["meeting", "google-workspace", "scheduling"]
   },
   {
@@ -4862,7 +5413,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics", "developer-tools", "search"],
     "tags": ["google-workspace", "seo", "monitoring"]
   },
   {
@@ -4880,7 +5431,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "search",
+    "integrationTypes": ["search", "analytics"],
     "tags": ["google-workspace", "web-scraping", "seo"]
   },
   {
@@ -4949,7 +5500,7 @@
     "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "documents",
+    "integrationTypes": ["documents", "analytics", "databases", "productivity"],
     "tags": ["spreadsheet", "google-workspace", "data-analytics"]
   },
   {
@@ -5024,7 +5575,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "documents",
+    "integrationTypes": ["documents"],
     "tags": ["google-workspace", "document-processing", "content-management"]
   },
   {
@@ -5067,7 +5618,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "productivity",
+    "integrationTypes": ["productivity"],
     "tags": ["google-workspace", "project-management", "scheduling"]
   },
   {
@@ -5094,7 +5645,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "developer-tools", "documents"],
     "tags": ["google-workspace", "content-management", "automation"]
   },
   {
@@ -5141,7 +5692,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "security",
+    "integrationTypes": ["security", "documents"],
     "tags": ["google-workspace", "secrets-management", "document-processing"]
   },
   {
@@ -5236,7 +5787,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics", "developer-tools"],
     "tags": ["monitoring", "data-analytics"]
   },
   {
@@ -5332,7 +5883,7 @@
     "triggerCount": 8,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "media",
+    "integrationTypes": ["productivity", "communication", "documents"],
     "tags": ["meeting", "note-taking"]
   },
   {
@@ -5359,7 +5910,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "productivity",
+    "integrationTypes": ["productivity", "communication", "documents"],
     "tags": ["meeting", "note-taking"]
   },
   {
@@ -5463,7 +6014,7 @@
     "triggerCount": 8,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "hr",
+    "integrationTypes": ["hr"],
     "tags": ["hiring"]
   },
   {
@@ -5498,7 +6049,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools", "documents", "search"],
     "tags": ["version-control", "knowledge-base"]
   },
   {
@@ -5581,7 +6132,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics", "databases"],
     "tags": ["data-warehouse", "data-analytics"]
   },
   {
@@ -5852,7 +6403,7 @@
     "triggerCount": 27,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "crm",
+    "integrationTypes": ["crm", "analytics", "customer-support", "sales"],
     "tags": ["marketing", "sales-engagement", "customer-support"]
   },
   {
@@ -5870,7 +6421,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai"],
     "tags": ["llm", "agentic"]
   },
   {
@@ -5913,7 +6464,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "sales-intelligence",
+    "integrationTypes": ["sales"],
     "tags": ["enrichment", "sales-engagement"]
   },
   {
@@ -5931,7 +6482,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "design"],
     "tags": ["image-generation", "llm"]
   },
   {
@@ -5955,7 +6506,7 @@
     "triggerCount": 1,
     "authType": "none",
     "category": "triggers",
-    "integrationType": "email",
+    "integrationTypes": ["email", "communication", "developer-tools"],
     "tags": ["messaging", "automation"]
   },
   {
@@ -6150,7 +6701,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools", "analytics"],
     "tags": ["incident-management", "monitoring"]
   },
   {
@@ -6189,7 +6740,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "security",
+    "integrationTypes": ["security"],
     "tags": ["secrets-management"]
   },
   {
@@ -6363,7 +6914,7 @@
     "triggerCount": 6,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "customer-support",
+    "integrationTypes": ["customer-support", "communication"],
     "tags": ["customer-support", "messaging"]
   },
   {
@@ -6390,7 +6941,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "search",
+    "integrationTypes": ["search", "documents"],
     "tags": ["web-scraping", "knowledge-base"]
   },
   {
@@ -6523,9 +7074,54 @@
         "description": "Trigger workflow when a comment is added to a Jira issue"
       },
       {
+        "id": "jira_comment_updated",
+        "name": "Jira Comment Updated",
+        "description": "Trigger workflow when a comment is updated on a Jira issue"
+      },
+      {
+        "id": "jira_comment_deleted",
+        "name": "Jira Comment Deleted",
+        "description": "Trigger workflow when a comment is deleted from a Jira issue"
+      },
+      {
         "id": "jira_worklog_created",
         "name": "Jira Worklog Created",
         "description": "Trigger workflow when time is logged on a Jira issue"
+      },
+      {
+        "id": "jira_worklog_updated",
+        "name": "Jira Worklog Updated",
+        "description": "Trigger workflow when a worklog entry is updated on a Jira issue"
+      },
+      {
+        "id": "jira_worklog_deleted",
+        "name": "Jira Worklog Deleted",
+        "description": "Trigger workflow when a worklog entry is deleted from a Jira issue"
+      },
+      {
+        "id": "jira_sprint_created",
+        "name": "Jira Sprint Created",
+        "description": "Trigger workflow when a sprint is created in Jira"
+      },
+      {
+        "id": "jira_sprint_started",
+        "name": "Jira Sprint Started",
+        "description": "Trigger workflow when a sprint is started in Jira"
+      },
+      {
+        "id": "jira_sprint_closed",
+        "name": "Jira Sprint Closed",
+        "description": "Trigger workflow when a sprint is closed in Jira"
+      },
+      {
+        "id": "jira_project_created",
+        "name": "Jira Project Created",
+        "description": "Trigger workflow when a project is created in Jira"
+      },
+      {
+        "id": "jira_version_released",
+        "name": "Jira Version Released",
+        "description": "Trigger workflow when a version is released in Jira"
       },
       {
         "id": "jira_webhook",
@@ -6533,10 +7129,10 @@
         "description": "Trigger workflow on any Jira webhook event"
       }
     ],
-    "triggerCount": 6,
+    "triggerCount": 15,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "productivity",
+    "integrationTypes": ["productivity", "customer-support"],
     "tags": ["project-management", "ticketing"]
   },
   {
@@ -6644,14 +7240,80 @@
       {
         "name": "Get Issue Forms",
         "description": "List forms (ProForma/JSM Forms) attached to a Jira issue with metadata (name, submitted status, lock)"
+      },
+      {
+        "name": "Attach Form",
+        "description": "Attach a form template to an existing Jira issue or JSM request"
+      },
+      {
+        "name": "Save Form Answers",
+        "description": "Save answers to a form attached to a Jira issue or JSM request"
+      },
+      {
+        "name": "Submit Form",
+        "description": "Submit a form on a Jira issue or JSM request, locking it from further edits"
+      },
+      {
+        "name": "Get Form",
+        "description": "Get a single form with full design, state, and answers from a Jira issue"
+      },
+      {
+        "name": "Get Form Answers",
+        "description": "Get simplified answers from a form attached to a Jira issue or JSM request"
+      },
+      {
+        "name": "Reopen Form",
+        "description": "Reopen a submitted form on a Jira issue or JSM request, allowing further edits"
+      },
+      {
+        "name": "Delete Form",
+        "description": "Remove a form from a Jira issue or JSM request"
+      },
+      {
+        "name": "Externalise Form",
+        "description": "Make a form visible to customers on a Jira issue or JSM request"
+      },
+      {
+        "name": "Internalise Form",
+        "description": "Make a form internal only (not visible to customers) on a Jira issue or JSM request"
+      },
+      {
+        "name": "Copy Forms",
+        "description": "Copy forms from one Jira issue to another"
       }
     ],
-    "operationCount": 24,
-    "triggers": [],
-    "triggerCount": 0,
+    "operationCount": 34,
+    "triggers": [
+      {
+        "id": "jsm_request_created",
+        "name": "JSM Request Created",
+        "description": "Trigger workflow when a new service request is created in Jira Service Management"
+      },
+      {
+        "id": "jsm_request_updated",
+        "name": "JSM Request Updated",
+        "description": "Trigger workflow when a service request is updated in Jira Service Management"
+      },
+      {
+        "id": "jsm_request_commented",
+        "name": "JSM Request Commented",
+        "description": "Trigger workflow when a comment is added to a Jira Service Management request"
+      },
+      {
+        "id": "jsm_request_resolved",
+        "name": "JSM Request Resolved",
+        "description": "Trigger workflow when a service request is resolved in Jira Service Management"
+      },
+      {
+        "id": "jsm_webhook",
+        "name": "JSM Webhook (All Events)",
+        "description": "Trigger workflow on any Jira Service Management webhook event"
+      }
+    ],
+    "triggerCount": 5,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "customer-support",
+    "integrationTypes": ["customer-support", "developer-tools", "productivity"],
     "tags": ["customer-support", "ticketing", "incident-management"]
   },
   {
@@ -6738,7 +7400,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics"],
     "tags": ["prediction-markets", "data-analytics"]
   },
   {
@@ -6777,7 +7439,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "security",
+    "integrationTypes": ["security"],
     "tags": ["identity"]
   },
   {
@@ -6877,7 +7539,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools", "ai", "analytics"],
     "tags": ["monitoring", "llm", "data-analytics"]
   },
   {
@@ -6944,7 +7606,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools"],
     "tags": ["feature-flags", "ci-cd"]
   },
   {
@@ -7021,7 +7683,7 @@
     "triggerCount": 9,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "email",
+    "integrationTypes": ["email", "developer-tools", "sales"],
     "tags": ["sales-engagement", "email-marketing", "automation"]
   },
   {
@@ -7428,7 +8090,7 @@
     "triggerCount": 15,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "productivity",
+    "integrationTypes": ["productivity", "customer-support"],
     "tags": ["project-management", "ticketing"]
   },
   {
@@ -7455,7 +8117,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "social",
+    "integrationTypes": ["sales", "analytics"],
     "tags": ["marketing", "sales-engagement", "enrichment"]
   },
   {
@@ -7473,7 +8135,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "search",
+    "integrationTypes": ["search", "sales"],
     "tags": ["web-scraping", "enrichment"]
   },
   {
@@ -7532,7 +8194,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "email",
+    "integrationTypes": ["email", "analytics", "developer-tools"],
     "tags": ["email-marketing", "marketing", "automation"]
   },
   {
@@ -7575,7 +8237,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "productivity",
+    "integrationTypes": ["productivity"],
     "tags": ["events", "calendar", "scheduling"]
   },
   {
@@ -7886,7 +8548,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "email",
+    "integrationTypes": ["email", "analytics", "developer-tools"],
     "tags": ["email-marketing", "marketing", "automation"]
   },
   {
@@ -7937,7 +8599,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "email",
+    "integrationTypes": ["email", "communication"],
     "tags": ["messaging", "email-marketing"]
   },
   {
@@ -7968,7 +8630,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "documents", "search"],
     "tags": ["llm", "knowledge-base", "agentic"]
   },
   {
@@ -8088,7 +8750,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "developer-tools"],
     "tags": ["microsoft-365", "data-warehouse", "cloud"]
   },
   {
@@ -8115,7 +8777,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "documents",
+    "integrationTypes": ["documents", "databases", "productivity"],
     "tags": ["spreadsheet", "microsoft-365"]
   },
   {
@@ -8186,7 +8848,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "productivity",
+    "integrationTypes": ["productivity", "customer-support"],
     "tags": ["project-management", "microsoft-365", "ticketing"]
   },
   {
@@ -8267,7 +8929,7 @@
     "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "communication",
+    "integrationTypes": ["communication"],
     "tags": ["messaging", "microsoft-365"]
   },
   {
@@ -8285,8 +8947,125 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "documents"],
     "tags": ["document-processing", "ocr"]
+  },
+  {
+    "type": "monday",
+    "slug": "monday",
+    "name": "Monday",
+    "description": "Manage Monday.com boards, items, and groups",
+    "longDescription": "Integrate with Monday.com to list boards, get board details, fetch and search items, create and update items, archive or delete items, create subitems, move items between groups, add updates, and create groups.",
+    "bgColor": "#FFFFFF",
+    "iconName": "MondayIcon",
+    "docsUrl": "https://docs.sim.ai/tools/monday",
+    "operations": [
+      {
+        "name": "List Boards",
+        "description": "List boards from your Monday.com account"
+      },
+      {
+        "name": "Get Board",
+        "description": "Get a specific Monday.com board with its groups and columns"
+      },
+      {
+        "name": "Get Item",
+        "description": "Get a specific item by ID from Monday.com"
+      },
+      {
+        "name": "Get Items",
+        "description": "Get items from a Monday.com board"
+      },
+      {
+        "name": "Search Items",
+        "description": "Search for items on a Monday.com board by column values"
+      },
+      {
+        "name": "Create Item",
+        "description": "Create a new item on a Monday.com board"
+      },
+      {
+        "name": "Update Item",
+        "description": "Update column values of an item on a Monday.com board"
+      },
+      {
+        "name": "Delete Item",
+        "description": "Delete an item from a Monday.com board"
+      },
+      {
+        "name": "Archive Item",
+        "description": "Archive an item on a Monday.com board"
+      },
+      {
+        "name": "Move Item to Group",
+        "description": "Move an item to a different group on a Monday.com board"
+      },
+      {
+        "name": "Create Subitem",
+        "description": "Create a subitem under a parent item on Monday.com"
+      },
+      {
+        "name": "Create Update",
+        "description": "Add an update (comment) to a Monday.com item"
+      },
+      {
+        "name": "Create Group",
+        "description": "Create a new group on a Monday.com board"
+      }
+    ],
+    "operationCount": 13,
+    "triggers": [
+      {
+        "id": "monday_item_created",
+        "name": "Monday Item Created",
+        "description": "Trigger workflow when a new item is created on a Monday.com board"
+      },
+      {
+        "id": "monday_column_changed",
+        "name": "Monday Column Value Changed",
+        "description": "Trigger workflow when any column value changes on a Monday.com board"
+      },
+      {
+        "id": "monday_status_changed",
+        "name": "Monday Status Changed",
+        "description": "Trigger workflow when a status column value changes on a Monday.com board"
+      },
+      {
+        "id": "monday_item_name_changed",
+        "name": "Monday Item Name Changed",
+        "description": "Trigger workflow when an item name changes on a Monday.com board"
+      },
+      {
+        "id": "monday_item_archived",
+        "name": "Monday Item Archived",
+        "description": "Trigger workflow when an item is archived on a Monday.com board"
+      },
+      {
+        "id": "monday_item_deleted",
+        "name": "Monday Item Deleted",
+        "description": "Trigger workflow when an item is deleted on a Monday.com board"
+      },
+      {
+        "id": "monday_item_moved",
+        "name": "Monday Item Moved to Group",
+        "description": "Trigger workflow when an item is moved to any group on a Monday.com board"
+      },
+      {
+        "id": "monday_subitem_created",
+        "name": "Monday Subitem Created",
+        "description": "Trigger workflow when a subitem is created on a Monday.com board"
+      },
+      {
+        "id": "monday_update_created",
+        "name": "Monday Update Posted",
+        "description": "Trigger workflow when an update or comment is posted on a Monday.com item"
+      }
+    ],
+    "triggerCount": 9,
+    "authType": "oauth",
+    "category": "tools",
+    "integrationTypes": ["productivity"],
+    "tags": ["project-management"]
   },
   {
     "type": "mongodb",
@@ -8328,7 +9107,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "developer-tools"],
     "tags": ["data-warehouse", "cloud"]
   },
   {
@@ -8371,7 +9150,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "analytics"],
     "tags": ["data-warehouse", "data-analytics"]
   },
   {
@@ -8418,7 +9197,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "analytics"],
     "tags": ["data-warehouse", "data-analytics"]
   },
   {
@@ -8482,7 +9261,7 @@
     "triggerCount": 9,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "documents",
+    "integrationTypes": ["documents", "productivity", "search"],
     "tags": ["note-taking", "knowledge-base", "content-management"]
   },
   {
@@ -8561,7 +9340,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "documents",
+    "integrationTypes": ["documents", "productivity", "search"],
     "tags": ["note-taking", "knowledge-base"]
   },
   {
@@ -8652,7 +9431,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "security",
+    "integrationTypes": ["security", "developer-tools"],
     "tags": ["identity", "automation"]
   },
   {
@@ -8695,7 +9474,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "file-storage",
+    "integrationTypes": ["file-storage", "developer-tools", "documents"],
     "tags": ["microsoft-365", "cloud", "document-processing"]
   },
   {
@@ -8756,7 +9535,7 @@
     "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "email",
+    "integrationTypes": ["email", "communication", "developer-tools"],
     "tags": ["microsoft-365", "messaging", "automation"]
   },
   {
@@ -8799,7 +9578,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools", "analytics"],
     "tags": ["incident-management", "monitoring"]
   },
   {
@@ -8830,7 +9609,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "search",
+    "integrationTypes": ["search", "ai"],
     "tags": ["web-scraping", "llm", "agentic"]
   },
   {
@@ -8857,7 +9636,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "search"],
     "tags": ["llm", "web-scraping", "agentic"]
   },
   {
@@ -8896,7 +9675,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "ai", "documents", "search"],
     "tags": ["vector-search", "knowledge-base"]
   },
   {
@@ -8987,7 +9766,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "crm",
+    "integrationTypes": ["crm", "productivity", "sales"],
     "tags": ["sales-engagement", "project-management"]
   },
   {
@@ -9086,7 +9865,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics"],
     "tags": ["prediction-markets", "data-analytics"]
   },
   {
@@ -9129,7 +9908,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "analytics"],
     "tags": ["data-warehouse", "data-analytics"]
   },
   {
@@ -9320,7 +10099,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics", "developer-tools"],
     "tags": ["data-analytics", "monitoring"]
   },
   {
@@ -9435,7 +10214,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics", "search"],
     "tags": ["seo", "data-analytics"]
   },
   {
@@ -9453,7 +10232,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "documents"],
     "tags": ["document-processing", "ocr"]
   },
   {
@@ -9484,7 +10263,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "ai", "documents", "search"],
     "tags": ["vector-search", "knowledge-base"]
   },
   {
@@ -9515,7 +10294,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "design",
+    "integrationTypes": ["design", "ai"],
     "tags": ["image-generation"]
   },
   {
@@ -9602,7 +10381,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "social",
+    "integrationTypes": ["communication", "documents", "search"],
     "tags": ["content-management", "web-scraping"]
   },
   {
@@ -9709,7 +10488,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "developer-tools"],
     "tags": ["cloud", "data-warehouse"]
   },
   {
@@ -9727,7 +10506,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "documents"],
     "tags": ["document-processing", "ocr"]
   },
   {
@@ -9819,7 +10598,7 @@
     "triggerCount": 8,
     "authType": "none",
     "category": "tools",
-    "integrationType": "email",
+    "integrationTypes": ["email", "communication"],
     "tags": ["email-marketing", "messaging"]
   },
   {
@@ -9878,7 +10657,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ecommerce",
+    "integrationTypes": ["ecommerce"],
     "tags": ["payments", "subscriptions"]
   },
   {
@@ -10241,7 +11020,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "hr",
+    "integrationTypes": ["hr"],
     "tags": ["hiring"]
   },
   {
@@ -10368,7 +11147,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools", "analytics"],
     "tags": ["incident-management", "monitoring"]
   },
   {
@@ -10407,7 +11186,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "file-storage",
+    "integrationTypes": ["file-storage", "databases", "developer-tools"],
     "tags": ["cloud", "data-warehouse"]
   },
   {
@@ -10597,7 +11376,7 @@
     "triggerCount": 6,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "crm",
+    "integrationTypes": ["crm", "customer-support", "sales"],
     "tags": ["sales-engagement", "customer-support"]
   },
   {
@@ -10615,7 +11394,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "search",
+    "integrationTypes": ["search", "analytics"],
     "tags": ["web-scraping", "seo"]
   },
   {
@@ -10698,7 +11477,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "email",
+    "integrationTypes": ["email", "communication"],
     "tags": ["email-marketing", "messaging"]
   },
   {
@@ -10765,7 +11544,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools", "analytics"],
     "tags": ["error-tracking", "monitoring"]
   },
   {
@@ -10783,7 +11562,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "search",
+    "integrationTypes": ["search", "analytics"],
     "tags": ["web-scraping", "seo"]
   },
   {
@@ -10844,7 +11623,7 @@
     "triggerCount": 5,
     "authType": "none",
     "category": "tools",
-    "integrationType": "customer-support",
+    "integrationTypes": ["customer-support", "developer-tools", "productivity"],
     "tags": ["customer-support", "ticketing", "incident-management"]
   },
   {
@@ -10887,7 +11666,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "file-storage",
+    "integrationTypes": ["file-storage", "developer-tools"],
     "tags": ["cloud", "automation"]
   },
   {
@@ -10938,7 +11717,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "documents",
+    "integrationTypes": ["documents"],
     "tags": ["microsoft-365", "content-management", "document-processing"]
   },
   {
@@ -11041,7 +11820,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "ecommerce",
+    "integrationTypes": ["ecommerce"],
     "tags": ["payments", "subscriptions"]
   },
   {
@@ -11080,7 +11859,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics", "search"],
     "tags": ["marketing", "data-analytics", "seo"]
   },
   {
@@ -11115,7 +11894,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "sales-intelligence",
+    "integrationTypes": ["sales"],
     "tags": ["enrichment", "sales-engagement"]
   },
   {
@@ -11240,7 +12019,7 @@
     "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "communication",
+    "integrationTypes": ["communication", "developer-tools"],
     "tags": ["messaging", "webhooks", "automation"]
   },
   {
@@ -11258,7 +12037,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "email",
+    "integrationTypes": ["email", "communication"],
     "tags": ["email-marketing", "messaging"]
   },
   {
@@ -11276,7 +12055,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "documents"],
     "tags": ["speech-to-text", "document-processing"]
   },
   {
@@ -11347,7 +12126,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools"],
     "tags": ["cloud", "automation"]
   },
   {
@@ -11374,7 +12153,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "automation",
+    "integrationTypes": ["ai", "developer-tools", "search"],
     "tags": ["web-scraping", "automation", "agentic"]
   },
   {
@@ -11599,7 +12378,7 @@
     "triggerCount": 1,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ecommerce",
+    "integrationTypes": ["ecommerce", "developer-tools"],
     "tags": ["payments", "subscriptions", "webhooks"]
   },
   {
@@ -11706,7 +12485,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "ai", "developer-tools", "search"],
     "tags": ["cloud", "data-warehouse", "vector-search"]
   },
   {
@@ -11805,7 +12584,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "security",
+    "integrationTypes": ["security", "analytics", "developer-tools"],
     "tags": ["monitoring"]
   },
   {
@@ -11840,7 +12619,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "search",
+    "integrationTypes": ["search", "sales"],
     "tags": ["web-scraping", "enrichment"]
   },
   {
@@ -11893,7 +12672,7 @@
     "triggerCount": 1,
     "authType": "none",
     "category": "tools",
-    "integrationType": "communication",
+    "integrationTypes": ["communication", "developer-tools"],
     "tags": ["messaging", "webhooks", "automation"]
   },
   {
@@ -11911,7 +12690,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai"],
     "tags": ["text-to-speech", "llm"]
   },
   {
@@ -11938,7 +12717,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "analytics",
+    "integrationTypes": ["analytics", "databases"],
     "tags": ["data-warehouse", "data-analytics"]
   },
   {
@@ -11956,15 +12735,15 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "documents"],
     "tags": ["document-processing", "llm"]
   },
   {
     "type": "trello",
     "slug": "trello",
     "name": "Trello",
-    "description": "Manage Trello boards and cards",
-    "longDescription": "Integrate with Trello to manage boards and cards. List boards, list cards, create cards, update cards, get actions, and add comments.",
+    "description": "Manage Trello lists, cards, and activity",
+    "longDescription": "Integrate with Trello to list board lists, list cards, create cards, update cards, review activity, and add comments.",
     "bgColor": "#0052CC",
     "iconName": "TrelloIcon",
     "docsUrl": "https://docs.sim.ai/tools/trello",
@@ -11975,11 +12754,11 @@
       },
       {
         "name": "List Cards",
-        "description": "List all cards on a Trello board"
+        "description": "List cards from a Trello board or list"
       },
       {
         "name": "Create Card",
-        "description": "Create a new card on a Trello board"
+        "description": "Create a new card in a Trello list"
       },
       {
         "name": "Update Card",
@@ -11999,7 +12778,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "productivity",
+    "integrationTypes": ["productivity", "customer-support"],
     "tags": ["project-management", "ticketing"]
   },
   {
@@ -12017,7 +12796,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "communication",
+    "integrationTypes": ["communication", "developer-tools"],
     "tags": ["messaging", "automation"]
   },
   {
@@ -12054,7 +12833,7 @@
     "triggerCount": 1,
     "authType": "none",
     "category": "tools",
-    "integrationType": "communication",
+    "integrationTypes": ["communication", "ai"],
     "tags": ["messaging", "text-to-speech"]
   },
   {
@@ -12111,7 +12890,7 @@
     "triggerCount": 1,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "documents",
+    "integrationTypes": ["documents", "analytics", "productivity"],
     "tags": ["forms", "data-analytics"]
   },
   {
@@ -12194,7 +12973,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "databases",
+    "integrationTypes": ["databases", "developer-tools"],
     "tags": ["cloud", "data-warehouse"]
   },
   {
@@ -12454,7 +13233,7 @@
     "triggerCount": 8,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "developer-tools",
+    "integrationTypes": ["developer-tools"],
     "tags": ["cloud", "ci-cd"]
   },
   {
@@ -12472,7 +13251,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "design"],
     "tags": ["video-generation", "llm"]
   },
   {
@@ -12490,7 +13269,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "documents"],
     "tags": ["llm", "document-processing", "ocr"]
   },
   {
@@ -12533,7 +13312,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "crm",
+    "integrationTypes": ["crm", "customer-support", "sales"],
     "tags": ["sales-engagement", "customer-support"]
   },
   {
@@ -12593,7 +13372,7 @@
     "triggerCount": 4,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "design",
+    "integrationTypes": ["design", "analytics", "documents", "search"],
     "tags": ["content-management", "seo"]
   },
   {
@@ -12611,13 +13390,13 @@
       {
         "id": "whatsapp_webhook",
         "name": "WhatsApp Webhook",
-        "description": "Trigger workflow from WhatsApp messages and events via Business Platform webhooks"
+        "description": "Trigger workflow from WhatsApp incoming messages and message status webhooks"
       }
     ],
     "triggerCount": 1,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "communication",
+    "integrationTypes": ["communication", "developer-tools"],
     "tags": ["messaging", "automation"]
   },
   {
@@ -12652,7 +13431,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "search",
+    "integrationTypes": ["search", "documents"],
     "tags": ["knowledge-base", "web-scraping"]
   },
   {
@@ -12775,7 +13554,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "design",
+    "integrationTypes": ["design", "analytics", "documents", "search"],
     "tags": ["content-management", "seo"]
   },
   {
@@ -12834,7 +13613,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "hr",
+    "integrationTypes": ["hr", "productivity"],
     "tags": ["hiring", "project-management"]
   },
   {
@@ -12965,7 +13744,7 @@
     "triggerCount": 0,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "social",
+    "integrationTypes": ["communication", "analytics"],
     "tags": ["marketing", "messaging"]
   },
   {
@@ -13020,7 +13799,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "media",
+    "integrationTypes": ["communication", "analytics", "documents"],
     "tags": ["google-workspace", "marketing", "content-management"]
   },
   {
@@ -13143,7 +13922,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationType": "customer-support",
+    "integrationTypes": ["customer-support", "productivity"],
     "tags": ["customer-support", "ticketing"]
   },
   {
@@ -13198,7 +13977,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "ai",
+    "integrationTypes": ["ai", "documents", "search"],
     "tags": ["llm", "knowledge-base", "agentic"]
   },
   {
@@ -13288,7 +14067,7 @@
     "triggerCount": 6,
     "authType": "oauth",
     "category": "tools",
-    "integrationType": "communication",
+    "integrationTypes": ["communication", "productivity"],
     "tags": ["meeting", "calendar", "scheduling"]
   }
 ]

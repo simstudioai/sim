@@ -123,6 +123,10 @@ export interface ToolSchema {
   required: string[]
 }
 
+export interface UserToolSchemaOptions {
+  surface?: 'default' | 'copilot'
+}
+
 export interface LLMToolSchemaResult {
   schema: ToolSchema
   enrichedDescription?: string
@@ -165,7 +169,7 @@ function getBlockConfigurations(): Record<string, BlockConfig> {
         blockConfigCache![block.type] = block
       })
     } catch (error) {
-      console.warn('Could not load block configuration:', error)
+      logger.warn('Could not load block configuration:', error)
       blockConfigCache = {}
     }
   }
@@ -390,8 +394,15 @@ export function getToolParametersConfig(
 function buildParameterSchema(
   toolId: string,
   paramId: string,
-  param: ToolParamDefinition
+  param: ToolParamDefinition,
+  options: UserToolSchemaOptions = {}
 ): SchemaProperty {
+  const surface = options.surface ?? 'default'
+
+  if (surface === 'copilot' && (param.type === 'file' || param.type === 'file[]')) {
+    return buildCopilotFileParameterSchema(param)
+  }
+
   let schemaType = param.type
   if (schemaType === 'json' || schemaType === 'any') {
     schemaType = 'object'
@@ -416,7 +427,51 @@ function buildParameterSchema(
   return propertySchema
 }
 
-export function createUserToolSchema(toolConfig: ToolConfig): ToolSchema {
+function buildCopilotFileParameterSchema(param: ToolParamDefinition): SchemaProperty {
+  const baseDescription =
+    param.description ||
+    (param.type === 'file'
+      ? 'A file object for tool execution.'
+      : 'An array of file objects for tool execution.')
+  const resolutionDescription =
+    'For copilot and mothership tool calls, prefer passing canonical workspace file IDs such as "wf_123". The runtime will resolve them into full file objects before tool execution.'
+
+  const fileObjectSchema: SchemaProperty = {
+    type: 'object',
+    description: `${baseDescription} ${resolutionDescription}`,
+    properties: {
+      id: { type: 'string', description: 'Canonical workspace file ID.' },
+      name: { type: 'string', description: 'File name.' },
+      url: { type: 'string', description: 'File URL or serve path.' },
+      size: { type: 'number', description: 'File size in bytes.' },
+      type: { type: 'string', description: 'MIME type.' },
+      key: { type: 'string', description: 'Internal storage key.' },
+      context: { type: 'string', description: 'Optional file context.' },
+      base64: { type: 'string', description: 'Optional base64-encoded file contents.' },
+    },
+    required: ['id', 'name', 'url', 'size', 'type', 'key'],
+  }
+
+  if (param.type === 'file') {
+    return fileObjectSchema
+  }
+
+  return {
+    type: 'array',
+    description: `${baseDescription} ${resolutionDescription}`,
+    items: {
+      type: 'object',
+      description: 'A file object.',
+      properties: fileObjectSchema.properties,
+    },
+  }
+}
+
+export function createUserToolSchema(
+  toolConfig: ToolConfig,
+  options: UserToolSchemaOptions = {}
+): ToolSchema {
+  const surface = options.surface ?? 'default'
   const schema: ToolSchema = {
     type: 'object',
     properties: {},
@@ -430,7 +485,7 @@ export function createUserToolSchema(toolConfig: ToolConfig): ToolSchema {
       continue
     }
 
-    const propertySchema = buildParameterSchema(toolConfig.id, paramId, param)
+    const propertySchema = buildParameterSchema(toolConfig.id, paramId, param, options)
     schema.properties[paramId] = propertySchema
 
     if (param.required) {
@@ -438,12 +493,13 @@ export function createUserToolSchema(toolConfig: ToolConfig): ToolSchema {
     }
   }
 
-  if (toolConfig.oauth?.required) {
+  if (toolConfig.oauth?.required && surface === 'copilot') {
     schema.properties.credentialId = {
       type: 'string',
       description:
-        'Optional credential ID to use when multiple accounts are connected for this provider. Get IDs from environment/credentials.json. If omitted, auto-selects the first available credential.',
+        'Credential ID to use for this OAuth tool call. Required for Copilot/Superagent execution. Get valid IDs from environment/credentials.json.',
     }
+    schema.required.push('credentialId')
   }
 
   return schema
@@ -869,7 +925,6 @@ const EXCLUDED_SUBBLOCK_TYPES = new Set([
   'eval-input',
   'webhook-config',
   'schedule-info',
-  'trigger-save',
   'input-format',
   'response-format',
   'mcp-server-selector',

@@ -105,9 +105,108 @@ AIブロックを使用するワークフローでは、ログで詳細なコス
   表示価格は2025年9月10日時点のレートを反映しています。最新の価格については各プロバイダーのドキュメントをご確認ください。
 </Callout>
 
+## ホスティングツールの料金
+
+ワークフローがSimのホスティングAPIキーを使用するツールブロックを利用する場合、操作ごとに料金が発生します。BYOKで独自のキーを使用すると、プロバイダーに直接支払うことができます。
+
+<Tabs items={['Firecrawl', 'Exa', 'Serper', 'Perplexity', 'Linkup', 'Parallel AI', 'Jina AI', 'Google Cloud', 'Brandfetch']}>
+  <Tab>
+    **Firecrawl** - Webスクレイピング、クローリング、検索、抽出
+
+    | Operation | Cost |
+    |-----------|------|
+    | Scrape | $0.001 per credit used |
+    | Crawl | $0.001 per credit used |
+    | Search | $0.001 per credit used |
+    | Extract | $0.001 per credit used |
+    | Map | $0.001 per credit used |
+  </Tab>
+
+  <Tab>
+    **Exa** - AI搭載の検索とリサーチ
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search | Dynamic (returned by API) |
+    | Get Contents | Dynamic (returned by API) |
+    | Find Similar Links | Dynamic (returned by API) |
+    | Answer | Dynamic (returned by API) |
+  </Tab>
+
+  <Tab>
+    **Serper** - Google検索API
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search (≤10 results) | $0.001 |
+    | Search (>10 results) | $0.002 |
+  </Tab>
+
+  <Tab>
+    **Perplexity** - AI搭載のチャットとWeb検索
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search | $0.005 per request |
+    | Chat | Token-based (varies by model) |
+  </Tab>
+
+  <Tab>
+    **Linkup** - Web検索とコンテンツ取得
+
+    | Operation | Cost |
+    |-----------|------|
+    | Standard search | ~$0.006 |
+    | Deep search | ~$0.055 |
+  </Tab>
+
+  <Tab>
+    **Parallel AI** - Web検索、抽出、ディープリサーチ
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search (≤10 results) | $0.005 |
+    | Search (>10 results) | $0.005 + $0.001 per additional result |
+    | Extract | $0.001 per URL |
+    | Deep Research | $0.005–$2.40 (varies by processor tier) |
+  </Tab>
+
+  <Tab>
+    **Jina AI** - Web閲覧と検索
+
+    | Operation | Cost |
+    |-----------|------|
+    | Read URL | $0.20 per 1M tokens |
+    | Search | $0.20 per 1M tokens (minimum 10K tokens) |
+  </Tab>
+
+  <Tab>
+    **Google Cloud** - Translate、Maps、PageSpeed、Books API
+
+    | Operation | Cost |
+    |-----------|------|
+    | Translate / Detect | $0.00002 per character |
+    | Maps (Geocode, Directions, Distance Matrix, Elevation, Timezone, Reverse Geocode, Geolocate, Validate Address) | $0.005 per request |
+    | Maps (Snap to Roads) | $0.01 per request |
+    | Maps (Place Details) | $0.017 per request |
+    | Maps (Places Search) | $0.032 per request |
+    | PageSpeed | Free |
+    | Books (Search, Details) | Free |
+  </Tab>
+
+  <Tab>
+    **Brandfetch** - ブランドアセット、ロゴ、カラー、企業情報
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search | Free |
+    | Get Brand | $0.04 per request |
+  </Tab>
+</Tabs>
+
 ## Bring Your Own Key (BYOK)
 
-ホストされたモデル（OpenAI、Anthropic、Google、Mistral）に対して、**設定 → BYOK**で独自のAPIキーを使用し、基本価格で支払うことができます。キーは暗号化され、ワークスペース全体に適用されます。
+対応プロバイダー（OpenAI、Anthropic、Google、Mistral、Fireworks、Firecrawl、Exa、Serper、Linkup、Parallel AI、Perplexity、Jina AI、Google Cloud、Brandfetch）に対して、**設定 → BYOK**で独自のAPIキーを使用し、基本価格で支払うことができます。キーは暗号化され、ワークスペース全体に適用されます。
 
 ## コスト最適化戦略
 

@@ -4,6 +4,8 @@ import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
@@ -37,15 +39,18 @@ import {
 } from '@/lib/auth/cimd'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
-import { writeBillingInterval } from '@/lib/billing/core/subscription'
+import {
+  getOrganizationIdForSubscriptionReference,
+  syncSubscriptionPlan,
+  writeBillingInterval,
+} from '@/lib/billing/core/subscription'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
-import { isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
+import { isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
-import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -56,6 +61,7 @@ import {
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
 import {
+  handleOrganizationPlanDowngrade,
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
@@ -74,13 +80,12 @@ import {
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
-import { captureServerEvent } from '@/lib/posthog/server'
+import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
@@ -170,6 +175,30 @@ export const auth = betterAuth({
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
     freshAge: 60 * 60, // 1 hour (or set to 0 to disable completely)
   },
+  user: {
+    deleteUser: {
+      enabled: false,
+      beforeDelete: async (deletingUser) => {
+        const { isSoleOwnerOfPaidOrganization } = await import(
+          '@/lib/billing/organizations/membership'
+        )
+        const check = await isSoleOwnerOfPaidOrganization(deletingUser.id)
+        if (check.isBlocker) {
+          throw new Error(
+            `You are the owner of ${check.organizationName ?? 'an active paid organization'}. Transfer ownership before deleting your account.`
+          )
+        }
+
+        const { reassignBilledAccountForUser } = await import('@/lib/workspaces/utils')
+        const { unresolved } = await reassignBilledAccountForUser(deletingUser.id)
+        if (unresolved.length > 0) {
+          throw new Error(
+            `Your account is the billing account for ${unresolved.length} workspace${unresolved.length === 1 ? '' : 's'} with no other admin to take it over. Add another admin to ${unresolved.length === 1 ? 'that workspace' : 'those workspaces'} or delete ${unresolved.length === 1 ? 'it' : 'them'} before deleting your account.`
+          )
+        }
+      },
+    },
+  },
   databaseHooks: {
     user: {
       create: {
@@ -192,6 +221,21 @@ export const auth = betterAuth({
               userId: user.id,
               authMethod: 'email',
             })
+          } catch {
+            // Telemetry should not fail the operation
+          }
+
+          try {
+            const client = getPostHogClient()
+            if (client) {
+              client.identify({
+                distinctId: user.id,
+                properties: {
+                  ...(user.email ? { email: user.email } : {}),
+                  ...(user.name ? { name: user.name } : {}),
+                },
+              })
+            }
           } catch {
             // Telemetry should not fail the operation
           }
@@ -396,6 +440,7 @@ export const auth = betterAuth({
                   : SSO_TRUSTED_PROVIDERS.includes(providerId)
                     ? 'sso'
                     : 'oauth'
+
               captureServerEvent(
                 account.userId,
                 'user_created',
@@ -607,6 +652,7 @@ export const auth = betterAuth({
         'zoom',
         'wordpress',
         'linear',
+        'monday',
         'attio',
         'shopify',
         'trello',
@@ -700,14 +746,15 @@ export const auth = betterAuth({
       }
     },
     onPasswordReset: async ({ user: resetUser }) => {
-      const { AuditAction, AuditResourceType, recordAudit } = await import('@/lib/audit/log')
+      const { AuditAction, AuditResourceType, recordAudit } = await import('@sim/audit')
       recordAudit({
         actorId: resetUser.id,
         actorName: resetUser.name,
         actorEmail: resetUser.email,
         action: AuditAction.PASSWORD_RESET,
         resourceType: AuditResourceType.PASSWORD,
-        description: 'Password reset completed',
+        resourceId: resetUser.id,
+        description: `Password reset completed for ${resetUser.email}`,
       })
     },
   },
@@ -778,7 +825,7 @@ export const auth = betterAuth({
           } catch (err) {
             logger.warn('CIMD resolution failed', {
               clientId,
-              error: err instanceof Error ? err.message : String(err),
+              error: toError(err).message,
             })
           }
         }
@@ -2010,6 +2057,59 @@ export const auth = betterAuth({
           },
         },
 
+        // Monday.com provider
+        {
+          providerId: 'monday',
+          clientId: env.MONDAY_CLIENT_ID as string,
+          clientSecret: env.MONDAY_CLIENT_SECRET as string,
+          authorizationUrl: 'https://auth.monday.com/oauth2/authorize',
+          tokenUrl: 'https://auth.monday.com/oauth2/token',
+          userInfoUrl: 'https://api.monday.com/v2',
+          scopes: getCanonicalScopesForProvider('monday'),
+          responseType: 'code',
+          pkce: false,
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/monday`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.monday.com/v2', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'API-Version': '2024-10',
+                  Authorization: tokens.accessToken ?? '',
+                },
+                body: JSON.stringify({ query: '{ me { id name email } }' }),
+              })
+
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Error fetching Monday.com user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const data = await response.json()
+              const user = data.data?.me
+              if (!user) return null
+
+              const now = new Date()
+              return {
+                id: `${user.id.toString()}-${generateId()}`,
+                name: user.name || 'Monday.com User',
+                email: user.email || `${user.id}@monday.user`,
+                emailVerified: !!user.email,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Monday.com getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
         // Reddit provider
         {
           providerId: 'reddit',
@@ -2759,7 +2859,16 @@ export const auth = betterAuth({
       ],
     }),
     // Include SSO plugin when enabled
-    ...(env.SSO_ENABLED ? [sso()] : []),
+    ...(env.SSO_ENABLED
+      ? [
+          sso({
+            organizationProvisioning: {
+              disabled: false,
+              defaultRole: 'member',
+            },
+          }),
+        ]
+      : []),
     // Only include the Stripe plugin when billing is enabled
     ...(isBillingEnabled && stripeClient
       ? [
@@ -2832,6 +2941,9 @@ export const auth = betterAuth({
                     { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId }
                   )
                 }
+
+                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+
                 const subscriptionForOrg = {
                   ...subscription,
                   plan: planFromStripe ?? subscription.plan,
@@ -2849,7 +2961,7 @@ export const auth = betterAuth({
                       referenceId: subscription.referenceId,
                       dbPlan: subscription.plan,
                       planFromStripe,
-                      error: orgError instanceof Error ? orgError.message : String(orgError),
+                      error: toError(orgError).message,
                       stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
                   )
@@ -2886,10 +2998,11 @@ export const auth = betterAuth({
                   )
                 }
 
+                const referenceOrganizationId = await getOrganizationIdForSubscriptionReference(
+                  subscription.referenceId
+                )
                 const isUpgradeToTeam =
-                  isTeamPlan &&
-                  !isTeam(subscription.plan) &&
-                  !subscription.referenceId.startsWith('org_')
+                  isTeamPlan && !isTeam(subscription.plan) && referenceOrganizationId == null
 
                 const effectivePlanForTeamFeatures = planFromStripe ?? subscription.plan
 
@@ -2901,6 +3014,7 @@ export const auth = betterAuth({
                   isUpgradeToTeam,
                   isAnnual,
                   referenceId: subscription.referenceId,
+                  referenceOrganizationId,
                 })
 
                 if (!planFromStripe) {
@@ -2909,6 +3023,9 @@ export const auth = betterAuth({
                     { subscriptionId: subscription.id, dbPlan: subscription.plan }
                   )
                 }
+
+                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+
                 const subscriptionForOrg = {
                   ...subscription,
                   plan: planFromStripe ?? subscription.plan,
@@ -2939,7 +3056,7 @@ export const auth = betterAuth({
                       dbPlan: subscription.plan,
                       planFromStripe,
                       isUpgradeToTeam,
-                      error: orgError instanceof Error ? orgError.message : String(orgError),
+                      error: toError(orgError).message,
                       stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
                   )
@@ -2981,11 +3098,22 @@ export const auth = betterAuth({
                       error,
                     })
                   }
+                } else {
+                  await handleOrganizationPlanDowngrade(
+                    {
+                      id: resolvedSubscription.id,
+                      plan: effectivePlanForTeamFeatures ?? null,
+                      referenceId: resolvedSubscription.referenceId,
+                      status: resolvedSubscription.status ?? null,
+                    },
+                    event.id
+                  )
                 }
 
                 await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
               },
               onSubscriptionDeleted: async ({
+                event,
                 subscription,
               }: {
                 event: Stripe.Event
@@ -2993,18 +3121,24 @@ export const auth = betterAuth({
                 subscription: any
               }) => {
                 logger.info('[onSubscriptionDeleted] Subscription deleted', {
+                  eventId: event.id,
                   subscriptionId: subscription.id,
                   referenceId: subscription.referenceId,
                 })
 
                 try {
-                  await handleSubscriptionDeleted(subscription)
+                  await handleSubscriptionDeleted(subscription, event.id)
                 } catch (error) {
                   logger.error('[onSubscriptionDeleted] Failed to handle subscription deletion', {
+                    eventId: event.id,
                     subscriptionId: subscription.id,
                     referenceId: subscription.referenceId,
                     error,
                   })
+                  // Rethrow so the Stripe webhook retries — otherwise
+                  // the final overage invoice, usage reset, org cleanup,
+                  // and personal Pro restore can be permanently skipped.
+                  throw error
                 }
               },
             },
@@ -3071,21 +3205,8 @@ export const auth = betterAuth({
     ...(isOrganizationsEnabled
       ? [
           organization({
-            allowUserToCreateOrganization: async (user) => {
-              if (!isBillingEnabled) {
-                return true
-              }
-              const dbSubscriptions = await db
-                .select()
-                .from(schema.subscription)
-                .where(eq(schema.subscription.referenceId, user.id))
-
-              const hasTeamPlan = dbSubscriptions.some(
-                (sub) => hasPaidSubscriptionStatus(sub.status) && isOrgPlan(sub.plan)
-              )
-
-              return hasTeamPlan
-            },
+            allowUserToCreateOrganization: async () => false,
+            disableOrganizationDeletion: true,
             organizationCreation: {
               afterCreate: async ({ organization, user }) => {
                 logger.info('[organizationCreation.afterCreate] Organization created', {

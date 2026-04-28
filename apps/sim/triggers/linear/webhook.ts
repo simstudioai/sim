@@ -45,18 +45,6 @@ export const linearWebhookTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'linear_webhook',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'linear_webhook',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

@@ -1,16 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { env } from '@/lib/core/config/env'
+import { getOllamaUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { ModelsObject } from '@/providers/ollama/types'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
 
 const logger = createLogger('OllamaModelsAPI')
-const OLLAMA_HOST = env.OLLAMA_URL || 'http://localhost:11434'
+const OLLAMA_HOST = getOllamaUrl()
 
 /**
  * Get available Ollama models
  */
-export async function GET(_request: NextRequest) {
+export const GET = withRouteHandler(async (_request: NextRequest) => {
   if (isProviderBlacklisted('ollama')) {
     logger.info('Ollama provider is blacklisted, returning empty models')
     return NextResponse.json({ models: [] })
@@ -55,4 +56,4 @@ export async function GET(_request: NextRequest) {
 
     return NextResponse.json({ models: [] })
   }
-}
+})

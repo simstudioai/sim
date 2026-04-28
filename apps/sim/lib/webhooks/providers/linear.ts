@@ -1,8 +1,9 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
-import { safeCompare } from '@/lib/core/security/encryption'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -27,7 +28,7 @@ function validateLinearSignature(secret: string, signature: string, body: string
       })
       return false
     }
-    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+    const computedHash = hmacSha256Hex(body, secret)
     logger.debug('Linear signature comparison', {
       computedSignature: `${computedHash.substring(0, 10)}...`,
       providedSignature: `${signature.substring(0, 10)}...`,
@@ -240,7 +241,7 @@ export const linearHandler: WebhookProviderHandler = {
         throw error
       }
       logger.error(`[${ctx.requestId}] Error creating Linear webhook`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       throw new Error('Failed to create Linear webhook. Please verify your API key and try again.')
     }
@@ -289,7 +290,7 @@ export const linearHandler: WebhookProviderHandler = {
       }
     } catch (error) {
       logger.warn(`[${ctx.requestId}] Error deleting Linear webhook ${externalId} (non-fatal)`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   },

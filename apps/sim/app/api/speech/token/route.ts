@@ -11,6 +11,7 @@ import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-f
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { validateAuthToken } from '@/lib/core/security/deployment'
 import { getClientIp } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SpeechTokenAPI')
 
@@ -70,7 +71,7 @@ async function validateChatAuth(
   }
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const body = await request.json().catch(() => ({}))
     const chatId = body?.chatId as string | undefined
@@ -171,4 +172,4 @@ export async function POST(request: NextRequest) {
     logger.error('Speech token error:', error)
     return NextResponse.json({ error: message }, { status: 500 })
   }
-}
+})

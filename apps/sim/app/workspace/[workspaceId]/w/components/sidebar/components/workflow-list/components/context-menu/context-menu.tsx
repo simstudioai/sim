@@ -27,6 +27,7 @@ import {
   Trash,
   Unlock,
   Upload,
+  X,
 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { WORKFLOW_COLORS } from '@/lib/workflows/colors'
@@ -267,6 +268,12 @@ interface ContextMenuProps {
   disableLock?: boolean
   isLocked?: boolean
   showDelete?: boolean
+  onUploadLogo?: () => void
+  onRemoveLogo?: () => void
+  showUploadLogo?: boolean
+  showRemoveLogo?: boolean
+  disableUploadLogo?: boolean
+  disableRemoveLogo?: boolean
 }
 
 /**
@@ -315,6 +322,12 @@ export function ContextMenu({
   disableLock = false,
   isLocked = false,
   showDelete = true,
+  onUploadLogo,
+  onRemoveLogo,
+  showUploadLogo = false,
+  showRemoveLogo = false,
+  disableUploadLogo = false,
+  disableRemoveLogo = false,
 }: ContextMenuProps) {
   const [hexInput, setHexInput] = useState(currentColor || '#ffffff')
 
@@ -368,7 +381,9 @@ export function ContextMenu({
     (showCreate && onCreate) ||
     (showCreateFolder && onCreateFolder) ||
     (showColorChange && onColorChange) ||
-    (showLock && onToggleLock)
+    (showLock && onToggleLock) ||
+    (showUploadLogo && onUploadLogo) ||
+    (showRemoveLogo && onRemoveLogo)
   const hasCopySection = (showDuplicate && onDuplicate) || (showExport && onExport)
 
   return (
@@ -482,6 +497,31 @@ export function ContextMenu({
             handleHexFocus={handleHexFocus}
             disabled={disableColorChange}
           />
+        )}
+
+        {showUploadLogo && onUploadLogo && (
+          <DropdownMenuItem
+            disabled={disableUploadLogo}
+            onSelect={() => {
+              onUploadLogo()
+              onClose()
+            }}
+          >
+            <Upload />
+            Upload logo
+          </DropdownMenuItem>
+        )}
+        {showRemoveLogo && onRemoveLogo && (
+          <DropdownMenuItem
+            disabled={disableRemoveLogo}
+            onSelect={() => {
+              onRemoveLogo()
+              onClose()
+            }}
+          >
+            <X />
+            Remove logo
+          </DropdownMenuItem>
         )}
 
         {showLock && onToggleLock && (

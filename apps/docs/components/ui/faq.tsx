@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ChevronRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface FAQItem {
   question: string
@@ -31,9 +32,10 @@ function FAQItemRow({
         className='flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left font-[470] text-[0.875rem] text-[rgba(0,0,0,0.8)] transition-colors hover:bg-[rgba(0,0,0,0.02)] dark:text-[rgba(255,255,255,0.85)] dark:hover:bg-[rgba(255,255,255,0.03)]'
       >
         <ChevronRight
-          className={`h-3.5 w-3.5 shrink-0 text-[rgba(0,0,0,0.3)] transition-transform duration-200 dark:text-[rgba(255,255,255,0.3)] ${
-            isOpen ? 'rotate-90' : ''
-          }`}
+          className={cn(
+            'h-3.5 w-3.5 shrink-0 text-[rgba(0,0,0,0.3)] transition-transform duration-200 dark:text-[rgba(255,255,255,0.3)]',
+            isOpen && 'rotate-90'
+          )}
         />
         {item.question}
       </button>
@@ -81,11 +83,10 @@ export function FAQ({ items, title = 'Common Questions' }: FAQProps) {
         {items.map((item, index) => (
           <div
             key={index}
-            className={
-              index !== items.length - 1
-                ? 'border-[rgba(0,0,0,0.08)] border-b dark:border-[rgba(255,255,255,0.08)]'
-                : ''
-            }
+            className={cn(
+              index !== items.length - 1 &&
+                'border-[rgba(0,0,0,0.08)] border-b dark:border-[rgba(255,255,255,0.08)]'
+            )}
           >
             <FAQItemRow
               item={item}

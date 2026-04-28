@@ -418,7 +418,6 @@ export const {service}PollingTrigger: TriggerConfig = {
   subBlocks: [
     { id: 'triggerCredentials', type: 'oauth-input', title: 'Credentials', serviceId: '{service}', requiredScopes: [], required: true, mode: 'trigger', supportsCredentialSets: true },
     // ... service-specific config fields (dropdowns, inputs, switches) ...
-    { id: 'triggerSave', type: 'trigger-save', title: '', hideFromPreview: true, mode: 'trigger', triggerId: '{service}_poller' },
     { id: 'triggerInstructions', type: 'text', title: 'Setup Instructions', hideFromPreview: true, mode: 'trigger', defaultValue: '...' },
   ],
 
@@ -481,7 +480,6 @@ Add to `helm/sim/values.yaml` under the existing polling cron jobs:
 - [ ] Handler implements `PollingProviderHandler` at `lib/webhooks/polling/{service}.ts`
 - [ ] Trigger config has `polling: true` and defines subBlocks manually (no `buildTriggerSubBlocks`)
 - [ ] Provider string matches across: trigger config, handler, `POLLING_PROVIDERS`, polling registry
-- [ ] `triggerSave` subBlock `triggerId` matches trigger config `id`
 - [ ] First poll seeds state and emits nothing
 - [ ] Added provider to `POLLING_PROVIDERS` in `triggers/constants.ts`
 - [ ] Added handler to `POLLING_HANDLERS` in `lib/webhooks/polling/registry.ts`

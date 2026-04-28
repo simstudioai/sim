@@ -7,13 +7,11 @@ import {
   workflowSubflows,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull, min } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
-import {
-  authorizeWorkflowByWorkspacePermission,
-  deduplicateWorkflowName,
-} from '@/lib/workflows/utils'
+import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import type { Variable } from '@/stores/variables/types'
 import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'

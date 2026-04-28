@@ -1,13 +1,15 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { account, credential, credentialMember, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getWorkspaceMemberUserIds } from '@/lib/credentials/environment'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
@@ -228,7 +230,7 @@ async function findExistingCredentialBySource(params: ExistingCredentialSourcePa
   return null
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   const session = await getSession()
 
@@ -344,9 +346,9 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Failed to list credentials`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   const session = await getSession()
 
@@ -612,6 +614,23 @@ export async function POST(request: NextRequest) {
       }
     )
 
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CREDENTIAL_CREATED,
+      resourceType: AuditResourceType.CREDENTIAL,
+      resourceId: credentialId,
+      resourceName: resolvedDisplayName,
+      description: `Created ${type} credential "${resolvedDisplayName}"`,
+      metadata: {
+        credentialType: type,
+        providerId: resolvedProviderId,
+      },
+      request,
+    })
+
     return NextResponse.json({ credential: created }, { status: 201 })
   } catch (error: any) {
     if (error?.code === '23505') {
@@ -642,4 +661,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[${requestId}] Failed to create credential`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

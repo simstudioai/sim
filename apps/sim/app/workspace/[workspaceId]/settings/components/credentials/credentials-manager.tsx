@@ -25,6 +25,7 @@ import {
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
+import { cn } from '@/lib/core/utils/cn'
 import {
   clearPendingCredentialCreateRequest,
   PENDING_CREDENTIAL_CREATE_REQUEST_EVENT,
@@ -59,7 +60,7 @@ const logger = createLogger('SecretsManager')
 
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto_auto] items-center'
 const COL_SPAN_ALL = 'col-span-5'
-const CONFLICT_CLASS = 'border-[var(--text-error)] bg-[#F6D2D2] dark:bg-[#442929]'
+const CONFLICT_CLASS = 'border-[var(--text-error)] bg-[var(--error-muted)]'
 
 const ROLE_OPTIONS = [
   { value: 'member', label: 'Member' },
@@ -119,6 +120,60 @@ function validateEnvVarKey(key: string): string | undefined {
   if (key.includes(' ')) return 'Spaces are not allowed'
   if (!isValidEnvVarName(key)) return 'Only letters, numbers, and underscores allowed'
   return undefined
+}
+
+/**
+ * Parses a single `.env`-style line into a key/value pair.
+ * Handles `export KEY=VALUE`, quoted values, inline comments, and base64 false positives.
+ * Returns null for blank lines, comments, and invalid entries.
+ */
+function parseEnvVarLine(line: string): UIEnvironmentVariable | null {
+  const trimmed = line.trim()
+  if (!trimmed || trimmed.startsWith('#')) return null
+
+  const withoutExport = trimmed.replace(/^export\s+/, '')
+  const equalIndex = withoutExport.indexOf('=')
+  if (equalIndex === -1 || equalIndex === 0) return null
+
+  const potentialKey = withoutExport.substring(0, equalIndex).trim()
+  if (!isValidEnvVarName(potentialKey)) return null
+
+  let value = withoutExport.substring(equalIndex + 1)
+
+  const looksLikeBase64Key = /^[A-Za-z0-9+/]+$/.test(potentialKey) && !potentialKey.includes('_')
+  const valueIsJustPadding = /^=+$/.test(value.trim())
+  if (looksLikeBase64Key && valueIsJustPadding && potentialKey.length > 20) return null
+
+  const trimmedValue = value.trim()
+  if (
+    !trimmedValue.startsWith('"') &&
+    !trimmedValue.startsWith("'") &&
+    !trimmedValue.startsWith('`')
+  ) {
+    const commentIndex = value.search(/\s#/)
+    if (commentIndex !== -1) value = value.substring(0, commentIndex)
+  }
+
+  value = value.trim()
+
+  if (
+    value.length >= 2 &&
+    ((value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'")) ||
+      (value.startsWith('`') && value.endsWith('`')))
+  ) {
+    value = value.slice(1, -1)
+  }
+
+  return { key: potentialKey, value, id: generateRowId() }
+}
+
+/** Parses an array of raw text lines, returning only valid non-empty KEY=VALUE entries. */
+function parseValidEnvVars(lines: string[]): UIEnvironmentVariable[] {
+  return lines
+    .map(parseEnvVarLine)
+    .filter((parsed): parsed is UIEnvironmentVariable => parsed !== null)
+    .filter(({ key, value }) => key && value)
 }
 
 interface WorkspaceVariableRowProps {
@@ -197,7 +252,7 @@ function WorkspaceVariableRow({
         variant='default'
         onClick={() => onViewDetails(envKey)}
         disabled={!hasCredential}
-        className={`ml-2 h-9 ${!hasCredential ? 'opacity-40' : ''}`}
+        className={cn('ml-2 h-9', !hasCredential && 'opacity-40')}
       >
         Details
       </Button>
@@ -221,17 +276,26 @@ interface NewWorkspaceVariableRowProps {
   envVar: UIEnvironmentVariable
   index: number
   onUpdate: (index: number, field: 'key' | 'value', value: string) => void
+  onPaste?: (e: React.ClipboardEvent<HTMLInputElement>, index: number) => void
 }
 
-function NewWorkspaceVariableRow({ envVar, index, onUpdate }: NewWorkspaceVariableRowProps) {
+function NewWorkspaceVariableRow({
+  envVar,
+  index,
+  onUpdate,
+  onPaste,
+}: NewWorkspaceVariableRowProps) {
+  const [valueFocused, setValueFocused] = useState(false)
   const keyError = validateEnvVarKey(envVar.key)
   const hasContent = Boolean(envVar.key || envVar.value)
 
   return (
     <div className='contents'>
       <EmcnInput
+        data-input-type='key'
         value={envVar.key}
         onChange={(e) => onUpdate(index, 'key', e.target.value)}
+        onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='API_KEY'
         name={`new_workspace_key_${envVar.id || index}_${Math.random()}`}
         autoComplete='off'
@@ -239,20 +303,26 @@ function NewWorkspaceVariableRow({ envVar, index, onUpdate }: NewWorkspaceVariab
         spellCheck='false'
         readOnly
         onFocus={(e) => e.target.removeAttribute('readOnly')}
-        className={`h-9 ${keyError ? 'border-[var(--text-error)]' : ''}`}
+        className={cn('h-9', keyError && 'border-[var(--text-error)]')}
       />
       <div />
       <EmcnInput
+        data-input-type='value'
         value={envVar.value}
         onChange={(e) => onUpdate(index, 'value', e.target.value)}
+        onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='Enter value'
-        type='text'
+        type={valueFocused ? 'text' : 'password'}
         name={`new_workspace_value_${envVar.id || index}_${Math.random()}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
         readOnly
-        onFocus={(e) => e.target.removeAttribute('readOnly')}
+        onFocus={(e) => {
+          setValueFocused(true)
+          e.target.removeAttribute('readOnly')
+        }}
+        onBlur={() => setValueFocused(false)}
         className='col-span-2 ml-0 h-9'
       />
       <Tooltip.Root>
@@ -264,7 +334,7 @@ function NewWorkspaceVariableRow({ envVar, index, onUpdate }: NewWorkspaceVariab
               onUpdate(index, 'value', '')
             }}
             disabled={!hasContent}
-            className={`h-9 w-9 ${!hasContent ? 'opacity-30' : ''}`}
+            className={cn('h-9 w-9', !hasContent && 'opacity-30')}
           >
             <Trash />
           </Button>
@@ -273,7 +343,10 @@ function NewWorkspaceVariableRow({ envVar, index, onUpdate }: NewWorkspaceVariab
       </Tooltip.Root>
       {keyError && (
         <div
-          className={`${COL_SPAN_ALL} mt-[-4px] text-[var(--text-error)] text-caption leading-tight`}
+          className={cn(
+            COL_SPAN_ALL,
+            'mt-[-4px] text-[var(--text-error)] text-caption leading-tight'
+          )}
         >
           {keyError}
         </div>
@@ -326,17 +399,11 @@ export function CredentialsManager() {
   const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId || null)
   const queryClient = useQueryClient()
 
-  const isWorkspaceAdmin = useMemo(() => {
-    const userId = session?.user?.id
-    if (!userId || !workspacePermissions?.users) return false
-    const currentUser = workspacePermissions.users.find((user) => user.userId === userId)
-    return currentUser?.permissionType === 'admin'
-  }, [session?.user?.id, workspacePermissions?.users])
+  const isWorkspaceAdmin = workspacePermissions?.viewer?.isAdmin ?? false
 
   const isLoading = isPersonalLoading || isWorkspaceLoading
   const variables = useMemo(() => personalEnvData || {}, [personalEnvData])
 
-  // --- List view state ---
   const [envVars, setEnvVars] = useState<UIEnvironmentVariable[]>([])
   const [newWorkspaceRows, setNewWorkspaceRows] = useState<UIEnvironmentVariable[]>([
     createEmptyEnvVar(),
@@ -349,7 +416,6 @@ export function CredentialsManager() {
   const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
   const [changeToken, setChangeToken] = useState(0)
 
-  // --- Detail view state ---
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
   const [prevSelectedCredentialId, setPrevSelectedCredentialId] = useState<
     string | null | undefined
@@ -370,7 +436,6 @@ export function CredentialsManager() {
   const shouldBlockNavRef = useRef(false)
   const pendingNavigationUrlRef = useRef<string | null>(null)
 
-  // --- Credential lookups ---
   const envKeyToCredential = useMemo(() => {
     const map = new Map<string, WorkspaceCredential>()
     for (const cred of envCredentials) {
@@ -398,7 +463,6 @@ export function CredentialsManager() {
     }
   }
 
-  // --- Detail view hooks ---
   const { data: members = [], isPending: membersLoading } = useWorkspaceCredentialMembers(
     selectedCredential?.id
   )
@@ -407,7 +471,6 @@ export function CredentialsManager() {
   const upsertMember = useUpsertWorkspaceCredentialMember()
   const removeMember = useRemoveWorkspaceCredentialMember()
 
-  // --- Detail view computed ---
   const activeMembers = useMemo(
     () => members.filter((member) => member.status === 'active'),
     [members]
@@ -438,7 +501,6 @@ export function CredentialsManager() {
     : false
   const isDetailsDirty = isDescriptionDirty || isDisplayNameDirty
 
-  // --- List view computed ---
   const filteredEnvVars = useMemo(() => {
     const mapped = envVars.map((envVar, index) => ({ envVar, originalIndex: index }))
     if (!searchTerm.trim()) return mapped
@@ -526,7 +588,6 @@ export function CredentialsManager() {
 
   useEffect(() => () => resetNavGuard(), [resetNavGuard])
 
-  // --- Effects ---
   useEffect(() => {
     if (hasSavedRef.current) return
 
@@ -611,7 +672,6 @@ export function CredentialsManager() {
     }
   }, [])
 
-  // --- Pending credential create request ---
   const applyPendingCredentialCreateRequest = useCallback(
     (request: PendingCredentialCreateRequest) => {
       if (request.workspaceId !== workspaceId) return
@@ -666,56 +726,52 @@ export function CredentialsManager() {
     }
   }, [workspaceId, applyPendingCredentialCreateRequest])
 
-  // --- Detail view handlers ---
-  const handleSelectCredential = useCallback((credentialId: string) => {
+  const handleSelectCredential = (credentialId: string) => {
     setSelectedCredentialId(credentialId)
     setDetailsError(null)
     setMemberUserId('')
     setMemberRole('member')
-  }, [])
+  }
 
-  const handleViewDetails = useCallback(
-    async (envKey: string, type: 'env_workspace' | 'env_personal') => {
-      const existing = envKeyToCredential.get(envKey)
-      if (existing) {
-        handleSelectCredential(existing.id)
-        return
+  const handleViewDetails = async (envKey: string, type: 'env_workspace' | 'env_personal') => {
+    const existing = envKeyToCredential.get(envKey)
+    if (existing) {
+      handleSelectCredential(existing.id)
+      return
+    }
+
+    try {
+      const result = await createCredential.mutateAsync({
+        workspaceId,
+        type,
+        displayName: envKey,
+        envKey,
+        ...(type === 'env_personal' ? { envOwnerUserId: session?.user?.id } : {}),
+      })
+      if (result.credential?.id) {
+        handleSelectCredential(result.credential.id)
       }
+    } catch (error) {
+      logger.error('Failed to create credential record', error)
+    }
+  }
 
-      try {
-        const result = await createCredential.mutateAsync({
-          workspaceId,
-          type,
-          displayName: envKey,
-          envKey,
-          ...(type === 'env_personal' ? { envOwnerUserId: session?.user?.id } : {}),
-        })
-        if (result.credential?.id) {
-          handleSelectCredential(result.credential.id)
-        }
-      } catch (error) {
-        logger.error('Failed to create credential record', error)
-      }
-    },
-    [envKeyToCredential, handleSelectCredential, createCredential, workspaceId, session?.user?.id]
-  )
-
-  const handleBackAttempt = useCallback(() => {
+  const handleBackAttempt = () => {
     if (isDetailsDirty && !updateCredential.isPending) {
       setShowDetailUnsavedChanges(true)
     } else {
       setSelectedCredentialId(null)
     }
-  }, [isDetailsDirty, updateCredential.isPending])
+  }
 
-  const handleDiscardDetailChanges = useCallback(() => {
+  const handleDiscardDetailChanges = () => {
     setShowDetailUnsavedChanges(false)
     setSelectedDescriptionDraft(selectedCredential?.description || '')
     setSelectedDisplayNameDraft(selectedCredential?.displayName || '')
     setSelectedCredentialId(null)
-  }, [selectedCredential])
+  }
 
-  const handleSaveDetails = useCallback(async () => {
+  const handleSaveDetails = async () => {
     if (!selectedCredential || !isSelectedAdmin || !isDetailsDirty || updateCredential.isPending)
       return
     setDetailsError(null)
@@ -733,18 +789,9 @@ export function CredentialsManager() {
       setDetailsError(message)
       logger.error('Failed to save secret details', error)
     }
-  }, [
-    selectedCredential,
-    isSelectedAdmin,
-    isDetailsDirty,
-    isDisplayNameDirty,
-    isDescriptionDirty,
-    selectedDisplayNameDraft,
-    selectedDescriptionDraft,
-    updateCredential,
-  ])
+  }
 
-  const handleAddMember = useCallback(async () => {
+  const handleAddMember = async () => {
     if (!memberUserId || !selectedCredential) return
     try {
       await upsertMember.mutateAsync({
@@ -757,74 +804,61 @@ export function CredentialsManager() {
     } catch (error) {
       logger.error('Failed to add member', error)
     }
-  }, [selectedCredential, memberUserId, memberRole])
+  }
 
-  const handleRemoveMember = useCallback(
-    async (userId: string) => {
-      if (!selectedCredential) return
-      try {
-        await removeMember.mutateAsync({ credentialId: selectedCredential.id, userId })
-      } catch (error) {
-        logger.error('Failed to remove member', error)
-      }
-    },
-    [selectedCredential]
-  )
+  const handleRemoveMember = async (userId: string) => {
+    if (!selectedCredential) return
+    try {
+      await removeMember.mutateAsync({ credentialId: selectedCredential.id, userId })
+    } catch (error) {
+      logger.error('Failed to remove member', error)
+    }
+  }
 
-  const handleChangeMemberRole = useCallback(
-    async (userId: string, role: WorkspaceCredentialRole) => {
-      if (!selectedCredential) return
-      try {
-        await upsertMember.mutateAsync({ credentialId: selectedCredential.id, userId, role })
-      } catch (error) {
-        logger.error('Failed to change member role', error)
-      }
-    },
-    [selectedCredential]
-  )
+  const handleChangeMemberRole = async (userId: string, role: WorkspaceCredentialRole) => {
+    if (!selectedCredential) return
+    try {
+      await upsertMember.mutateAsync({ credentialId: selectedCredential.id, userId, role })
+    } catch (error) {
+      logger.error('Failed to change member role', error)
+    }
+  }
 
-  // --- List view handlers ---
-  const handleWorkspaceKeyRename = useCallback(
-    (currentKey: string, currentValue: string) => {
-      const newKey = pendingKeyValue.trim()
-      if (!renamingKey || renamingKey !== currentKey) return
-      setRenamingKey(null)
-      if (!newKey || newKey === currentKey) return
+  const handleWorkspaceKeyRename = (currentKey: string, currentValue: string) => {
+    const newKey = pendingKeyValue.trim()
+    if (!renamingKey || renamingKey !== currentKey) return
+    setRenamingKey(null)
+    if (!newKey || newKey === currentKey) return
 
-      setWorkspaceVars((prev) => {
-        const next = { ...prev }
-        delete next[currentKey]
-        next[newKey] = currentValue
-        return next
-      })
-    },
-    [pendingKeyValue, renamingKey]
-  )
+    setWorkspaceVars((prev) => {
+      const next = { ...prev }
+      delete next[currentKey]
+      next[newKey] = currentValue
+      return next
+    })
+  }
 
-  const handleWorkspaceValueChange = useCallback((key: string, value: string) => {
+  const handleWorkspaceValueChange = (key: string, value: string) => {
     setWorkspaceVars((prev) => ({ ...prev, [key]: value }))
-  }, [])
+  }
 
-  const handleDeleteWorkspaceVar = useCallback((key: string) => {
+  const handleDeleteWorkspaceVar = (key: string) => {
     setWorkspaceVars((prev) => {
       const next = { ...prev }
       delete next[key]
       return next
     })
-  }, [])
+  }
 
-  const updateNewWorkspaceRow = useCallback(
-    (index: number, field: 'key' | 'value', value: string) => {
-      setNewWorkspaceRows((prev) => updateEnvVarArray(prev, index, field, value))
-    },
-    []
-  )
+  const updateNewWorkspaceRow = (index: number, field: 'key' | 'value', value: string) => {
+    setNewWorkspaceRows((prev) => updateEnvVarArray(prev, index, field, value))
+  }
 
-  const updateEnvVar = useCallback((index: number, field: 'key' | 'value', value: string) => {
+  const updateEnvVar = (index: number, field: 'key' | 'value', value: string) => {
     setEnvVars((prev) => updateEnvVarArray(prev, index, field, value))
-  }, [])
+  }
 
-  const removeEnvVar = useCallback((index: number) => {
+  const removeEnvVar = (index: number) => {
     setEnvVars((prev) => {
       const filtered = prev.filter((_, i) => i !== index)
       const hasTrailingEmpty =
@@ -833,130 +867,105 @@ export function CredentialsManager() {
         !filtered[filtered.length - 1].value
       return hasTrailingEmpty ? filtered : [...filtered, createEmptyEnvVar()]
     })
-  }, [])
+  }
 
-  const handleValueFocus = useCallback((index: number, e: React.FocusEvent<HTMLInputElement>) => {
+  const handleValueFocus = (index: number, e: React.FocusEvent<HTMLInputElement>) => {
     setFocusedValueIndex(index)
     e.target.scrollLeft = 0
-  }, [])
+  }
 
-  const handleValueClick = useCallback((e: React.MouseEvent<HTMLInputElement>) => {
+  const handleValueClick = (e: React.MouseEvent<HTMLInputElement>) => {
     e.preventDefault()
     e.currentTarget.scrollLeft = 0
-  }, [])
+  }
 
-  const parseEnvVarLine = useCallback((line: string): UIEnvironmentVariable | null => {
-    const trimmed = line.trim()
+  const handleSingleValuePaste = (text: string, index: number, inputType: 'key' | 'value') => {
+    setEnvVars((prev) => {
+      const newEnvVars = [...prev]
+      newEnvVars[index] = { ...newEnvVars[index], [inputType]: text }
+      return newEnvVars
+    })
+  }
 
-    if (!trimmed || trimmed.startsWith('#')) return null
+  /**
+   * Paste handler for personal env var rows.
+   * Only prevents default when it actually handles the paste: KV patterns destructure into new rows,
+   * plain values overwrite the field. Falls through to native paste if pattern is detected but all
+   * values are empty (e.g. KEY=), avoiding silently swallowed input.
+   */
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>, index: number) => {
+    const text = e.clipboardData.getData('text').trim()
+    if (!text) return
 
-    const withoutExport = trimmed.replace(/^export\s+/, '')
+    const lines = text.split(/\r?\n/).filter((line) => line.trim())
+    if (lines.length === 0) return
 
-    const equalIndex = withoutExport.indexOf('=')
-    if (equalIndex === -1 || equalIndex === 0) return null
+    const inputType = (e.target as HTMLInputElement).getAttribute('data-input-type') as
+      | 'key'
+      | 'value'
 
-    const potentialKey = withoutExport.substring(0, equalIndex).trim()
-    if (!isValidEnvVarName(potentialKey)) return null
-
-    let value = withoutExport.substring(equalIndex + 1)
-
-    const looksLikeBase64Key = /^[A-Za-z0-9+/]+$/.test(potentialKey) && !potentialKey.includes('_')
-    const valueIsJustPadding = /^=+$/.test(value.trim())
-    if (looksLikeBase64Key && valueIsJustPadding && potentialKey.length > 20) {
-      return null
-    }
-
-    const trimmedValue = value.trim()
-    if (
-      !trimmedValue.startsWith('"') &&
-      !trimmedValue.startsWith("'") &&
-      !trimmedValue.startsWith('`')
-    ) {
-      const commentIndex = value.search(/\s#/)
-      if (commentIndex !== -1) {
-        value = value.substring(0, commentIndex)
+    if (inputType) {
+      const hasValidEnvVarPattern = lines.some((line) => parseEnvVarLine(line) !== null)
+      if (!hasValidEnvVarPattern) {
+        e.preventDefault()
+        handleSingleValuePaste(text, index, inputType)
+        return
       }
     }
 
-    value = value.trim()
-
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'")) ||
-      (value.startsWith('`') && value.endsWith('`'))
-    ) {
-      value = value.slice(1, -1)
-    }
-
-    return { key: potentialKey, value, id: generateRowId() }
-  }, [])
-
-  const handleSingleValuePaste = useCallback(
-    (text: string, index: number, inputType: 'key' | 'value') => {
-      setEnvVars((prev) => {
-        const newEnvVars = [...prev]
-        newEnvVars[index][inputType] = text
-        return newEnvVars
-      })
-    },
-    []
-  )
-
-  const handleKeyValuePaste = useCallback(
-    (lines: string[]) => {
-      const parsedVars = lines
-        .map(parseEnvVarLine)
-        .filter((parsed): parsed is UIEnvironmentVariable => parsed !== null)
-        .filter(({ key, value }) => key && value)
-
-      if (parsedVars.length > 0) {
-        setEnvVars((prev) => {
-          const existingVars = prev.filter((v) => v.key || v.value)
-          return [...existingVars, ...parsedVars, createEmptyEnvVar()]
-        })
-        scrollToBottom()
-      }
-    },
-    [parseEnvVarLine, scrollToBottom]
-  )
-
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent<HTMLInputElement>, index: number) => {
-      const text = e.clipboardData.getData('text').trim()
-      if (!text) return
-
-      const lines = text.split('\n').filter((line) => line.trim())
-      if (lines.length === 0) return
-
+    const parsedVars = parseValidEnvVars(lines)
+    if (parsedVars.length > 0) {
       e.preventDefault()
+      setEnvVars((prev) => {
+        const existingVars = prev.filter((v) => v.key || v.value)
+        return [...existingVars, ...parsedVars, createEmptyEnvVar()]
+      })
+      scrollToBottom()
+    }
+  }
 
-      const inputType = (e.target as HTMLInputElement).getAttribute('data-input-type') as
-        | 'key'
-        | 'value'
+  /**
+   * Paste handler for workspace new-row inputs.
+   * Only prevents default when pasted text contains KEY=VALUE patterns; otherwise defers to
+   * native browser paste so cursor/selection semantics are preserved for plain values.
+   */
+  const handleWorkspacePaste = (e: React.ClipboardEvent<HTMLInputElement>, _index: number) => {
+    const text = e.clipboardData.getData('text').trim()
+    if (!text) return
 
-      if (inputType) {
-        const hasValidEnvVarPattern = lines.some((line) => parseEnvVarLine(line) !== null)
-        if (!hasValidEnvVarPattern) {
-          handleSingleValuePaste(text, index, inputType)
-          return
-        }
-      }
+    const lines = text.split(/\r?\n/).filter((line) => line.trim())
+    if (lines.length === 0) return
 
-      handleKeyValuePaste(lines)
-    },
-    [parseEnvVarLine, handleSingleValuePaste, handleKeyValuePaste]
-  )
+    const inputType = (e.target as HTMLInputElement).getAttribute('data-input-type') as
+      | 'key'
+      | 'value'
 
-  const resetToSaved = useCallback(() => {
+    if (inputType) {
+      const hasValidEnvVarPattern = lines.some((line) => parseEnvVarLine(line) !== null)
+      if (!hasValidEnvVarPattern) return
+    }
+
+    const parsedVars = parseValidEnvVars(lines)
+    if (parsedVars.length > 0) {
+      e.preventDefault()
+      setNewWorkspaceRows((prev) => {
+        const existing = prev.filter((v) => v.key || v.value)
+        return [...existing, ...parsedVars, createEmptyEnvVar()]
+      })
+      scrollToBottom()
+    }
+  }
+
+  const resetToSaved = () => {
     setEnvVars(JSON.parse(JSON.stringify(initialVarsRef.current)))
     setWorkspaceVars({ ...initialWorkspaceVarsRef.current })
     setNewWorkspaceRows([createEmptyEnvVar()])
     setShowUnsavedChanges(false)
-  }, [])
+  }
 
   const handleCancel = resetToSaved
 
-  const handleSave = useCallback(async () => {
+  const handleSave = async () => {
     if (isListSaving) return
 
     const prevInitialVars = [...initialVarsRef.current]
@@ -1042,10 +1051,9 @@ export function CredentialsManager() {
         queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects and queryClient are stable (TanStack Query v5)
-  }, [isListSaving, envVars, workspaceVars, newWorkspaceRows, workspaceId])
+  }
 
-  const handleDiscardAndNavigate = useCallback(() => {
+  const handleDiscardAndNavigate = () => {
     shouldBlockNavRef.current = false
     resetNavGuard()
     resetToSaved()
@@ -1056,117 +1064,119 @@ export function CredentialsManager() {
       pendingNavigationUrlRef.current = null
       router.push(url)
     }
-  }, [router, resetToSaved, resetNavGuard])
+  }
 
-  const renderEnvVarRow = useCallback(
-    (envVar: UIEnvironmentVariable, originalIndex: number) => {
-      const isConflict = !!envVar.key && allWorkspaceKeys.has(envVar.key)
-      const keyError = validateEnvVarKey(envVar.key)
-      const maskedValueStyle =
-        focusedValueIndex !== originalIndex && !isConflict
-          ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
-          : undefined
+  const renderEnvVarRow = (envVar: UIEnvironmentVariable, originalIndex: number) => {
+    const isConflict = !!envVar.key && allWorkspaceKeys.has(envVar.key)
+    const keyError = validateEnvVarKey(envVar.key)
+    const maskedValueStyle =
+      focusedValueIndex !== originalIndex && !isConflict
+        ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
+        : undefined
 
-      const isComplete = Boolean(envVar.key && envVar.value)
-      const hasCredential = isComplete && envKeyToCredential.has(envVar.key)
+    const isComplete = Boolean(envVar.key && envVar.value)
+    const hasCredential = isComplete && envKeyToCredential.has(envVar.key)
 
-      const hasContent = Boolean(envVar.key || envVar.value)
+    const hasContent = Boolean(envVar.key || envVar.value)
 
-      return (
-        <div className='contents'>
-          <EmcnInput
-            data-input-type='key'
-            value={envVar.key}
-            onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
-            onPaste={(e) => handlePaste(e, originalIndex)}
-            placeholder='API_KEY'
-            name={`env_variable_name_${envVar.id || originalIndex}_${Math.random()}`}
-            autoComplete='off'
-            autoCapitalize='off'
-            spellCheck='false'
-            readOnly
-            onFocus={(e) => e.target.removeAttribute('readOnly')}
-            className={`h-9 ${isConflict ? CONFLICT_CLASS : ''} ${keyError ? 'border-[var(--text-error)]' : ''}`}
-          />
-          <div />
-          <EmcnInput
-            data-input-type='value'
-            value={envVar.value}
-            onChange={(e) => updateEnvVar(originalIndex, 'value', e.target.value)}
-            type='text'
-            onFocus={(e) => {
-              if (!isConflict) {
-                e.target.removeAttribute('readOnly')
-                handleValueFocus(originalIndex, e)
-              }
-            }}
-            onClick={handleValueClick}
-            onBlur={() => setFocusedValueIndex(null)}
-            onPaste={(e) => handlePaste(e, originalIndex)}
-            placeholder={isConflict ? 'Workspace override active' : 'Enter value'}
-            disabled={isConflict}
-            aria-disabled={isConflict}
-            name={`env_variable_value_${envVar.id || originalIndex}_${Math.random()}`}
-            autoComplete='off'
-            autoCapitalize='off'
-            spellCheck='false'
-            readOnly={isConflict}
-            style={maskedValueStyle}
-            className={`h-9 ${isComplete ? '' : 'col-span-2'} ${isConflict ? `cursor-not-allowed ${CONFLICT_CLASS}` : ''}`}
-          />
-          {isComplete && (
+    return (
+      <div className='contents'>
+        <EmcnInput
+          data-input-type='key'
+          value={envVar.key}
+          onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
+          onPaste={(e) => handlePaste(e, originalIndex)}
+          placeholder='API_KEY'
+          name={`env_variable_name_${envVar.id || originalIndex}_${Math.random()}`}
+          autoComplete='off'
+          autoCapitalize='off'
+          spellCheck='false'
+          readOnly
+          onFocus={(e) => e.target.removeAttribute('readOnly')}
+          className={cn(
+            'h-9',
+            isConflict && CONFLICT_CLASS,
+            keyError && 'border-[var(--text-error)]'
+          )}
+        />
+        <div />
+        <EmcnInput
+          data-input-type='value'
+          value={envVar.value}
+          onChange={(e) => updateEnvVar(originalIndex, 'value', e.target.value)}
+          type='text'
+          onFocus={(e) => {
+            if (!isConflict) {
+              e.target.removeAttribute('readOnly')
+              handleValueFocus(originalIndex, e)
+            }
+          }}
+          onClick={handleValueClick}
+          onBlur={() => setFocusedValueIndex(null)}
+          onPaste={(e) => handlePaste(e, originalIndex)}
+          placeholder={isConflict ? 'Workspace override active' : 'Enter value'}
+          disabled={isConflict}
+          aria-disabled={isConflict}
+          name={`env_variable_value_${envVar.id || originalIndex}_${Math.random()}`}
+          autoComplete='off'
+          autoCapitalize='off'
+          spellCheck='false'
+          readOnly={isConflict}
+          style={maskedValueStyle}
+          className={cn(
+            'h-9',
+            !isComplete && 'col-span-2',
+            isConflict && 'cursor-not-allowed',
+            isConflict && CONFLICT_CLASS
+          )}
+        />
+        {isComplete && (
+          <Button
+            variant='default'
+            onClick={() => handleViewDetails(envVar.key, 'env_personal')}
+            disabled={!hasCredential}
+            className={cn('ml-2 h-9', !hasCredential && 'opacity-40')}
+          >
+            Details
+          </Button>
+        )}
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <Button
-              variant='default'
-              onClick={() => handleViewDetails(envVar.key, 'env_personal')}
-              disabled={!hasCredential}
-              className={`ml-2 h-9 ${!hasCredential ? 'opacity-40' : ''}`}
+              variant='ghost'
+              onClick={() => removeEnvVar(originalIndex)}
+              disabled={!hasContent}
+              className={cn('h-9 w-9', !hasContent && 'opacity-30')}
             >
-              Details
+              <Trash />
             </Button>
-          )}
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                onClick={() => removeEnvVar(originalIndex)}
-                disabled={!hasContent}
-                className={`h-9 w-9 ${!hasContent ? 'opacity-30' : ''}`}
-              >
-                <Trash />
-              </Button>
-            </Tooltip.Trigger>
-            {hasContent && <Tooltip.Content>Delete secret</Tooltip.Content>}
-          </Tooltip.Root>
-          {keyError && (
-            <div
-              className={`${COL_SPAN_ALL} mt-[-4px] text-[var(--text-error)] text-caption leading-tight`}
-            >
-              {keyError}
-            </div>
-          )}
-          {isConflict && !keyError && (
-            <div
-              className={`${COL_SPAN_ALL} mt-[-4px] text-[var(--text-error)] text-caption leading-tight`}
-            >
-              Workspace variable with the same name overrides this. Rename your personal key to use
-              it.
-            </div>
-          )}
-        </div>
-      )
-    },
-    [
-      allWorkspaceKeys,
-      focusedValueIndex,
-      updateEnvVar,
-      handlePaste,
-      handleValueFocus,
-      handleValueClick,
-      removeEnvVar,
-      handleViewDetails,
-      envKeyToCredential,
-    ]
-  )
+          </Tooltip.Trigger>
+          {hasContent && <Tooltip.Content>Delete secret</Tooltip.Content>}
+        </Tooltip.Root>
+        {keyError && (
+          <div
+            className={cn(
+              COL_SPAN_ALL,
+              'mt-[-4px] text-[var(--text-error)] text-caption leading-tight'
+            )}
+          >
+            {keyError}
+          </div>
+        )}
+        {isConflict && !keyError && (
+          <div
+            className={cn(
+              COL_SPAN_ALL,
+              'mt-[-4px] text-[var(--text-error)] text-caption leading-tight'
+            )}
+          >
+            Workspace variable with the same name overrides this. Rename your personal key to use
+            it.
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const isPendingNavigation = pendingNavigationUrlRef.current !== null
 
@@ -1208,9 +1218,10 @@ export function CredentialsManager() {
                   Display Name
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
-                      <button
+                      <Button
+                        variant='ghost'
                         type='button'
-                        className='-my-1 flex h-5 w-5 items-center justify-center'
+                        className='-my-1 h-5 w-5 p-0'
                         onClick={() => {
                           navigator.clipboard.writeText(selectedCredential.id)
                           setCopyIdSuccess(true)
@@ -1219,11 +1230,11 @@ export function CredentialsManager() {
                         aria-label='Copy value'
                       >
                         {copyIdSuccess ? (
-                          <Check className='h-3 w-3 text-green-500' />
+                          <Check className='h-3 w-3 text-[var(--success)]' />
                         ) : (
                           <Clipboard className='h-3 w-3 text-[var(--text-icon)]' />
                         )}
-                      </button>
+                      </Button>
                     </Tooltip.Trigger>
                     <Tooltip.Content>
                       {copyIdSuccess ? 'Copied!' : 'Copy credential ID'}
@@ -1439,7 +1450,6 @@ export function CredentialsManager() {
     )
   }
 
-  // List view
   return (
     <>
       <div className='flex h-full flex-col gap-4'>
@@ -1493,7 +1503,7 @@ export function CredentialsManager() {
                   isLoading || !hasChanges || hasConflicts || hasInvalidKeys || isListSaving
                 }
                 variant='primary'
-                className={`${hasConflicts || hasInvalidKeys ? 'cursor-not-allowed opacity-50' : ''}`}
+                className={cn((hasConflicts || hasInvalidKeys) && 'cursor-not-allowed opacity-50')}
               >
                 {isListSaving ? 'Saving...' : 'Save'}
               </Button>
@@ -1515,8 +1525,8 @@ export function CredentialsManager() {
                     <Skeleton className='h-5 w-[160px]' />
                   </div>
                 </div>
-                <div className={`${GRID_COLS} gap-y-2`}>
-                  <Skeleton className={`${COL_SPAN_ALL} h-5 w-[55px]`} />
+                <div className={cn(GRID_COLS, 'gap-y-2')}>
+                  <Skeleton className={cn(COL_SPAN_ALL, 'h-5 w-[55px]')} />
                   {Array.from({ length: 2 }, (_, i) => (
                     <div key={`personal-${i}`} className='contents'>
                       <Skeleton className='h-9 rounded-md' />
@@ -1529,13 +1539,16 @@ export function CredentialsManager() {
                 </div>
               </>
             ) : (
-              <div className={`${GRID_COLS} gap-y-2`}>
+              <div className={cn(GRID_COLS, 'gap-y-2')}>
                 {(!searchTerm.trim() ||
                   filteredWorkspaceEntries.length > 0 ||
                   filteredNewWorkspaceRows.length > 0) && (
                   <>
                     <div
-                      className={`${COL_SPAN_ALL} font-medium text-[var(--text-secondary)] text-small`}
+                      className={cn(
+                        COL_SPAN_ALL,
+                        'font-medium text-[var(--text-secondary)] text-small'
+                      )}
                     >
                       Workspace
                     </div>
@@ -1569,16 +1582,20 @@ export function CredentialsManager() {
                           envVar={row}
                           index={originalIndex}
                           onUpdate={updateNewWorkspaceRow}
+                          onPaste={handleWorkspacePaste}
                         />
                       ))}
-                    <div className={`${COL_SPAN_ALL} h-[8px]`} />
+                    <div className={cn(COL_SPAN_ALL, 'h-[8px]')} />
                   </>
                 )}
 
                 {(!searchTerm.trim() || filteredEnvVars.length > 0) && (
                   <>
                     <div
-                      className={`${COL_SPAN_ALL} font-medium text-[var(--text-secondary)] text-small`}
+                      className={cn(
+                        COL_SPAN_ALL,
+                        'font-medium text-[var(--text-secondary)] text-small'
+                      )}
                     >
                       Personal
                     </div>
@@ -1597,7 +1614,10 @@ export function CredentialsManager() {
                     Object.keys(workspaceVars).length > 0 ||
                     newWorkspaceRows.length > 0) && (
                     <div
-                      className={`${COL_SPAN_ALL} py-4 text-center text-[var(--text-muted)] text-small`}
+                      className={cn(
+                        COL_SPAN_ALL,
+                        'py-4 text-center text-[var(--text-muted)] text-small'
+                      )}
                     >
                       No secrets found matching &ldquo;{searchTerm}&rdquo;
                     </div>

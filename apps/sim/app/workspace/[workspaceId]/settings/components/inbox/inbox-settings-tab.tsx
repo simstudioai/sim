@@ -250,7 +250,6 @@ export function InboxSettingsTab() {
                   }}
                   placeholder='user@example.com'
                   className='h-9'
-                  autoFocus
                 />
               </div>
               <div className='flex flex-col gap-1'>
@@ -304,7 +303,6 @@ export function InboxSettingsTab() {
                 }}
                 placeholder='e.g., new-acme'
                 className='h-9'
-                autoFocus
               />
               {editAddressError && (
                 <p className='text-[var(--text-error)] text-small leading-tight'>

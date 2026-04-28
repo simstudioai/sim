@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { isUserFile } from '@/lib/core/utils/user-file'
 import { uploadExecutionFile, uploadFileFromRawData } from '@/lib/uploads/contexts/execution'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
@@ -47,7 +48,7 @@ export class FileToolProcessor {
         )
       } catch (error) {
         logger.error(`Error processing file output '${outputKey}':`, error)
-        const errorMessage = error instanceof Error ? error.message : String(error)
+        const errorMessage = toError(error).message
         throw new Error(`Failed to process file output '${outputKey}': ${errorMessage}`)
       }
     }

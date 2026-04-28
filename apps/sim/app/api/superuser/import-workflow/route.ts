@@ -1,10 +1,11 @@
 import { db } from '@sim/db'
 import { copilotChats, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import {
@@ -31,7 +32,7 @@ interface ImportWorkflowRequest {
  *
  * Requires both isSuperUser flag AND superUserModeEnabled setting.
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -197,4 +198,4 @@ export async function POST(request: NextRequest) {
     logger.error('Error importing workflow', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

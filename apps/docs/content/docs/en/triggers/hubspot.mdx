@@ -1,0 +1,1144 @@
+---
+title: HubSpot
+description: Available HubSpot triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="hubspot"
+  color="#FF7A59"
+/>
+
+HubSpot provides 27 triggers for automating workflows based on events.
+
+## Triggers
+
+### HubSpot Company Created
+
+Trigger workflow when a new company is created in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Company Deleted
+
+Trigger workflow when a company is deleted in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Company Merged
+
+Trigger workflow when companies are merged in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing merge event details |
+|   ↳ `objectId` | number | HubSpot object ID \(winning/primary record\) |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `mergedObjectIds` | array | IDs of the objects that were merged into the primary record |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_contact_merged\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+
+
+---
+
+### HubSpot Company Property Changed
+
+Trigger workflow when any property of a company is updated in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| `propertyName` | string | No | Optional: Filter to only trigger when a specific property changes. Leave empty to trigger on any property change. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Company Restored
+
+Trigger workflow when a deleted company is restored in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Contact Created
+
+Trigger workflow when a new contact is created in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Contact Deleted
+
+Trigger workflow when a contact is deleted in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Contact Merged
+
+Trigger workflow when contacts are merged in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing merge event details |
+|   ↳ `objectId` | number | HubSpot object ID \(winning/primary record\) |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `mergedObjectIds` | array | IDs of the objects that were merged into the primary record |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_contact_merged\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+
+
+---
+
+### HubSpot Contact Privacy Deleted
+
+Trigger workflow when a contact is deleted for privacy compliance (GDPR, CCPA, etc.) in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Contact Property Changed
+
+Trigger workflow when any property of a contact is updated in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| `propertyName` | string | No | Optional: Filter to only trigger when a specific property changes. Leave empty to trigger on any property change. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Contact Restored
+
+Trigger workflow when a deleted contact is restored in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Conversation Creation
+
+Trigger workflow when a new conversation is created in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Conversation Deletion
+
+Trigger workflow when a conversation is deleted in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Conversation New Message
+
+Trigger workflow when a new message is added to a conversation in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Conversation Privacy Deletion
+
+Trigger workflow when a conversation is deleted for privacy compliance (GDPR, CCPA, etc.) in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Conversation Property Changed
+
+Trigger workflow when any property of a conversation is updated in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| `propertyName` | string | No | Optional: Filter to only trigger when a specific property changes. Leave empty to trigger on any property change. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Deal Created
+
+Trigger workflow when a new deal is created in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Deal Deleted
+
+Trigger workflow when a deal is deleted in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Deal Merged
+
+Trigger workflow when deals are merged in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing merge event details |
+|   ↳ `objectId` | number | HubSpot object ID \(winning/primary record\) |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `mergedObjectIds` | array | IDs of the objects that were merged into the primary record |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_contact_merged\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+
+
+---
+
+### HubSpot Deal Property Changed
+
+Trigger workflow when any property of a deal is updated in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| `propertyName` | string | No | Optional: Filter to only trigger when a specific property changes. Leave empty to trigger on any property change. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Deal Restored
+
+Trigger workflow when a deleted deal is restored in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Ticket Created
+
+Trigger workflow when a new ticket is created in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Ticket Deleted
+
+Trigger workflow when a ticket is deleted in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Ticket Merged
+
+Trigger workflow when tickets are merged in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing merge event details |
+|   ↳ `objectId` | number | HubSpot object ID \(winning/primary record\) |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `mergedObjectIds` | array | IDs of the objects that were merged into the primary record |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_contact_merged\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+
+
+---
+
+### HubSpot Ticket Property Changed
+
+Trigger workflow when any property of a ticket is updated in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| `propertyName` | string | No | Optional: Filter to only trigger when a specific property changes. Leave empty to trigger on any property change. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Ticket Restored
+
+Trigger workflow when a deleted ticket is restored in HubSpot
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+
+
+---
+
+### HubSpot Webhook (All Events)
+
+Trigger workflow on any HubSpot webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payload` | array | Full webhook payload array from HubSpot containing event details |
+|   ↳ `objectId` | number | HubSpot object ID |
+|   ↳ `subscriptionType` | string | Type of subscription event |
+|   ↳ `portalId` | number | HubSpot portal ID |
+|   ↳ `occurredAt` | number | Timestamp when event occurred \(ms\) |
+|   ↳ `attemptNumber` | number | Webhook delivery attempt number |
+|   ↳ `eventId` | number | Event ID |
+|   ↳ `changeSource` | string | Source of the change |
+|   ↳ `propertyName` | string | Property name \(for propertyChange events\) |
+|   ↳ `propertyValue` | string | New property value \(for propertyChange events\) |
+| `provider` | string | Provider name \(hubspot\) |
+| `providerConfig` | object | Provider configuration |
+|   ↳ `appId` | string | HubSpot App ID |
+|   ↳ `clientId` | string | HubSpot Client ID |
+|   ↳ `triggerId` | string | Trigger ID \(e.g., hubspot_company_created\) |
+|   ↳ `clientSecret` | string | HubSpot Client Secret |
+|   ↳ `developerApiKey` | string | HubSpot Developer API Key |
+|   ↳ `curlSetWebhookUrl` | string | curl command to set webhook URL |
+|   ↳ `curlCreateSubscription` | string | curl command to create subscription |
+|   ↳ `webhookUrlDisplay` | string | Webhook URL display value |
+|   ↳ `propertyName` | string | Optional property name filter \(for property change triggers\) |
+

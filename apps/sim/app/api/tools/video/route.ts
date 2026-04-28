@@ -1,8 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 import type { VideoRequestBody } from '@/tools/video/types'
@@ -12,7 +14,7 @@ const logger = createLogger('VideoProxyAPI')
 export const dynamic = 'force-dynamic'
 export const maxDuration = 600 // 10 minutes for video generation
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId()
   logger.info(`[${requestId}] Video generation request started`)
 
@@ -270,7 +272,7 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
-}
+})
 
 async function generateWithRunway(
   apiKey: string,
@@ -973,8 +975,4 @@ function getVideoDimensions(
   const width = Math.round((height * ratioW) / ratioH)
 
   return { width, height }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }

@@ -7,7 +7,7 @@
  */
 
 import { createLogger } from '@sim/logger'
-import { generateShortId } from '@/lib/core/utils/uuid'
+import { generateShortId } from '@sim/utils/id'
 import { fetchActiveWebhooks } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
 import type { RowData, TableRow, TableSchema } from '@/lib/table/types'

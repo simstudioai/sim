@@ -1,10 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { SEARCH_TOOL_COST } from '@/lib/billing/constants'
 import { env } from '@/lib/core/config/env'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('search')
@@ -16,7 +17,7 @@ const SearchRequestSchema = z.object({
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId()
 
   try {
@@ -130,4 +131,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

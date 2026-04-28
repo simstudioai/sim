@@ -3,7 +3,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
+import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('ConfluenceBlogPostsAPI')
 
@@ -41,7 +43,7 @@ const createBlogPostSchema = z.object({
 /**
  * List all blog posts or get a specific blog post
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -98,14 +100,16 @@ export async function GET(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
+      const errorText = await response.text()
       logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: JSON.stringify(errorData, null, 2),
+        error: errorText,
       })
-      const errorMessage = errorData?.message || `Failed to list blog posts (${response.status})`
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
     const data = await response.json()
@@ -134,12 +138,12 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * Get a specific blog post by ID
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -197,14 +201,16 @@ export async function POST(request: NextRequest) {
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
+        const errorText = await response.text()
         logger.error('Confluence API error response:', {
           status: response.status,
           statusText: response.statusText,
-          error: JSON.stringify(errorData, null, 2),
+          error: errorText,
         })
-        const errorMessage = errorData?.message || `Failed to create blog post (${response.status})`
-        return NextResponse.json({ error: errorMessage }, { status: response.status })
+        return NextResponse.json(
+          { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+          { status: response.status }
+        )
       }
 
       const data = await response.json()
@@ -253,14 +259,16 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
+      const errorText = await response.text()
       logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: JSON.stringify(errorData, null, 2),
+        error: errorText,
       })
-      const errorMessage = errorData?.message || `Failed to get blog post (${response.status})`
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
     const data = await response.json()
@@ -282,12 +290,12 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * Update a blog post
  */
-export async function PUT(request: NextRequest) {
+export const PUT = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -326,7 +334,10 @@ export async function PUT(request: NextRequest) {
     })
 
     if (!currentResponse.ok) {
-      throw new Error(`Failed to fetch current blog post: ${currentResponse.status}`)
+      const errorText = await currentResponse.text()
+      throw new Error(
+        parseAtlassianErrorMessage(currentResponse.status, currentResponse.statusText, errorText)
+      )
     }
 
     const currentPost = await currentResponse.json()
@@ -362,14 +373,16 @@ export async function PUT(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
+      const errorText = await response.text()
       logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: JSON.stringify(errorData, null, 2),
+        error: errorText,
       })
-      const errorMessage = errorData?.message || `Failed to update blog post (${response.status})`
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
     const data = await response.json()
@@ -381,12 +394,12 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * Delete a blog post
  */
-export async function DELETE(request: NextRequest) {
+export const DELETE = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -426,14 +439,16 @@ export async function DELETE(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
+      const errorText = await response.text()
       logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: JSON.stringify(errorData, null, 2),
+        error: errorText,
       })
-      const errorMessage = errorData?.message || `Failed to delete blog post (${response.status})`
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
     return NextResponse.json({ blogPostId, deleted: true })
@@ -444,4 +459,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

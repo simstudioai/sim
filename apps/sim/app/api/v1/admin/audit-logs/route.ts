@@ -21,7 +21,8 @@
 import { db } from '@sim/db'
 import { auditLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, desc, eq, gte, lte, type SQL } from 'drizzle-orm'
+import { and, count, desc } from 'drizzle-orm'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -34,63 +35,60 @@ import {
   parsePaginationParams,
   toAdminAuditLog,
 } from '@/app/api/v1/admin/types'
+import { buildFilterConditions } from '@/app/api/v1/audit-logs/query'
 
 const logger = createLogger('AdminAuditLogsAPI')
 
-export const GET = withAdminAuth(async (request) => {
-  const url = new URL(request.url)
-  const { limit, offset } = parsePaginationParams(url)
+export const GET = withRouteHandler(
+  withAdminAuth(async (request) => {
+    const url = new URL(request.url)
+    const { limit, offset } = parsePaginationParams(url)
 
-  const actionFilter = url.searchParams.get('action')
-  const resourceTypeFilter = url.searchParams.get('resourceType')
-  const resourceIdFilter = url.searchParams.get('resourceId')
-  const workspaceIdFilter = url.searchParams.get('workspaceId')
-  const actorIdFilter = url.searchParams.get('actorId')
-  const actorEmailFilter = url.searchParams.get('actorEmail')
-  const startDateFilter = url.searchParams.get('startDate')
-  const endDateFilter = url.searchParams.get('endDate')
+    const startDate = url.searchParams.get('startDate') || undefined
+    const endDate = url.searchParams.get('endDate') || undefined
 
-  if (startDateFilter && Number.isNaN(Date.parse(startDateFilter))) {
-    return badRequestResponse('Invalid startDate format. Use ISO 8601.')
-  }
-  if (endDateFilter && Number.isNaN(Date.parse(endDateFilter))) {
-    return badRequestResponse('Invalid endDate format. Use ISO 8601.')
-  }
+    if (startDate && Number.isNaN(Date.parse(startDate))) {
+      return badRequestResponse('Invalid startDate format. Use ISO 8601.')
+    }
+    if (endDate && Number.isNaN(Date.parse(endDate))) {
+      return badRequestResponse('Invalid endDate format. Use ISO 8601.')
+    }
 
-  try {
-    const conditions: SQL<unknown>[] = []
+    try {
+      const conditions = buildFilterConditions({
+        action: url.searchParams.get('action') || undefined,
+        resourceType: url.searchParams.get('resourceType') || undefined,
+        resourceId: url.searchParams.get('resourceId') || undefined,
+        workspaceId: url.searchParams.get('workspaceId') || undefined,
+        actorId: url.searchParams.get('actorId') || undefined,
+        actorEmail: url.searchParams.get('actorEmail') || undefined,
+        startDate,
+        endDate,
+      })
 
-    if (actionFilter) conditions.push(eq(auditLog.action, actionFilter))
-    if (resourceTypeFilter) conditions.push(eq(auditLog.resourceType, resourceTypeFilter))
-    if (resourceIdFilter) conditions.push(eq(auditLog.resourceId, resourceIdFilter))
-    if (workspaceIdFilter) conditions.push(eq(auditLog.workspaceId, workspaceIdFilter))
-    if (actorIdFilter) conditions.push(eq(auditLog.actorId, actorIdFilter))
-    if (actorEmailFilter) conditions.push(eq(auditLog.actorEmail, actorEmailFilter))
-    if (startDateFilter) conditions.push(gte(auditLog.createdAt, new Date(startDateFilter)))
-    if (endDateFilter) conditions.push(lte(auditLog.createdAt, new Date(endDateFilter)))
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+      const [countResult, logs] = await Promise.all([
+        db.select({ total: count() }).from(auditLog).where(whereClause),
+        db
+          .select()
+          .from(auditLog)
+          .where(whereClause)
+          .orderBy(desc(auditLog.createdAt))
+          .limit(limit)
+          .offset(offset),
+      ])
 
-    const [countResult, logs] = await Promise.all([
-      db.select({ total: count() }).from(auditLog).where(whereClause),
-      db
-        .select()
-        .from(auditLog)
-        .where(whereClause)
-        .orderBy(desc(auditLog.createdAt))
-        .limit(limit)
-        .offset(offset),
-    ])
+      const total = countResult[0].total
+      const data: AdminAuditLog[] = logs.map(toAdminAuditLog)
+      const pagination = createPaginationMeta(total, limit, offset)
 
-    const total = countResult[0].total
-    const data: AdminAuditLog[] = logs.map(toAdminAuditLog)
-    const pagination = createPaginationMeta(total, limit, offset)
+      logger.info(`Admin API: Listed ${data.length} audit logs (total: ${total})`)
 
-    logger.info(`Admin API: Listed ${data.length} audit logs (total: ${total})`)
-
-    return listResponse(data, pagination)
-  } catch (error) {
-    logger.error('Admin API: Failed to list audit logs', { error })
-    return internalErrorResponse('Failed to list audit logs')
-  }
-})
+      return listResponse(data, pagination)
+    } catch (error) {
+      logger.error('Admin API: Failed to list audit logs', { error })
+      return internalErrorResponse('Failed to list audit logs')
+    }
+  })
+)

@@ -94,17 +94,6 @@ export const hubspotWebhookTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_webhook',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_webhook',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',

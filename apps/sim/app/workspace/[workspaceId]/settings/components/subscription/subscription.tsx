@@ -34,7 +34,6 @@ import {
   getPlanTierDollars,
   isEnterprise,
   isFree,
-  isOrgPlan,
   isPaid,
   isPro,
   isTeam,
@@ -46,7 +45,6 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   CreditBalance,
@@ -272,7 +270,7 @@ export function Subscription() {
     data: subscriptionData,
     isLoading: isSubscriptionLoading,
     refetch: refetchSubscription,
-  } = useSubscriptionData()
+  } = useSubscriptionData({ includeOrg: true })
   const { data: usageLimitResponse, isLoading: isUsageLimitLoading } = useUsageLimitData()
   const { data: workspaceData, isLoading: isWorkspaceLoading } = useWorkspaceSettings(workspaceId)
   const updateWorkspaceMutation = useUpdateWorkspaceSettings()
@@ -280,9 +278,12 @@ export function Subscription() {
   const { data: orgsData } = useOrganizations()
   const activeOrganization = orgsData?.activeOrganization
   const activeOrgId = activeOrganization?.id
+  const workspaceOrganizationId = workspaceData?.settings?.workspace?.organizationId ?? null
+  const billingOrganizationId =
+    workspaceOrganizationId ?? subscriptionData?.data?.organization?.id ?? activeOrgId ?? null
 
   const { data: organizationBillingData, isLoading: isOrgBillingLoading } = useOrganizationBilling(
-    activeOrgId || ''
+    billingOrganizationId || ''
   )
 
   const openBillingPortal = useOpenBillingPortal()
@@ -294,12 +295,12 @@ export function Subscription() {
   const usageLimitRef = useRef<UsageLimitRef | null>(null)
   const hasInitializedInterval = useRef(false)
 
-  const hasOrgPlan = isOrgPlan(subscriptionData?.data?.plan)
+  const hasOrgScopedSubscription = Boolean(subscriptionData?.data?.isOrgScoped)
   const isLoading =
     isSubscriptionLoading ||
     isUsageLimitLoading ||
     isWorkspaceLoading ||
-    (hasOrgPlan && isOrgBillingLoading)
+    (hasOrgScopedSubscription && isOrgBillingLoading)
 
   const isCancelledAtPeriodEnd = subscriptionData?.data?.cancelAtPeriodEnd === true
 
@@ -311,6 +312,12 @@ export function Subscription() {
     isPaid:
       isPaid(subscriptionData?.data?.plan) &&
       hasPaidSubscriptionStatus(subscriptionData?.data?.status),
+    /**
+     * True when the subscription is attached to an org (regardless of plan
+     * name). Drives routing of usage-limit edits and whether we show pooled
+     * or personal usage.
+     */
+    isOrgScoped: Boolean(subscriptionData?.data?.isOrgScoped),
     plan: subscriptionData?.data?.plan || 'free',
     status: subscriptionData?.data?.status || 'inactive',
     seats: getEffectiveSeats(subscriptionData?.data),
@@ -338,6 +345,10 @@ export function Subscription() {
   const isCritical = isBlocked || usage.percentUsed >= USAGE_THRESHOLDS.CRITICAL
 
   const billedAccountUserId = workspaceData?.settings?.workspace?.billedAccountUserId ?? null
+  const workspaceMode = workspaceData?.settings?.workspace?.workspaceMode ?? null
+  const isOrganizationWorkspace =
+    workspaceData?.settings?.workspace?.organizationId != null && workspaceMode === 'organization'
+  const isGrandfatheredSharedWorkspace = workspaceMode === 'grandfathered_shared'
   const workspaceAdmins: WorkspaceAdmin[] =
     workspaceData?.permissions?.users?.filter(
       (user: WorkspaceAdmin) => user.permissionType === 'admin'
@@ -360,20 +371,17 @@ export function Subscription() {
     }
   }, [subscriptionData?.data?.billingInterval])
 
-  const userRole = getUserRole(activeOrganization, session?.user?.email)
+  const userRole = subscriptionData?.data?.organization?.role ?? 'member'
   const isTeamAdmin = ['owner', 'admin'].includes(userRole)
+  const shouldUseOrganizationBillingContext = subscription.isOrgScoped && isTeamAdmin
 
   const planIncludedAmount =
-    (subscription.isTeam || subscription.isEnterprise) &&
-    isTeamAdmin &&
-    organizationBillingData?.data
+    subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
       ? organizationBillingData.data.minimumBillingAmount
       : getPlanTierCredits(subscription.plan) / CREDIT_MULTIPLIER
 
   const effectiveUsageLimit =
-    (subscription.isTeam || subscription.isEnterprise) &&
-    isTeamAdmin &&
-    organizationBillingData?.data
+    subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
       ? organizationBillingData.data.totalUsageLimit
       : usageLimitData.currentLimit || usage.limit
 
@@ -381,8 +389,7 @@ export function Subscription() {
     subscription.isPaid && planIncludedAmount > 0 && effectiveUsageLimit > planIncludedAmount
 
   const effectiveCurrentUsage =
-    (subscription.isTeam || subscription.isEnterprise) &&
-    organizationBillingData?.data?.totalCurrentUsage != null
+    subscription.isOrgScoped && organizationBillingData?.data?.totalCurrentUsage != null
       ? organizationBillingData.data.totalCurrentUsage
       : usage.current
 
@@ -390,23 +397,26 @@ export function Subscription() {
 
   const handleToggleOnDemand = useCallback(async () => {
     try {
-      const isOrgContext =
-        (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin && activeOrgId
+      if (shouldUseOrganizationBillingContext && !billingOrganizationId) {
+        throw new Error(
+          'Organization billing context is unavailable. Please refresh and try again.'
+        )
+      }
 
       if (isOnDemandActive) {
         if (!canDisableOnDemand) return
-        if (isOrgContext) {
+        if (shouldUseOrganizationBillingContext) {
           await updateOrgLimit.mutateAsync({
-            organizationId: activeOrgId!,
+            organizationId: billingOrganizationId!,
             limit: planIncludedAmount,
           })
         } else {
           await updateUserLimit.mutateAsync({ limit: planIncludedAmount })
         }
       } else {
-        if (isOrgContext) {
+        if (shouldUseOrganizationBillingContext) {
           await updateOrgLimit.mutateAsync({
-            organizationId: activeOrgId!,
+            organizationId: billingOrganizationId!,
             limit: ON_DEMAND_UNLIMITED,
           })
         } else {
@@ -420,10 +430,8 @@ export function Subscription() {
   }, [
     isOnDemandActive,
     canDisableOnDemand,
-    subscription.isTeam,
-    subscription.isEnterprise,
-    isTeamAdmin,
-    activeOrgId,
+    shouldUseOrganizationBillingContext,
+    billingOrganizationId,
     planIncludedAmount,
     logger,
   ])
@@ -435,6 +443,7 @@ export function Subscription() {
       isTeam: subscription.isTeam,
       isEnterprise: subscription.isEnterprise,
       isPaid: subscription.isPaid,
+      isOrgScoped: subscription.isOrgScoped,
       plan: subscription.plan || 'free',
       status: subscription.status || 'inactive',
     },
@@ -448,6 +457,7 @@ export function Subscription() {
       isTeam: subscription.isTeam,
       isEnterprise: subscription.isEnterprise,
       isPaid: subscription.isPaid,
+      isOrgScoped: subscription.isOrgScoped,
       plan: subscription.plan || 'free',
       status: subscription.status || 'inactive',
     },
@@ -502,11 +512,15 @@ export function Subscription() {
       return
     }
     if (isBlocked) {
-      const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
+      const context = subscription.isOrgScoped ? 'organization' : 'user'
+      if (context === 'organization' && !billingOrganizationId) {
+        alert('Organization billing context is unavailable. Please refresh and try again.')
+        return
+      }
       openBillingPortal.mutate(
         {
           context,
-          organizationId: activeOrgId,
+          organizationId: billingOrganizationId ?? undefined,
           returnUrl: `${getBaseUrl()}/workspace?billing=updated`,
         },
         {
@@ -529,9 +543,8 @@ export function Subscription() {
     isDispute,
     isBlocked,
     subscription.isFree,
-    subscription.isTeam,
-    subscription.isEnterprise,
-    activeOrgId,
+    subscription.isOrgScoped,
+    billingOrganizationId,
     doUpgrade,
     logger,
   ])
@@ -591,13 +604,12 @@ export function Subscription() {
                 : undefined
           }
           current={
-            (subscription.isTeam || subscription.isEnterprise) &&
-            organizationBillingData?.data?.totalCurrentUsage != null
+            subscription.isOrgScoped && organizationBillingData?.data?.totalCurrentUsage != null
               ? organizationBillingData.data.totalCurrentUsage
               : usage.current
           }
           limit={
-            subscription.isEnterprise || subscription.isTeam
+            subscription.isOrgScoped
               ? organizationBillingData?.data?.totalUsageLimit
               : !subscription.isFree &&
                   (permissions.canEditUsageLimit || permissions.showTeamMemberView)
@@ -612,29 +624,21 @@ export function Subscription() {
               <UsageLimit
                 ref={usageLimitRef}
                 currentLimit={
-                  (subscription.isTeam || subscription.isEnterprise) &&
-                  isTeamAdmin &&
-                  organizationBillingData?.data
+                  subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
                     ? organizationBillingData.data.totalUsageLimit
                     : usageLimitData.currentLimit || usage.limit
                 }
                 currentUsage={usage.current}
                 canEdit={permissions.canEditUsageLimit}
                 minimumLimit={
-                  (subscription.isTeam || subscription.isEnterprise) &&
-                  isTeamAdmin &&
-                  organizationBillingData?.data
+                  subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
                     ? organizationBillingData.data.minimumBillingAmount
                     : usageLimitData.minimumLimit
                 }
-                context={
-                  (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin
-                    ? 'organization'
-                    : 'user'
-                }
+                context={shouldUseOrganizationBillingContext ? 'organization' : 'user'}
                 organizationId={
-                  (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin
-                    ? activeOrgId
+                  shouldUseOrganizationBillingContext
+                    ? (billingOrganizationId ?? undefined)
                     : undefined
                 }
                 onLimitUpdated={() => logger.info('Usage limit updated')}
@@ -894,7 +898,7 @@ export function Subscription() {
         onGetForTeam={() => {
           setManagePlanModalOpen(false)
           if (subscription.isTeam) {
-            window.location.href = `/workspace/${workspaceId}/settings/team`
+            window.location.href = `/workspace/${workspaceId}/settings/organization`
           } else {
             setTeamModalOpen(true)
           }
@@ -905,8 +909,17 @@ export function Subscription() {
           setManagePlanModalOpen(false)
           if (!betterAuthSubscription.cancel) return
           try {
-            const isOrgSub = (subscription.isTeam || subscription.isEnterprise) && activeOrgId
-            const referenceId = isOrgSub ? activeOrgId : session?.user?.id || ''
+            const isOrgSub = subscription.isOrgScoped
+            const referenceId = isOrgSub
+              ? (() => {
+                  if (!billingOrganizationId) {
+                    throw new Error(
+                      'Organization billing context is unavailable. Please refresh and try again.'
+                    )
+                  }
+                  return billingOrganizationId
+                })()
+              : session?.user?.id || ''
             const returnUrl = getBaseUrl() + window.location.pathname
             await betterAuthSubscription.cancel({ returnUrl, referenceId })
           } catch (e) {
@@ -917,8 +930,17 @@ export function Subscription() {
         onRestore={async () => {
           if (!betterAuthSubscription.restore) return
           try {
-            const isOrgSub = (subscription.isTeam || subscription.isEnterprise) && activeOrgId
-            const referenceId = isOrgSub ? activeOrgId : session?.user?.id || ''
+            const isOrgSub = subscription.isOrgScoped
+            const referenceId = isOrgSub
+              ? (() => {
+                  if (!billingOrganizationId) {
+                    throw new Error(
+                      'Organization billing context is unavailable. Please refresh and try again.'
+                    )
+                  }
+                  return billingOrganizationId
+                })()
+              : session?.user?.id || ''
             await betterAuthSubscription.restore({ referenceId })
             await refetchSubscription()
             setManagePlanModalOpen(false)
@@ -937,9 +959,7 @@ export function Subscription() {
               <CreditBalance
                 balance={subscriptionData?.data?.creditBalance ?? 0}
                 canPurchase={hasUsablePaidAccess && permissions.canEditUsageLimit}
-                entityType={
-                  subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
-                }
+                entityType={subscription.isOrgScoped ? 'organization' : 'user'}
                 isLoading={isLoading}
                 onPurchaseComplete={() => refetchSubscription()}
               />
@@ -967,44 +987,94 @@ export function Subscription() {
           {subscription.isPaid &&
             !permissions.showTeamMemberView &&
             !permissions.isEnterpriseMember && (
-              <div className='flex items-center justify-between gap-4'>
-                <Label>Invoices</Label>
-                <Button
-                  variant='active'
-                  disabled={openBillingPortal.isPending}
-                  onClick={() => {
-                    const portalWindow = window.open('', '_blank')
-                    const context =
-                      subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
-                    openBillingPortal.mutate(
-                      {
-                        context,
-                        organizationId: activeOrgId,
-                        returnUrl: window.location.href,
-                      },
-                      {
-                        onSuccess: (data) => {
-                          if (portalWindow) {
-                            portalWindow.location.href = data.url
-                          } else {
-                            window.location.href = data.url
-                          }
-                        },
-                        onError: (error) => {
-                          portalWindow?.close()
-                          logger.error('Failed to open billing portal', { error })
-                          alert(error.message)
-                        },
+              <>
+                <div className='flex items-center justify-between gap-4'>
+                  <Label>Payment method</Label>
+                  <Button
+                    variant='active'
+                    disabled={openBillingPortal.isPending}
+                    onClick={() => {
+                      const portalWindow = window.open('', '_blank')
+                      const context = subscription.isOrgScoped ? 'organization' : 'user'
+                      if (context === 'organization' && !billingOrganizationId) {
+                        portalWindow?.close()
+                        alert(
+                          'Organization billing context is unavailable. Please refresh and try again.'
+                        )
+                        return
                       }
-                    )
-                  }}
-                >
-                  View Invoices
-                </Button>
-              </div>
+                      openBillingPortal.mutate(
+                        {
+                          context,
+                          organizationId: billingOrganizationId ?? undefined,
+                          returnUrl: window.location.href,
+                        },
+                        {
+                          onSuccess: (data) => {
+                            if (portalWindow) {
+                              portalWindow.location.href = data.url
+                            } else {
+                              window.location.href = data.url
+                            }
+                          },
+                          onError: (error) => {
+                            portalWindow?.close()
+                            logger.error('Failed to open billing portal', { error })
+                            alert(error.message)
+                          },
+                        }
+                      )
+                    }}
+                  >
+                    Manage in Stripe
+                  </Button>
+                </div>
+
+                <div className='flex items-center justify-between gap-4'>
+                  <Label>Invoices</Label>
+                  <Button
+                    variant='active'
+                    disabled={openBillingPortal.isPending}
+                    onClick={() => {
+                      const portalWindow = window.open('', '_blank')
+                      const context = subscription.isOrgScoped ? 'organization' : 'user'
+                      if (context === 'organization' && !billingOrganizationId) {
+                        portalWindow?.close()
+                        alert(
+                          'Organization billing context is unavailable. Please refresh and try again.'
+                        )
+                        return
+                      }
+                      openBillingPortal.mutate(
+                        {
+                          context,
+                          organizationId: billingOrganizationId ?? undefined,
+                          returnUrl: window.location.href,
+                        },
+                        {
+                          onSuccess: (data) => {
+                            if (portalWindow) {
+                              portalWindow.location.href = data.url
+                            } else {
+                              window.location.href = data.url
+                            }
+                          },
+                          onError: (error) => {
+                            portalWindow?.close()
+                            logger.error('Failed to open billing portal', { error })
+                            alert(error.message)
+                          },
+                        }
+                      )
+                    }}
+                  >
+                    View Invoices
+                  </Button>
+                </div>
+              </>
             )}
 
-          {!isLoading && isTeamAdmin && (
+          {!isLoading && isTeamAdmin && isGrandfatheredSharedWorkspace && (
             <div className='flex items-center justify-between gap-4'>
               <div className='flex items-center gap-1.5'>
                 <Label htmlFor='billed-account'>Billed Account</Label>

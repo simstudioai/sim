@@ -1,8 +1,9 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   FileConflictError,
   getWorkspaceFile,
@@ -28,7 +29,7 @@ const ListFilesSchema = z.object({
 })
 
 /** GET /api/v1/files — List all files in a workspace. */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -82,10 +83,10 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error listing files:`, error)
     return NextResponse.json({ error: 'Failed to list files' }, { status: 500 })
   }
-}
+})
 
 /** POST /api/v1/files — Upload a file to a workspace. */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -155,6 +156,7 @@ export async function POST(request: NextRequest) {
       resourceId: userFile.id,
       resourceName: file.name,
       description: `Uploaded file "${file.name}" via API`,
+      metadata: { fileSize: file.size, fileType: file.type || 'application/octet-stream' },
       request,
     })
 
@@ -193,4 +195,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[${requestId}] Error uploading file:`, error)
     return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 })
   }
-}
+})

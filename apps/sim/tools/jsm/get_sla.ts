@@ -13,8 +13,6 @@ export const jsmGetSlaTool: ToolConfig<JsmGetSlaParams, JsmGetSlaResponse> = {
     provider: 'jira',
   },
 
-  errorExtractor: 'atlassian-errors',
-
   params: {
     accessToken: {
       type: 'string',

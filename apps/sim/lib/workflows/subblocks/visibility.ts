@@ -284,8 +284,20 @@ export function resolveDependencyValue(
 
   const { basicValue, advancedValue } = getCanonicalValues(group, values)
   const mode = resolveCanonicalMode(group, values, overrides)
-  if (mode === 'advanced') return advancedValue ?? basicValue
-  return basicValue ?? advancedValue
+  const canonicalResult =
+    mode === 'advanced' ? (advancedValue ?? basicValue) : (basicValue ?? advancedValue)
+
+  if (canonicalResult != null) return canonicalResult
+
+  for (const [memberId, memberCanonicalId] of Object.entries(
+    canonicalIndex.canonicalIdBySubBlockId
+  )) {
+    if (memberCanonicalId === canonicalId && isNonEmptyValue(values[memberId])) {
+      return values[memberId]
+    }
+  }
+
+  return values[dependencyKey]
 }
 
 /**

@@ -17,7 +17,7 @@ import { db } from '@sim/db'
 import { webhook as webhookTable, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
+import { generateId } from '@sim/utils/id'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import type {
   ColumnDefinition,

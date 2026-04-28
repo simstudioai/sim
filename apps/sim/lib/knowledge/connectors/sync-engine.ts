@@ -7,12 +7,11 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
-import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
-import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import {
   hardDeleteDocuments,
@@ -180,42 +179,10 @@ export async function dispatchSync(
       { tags }
     )
     logger.info(`Dispatched connector sync to Trigger.dev`, { connectorId, requestId })
-  } else if (isBullMQEnabled()) {
-    const connectorRows = await db
-      .select({
-        workspaceId: knowledgeBase.workspaceId,
-        userId: knowledgeBase.userId,
-      })
-      .from(knowledgeConnector)
-      .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
-      .where(eq(knowledgeConnector.id, connectorId))
-      .limit(1)
-
-    const workspaceId = connectorRows[0]?.workspaceId
-    const userId = connectorRows[0]?.userId
-    if (!workspaceId || !userId) {
-      throw new Error(`No workspace found for connector ${connectorId}`)
-    }
-
-    await enqueueWorkspaceDispatch({
-      workspaceId,
-      lane: 'knowledge',
-      queueName: 'knowledge-connector-sync',
-      bullmqJobName: 'knowledge-connector-sync',
-      bullmqPayload: createBullMQJobData({
-        connectorId,
-        fullSync: options?.fullSync,
-        requestId,
-      }),
-      metadata: {
-        userId,
-      },
-    })
-    logger.info(`Dispatched connector sync to BullMQ`, { connectorId, requestId })
   } else {
     executeSync(connectorId, { fullSync: options?.fullSync }).catch((error) => {
       logger.error(`Sync failed for connector ${connectorId}`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         requestId,
       })
     })
@@ -601,7 +568,7 @@ export async function executeSync(
           logger.warn('Failed to enqueue batch for processing — will retry on next sync', {
             connectorId,
             count: batchDocs.length,
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           })
         }
       }
@@ -711,7 +678,7 @@ export async function executeSync(
         logger.warn('Failed to enqueue stuck documents for reprocessing', {
           connectorId,
           count: stuckDocs.length,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     }
@@ -778,7 +745,7 @@ export async function executeSync(
       } catch (cleanupError) {
         logger.error('Failed to clean up after connector deletion', {
           connectorId,
-          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+          error: toError(cleanupError).message,
         })
       }
 
@@ -787,7 +754,7 @@ export async function executeSync(
       return result
     }
 
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
     logger.error('Sync failed', { connectorId, error: errorMessage })
 
     try {
@@ -828,7 +795,7 @@ export async function executeSync(
     } catch (recoveryError) {
       logger.error('Failed to record sync failure', {
         connectorId,
-        error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+        error: toError(recoveryError).message,
       })
     }
 
@@ -850,7 +817,7 @@ export async function executeSync(
       } catch (finallyError) {
         logger.warn('Failed to reset syncing status in finally block', {
           connectorId,
-          error: finallyError instanceof Error ? finallyError.message : String(finallyError),
+          error: toError(finallyError).message,
         })
       }
     }
@@ -1035,7 +1002,7 @@ async function updateDocument(
     } catch (error) {
       logger.warn('Failed to delete old storage file', {
         documentId: existingDocId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }

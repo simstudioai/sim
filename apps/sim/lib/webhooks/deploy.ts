@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
 import { webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { generateShortId } from '@/lib/core/utils/uuid'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
@@ -13,6 +13,7 @@ import {
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
+import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -150,7 +151,6 @@ function getConfigValue(block: BlockState, subBlock: SubBlockConfig): unknown {
 
   if (
     (fieldValue === null || fieldValue === undefined || fieldValue === '') &&
-    Boolean(subBlock.required) &&
     subBlock.defaultValue !== undefined
   ) {
     return subBlock.defaultValue
@@ -182,41 +182,37 @@ function buildProviderConfig(
     Object.entries(block.subBlocks || {}).map(([key, value]) => [key, { value: value.value }])
   )
 
-  // Track which canonical groups already have a value so we don't flag the
-  // other member of a basic/advanced pair as missing.
-  const canonicalHasValue = new Set<string>()
-  const canonicalReportedMissing = new Set<string>()
+  const canonicalIndex = buildCanonicalIndex(triggerDef.subBlocks)
+  const satisfiedCanonicalIds = new Set<string>()
+  const filledSubBlockIds = new Set<string>()
 
-  const triggerSubBlocks = triggerDef.subBlocks.filter(
+  const relevantSubBlocks = triggerDef.subBlocks.filter(
     (subBlock) =>
       (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') &&
       !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)
   )
 
-  // First pass: collect values, resolving canonical pairs to a single key
-  for (const subBlock of triggerSubBlocks) {
+  // First pass: populate providerConfig, clear stale baseConfig entries, and track which
+  // subblocks and canonical groups have a value.
+  for (const subBlock of relevantSubBlocks) {
     const valueToUse = getConfigValue(block, subBlock)
     if (valueToUse !== null && valueToUse !== undefined && valueToUse !== '') {
       providerConfig[subBlock.id] = valueToUse
-      if (subBlock.canonicalParamId) {
-        // Also store under the canonical key so consumers can read one consistent name
-        if (!canonicalHasValue.has(subBlock.canonicalParamId)) {
-          providerConfig[subBlock.canonicalParamId] = valueToUse
-        }
-        canonicalHasValue.add(subBlock.canonicalParamId)
-      }
+      filledSubBlockIds.add(subBlock.id)
+      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
+      if (canonicalId) satisfiedCanonicalIds.add(canonicalId)
+    } else {
+      delete providerConfig[subBlock.id]
     }
   }
 
-  // Second pass: check required fields, skipping canonical pairs that already have a value
-  for (const subBlock of triggerSubBlocks) {
-    const hasValue = providerConfig[subBlock.id] !== undefined
-    if (!hasValue && isFieldRequired(subBlock, subBlockValues)) {
-      if (subBlock.canonicalParamId) {
-        if (canonicalHasValue.has(subBlock.canonicalParamId)) continue
-        if (canonicalReportedMissing.has(subBlock.canonicalParamId)) continue
-        canonicalReportedMissing.add(subBlock.canonicalParamId)
-      }
+  // Second pass: validate required fields. Skip subblocks that are filled or whose canonical
+  // group is satisfied by another member.
+  for (const subBlock of relevantSubBlocks) {
+    if (filledSubBlockIds.has(subBlock.id)) continue
+    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
+    if (canonicalId && satisfiedCanonicalIds.has(canonicalId)) continue
+    if (isFieldRequired(subBlock, subBlockValues)) {
       missingFields.push(subBlock.title || subBlock.id)
     }
   }

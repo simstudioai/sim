@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CreatorProfileByIdAPI')
 
@@ -47,154 +48,161 @@ async function hasPermission(userId: string, profile: any): Promise<boolean> {
 }
 
 // GET /api/creators/[id] - Get a specific creator profile
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = generateRequestId()
-  const { id } = await params
+export const GET = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const requestId = generateRequestId()
+    const { id } = await params
 
-  try {
-    const profile = await db
-      .select()
-      .from(templateCreators)
-      .where(eq(templateCreators.id, id))
-      .limit(1)
+    try {
+      const profile = await db
+        .select()
+        .from(templateCreators)
+        .where(eq(templateCreators.id, id))
+        .limit(1)
 
-    if (profile.length === 0) {
-      logger.warn(`[${requestId}] Profile not found: ${id}`)
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+      if (profile.length === 0) {
+        logger.warn(`[${requestId}] Profile not found: ${id}`)
+        return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+      }
+
+      logger.info(`[${requestId}] Retrieved creator profile: ${id}`)
+      return NextResponse.json({ data: profile[0] })
+    } catch (error: any) {
+      logger.error(`[${requestId}] Error fetching creator profile: ${id}`, error)
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
-
-    logger.info(`[${requestId}] Retrieved creator profile: ${id}`)
-    return NextResponse.json({ data: profile[0] })
-  } catch (error: any) {
-    logger.error(`[${requestId}] Error fetching creator profile: ${id}`, error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+)
 
 // PUT /api/creators/[id] - Update a creator profile
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = generateRequestId()
-  const { id } = await params
+export const PUT = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const requestId = generateRequestId()
+    const { id } = await params
 
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized update attempt for profile: ${id}`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    try {
+      const session = await getSession()
+      if (!session?.user?.id) {
+        logger.warn(`[${requestId}] Unauthorized update attempt for profile: ${id}`)
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
 
-    const body = await request.json()
-    const data = UpdateCreatorProfileSchema.parse(body)
+      const body = await request.json()
+      const data = UpdateCreatorProfileSchema.parse(body)
 
-    // Check if profile exists
-    const existing = await db
-      .select()
-      .from(templateCreators)
-      .where(eq(templateCreators.id, id))
-      .limit(1)
+      // Check if profile exists
+      const existing = await db
+        .select()
+        .from(templateCreators)
+        .where(eq(templateCreators.id, id))
+        .limit(1)
 
-    if (existing.length === 0) {
-      logger.warn(`[${requestId}] Profile not found for update: ${id}`)
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-    }
+      if (existing.length === 0) {
+        logger.warn(`[${requestId}] Profile not found for update: ${id}`)
+        return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+      }
 
-    // Verification changes require super user permission
-    if (data.verified !== undefined) {
-      const { verifyEffectiveSuperUser } = await import('@/lib/templates/permissions')
-      const { effectiveSuperUser } = await verifyEffectiveSuperUser(session.user.id)
-      if (!effectiveSuperUser) {
-        logger.warn(`[${requestId}] Non-super user attempted to change creator verification: ${id}`)
+      // Verification changes require super user permission
+      if (data.verified !== undefined) {
+        const { verifyEffectiveSuperUser } = await import('@/lib/templates/permissions')
+        const { effectiveSuperUser } = await verifyEffectiveSuperUser(session.user.id)
+        if (!effectiveSuperUser) {
+          logger.warn(
+            `[${requestId}] Non-super user attempted to change creator verification: ${id}`
+          )
+          return NextResponse.json(
+            { error: 'Only super users can change verification status' },
+            { status: 403 }
+          )
+        }
+      }
+
+      // For non-verified updates, check regular permissions
+      const hasNonVerifiedUpdates =
+        data.name !== undefined || data.profileImageUrl !== undefined || data.details !== undefined
+
+      if (hasNonVerifiedUpdates) {
+        const canEdit = await hasPermission(session.user.id, existing[0])
+        if (!canEdit) {
+          logger.warn(`[${requestId}] User denied permission to update profile: ${id}`)
+          return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+        }
+      }
+
+      const updateData: any = {
+        updatedAt: new Date(),
+      }
+
+      if (data.name !== undefined) updateData.name = data.name
+      if (data.profileImageUrl !== undefined) updateData.profileImageUrl = data.profileImageUrl
+      if (data.details !== undefined) updateData.details = data.details
+      if (data.verified !== undefined) updateData.verified = data.verified
+
+      const updated = await db
+        .update(templateCreators)
+        .set(updateData)
+        .where(eq(templateCreators.id, id))
+        .returning()
+
+      logger.info(`[${requestId}] Successfully updated creator profile: ${id}`)
+
+      return NextResponse.json({ data: updated[0] })
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        logger.warn(`[${requestId}] Invalid update data for profile: ${id}`, {
+          errors: error.errors,
+        })
         return NextResponse.json(
-          { error: 'Only super users can change verification status' },
-          { status: 403 }
+          { error: 'Invalid update data', details: error.errors },
+          { status: 400 }
         )
       }
+
+      logger.error(`[${requestId}] Error updating creator profile: ${id}`, error)
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
-
-    // For non-verified updates, check regular permissions
-    const hasNonVerifiedUpdates =
-      data.name !== undefined || data.profileImageUrl !== undefined || data.details !== undefined
-
-    if (hasNonVerifiedUpdates) {
-      const canEdit = await hasPermission(session.user.id, existing[0])
-      if (!canEdit) {
-        logger.warn(`[${requestId}] User denied permission to update profile: ${id}`)
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-      }
-    }
-
-    const updateData: any = {
-      updatedAt: new Date(),
-    }
-
-    if (data.name !== undefined) updateData.name = data.name
-    if (data.profileImageUrl !== undefined) updateData.profileImageUrl = data.profileImageUrl
-    if (data.details !== undefined) updateData.details = data.details
-    if (data.verified !== undefined) updateData.verified = data.verified
-
-    const updated = await db
-      .update(templateCreators)
-      .set(updateData)
-      .where(eq(templateCreators.id, id))
-      .returning()
-
-    logger.info(`[${requestId}] Successfully updated creator profile: ${id}`)
-
-    return NextResponse.json({ data: updated[0] })
-  } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid update data for profile: ${id}`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid update data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    logger.error(`[${requestId}] Error updating creator profile: ${id}`, error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+)
 
 // DELETE /api/creators/[id] - Delete a creator profile
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const requestId = generateRequestId()
-  const { id } = await params
+export const DELETE = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const requestId = generateRequestId()
+    const { id } = await params
 
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized delete attempt for profile: ${id}`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    try {
+      const session = await getSession()
+      if (!session?.user?.id) {
+        logger.warn(`[${requestId}] Unauthorized delete attempt for profile: ${id}`)
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      // Check if profile exists
+      const existing = await db
+        .select()
+        .from(templateCreators)
+        .where(eq(templateCreators.id, id))
+        .limit(1)
+
+      if (existing.length === 0) {
+        logger.warn(`[${requestId}] Profile not found for delete: ${id}`)
+        return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+      }
+
+      // Check permissions
+      const canDelete = await hasPermission(session.user.id, existing[0])
+      if (!canDelete) {
+        logger.warn(`[${requestId}] User denied permission to delete profile: ${id}`)
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      }
+
+      await db.delete(templateCreators).where(eq(templateCreators.id, id))
+
+      logger.info(`[${requestId}] Successfully deleted creator profile: ${id}`)
+      return NextResponse.json({ success: true })
+    } catch (error: any) {
+      logger.error(`[${requestId}] Error deleting creator profile: ${id}`, error)
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
-
-    // Check if profile exists
-    const existing = await db
-      .select()
-      .from(templateCreators)
-      .where(eq(templateCreators.id, id))
-      .limit(1)
-
-    if (existing.length === 0) {
-      logger.warn(`[${requestId}] Profile not found for delete: ${id}`)
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-    }
-
-    // Check permissions
-    const canDelete = await hasPermission(session.user.id, existing[0])
-    if (!canDelete) {
-      logger.warn(`[${requestId}] User denied permission to delete profile: ${id}`)
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
-
-    await db.delete(templateCreators).where(eq(templateCreators.id, id))
-
-    logger.info(`[${requestId}] Successfully deleted creator profile: ${id}`)
-    return NextResponse.json({ success: true })
-  } catch (error: any) {
-    logger.error(`[${requestId}] Error deleting creator profile: ${id}`, error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+)

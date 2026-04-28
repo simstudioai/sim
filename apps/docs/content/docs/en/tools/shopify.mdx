@@ -314,8 +314,8 @@ Cancel an order in your Shopify store
 | `orderId` | string | Yes | Order ID to cancel \(gid://shopify/Order/123456789\) |
 | `reason` | string | Yes | Cancellation reason \(CUSTOMER, DECLINED, FRAUD, INVENTORY, STAFF, OTHER\) |
 | `notifyCustomer` | boolean | No | Whether to notify the customer about the cancellation |
-| `refund` | boolean | No | Whether to refund the order |
-| `restock` | boolean | No | Whether to restock the inventory |
+| `restock` | boolean | Yes | Whether to restock the inventory committed to the order |
+| `refundMethod` | json | No | Optional refund method object, for example \{"originalPaymentMethodsRefund": true\} |
 | `staffNote` | string | No | A note about the cancellation for staff reference |
 
 #### Output

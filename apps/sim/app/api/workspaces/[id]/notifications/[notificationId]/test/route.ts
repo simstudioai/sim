@@ -1,7 +1,9 @@
-import { createHmac } from 'crypto'
 import { db } from '@sim/db'
 import { account, workspaceNotificationSubscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { hmacSha256Hex } from '@sim/security/hmac'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -13,7 +15,7 @@ import { getSession } from '@/lib/auth'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -34,9 +36,7 @@ interface SlackConfig {
 
 function generateSignature(secret: string, timestamp: number, body: string): string {
   const signatureBase = `${timestamp}.${body}`
-  const hmac = createHmac('sha256', secret)
-  hmac.update(signatureBase)
-  return hmac.digest('hex')
+  return hmacSha256Hex(signatureBase, secret)
 }
 
 function buildTestPayload(subscription: typeof workspaceNotificationSubscription.$inferSelect) {
@@ -159,7 +159,7 @@ async function testWebhook(subscription: typeof workspaceNotificationSubscriptio
     }
   } catch (error: unknown) {
     logger.warn('Webhook test failed', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return { success: false, error: 'Failed to deliver webhook' }
   }
@@ -273,13 +273,13 @@ async function testSlack(
     }
   } catch (error: unknown) {
     logger.warn('Slack test notification failed', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return { success: false, error: 'Failed to send Slack notification' }
   }
 }
 
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -336,4 +336,4 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     logger.error('Error testing notification', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

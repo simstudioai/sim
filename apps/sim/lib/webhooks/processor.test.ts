@@ -2,44 +2,30 @@
  * @vitest-environment node
  */
 
-import { createMockRequest } from '@sim/testing'
+import {
+  createMockRequest,
+  executionPreprocessingMock,
+  executionPreprocessingMockFns,
+  featureFlagsMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGenerateId,
-  mockPreprocessExecution,
-  mockEnqueue,
-  mockEnqueueWorkspaceDispatch,
-  mockGetJobQueue,
-  mockShouldExecuteInline,
-} = vi.hoisted(() => ({
-  mockGenerateId: vi.fn(),
-  mockPreprocessExecution: vi.fn(),
-  mockEnqueue: vi.fn(),
-  mockEnqueueWorkspaceDispatch: vi.fn(),
-  mockGetJobQueue: vi.fn(),
-  mockShouldExecuteInline: vi.fn(),
-}))
+const { mockGenerateId, mockEnqueue, mockGetJobQueue, mockShouldExecuteInline } = vi.hoisted(
+  () => ({
+    mockGenerateId: vi.fn(),
+    mockEnqueue: vi.fn(),
+    mockGetJobQueue: vi.fn(),
+    mockShouldExecuteInline: vi.fn(),
+  })
+)
+
+const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 
 vi.mock('@sim/db', () => ({
   db: {},
   webhook: {},
   workflow: {},
   workflowDeploymentVersion: {},
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  credentialSet: {},
-  subscription: {},
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -49,7 +35,7 @@ vi.mock('drizzle-orm', () => ({
   or: vi.fn(),
 }))
 
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/utils/id', () => ({
   generateId: mockGenerateId,
   generateShortId: vi.fn(() => 'mock-short-id'),
   isValidUuid: vi.fn((v: string) =>
@@ -68,20 +54,9 @@ vi.mock('@/lib/core/async-jobs', () => ({
   shouldExecuteInline: mockShouldExecuteInline,
 }))
 
-vi.mock('@/lib/core/bullmq', () => ({
-  isBullMQEnabled: vi.fn().mockReturnValue(true),
-  createBullMQJobData: vi.fn((payload: unknown, metadata?: unknown) => ({ payload, metadata })),
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
-vi.mock('@/lib/core/workspace-dispatch', () => ({
-  enqueueWorkspaceDispatch: mockEnqueueWorkspaceDispatch,
-}))
-
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isProd: false,
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
+vi.mock('@sim/security/compare', () => ({
   safeCompare: vi.fn().mockReturnValue(true),
 }))
 
@@ -89,9 +64,7 @@ vi.mock('@/lib/environment/utils', () => ({
   getEffectiveDecryptedEnv: vi.fn().mockResolvedValue({}),
 }))
 
-vi.mock('@/lib/execution/preprocessing', () => ({
-  preprocessExecution: mockPreprocessExecution,
-}))
+vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
 vi.mock('@/lib/webhooks/pending-verification', () => ({
   getPendingWebhookVerification: vi.fn(),
@@ -150,7 +123,6 @@ describe('webhook processor execution identity', () => {
       actorUserId: 'actor-user-1',
     })
     mockEnqueue.mockResolvedValue('job-1')
-    mockEnqueueWorkspaceDispatch.mockResolvedValue('job-1')
     mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
     mockShouldExecuteInline.mockReturnValue(false)
     mockGenerateId.mockReturnValue('generated-execution-id')
@@ -211,14 +183,16 @@ describe('webhook processor execution identity', () => {
     )
 
     expect(mockGenerateId).toHaveBeenCalledTimes(1)
-    expect(mockEnqueueWorkspaceDispatch).toHaveBeenCalledWith(
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'webhook-execution',
       expect.objectContaining({
-        id: 'generated-execution-id',
-        workspaceId: 'workspace-1',
-        lane: 'runtime',
-        queueName: 'webhook-execution',
+        workflowId: 'workflow-1',
+        provider: 'gmail',
+      }),
+      expect.objectContaining({
         metadata: expect.objectContaining({
           workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
           userId: 'actor-user-1',
           correlation: preprocessingResult.correlation,
         }),

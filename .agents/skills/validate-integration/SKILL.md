@@ -41,6 +41,20 @@ Fetch the official API docs for the service. This is the **source of truth** for
 - Pagination patterns (which param name, which response field)
 - Rate limits and error formats
 
+### Hard Rule: No Guessed Response Schemas
+
+If the official docs do not clearly show the response JSON shape for an endpoint, you MUST tell the user instead of guessing.
+
+- Do NOT assume field names from nearby endpoints
+- Do NOT infer nested JSON paths without evidence
+- Do NOT treat "likely" fields as confirmed outputs
+- Do NOT accept implementation guesses as valid just because they are defensive
+
+If a response schema is unknown, the validation must explicitly call that out and require:
+1. sample responses from the user,
+2. live test credentials for verification, or
+3. trimming the tool/block down to only documented fields.
+
 ## Step 3: Validate Tools
 
 For **every** tool file, check:
@@ -81,6 +95,7 @@ For **every** tool file, check:
 - [ ] All optional arrays use `?? []`
 - [ ] Error cases are handled: checks for missing/empty data and returns meaningful error
 - [ ] Does NOT do raw JSON dumps — extracts meaningful, individual fields
+- [ ] Every extracted field is backed by official docs or live-verified sample payloads
 
 ### Outputs
 - [ ] All output fields match what the API actually returns
@@ -267,6 +282,7 @@ After fixing, confirm:
 1. `bun run lint` passes with no fixes needed
 2. TypeScript compiles clean (no type errors)
 3. Re-read all modified files to verify fixes are correct
+4. Any remaining unknown response schemas were explicitly reported to the user instead of guessed
 
 ## Checklist Summary
 

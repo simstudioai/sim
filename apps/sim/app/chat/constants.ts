@@ -6,7 +6,7 @@ export const CHAT_ERROR_MESSAGES = {
   AUTH_REQUIRED_EMAIL: 'Please provide your email to access this chat.',
   CHAT_UNAVAILABLE: 'This chat is currently unavailable. Please try again later.',
   NO_CHAT_TRIGGER:
-    'No Chat trigger configured for this workflow. Add a Chat Trigger block to enable chat execution.',
+    'No Chat trigger configured for this workflow. Add a Chat Trigger block to enable chat.',
   USAGE_LIMIT_EXCEEDED: 'Usage limit exceeded. Please upgrade your plan to continue using chat.',
 } as const
 

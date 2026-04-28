@@ -1,19 +1,20 @@
 import { db } from '@sim/db'
 import { workflowCheckpoints, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getAccessibleCopilotChat } from '@/lib/copilot/chat-lifecycle'
+import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
+} from '@/lib/copilot/request/http'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isUuidV4 } from '@/executor/constants'
 
 const logger = createLogger('CheckpointRevertAPI')
@@ -26,7 +27,7 @@ const RevertCheckpointSchema = z.object({
  * POST /api/copilot/checkpoints/revert
  * Revert workflow to a specific checkpoint state
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const tracker = createRequestTracker()
 
   try {
@@ -155,4 +156,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[${tracker.requestId}] Error reverting to checkpoint:`, error)
     return createInternalServerErrorResponse('Failed to revert to checkpoint')
   }
-}
+})

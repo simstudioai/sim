@@ -42,6 +42,8 @@ export function invalidateDeploymentQueries(queryClient: QueryClient, workflowId
     queryClient.invalidateQueries({ queryKey: deploymentKeys.info(workflowId) }),
     queryClient.invalidateQueries({ queryKey: deploymentKeys.deployedState(workflowId) }),
     queryClient.invalidateQueries({ queryKey: deploymentKeys.versions(workflowId) }),
+    queryClient.invalidateQueries({ queryKey: deploymentKeys.chatStatus(workflowId) }),
+    queryClient.invalidateQueries({ queryKey: deploymentKeys.formStatus(workflowId) }),
   ])
 }
 

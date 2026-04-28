@@ -1257,6 +1257,96 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       return { id: issue.id, label: issue.name }
     },
   },
+  'monday.boards': {
+    key: 'monday.boards',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'monday.boards',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'monday.boards')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ boards: { id: string; name: string }[] }>(
+        '/api/tools/monday/boards',
+        {
+          method: 'POST',
+          body,
+        }
+      )
+      return (data.boards || []).map((board) => ({
+        id: board.id,
+        label: board.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'monday.boards')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ boards: { id: string; name: string }[] }>(
+        '/api/tools/monday/boards',
+        {
+          method: 'POST',
+          body,
+        }
+      )
+      const board = (data.boards || []).find((b) => b.id === detailId) ?? null
+      if (!board) return null
+      return { id: board.id, label: board.name }
+    },
+  },
+  'monday.groups': {
+    key: 'monday.groups',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'monday.groups',
+      context.oauthCredential ?? 'none',
+      context.boardId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.boardId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'monday.groups')
+      const body = JSON.stringify({
+        credential: credentialId,
+        boardId: context.boardId,
+        workflowId: context.workflowId,
+      })
+      const data = await fetchJson<{ groups: { id: string; name: string }[] }>(
+        '/api/tools/monday/groups',
+        {
+          method: 'POST',
+          body,
+        }
+      )
+      return (data.groups || []).map((group) => ({
+        id: group.id,
+        label: group.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'monday.groups')
+      if (!context.boardId) return null
+      const body = JSON.stringify({
+        credential: credentialId,
+        boardId: context.boardId,
+        workflowId: context.workflowId,
+      })
+      const data = await fetchJson<{ groups: { id: string; name: string }[] }>(
+        '/api/tools/monday/groups',
+        {
+          method: 'POST',
+          body,
+        }
+      )
+      const group = (data.groups || []).find((g) => g.id === detailId) ?? null
+      if (!group) return null
+      return { id: group.id, label: group.name }
+    },
+  },
   'linear.teams': {
     key: 'linear.teams',
     staleTime: SELECTOR_STALE,
@@ -1504,6 +1594,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       'microsoft.excel.sheets',
       context.oauthCredential ?? 'none',
       context.spreadsheetId ?? 'none',
+      context.driveId ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential && context.spreadsheetId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
@@ -1517,6 +1608,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
           searchParams: {
             credentialId,
             spreadsheetId: context.spreadsheetId,
+            driveId: context.driveId,
             workflowId: context.workflowId,
           },
         }
@@ -1527,6 +1619,54 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       }))
     },
   },
+  'microsoft.excel.drives': {
+    key: 'microsoft.excel.drives',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'microsoft.excel.drives',
+      context.oauthCredential ?? 'none',
+      context.siteId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.siteId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'microsoft.excel.drives')
+      if (!context.siteId) {
+        throw new Error('Missing site ID for microsoft.excel.drives selector')
+      }
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        siteId: context.siteId,
+      })
+      const data = await fetchJson<{ drives: { id: string; name: string }[] }>(
+        '/api/tools/microsoft_excel/drives',
+        { method: 'POST', body }
+      )
+      return (data.drives || []).map((drive) => ({
+        id: drive.id,
+        label: drive.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId || !context.siteId) return null
+      const credentialId = ensureCredential(context, 'microsoft.excel.drives')
+      const data = await fetchJson<{ drive: { id: string; name: string } }>(
+        '/api/tools/microsoft_excel/drives',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            credential: credentialId,
+            workflowId: context.workflowId,
+            siteId: context.siteId,
+            driveId: detailId,
+          }),
+        }
+      )
+      if (!data.drive) return null
+      return { id: data.drive.id, label: data.drive.name }
+    },
+  },
   'microsoft.excel': {
     key: 'microsoft.excel',
     staleTime: SELECTOR_STALE,
@@ -1534,6 +1674,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       'selectors',
       'microsoft.excel',
       context.oauthCredential ?? 'none',
+      context.driveId ?? 'none',
       search ?? '',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential),
@@ -1545,6 +1686,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
           searchParams: {
             credentialId,
             query: search,
+            driveId: context.driveId,
             workflowId: context.workflowId,
           },
         }

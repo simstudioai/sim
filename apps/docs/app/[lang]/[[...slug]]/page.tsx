@@ -17,9 +17,10 @@ import { ResponseSection } from '@/components/ui/response-section'
 import { i18n } from '@/lib/i18n'
 import { getApiSpecContent, openapi } from '@/lib/openapi'
 import { type PageData, source } from '@/lib/source'
+import { DOCS_BASE_URL } from '@/lib/urls'
 
 const SUPPORTED_LANGUAGES: Set<string> = new Set(i18n.languages)
-const BASE_URL = 'https://docs.sim.ai'
+const BASE_URL = DOCS_BASE_URL
 
 const OG_LOCALE_MAP: Record<string, string> = {
   en: 'en_US',
@@ -280,12 +281,12 @@ export async function generateMetadata(props: {
     title: data.title,
     description:
       data.description ||
-      'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce.',
+      'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents.',
     keywords: [
       'AI agents',
-      'agentic workforce',
-      'AI agent platform',
-      'agentic workflows',
+      'AI workspace',
+      'AI agent builder',
+      'build AI agents',
       'LLM orchestration',
       'AI automation',
       'knowledge base',
@@ -300,7 +301,7 @@ export async function generateMetadata(props: {
       title: data.title,
       description:
         data.description ||
-        'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce.',
+        'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents.',
       url: fullUrl,
       siteName: 'Sim Documentation',
       type: 'article',
@@ -322,7 +323,7 @@ export async function generateMetadata(props: {
       title: data.title,
       description:
         data.description ||
-        'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce.',
+        'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents.',
       images: [ogImageUrl],
       creator: '@simdotai',
       site: '@simdotai',

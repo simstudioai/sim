@@ -399,7 +399,6 @@ describe.concurrent('Blocks Module', () => {
         'mcp-dynamic-args',
         'input-format',
         'response-format',
-        'trigger-save',
         'file-upload',
         'input-mapping',
         'variables-input',
@@ -412,6 +411,7 @@ describe.concurrent('Blocks Module', () => {
         'filter-builder',
         'sort-builder',
         'skill-input',
+        'modal',
       ]
 
       const blocks = getAllBlocks()

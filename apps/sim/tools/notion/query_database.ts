@@ -1,3 +1,4 @@
+import { toError } from '@sim/utils/errors'
 import type { NotionQueryDatabaseParams, NotionResponse } from '@/tools/notion/types'
 import { DATABASE_QUERY_RESULTS_OUTPUT, PAGINATION_OUTPUT_PROPERTIES } from '@/tools/notion/types'
 import { extractTitle, formatPropertyValue } from '@/tools/notion/utils'
@@ -71,9 +72,7 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
         try {
           body.filter = JSON.parse(params.filter)
         } catch (error) {
-          throw new Error(
-            `Invalid filter JSON: ${error instanceof Error ? error.message : String(error)}`
-          )
+          throw new Error(`Invalid filter JSON: ${toError(error).message}`)
         }
       }
 
@@ -82,9 +81,7 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
         try {
           body.sorts = JSON.parse(params.sorts)
         } catch (error) {
-          throw new Error(
-            `Invalid sorts JSON: ${error instanceof Error ? error.message : String(error)}`
-          )
+          throw new Error(`Invalid sorts JSON: ${toError(error).message}`)
         }
       }
 

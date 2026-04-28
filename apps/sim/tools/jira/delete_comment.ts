@@ -15,8 +15,6 @@ export const jiraDeleteCommentTool: ToolConfig<JiraDeleteCommentParams, JiraDele
       provider: 'jira',
     },
 
-    errorExtractor: 'atlassian-errors',
-
     params: {
       accessToken: {
         type: 'string',

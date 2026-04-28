@@ -1,18 +1,19 @@
 import { db } from '@sim/db'
 import { copilotChats, permissions, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
+import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
-import { taskPubSub } from '@/lib/copilot/task-events'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+} from '@/lib/copilot/request/http'
+import { taskPubSub } from '@/lib/copilot/tasks'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotChatsListAPI')
@@ -24,7 +25,7 @@ const CreateWorkflowCopilotChatSchema = z.object({
 
 const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
 
-export async function GET(_request: NextRequest) {
+export const GET = withRouteHandler(async (_request: NextRequest) => {
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
@@ -37,7 +38,7 @@ export async function GET(_request: NextRequest) {
         title: copilotChats.title,
         workflowId: copilotChats.workflowId,
         workspaceId: copilotChats.workspaceId,
-        conversationId: copilotChats.conversationId,
+        activeStreamId: copilotChats.conversationId,
         updatedAt: copilotChats.updatedAt,
       })
       .from(copilotChats)
@@ -81,14 +82,14 @@ export async function GET(_request: NextRequest) {
     logger.error('Error fetching user copilot chats:', error)
     return createInternalServerErrorResponse('Failed to fetch user chats')
   }
-}
+})
 
 /**
  * POST /api/copilot/chats
  * Creates an empty workflow-scoped copilot chat (same lifecycle as {@link resolveOrCreateChat}).
  * Matches mothership's POST /api/mothership/chats pattern so the client always selects a real row id.
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
@@ -138,4 +139,4 @@ export async function POST(request: NextRequest) {
     logger.error('Error creating workflow copilot chat:', error)
     return createInternalServerErrorResponse('Failed to create chat')
   }
-}
+})

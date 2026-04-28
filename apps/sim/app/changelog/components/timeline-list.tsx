@@ -1,7 +1,8 @@
 'use client'
 
 import React from 'react'
-import ReactMarkdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
+import 'streamdown/styles.css'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/emcn'
 import type { ChangelogEntry } from '@/app/changelog/components/changelog-content'
 
@@ -141,7 +142,8 @@ export default function ChangelogList({ initialEntries }: Props) {
           </div>
 
           <div className='max-w-none'>
-            <ReactMarkdown
+            <Streamdown
+              mode='static'
               components={{
                 h2: ({ children, ...props }) =>
                   isContributorsLabel(children) ? null : (
@@ -192,11 +194,8 @@ export default function ChangelogList({ initialEntries }: Props) {
                     {children}
                   </strong>
                 ),
-                code: ({ children, ...props }) => (
-                  <code
-                    className='rounded bg-[var(--landing-bg-elevated)] px-1 py-0.5 font-mono text-[var(--landing-text)] text-xs'
-                    {...props}
-                  >
+                inlineCode: ({ children }) => (
+                  <code className='rounded bg-[var(--landing-bg-elevated)] px-1 py-0.5 font-mono text-[var(--landing-text)] text-xs'>
                     {children}
                   </code>
                 ),
@@ -212,7 +211,7 @@ export default function ChangelogList({ initialEntries }: Props) {
               }}
             >
               {cleanMarkdown(entry.content)}
-            </ReactMarkdown>
+            </Streamdown>
           </div>
         </div>
       ))}

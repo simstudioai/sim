@@ -1,14 +1,22 @@
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
+import { EditWorkflow } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/core/config/env'
-import { applyTargetedLayout, getTargetedLayoutImpact } from '@/lib/workflows/autolayout'
+import { getSocketServerUrl } from '@/lib/core/utils/urls'
+import {
+  applyTargetedLayout,
+  getTargetedLayoutImpact,
+  transferBlockHeights,
+} from '@/lib/workflows/autolayout'
 import {
   DEFAULT_HORIZONTAL_SPACING,
   DEFAULT_VERTICAL_SPACING,
@@ -19,7 +27,6 @@ import {
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
@@ -66,7 +73,7 @@ async function getCurrentWorkflowStateFromDb(
 }
 
 export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown> = {
-  name: 'edit_workflow',
+  name: EditWorkflow.id,
   async execute(params: EditWorkflowParams, context?: ServerToolContext): Promise<unknown> {
     const logger = createLogger('EditWorkflowServerTool')
     const { operations, workflowId, currentUserWorkflow } = params
@@ -86,6 +93,9 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     if (!authorization.allowed) {
       throw new Error(authorization.message || 'Unauthorized workflow access')
     }
+
+    const workspaceId = authorization.workflow?.workspaceId ?? undefined
+    const workflowName = authorization.workflow?.name ?? undefined
 
     logger.info('Executing edit_workflow', {
       operationCount: operations.length,
@@ -109,8 +119,10 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       workflowState = fromDb.workflowState
     }
 
-    // Get permission config for the user
-    const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
+    const permissionConfig =
+      context?.userId && workspaceId
+        ? await getUserPermissionConfig(context.userId, workspaceId)
+        : null
 
     // Pre-validate credential and apiKey inputs before applying operations
     // This filters out invalid credentials and apiKeys for hosted models
@@ -119,7 +131,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     if (context?.userId) {
       const { filteredOperations, errors: credErrors } = await preValidateCredentialInputs(
         operations,
-        { userId: context.userId },
+        { userId: context.userId, workspaceId },
         workflowState
       )
       operationsToApply = filteredOperations
@@ -136,20 +148,6 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Add credential validation errors
     validationErrors.push(...credentialErrors)
 
-    let workspaceId: string | undefined
-    let workflowName: string | undefined
-    try {
-      const [workflowRecord] = await db
-        .select({ workspaceId: workflowTable.workspaceId, name: workflowTable.name })
-        .from(workflowTable)
-        .where(eq(workflowTable.id, workflowId))
-        .limit(1)
-      workspaceId = workflowRecord?.workspaceId ?? undefined
-      workflowName = workflowRecord?.name ?? undefined
-    } catch (error) {
-      logger.warn('Failed to get workflow metadata for validation', { error, workflowId })
-    }
-
     // Validate selector IDs exist in the database
     if (context?.userId) {
       try {
@@ -160,7 +158,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
         validationErrors.push(...selectorErrors)
       } catch (error) {
         logger.warn('Selector ID validation failed', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     }
@@ -234,17 +232,19 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Persist the workflow state to the database
     const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
 
-    const { layoutBlockIds, shiftSourceBlockIds } = getTargetedLayoutImpact({
+    const { layoutBlockIds, resizedBlockIds, shiftSourceBlockIds } = getTargetedLayoutImpact({
       before: workflowState,
       after: finalWorkflowState,
     })
 
     let layoutedBlocks = finalWorkflowState.blocks
 
-    if (layoutBlockIds.length > 0 || shiftSourceBlockIds.length > 0) {
+    if (layoutBlockIds.length > 0 || resizedBlockIds.length > 0 || shiftSourceBlockIds.length > 0) {
       try {
+        transferBlockHeights(workflowState.blocks, finalWorkflowState.blocks)
         layoutedBlocks = applyTargetedLayout(finalWorkflowState.blocks, finalWorkflowState.edges, {
           changedBlockIds: layoutBlockIds,
+          resizedBlockIds,
           shiftSourceBlockIds,
           horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
           verticalSpacing: DEFAULT_VERTICAL_SPACING,
@@ -252,7 +252,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       } catch (error) {
         logger.warn('Targeted autolayout failed, using default positions', {
           workflowId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     }
@@ -288,8 +288,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
 
     logger.info('Workflow state persisted to database', { workflowId })
 
-    const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
-    fetch(`${socketUrl}/api/workflow-updated`, {
+    fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

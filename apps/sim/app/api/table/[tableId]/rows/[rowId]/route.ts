@@ -1,11 +1,13 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData } from '@/lib/table'
 import { deleteRow, updateRow } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
@@ -30,7 +32,7 @@ interface RowRouteParams {
 }
 
 /** GET /api/table/[tableId]/rows/[rowId] - Retrieves a single row. */
-export async function GET(request: NextRequest, { params }: RowRouteParams) {
+export const GET = withRouteHandler(async (request: NextRequest, { params }: RowRouteParams) => {
   const requestId = generateRequestId()
   const { tableId, rowId } = await params
 
@@ -103,10 +105,10 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
     logger.error(`[${requestId}] Error getting row:`, error)
     return NextResponse.json({ error: 'Failed to get row' }, { status: 500 })
   }
-}
+})
 
 /** PATCH /api/table/[tableId]/rows/[rowId] - Updates a single row (supports partial updates). */
-export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
+export const PATCH = withRouteHandler(async (request: NextRequest, { params }: RowRouteParams) => {
   const requestId = generateRequestId()
   const { tableId, rowId } = await params
 
@@ -134,32 +136,11 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const [existingRow] = await db
-      .select({ data: userTableRows.data })
-      .from(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.id, rowId),
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, validated.workspaceId)
-        )
-      )
-      .limit(1)
-
-    if (!existingRow) {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
-    }
-
-    const mergedData = {
-      ...(existingRow.data as RowData),
-      ...(validated.data as RowData),
-    }
-
     const updatedRow = await updateRow(
       {
         tableId,
         rowId,
-        data: mergedData,
+        data: validated.data as RowData,
         workspaceId: validated.workspaceId,
       },
       table,
@@ -193,7 +174,7 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       )
     }
 
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
 
     if (errorMessage === 'Row not found') {
       return NextResponse.json({ error: errorMessage }, { status: 404 })
@@ -212,10 +193,10 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
     logger.error(`[${requestId}] Error updating row:`, error)
     return NextResponse.json({ error: 'Failed to update row' }, { status: 500 })
   }
-}
+})
 
 /** DELETE /api/table/[tableId]/rows/[rowId] - Deletes a single row. */
-export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
+export const DELETE = withRouteHandler(async (request: NextRequest, { params }: RowRouteParams) => {
   const requestId = generateRequestId()
   const { tableId, rowId } = await params
 
@@ -260,7 +241,7 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
       )
     }
 
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
 
     if (errorMessage === 'Row not found') {
       return NextResponse.json({ error: errorMessage }, { status: 404 })
@@ -269,4 +250,4 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
     logger.error(`[${requestId}] Error deleting row:`, error)
     return NextResponse.json({ error: 'Failed to delete row' }, { status: 500 })
   }
-}
+})

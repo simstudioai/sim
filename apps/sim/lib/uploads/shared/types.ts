@@ -8,6 +8,7 @@ export type StorageContext =
   | 'profile-pictures'
   | 'og-images'
   | 'logs'
+  | 'workspace-logos'
 
 export interface FileInfo {
   path: string

@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
-import { env } from '@/lib/core/config/env'
+import { getOllamaUrl } from '@/lib/core/utils/urls'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import type { ModelsObject } from '@/providers/ollama/types'
@@ -18,7 +19,7 @@ import { useProvidersStore } from '@/stores/providers'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('OllamaProvider')
-const OLLAMA_HOST = env.OLLAMA_URL || 'http://localhost:11434'
+const OLLAMA_HOST = getOllamaUrl()
 
 export const ollamaProvider: ProviderConfig = {
   id: 'ollama',
@@ -570,7 +571,7 @@ export const ollamaProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      throw new ProviderError(error instanceof Error ? error.message : String(error), {
+      throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,

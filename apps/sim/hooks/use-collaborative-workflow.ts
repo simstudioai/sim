@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
-import type { Edge } from 'reactflow'
-import { useShallow } from 'zustand/react/shallow'
-import { useSession } from '@/lib/auth/auth-client'
-import { generateId } from '@/lib/core/utils/uuid'
-import { useSocket } from '@/app/workspace/providers/socket-provider'
-import { getBlock } from '@/blocks'
-import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
-import { useUndoRedo } from '@/hooks/use-undo-redo'
 import {
   BLOCK_OPERATIONS,
   BLOCKS_OPERATIONS,
@@ -17,7 +9,17 @@ import {
   SUBFLOW_OPERATIONS,
   VARIABLE_OPERATIONS,
   WORKFLOW_OPERATIONS,
-} from '@/socket/constants'
+} from '@sim/realtime-protocol/constants'
+import { generateId } from '@sim/utils/id'
+import { useQueryClient } from '@tanstack/react-query'
+import type { Edge } from 'reactflow'
+import { useShallow } from 'zustand/react/shallow'
+import { useSession } from '@/lib/auth/auth-client'
+import { useSocket } from '@/app/workspace/providers/socket-provider'
+import { getBlock } from '@/blocks'
+import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
+import { invalidateDeploymentQueries } from '@/hooks/queries/deployments'
+import { useUndoRedo } from '@/hooks/use-undo-redo'
 import { useNotificationStore } from '@/stores/notifications'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
 import { usePanelEditorStore } from '@/stores/panel'
@@ -34,6 +36,7 @@ import { findAllDescendantNodes, isBlockProtected } from '@/stores/workflows/wor
 const logger = createLogger('CollaborativeWorkflow')
 
 export function useCollaborativeWorkflow() {
+  const queryClient = useQueryClient()
   const undoRedo = useUndoRedo()
   const isUndoRedoInProgress = useRef(false)
   const lastDiffOperationId = useRef<string | null>(null)
@@ -125,6 +128,7 @@ export function useCollaborativeWorkflow() {
     onWorkflowDeleted,
     onWorkflowReverted,
     onWorkflowUpdated,
+    onWorkflowDeployed,
     onOperationConfirmed,
     onOperationFailed,
   } = useSocket()
@@ -152,13 +156,23 @@ export function useCollaborativeWorkflow() {
 
   // Register emit functions with operation queue store
   useEffect(() => {
+    const registeredWorkflowId =
+      isConnected && currentWorkflowId === activeWorkflowId ? currentWorkflowId : null
+
     registerEmitFunctions(
       emitWorkflowOperation,
       emitSubblockUpdate,
       emitVariableUpdate,
-      currentWorkflowId
+      registeredWorkflowId
     )
-  }, [emitWorkflowOperation, emitSubblockUpdate, emitVariableUpdate, currentWorkflowId])
+  }, [
+    activeWorkflowId,
+    currentWorkflowId,
+    emitWorkflowOperation,
+    emitSubblockUpdate,
+    emitVariableUpdate,
+    isConnected,
+  ])
 
   useEffect(() => {
     const handleWorkflowOperation = (data: any) => {
@@ -635,6 +649,15 @@ export function useCollaborativeWorkflow() {
       }
     }
 
+    const handleWorkflowDeployed = (data: any) => {
+      const { workflowId } = data
+      logger.info(`Workflow ${workflowId} deployment state changed`)
+
+      if (workflowId !== activeWorkflowId) return
+
+      invalidateDeploymentQueries(queryClient, workflowId)
+    }
+
     const handleOperationConfirmed = (data: any) => {
       const { operationId } = data
       logger.debug('Operation confirmed', { operationId })
@@ -654,6 +677,7 @@ export function useCollaborativeWorkflow() {
     onWorkflowDeleted(handleWorkflowDeleted)
     onWorkflowReverted(handleWorkflowReverted)
     onWorkflowUpdated(handleWorkflowUpdated)
+    onWorkflowDeployed(handleWorkflowDeployed)
     onOperationConfirmed(handleOperationConfirmed)
     onOperationFailed(handleOperationFailed)
   }, [
@@ -663,9 +687,11 @@ export function useCollaborativeWorkflow() {
     onWorkflowDeleted,
     onWorkflowReverted,
     onWorkflowUpdated,
+    onWorkflowDeployed,
     onOperationConfirmed,
     onOperationFailed,
     activeWorkflowId,
+    queryClient,
     confirmOperation,
     failOperation,
     emitWorkflowOperation,
