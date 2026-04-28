@@ -22,7 +22,7 @@ jobs:
           bun-version: 1.3.13
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: latest
 
@@ -45,7 +45,7 @@ jobs:
           path: ./.turbo
 
       - name: Restore Next.js build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ./apps/sim/.next/cache
           key: ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}
