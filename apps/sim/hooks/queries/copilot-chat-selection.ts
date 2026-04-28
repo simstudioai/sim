@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query'
 
 export const copilotChatSelectionKeys = {
   all: ['copilot-chat-selection'] as const,
@@ -10,15 +10,15 @@ export const copilotChatSelectionKeys = {
 
 /**
  * Reactive per-workflow copilot chat selection. Values are written via the
- * returned setter; the queryFn is never invoked.
+ * returned setter; queryFn is `skipToken` so the cache only ever holds
+ * what setQueryData puts there.
  */
 export function useCopilotChatSelection(workflowId?: string) {
   const queryClient = useQueryClient()
 
-  const { data: chatId } = useQuery({
+  const { data: chatId } = useQuery<string | null>({
     queryKey: copilotChatSelectionKeys.workflow(workflowId),
-    queryFn: (): string | null => null,
-    enabled: false,
+    queryFn: skipToken,
     staleTime: Number.POSITIVE_INFINITY,
     initialData: null,
   })

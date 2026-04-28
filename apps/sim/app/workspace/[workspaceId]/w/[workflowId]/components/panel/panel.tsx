@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { useQueryClient } from '@tanstack/react-query'
 import { History, Plus, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -60,6 +61,11 @@ import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowI
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCopilotChatSelection } from '@/hooks/queries/copilot-chat-selection'
+import {
+  type CopilotChatListItem,
+  copilotChatsKeys,
+  useCopilotChats,
+} from '@/hooks/queries/copilot-chats'
 import { useDuplicateWorkflowMutation, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -78,6 +84,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('Panel')
+const EMPTY_COPILOT_CHATS: readonly CopilotChatListItem[] = []
 /**
  * Panel component with resizable width and tab navigation that persists across page refreshes.
  *
@@ -227,9 +234,9 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     activeWorkflowId ?? undefined
   )
 
-  const [copilotChatList, setCopilotChatList] = useState<
-    { id: string; title: string | null; updatedAt: string; activeStreamId: string | null }[]
-  >([])
+  const { data: copilotChatList = EMPTY_COPILOT_CHATS } = useCopilotChats(
+    activeWorkflowId ?? undefined
+  )
   const [isCopilotHistoryOpen, setIsCopilotHistoryOpen] = useState(false)
 
   const copilotChatTitle = useMemo(
@@ -238,50 +245,32 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     [copilotChatId, copilotChatList]
   )
 
-  const copilotChatIdRef = useRef(copilotChatId)
-  copilotChatIdRef.current = copilotChatId
-  const copilotInitialLoadDoneRef = useRef(false)
-  const activeWorkflowIdRef = useRef(activeWorkflowId)
-  activeWorkflowIdRef.current = activeWorkflowId
-
+  const queryClient = useQueryClient()
   const loadCopilotChats = useCallback(() => {
     if (!activeWorkflowId) return
-    const requestWorkflowId = activeWorkflowId
-    fetch('/api/copilot/chats')
-      .then((res) => (res.ok ? res.json() : { chats: [] }))
-      .then((data) => {
-        // Drop responses for a workflow we've already switched away from.
-        if (requestWorkflowId !== activeWorkflowIdRef.current) return
-        const allChats = Array.isArray(data?.chats) ? data.chats : []
-        const filtered = allChats.filter(
-          (c: { workflowId?: string }) => c.workflowId === activeWorkflowId
-        ) as Array<{
-          id: string
-          title: string | null
-          updatedAt: string
-          activeStreamId: string | null
-        }>
-        setCopilotChatList(filtered)
+    queryClient.invalidateQueries({ queryKey: copilotChatsKeys.list(activeWorkflowId) })
+  }, [activeWorkflowId, queryClient])
 
-        const currentId = copilotChatIdRef.current
-        let resolvedCurrentId = currentId
-        if (currentId && !filtered.find((c: { id: string }) => c.id === currentId)) {
-          setCopilotChatId(undefined)
-          resolvedCurrentId = undefined
-        }
-
-        if (!copilotInitialLoadDoneRef.current && !resolvedCurrentId && filtered.length > 0) {
-          setCopilotChatId(filtered[0].id)
-        }
-        copilotInitialLoadDoneRef.current = true
-      })
-      .catch(() => {})
-  }, [activeWorkflowId, setCopilotChatId])
-
+  // Auto-select most recent on first list arrival per workflow, and drop a
+  // selection that no longer matches anything in the current list (e.g. the
+  // chat was deleted in another tab).
+  const autoSelectAttemptedForRef = useRef<Set<string>>(new Set())
   useEffect(() => {
-    copilotInitialLoadDoneRef.current = false
-    loadCopilotChats()
-  }, [loadCopilotChats])
+    if (!activeWorkflowId) return
+
+    if (copilotChatId && !copilotChatList.find((c) => c.id === copilotChatId)) {
+      setCopilotChatId(undefined)
+      return
+    }
+
+    if (copilotChatId) return
+    if (autoSelectAttemptedForRef.current.has(activeWorkflowId)) return
+    autoSelectAttemptedForRef.current.add(activeWorkflowId)
+
+    if (copilotChatList.length > 0) {
+      setCopilotChatId(copilotChatList[0].id)
+    }
+  }, [copilotChatList, copilotChatId, activeWorkflowId, setCopilotChatId])
 
   useEffect(() => {
     posthogRef.current = posthog
