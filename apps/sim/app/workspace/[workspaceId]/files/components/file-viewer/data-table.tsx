@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, memo, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, memo, useCallback, useImperativeHandle, useRef, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 
 interface EditConfig {
@@ -31,12 +31,17 @@ const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataT
   const editStateRef = useRef({ editingCell, editValue, editConfig })
   editStateRef.current = { editingCell, editValue, editConfig }
 
+  // Prevents double-commit if onBlur and imperative commitEdit fire concurrently
+  const isCommittedRef = useRef(false)
+
   useImperativeHandle(
     ref,
     () => ({
       commitEdit: () => {
+        if (isCommittedRef.current) return
         const { editingCell, editValue, editConfig } = editStateRef.current
         if (!editingCell || !editConfig) return
+        isCommittedRef.current = true
         const { row, col } = editingCell
         if (row === -1) {
           editConfig.onHeaderChange(col, editValue)
@@ -49,21 +54,23 @@ const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataT
     []
   )
 
-  const setInputRef = (node: HTMLInputElement | null) => {
+  const setInputRef = useCallback((node: HTMLInputElement | null) => {
     if (node) {
       node.focus()
       node.select()
     }
-  }
+  }, [])
 
   const startEdit = (row: number, col: number, currentValue: string) => {
     if (!editConfig) return
+    isCommittedRef.current = false
     setEditingCell({ row, col })
     setEditValue(currentValue)
   }
 
   const commitEdit = () => {
-    if (!editingCell || !editConfig) return
+    if (isCommittedRef.current || !editingCell || !editConfig) return
+    isCommittedRef.current = true
     const { row, col } = editingCell
     if (row === -1) {
       editConfig.onHeaderChange(col, editValue)
