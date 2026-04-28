@@ -117,6 +117,11 @@ export const DELETE = withRouteHandler(
         let didTransferOwnership = false
 
         if (isRemovingWorkspaceOwner) {
+          /**
+           * Invariant: the billed account is the org owner for org workspaces,
+           * the owner for personal workspaces, and a workspace admin for
+           * grandfathered shared workspaces.
+           */
           const newOwnerId = workspaceRow[0].billedAccountUserId
 
           await tx

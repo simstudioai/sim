@@ -80,7 +80,7 @@ interface BatchInvitationResult {
 }
 
 /**
- * Sends multiple workspace invitations in parallel.
+ * Sends workspace invitations through the server-side batch endpoint.
  * Returns results for each invitation indicating success or failure.
  */
 export function useBatchSendWorkspaceInvitations() {
@@ -91,36 +91,25 @@ export function useBatchSendWorkspaceInvitations() {
       workspaceId,
       invitations,
     }: BatchSendInvitationsParams): Promise<BatchInvitationResult> => {
-      const successful: string[] = []
-      const failed: Array<{ email: string; error: string }> = []
+      const response = await fetch('/api/workspaces/invitations/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId,
+          invitations,
+        }),
+      })
 
-      for (const { email, permission } of invitations) {
-        try {
-          const response = await fetch('/api/workspaces/invitations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              workspaceId,
-              email,
-              permission,
-            }),
-          })
+      const result = await response.json()
 
-          if (!response.ok) {
-            const error = await response.json()
-            throw new Error(error.error || 'Failed to send invitation')
-          }
-
-          successful.push(email)
-        } catch (error) {
-          failed.push({
-            email,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          })
-        }
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to send invitations')
       }
 
-      return { successful, failed }
+      return {
+        successful: result.successful ?? [],
+        failed: result.failed ?? [],
+      }
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
