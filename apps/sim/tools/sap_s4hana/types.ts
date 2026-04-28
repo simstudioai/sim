@@ -228,6 +228,13 @@ export interface GetInboundDeliveryParams extends SapBaseParams {
   expand?: string
 }
 
+export interface GetMaterialDocumentParams extends SapBaseParams {
+  materialDocumentYear: string
+  materialDocument: string
+  select?: string
+  expand?: string
+}
+
 export interface ListMaterialDocumentsParams extends SapBaseParams {
   filter?: string
   top?: number

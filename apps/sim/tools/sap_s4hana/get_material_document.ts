@@ -1,4 +1,4 @@
-import type { GetSupplierInvoiceParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
+import type { GetMaterialDocumentParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
 import {
   baseProxyBody,
   buildEntityQuery,
@@ -8,11 +8,11 @@ import {
 } from '@/tools/sap_s4hana/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const getSupplierInvoiceTool: ToolConfig<GetSupplierInvoiceParams, SapProxyResponse> = {
-  id: 'sap_s4hana_get_supplier_invoice',
-  name: 'SAP S/4HANA Get Supplier Invoice',
+export const getMaterialDocumentTool: ToolConfig<GetMaterialDocumentParams, SapProxyResponse> = {
+  id: 'sap_s4hana_get_material_document',
+  name: 'SAP S/4HANA Get Material Document',
   description:
-    'Retrieve a single supplier invoice by composite key (SupplierInvoice + FiscalYear) from SAP S/4HANA Cloud (API_SUPPLIERINVOICE_PROCESS_SRV, A_SupplierInvoice).',
+    'Retrieve a single material document header by composite key (MaterialDocumentYear + MaterialDocument) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader).',
   version: '1.0.0',
   params: {
     subdomain: {
@@ -76,17 +76,17 @@ export const getSupplierInvoiceTool: ToolConfig<GetSupplierInvoiceParams, SapPro
       visibility: 'user-only',
       description: 'Password for HTTP Basic auth',
     },
-    supplierInvoice: {
+    materialDocumentYear: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'SupplierInvoice key (string, up to 10 characters)',
+      description: 'MaterialDocumentYear (4-character year, e.g., "2024")',
     },
-    fiscalYear: {
+    materialDocument: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'FiscalYear (4-character year, e.g., "2024")',
+      description: 'MaterialDocument key (string, up to 10 characters)',
     },
     select: {
       type: 'string',
@@ -98,7 +98,8 @@ export const getSupplierInvoiceTool: ToolConfig<GetSupplierInvoiceParams, SapPro
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated navigation properties to expand ($expand)',
+      description:
+        'Comma-separated navigation properties to expand (e.g., "to_MaterialDocumentItem")',
     },
   },
   request: {
@@ -107,8 +108,8 @@ export const getSupplierInvoiceTool: ToolConfig<GetSupplierInvoiceParams, SapPro
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({
       ...baseProxyBody(params),
-      service: 'API_SUPPLIERINVOICE_PROCESS_SRV',
-      path: `/A_SupplierInvoice(FiscalYear=${quoteOdataKey(params.fiscalYear)},SupplierInvoice=${quoteOdataKey(params.supplierInvoice)})`,
+      service: 'API_MATERIAL_DOCUMENT_SRV',
+      path: `/A_MaterialDocumentHeader(MaterialDocument=${quoteOdataKey(params.materialDocument)},MaterialDocumentYear=${quoteOdataKey(params.materialDocumentYear)})`,
       method: 'GET',
       query: buildEntityQuery(params),
     }),
@@ -116,6 +117,6 @@ export const getSupplierInvoiceTool: ToolConfig<GetSupplierInvoiceParams, SapPro
   transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
-    data: { type: 'json', description: 'A_SupplierInvoice entity' },
+    data: { type: 'json', description: 'A_MaterialDocumentHeader entity' },
   },
 }
