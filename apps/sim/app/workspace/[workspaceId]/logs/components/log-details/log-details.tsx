@@ -399,7 +399,7 @@ export const LogDetails = memo(function LogDetails({
 
       <div
         className={cn(
-          'absolute top-0 right-0 bottom-0 z-50 overflow-hidden border-l bg-[var(--bg)] shadow-md transition-transform duration-200 ease-out',
+          'absolute top-0 right-0 bottom-0 z-[var(--z-dropdown)] overflow-hidden border-l bg-[var(--bg)] shadow-md transition-transform duration-200 ease-out',
           isOpen ? 'translate-x-0' : 'translate-x-full'
         )}
         style={{ width: effectiveWidth }}

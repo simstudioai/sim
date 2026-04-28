@@ -170,7 +170,6 @@ export function useLogDetail(logId: string | undefined, options?: UseLogDetailOp
     enabled: Boolean(logId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
     staleTime: 30 * 1000,
-    placeholderData: keepPreviousData,
   })
 }
 

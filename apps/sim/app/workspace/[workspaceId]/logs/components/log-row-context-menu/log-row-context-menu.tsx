@@ -2,13 +2,19 @@
 
 import { memo } from 'react'
 import {
+  Copy,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Eye,
+  Link,
+  ListFilter,
+  Redo,
+  SquareArrowUpRight,
+  X,
 } from '@/components/emcn'
-import { Copy, Eye, Link, ListFilter, Redo, SquareArrowUpRight, X } from '@/components/emcn/icons'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 
 interface LogRowContextMenuProps {

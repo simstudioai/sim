@@ -965,13 +965,16 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
     [normalizedSpans, selectedId]
   )
 
-  const runStatus = useMemo(() => {
-    if (normalizedSpans.length === 0) return 'empty' as const
-    const rootHasError = normalizedSpans.some((span) =>
-      span.type?.toLowerCase() === 'workflow' ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
-    )
-    return rootHasError ? ('error' as const) : ('success' as const)
-  }, [normalizedSpans])
+  const runStatus =
+    normalizedSpans.length === 0
+      ? ('empty' as const)
+      : normalizedSpans.some((span) =>
+            span.type?.toLowerCase() === 'workflow'
+              ? hasUnhandledErrorInTree(span)
+              : hasErrorInTree(span)
+          )
+        ? ('error' as const)
+        : ('success' as const)
 
   const handleSelect = useCallback((id: string) => setSelectedId(id), [])
 
