@@ -14,8 +14,6 @@ import type {
 
 const logger = createLogger('SpanFactory')
 
-const STREAMING_SEGMENT_NAME = 'Streaming response'
-
 /** A BlockLog that has already passed the id/type validity check. */
 type ValidBlockLog = BlockLog & { blockType: string }
 
@@ -168,9 +166,10 @@ function buildChildrenFromTimeSegments(
     let segmentEndTime = new Date(segment.endTime).toISOString()
     let segmentDuration = segment.duration
 
-    // Streaming segments sometimes close before the block ends; extend the
-    // trailing streaming segment to the block endTime so the bar fills.
-    if (segment.name === STREAMING_SEGMENT_NAME && log.endedAt) {
+    // The final model segment sometimes closes before the block ends (e.g. when
+    // post-processing runs after the stream). Extend it to the block endTime so
+    // the Gantt bar fills to the edge rather than leaving a trailing gap.
+    if (index === segments.length - 1 && segment.type === 'model' && log.endedAt) {
       const blockEndMs = new Date(log.endedAt).getTime()
       const segmentEndMs = new Date(segment.endTime).getTime()
       if (blockEndMs > segmentEndMs) {
