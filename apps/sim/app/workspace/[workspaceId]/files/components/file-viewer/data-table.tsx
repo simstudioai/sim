@@ -27,7 +27,6 @@ const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataT
   const [editingCell, setEditingCell] = useState<EditingCell>(null)
   const [editValue, setEditValue] = useState('')
 
-  // Always-current ref so the imperative handle doesn't go stale
   const editStateRef = useRef({ editingCell, editValue, editConfig })
   editStateRef.current = { editingCell, editValue, editConfig }
 

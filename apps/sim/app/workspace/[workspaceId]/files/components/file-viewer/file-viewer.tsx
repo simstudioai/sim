@@ -22,7 +22,6 @@ import { DataTable } from './data-table'
 import type { PdfDocumentSource } from './pdf-viewer'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
 
-// Token rules shared by both themes — override the major categories; base handles the rest
 const SIM_DARK_RULES: import('monaco-editor').editor.ITokenThemeRule[] = [
   { token: 'comment', foreground: '606060', fontStyle: 'italic' },
   { token: 'string', foreground: '3ab872' },
@@ -855,9 +854,6 @@ function TextEditor({
 
     if (isStreamInteractionLocked || monacoValue === lastSyncedContentRef.current) {
       if (isStreamInteractionLocked) {
-        // Measure BEFORE setValue — scrollHeight hasn't grown yet, so the
-        // "at bottom" check is accurate. Re-engage auto-scroll if at bottom;
-        // never disengage here (user scroll events do that via Effect 2).
         const scrollTop = editor.getScrollTop()
         const scrollHeight = editor.getScrollHeight()
         const { height } = editor.getLayoutInfo()
@@ -865,9 +861,6 @@ function TextEditor({
           textareaStuckRef.current = true
         }
       }
-      // Preserve the user's scroll position when they've scrolled away from the
-      // bottom. Suppress the onDidScrollChange listener so programmatic scroll
-      // changes (setValue / restoreViewState) don't falsely disengage auto-scroll.
       const viewState =
         isStreamInteractionLocked && !textareaStuckRef.current ? editor.saveViewState() : null
       suppressScrollListenerRef.current = true
@@ -885,10 +878,6 @@ function TextEditor({
       return
     }
 
-    // Effect 1 re-engages auto-scroll (sets true) immediately before each setValue,
-    // measuring scroll position while scrollHeight is still accurate. This listener
-    // only needs to disengage when the user physically scrolls away from the bottom.
-    // Suppressed during programmatic setValue/restoreViewState in Effect 1.
     const disposable = editor.onDidScrollChange(() => {
       if (suppressScrollListenerRef.current) return
       const scrollTop = editor.getScrollTop()
