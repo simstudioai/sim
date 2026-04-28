@@ -22,6 +22,39 @@ import { DataTable } from './data-table'
 import type { PdfDocumentSource } from './pdf-viewer'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
 
+// Token rules shared by both themes — override the major categories; base handles the rest
+const SIM_DARK_RULES: import('monaco-editor').editor.ITokenThemeRule[] = [
+  { token: 'comment', foreground: '4a4a4a', fontStyle: 'italic' },
+  { token: 'string', foreground: '3ab872' },
+  { token: 'string.escape', foreground: '3ab872' },
+  { token: 'number', foreground: 'e8a87c' },
+  { token: 'number.float', foreground: 'e8a87c' },
+  { token: 'number.hex', foreground: 'e8a87c' },
+  { token: 'keyword', foreground: '33b4ff' },
+  { token: 'keyword.control', foreground: '33b4ff' },
+  { token: 'storage', foreground: '33b4ff' },
+  { token: 'type', foreground: '8fc7f5' },
+  { token: 'type.identifier', foreground: '8fc7f5' },
+  { token: 'regexp', foreground: 'ff8a65' },
+  { token: 'annotation', foreground: 'ffca28' },
+]
+
+const SIM_LIGHT_RULES: import('monaco-editor').editor.ITokenThemeRule[] = [
+  { token: 'comment', foreground: 'aaaaaa', fontStyle: 'italic' },
+  { token: 'string', foreground: '16825d' },
+  { token: 'string.escape', foreground: '16825d' },
+  { token: 'number', foreground: 'c9660c' },
+  { token: 'number.float', foreground: 'c9660c' },
+  { token: 'number.hex', foreground: 'c9660c' },
+  { token: 'keyword', foreground: '0078d4' },
+  { token: 'keyword.control', foreground: '0078d4' },
+  { token: 'storage', foreground: '0078d4' },
+  { token: 'type', foreground: '7c4dcc' },
+  { token: 'type.identifier', foreground: '7c4dcc' },
+  { token: 'regexp', foreground: 'd7390c' },
+  { token: 'annotation', foreground: 'e67700' },
+]
+
 const MonacoEditor = dynamic(
   async () => {
     const [{ default: Editor, loader }, monaco] = await Promise.all([
@@ -58,6 +91,105 @@ const MonacoEditor = dynamic(
     }
 
     loader.config({ monaco })
+
+    monaco.editor.defineTheme('sim-dark', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: SIM_DARK_RULES,
+      colors: {
+        'editor.background': '#1b1b1b',
+        'editor.foreground': '#e6e6e6',
+        'editorLineNumber.foreground': '#404040',
+        'editorLineNumber.activeForeground': '#787878',
+        'editor.selectionBackground': '#33b4ff28',
+        'editor.inactiveSelectionBackground': '#33b4ff14',
+        'editor.lineHighlightBackground': '#23232380',
+        'editor.lineHighlightBorder': '#00000000',
+        'editorGutter.background': '#1b1b1b',
+        'editorWidget.background': '#242424',
+        'editorWidget.border': '#333333',
+        'editorWidget.foreground': '#e6e6e6',
+        'editor.findMatchBackground': '#33b4ff40',
+        'editor.findMatchHighlightBackground': '#33b4ff1a',
+        'editor.findMatchBorder': '#33b4ff',
+        'scrollbar.shadow': '#00000000',
+        'scrollbarSlider.background': '#33333380',
+        'scrollbarSlider.hoverBackground': '#45454580',
+        'scrollbarSlider.activeBackground': '#505050',
+        'editorBracketMatch.background': '#33b4ff1a',
+        'editorBracketMatch.border': '#33b4ff80',
+        'editorIndentGuide.background1': '#2a2a2a',
+        'editorIndentGuide.activeBackground1': '#454545',
+        'editorCursor.foreground': '#33b4ff',
+        'editor.wordHighlightBackground': '#33b4ff14',
+        'editor.wordHighlightBorder': '#33b4ff40',
+        'editorSuggestWidget.background': '#242424',
+        'editorSuggestWidget.border': '#333333',
+        'editorSuggestWidget.foreground': '#e6e6e6',
+        'editorSuggestWidget.selectedBackground': '#292929',
+        'editorSuggestWidget.selectedForeground': '#e6e6e6',
+        'editorHoverWidget.background': '#242424',
+        'editorHoverWidget.border': '#333333',
+        'editorHoverWidget.foreground': '#e6e6e6',
+        'minimap.background': '#1b1b1b',
+        'minimapSlider.background': '#33333380',
+        focusBorder: '#33b4ff80',
+        'input.background': '#242424',
+        'input.border': '#333333',
+        'input.foreground': '#e6e6e6',
+        'inputOption.activeBorder': '#33b4ff',
+      },
+    })
+
+    monaco.editor.defineTheme('sim-light', {
+      base: 'vs',
+      inherit: true,
+      rules: SIM_LIGHT_RULES,
+      colors: {
+        'editor.background': '#fefefe',
+        'editor.foreground': '#1a1a1a',
+        'editorLineNumber.foreground': '#cccccc',
+        'editorLineNumber.activeForeground': '#707070',
+        'editor.selectionBackground': '#33b4ff22',
+        'editor.inactiveSelectionBackground': '#33b4ff12',
+        'editor.lineHighlightBackground': '#f7f7f7',
+        'editor.lineHighlightBorder': '#00000000',
+        'editorGutter.background': '#fefefe',
+        'editorWidget.background': '#ffffff',
+        'editorWidget.border': '#dedede',
+        'editorWidget.foreground': '#1a1a1a',
+        'editor.findMatchBackground': '#33b4ff40',
+        'editor.findMatchHighlightBackground': '#33b4ff1a',
+        'editor.findMatchBorder': '#33b4ff',
+        'scrollbar.shadow': '#00000000',
+        'scrollbarSlider.background': '#dedede80',
+        'scrollbarSlider.hoverBackground': '#cccccc',
+        'scrollbarSlider.activeBackground': '#b0b0b0',
+        'editorBracketMatch.background': '#33b4ff1a',
+        'editorBracketMatch.border': '#33b4ff80',
+        'editorIndentGuide.background1': '#f0f0f0',
+        'editorIndentGuide.activeBackground1': '#d8d8d8',
+        'editorCursor.foreground': '#33b4ff',
+        'editor.wordHighlightBackground': '#33b4ff14',
+        'editor.wordHighlightBorder': '#33b4ff40',
+        'editorSuggestWidget.background': '#ffffff',
+        'editorSuggestWidget.border': '#dedede',
+        'editorSuggestWidget.foreground': '#1a1a1a',
+        'editorSuggestWidget.selectedBackground': '#f5f5f5',
+        'editorSuggestWidget.selectedForeground': '#1a1a1a',
+        'editorHoverWidget.background': '#ffffff',
+        'editorHoverWidget.border': '#dedede',
+        'editorHoverWidget.foreground': '#1a1a1a',
+        'minimap.background': '#fefefe',
+        'minimapSlider.background': '#dedede80',
+        focusBorder: '#33b4ff80',
+        'input.background': '#ffffff',
+        'input.border': '#dedede',
+        'input.foreground': '#1a1a1a',
+        'inputOption.activeBorder': '#33b4ff',
+      },
+    })
+
     return Editor
   },
   { ssr: false }
@@ -547,7 +679,7 @@ function useMonacoTheme(): string {
     return () => observer.disconnect()
   }, [])
 
-  return isDark ? 'vs-dark' : 'vs'
+  return isDark ? 'sim-dark' : 'sim-light'
 }
 
 export function FileViewer({
