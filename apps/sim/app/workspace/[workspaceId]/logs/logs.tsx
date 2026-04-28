@@ -477,6 +477,10 @@ export default function Logs() {
     activeLogTabRef.current = 'overview'
   }, [])
 
+  const handleActiveTabChange = useCallback((tab: string) => {
+    activeLogTabRef.current = tab
+  }, [])
+
   const handleLogContextMenu = useCallback(
     (e: React.MouseEvent, rowId: string) => {
       e.preventDefault()
@@ -815,9 +819,7 @@ export default function Logs() {
       hasPrev={selectedLogIndex > 0}
       onRetryExecution={handleRetrySidebarExecution}
       isRetryPending={retryExecution.isPending}
-      onActiveTabChange={(tab) => {
-        activeLogTabRef.current = tab
-      }}
+      onActiveTabChange={handleActiveTabChange}
     />
   )
 

@@ -96,6 +96,8 @@ function wrapInWorkflowRoot(
   const actualWorkflowDuration = latestEnd - earliestStart
   addRelativeTimestamps(grouped, earliestStart)
 
+  const totalCost = leafSpans.reduce((sum, s) => sum + (s.cost?.total ?? 0), 0)
+
   const workflowSpan: TraceSpan = {
     id: 'workflow-execution',
     name: 'Workflow Execution',
@@ -105,6 +107,7 @@ function wrapInWorkflowRoot(
     endTime: new Date(latestEnd).toISOString(),
     status: grouped.some(hasUnhandledError) ? 'error' : 'success',
     children: grouped,
+    ...(totalCost > 0 && { cost: { total: totalCost } }),
   }
 
   return { traceSpans: [workflowSpan], totalDuration: actualWorkflowDuration }
