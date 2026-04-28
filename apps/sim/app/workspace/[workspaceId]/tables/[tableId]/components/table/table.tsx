@@ -32,7 +32,6 @@ import {
   ChevronDown,
   Fingerprint,
   Pencil,
-  Play,
   PlayOutline,
   Plus,
   Table as TableIcon,
@@ -83,10 +82,11 @@ import {
   formatValueForInput,
   storageToDisplay,
 } from '../../utils'
+import { type ColumnConfigState, ColumnSidebar } from '../column-sidebar/column-sidebar'
+import { COLUMN_TYPE_OPTIONS } from '../column-sidebar/column-types'
 import { ContextMenu } from '../context-menu'
 import { RowModal } from '../row-modal'
 import { TableFilter } from '../table-filter'
-import { WorkflowColumnSidebar } from '../workflow-column-sidebar/workflow-column-sidebar'
 
 interface CellCoord {
   rowIndex: number
@@ -1872,19 +1872,14 @@ export function Table({
   /**
    * Config state for the side panel:
    * - `null` → closed.
-   * - `{ mode: 'edit' }` → configuring an existing workflow column.
+   * - `{ mode: 'edit' }` → configuring an existing column (any type).
    * - `{ mode: 'new' }` → user changed an existing column to workflow; not persisted until Save.
    * - `{ mode: 'create' }` → user picked a workflow from "Add column"; column doesn't exist yet,
    *   created on Save in a single POST.
    */
-  type ConfigState =
-    | { mode: 'edit'; columnName: string }
-    | { mode: 'new'; columnName: string; workflowId: string; proposedName: string }
-    | { mode: 'create'; columnName: string; workflowId: string; proposedName: string }
-    | null
-  const [configState, setConfigState] = useState<ConfigState>(null)
+  const [configState, setConfigState] = useState<ColumnConfigState>(null)
 
-  const handleConfigureWorkflow = useCallback((columnName: string) => {
+  const handleConfigureColumn = useCallback((columnName: string) => {
     setConfigState({ mode: 'edit', columnName })
   }, [])
 
@@ -2266,6 +2261,16 @@ export function Table({
         </>
       )}
 
+      {embedded && totalRunning > 0 && (
+        <div className='flex shrink-0 items-center justify-end border-[var(--border)] border-b px-3 py-1.5'>
+          <RunStatusControl
+            running={totalRunning}
+            onStopAll={handleStopAll}
+            isStopping={cancelRunsMutation.isPending}
+          />
+        </div>
+      )}
+
       <div className='relative flex min-h-0 flex-1'>
         <div
           ref={scrollRef}
@@ -2359,7 +2364,7 @@ export function Table({
                         onDragLeave={handleColumnDragLeave}
                         workflows={workflows}
                         onChangeToWorkflow={handleChangeToWorkflow}
-                        onConfigureWorkflow={handleConfigureWorkflow}
+                        onOpenConfig={handleConfigureColumn}
                       />
                     ))}
                     {userPermissions.canEdit && (
@@ -2458,7 +2463,7 @@ export function Table({
           )}
         </div>
 
-        <WorkflowColumnSidebar
+        <ColumnSidebar
           configState={configState}
           onClose={() => setConfigState(null)}
           existingColumn={
@@ -3392,15 +3397,6 @@ const TableBodySkeleton = React.memo(function TableBodySkeleton({
   )
 })
 
-const COLUMN_TYPE_OPTIONS: { type: string; label: string; icon: React.ElementType }[] = [
-  { type: 'string', label: 'Text', icon: TypeText },
-  { type: 'number', label: 'Number', icon: TypeNumber },
-  { type: 'boolean', label: 'Boolean', icon: TypeBoolean },
-  { type: 'date', label: 'Date', icon: CalendarIcon },
-  { type: 'json', label: 'JSON', icon: TypeJson },
-  { type: 'workflow', label: 'Workflow', icon: Play },
-]
-
 const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   column,
   colIndex,
@@ -3428,7 +3424,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onDragLeave,
   workflows,
   onChangeToWorkflow,
-  onConfigureWorkflow,
+  onOpenConfig,
 }: {
   column: ColumnDefinition
   colIndex: number
@@ -3456,7 +3452,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onDragLeave?: () => void
   workflows?: WorkflowMetadata[]
   onChangeToWorkflow?: (columnName: string, workflowId: string) => void
-  onConfigureWorkflow?: (columnName: string) => void
+  onOpenConfig: (columnName: string) => void
 }) {
   const renameInputRef = useRef<HTMLInputElement>(null)
   const didDragRef = useRef(false)
@@ -3568,8 +3564,11 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       }
       if (isRenaming) return
       onColumnSelect(colIndex, e.shiftKey)
+      if (!e.shiftKey) {
+        onOpenConfig(column.name)
+      }
     },
-    [colIndex, isRenaming, onColumnSelect]
+    [colIndex, column.name, isRenaming, onColumnSelect, onOpenConfig]
   )
 
   const handleChevronClick = useCallback((e: React.MouseEvent) => {
@@ -3671,9 +3670,9 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               sideOffset={4}
               onCloseAutoFocus={(e) => e.preventDefault()}
             >
-              {column.type === 'workflow' && onConfigureWorkflow && (
+              {column.type === 'workflow' && (
                 <>
-                  <DropdownMenuItem onSelect={() => onConfigureWorkflow(column.name)}>
+                  <DropdownMenuItem onSelect={() => onOpenConfig(column.name)}>
                     <Pencil />
                     Configure workflow
                   </DropdownMenuItem>

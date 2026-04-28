@@ -129,7 +129,6 @@ async function fetchTableRows({
     searchParams.set('sort', JSON.stringify(sort))
   }
 
-  console.log('[TableQueries debug] fetchTableRows START', { tableId, ts: Date.now() })
   const res = await fetch(`/api/table/${tableId}/rows?${searchParams}`, { signal })
   if (!res.ok) {
     const error = await res.json().catch(() => ({}))
@@ -143,20 +142,13 @@ async function fetchTableRows({
   } = await res.json()
 
   const data = json.data || json
-  const result = {
+  return {
     rows: (data.rows || []) as TableRow[],
     totalCount: data.totalCount || 0,
   }
-  console.log('[TableQueries debug] fetchTableRows DONE', {
-    tableId,
-    rowCount: result.rows.length,
-    ts: Date.now(),
-  })
-  return result
 }
 
 function invalidateRowData(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
-  console.log('[TableQueries debug] invalidateRowData', { tableId, ts: Date.now() })
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 }
 
@@ -257,17 +249,10 @@ export function useTableRows({
     // server state, making the user's edit appear to revert. The mutation's
     // `onSettled` invalidate triggers a fresh refetch that re-enables polling.
     refetchInterval: (query) => {
-      const mutating = queryClient.isMutating()
-      const running = hasRunningWorkflowCell(query.state.data?.rows)
-      const interval = mutating > 0 ? false : running ? ROWS_POLL_INTERVAL_WHILE_RUNNING_MS : false
-      console.log('[TableQueries debug] refetchInterval evaluate', {
-        tableId,
-        mutating,
-        runningCellPresent: running,
-        intervalMs: interval,
-        ts: Date.now(),
-      })
-      return interval
+      if (queryClient.isMutating() > 0) return false
+      return hasRunningWorkflowCell(query.state.data?.rows)
+        ? ROWS_POLL_INTERVAL_WHILE_RUNNING_MS
+        : false
     },
     refetchIntervalInBackground: false,
   })
@@ -506,12 +491,6 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
 
   return useMutation({
     mutationFn: async ({ rowId, data }: UpdateTableRowParams) => {
-      console.log('[TableQueries debug] useUpdateTableRow mutationFn START', {
-        tableId,
-        rowId,
-        keys: Object.keys(data),
-        ts: Date.now(),
-      })
       const res = await fetch(`/api/table/${tableId}/rows/${rowId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -520,32 +499,12 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
 
       if (!res.ok) {
         const error = await res.json().catch(() => ({}))
-        console.log('[TableQueries debug] useUpdateTableRow mutationFn ERROR', {
-          tableId,
-          rowId,
-          status: res.status,
-          serverError: error,
-          requestData: data,
-          ts: Date.now(),
-        })
         throw new Error(error.error || 'Failed to update row')
       }
 
-      const json = await res.json()
-      console.log('[TableQueries debug] useUpdateTableRow mutationFn DONE', {
-        tableId,
-        rowId,
-        ts: Date.now(),
-      })
-      return json
+      return res.json()
     },
     onMutate: ({ rowId, data }) => {
-      console.log('[TableQueries debug] useUpdateTableRow onMutate', {
-        tableId,
-        rowId,
-        data,
-        ts: Date.now(),
-      })
       void queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 
       const previousQueries = queryClient.getQueriesData<TableRowsResponse>({
@@ -564,41 +523,17 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
           }
         }
       )
-      console.log('[TableQueries debug] useUpdateTableRow onMutate optimistic done', {
-        tableId,
-        rowId,
-        affectedQueryKeys: previousQueries.map(([k]) => k),
-        ts: Date.now(),
-      })
 
       return { previousQueries }
     },
-    onSuccess: (_data, vars) => {
-      console.log('[TableQueries debug] useUpdateTableRow onSuccess', {
-        tableId,
-        rowId: vars.rowId,
-        ts: Date.now(),
-      })
-    },
-    onError: (err, vars, context) => {
-      console.log('[TableQueries debug] useUpdateTableRow onError — reverting optimistic', {
-        tableId,
-        rowId: vars.rowId,
-        error: err instanceof Error ? err.message : String(err),
-        ts: Date.now(),
-      })
+    onError: (_err, _vars, context) => {
       if (context?.previousQueries) {
         for (const [queryKey, data] of context.previousQueries) {
           queryClient.setQueryData(queryKey, data)
         }
       }
     },
-    onSettled: (_data, _err, vars) => {
-      console.log('[TableQueries debug] useUpdateTableRow onSettled — invalidating', {
-        tableId,
-        rowId: vars.rowId,
-        ts: Date.now(),
-      })
+    onSettled: () => {
       invalidateRowData(queryClient, tableId)
     },
   })
