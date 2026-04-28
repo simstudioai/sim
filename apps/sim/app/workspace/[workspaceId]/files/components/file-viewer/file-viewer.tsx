@@ -94,7 +94,12 @@ export function FileViewer({
 
   if (category === 'iframe-previewable') {
     return (
-      <IframePreview file={file} workspaceId={workspaceId} streamingContent={streamingContent} />
+      <IframePreview
+        key={file.id}
+        file={file}
+        workspaceId={workspaceId}
+        streamingContent={streamingContent}
+      />
     )
   }
 
@@ -151,6 +156,8 @@ const IframePreview = memo(function IframePreview({
 }) {
   const [streamingBuffer, setStreamingBuffer] = useState<ArrayBuffer | null>(null)
   const streamingBufferRef = useRef<ArrayBuffer | null>(null)
+  const streamingBufferSeqRef = useRef(0)
+  const [streamingBufferSeq, setStreamingBufferSeq] = useState(0)
   const [rendering, setRendering] = useState(false)
   const [renderError, setRenderError] = useState<string | null>(null)
 
@@ -182,7 +189,9 @@ const IframePreview = memo(function IframePreview({
         if (cancelled) return
 
         streamingBufferRef.current = buf
+        streamingBufferSeqRef.current += 1
         setStreamingBuffer(buf)
+        setStreamingBufferSeq(streamingBufferSeqRef.current)
       } catch (err) {
         if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
           const msg = toError(err).message || 'Failed to render PDF'
@@ -226,13 +235,7 @@ const IframePreview = memo(function IframePreview({
 
   if (streamingContent !== undefined) {
     if (!streamingSource) return null
-    return (
-      <PdfViewerCore
-        key={streamingBuffer!.byteLength}
-        source={streamingSource}
-        filename={file.name}
-      />
-    )
+    return <PdfViewerCore key={streamingBufferSeq} source={streamingSource} filename={file.name} />
   }
 
   return <PdfViewerCore source={staticSource} filename={file.name} />
