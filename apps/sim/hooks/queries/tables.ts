@@ -13,7 +13,22 @@ import type {
   TableDefinition,
   TableMetadata,
   TableRow,
+  WorkflowCellValue,
 } from '@/lib/table'
+
+/** Short poll to surface running → completed transitions from the server without a dedicated realtime channel. */
+const ROWS_POLL_INTERVAL_WHILE_RUNNING_MS = 1500
+
+function hasRunningWorkflowCell(rows: TableRow[] | undefined): boolean {
+  if (!rows) return false
+  for (const row of rows) {
+    for (const key in row.data) {
+      const cell = row.data[key] as WorkflowCellValue | null | undefined
+      if (cell && typeof cell === 'object' && cell.status === 'running') return true
+    }
+  }
+  return false
+}
 
 const logger = createLogger('TableQueries')
 
@@ -29,7 +44,6 @@ export const tableKeys = {
   rowsRoot: (tableId: string) => [...tableKeys.detail(tableId), 'rows'] as const,
   rows: (tableId: string, paramsKey: string) =>
     [...tableKeys.rowsRoot(tableId), paramsKey] as const,
-  manualTriggers: (tableId: string) => [...tableKeys.detail(tableId), 'manual-triggers'] as const,
 }
 
 interface TableRowsParams {
@@ -115,6 +129,7 @@ async function fetchTableRows({
     searchParams.set('sort', JSON.stringify(sort))
   }
 
+  console.log('[TableQueries debug] fetchTableRows START', { tableId, ts: Date.now() })
   const res = await fetch(`/api/table/${tableId}/rows?${searchParams}`, { signal })
   if (!res.ok) {
     const error = await res.json().catch(() => ({}))
@@ -128,13 +143,20 @@ async function fetchTableRows({
   } = await res.json()
 
   const data = json.data || json
-  return {
+  const result = {
     rows: (data.rows || []) as TableRow[],
     totalCount: data.totalCount || 0,
   }
+  console.log('[TableQueries debug] fetchTableRows DONE', {
+    tableId,
+    rowCount: result.rows.length,
+    ts: Date.now(),
+  })
+  return result
 }
 
 function invalidateRowData(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
+  console.log('[TableQueries debug] invalidateRowData', { tableId, ts: Date.now() })
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 }
 
@@ -212,6 +234,7 @@ export function useTableRows({
   sort,
   enabled = true,
 }: TableRowsParams & { enabled?: boolean }) {
+  const queryClient = useQueryClient()
   const paramsKey = createRowsParamsKey({ limit, offset, filter, sort })
 
   return useQuery({
@@ -229,6 +252,24 @@ export function useTableRows({
     enabled: Boolean(workspaceId && tableId) && enabled,
     staleTime: 30 * 1000, // 30 seconds
     placeholderData: keepPreviousData,
+    // Pause polling while any mutation is in-flight. A poll response that lands
+    // mid-mutation can clobber the optimistic row update with not-yet-committed
+    // server state, making the user's edit appear to revert. The mutation's
+    // `onSettled` invalidate triggers a fresh refetch that re-enables polling.
+    refetchInterval: (query) => {
+      const mutating = queryClient.isMutating()
+      const running = hasRunningWorkflowCell(query.state.data?.rows)
+      const interval = mutating > 0 ? false : running ? ROWS_POLL_INTERVAL_WHILE_RUNNING_MS : false
+      console.log('[TableQueries debug] refetchInterval evaluate', {
+        tableId,
+        mutating,
+        runningCellPresent: running,
+        intervalMs: interval,
+        ts: Date.now(),
+      })
+      return interval
+    },
+    refetchIntervalInBackground: false,
   })
 }
 
@@ -277,6 +318,11 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
       required?: boolean
       unique?: boolean
       position?: number
+      workflowConfig?: {
+        workflowId: string
+        dependencies?: string[]
+        outputPath?: string
+      }
     }) => {
       const res = await fetch(`/api/table/${tableId}/columns`, {
         method: 'POST',
@@ -460,6 +506,12 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
 
   return useMutation({
     mutationFn: async ({ rowId, data }: UpdateTableRowParams) => {
+      console.log('[TableQueries debug] useUpdateTableRow mutationFn START', {
+        tableId,
+        rowId,
+        keys: Object.keys(data),
+        ts: Date.now(),
+      })
       const res = await fetch(`/api/table/${tableId}/rows/${rowId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -468,12 +520,32 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
 
       if (!res.ok) {
         const error = await res.json().catch(() => ({}))
+        console.log('[TableQueries debug] useUpdateTableRow mutationFn ERROR', {
+          tableId,
+          rowId,
+          status: res.status,
+          serverError: error,
+          requestData: data,
+          ts: Date.now(),
+        })
         throw new Error(error.error || 'Failed to update row')
       }
 
-      return res.json()
+      const json = await res.json()
+      console.log('[TableQueries debug] useUpdateTableRow mutationFn DONE', {
+        tableId,
+        rowId,
+        ts: Date.now(),
+      })
+      return json
     },
     onMutate: ({ rowId, data }) => {
+      console.log('[TableQueries debug] useUpdateTableRow onMutate', {
+        tableId,
+        rowId,
+        data,
+        ts: Date.now(),
+      })
       void queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 
       const previousQueries = queryClient.getQueriesData<TableRowsResponse>({
@@ -492,17 +564,41 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
           }
         }
       )
+      console.log('[TableQueries debug] useUpdateTableRow onMutate optimistic done', {
+        tableId,
+        rowId,
+        affectedQueryKeys: previousQueries.map(([k]) => k),
+        ts: Date.now(),
+      })
 
       return { previousQueries }
     },
-    onError: (_err, _vars, context) => {
+    onSuccess: (_data, vars) => {
+      console.log('[TableQueries debug] useUpdateTableRow onSuccess', {
+        tableId,
+        rowId: vars.rowId,
+        ts: Date.now(),
+      })
+    },
+    onError: (err, vars, context) => {
+      console.log('[TableQueries debug] useUpdateTableRow onError — reverting optimistic', {
+        tableId,
+        rowId: vars.rowId,
+        error: err instanceof Error ? err.message : String(err),
+        ts: Date.now(),
+      })
       if (context?.previousQueries) {
         for (const [queryKey, data] of context.previousQueries) {
           queryClient.setQueryData(queryKey, data)
         }
       }
     },
-    onSettled: () => {
+    onSettled: (_data, _err, vars) => {
+      console.log('[TableQueries debug] useUpdateTableRow onSettled — invalidating', {
+        tableId,
+        rowId: vars.rowId,
+        ts: Date.now(),
+      })
       invalidateRowData(queryClient, tableId)
     },
   })
@@ -755,9 +851,7 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(
-          (data as { error?: string }).error || 'Failed to cancel runs'
-        )
+        throw new Error((data as { error?: string }).error || 'Failed to cancel runs')
       }
       return res.json() as Promise<{ success: true; data: { cancelled: number } }>
     },
@@ -917,36 +1011,5 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
     onSettled: () => {
       invalidateTableSchema(queryClient, workspaceId, tableId)
     },
-  })
-}
-
-// ---------------------------------------------------------------------------
-// Manual table triggers
-// ---------------------------------------------------------------------------
-
-export interface ManualTriggerWorkflow {
-  workflowId: string
-  workflowName: string
-  workflowColor: string
-}
-
-async function fetchManualTriggers(
-  tableId: string,
-  signal?: AbortSignal
-): Promise<ManualTriggerWorkflow[]> {
-  const res = await fetch(`/api/table/${tableId}/triggers`, { signal })
-  if (!res.ok) {
-    throw new Error('Failed to fetch manual triggers')
-  }
-  const json = await res.json()
-  return json.data?.workflows ?? []
-}
-
-export function useManualTriggers(tableId?: string) {
-  return useQuery({
-    queryKey: tableKeys.manualTriggers(tableId ?? ''),
-    queryFn: ({ signal }) => fetchManualTriggers(tableId!, signal),
-    enabled: Boolean(tableId),
-    staleTime: 30 * 1000,
   })
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { RepeatIcon, SplitIcon, X } from 'lucide-react'
 import {
   Button,
@@ -12,24 +12,22 @@ import {
   toast,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import type { ColumnDefinition } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
-  flattenWorkflowOutputs,
   type FlattenOutputsBlockInput,
   type FlattenOutputsEdgeInput,
+  flattenWorkflowOutputs,
 } from '@/lib/workflows/blocks/flatten-outputs'
-import type { ColumnDefinition } from '@/lib/table'
 import { getBlock } from '@/blocks'
+import { useAddTableColumn, useUpdateColumn, useUpdateTableMetadata } from '@/hooks/queries/tables'
 import { useWorkflowState } from '@/hooks/queries/workflows'
-import {
-  useUpdateColumn,
-  useUpdateTableMetadata,
-  type ManualTriggerWorkflow,
-} from '@/hooks/queries/tables'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 export type WorkflowColumnConfigState =
   | { mode: 'edit'; columnName: string }
   | { mode: 'new'; columnName: string; workflowId: string; proposedName: string }
+  | { mode: 'create'; columnName: string; workflowId: string; proposedName: string }
   | null
 
 interface WorkflowColumnSidebarProps {
@@ -38,7 +36,7 @@ interface WorkflowColumnSidebarProps {
   /** The current column record for edit mode. Null for new mode or closed. */
   existingColumn: ColumnDefinition | null
   allColumns: ColumnDefinition[]
-  workflows: ManualTriggerWorkflow[] | undefined
+  workflows: WorkflowMetadata[] | undefined
   workspaceId: string
   tableId: string
   /**
@@ -49,8 +47,20 @@ interface WorkflowColumnSidebarProps {
 }
 
 const FULL_OUTPUT = '__full__'
+const NO_OUTPUT = ''
+const OUTPUT_VALUE_SEPARATOR = '::'
 const BATCH_SIZE_MIN = 1
 const BATCH_SIZE_MAX = 100
+
+/** Encodes blockId + path so duplicate field names across blocks stay distinct. */
+const encodeOutputValue = (blockId: string, path: string) =>
+  `${blockId}${OUTPUT_VALUE_SEPARATOR}${path}`
+
+/** Strips the blockId prefix; returns the bare path that gets persisted as outputPath. */
+const decodeOutputPath = (value: string) => {
+  const idx = value.indexOf(OUTPUT_VALUE_SEPARATOR)
+  return idx === -1 ? value : value.slice(idx + OUTPUT_VALUE_SEPARATOR.length)
+}
 
 const TagIcon: React.FC<{
   icon: string | React.ComponentType<{ className?: string }>
@@ -95,17 +105,14 @@ export function WorkflowColumnSidebar({
   workflowColumnBatchSize,
 }: WorkflowColumnSidebarProps) {
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
+  const addColumn = useAddTableColumn({ workspaceId, tableId })
   const updateMetadata = useUpdateTableMetadata({ workspaceId, tableId })
   const open = configState !== null
 
-  // The column we're configuring. In 'new' mode there's no record yet — we only have a
-  // name and the picked workflowId. In 'edit' mode it's the real ColumnDefinition.
-  const columnName =
-    configState?.mode === 'edit'
-      ? configState.columnName
-      : configState?.mode === 'new'
-        ? configState.columnName
-        : ''
+  // The column we're configuring. In 'edit' mode it's the real ColumnDefinition.
+  // In 'new' mode the column exists but isn't yet a workflow column. In 'create'
+  // mode no column exists yet and we'll POST one on Save.
+  const columnName = configState ? configState.columnName : ''
 
   const otherColumns = useMemo(
     () => (columnName ? allColumns.filter((c) => c.name !== columnName) : []),
@@ -115,36 +122,47 @@ export function WorkflowColumnSidebar({
   // Local working state — persisted only on Save.
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>('')
   const [deps, setDeps] = useState<string[]>([])
-  const [outputPath, setOutputPath] = useState<string>(FULL_OUTPUT)
+  const [outputValue, setOutputValue] = useState<string>(NO_OUTPUT)
   const [batchSizeInput, setBatchSizeInput] = useState<string>('')
+  const [nameInput, setNameInput] = useState<string>('')
 
-  // Re-seed local state whenever the panel is (re)opened with different context.
+  // Kept in refs so query-refetch churn on the source props doesn't reseed the
+  // working state and wipe the user's unsaved edits.
+  const existingColumnRef = useRef(existingColumn)
+  existingColumnRef.current = existingColumn
+  const allColumnsRef = useRef(allColumns)
+  allColumnsRef.current = allColumns
+  const workflowColumnBatchSizeRef = useRef(workflowColumnBatchSize)
+  workflowColumnBatchSizeRef.current = workflowColumnBatchSize
+
+  // Seed only on panel open or when the target changes — deliberately not on
+  // prop-reference churn from refetches.
   useEffect(() => {
     if (!open || !configState) return
-    if (configState.mode === 'edit' && existingColumn?.workflowConfig) {
-      setSelectedWorkflowId(existingColumn.workflowConfig.workflowId)
+    const existing = existingColumnRef.current
+    const cols = allColumnsRef.current
+    if (configState.mode === 'edit' && existing?.workflowConfig) {
+      setSelectedWorkflowId(existing.workflowConfig.workflowId)
       setDeps(
-        existingColumn.workflowConfig.dependencies ??
-          allColumns.filter((c) => c.name !== existingColumn.name).map((c) => c.name)
+        existing.workflowConfig.dependencies ??
+          cols.filter((c) => c.name !== existing.name).map((c) => c.name)
       )
-      setOutputPath(existingColumn.workflowConfig.outputPath || FULL_OUTPUT)
-    } else if (configState.mode === 'new') {
+      setOutputValue(existing.workflowConfig.outputPath ?? NO_OUTPUT)
+      setNameInput(existing.name)
+    } else if (configState.mode === 'new' || configState.mode === 'create') {
       setSelectedWorkflowId(configState.workflowId)
-      // Default: check every sibling column.
-      setDeps(allColumns.filter((c) => c.name !== configState.columnName).map((c) => c.name))
-      setOutputPath(FULL_OUTPUT)
+      setDeps(cols.filter((c) => c.name !== configState.columnName).map((c) => c.name))
+      setOutputValue(NO_OUTPUT)
+      setNameInput(configState.proposedName)
     }
     setBatchSizeInput(
-      String(workflowColumnBatchSize ?? TABLE_LIMITS.WORKFLOW_COLUMN_BATCH_SIZE)
+      String(workflowColumnBatchSizeRef.current ?? TABLE_LIMITS.WORKFLOW_COLUMN_BATCH_SIZE)
     )
-  }, [open, configState, existingColumn, allColumns, workflowColumnBatchSize])
+  }, [open, configState])
 
-  const selectedWorkflow = useMemo(
-    () => workflows?.find((w) => w.workflowId === selectedWorkflowId),
-    [workflows, selectedWorkflowId]
+  const workflowState = useWorkflowState(
+    open && selectedWorkflowId ? selectedWorkflowId : undefined
   )
-
-  const workflowState = useWorkflowState(open && selectedWorkflowId ? selectedWorkflowId : undefined)
 
   /**
    * Build Combobox groups from the flattened outputs. Flatten logic is shared with the
@@ -190,10 +208,29 @@ export function WorkflowColumnSidebar({
             <span className='font-medium text-small'>{blockName}</span>
           </div>
         ),
-        items: items.map((f) => ({ label: f.path, value: f.path })),
+        items: items.map((f) => ({
+          label: f.path,
+          value: encodeOutputValue(f.blockId, f.path),
+        })),
       }
     })
   }, [workflowState.data])
+
+  // Re-encode a stored bare path once block options arrive so the picker can
+  // pre-select the matching option (option values are blockId-prefixed for
+  // uniqueness, but stored outputPath is just the bare dot-path).
+  useEffect(() => {
+    if (!outputValue || outputValue === FULL_OUTPUT) return
+    if (outputValue.includes(OUTPUT_VALUE_SEPARATOR)) return
+    for (const group of outputComboboxGroups) {
+      for (const item of group.items) {
+        if (decodeOutputPath(item.value) === outputValue) {
+          setOutputValue(item.value)
+          return
+        }
+      }
+    }
+  }, [outputComboboxGroups, outputValue])
 
   const toggleDep = (name: string) => {
     setDeps((prev) => (prev.includes(name) ? prev.filter((d) => d !== name) : [...prev, name]))
@@ -204,62 +241,72 @@ export function WorkflowColumnSidebar({
     Number.isFinite(parsedBatchSize) &&
     parsedBatchSize >= BATCH_SIZE_MIN &&
     parsedBatchSize <= BATCH_SIZE_MAX
-  const previousBatchSize =
-    workflowColumnBatchSize ?? TABLE_LIMITS.WORKFLOW_COLUMN_BATCH_SIZE
+  const previousBatchSize = workflowColumnBatchSize ?? TABLE_LIMITS.WORKFLOW_COLUMN_BATCH_SIZE
   const batchSizeChanged = batchSizeValid && parsedBatchSize !== previousBatchSize
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!configState || !selectedWorkflowId) return
     if (!batchSizeValid) {
       toast.error(`Run concurrency must be between ${BATCH_SIZE_MIN} and ${BATCH_SIZE_MAX}`)
       return
     }
+    const trimmedName = nameInput.trim()
+    if (!trimmedName) {
+      toast.error('Column name is required')
+      return
+    }
     const workflowConfig = {
       workflowId: selectedWorkflowId,
       dependencies: deps,
-      outputPath: outputPath === FULL_OUTPUT ? undefined : outputPath,
+      outputPath:
+        outputValue === FULL_OUTPUT || outputValue === NO_OUTPUT
+          ? undefined
+          : decodeOutputPath(outputValue),
     }
 
-    if (batchSizeChanged) {
-      updateMetadata.mutate({ workflowColumnBatchSize: parsedBatchSize })
-    }
+    try {
+      // Metadata must land before the column mutation runs. Both invalidate
+      // `tableKeys.detail(tableId)` on settle, and if the column invalidation's
+      // refetch lands before the metadata PUT commits to DB, the cache gets
+      // clobbered with the old metadata.
+      if (batchSizeChanged) {
+        await updateMetadata.mutateAsync({ workflowColumnBatchSize: parsedBatchSize })
+      }
 
-    if (configState.mode === 'new') {
-      updateColumn.mutate(
-        {
+      if (configState.mode === 'create') {
+        await addColumn.mutateAsync({
+          name: trimmedName,
+          type: 'workflow',
+          workflowConfig,
+        })
+        toast.success(`Added "${trimmedName}"`)
+      } else if (configState.mode === 'new') {
+        await updateColumn.mutateAsync({
           columnName: configState.columnName,
           updates: {
-            ...(configState.proposedName !== configState.columnName
-              ? { name: configState.proposedName }
-              : {}),
+            ...(trimmedName !== configState.columnName ? { name: trimmedName } : {}),
             type: 'workflow',
             workflowConfig,
           },
-        },
-        {
-          onSuccess: () => {
-            toast.success(`Saved "${configState.proposedName}"`)
-            onClose()
+        })
+        toast.success(`Saved "${trimmedName}"`)
+      } else {
+        const renamed = trimmedName !== configState.columnName
+        await updateColumn.mutateAsync({
+          columnName: configState.columnName,
+          updates: {
+            ...(renamed ? { name: trimmedName } : {}),
+            workflowConfig,
           },
-          onError: (err) => toast.error(err.message || 'Failed to save'),
-        }
-      )
-      return
-    }
-
-    updateColumn.mutate(
-      {
-        columnName: configState.columnName,
-        updates: { workflowConfig },
-      },
-      {
-        onSuccess: () => {
-          toast.success(`Saved "${configState.columnName}"`)
-          onClose()
-        },
-        onError: (err) => toast.error(err.message || 'Failed to save'),
+        })
+        toast.success(`Saved "${trimmedName}"`)
       }
-    )
+
+      onClose()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save'
+      toast.error(message)
+    }
   }
 
   return (
@@ -288,10 +335,20 @@ export function WorkflowColumnSidebar({
         <div className='mt-5 flex-1 overflow-y-auto'>
           <div className='flex flex-col gap-2.5 pb-4'>
             <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2'>
-              <span className='font-medium text-[var(--text-tertiary)] text-caption'>Column</span>
-              <span className='truncate font-medium text-[var(--text-secondary)] text-sm'>
-                {configState?.mode === 'new' ? configState.proposedName : columnName}
-              </span>
+              <label
+                htmlFor='workflow-column-name'
+                className='font-medium text-[var(--text-tertiary)] text-caption'
+              >
+                Column Name
+              </label>
+              <Input
+                id='workflow-column-name'
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                className='!h-auto !bg-transparent !border-0 !px-0 !py-0 !text-sm focus-visible:!ring-0 font-medium text-[var(--text-secondary)]'
+                spellCheck={false}
+                autoComplete='off'
+              />
             </div>
 
             <div>
@@ -301,9 +358,7 @@ export function WorkflowColumnSidebar({
               <Combobox
                 size='sm'
                 className='!py-0.5 rounded-md px-2.5'
-                options={
-                  workflows?.map((wf) => ({ label: wf.workflowName, value: wf.workflowId })) ?? []
-                }
+                options={workflows?.map((wf) => ({ label: wf.name, value: wf.id })) ?? []}
                 value={selectedWorkflowId}
                 onChange={(v) => setSelectedWorkflowId(v)}
                 placeholder='Select a workflow'
@@ -311,59 +366,6 @@ export function WorkflowColumnSidebar({
                 emptyMessage='No manual triggers configured'
                 maxHeight={260}
               />
-              {selectedWorkflow && (
-                <div className='mt-1.5 flex items-center gap-2'>
-                  <span
-                    className='h-2.5 w-2.5 shrink-0 rounded-sm border-[2px]'
-                    style={{
-                      backgroundColor: selectedWorkflow.workflowColor,
-                      borderColor: `${selectedWorkflow.workflowColor}60`,
-                      backgroundClip: 'padding-box',
-                    }}
-                  />
-                  <span className='text-[var(--text-tertiary)] text-caption'>
-                    {selectedWorkflow.workflowName}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className='mt-3'>
-              <div className='mb-2 font-medium text-[var(--text-tertiary)] text-caption'>
-                Trigger when these columns are filled
-              </div>
-              <div className='-my-1 flex min-w-0 flex-col overflow-hidden rounded-md border border-[var(--border)]'>
-                {otherColumns.length === 0 ? (
-                  <div className='px-2 py-3 text-[var(--text-tertiary)] text-sm'>
-                    No other columns.
-                  </div>
-                ) : (
-                  otherColumns.map((c, idx) => {
-                    const checked = deps.includes(c.name)
-                    return (
-                      <label
-                        key={c.name}
-                        className={cn(
-                          'flex h-[40px] cursor-pointer items-center gap-2.5 px-2.5 hover:bg-[var(--surface-2)]',
-                          idx < otherColumns.length - 1 && 'border-[var(--border)] border-b'
-                        )}
-                      >
-                        <Checkbox
-                          size='sm'
-                          checked={checked}
-                          onCheckedChange={() => toggleDep(c.name)}
-                        />
-                        <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                          {c.name}
-                        </span>
-                        <span className='ml-auto text-[var(--text-tertiary)] text-caption'>
-                          {c.type}
-                        </span>
-                      </label>
-                    )
-                  })
-                )}
-              </div>
             </div>
 
             <div className='mt-3'>
@@ -374,12 +376,12 @@ export function WorkflowColumnSidebar({
                 size='sm'
                 className='!py-0.5 rounded-md px-2.5'
                 groups={[
-                  { items: [{ label: 'Full output', value: FULL_OUTPUT }] },
                   ...outputComboboxGroups,
+                  { items: [{ label: 'Full output', value: FULL_OUTPUT }] },
                 ]}
                 options={[]}
-                value={outputPath}
-                onChange={(v) => setOutputPath(v)}
+                value={outputValue}
+                onChange={(v) => setOutputValue(v)}
                 placeholder='Select outputs'
                 isLoading={workflowState.isLoading}
                 maxHeight={260}
@@ -387,6 +389,50 @@ export function WorkflowColumnSidebar({
               />
               <div className='mt-1.5 text-[var(--text-tertiary)] text-caption'>
                 Pick one field from the workflow, or store the full output.
+              </div>
+            </div>
+
+            <div className='mt-3'>
+              <div className='mb-2 font-medium text-[var(--text-tertiary)] text-caption'>
+                Trigger when these columns are filled
+              </div>
+              <div className='-my-1 flex max-h-[240px] min-w-0 flex-col overflow-y-auto rounded-md border border-[var(--border)]'>
+                {otherColumns.length === 0 ? (
+                  <div className='px-2 py-3 text-[var(--text-tertiary)] text-sm'>
+                    No other columns.
+                  </div>
+                ) : (
+                  otherColumns.map((c, idx) => {
+                    const checked = deps.includes(c.name)
+                    return (
+                      <div
+                        key={c.name}
+                        role='checkbox'
+                        aria-checked={checked}
+                        tabIndex={0}
+                        onClick={() => toggleDep(c.name)}
+                        onKeyDown={(e) => {
+                          if (e.key === ' ' || e.key === 'Enter') {
+                            e.preventDefault()
+                            toggleDep(c.name)
+                          }
+                        }}
+                        className={cn(
+                          'flex h-[40px] flex-shrink-0 cursor-pointer items-center gap-2.5 px-2.5 hover:bg-[var(--surface-2)]',
+                          idx < otherColumns.length - 1 && 'border-[var(--border)] border-b'
+                        )}
+                      >
+                        <Checkbox size='sm' checked={checked} className='pointer-events-none' />
+                        <span className='font-medium text-[var(--text-secondary)] text-sm'>
+                          {c.name}
+                        </span>
+                        <span className='ml-auto text-[var(--text-tertiary)] text-caption'>
+                          {c.type}
+                        </span>
+                      </div>
+                    )
+                  })
+                )}
               </div>
             </div>
 
@@ -405,8 +451,8 @@ export function WorkflowColumnSidebar({
                 aria-invalid={!batchSizeValid}
               />
               <div className='mt-1.5 text-[var(--text-tertiary)] text-caption'>
-                Max workflow runs executed in parallel across all workflow columns in this
-                table ({BATCH_SIZE_MIN}–{BATCH_SIZE_MAX}). Default{' '}
+                Max workflow runs executed in parallel across all workflow columns in this table (
+                {BATCH_SIZE_MIN}–{BATCH_SIZE_MAX}). Default{' '}
                 {TABLE_LIMITS.WORKFLOW_COLUMN_BATCH_SIZE}.
               </div>
             </div>

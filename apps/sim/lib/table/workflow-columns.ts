@@ -14,10 +14,10 @@
  */
 
 import { db } from '@sim/db'
-import { webhook as webhookTable, workflow as workflowTable } from '@sim/db/schema'
+import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull } from 'drizzle-orm'
 import { generateId } from '@sim/utils/id'
+import { eq } from 'drizzle-orm'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import type {
   ColumnDefinition,
@@ -66,7 +66,17 @@ export function isWorkflowColumnEligible(
 
   const cell = row.data[column.name] as WorkflowCellValue | null | undefined
   const status = cell?.status
-  if (status === 'running' || status === 'completed' || status === 'error') return false
+  // `cancelled` must skip too — `cancelWorkflowColumnRuns` writes the cancelled
+  // state via `updateRow`, which fires the scheduler again. Without this guard,
+  // the scheduler would immediately re-run the column the user just stopped.
+  if (
+    status === 'running' ||
+    status === 'completed' ||
+    status === 'error' ||
+    status === 'cancelled'
+  ) {
+    return false
+  }
 
   const isFilled = (colToCheck: ColumnDefinition, value: unknown): boolean => {
     if (colToCheck.type === 'workflow') {
@@ -83,9 +93,7 @@ export function isWorkflowColumnEligible(
     for (const depName of explicitDeps) {
       const depCol = schema.columns.find((c) => c.name === depName)
       if (!depCol) {
-        throw new Error(
-          `Workflow column "${column.name}" has unknown dependency "${depName}"`
-        )
+        throw new Error(`Workflow column "${column.name}" has unknown dependency "${depName}"`)
       }
       if (!isFilled(depCol, row.data[depName])) return false
     }
@@ -151,9 +159,13 @@ export async function scheduleWorkflowColumnRuns(
       Math.max(1, Math.floor(requestedBatchSize))
     )
 
+    // Preserve position order so batches fire in the order the user sees them in the UI.
+    // Skip the sort on single-row calls (the common row-write path).
+    const orderedRows = rows.length <= 1 ? rows : [...rows].sort((a, b) => a.position - b.position)
+
     const pendingRuns: RunWorkflowColumnOptions[] = []
 
-    for (const row of rows) {
+    for (const row of orderedRows) {
       for (const { col, idx } of workflowColumns) {
         let eligible = false
         try {
@@ -161,7 +173,8 @@ export async function scheduleWorkflowColumnRuns(
         } catch (predicateErr) {
           // Malformed dependency config — surface it on the specific cell so the user
           // can see why their column is stuck, then move on to the next row/column.
-          const message = predicateErr instanceof Error ? predicateErr.message : String(predicateErr)
+          const message =
+            predicateErr instanceof Error ? predicateErr.message : String(predicateErr)
           logger.error(
             `Eligibility predicate threw for table=${table.id} row=${row.id} col=${col.name}: ${message}`
           )
@@ -247,18 +260,21 @@ interface RunWorkflowColumnOptions {
 }
 
 /**
- * Executes a single workflow for a specific cell and writes the result back via the
- * normal row update path. Both "mark running" and the final write flow through
- * `updateRow`, so the scheduler re-enters naturally and cascades to downstream workflow
- * columns without any bypass plumbing.
+ * Enqueues a workflow-column run as a `workflow-column-execution` async job
+ * (trigger.dev in prod; the DB queue fallback elsewhere). Writes the cell to
+ * `running` and persists the returned async-job id on the cell so the cancel
+ * API can call `backend.cancelJob(jobId)` from any pod.
  *
- * Service-layer imports are deferred to avoid a require-cycle with the service.
+ * The actual workflow execution + terminal cell write (completed/error) happens
+ * in the background task `apps/sim/background/workflow-column-execution.ts`.
+ * Cancellation writes `cancelled` authoritatively from `cancelWorkflowColumnRuns`
+ * — see that function for why.
  */
 export async function runWorkflowColumn(opts: RunWorkflowColumnOptions): Promise<void> {
   const { tableId, tableName, rowId, columnName, workflowId, workspaceId, executionId } = opts
 
   const { getTableById, getRowById, updateRow } = await import('@/lib/table/service')
-  const { executeWorkflow } = await import('@/lib/workflows/executor/execute-workflow')
+  const { getJobQueue, shouldExecuteInline } = await import('@/lib/core/async-jobs/config')
 
   const writeCell = async (value: WorkflowCellValue) => {
     const table = await getTableById(tableId)
@@ -279,167 +295,201 @@ export async function runWorkflowColumn(opts: RunWorkflowColumnOptions): Promise
     )
   }
 
+  // 1) Flip the cell to `running` immediately so the UI reflects state regardless
+  //    of how long the queue takes to dispatch.
   try {
     await writeCell({
       executionId,
+      jobId: null,
       workflowId,
       status: 'running',
       output: null,
       error: null,
     })
   } catch (err) {
-    logger.error(`Failed to mark cell running (table=${tableId} row=${rowId} col=${columnName}):`, err)
-    return
-  }
-
-  const [workflowRecord] = await db
-    .select()
-    .from(workflowTable)
-    .where(eq(workflowTable.id, workflowId))
-    .limit(1)
-
-  if (!workflowRecord || !workflowRecord.isDeployed) {
-    await writeCell({
-      executionId,
-      workflowId,
-      status: 'error',
-      output: null,
-      error: !workflowRecord ? 'Workflow not found' : 'Workflow is not deployed',
-    })
-    return
-  }
-
-  // Find the manual table-trigger webhook record for this workflow+table. Its `blockId`
-  // is the trigger block the executor should enter at — otherwise executeWorkflow falls
-  // through to looking for a Start block, which manual-trigger workflows don't have.
-  const webhookRecords = await db
-    .select({
-      blockId: webhookTable.blockId,
-      providerConfig: webhookTable.providerConfig,
-    })
-    .from(webhookTable)
-    .where(
-      and(
-        eq(webhookTable.workflowId, workflowId),
-        eq(webhookTable.provider, 'table'),
-        eq(webhookTable.isActive, true),
-        isNull(webhookTable.archivedAt)
-      )
+    logger.error(
+      `Failed to mark cell running (table=${tableId} row=${rowId} col=${columnName}):`,
+      err
     )
-
-  interface TableWebhookProviderConfig {
-    tableId?: string
-    tableSelector?: string
-    manualTableId?: string
-    eventType?: string
-  }
-
-  const manualWebhook = webhookRecords.find((w) => {
-    const cfg = (w.providerConfig as TableWebhookProviderConfig | null) ?? {}
-    const cfgTableId = cfg.tableId ?? cfg.tableSelector ?? cfg.manualTableId
-    return cfgTableId === tableId && cfg.eventType === 'manual'
-  })
-
-  if (!manualWebhook?.blockId) {
-    await writeCell({
-      executionId,
-      workflowId,
-      status: 'error',
-      output: null,
-      error: 'Workflow is not configured with a manual table trigger for this table',
-    })
     return
   }
 
-  const row = await getRowById(tableId, rowId, workspaceId)
-  if (!row) {
-    logger.warn(`Row ${rowId} vanished before execution`)
-    return
-  }
-  const table = await getTableById(tableId)
-  if (!table) {
-    logger.warn(`Table ${tableId} vanished before execution`)
-    return
-  }
-
-  const columnDef = table.schema.columns.find((c) => c.name === columnName)
-  const outputPath = columnDef?.workflowConfig?.outputPath
-
-  const inputRow: Record<string, unknown> = {}
-  for (const key of Object.keys(row.data)) {
-    if (key === columnName) continue
-    inputRow[key] = row.data[key]
-  }
-
-  const headers = table.schema.columns
-    .filter((c) => c.name !== columnName)
-    .map((c) => c.name)
-
-  const input = {
-    row: inputRow,
-    rawRow: inputRow,
-    previousRow: null,
-    changedColumns: [],
-    rowId,
-    headers,
-    rowNumber: row.position,
+  // 2) Enqueue and capture the async-job id. The task body fetches workflow +
+  //    webhook + row, runs `executeWorkflow`, and writes the terminal state.
+  const taskPayload = {
     tableId,
     tableName,
-    timestamp: new Date().toISOString(),
+    rowId,
+    columnName,
+    workflowId,
+    workspaceId,
+    executionId,
   }
-
+  let jobId: string
+  let queue: Awaited<ReturnType<typeof getJobQueue>>
   try {
-    const result = await executeWorkflow(
-      {
-        id: workflowRecord.id,
-        userId: workflowRecord.userId,
-        workspaceId: workflowRecord.workspaceId,
-        variables: (workflowRecord.variables as Record<string, unknown> | null) ?? {},
-      },
-      `wfcol-${executionId}`,
-      input,
-      workflowRecord.userId,
-      {
-        enabled: true,
-        executionMode: 'sync',
-        workflowTriggerType: 'table',
-        triggerBlockId: manualWebhook.blockId,
-      },
-      executionId
-    )
-
-    if (result.success) {
-      const rawOutput = (result.output as unknown) ?? null
-      const pickedOutput = outputPath ? pluckByPath(rawOutput, outputPath) : rawOutput
-      await writeCell({
-        executionId,
+    queue = await getJobQueue()
+    jobId = await queue.enqueue('workflow-column-execution', taskPayload, {
+      metadata: {
         workflowId,
-        status: 'completed',
-        output: pickedOutput ?? null,
-        error: null,
-      })
-    } else {
-      await writeCell({
-        executionId,
-        workflowId,
-        status: 'error',
-        output: null,
-        error: result.error ?? 'Workflow execution failed',
-      })
-    }
+        workspaceId,
+        correlation: {
+          executionId,
+          requestId: `wfcol-${executionId}`,
+          source: 'workflow',
+          workflowId,
+          triggerType: 'table',
+        },
+      },
+      tags: [`tableId:${tableId}`, `rowId:${rowId}`, `column:${columnName}`],
+    })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    logger.error(`Workflow column execution failed (table=${tableId} row=${rowId} col=${columnName}):`, err)
-    try {
-      await writeCell({
-        executionId,
-        workflowId,
-        status: 'error',
+    logger.error(
+      `Failed to enqueue workflow-column-execution (table=${tableId} row=${rowId} col=${columnName}):`,
+      err
+    )
+    await writeCell({
+      executionId,
+      jobId: null,
+      workflowId,
+      status: 'error',
+      output: null,
+      error: message,
+    })
+    return
+  }
+
+  // 3) Stamp the jobId onto the cell so cancel can find it.
+  try {
+    await writeCell({
+      executionId,
+      jobId,
+      workflowId,
+      status: 'running',
+      output: null,
+      error: null,
+    })
+  } catch (err) {
+    logger.error(
+      `Failed to persist jobId on cell (table=${tableId} row=${rowId} col=${columnName}):`,
+      err
+    )
+    // Don't fail the run — the task will still complete; cancel just won't be able
+    // to abort this specific cell until the task writes the terminal state.
+  }
+
+  // 4) When trigger.dev is disabled the DB queue just records the row — nothing
+  //    pulls it. Run the task body inline ourselves, mirroring the pattern in
+  //    `app/api/workflows/[id]/execute/route.ts` for `workflow-execution`.
+  if (shouldExecuteInline()) {
+    const { registerInlineAbort, unregisterInlineAbort } = await import(
+      '@/lib/core/async-jobs/inline-abort'
+    )
+    const abortController = new AbortController()
+    registerInlineAbort(jobId, abortController)
+
+    void (async () => {
+      try {
+        const { executeWorkflowColumnJob } = await import('@/background/workflow-column-execution')
+        await queue.startJob(jobId)
+        await executeWorkflowColumnJob(taskPayload, abortController.signal)
+        await queue.completeJob(jobId, null)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        logger.error(
+          `Inline workflow-column-execution failed (jobId=${jobId} table=${tableId} row=${rowId} col=${columnName}):`,
+          err
+        )
+        try {
+          await queue.markJobFailed(jobId, message)
+        } catch (markErr) {
+          logger.error('Also failed to mark job as failed:', markErr)
+        }
+      } finally {
+        unregisterInlineAbort(jobId)
+      }
+    })()
+  }
+}
+
+/**
+ * Cancels in-flight workflow-column runs for a table (all rows or a specific row).
+ *
+ * Scans every workflow cell in scope, calls `backend.cancelJob(jobId)` for each
+ * `running` cell with a non-null `jobId`, and authoritatively writes
+ * `status: 'cancelled'` to the cell. The cell write is independent of whether
+ * the cancel reaches the worker in time — `runs.cancel` may kill the task mid-
+ * flight before it can write its own terminal state, so we don't depend on it.
+ *
+ * Cascade behavior is preserved automatically: downstream columns only fire on
+ * `status === 'completed'`, so cancelling upstream halts the chain.
+ */
+export async function cancelWorkflowColumnRuns(tableId: string, rowId?: string): Promise<number> {
+  const { getTableById, updateRow } = await import('@/lib/table/service')
+  const { getJobQueue } = await import('@/lib/core/async-jobs/config')
+
+  const table = await getTableById(tableId)
+  if (!table) {
+    logger.warn(`cancelWorkflowColumnRuns: table ${tableId} not found`)
+    return 0
+  }
+
+  const workflowColumnNames = table.schema.columns
+    .filter((c) => c.type === 'workflow' && c.workflowConfig?.workflowId)
+    .map((c) => c.name)
+  if (workflowColumnNames.length === 0) return 0
+
+  const rowQuery = rowId
+    ? db.select().from(userTableRows).where(eq(userTableRows.id, rowId))
+    : db.select().from(userTableRows).where(eq(userTableRows.tableId, tableId))
+  const rows = await rowQuery
+
+  const queue = await getJobQueue()
+  let cancelled = 0
+
+  for (const row of rows) {
+    if (row.tableId !== tableId) continue
+    const data = row.data as RowData
+    let mutated = false
+    const nextData: RowData = { ...data }
+    for (const name of workflowColumnNames) {
+      const cell = data[name] as WorkflowCellValue | null | undefined
+      if (!cell || cell.status !== 'running') continue
+
+      if (cell.jobId) {
+        try {
+          await queue.cancelJob(cell.jobId)
+        } catch (err) {
+          logger.error(`Failed to cancel job ${cell.jobId} for ${tableId}/${row.id}/${name}:`, err)
+          // Continue — we still want to write the cancelled cell state below.
+        }
+      }
+
+      const cancelledCell: WorkflowCellValue = {
+        executionId: cell.executionId ?? null,
+        jobId: null,
+        workflowId: cell.workflowId,
+        status: 'cancelled',
         output: null,
-        error: message,
-      })
-    } catch (writeErr) {
-      logger.error('Also failed to write error state:', writeErr)
+        error: 'Cancelled',
+      }
+      nextData[name] = cancelledCell as unknown as RowData[string]
+      mutated = true
+      cancelled++
+    }
+    if (mutated) {
+      try {
+        await updateRow(
+          { tableId, rowId: row.id, data: nextData, workspaceId: table.workspaceId },
+          table,
+          `wfcol-cancel-${row.id}`
+        )
+      } catch (err) {
+        logger.error(`Failed to write cancelled state for row ${row.id}:`, err)
+      }
     }
   }
+
+  return cancelled
 }

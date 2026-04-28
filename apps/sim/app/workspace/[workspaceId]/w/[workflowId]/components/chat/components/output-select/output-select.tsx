@@ -6,8 +6,8 @@ import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
 import {
-  flattenWorkflowOutputs,
   type FlattenOutputsBlockInput,
+  flattenWorkflowOutputs,
 } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
@@ -122,9 +122,10 @@ export function OutputSelect({
       const subBlocks: Record<string, unknown> = {}
       if (rawSubBlockValues && typeof rawSubBlockValues === 'object') {
         for (const [key, val] of Object.entries(rawSubBlockValues)) {
-          subBlocks[key] = val && typeof val === 'object' && 'value' in (val as object)
-            ? (val as { value: unknown })
-            : { value: val }
+          subBlocks[key] =
+            val && typeof val === 'object' && 'value' in (val as object)
+              ? (val as { value: unknown })
+              : { value: val }
         }
       }
       return {

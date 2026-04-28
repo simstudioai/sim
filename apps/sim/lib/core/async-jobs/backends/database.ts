@@ -2,6 +2,7 @@ import { asyncJobs, db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
+import { abortInlineJob } from '@/lib/core/async-jobs/inline-abort'
 import {
   type EnqueueOptions,
   JOB_STATUS,
@@ -110,5 +111,26 @@ export class DatabaseJobQueue implements JobQueueBackend {
       .where(eq(asyncJobs.id, jobId))
 
     logger.debug('Marked job as failed', { jobId })
+  }
+
+  async cancelJob(jobId: string): Promise<void> {
+    // Abort any in-process inline execution first so the running workflow
+    // observes the signal and stops mid-flight. Then mark the row failed so
+    // any future poller skips it. The DB queue is single-process / dev-only,
+    // so an in-memory registry is sufficient for cross-call abort.
+    const aborted = abortInlineJob(jobId)
+
+    const now = new Date()
+    await db
+      .update(asyncJobs)
+      .set({
+        status: JOB_STATUS.FAILED,
+        completedAt: now,
+        error: 'Cancelled',
+        updatedAt: now,
+      })
+      .where(eq(asyncJobs.id, jobId))
+
+    logger.debug('Marked job as cancelled (DB queue)', { jobId, abortedInline: aborted })
   }
 }

@@ -167,6 +167,13 @@ export const CreateColumnSchema = z.object({
     required: z.boolean().optional(),
     unique: z.boolean().optional(),
     position: z.number().int().min(0).optional(),
+    workflowConfig: z
+      .object({
+        workflowId: z.string().min(1),
+        dependencies: z.array(z.string()).optional(),
+        outputPath: z.string().optional(),
+      })
+      .optional(),
   }),
 })
 

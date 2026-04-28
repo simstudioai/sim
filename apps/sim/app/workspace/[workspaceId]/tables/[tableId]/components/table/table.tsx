@@ -1,17 +1,17 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
-  Badge,
   Button,
   Checkbox,
   DatePicker,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSearchInput,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -22,7 +22,6 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  PillsRing,
   Skeleton,
   Upload,
 } from '@/components/emcn'
@@ -69,13 +68,13 @@ import {
   useRenameTable,
   useUpdateColumn,
   useUpdateTableMetadata,
-  useManualTriggers,
   useUpdateTableRow,
-  type ManualTriggerWorkflow,
 } from '@/hooks/queries/tables'
+import { useWorkflows } from '@/hooks/queries/workflows'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useContextMenu, useRowExecution, useTableData } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
 import {
@@ -211,6 +210,7 @@ export function Table({
   const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null)
   const [initialCharacter, setInitialCharacter] = useState<string | null>(null)
+  const [expandedCell, setExpandedCell] = useState<EditingCell | null>(null)
   const [selectionAnchor, setSelectionAnchor] = useState<CellCoord | null>(null)
   const [selectionFocus, setSelectionFocus] = useState<CellCoord | null>(null)
   const [checkedRows, setCheckedRows] = useState(EMPTY_CHECKED_ROWS)
@@ -259,9 +259,9 @@ export function Table({
   } = useContextMenu()
 
   const { runWorkflowColumn } = useRowExecution()
-  const { data: manualTriggerWorkflows } = useManualTriggers(tableId)
-  const manualTriggerWorkflowsRef = useRef(manualTriggerWorkflows)
-  manualTriggerWorkflowsRef.current = manualTriggerWorkflows
+  const { data: workflows } = useWorkflows(workspaceId)
+  const workflowsRef = useRef(workflows)
+  workflowsRef.current = workflows
 
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const createRowMutation = useCreateTableRow({ workspaceId, tableId })
@@ -654,7 +654,7 @@ export function Table({
     (workflowId: string, columnName?: string) => {
       const row = contextMenu.row
       if (!row) return
-      const wf = manualTriggerWorkflows?.find((w) => w.workflowId === workflowId)
+      const wf = workflows?.find((w) => w.id === workflowId)
       const targetColumn =
         columnName ??
         columns.find((c) => c.type === 'workflow' && c.workflowConfig?.workflowId === workflowId)
@@ -665,11 +665,11 @@ export function Table({
         rowId: row.id,
         workspaceId,
         columnName: targetColumn,
-        workflowName: wf?.workflowName,
+        workflowName: wf?.name,
       })
       closeContextMenu()
     },
-    [contextMenu.row, manualTriggerWorkflows, columns, tableId, workspaceId, runWorkflowColumn, closeContextMenu]
+    [contextMenu.row, workflows, columns, tableId, workspaceId, runWorkflowColumn, closeContextMenu]
   )
 
   const handleCellMouseDown = useCallback(
@@ -992,15 +992,50 @@ export function Table({
     setInitialCharacter(null)
   }, [])
 
+  // Double-click highlights the cell's text and, only if the text is actually
+  // truncated, opens the expanded popover. The cell has `select-none` which
+  // suppresses the highlight even for programmatic selections, so we override
+  // `user-select` on the inner element until the next click. Workflow cells nest
+  // their text inside a span with its own `overflow-clip`, so we measure the leaf
+  // element's scroll dimensions, not just the wrapper div's.
   const handleCellDoubleClick = useCallback((rowId: string, columnName: string) => {
-    if (!canEditRef.current) return
-    const column = columnsRef.current.find((c) => c.name === columnName)
-    if (!column || column.type === 'boolean' || column.type === 'workflow') return
-
     setSelectionFocus(null)
     setIsColumnSelection(false)
-    setEditingCell({ rowId, columnName })
-    setInitialCharacter(null)
+
+    const row = rowsRef.current.find((r) => r.id === rowId)
+    const colIndex = columnsRef.current.findIndex((c) => c.name === columnName)
+    let overflows = true
+    if (row && colIndex !== -1) {
+      const td = document.querySelector<HTMLElement>(
+        `[data-table-scroll] [data-row="${row.position}"][data-col="${colIndex}"]`
+      )
+      const inner = td?.querySelector<HTMLElement>(':scope > div:last-child')
+      if (inner) {
+        const candidates: HTMLElement[] = [inner]
+        const descendants = inner.querySelectorAll<HTMLElement>('*')
+        for (const el of descendants) candidates.push(el)
+        overflows = candidates.some(
+          (el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1
+        )
+
+        inner.style.userSelect = 'text'
+        const clear = () => {
+          inner.style.userSelect = ''
+          window.removeEventListener('mousedown', clear, true)
+        }
+        window.addEventListener('mousedown', clear, true)
+
+        const selection = window.getSelection()
+        if (selection) {
+          const range = document.createRange()
+          range.selectNodeContents(inner)
+          selection.removeAllRanges()
+          selection.addRange(range)
+        }
+      }
+    }
+
+    if (overflows) setExpandedCell({ rowId, columnName })
   }, [])
 
   const mutateRef = useRef(updateRowMutation.mutate)
@@ -1695,18 +1730,30 @@ export function Table({
     return name
   }, [])
 
-  const handleAddColumn = useCallback(() => {
-    const name = generateColumnName()
-    const position = schemaColumnsRef.current.length
-    addColumnMutation.mutate(
-      { name, type: 'string' },
-      {
-        onSuccess: () => {
-          pushUndoRef.current({ type: 'create-column', columnName: name, position })
-        },
+  const handleAddColumn = useCallback(
+    (type = 'string', workflowId?: string) => {
+      const name = generateColumnName()
+      // Workflow columns: don't persist anything yet. The sidebar's Save creates the
+      // column atomically via POST with the chosen workflowConfig — opens instantly
+      // and avoids stranding a placeholder column if the user cancels.
+      if (type === 'workflow' && workflowId) {
+        const wf = workflowsRef.current?.find((w) => w.id === workflowId)
+        const proposedName = wf ? sanitizeWorkflowNameAsColumnRef.current(wf.name, name) : name
+        setConfigState({ mode: 'create', columnName: name, workflowId, proposedName })
+        return
       }
-    )
-  }, [generateColumnName])
+      const position = schemaColumnsRef.current.length
+      addColumnMutation.mutate(
+        { name, type },
+        {
+          onSuccess: () => {
+            pushUndoRef.current({ type: 'create-column', columnName: name, position })
+          },
+        }
+      )
+    },
+    [generateColumnName]
+  )
 
   const handleChangeType = useCallback((columnName: string, newType: string) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
@@ -1819,16 +1866,21 @@ export function Table({
     },
     []
   )
+  const sanitizeWorkflowNameAsColumnRef = useRef(sanitizeWorkflowNameAsColumn)
+  sanitizeWorkflowNameAsColumnRef.current = sanitizeWorkflowNameAsColumn
 
   /**
    * Config state for the side panel:
    * - `null` → closed.
    * - `{ mode: 'edit' }` → configuring an existing workflow column.
-   * - `{ mode: 'new' }` → user just picked a workflow; nothing is persisted until Save.
+   * - `{ mode: 'new' }` → user changed an existing column to workflow; not persisted until Save.
+   * - `{ mode: 'create' }` → user picked a workflow from "Add column"; column doesn't exist yet,
+   *   created on Save in a single POST.
    */
   type ConfigState =
     | { mode: 'edit'; columnName: string }
     | { mode: 'new'; columnName: string; workflowId: string; proposedName: string }
+    | { mode: 'create'; columnName: string; workflowId: string; proposedName: string }
     | null
   const [configState, setConfigState] = useState<ConfigState>(null)
 
@@ -1840,10 +1892,8 @@ export function Table({
     (columnName: string, workflowId: string) => {
       // Don't persist anything yet — open the sidebar with the pending workflow pick.
       // The Save button in the sidebar is what actually writes type/name/config.
-      const wf = manualTriggerWorkflowsRef.current?.find((w) => w.workflowId === workflowId)
-      const proposedName = wf
-        ? sanitizeWorkflowNameAsColumn(wf.workflowName, columnName)
-        : columnName
+      const wf = workflowsRef.current?.find((w) => w.id === workflowId)
+      const proposedName = wf ? sanitizeWorkflowNameAsColumn(wf.name, columnName) : columnName
       setConfigState({ mode: 'new', columnName, workflowId, proposedName })
     },
     [sanitizeWorkflowNameAsColumn]
@@ -2037,13 +2087,16 @@ export function Table({
     ]
   )
 
-  const createAction = useMemo(
-    () => ({
-      label: 'New column',
-      onClick: handleAddColumn,
-      disabled: addColumnMutation.isPending,
-    }),
-    [handleAddColumn, addColumnMutation.isPending]
+  const createTrigger = useMemo(
+    () =>
+      userPermissions.canEdit ? (
+        <HeaderAddColumnTrigger
+          onSelect={handleAddColumn}
+          disabled={addColumnMutation.isPending}
+          workflows={workflows}
+        />
+      ) : null,
+    [handleAddColumn, addColumnMutation.isPending, workflows, userPermissions.canEdit]
   )
 
   const headerActions = useMemo(
@@ -2112,8 +2165,14 @@ export function Table({
     [columns]
   )
   const hasWorkflowColumns = workflowColumnNames.length > 0
-  const workflowColumnNamesRef = useRef(workflowColumnNames)
-  workflowColumnNamesRef.current = workflowColumnNames
+
+  const workflowNameById = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const wf of workflows ?? []) {
+      map[wf.id] = wf.name
+    }
+    return map
+  }, [workflows])
 
   const { runningByRowId, totalRunning } = useMemo(() => {
     const byRow = new Map<string, number>()
@@ -2149,13 +2208,12 @@ export function Table({
 
   const handleRunRow = useCallback(
     (rowId: string) => {
-      const columnNames = workflowColumnNamesRef.current
-      if (columnNames.length === 0) return
-      for (const columnName of columnNames) {
+      if (workflowColumnNames.length === 0) return
+      for (const columnName of workflowColumnNames) {
         void runWorkflowColumn({ tableId, rowId, workspaceId, columnName })
       }
     },
-    [runWorkflowColumn, tableId, workspaceId]
+    [runWorkflowColumn, tableId, workspaceId, workflowColumnNames]
   )
 
   if (!isLoadingTable && !tableData) {
@@ -2179,8 +2237,17 @@ export function Table({
           <ResourceHeader
             icon={TableIcon}
             breadcrumbs={breadcrumbs}
-            create={createAction}
+            createTrigger={createTrigger}
             actions={headerActions}
+            trailingActions={
+              totalRunning > 0 ? (
+                <RunStatusControl
+                  running={totalRunning}
+                  onStopAll={handleStopAll}
+                  isStopping={cancelRunsMutation.isPending}
+                />
+              ) : null
+            }
           />
 
           <ResourceOptionsBar
@@ -2200,214 +2267,211 @@ export function Table({
       )}
 
       <div className='relative flex min-h-0 flex-1'>
-      {totalRunning > 0 && (
-        <RunStatusPill
-          running={totalRunning}
-          onStopAll={handleStopAll}
-          isStopping={cancelRunsMutation.isPending}
-        />
-      )}
-      <div
-        ref={scrollRef}
-        tabIndex={-1}
-        className={cn(
-          'min-h-0 flex-1 overflow-auto overscroll-none outline-none',
-          resizingColumn && 'select-none'
-        )}
-        data-table-scroll
-        onDragOver={handleScrollDragOver}
-        onDrop={handleScrollDrop}
-      >
-        <div className='relative h-fit' style={{ width: `${tableWidth}px` }}>
-          <table
-            className='table-fixed border-separate border-spacing-0 text-small'
-            style={{ width: `${tableWidth}px` }}
-          >
-            {isLoadingTable ? (
-              <colgroup>
-                <col style={{ width: CHECKBOX_COL_WIDTH }} />
-                {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
-                  <col key={i} style={{ width: COL_WIDTH }} />
-                ))}
-                <col style={{ width: ADD_COL_WIDTH }} />
-              </colgroup>
-            ) : (
-              <TableColGroup columns={displayColumns} columnWidths={columnWidths} />
-            )}
-            <thead className='sticky top-0 z-10'>
+        <div
+          ref={scrollRef}
+          tabIndex={-1}
+          className={cn(
+            'min-h-0 flex-1 overflow-auto overscroll-none outline-none',
+            resizingColumn && 'select-none'
+          )}
+          data-table-scroll
+          onDragOver={handleScrollDragOver}
+          onDrop={handleScrollDrop}
+        >
+          <div className='relative h-fit' style={{ width: `${tableWidth}px` }}>
+            <table
+              className='table-fixed border-separate border-spacing-0 text-small'
+              style={{ width: `${tableWidth}px` }}
+            >
               {isLoadingTable ? (
-                <tr>
-                  <th className={CELL_HEADER_CHECKBOX}>
-                    <div className='flex items-center justify-center'>
-                      <Skeleton className='h-[14px] w-[14px] rounded-xs' />
-                    </div>
-                  </th>
+                <colgroup>
+                  <col style={{ width: CHECKBOX_COL_WIDTH }} />
                   {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
-                    <th key={i} className={CELL_HEADER}>
-                      <div className='flex h-[20px] min-w-0 items-center gap-1.5'>
-                        <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
-                        <Skeleton className='h-[14px]' style={{ width: `${56 + i * 16}px` }} />
+                    <col key={i} style={{ width: COL_WIDTH }} />
+                  ))}
+                  <col style={{ width: ADD_COL_WIDTH }} />
+                </colgroup>
+              ) : (
+                <TableColGroup columns={displayColumns} columnWidths={columnWidths} />
+              )}
+              <thead className='sticky top-0 z-10'>
+                {isLoadingTable ? (
+                  <tr>
+                    <th className={CELL_HEADER_CHECKBOX}>
+                      <div className='flex items-center justify-center'>
+                        <Skeleton className='h-[14px] w-[14px] rounded-xs' />
                       </div>
                     </th>
-                  ))}
-                  <th className={CELL_HEADER}>
-                    <div className='flex h-[20px] items-center gap-2'>
-                      <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
-                      <Skeleton className='h-[14px] w-[72px]' />
-                    </div>
-                  </th>
-                </tr>
-              ) : (
-                <tr>
-                  <SelectAllCheckbox
-                    checked={isAllRowsSelected}
-                    onCheckedChange={handleSelectAllToggle}
-                  />
-                  {displayColumns.map((column, idx) => (
-                    <ColumnHeaderMenu
-                      key={column.name}
-                      column={column}
-                      colIndex={idx}
-                      readOnly={!userPermissions.canEdit}
-                      isRenaming={columnRename.editingId === column.name}
-                      isColumnSelected={
-                        isColumnSelection &&
-                        normalizedSelection !== null &&
-                        idx >= normalizedSelection.startCol &&
-                        idx <= normalizedSelection.endCol
-                      }
-                      renameValue={
-                        columnRename.editingId === column.name ? columnRename.editValue : ''
-                      }
-                      onRenameValueChange={columnRename.setEditValue}
-                      onRenameSubmit={columnRename.submitRename}
-                      onRenameCancel={columnRename.cancelRename}
-                      onRenameColumn={handleRenameColumn}
-                      onColumnSelect={handleColumnSelect}
-                      onChangeType={handleChangeType}
-                      onInsertLeft={handleInsertColumnLeft}
-                      onInsertRight={handleInsertColumnRight}
-                      onToggleUnique={handleToggleUnique}
-                      onDeleteColumn={handleDeleteColumn}
-                      onResizeStart={handleColumnResizeStart}
-                      onResize={handleColumnResize}
-                      onResizeEnd={handleColumnResizeEnd}
-                      onAutoResize={handleColumnAutoResize}
-                      onDragStart={handleColumnDragStart}
-                      onDragOver={handleColumnDragOver}
-                      onDragEnd={handleColumnDragEnd}
-                      onDragLeave={handleColumnDragLeave}
-                      manualTriggerWorkflows={manualTriggerWorkflows}
-                      onChangeToWorkflow={handleChangeToWorkflow}
-                      onConfigureWorkflow={handleConfigureWorkflow}
+                    {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
+                      <th key={i} className={CELL_HEADER}>
+                        <div className='flex h-[20px] min-w-0 items-center gap-1.5'>
+                          <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
+                          <Skeleton className='h-[14px]' style={{ width: `${56 + i * 16}px` }} />
+                        </div>
+                      </th>
+                    ))}
+                    <th className={CELL_HEADER}>
+                      <div className='flex h-[20px] items-center gap-2'>
+                        <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
+                        <Skeleton className='h-[14px] w-[72px]' />
+                      </div>
+                    </th>
+                  </tr>
+                ) : (
+                  <tr>
+                    <SelectAllCheckbox
+                      checked={isAllRowsSelected}
+                      onCheckedChange={handleSelectAllToggle}
                     />
-                  ))}
-                  {userPermissions.canEdit && (
-                    <AddColumnButton
-                      onClick={handleAddColumn}
-                      disabled={addColumnMutation.isPending}
-                    />
-                  )}
-                </tr>
-              )}
-            </thead>
-            <tbody>
-              {isLoadingTable || isLoadingRows ? (
-                <TableBodySkeleton colCount={displayColCount} />
-              ) : (
-                <>
-                  {rows.map((row, index) => {
-                    const prevPosition = index > 0 ? rows[index - 1].position : -1
-                    const gapCount = queryOptions.filter ? 0 : row.position - prevPosition - 1
-                    return (
-                      <React.Fragment key={row.id}>
-                        {gapCount > 0 && (
-                          <PositionGapRows
-                            count={gapCount}
-                            startPosition={prevPosition + 1}
+                    {displayColumns.map((column, idx) => (
+                      <ColumnHeaderMenu
+                        key={column.name}
+                        column={column}
+                        colIndex={idx}
+                        readOnly={!userPermissions.canEdit}
+                        isRenaming={columnRename.editingId === column.name}
+                        isColumnSelected={
+                          isColumnSelection &&
+                          normalizedSelection !== null &&
+                          idx >= normalizedSelection.startCol &&
+                          idx <= normalizedSelection.endCol
+                        }
+                        renameValue={
+                          columnRename.editingId === column.name ? columnRename.editValue : ''
+                        }
+                        onRenameValueChange={columnRename.setEditValue}
+                        onRenameSubmit={columnRename.submitRename}
+                        onRenameCancel={columnRename.cancelRename}
+                        onRenameColumn={handleRenameColumn}
+                        onColumnSelect={handleColumnSelect}
+                        onChangeType={handleChangeType}
+                        onInsertLeft={handleInsertColumnLeft}
+                        onInsertRight={handleInsertColumnRight}
+                        onToggleUnique={handleToggleUnique}
+                        onDeleteColumn={handleDeleteColumn}
+                        onResizeStart={handleColumnResizeStart}
+                        onResize={handleColumnResize}
+                        onResizeEnd={handleColumnResizeEnd}
+                        onAutoResize={handleColumnAutoResize}
+                        onDragStart={handleColumnDragStart}
+                        onDragOver={handleColumnDragOver}
+                        onDragEnd={handleColumnDragEnd}
+                        onDragLeave={handleColumnDragLeave}
+                        workflows={workflows}
+                        onChangeToWorkflow={handleChangeToWorkflow}
+                        onConfigureWorkflow={handleConfigureWorkflow}
+                      />
+                    ))}
+                    {userPermissions.canEdit && (
+                      <AddColumnButton
+                        onSelect={handleAddColumn}
+                        disabled={addColumnMutation.isPending}
+                        workflows={workflows}
+                      />
+                    )}
+                  </tr>
+                )}
+              </thead>
+              <tbody>
+                {isLoadingTable || isLoadingRows ? (
+                  <TableBodySkeleton colCount={displayColCount} />
+                ) : (
+                  <>
+                    {rows.map((row, index) => {
+                      const prevPosition = index > 0 ? rows[index - 1].position : -1
+                      const gapCount = queryOptions.filter ? 0 : row.position - prevPosition - 1
+                      return (
+                        <React.Fragment key={row.id}>
+                          {gapCount > 0 && (
+                            <PositionGapRows
+                              count={gapCount}
+                              startPosition={prevPosition + 1}
+                              columns={displayColumns}
+                              normalizedSelection={normalizedSelection}
+                              checkedRows={checkedRows}
+                              firstRowUnderHeader={prevPosition === -1}
+                              onCellMouseDown={handleCellMouseDown}
+                              onCellMouseEnter={handleCellMouseEnter}
+                              onRowToggle={handleRowToggle}
+                            />
+                          )}
+                          <DataRow
+                            row={row}
                             columns={displayColumns}
+                            rowIndex={row.position}
+                            isFirstRow={row.position === 0}
+                            editingColumnName={
+                              editingCell?.rowId === row.id ? editingCell.columnName : null
+                            }
+                            initialCharacter={
+                              editingCell?.rowId === row.id ? initialCharacter : null
+                            }
+                            pendingCellValue={
+                              pendingUpdate && pendingUpdate.rowId === row.id
+                                ? pendingUpdate.data
+                                : null
+                            }
                             normalizedSelection={normalizedSelection}
-                            checkedRows={checkedRows}
-                            firstRowUnderHeader={prevPosition === -1}
+                            onClick={handleCellClick}
+                            onDoubleClick={handleCellDoubleClick}
+                            onSave={handleInlineSave}
+                            onCancel={handleInlineCancel}
+                            onContextMenu={handleRowContextMenu}
                             onCellMouseDown={handleCellMouseDown}
                             onCellMouseEnter={handleCellMouseEnter}
+                            isRowChecked={checkedRows.has(row.position)}
                             onRowToggle={handleRowToggle}
+                            runningCount={runningByRowId.get(row.id) ?? 0}
+                            hasWorkflowColumns={hasWorkflowColumns}
+                            onStopRow={handleStopRow}
+                            onRunRow={handleRunRow}
+                            workflowNameById={workflowNameById}
                           />
-                        )}
-                        <DataRow
-                          row={row}
-                          columns={displayColumns}
-                          rowIndex={row.position}
-                          isFirstRow={row.position === 0}
-                          editingColumnName={
-                            editingCell?.rowId === row.id ? editingCell.columnName : null
-                          }
-                          initialCharacter={editingCell?.rowId === row.id ? initialCharacter : null}
-                          pendingCellValue={
-                            pendingUpdate && pendingUpdate.rowId === row.id
-                              ? pendingUpdate.data
-                              : null
-                          }
-                          normalizedSelection={normalizedSelection}
-                          onClick={handleCellClick}
-                          onDoubleClick={handleCellDoubleClick}
-                          onSave={handleInlineSave}
-                          onCancel={handleInlineCancel}
-                          onContextMenu={handleRowContextMenu}
-                          onCellMouseDown={handleCellMouseDown}
-                          onCellMouseEnter={handleCellMouseEnter}
-                          isRowChecked={checkedRows.has(row.position)}
-                          onRowToggle={handleRowToggle}
-                          runningCount={runningByRowId.get(row.id) ?? 0}
-                          hasWorkflowColumns={hasWorkflowColumns}
-                          onStopRow={handleStopRow}
-                          onRunRow={handleRunRow}
-                        />
-                      </React.Fragment>
-                    )
-                  })}
-                </>
-              )}
-            </tbody>
-          </table>
-          {resizingColumn && (
-            <div
-              className='-translate-x-[1.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
-              style={{ left: resizeIndicatorLeft }}
-            />
-          )}
-          {dropColumnBounds !== null && (
-            <>
+                        </React.Fragment>
+                      )
+                    })}
+                  </>
+                )}
+              </tbody>
+            </table>
+            {resizingColumn && (
               <div
-                className='pointer-events-none absolute top-0 z-[15] h-full bg-[rgba(37,99,235,0.06)]'
-                style={{ left: dropColumnBounds.left, width: dropColumnBounds.width }}
+                className='-translate-x-[1.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
+                style={{ left: resizeIndicatorLeft }}
               />
-              <div
-                className='-translate-x-[1px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
-                style={{ left: dropColumnBounds.lineLeft }}
-              />
-            </>
+            )}
+            {dropColumnBounds !== null && (
+              <>
+                <div
+                  className='pointer-events-none absolute top-0 z-[15] h-full bg-[rgba(37,99,235,0.06)]'
+                  style={{ left: dropColumnBounds.left, width: dropColumnBounds.width }}
+                />
+                <div
+                  className='-translate-x-[1px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
+                  style={{ left: dropColumnBounds.lineLeft }}
+                />
+              </>
+            )}
+          </div>
+          {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
+            <AddRowButton onClick={handleAppendRow} />
           )}
         </div>
-        {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
-          <AddRowButton onClick={handleAppendRow} />
-        )}
-      </div>
 
-      <WorkflowColumnSidebar
-        configState={configState}
-        onClose={() => setConfigState(null)}
-        existingColumn={
-          configState?.mode === 'edit'
-            ? columns.find((c) => c.name === configState.columnName) ?? null
-            : null
-        }
-        allColumns={columns}
-        workflows={manualTriggerWorkflows}
-        workspaceId={workspaceId}
-        tableId={tableId}
-        workflowColumnBatchSize={tableData?.metadata?.workflowColumnBatchSize}
-      />
+        <WorkflowColumnSidebar
+          configState={configState}
+          onClose={() => setConfigState(null)}
+          existingColumn={
+            configState?.mode === 'edit'
+              ? (columns.find((c) => c.name === configState.columnName) ?? null)
+              : null
+          }
+          allColumns={columns}
+          workflows={workflows}
+          workspaceId={workspaceId}
+          tableId={tableId}
+          workflowColumnBatchSize={tableData?.metadata?.workflowColumnBatchSize}
+        />
       </div>
 
       {editingRow && tableData && (
@@ -2448,8 +2512,18 @@ export function Table({
         disableEdit={!userPermissions.canEdit}
         disableInsert={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit}
-        manualTriggerWorkflows={manualTriggerWorkflows}
+        workflows={workflows}
         onRunWorkflow={handleRunWorkflow}
+      />
+
+      <ExpandedCellPopover
+        expandedCell={expandedCell}
+        onClose={() => setExpandedCell(null)}
+        rows={rows}
+        columns={columns}
+        onSave={handleInlineSave}
+        canEdit={userPermissions.canEdit}
+        scrollContainer={scrollRef.current}
       />
 
       {!embedded && (
@@ -2735,6 +2809,8 @@ interface DataRowProps {
   hasWorkflowColumns: boolean
   onStopRow: (rowId: string) => void
   onRunRow: (rowId: string) => void
+  /** Lookup from workflow id → human-readable name, used to label running cells. */
+  workflowNameById: Record<string, string>
 }
 
 function rowSelectionChanged(
@@ -2788,7 +2864,8 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.runningCount !== next.runningCount ||
     prev.hasWorkflowColumns !== next.hasWorkflowColumns ||
     prev.onStopRow !== next.onStopRow ||
-    prev.onRunRow !== next.onRunRow
+    prev.onRunRow !== next.onRunRow ||
+    prev.workflowNameById !== next.workflowNameById
   ) {
     return false
   }
@@ -2829,6 +2906,7 @@ const DataRow = React.memo(function DataRow({
   hasWorkflowColumns,
   onStopRow,
   onRunRow,
+  workflowNameById,
 }: DataRowProps) {
   const sel = normalizedSelection
   const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
@@ -2946,6 +3024,7 @@ const DataRow = React.memo(function DataRow({
                 initialCharacter={isEditing ? initialCharacter : undefined}
                 onSave={(value, reason) => onSave(row.id, column.name, value, reason)}
                 onCancel={onCancel}
+                workflowNameById={workflowNameById}
               />
             </div>
           </td>
@@ -2962,6 +3041,7 @@ function CellContent({
   initialCharacter,
   onSave,
   onCancel,
+  workflowNameById,
 }: {
   value: unknown
   column: ColumnDefinition
@@ -2969,6 +3049,7 @@ function CellContent({
   initialCharacter?: string | null
   onSave: (value: unknown, reason: SaveReason) => void
   onCancel: () => void
+  workflowNameById?: Record<string, string>
 }) {
   const isNull = value === null || value === undefined
 
@@ -2976,9 +3057,14 @@ function CellContent({
   if (column.type === 'workflow') {
     const cell = value as WorkflowCellValue | null
     if (cell?.status === 'running') {
+      const workflowName =
+        (cell.workflowId ? workflowNameById?.[cell.workflowId] : undefined) ?? 'workflow'
       displayContent = (
-        <div className='flex min-h-[20px] items-center justify-center'>
-          <Loader animate className='h-3.5 w-3.5 text-[var(--text-tertiary)]' />
+        <div className='flex min-h-[20px] min-w-0 items-center gap-1.5'>
+          <Loader animate className='h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]' />
+          <span className='min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-tertiary)]'>
+            Running {workflowName}
+          </span>
         </div>
       )
     } else if (cell?.status === 'completed' && cell.output != null) {
@@ -2989,17 +3075,25 @@ function CellContent({
       )
     } else if (cell?.status === 'error') {
       displayContent = (
-        <span className='block overflow-clip text-ellipsis text-red-500'>
-          {cell.error ?? 'Error'}
+        <span
+          className='block overflow-clip text-ellipsis text-[var(--text-error)]'
+          title={cell.error ?? undefined}
+        >
+          Error
+        </span>
+      )
+    } else if (cell?.status === 'cancelled') {
+      displayContent = (
+        <span className='block overflow-clip text-ellipsis text-[var(--text-tertiary)]'>
+          Cancelled
         </span>
       )
     } else {
-      displayContent = (
-        <span className='text-[var(--text-tertiary)]'>—</span>
-      )
+      displayContent = <span className='text-[var(--text-tertiary)]'>—</span>
     }
     return <>{displayContent}</>
-  } else if (column.type === 'boolean') {
+  }
+  if (column.type === 'boolean') {
     displayContent = (
       <div
         className={cn('flex min-h-[20px] items-center justify-center', isEditing && 'invisible')}
@@ -3332,7 +3426,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onDragOver,
   onDragEnd,
   onDragLeave,
-  manualTriggerWorkflows,
+  workflows,
   onChangeToWorkflow,
   onConfigureWorkflow,
 }: {
@@ -3360,7 +3454,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onDragOver?: (columnName: string, side: 'left' | 'right') => void
   onDragEnd?: () => void
   onDragLeave?: () => void
-  manualTriggerWorkflows?: ManualTriggerWorkflow[]
+  workflows?: WorkflowMetadata[]
   onChangeToWorkflow?: (columnName: string, workflowId: string) => void
   onConfigureWorkflow?: (columnName: string) => void
 }) {
@@ -3370,9 +3464,9 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
   const configuredWorkflow =
     column.type === 'workflow' && column.workflowConfig
-      ? manualTriggerWorkflows?.find((w) => w.workflowId === column.workflowConfig!.workflowId)
+      ? workflows?.find((w) => w.id === column.workflowConfig!.workflowId)
       : undefined
-  const workflowColor = configuredWorkflow?.workflowColor
+  const workflowColor = configuredWorkflow?.color
 
   useEffect(() => {
     if (isRenaming && renameInputRef.current) {
@@ -3604,26 +3698,11 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
                             <ColumnTypeIcon type='workflow' />
                             {option.label}
                           </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent>
-                            {manualTriggerWorkflows && manualTriggerWorkflows.length > 0 ? (
-                              manualTriggerWorkflows.map((wf) => (
-                                <DropdownMenuItem
-                                  key={wf.workflowId}
-                                  disabled={column.workflowConfig?.workflowId === wf.workflowId}
-                                  onSelect={() =>
-                                    onChangeToWorkflow?.(column.name, wf.workflowId)
-                                  }
-                                >
-                                  <ColumnTypeIcon type='workflow' workflowColor={wf.workflowColor} />
-                                  {wf.workflowName}
-                                </DropdownMenuItem>
-                              ))
-                            ) : (
-                              <DropdownMenuItem disabled>
-                                No manual triggers configured
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuSubContent>
+                          <WorkflowPickerSubContent
+                            workflows={workflows}
+                            onPick={(workflowId) => onChangeToWorkflow?.(column.name, workflowId)}
+                            disabledWorkflowId={column.workflowConfig?.workflowId}
+                          />
                         </DropdownMenuSub>
                       )
                     }
@@ -3678,51 +3757,239 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   )
 })
 
-interface RunStatusPillProps {
+interface ExpandedCellPopoverProps {
+  expandedCell: EditingCell | null
+  onClose: () => void
+  rows: TableRowType[]
+  columns: ColumnDefinition[]
+  onSave: (rowId: string, columnName: string, value: unknown, reason: SaveReason) => void
+  canEdit: boolean
+  scrollContainer: HTMLElement | null
+}
+
+const EXPANDED_CELL_MIN_WIDTH = 420
+const EXPANDED_CELL_HEIGHT = 280
+
+/**
+ * Supabase-style anchored cell expander. Floats over the clicked cell at the cell's
+ * top-left, minimum width {@link EXPANDED_CELL_MIN_WIDTH}, fixed height, internally
+ * scrollable. Triggered by cell double-click so long values are readable/editable
+ * without widening the column. Inline edit via Enter/F2/typing is unaffected.
+ *
+ * Workflow and boolean cells are read-only in this view — workflow cells are driven
+ * by the scheduler, booleans use a checkbox cell inline.
+ */
+function ExpandedCellPopover({
+  expandedCell,
+  onClose,
+  rows,
+  columns,
+  onSave,
+  canEdit,
+  scrollContainer,
+}: ExpandedCellPopoverProps) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [draftValue, setDraftValue] = useState<string>('')
+
+  const target = useMemo(() => {
+    if (!expandedCell) return null
+    const row = rows.find((r) => r.id === expandedCell.rowId)
+    const column = columns.find((c) => c.name === expandedCell.columnName)
+    if (!row || !column) return null
+    const colIndex = columns.findIndex((c) => c.name === expandedCell.columnName)
+    return { row, column, colIndex, value: row.data[column.name] }
+  }, [expandedCell, rows, columns])
+
+  const isWorkflowCell = target?.column.type === 'workflow'
+  const isBooleanCell = target?.column.type === 'boolean'
+  const isEditable = Boolean(target) && canEdit && !isWorkflowCell && !isBooleanCell
+
+  const displayText = useMemo(() => {
+    if (!target) return ''
+    const { column, value } = target
+    if (column.type === 'workflow') {
+      const cell = value as WorkflowCellValue | null | undefined
+      if (!cell) return ''
+      if (cell.status === 'error') return cell.error ?? 'Error'
+      if (cell.status !== 'completed') return ''
+      const output = cell.output
+      if (output == null) return ''
+      return typeof output === 'string' ? output : JSON.stringify(output, null, 2)
+    }
+    if (value == null) return ''
+    if (typeof value === 'string') return value
+    return JSON.stringify(value, null, 2)
+  }, [target])
+
+  useLayoutEffect(() => {
+    if (!expandedCell || !target) {
+      setRect(null)
+      return
+    }
+    setDraftValue(isEditable ? formatValueForInput(target.value, target.column.type) : '')
+    const selector = `[data-table-scroll] [data-row="${target.row.position}"][data-col="${target.colIndex}"]`
+    const el = document.querySelector<HTMLElement>(selector)
+    if (!el) {
+      setRect(null)
+      return
+    }
+    const r = el.getBoundingClientRect()
+    setRect({ top: r.top, left: r.left, width: r.width })
+    // Focus textarea on open so typing works immediately.
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }, [expandedCell, target, isEditable])
+
+  useEffect(() => {
+    if (!expandedCell) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+      }
+    }
+    const handleMouseDown = (e: MouseEvent) => {
+      if (!rootRef.current) return
+      if (rootRef.current.contains(e.target as Node)) return
+      onClose()
+    }
+    window.addEventListener('keydown', handleKey)
+    window.addEventListener('mousedown', handleMouseDown)
+    return () => {
+      window.removeEventListener('keydown', handleKey)
+      window.removeEventListener('mousedown', handleMouseDown)
+    }
+  }, [expandedCell, onClose])
+
+  // Close on table scroll — re-anchoring mid-scroll is more jarring than dismissing.
+  useEffect(() => {
+    if (!expandedCell || !scrollContainer) return
+    const handler = () => onClose()
+    scrollContainer.addEventListener('scroll', handler, { passive: true })
+    return () => scrollContainer.removeEventListener('scroll', handler)
+  }, [expandedCell, scrollContainer, onClose])
+
+  if (!expandedCell || !target || !rect) return null
+
+  const width = Math.max(rect.width, EXPANDED_CELL_MIN_WIDTH)
+  // Clamp to viewport. Prefer anchoring at the cell's left edge; if the popover
+  // would overflow right, align its right edge with the cell's right edge
+  // (mirroring Radix/menu flip behavior). Same idea for bottom-of-viewport.
+  const VIEWPORT_PAD = 8
+  const cellRight = rect.left + rect.width
+  const overflowsRight = rect.left + width > window.innerWidth - VIEWPORT_PAD
+  const left = overflowsRight
+    ? Math.max(VIEWPORT_PAD, cellRight - width)
+    : Math.max(VIEWPORT_PAD, rect.left)
+  const overflowsBottom = rect.top + EXPANDED_CELL_HEIGHT > window.innerHeight - VIEWPORT_PAD
+  const top = overflowsBottom
+    ? Math.max(VIEWPORT_PAD, window.innerHeight - EXPANDED_CELL_HEIGHT - VIEWPORT_PAD)
+    : rect.top
+
+  const handleSave = () => {
+    if (!isEditable) return
+    // `displayToStorage` only normalizes dates — it returns null for anything else.
+    // Fall back to the raw draft for non-date columns, matching the inline editor.
+    const raw = displayToStorage(draftValue) ?? draftValue
+    const cleaned = cleanCellValue(raw, target.column)
+    onSave(target.row.id, target.column.name, cleaned, 'blur')
+    onClose()
+  }
+
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSave()
+    }
+  }
+
+  return (
+    <div
+      ref={rootRef}
+      role='dialog'
+      aria-label={`Expanded view of ${target.column.name}`}
+      className='fixed z-50 flex flex-col overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--bg)] shadow-md'
+      style={{ top, left, width, height: EXPANDED_CELL_HEIGHT }}
+    >
+      {isEditable ? (
+        <>
+          <textarea
+            ref={textareaRef}
+            value={draftValue}
+            onChange={(e) => setDraftValue(e.target.value)}
+            onKeyDown={handleTextareaKeyDown}
+            className='min-h-0 flex-1 resize-none bg-transparent px-2.5 py-2 font-sans text-[var(--text-primary)] text-small outline-none placeholder:text-[var(--text-muted)]'
+            spellCheck={false}
+            autoCorrect='off'
+          />
+          <div className='flex items-center justify-between border-[var(--border)] border-t bg-[var(--surface-2)] px-2 py-1.5'>
+            <span className='text-[var(--text-tertiary)] text-caption'>
+              <kbd className='font-mono'>↵</kbd> save · <kbd className='font-mono'>esc</kbd> cancel
+            </span>
+            <div className='flex items-center gap-1.5'>
+              <Button variant='ghost' size='sm' onClick={onClose}>
+                Cancel
+              </Button>
+              <Button size='sm' variant='primary' onClick={handleSave}>
+                Save
+              </Button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className='min-h-0 flex-1 overflow-auto px-2.5 py-2'>
+            {displayText ? (
+              <pre className='whitespace-pre-wrap break-words font-sans text-[var(--text-primary)] text-small'>
+                {displayText}
+              </pre>
+            ) : (
+              <span className='text-[var(--text-tertiary)] text-small'>(empty)</span>
+            )}
+          </div>
+          <div className='flex items-center justify-end border-[var(--border)] border-t bg-[var(--surface-2)] px-2 py-1.5'>
+            <Button variant='ghost' size='sm' onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+interface RunStatusControlProps {
   running: number
   onStopAll: () => void
   isStopping: boolean
 }
 
-/** Adapter so `<Badge icon={...}>` can render an animated PillsRing. */
-function AnimatedPillsRing({ className }: { className?: string }) {
-  return <PillsRing animate className={className} />
-}
-
 /**
- * Floating status card anchored to the top-right of the table viewport. Surfaces
- * active workflow-column run activity and a one-click Stop-all affordance.
- *
- * Styled to match Sim's established patterns: floating-tooltip surface tokens from
- * the logs status bar (`surface-1`/`border-1`/`shadow-lg`), `PillsRing` as the
- * running spinner, and the same `variant='active'` + filled `Square` + "Stop" button
- * the workflow panel uses during execution.
- *
- * Queued count is not tracked yet — once `WorkflowCellValue.status` grows a `queued`
- * state, thread it in alongside `running`.
+ * Run-status + Stop-all control rendered in the header's trailing actions row.
+ * Matches the in-cell running indicator (`Loader` + tertiary text) for consistency.
  */
-const RunStatusPill = React.memo(function RunStatusPill({
+const RunStatusControl = React.memo(function RunStatusControl({
   running,
   onStopAll,
   isStopping,
-}: RunStatusPillProps) {
+}: RunStatusControlProps) {
   return (
-    <div className='pointer-events-none absolute top-3 right-3 z-20 flex'>
-      <div className='pointer-events-auto flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] p-1.5 shadow-lg'>
-        <Badge variant='green' icon={AnimatedPillsRing}>
-          <span className='tabular-nums'>{running}</span>
-          <span>running</span>
-        </Badge>
-        <Button
-          className='h-[30px] gap-2 px-2.5'
-          variant='active'
-          onClick={onStopAll}
-          disabled={isStopping}
-        >
-          <Square className='h-[11.5px] w-[11.5px] fill-current' />
-          Stop
-        </Button>
+    <div className='flex items-center gap-1.5'>
+      <div className='flex items-center gap-1.5 px-1 text-[var(--text-tertiary)] text-caption'>
+        <Loader animate className='h-3.5 w-3.5 shrink-0' />
+        <span className='tabular-nums'>{running}</span>
+        <span>running</span>
       </div>
+      <Button
+        variant='subtle'
+        className='px-2 py-1 text-caption'
+        onClick={onStopAll}
+        disabled={isStopping}
+      >
+        <Square className='mr-1.5 h-[14px] w-[14px] fill-current' />
+        Stop all
+      </Button>
     </div>
   )
 })
@@ -3743,27 +4010,151 @@ const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
   )
 })
 
-const AddColumnButton = React.memo(function AddColumnButton({
-  onClick,
-  disabled,
+/**
+ * Filterable list of workspace workflows shown inside a `DropdownMenuSubContent`.
+ *
+ * Owns its own search query so the input keeps state across re-renders of the
+ * parent menu. Stops keydown propagation so the parent dropdown's typeahead /
+ * arrow navigation doesn't hijack typing.
+ */
+function WorkflowPickerSubContent({
+  workflows,
+  onPick,
+  disabledWorkflowId,
 }: {
-  onClick: () => void
+  workflows: WorkflowMetadata[] | undefined
+  onPick: (workflowId: string) => void
+  disabledWorkflowId?: string
+}) {
+  const [query, setQuery] = useState('')
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const list = workflows ?? []
+    if (!q) return list
+    return list.filter((wf) => wf.name.toLowerCase().includes(q))
+  }, [workflows, query])
+
+  const isEmpty = !workflows || workflows.length === 0
+
+  return (
+    <DropdownMenuSubContent className='flex flex-col overflow-hidden'>
+      <DropdownMenuSearchInput
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder='Search workflows'
+      />
+      <div className='min-h-0 flex-1 overflow-y-auto'>
+        {isEmpty ? (
+          <DropdownMenuItem disabled>No workflows yet</DropdownMenuItem>
+        ) : filtered.length === 0 ? (
+          <DropdownMenuItem disabled>No workflows match</DropdownMenuItem>
+        ) : (
+          filtered.map((wf) => (
+            <DropdownMenuItem
+              key={wf.id}
+              disabled={disabledWorkflowId === wf.id}
+              onSelect={() => onPick(wf.id)}
+            >
+              <ColumnTypeIcon type='workflow' workflowColor={wf.color} />
+              {wf.name}
+            </DropdownMenuItem>
+          ))
+        )}
+      </div>
+    </DropdownMenuSubContent>
+  )
+}
+
+function AddColumnTypeMenuItems({
+  onSelect,
+  workflows,
+}: {
+  onSelect: (type: string, workflowId?: string) => void
+  workflows?: WorkflowMetadata[]
+}) {
+  return (
+    <>
+      {COLUMN_TYPE_OPTIONS.map((option) => {
+        if (option.type === 'workflow') {
+          return (
+            <DropdownMenuSub key={option.type}>
+              <DropdownMenuSubTrigger>
+                <ColumnTypeIcon type='workflow' />
+                {option.label}
+              </DropdownMenuSubTrigger>
+              <WorkflowPickerSubContent
+                workflows={workflows}
+                onPick={(workflowId) => onSelect('workflow', workflowId)}
+              />
+            </DropdownMenuSub>
+          )
+        }
+        return (
+          <DropdownMenuItem key={option.type} onSelect={() => onSelect(option.type)}>
+            <option.icon />
+            {option.label}
+          </DropdownMenuItem>
+        )
+      })}
+    </>
+  )
+}
+
+const AddColumnButton = React.memo(function AddColumnButton({
+  onSelect,
+  disabled,
+  workflows,
+}: {
+  onSelect: (type: string, workflowId?: string) => void
   disabled: boolean
+  workflows?: WorkflowMetadata[]
 }) {
   return (
     <th className={CELL_HEADER}>
-      <button
-        type='button'
-        className='flex h-[20px] cursor-pointer items-center gap-2'
-        onClick={onClick}
-        disabled={disabled}
-      >
-        <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
-      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type='button'
+            className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
+            disabled={disabled}
+          >
+            <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+            <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='start'>
+          <AddColumnTypeMenuItems onSelect={onSelect} workflows={workflows} />
+        </DropdownMenuContent>
+      </DropdownMenu>
     </th>
   )
 })
+
+const HEADER_ADD_COLUMN_ICON = <Plus className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+
+function HeaderAddColumnTrigger({
+  onSelect,
+  disabled,
+  workflows,
+}: {
+  onSelect: (type: string, workflowId?: string) => void
+  disabled: boolean
+  workflows?: WorkflowMetadata[]
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant='subtle' className='px-2 py-1 text-caption' disabled={disabled}>
+          {HEADER_ADD_COLUMN_ICON}
+          New column
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end'>
+        <AddColumnTypeMenuItems onSelect={onSelect} workflows={workflows} />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: () => void }) {
   return (

@@ -47,8 +47,14 @@ export interface ColumnDefinition {
 
 export interface WorkflowCellValue {
   executionId: string | null
+  /**
+   * Async-job id (e.g. trigger.dev run id) for the in-flight execution. Persisted
+   * on `running` cells so the cancel API can call `backend.cancelJob(jobId)` from
+   * any pod regardless of which one initiated the run. Null for terminal states.
+   */
+  jobId?: string | null
   workflowId: string
-  status: 'pending' | 'running' | 'completed' | 'error'
+  status: 'pending' | 'running' | 'completed' | 'error' | 'cancelled'
   output: unknown
   error: string | null
 }

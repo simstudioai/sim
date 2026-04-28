@@ -8,9 +8,9 @@
 
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
+import type { RowData, TableRow, TableSchema } from '@/lib/table/types'
 import { fetchActiveWebhooks } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
-import type { RowData, TableRow, TableSchema } from '@/lib/table/types'
 
 const logger = createLogger('TableTrigger')
 
@@ -85,9 +85,7 @@ export async function fireTableTrigger(
 
       for (const row of rows) {
         const previousRow = oldRows?.get(row.id) ?? null
-        const changedColumns = previousRow
-          ? detectChangedColumns(previousRow, row.data)
-          : []
+        const changedColumns = previousRow ? detectChangedColumns(previousRow, row.data) : []
 
         // For updates with watch columns, skip rows where no watched column changed
         if (eventType === 'update' && watchColumns.length > 0) {
@@ -135,10 +133,7 @@ export async function fireTableTrigger(
             )
           }
         } catch (error) {
-          logger.error(
-            `[${eventRequestId}] Error firing table trigger for row ${row.id}:`,
-            error
-          )
+          logger.error(`[${eventRequestId}] Error firing table trigger for row ${row.id}:`, error)
         }
       }
     }

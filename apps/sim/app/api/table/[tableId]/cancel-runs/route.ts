@@ -3,6 +3,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { cancelWorkflowColumnRuns } from '@/lib/table/workflow-columns'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableCancelRunsAPI')
@@ -30,7 +32,7 @@ interface RouteParams {
  * Real cancellation requires a Redis pubsub signal plus a DB-backed "cancel requested"
  * flag so multi-replica deploys can abort AbortControllers held on any instance.
  */
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
   const { tableId } = await params
 
@@ -44,10 +46,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const validated = CancelRunsSchema.parse(body)
 
     if (validated.scope === 'row' && !validated.rowId) {
-      return NextResponse.json(
-        { error: 'rowId is required when scope is "row"' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'rowId is required when scope is "row"' }, { status: 400 })
     }
 
     const result = await checkAccess(tableId, authResult.userId, 'write')
@@ -58,13 +57,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
+    const cancelled = await cancelWorkflowColumnRuns(
+      tableId,
+      validated.scope === 'row' ? validated.rowId : undefined
+    )
     logger.info(
-      `[${requestId}] cancel-runs requested: tableId=${tableId} scope=${validated.scope}${
+      `[${requestId}] cancel-runs: tableId=${tableId} scope=${validated.scope}${
         validated.rowId ? ` rowId=${validated.rowId}` : ''
-      } (stub — Redis pubsub not yet wired)`
+      } cancelled=${cancelled}`
     )
 
-    return NextResponse.json({ success: true, data: { cancelled: 0 } })
+    return NextResponse.json({ success: true, data: { cancelled } })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -75,4 +78,4 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     logger.error(`[${requestId}] cancel-runs failed for ${tableId}:`, error)
     return NextResponse.json({ error: 'Failed to cancel runs' }, { status: 500 })
   }
-}
+})

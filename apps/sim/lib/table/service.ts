@@ -15,9 +15,8 @@ import { generateId } from '@sim/utils/id'
 import { and, count, eq, gt, gte, inArray, isNull, sql } from 'drizzle-orm'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
-import { fireTableTrigger } from './trigger'
-import { scheduleWorkflowColumnRuns } from './workflow-columns'
 import { buildFilterClause, buildSortClause } from './sql'
+import { fireTableTrigger } from './trigger'
 import type {
   BatchInsertData,
   BatchUpdateByIdData,
@@ -55,6 +54,7 @@ import {
   validateTableName,
   validateTableSchema,
 } from './validation'
+import { scheduleWorkflowColumnRuns } from './workflow-columns'
 
 const logger = createLogger('TableService')
 
@@ -332,7 +332,18 @@ export async function createTable(
  */
 export async function addTableColumn(
   tableId: string,
-  column: { name: string; type: string; required?: boolean; unique?: boolean; position?: number },
+  column: {
+    name: string
+    type: string
+    required?: boolean
+    unique?: boolean
+    position?: number
+    workflowConfig?: {
+      workflowId: string
+      dependencies?: string[]
+      outputPath?: string
+    }
+  },
   requestId: string
 ): Promise<TableDefinition> {
   const table = await getTableById(tableId)
@@ -358,6 +369,10 @@ export async function addTableColumn(
     )
   }
 
+  if (column.type === 'workflow' && !column.workflowConfig?.workflowId) {
+    throw new Error('workflowConfig.workflowId is required when creating a workflow column')
+  }
+
   const schema = table.schema
   if (schema.columns.some((c) => c.name.toLowerCase() === column.name.toLowerCase())) {
     throw new Error(`Column "${column.name}" already exists`)
@@ -369,11 +384,14 @@ export async function addTableColumn(
     )
   }
 
-  const newColumn = {
+  const newColumn: TableSchema['columns'][number] = {
     name: column.name,
     type: column.type as TableSchema['columns'][number]['type'],
     required: column.required ?? false,
     unique: column.unique ?? false,
+    ...(column.type === 'workflow' && column.workflowConfig
+      ? { workflowConfig: column.workflowConfig }
+      : {}),
   }
 
   const columns = [...schema.columns]
@@ -394,11 +412,41 @@ export async function addTableColumn(
 
   logger.info(`[${requestId}] Added column "${column.name}" to table ${tableId}`)
 
-  return {
+  const updatedTable: TableDefinition = {
     ...table,
     schema: updatedSchema,
     updatedAt: now,
   }
+
+  // Mirror updateColumnWorkflowConfig: a workflow column added to a table with
+  // existing rows needs the scheduler to evaluate eligibility, since no row-write
+  // will fire it otherwise.
+  if (column.type === 'workflow' && column.workflowConfig) {
+    void (async () => {
+      try {
+        const rowRecords = await db
+          .select()
+          .from(userTableRows)
+          .where(eq(userTableRows.tableId, tableId))
+        if (rowRecords.length === 0) return
+        const rows: TableRow[] = rowRecords.map((r) => ({
+          id: r.id,
+          data: r.data as RowData,
+          position: r.position,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        }))
+        await scheduleWorkflowColumnRuns(updatedTable, rows)
+      } catch (err) {
+        logger.error(
+          `[${requestId}] Failed to schedule workflow column runs after column add:`,
+          err
+        )
+      }
+    })()
+  }
+
+  return updatedTable
 }
 
 /**
@@ -665,7 +713,15 @@ export async function insertRow(
     updatedAt: row.updatedAt,
   }
 
-  void fireTableTrigger(data.tableId, table.name, 'insert', [insertedRow], null, table.schema, requestId)
+  void fireTableTrigger(
+    data.tableId,
+    table.name,
+    'insert',
+    [insertedRow],
+    null,
+    table.schema,
+    requestId
+  )
   void scheduleWorkflowColumnRuns(table, [insertedRow])
 
   return insertedRow
@@ -1084,10 +1140,26 @@ export async function upsertRow(
   )
 
   if (result.operation === 'insert') {
-    void fireTableTrigger(data.tableId, table.name, 'insert', [result.row], null, table.schema, requestId)
+    void fireTableTrigger(
+      data.tableId,
+      table.name,
+      'insert',
+      [result.row],
+      null,
+      table.schema,
+      requestId
+    )
   } else if (result.operation === 'update' && result.previousData) {
     const oldRows = new Map([[result.row.id, result.previousData]])
-    void fireTableTrigger(data.tableId, table.name, 'update', [result.row], oldRows, table.schema, requestId)
+    void fireTableTrigger(
+      data.tableId,
+      table.name,
+      'update',
+      [result.row],
+      oldRows,
+      table.schema,
+      requestId
+    )
   }
   void scheduleWorkflowColumnRuns(table, [result.row])
 
@@ -1281,7 +1353,15 @@ export async function updateRow(
   }
 
   const oldRows = new Map([[data.rowId, existingRow.data as RowData]])
-  void fireTableTrigger(data.tableId, table.name, 'update', [updatedRow], oldRows, table.schema, requestId)
+  void fireTableTrigger(
+    data.tableId,
+    table.name,
+    'update',
+    [updatedRow],
+    oldRows,
+    table.schema,
+    requestId
+  )
   void scheduleWorkflowColumnRuns(table, [updatedRow])
 
   return updatedRow
@@ -1438,7 +1518,15 @@ export async function updateRowsByFilter(
     createdAt: now,
     updatedAt: now,
   }))
-  void fireTableTrigger(data.tableId, table.name, 'update', updatedRows, oldRows, table.schema, requestId)
+  void fireTableTrigger(
+    data.tableId,
+    table.name,
+    'update',
+    updatedRows,
+    oldRows,
+    table.schema,
+    requestId
+  )
   void scheduleWorkflowColumnRuns(table, updatedRows)
 
   return {
@@ -1530,9 +1618,7 @@ export async function batchUpdateRows(
   logger.info(`[${requestId}] Batch updated ${mergedUpdates.length} rows in table ${data.tableId}`)
 
   // Fire update triggers with old and new row data
-  const oldRowsForTrigger = new Map(
-    data.updates.map((u) => [u.rowId, existingMap.get(u.rowId)!])
-  )
+  const oldRowsForTrigger = new Map(data.updates.map((u) => [u.rowId, existingMap.get(u.rowId)!]))
   const updatedRowsForTrigger: TableRow[] = mergedUpdates.map(({ rowId, mergedData }) => ({
     id: rowId,
     data: mergedData,
@@ -1540,7 +1626,15 @@ export async function batchUpdateRows(
     createdAt: now,
     updatedAt: now,
   }))
-  void fireTableTrigger(data.tableId, table.name, 'update', updatedRowsForTrigger, oldRowsForTrigger, table.schema, requestId)
+  void fireTableTrigger(
+    data.tableId,
+    table.name,
+    'update',
+    updatedRowsForTrigger,
+    oldRowsForTrigger,
+    table.schema,
+    requestId
+  )
   void scheduleWorkflowColumnRuns(table, updatedRowsForTrigger)
 
   return {

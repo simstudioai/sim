@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { ArrowDown, ArrowUp, Duplicate, Pencil, Play, Trash } from '@/components/emcn/icons'
-import type { ManualTriggerWorkflow } from '@/hooks/queries/tables'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import type { ContextMenuState } from '../../types'
 
 interface ContextMenuProps {
@@ -24,7 +24,7 @@ interface ContextMenuProps {
   disableEdit?: boolean
   disableInsert?: boolean
   disableDelete?: boolean
-  manualTriggerWorkflows?: ManualTriggerWorkflow[]
+  workflows?: WorkflowMetadata[]
   onRunWorkflow?: (workflowId: string) => void
 }
 
@@ -40,11 +40,11 @@ export function ContextMenu({
   disableEdit = false,
   disableInsert = false,
   disableDelete = false,
-  manualTriggerWorkflows,
+  workflows,
   onRunWorkflow,
 }: ContextMenuProps) {
   const deleteLabel = selectedRowCount > 1 ? `Delete ${selectedRowCount} rows` : 'Delete row'
-  const hasWorkflows = manualTriggerWorkflows && manualTriggerWorkflows.length > 0
+  const hasWorkflows = workflows && workflows.length > 0
   const hasRow = contextMenu.row !== null
 
   return (
@@ -100,16 +100,13 @@ export function ContextMenu({
                 Run Workflow
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
-                {manualTriggerWorkflows.map((wf) => (
-                  <DropdownMenuItem
-                    key={wf.workflowId}
-                    onSelect={() => onRunWorkflow(wf.workflowId)}
-                  >
+                {workflows.map((wf) => (
+                  <DropdownMenuItem key={wf.id} onSelect={() => onRunWorkflow(wf.id)}>
                     <span
                       className='h-2 w-2 shrink-0 rounded-full'
-                      style={{ backgroundColor: wf.workflowColor }}
+                      style={{ backgroundColor: wf.color }}
                     />
-                    {wf.workflowName}
+                    {wf.name}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuSubContent>

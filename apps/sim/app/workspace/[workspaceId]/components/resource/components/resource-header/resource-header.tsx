@@ -55,6 +55,14 @@ interface ResourceHeaderProps {
   breadcrumbs?: BreadcrumbItem[]
   create?: CreateAction
   actions?: HeaderAction[]
+  /** Arbitrary content rendered in the right-aligned actions row, before the Create button. */
+  trailingActions?: React.ReactNode
+  /**
+   * Replaces the default Create button entirely — supply your own trigger (for
+   * example a dropdown) when the create action needs richer UI. When provided,
+   * `create` is ignored.
+   */
+  createTrigger?: React.ReactNode
 }
 
 export const ResourceHeader = memo(function ResourceHeader({
@@ -63,6 +71,8 @@ export const ResourceHeader = memo(function ResourceHeader({
   breadcrumbs,
   create,
   actions,
+  trailingActions,
+  createTrigger,
 }: ResourceHeaderProps) {
   const hasBreadcrumbs = breadcrumbs && breadcrumbs.length > 0
 
@@ -124,17 +134,19 @@ export const ResourceHeader = memo(function ResourceHeader({
               </Button>
             )
           })}
-          {create && (
-            <Button
-              onClick={create.onClick}
-              disabled={create.disabled}
-              variant='subtle'
-              className='px-2 py-1 text-caption'
-            >
-              {HEADER_PLUS_ICON}
-              {create.label}
-            </Button>
-          )}
+          {trailingActions}
+          {createTrigger ??
+            (create && (
+              <Button
+                onClick={create.onClick}
+                disabled={create.disabled}
+                variant='subtle'
+                className='px-2 py-1 text-caption'
+              >
+                {HEADER_PLUS_ICON}
+                {create.label}
+              </Button>
+            ))}
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { TableIcon } from '@/components/icons'
+import type { TableDefinition } from '@/lib/table'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { tableKeys } from '@/hooks/queries/tables'
-import type { TableDefinition } from '@/lib/table'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
@@ -11,8 +11,7 @@ async function fetchTableColumns(blockId: string): Promise<Array<{ label: string
   const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
   if (!activeWorkflowId || !workspaceId) return []
 
-  const blockValues =
-    useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[blockId]
+  const blockValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[blockId]
   const tableId = (blockValues?.tableSelector as string) || (blockValues?.manualTableId as string)
   if (!tableId) return []
 
@@ -72,7 +71,6 @@ export const tableNewRowTrigger: TriggerConfig = {
       options: [
         { id: 'insert', label: 'Row Inserted' },
         { id: 'update', label: 'Row Updated' },
-        { id: 'manual', label: 'Manual' },
       ],
       defaultValue: 'insert',
       description: 'The type of event to trigger on.',

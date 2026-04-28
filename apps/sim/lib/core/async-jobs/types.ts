@@ -25,6 +25,7 @@ export type JobType =
   | 'schedule-execution'
   | 'webhook-execution'
   | 'resume-execution'
+  | 'workflow-column-execution'
   | 'cleanup-logs'
   | 'cleanup-soft-deletes'
   | 'cleanup-tasks'
@@ -106,6 +107,13 @@ export interface JobQueueBackend {
    * Mark a job as failed with error message
    */
   markJobFailed(jobId: string, error: string): Promise<void>
+
+  /**
+   * Request cancellation of a queued or running job. Best-effort: backends should
+   * fail loudly if the underlying provider rejects, but a missing/unknown jobId
+   * should resolve quietly so callers can drive cancel from possibly-stale state.
+   */
+  cancelJob(jobId: string): Promise<void>
 }
 
 export type AsyncBackendType = 'trigger-dev' | 'database'

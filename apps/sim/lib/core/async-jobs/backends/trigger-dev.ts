@@ -20,6 +20,7 @@ const JOB_TYPE_TO_TASK_ID: Record<JobType, string> = {
   'schedule-execution': 'schedule-execution',
   'webhook-execution': 'webhook-execution',
   'resume-execution': 'resume-execution',
+  'workflow-column-execution': 'workflow-column-execution',
   'cleanup-logs': 'cleanup-logs',
   'cleanup-soft-deletes': 'cleanup-soft-deletes',
   'cleanup-tasks': 'cleanup-tasks',
@@ -125,6 +126,23 @@ export class TriggerDevJobQueue implements JobQueueBackend {
   async completeJob(_jobId: string, _output: unknown): Promise<void> {}
 
   async markJobFailed(_jobId: string, _error: string): Promise<void> {}
+
+  async cancelJob(jobId: string): Promise<void> {
+    try {
+      await runs.cancel(jobId)
+      logger.debug('Cancelled trigger.dev run', { jobId })
+    } catch (error) {
+      const isNotFound =
+        (error instanceof Error && error.message.toLowerCase().includes('not found')) ||
+        (error && typeof error === 'object' && 'status' in error && error.status === 404)
+      if (isNotFound) {
+        logger.debug('Cancel target not found in trigger.dev (already finished?)', { jobId })
+        return
+      }
+      logger.error('Failed to cancel trigger.dev run', { jobId, error })
+      throw error
+    }
+  }
 }
 
 /**
