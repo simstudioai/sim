@@ -57,8 +57,8 @@ export function buildBlockExecutionError(details: BlockExecutionErrorDetails): E
     blockType,
     workflowId: details.context?.workflowId,
     timestamp: new Date().toISOString(),
-    ...(innerStatusCode !== undefined ? { statusCode: innerStatusCode } : {}),
     ...details.additionalInfo,
+    ...(innerStatusCode !== undefined ? { statusCode: innerStatusCode } : {}),
   })
 
   return error
