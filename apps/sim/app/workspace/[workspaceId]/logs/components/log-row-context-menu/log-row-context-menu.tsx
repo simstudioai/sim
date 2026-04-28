@@ -54,7 +54,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   const hasWorkflow = Boolean(log?.workflow?.id || log?.workflowId)
   const isCancellable =
     (log?.status === 'running' || log?.status === 'pending') && hasExecutionId && hasWorkflow
-  const isRetryable = log?.status === 'failed' && hasWorkflow
+  const isRetryable = log?.status === 'failed' && hasWorkflow && log?.trigger !== 'mothership'
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>

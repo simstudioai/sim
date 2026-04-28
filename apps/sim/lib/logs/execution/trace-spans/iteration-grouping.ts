@@ -226,7 +226,8 @@ function groupIterationBlocksRecursive(
 
   for (const span of spans) {
     if (
-      span.name.match(/^(.+) \(iteration (\d+)\)$/) ||
+      (span.name.match(/^(.+) \(iteration (\d+)\)$/) &&
+        (span.loopId || span.parallelId || span.blockId?.includes('_parallel_'))) ||
       (span.parentIterations && span.parentIterations.length > 0)
     ) {
       iterationSpans.push(span)
