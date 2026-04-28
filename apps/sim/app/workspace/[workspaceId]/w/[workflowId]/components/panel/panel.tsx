@@ -223,10 +223,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
   const { isSnapshotView } = useCurrentWorkflow()
 
-  // Per-workflow chat memory lives in the React Query cache, keyed by
-  // workflowId. Switching workflows reads the right cache entry on its own,
-  // so no save/restore effect is needed. Refresh wipes the cache and the
-  // panel falls back to auto-selecting most recent.
   const { chatId: copilotChatId, setChatId: setCopilotChatId } = useCopilotChatSelection(
     activeWorkflowId ?? undefined
   )
@@ -245,8 +241,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const copilotChatIdRef = useRef(copilotChatId)
   copilotChatIdRef.current = copilotChatId
   const copilotInitialLoadDoneRef = useRef(false)
-  // Tracks the live workflow so async chat-list fetches can detect
-  // workflow switches that happened mid-flight and bail out.
   const activeWorkflowIdRef = useRef(activeWorkflowId)
   activeWorkflowIdRef.current = activeWorkflowId
 
@@ -256,10 +250,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     fetch('/api/copilot/chats')
       .then((res) => (res.ok ? res.json() : { chats: [] }))
       .then((data) => {
-        // Stale-fetch guard: bail if the user switched workflows mid-flight.
-        // Without this the in-flight response would clobber the new
-        // workflow's state (filtering against the old workflow id, clearing
-        // the restored chat, and auto-selecting the wrong list's first chat).
+        // Drop responses for a workflow we've already switched away from.
         if (requestWorkflowId !== activeWorkflowIdRef.current) return
         const allChats = Array.isArray(data?.chats) ? data.chats : []
         const filtered = allChats.filter(
@@ -275,9 +266,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         const currentId = copilotChatIdRef.current
         let resolvedCurrentId = currentId
         if (currentId && !filtered.find((c: { id: string }) => c.id === currentId)) {
-          // Remembered chat was deleted (here or in another tab). Drop it
-          // so the next send doesn't hit a 404; setCopilotChatId(undefined)
-          // also clears the workflow's cached selection.
           setCopilotChatId(undefined)
           resolvedCurrentId = undefined
         }

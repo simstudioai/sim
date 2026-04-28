@@ -9,14 +9,8 @@ export const copilotChatSelectionKeys = {
 }
 
 /**
- * Reactive per-workflow copilot chat selection. The active workflow's
- * chatId lives in the React Query cache under a workflow-keyed entry, so
- * switching workflows naturally reads the per-workflow remembered value
- * with no save/restore effect required. No `queryFn` runs — values land
- * exclusively via the returned setter.
- *
- * In-memory only (no `persistQueryClient`); refresh wipes the memory and
- * the panel falls back to auto-selecting the workflow's most recent chat.
+ * Reactive per-workflow copilot chat selection. Values are written via the
+ * returned setter; the queryFn is never invoked.
  */
 export function useCopilotChatSelection(workflowId?: string) {
   const queryClient = useQueryClient()
