@@ -3,7 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
-import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
+import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 
@@ -83,6 +83,14 @@ export function createDocumentPreviewRoute(config: DocumentPreviewRouteConfig) {
       })
     } catch (err) {
       const message = toError(err).message
+      if (err instanceof SandboxUserCodeError) {
+        logger.warn(`${config.label} preview user code failed`, {
+          error: message,
+          errorName: err.name,
+          workspaceId,
+        })
+        return NextResponse.json({ error: message, errorName: err.name }, { status: 422 })
+      }
       logger.error(`${config.label} preview generation failed`, { error: message, workspaceId })
       return NextResponse.json({ error: message }, { status: 500 })
     }

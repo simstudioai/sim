@@ -6,9 +6,15 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 
-const { mockRunSandboxTask } = vi.hoisted(() => ({
-  mockRunSandboxTask: vi.fn(),
-}))
+const { mockRunSandboxTask, SandboxUserCodeError } = vi.hoisted(() => {
+  class SandboxUserCodeError extends Error {
+    constructor(message: string, name: string) {
+      super(message)
+      this.name = name
+    }
+  }
+  return { mockRunSandboxTask: vi.fn(), SandboxUserCodeError }
+})
 
 const mockVerifyWorkspaceMembership = workflowsApiUtilsMockFns.mockVerifyWorkspaceMembership
 
@@ -16,6 +22,7 @@ vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 
 vi.mock('@/lib/execution/sandbox/run-task', () => ({
   runSandboxTask: mockRunSandboxTask,
+  SandboxUserCodeError,
 }))
 
 import { POST } from '@/app/api/workspaces/[id]/pptx/preview/route'
@@ -188,5 +195,32 @@ describe('PPTX preview API route', () => {
 
     expect(response.status).toBe(500)
     await expect(response.json()).resolves.toEqual({ error: 'boom: sandbox failed' })
+  })
+
+  it('returns 422 when user code throws inside the sandbox', async () => {
+    mockRunSandboxTask.mockRejectedValue(
+      new SandboxUserCodeError('Invalid or unexpected token', 'SyntaxError')
+    )
+
+    const request = new NextRequest(
+      'http://localhost:3000/api/workspaces/workspace-1/pptx/preview',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code: 'const x = ' }),
+      }
+    )
+
+    const response = await POST(request, {
+      params: Promise.resolve({ id: 'workspace-1' }),
+    })
+
+    expect(response.status).toBe(422)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Invalid or unexpected token',
+      errorName: 'SyntaxError',
+    })
   })
 })
