@@ -251,6 +251,7 @@ export interface WorkspaceUser {
   name: string | null
   image: string | null
   permissionType: 'admin' | 'write' | 'read'
+  isExternal: boolean
 }
 
 /** Viewer context for a workspace permissions response. */

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { invitation, member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, inArray } from 'drizzle-orm'
+import { and, count, eq, gt, inArray, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -116,7 +116,14 @@ export const PUT = withRouteHandler(
       const [pendingCountRow] = await db
         .select({ count: count() })
         .from(invitation)
-        .where(and(eq(invitation.organizationId, organizationId), eq(invitation.status, 'pending')))
+        .where(
+          and(
+            eq(invitation.organizationId, organizationId),
+            eq(invitation.status, 'pending'),
+            ne(invitation.membershipIntent, 'external'),
+            gt(invitation.expiresAt, new Date())
+          )
+        )
 
       const memberCount = memberCountRow?.count ?? 0
       const pendingCount = pendingCountRow?.count ?? 0

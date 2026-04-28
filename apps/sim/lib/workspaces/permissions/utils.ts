@@ -240,6 +240,7 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
     name: string
     image: string | null
     permissionType: PermissionType
+    isExternal: boolean
   }>
 > {
   const usersWithPermissions = await db
@@ -249,10 +250,16 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
       name: user.name,
       image: user.image,
       permissionType: permissions.permissionType,
+      workspaceOrganizationId: workspace.organizationId,
+      organizationMemberId: member.id,
     })
     .from(permissions)
     .innerJoin(user, eq(permissions.userId, user.id))
     .innerJoin(workspace, eq(permissions.entityId, workspace.id))
+    .leftJoin(
+      member,
+      and(eq(member.userId, user.id), eq(member.organizationId, workspace.organizationId))
+    )
     .where(
       and(
         eq(permissions.entityType, 'workspace'),
@@ -268,6 +275,7 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
     name: row.name,
     image: row.image ?? null,
     permissionType: row.permissionType,
+    isExternal: Boolean(row.workspaceOrganizationId && !row.organizationMemberId),
   }))
 }
 

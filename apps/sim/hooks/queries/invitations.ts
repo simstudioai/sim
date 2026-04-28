@@ -1,11 +1,8 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { workspaceKeys } from './workspace'
 
-/**
- * Query key factory for invitation-related queries.
- * Provides hierarchical cache keys for workspace invitations.
- */
 export const invitationKeys = {
   all: ['invitations'] as const,
   lists: () => [...invitationKeys.all, 'list'] as const,
@@ -17,6 +14,7 @@ export interface PendingInvitationRow {
   workspaceId: string
   email: string
   permission: 'admin' | 'write' | 'read'
+  membershipIntent?: 'internal' | 'external'
   status: string
   createdAt: string
 }
@@ -25,6 +23,7 @@ export interface WorkspaceInvitation {
   email: string
   permissionType: 'admin' | 'write' | 'read'
   isPendingInvitation: boolean
+  isExternal: boolean
   invitationId?: string
 }
 
@@ -49,6 +48,7 @@ async function fetchPendingInvitations(
         email: inv.email,
         permissionType: inv.permission,
         isPendingInvitation: true,
+        isExternal: inv.membershipIntent === 'external',
         invitationId: inv.id,
       })) || []
   )
@@ -70,6 +70,7 @@ export function usePendingInvitations(workspaceId: string | undefined) {
 
 interface BatchSendInvitationsParams {
   workspaceId: string
+  organizationId?: string | null
   invitations: Array<{ email: string; permission: 'admin' | 'write' | 'read' }>
 }
 
@@ -79,7 +80,7 @@ interface BatchInvitationResult {
 }
 
 /**
- * Sends multiple workspace invitations in parallel.
+ * Sends workspace invitations through the server-side batch endpoint.
  * Returns results for each invitation indicating success or failure.
  */
 export function useBatchSendWorkspaceInvitations() {
@@ -90,45 +91,38 @@ export function useBatchSendWorkspaceInvitations() {
       workspaceId,
       invitations,
     }: BatchSendInvitationsParams): Promise<BatchInvitationResult> => {
-      const results = await Promise.allSettled(
-        invitations.map(async ({ email, permission }) => {
-          const response = await fetch('/api/workspaces/invitations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              workspaceId,
-              email,
-              permission,
-            }),
-          })
-
-          if (!response.ok) {
-            const error = await response.json()
-            throw new Error(error.error || 'Failed to send invitation')
-          }
-
-          return { email, data: await response.json() }
-        })
-      )
-
-      const successful: string[] = []
-      const failed: Array<{ email: string; error: string }> = []
-
-      results.forEach((result, index) => {
-        const email = invitations[index].email
-        if (result.status === 'fulfilled') {
-          successful.push(email)
-        } else {
-          failed.push({ email, error: result.reason?.message || 'Unknown error' })
-        }
+      const response = await fetch('/api/workspaces/invitations/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId,
+          invitations,
+        }),
       })
 
-      return { successful, failed }
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to send invitations')
+      }
+
+      return {
+        successful: result.successful ?? [],
+        failed: result.failed ?? [],
+      }
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: invitationKeys.list(variables.workspaceId),
       })
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.roster(variables.organizationId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.billing(variables.organizationId),
+        })
+      }
     },
   })
 }
@@ -136,6 +130,7 @@ export function useBatchSendWorkspaceInvitations() {
 interface CancelInvitationParams {
   invitationId: string
   workspaceId: string
+  organizationId?: string | null
 }
 
 /**
@@ -159,10 +154,18 @@ export function useCancelWorkspaceInvitation() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: invitationKeys.list(variables.workspaceId),
       })
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.roster(variables.organizationId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.billing(variables.organizationId),
+        })
+      }
     },
   })
 }
@@ -204,6 +207,7 @@ export function useResendWorkspaceInvitation() {
 interface RemoveMemberParams {
   userId: string
   workspaceId: string
+  organizationId?: string | null
 }
 
 /**
@@ -232,6 +236,17 @@ export function useRemoveWorkspaceMember() {
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.permissions(variables.workspaceId),
       })
+      queryClient.invalidateQueries({
+        queryKey: workspaceKeys.members(variables.workspaceId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: workspaceCredentialKeys.all,
+      })
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.roster(variables.organizationId),
+        })
+      }
     },
   })
 }

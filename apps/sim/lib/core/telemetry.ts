@@ -540,11 +540,13 @@ export const PlatformEvents = {
     invitedBy: string
     inviteeEmail: string
     role: string
+    membershipIntent?: string
   }) => {
     trackPlatformEvent('platform.workspace.member_invited', {
       'workspace.id': attrs.workspaceId,
       'user.id': attrs.invitedBy,
       'invitation.role': attrs.role,
+      ...(attrs.membershipIntent ? { 'invitation.membership_intent': attrs.membershipIntent } : {}),
     })
   },
 

@@ -8,7 +8,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -57,7 +57,7 @@ export const GET = withRouteHandler(
       const orgWorkspaces = await db
         .select({ id: workspace.id, name: workspace.name })
         .from(workspace)
-        .where(eq(workspace.organizationId, organizationId))
+        .where(and(eq(workspace.organizationId, organizationId), isNull(workspace.archivedAt)))
 
       const orgWorkspaceIds = orgWorkspaces.map((ws) => ws.id)
       const workspaceNameById = new Map(orgWorkspaces.map((ws) => [ws.id, ws.name]))
@@ -118,12 +118,82 @@ export const GET = withRouteHandler(
         workspaces: permissionsByUser.get(row.userId) ?? [],
       }))
 
+      const externalPermissionRows =
+        orgWorkspaceIds.length > 0
+          ? await db
+              .select({
+                userId: user.id,
+                userName: user.name,
+                userEmail: user.email,
+                userImage: user.image,
+                workspaceId: permissions.entityId,
+                permission: permissions.permissionType,
+                createdAt: permissions.createdAt,
+              })
+              .from(permissions)
+              .innerJoin(user, eq(permissions.userId, user.id))
+              .leftJoin(
+                member,
+                and(eq(member.userId, user.id), eq(member.organizationId, organizationId))
+              )
+              .where(
+                and(
+                  eq(permissions.entityType, 'workspace'),
+                  inArray(permissions.entityId, orgWorkspaceIds),
+                  isNull(member.id)
+                )
+              )
+          : []
+
+      const externalMembersByUser = new Map<
+        string,
+        {
+          memberId: string
+          userId: string
+          role: 'external'
+          createdAt: Date
+          name: string
+          email: string
+          image: string | null
+          workspaces: RosterWorkspaceAccess[]
+        }
+      >()
+
+      for (const row of externalPermissionRows) {
+        const existing = externalMembersByUser.get(row.userId)
+        const workspaceAccess: RosterWorkspaceAccess = {
+          workspaceId: row.workspaceId,
+          workspaceName: workspaceNameById.get(row.workspaceId) ?? 'Workspace',
+          permission: row.permission,
+        }
+
+        if (existing) {
+          existing.workspaces.push(workspaceAccess)
+          if (row.createdAt < existing.createdAt) existing.createdAt = row.createdAt
+          continue
+        }
+
+        externalMembersByUser.set(row.userId, {
+          memberId: `external-${row.userId}`,
+          userId: row.userId,
+          role: 'external',
+          createdAt: row.createdAt,
+          name: row.userName,
+          email: row.userEmail,
+          image: row.userImage,
+          workspaces: [workspaceAccess],
+        })
+      }
+
+      const rosterMembers = [...members, ...externalMembersByUser.values()]
+
       const pendingInvitationRows = await db
         .select({
           id: invitation.id,
           email: invitation.email,
           role: invitation.role,
           kind: invitation.kind,
+          membershipIntent: invitation.membershipIntent,
           createdAt: invitation.createdAt,
           expiresAt: invitation.expiresAt,
           inviteeName: user.name,
@@ -160,8 +230,9 @@ export const GET = withRouteHandler(
       const pendingInvitations = pendingInvitationRows.map((row) => ({
         id: row.id,
         email: row.email,
-        role: row.role,
+        role: row.membershipIntent === 'external' ? 'external' : row.role,
         kind: row.kind,
+        membershipIntent: row.membershipIntent,
         createdAt: row.createdAt,
         expiresAt: row.expiresAt,
         inviteeName: row.inviteeName,
@@ -172,7 +243,7 @@ export const GET = withRouteHandler(
       return NextResponse.json({
         success: true,
         data: {
-          members,
+          members: rosterMembers,
           pendingInvitations,
           workspaces: orgWorkspaces,
         },
