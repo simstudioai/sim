@@ -208,7 +208,9 @@ export function Files() {
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const contextMenuFileRef = useRef<WorkspaceFileRecord | null>(null)
-  const [deleteTargetFile, setDeleteTargetFile] = useState<WorkspaceFileRecord | null>(null)
+  const [deleteTargetFile, setDeleteTargetFile] = useState<{ id: string; name: string } | null>(
+    null
+  )
 
   const listRename = useInlineRename({
     onSave: (fileId, name) => renameFile.mutate({ workspaceId, fileId, name }),
@@ -408,7 +410,7 @@ export function Files() {
         setUploadProgress({ completed: 0, total: 0 })
       }
     },
-    [workspaceId, uploadFile]
+    [workspaceId]
   )
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -508,7 +510,7 @@ export function Files() {
   const handleDeleteSelected = useCallback(() => {
     const file = selectedFileRef.current
     if (file) {
-      setDeleteTargetFile(file)
+      setDeleteTargetFile({ id: file.id, name: file.name })
       setShowDeleteConfirm(true)
     }
   }, [])
@@ -634,7 +636,7 @@ export function Files() {
   const handleContextMenuDelete = useCallback(() => {
     const file = contextMenuFileRef.current
     if (!file) return
-    setDeleteTargetFile(file)
+    setDeleteTargetFile({ id: file.id, name: file.name })
     setShowDeleteConfirm(true)
     closeContextMenu()
   }, [closeContextMenu])
@@ -841,9 +843,9 @@ export function Files() {
     [uploadButtonLabel, handleUploadClick]
   )
 
-  const handleNavigateToFiles = useCallback(() => {
+  const handleNavigateToFiles = () => {
     router.push(`/workspace/${workspaceId}/files`)
-  }, [router, workspaceId])
+  }
 
   const loadingBreadcrumbs = [{ label: 'Files', onClick: handleNavigateToFiles }, { label: '...' }]
 
@@ -981,17 +983,18 @@ export function Files() {
           </div>
         )}
         {hasActiveFilters && (
-          <button
-            type='button'
+          <Button
+            variant='ghost'
+            size='sm'
             onClick={() => {
               setTypeFilter([])
               setSizeFilter([])
               setUploadedByFilter([])
             }}
-            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+            className='h-[32px] w-full text-[var(--text-secondary)] text-caption hover-hover:bg-[var(--surface-active)]'
           >
             Clear all filters
-          </button>
+          </Button>
         )}
       </div>
     )

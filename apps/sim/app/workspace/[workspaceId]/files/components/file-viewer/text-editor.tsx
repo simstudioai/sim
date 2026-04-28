@@ -276,25 +276,26 @@ function resolveMonacoLanguage(file: { type: string; name: string }): string {
 function useTextEditorContentState(options: SyncTextEditorContentStateOptions) {
   const [state, dispatch] = useReducer(textEditorContentReducer, INITIAL_TEXT_EDITOR_CONTENT_STATE)
 
-  useEffect(() => {
-    dispatch({
-      type: 'sync-external',
-      ...options,
-    })
-  }, [
-    options.canReconcileToFetchedContent,
-    options.fetchedContent,
-    options.streamingContent,
-    options.streamingMode,
-  ])
+  const prevOptionsRef = useRef<SyncTextEditorContentStateOptions | null>(null)
+  const prev = prevOptionsRef.current
+  if (
+    prev === null ||
+    prev.canReconcileToFetchedContent !== options.canReconcileToFetchedContent ||
+    prev.fetchedContent !== options.fetchedContent ||
+    prev.streamingContent !== options.streamingContent ||
+    prev.streamingMode !== options.streamingMode
+  ) {
+    prevOptionsRef.current = options
+    dispatch({ type: 'sync-external', ...options })
+  }
 
   const setDraftContent = useCallback((content: string) => {
     dispatch({ type: 'edit', content })
   }, [])
 
-  const markSavedContent = useCallback((content: string) => {
+  const markSavedContent = (content: string) => {
     dispatch({ type: 'save-success', content })
-  }, [])
+  }
 
   return {
     content: state.content,
