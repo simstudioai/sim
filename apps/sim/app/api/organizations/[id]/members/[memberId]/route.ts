@@ -12,6 +12,7 @@ import {
   removeExternalUserFromOrganizationWorkspaces,
   removeUserFromOrganization,
 } from '@/lib/billing/organizations/membership'
+import { reduceOrganizationSeatsByOne } from '@/lib/billing/organizations/seats'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationMemberAPI')
@@ -285,6 +286,7 @@ export const DELETE = withRouteHandler(
       }
 
       const { id: organizationId, memberId: targetUserId } = await params
+      const shouldReduceSeats = request.nextUrl.searchParams.get('shouldReduceSeats') === 'true'
 
       const userMember = await db
         .select()
@@ -330,10 +332,15 @@ export const DELETE = withRouteHandler(
         })
 
         if (!externalResult.success) {
-          return NextResponse.json(
-            { error: externalResult.error || 'External workspace member not found' },
-            { status: externalResult.error === 'External workspace member not found' ? 404 : 500 }
-          )
+          const error = externalResult.error || 'External workspace member not found'
+          const status =
+            error === 'External workspace member not found'
+              ? 404
+              : error === 'User is an organization member'
+                ? 409
+                : 500
+
+          return NextResponse.json({ error }, { status })
         }
 
         logger.info('External workspace member removed from organization workspaces', {
@@ -400,6 +407,24 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: result.error }, { status: 500 })
       }
 
+      let seatReduction: Awaited<ReturnType<typeof reduceOrganizationSeatsByOne>> | null = null
+      if (shouldReduceSeats && session.user.id !== targetUserId) {
+        try {
+          seatReduction = await reduceOrganizationSeatsByOne(organizationId, session.user.id)
+        } catch (seatError) {
+          logger.error('Failed to reduce seats after member removal', {
+            organizationId,
+            removedMemberId: targetUserId,
+            removedBy: session.user.id,
+            error: seatError,
+          })
+          seatReduction = {
+            reduced: false,
+            reason: 'Failed to reduce seats after member removal',
+          }
+        }
+      }
+
       if (session.user.id === targetUserId) {
         try {
           await setActiveOrganizationForCurrentSession(null)
@@ -418,6 +443,7 @@ export const DELETE = withRouteHandler(
         removedBy: session.user.id,
         wasSelfRemoval: session.user.id === targetUserId,
         billingActions: result.billingActions,
+        seatReduction,
       })
 
       recordAudit({
@@ -437,6 +463,7 @@ export const DELETE = withRouteHandler(
           targetEmail: targetMember[0].email ?? undefined,
           targetName: targetMember[0].name ?? undefined,
           wasSelfRemoval: session.user.id === targetUserId,
+          seatReduction,
         },
         request,
       })
@@ -451,6 +478,7 @@ export const DELETE = withRouteHandler(
           removedMemberId: targetUserId,
           removedBy: session.user.id,
           removedAt: new Date().toISOString(),
+          seatReduction,
         },
       })
     } catch (error) {

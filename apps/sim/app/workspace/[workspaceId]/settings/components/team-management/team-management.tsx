@@ -223,17 +223,6 @@ export function TeamManagement() {
           shouldReduceSeats,
         })
 
-        if (shouldReduceSeats && totalSeats > 1) {
-          try {
-            await updateSeatsMutation.mutateAsync({
-              orgId: activeOrganization.id,
-              seats: totalSeats - 1,
-            })
-          } catch (seatError) {
-            logger.error('Failed to reduce seats after removing member', seatError)
-          }
-        }
-
         setRemoveMemberDialog({
           open: false,
           memberId: '',
@@ -255,8 +244,6 @@ export function TeamManagement() {
       session?.user?.id,
       activeOrganization?.id,
       removeMemberMutation,
-      totalSeats,
-      updateSeatsMutation,
     ]
   )
 
