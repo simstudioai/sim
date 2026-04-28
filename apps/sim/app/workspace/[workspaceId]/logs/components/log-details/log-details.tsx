@@ -273,6 +273,8 @@ interface LogDetailsProps {
   onRetryExecution?: () => void
   /** Whether a retry is currently in progress */
   isRetryPending?: boolean
+  /** Fires when the active tab changes, so the parent can gate its own keyboard handlers */
+  onActiveTabChange?: (tab: LogDetailsTab) => void
 }
 
 /**
@@ -293,6 +295,7 @@ export const LogDetails = memo(function LogDetails({
   hasPrev = false,
   onRetryExecution,
   isRetryPending = false,
+  onActiveTabChange,
 }: LogDetailsProps) {
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<LogDetailsTab>('overview')
@@ -333,6 +336,10 @@ export const LogDetails = memo(function LogDetails({
     isWorkflowExecutionLog && !!log?.executionData?.traceSpans && !permissionConfig.hideTraceSpans
 
   const resolvedTab: LogDetailsTab = activeTab === 'trace' && !showTraceTab ? 'overview' : activeTab
+
+  useEffect(() => {
+    onActiveTabChange?.(resolvedTab)
+  }, [resolvedTab, onActiveTabChange])
 
   const workflowOutput = useMemo(() => {
     const executionData = log?.executionData as

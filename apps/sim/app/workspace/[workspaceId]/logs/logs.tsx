@@ -293,6 +293,7 @@ export default function Logs() {
   const shouldScrollIntoViewRef = useRef(false)
   const logsRefetchRef = useRef<() => void>(() => {})
   const activeLogRefetchRef = useRef<() => void>(() => {})
+  const activeLogTabRef = useRef<string>('overview')
   const logsQueryRef = useRef({ isFetching: false, hasNextPage: false, fetchNextPage: () => {} })
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
   const [activeSort, setActiveSort] = useState<{
@@ -473,6 +474,7 @@ export default function Logs() {
 
   const handleCloseSidebar = useCallback(() => {
     dispatch({ type: 'CLOSE_SIDEBAR' })
+    activeLogTabRef.current = 'overview'
   }, [])
 
   const handleLogContextMenu = useCallback(
@@ -700,6 +702,8 @@ export default function Logs() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      // When the trace tab is active, arrow keys belong to TraceView's span navigator.
+      if (activeLogTabRef.current === 'trace') return
       const currentLogs = logsRef.current
       const currentIndex = selectedLogIndexRef.current
       if (currentLogs.length === 0) return
@@ -811,6 +815,9 @@ export default function Logs() {
       hasPrev={selectedLogIndex > 0}
       onRetryExecution={handleRetrySidebarExecution}
       isRetryPending={retryExecution.isPending}
+      onActiveTabChange={(tab) => {
+        activeLogTabRef.current = tab
+      }}
     />
   )
 
