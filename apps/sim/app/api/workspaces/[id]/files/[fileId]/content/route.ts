@@ -1,8 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -17,7 +17,6 @@ const logger = createLogger('WorkspaceFileContentAPI')
  */
 export const PUT = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) => {
-    const requestId = generateRequestId()
     const { id: workspaceId, fileId } = await params
 
     try {
@@ -32,20 +31,19 @@ export const PUT = withRouteHandler(
         workspaceId
       )
       if (userPermission !== 'admin' && userPermission !== 'write') {
-        logger.warn(
-          `[${requestId}] User ${session.user.id} lacks write permission for workspace ${workspaceId}`
-        )
+        logger.warn(`User ${session.user.id} lacks write permission for workspace ${workspaceId}`)
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
       const body = await request.json()
-      const { content } = body as { content: string }
+      const { content, encoding } = body as { content: string; encoding?: 'base64' | 'utf-8' }
 
       if (typeof content !== 'string') {
         return NextResponse.json({ error: 'Content must be a string' }, { status: 400 })
       }
 
-      const buffer = Buffer.from(content, 'utf-8')
+      const buffer =
+        encoding === 'base64' ? Buffer.from(content, 'base64') : Buffer.from(content, 'utf-8')
 
       const maxFileSizeBytes = 50 * 1024 * 1024
       if (buffer.length > maxFileSizeBytes) {
@@ -62,7 +60,7 @@ export const PUT = withRouteHandler(
         buffer
       )
 
-      logger.info(`[${requestId}] Updated content for workspace file: ${updatedFile.name}`)
+      logger.info(`Updated content for workspace file: ${updatedFile.name}`)
 
       recordAudit({
         workspaceId,
@@ -83,15 +81,15 @@ export const PUT = withRouteHandler(
         file: updatedFile,
       })
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update file content'
+      const errorMessage = toError(error).message || 'Failed to update file content'
       const isNotFound = errorMessage.includes('File not found')
       const isQuotaExceeded = errorMessage.includes('Storage limit exceeded')
       const status = isNotFound ? 404 : isQuotaExceeded ? 402 : 500
 
       if (status === 500) {
-        logger.error(`[${requestId}] Error updating file content:`, error)
+        logger.error('Error updating file content:', error)
       } else {
-        logger.warn(`[${requestId}] ${errorMessage}`)
+        logger.warn(errorMessage)
       }
 
       return NextResponse.json({ success: false, error: errorMessage }, { status })

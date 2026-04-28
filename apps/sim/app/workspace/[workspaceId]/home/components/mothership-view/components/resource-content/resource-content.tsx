@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, memo, Suspense, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatDuration } from '@sim/utils/formatting'
 import { Square } from 'lucide-react'
@@ -128,7 +128,6 @@ export const ResourceContent = memo(function ResourceContent({
     }
   }, [workspaceId, streamFileName])
 
-  const streamingFileMode: 'append' | 'replace' = 'replace'
   const disableStreamingAutoScroll = previewSession?.operation === 'patch'
   const rawPreviewText = previewSession?.previewText
   const streamingPreviewText =
@@ -144,10 +143,9 @@ export const ResourceContent = memo(function ResourceContent({
             canEdit={false}
             previewMode={previewMode ?? 'preview'}
             streamingContent={streamingPreviewText}
-            streamingMode={streamingFileMode}
+            streamingMode='replace'
             disableStreamingAutoScroll={disableStreamingAutoScroll}
             previewContextKey={previewContextKey}
-            useCodeRendererForCodeFiles
           />
         ) : (
           <div className='flex h-full items-center justify-center'>
@@ -172,7 +170,7 @@ export const ResourceContent = memo(function ResourceContent({
           streamingContent={
             previewSession?.fileId === resource.id ? streamingPreviewText : undefined
           }
-          streamingMode={streamingFileMode}
+          streamingMode='replace'
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -257,7 +255,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   const isRunButtonDisabled =
     !isExecuting && !effectivePermissions.canRead && !effectivePermissions.isLoading
 
-  const handleRun = useCallback(async () => {
+  const handleRun = async () => {
     setActiveWorkflow(workflowId)
 
     if (isExecuting) {
@@ -274,19 +272,11 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
     }
 
     await handleRunWorkflow()
-  }, [
-    handleCancelExecution,
-    handleRunWorkflow,
-    isExecuting,
-    navigateToSettings,
-    setActiveWorkflow,
-    usageExceeded,
-    workflowId,
-  ])
+  }
 
-  const handleOpenWorkflow = useCallback(() => {
+  const handleOpenWorkflow = () => {
     window.open(`/workspace/${workspaceId}/w/${workflowId}`, '_blank')
-  }, [workspaceId, workflowId])
+  }
 
   return (
     <>
@@ -340,9 +330,9 @@ export function EmbeddedKnowledgeBaseActions({
 }: EmbeddedKnowledgeBaseActionsProps) {
   const router = useRouter()
 
-  const handleOpenKnowledgeBase = useCallback(() => {
+  const handleOpenKnowledgeBase = () => {
     router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`)
-  }, [router, workspaceId, knowledgeBaseId])
+  }
 
   return (
     <Tooltip.Root>
@@ -375,18 +365,18 @@ function EmbeddedFileActions({ workspaceId, fileId }: EmbeddedFileActionsProps) 
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
 
-  const handleDownload = useCallback(async () => {
+  const handleDownload = async () => {
     if (!file) return
     try {
       await downloadWorkspaceFile(file)
     } catch (err) {
       fileLogger.error('Failed to download file:', err)
     }
-  }, [file])
+  }
 
-  const handleOpenInFiles = useCallback(() => {
+  const handleOpenInFiles = () => {
     router.push(`/workspace/${workspaceId}/files/${encodeURIComponent(fileId)}`)
-  }, [router, workspaceId, fileId])
+  }
 
   return (
     <>
@@ -432,10 +422,7 @@ interface EmbeddedWorkflowProps {
 
 function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
   const { data: workflowList, isPending: isWorkflowsPending } = useWorkflows(workspaceId)
-  const workflowExists = useMemo(
-    () => (workflowList ?? []).some((w) => w.id === workflowId),
-    [workflowList, workflowId]
-  )
+  const workflowExists = (workflowList ?? []).some((w) => w.id === workflowId)
   const hasLoadError = useWorkflowRegistry(
     (state) => state.hydration.phase === 'error' && state.hydration.workflowId === workflowId
   )
@@ -514,7 +501,6 @@ function EmbeddedFile({
         streamingContent={streamingContent}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
-        useCodeRendererForCodeFiles
       />
     </div>
   )
@@ -529,15 +515,8 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
   const { data: folderList, isPending: isFoldersPending } = useFolders(workspaceId)
   const { data: workflowList = [] } = useWorkflows(workspaceId)
 
-  const folder = useMemo(
-    () => (folderList ?? []).find((f) => f.id === folderId),
-    [folderList, folderId]
-  )
-
-  const folderWorkflows = useMemo(
-    () => workflowList.filter((w) => w.folderId === folderId),
-    [workflowList, folderId]
-  )
+  const folder = (folderList ?? []).find((f) => f.id === folderId)
+  const folderWorkflows = workflowList.filter((w) => w.folderId === folderId)
 
   if (isFoldersPending) return LOADING_SKELETON
 
@@ -604,20 +583,14 @@ function EmbeddedLog({ logId }: EmbeddedLogProps) {
     return filterHiddenOutputKeys(executionData.finalOutput) as Record<string, unknown>
   }, [log?.executionData])
 
-  const isWorkflowExecutionLog = useMemo(() => {
-    if (!log) return false
-    return (
-      (log.trigger === 'manual' && !!log.duration) ||
-      (log.executionData?.enhanced && log.executionData?.traceSpans)
-    )
-  }, [log])
+  const isWorkflowExecutionLog =
+    !!log &&
+    ((log.trigger === 'manual' && !!log.duration) ||
+      !!(log.executionData?.enhanced && log.executionData?.traceSpans))
 
   const hasCostInfo = isWorkflowExecutionLog && log?.cost
 
-  const formattedTimestamp = useMemo(
-    () => (log ? formatDate(log.createdAt) : null),
-    [log?.createdAt]
-  )
+  const formattedTimestamp = log ? formatDate(log.createdAt) : null
 
   if (isLoading) return LOADING_SKELETON
 
@@ -874,10 +847,10 @@ export function EmbeddedLogActions({ workspaceId, logId }: EmbeddedLogActionsPro
   const router = useRouter()
   const { data: log } = useLogDetail(logId)
 
-  const handleOpenInLogs = useCallback(() => {
+  const handleOpenInLogs = () => {
     const param = log?.executionId ? `?executionId=${log.executionId}` : ''
     router.push(`/workspace/${workspaceId}/logs${param}`)
-  }, [router, workspaceId, log?.executionId])
+  }
 
   return (
     <Tooltip.Root>
