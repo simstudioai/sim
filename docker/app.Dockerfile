@@ -17,7 +17,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 FROM base AS pruner
 WORKDIR /app
 
-RUN bun install -g turbo
+RUN bun install -g turbo@2.9.6
 
 COPY . .
 
