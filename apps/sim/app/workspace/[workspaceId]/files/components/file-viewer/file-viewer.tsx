@@ -230,12 +230,10 @@ const IframePreview = memo(function IframePreview({
 
   if (renderError) return <PreviewError label='PDF' error={renderError} />
 
-  if (rendering && !streamingBuffer) {
-    return <div className='relative flex flex-1 overflow-hidden'>{PDF_PAGE_SKELETON}</div>
-  }
-
   if (streamingContent !== undefined) {
-    if (!streamingSource) return null
+    if (!streamingSource) {
+      return <div className='relative flex flex-1 overflow-hidden'>{PDF_PAGE_SKELETON}</div>
+    }
     return <PdfViewerCore key={streamingBufferSeq} source={streamingSource} filename={file.name} />
   }
 

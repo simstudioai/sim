@@ -259,6 +259,7 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
           onLoadSuccess={({ numPages }) => {
             setPageCount(numPages)
             setCurrentPage(1)
+            setLoadError(null)
             setIsDocumentReady(true)
           }}
           onLoadError={(err) => {
