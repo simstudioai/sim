@@ -12,6 +12,7 @@ interface RemoveMemberDialogProps {
   open: boolean
   memberName: string
   shouldReduceSeats: boolean
+  canReduceSeats?: boolean
   isSelfRemoval?: boolean
   isExternalRemoval?: boolean
   isSubmitting?: boolean
@@ -26,6 +27,7 @@ export function RemoveMemberDialog({
   open,
   memberName,
   shouldReduceSeats,
+  canReduceSeats = true,
   error,
   onOpenChange,
   onShouldReduceSeatsChange,
@@ -66,7 +68,7 @@ export function RemoveMemberDialog({
             This action cannot be undone.
           </p>
 
-          {!isSelfRemoval && !isExternalRemoval && (
+          {!isSelfRemoval && !isExternalRemoval && canReduceSeats && (
             <div className='mt-4'>
               <div className='flex items-center gap-2'>
                 <Checkbox
@@ -100,7 +102,9 @@ export function RemoveMemberDialog({
           <Button
             variant='destructive'
             disabled={isSubmitting}
-            onClick={() => onConfirmRemove(isExternalRemoval ? false : shouldReduceSeats)}
+            onClick={() =>
+              onConfirmRemove(isExternalRemoval || !canReduceSeats ? false : shouldReduceSeats)
+            }
           >
             {isSelfRemoval ? 'Leave Organization' : 'Remove'}
           </Button>

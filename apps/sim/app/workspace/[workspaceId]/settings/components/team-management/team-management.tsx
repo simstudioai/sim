@@ -6,7 +6,7 @@ import { Skeleton, type TagItem } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { getPlanTierCredits, getPlanTierDollars } from '@/lib/billing/plan-helpers'
-import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
+import { checkEnterprisePlan, checkTeamPlan } from '@/lib/billing/subscriptions/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateSlug, isAdminOrOwner, type Member } from '@/lib/workspaces/organization'
 import {
@@ -106,6 +106,7 @@ export function TeamManagement() {
   const adminOrOwner = isAdminOrOwner(organization, session?.user?.email)
   const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
   const usedSeats = organizationBillingData?.data?.usedSeats ?? 0
+  const canReduceSubscriptionSeats = Boolean(subscriptionData && checkTeamPlan(subscriptionData))
 
   useEffect(() => {
     if ((hasTeamPlan || hasEnterprisePlan) && session?.user?.name && !orgName) {
@@ -503,6 +504,7 @@ export function TeamManagement() {
         open={removeMemberDialog.open}
         memberName={removeMemberDialog.memberName}
         shouldReduceSeats={removeMemberDialog.shouldReduceSeats}
+        canReduceSeats={canReduceSubscriptionSeats}
         isSelfRemoval={removeMemberDialog.isSelfRemoval}
         isExternalRemoval={removeMemberDialog.isExternalRemoval}
         isSubmitting={removeMemberMutation.isPending}

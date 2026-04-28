@@ -1429,6 +1429,7 @@ export async function transferOrganizationOwnership(
 
       const [orgSub] = await tx
         .select({
+          id: subscriptionTable.id,
           stripeCustomerId: subscriptionTable.stripeCustomerId,
         })
         .from(subscriptionTable)
@@ -1441,20 +1442,10 @@ export async function transferOrganizationOwnership(
         .limit(1)
 
       if (orgSub?.stripeCustomerId) {
-        const [newOwnerUser] = await tx
-          .select({ email: user.email, name: user.name })
-          .from(user)
-          .where(eq(user.id, newOwnerUserId))
-          .limit(1)
-
-        if (newOwnerUser?.email) {
-          await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CUSTOMER_CONTACT, {
-            stripeCustomerId: orgSub.stripeCustomerId,
-            email: newOwnerUser.email,
-            name: newOwnerUser.name ?? undefined,
-            reason: 'ownership-transfer',
-          })
-        }
+        await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CUSTOMER_CONTACT, {
+          subscriptionId: orgSub.id,
+          reason: 'ownership-transfer',
+        })
       }
     })
 

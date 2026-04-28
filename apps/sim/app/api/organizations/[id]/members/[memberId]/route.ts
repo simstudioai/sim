@@ -410,7 +410,11 @@ export const DELETE = withRouteHandler(
       let seatReduction: Awaited<ReturnType<typeof reduceOrganizationSeatsByOne>> | null = null
       if (shouldReduceSeats && session.user.id !== targetUserId) {
         try {
-          seatReduction = await reduceOrganizationSeatsByOne(organizationId, session.user.id)
+          seatReduction = await reduceOrganizationSeatsByOne({
+            organizationId,
+            actorUserId: session.user.id,
+            removedUserId: targetUserId,
+          })
         } catch (seatError) {
           logger.error('Failed to reduce seats after member removal', {
             organizationId,
