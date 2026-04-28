@@ -851,7 +851,7 @@ const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) 
           sandbox='allow-scripts'
           referrerPolicy='no-referrer'
           title='HTML Preview'
-          className='h-full w-full border-0 bg-white'
+          className='h-full w-full border-0 bg-[var(--surface-2)]'
         />
       )}
     </div>

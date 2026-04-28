@@ -521,9 +521,9 @@ function useTextEditorContentState(options: SyncTextEditorContentStateOptions) {
     dispatch({ type: 'edit', content })
   }, [])
 
-  const markSavedContent = useCallback((content: string) => {
+  const markSavedContent = (content: string) => {
     dispatch({ type: 'save-success', content })
-  }, [])
+  }
 
   return {
     content: state.content,
@@ -596,15 +596,22 @@ export function FileViewer({
   }
 
   if (category === 'audio-previewable') {
-    return <AudioPreview file={file} workspaceId={workspaceId} />
+    return <AudioPreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
   if (category === 'video-previewable') {
-    return <VideoPreview file={file} workspaceId={workspaceId} />
+    return <VideoPreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
   if (category === 'docx-previewable') {
-    return <DocxPreview file={file} workspaceId={workspaceId} streamingContent={streamingContent} />
+    return (
+      <DocxPreview
+        key={file.id}
+        file={file}
+        workspaceId={workspaceId}
+        streamingContent={streamingContent}
+      />
+    )
   }
 
   if (category === 'pptx-previewable') {
@@ -704,7 +711,6 @@ function TextEditor({
   })
   contentRef.current = content
 
-  // Sync external content (initial load + streaming) to Monaco model
   useEffect(() => {
     const editor = monacoEditorRef.current
     if (!editor) return
@@ -713,9 +719,6 @@ function TextEditor({
     const monacoValue = model.getValue()
     if (monacoValue === content) return
 
-    // Only override Monaco when we're pushing external content, not user edits:
-    // - During streaming/reconciling: always push
-    // - On first init (monacoValue matches last synced value): push
     if (isStreamInteractionLocked || monacoValue === lastSyncedContentRef.current) {
       model.setValue(content)
       lastSyncedContentRef.current = content
@@ -825,7 +828,6 @@ function TextEditor({
       const toggled = toggleMarkdownCheckbox(content, checkboxIndex, checked)
       if (toggled !== content) {
         setDraftContent(toggled)
-        // Also update Monaco synchronously so the user sees the change
         const model = monacoEditorRef.current?.getModel()
         if (model) {
           model.setValue(toggled)
@@ -836,7 +838,7 @@ function TextEditor({
     [content, setDraftContent]
   )
 
-  const handleEditorMount: OnMount = useCallback((editor, monaco) => {
+  const handleEditorMount: OnMount = (editor, monaco) => {
     monacoEditorRef.current = editor
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
@@ -854,14 +856,11 @@ function TextEditor({
       hasAutoFocusedRef.current = true
       editor.focus()
     }
-  }, [])
+  }
 
-  const handleEditorChange = useCallback(
-    (value: string | undefined) => {
-      setDraftContent(value ?? '')
-    },
-    [setDraftContent]
-  )
+  const handleEditorChange = (value: string | undefined) => {
+    setDraftContent(value ?? '')
+  }
 
   const isStreaming = isStreamInteractionLocked
   const isEditorReadOnly = isStreamInteractionLocked || !canEdit
@@ -1222,10 +1221,6 @@ const AudioPreview = memo(function AudioPreview({
   }, [])
 
   useEffect(() => {
-    replaceBlobUrl(null)
-  }, [file.id, file.key, replaceBlobUrl])
-
-  useEffect(() => {
     return () => {
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current)
@@ -1291,10 +1286,6 @@ const VideoPreview = memo(function VideoPreview({
   }, [])
 
   useEffect(() => {
-    replaceBlobUrl(null)
-  }, [file.id, file.key, replaceBlobUrl])
-
-  useEffect(() => {
     return () => {
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current)
@@ -1320,7 +1311,7 @@ const VideoPreview = memo(function VideoPreview({
   }
 
   return (
-    <div className='flex h-full items-center justify-center bg-black'>
+    <div className='flex h-full items-center justify-center bg-[var(--surface-inverted)]'>
       {blobUrl && (
         // biome-ignore lint/a11y/useMediaCaption: video from workspace files
         <video src={blobUrl} controls className='max-h-full max-w-full' />
@@ -1439,16 +1430,6 @@ const DocxPreview = memo(function DocxPreview({
   const [renderError, setRenderError] = useState<string | null>(null)
   const [rendering, setRendering] = useState(false)
   const [hasRenderedPreview, setHasRenderedPreview] = useState(false)
-
-  useEffect(() => {
-    lastSuccessfulHtmlRef.current = ''
-    setRenderError(null)
-    setRendering(false)
-    setHasRenderedPreview(false)
-    if (containerRef.current) {
-      containerRef.current.innerHTML = ''
-    }
-  }, [file.id, file.key])
 
   useEffect(() => {
     if (!containerRef.current || !fileData || streamingContent !== undefined) return
@@ -2019,7 +2000,6 @@ const XlsxPreview = memo(function XlsxPreview({
   )
 
   const handleSave = useCallback(async () => {
-    // Commit any in-progress cell edit before reading the workbook
     dataTableRef.current?.commitEdit()
     const wb = workbookRef.current
     if (!wb || isSavingRef.current) return
@@ -2033,7 +2013,6 @@ const XlsxPreview = memo(function XlsxPreview({
       const binary: number[] = XLSX.write(wb, { type: 'array', bookType: 'xlsx' })
       const bytes = new Uint8Array(binary)
 
-      // Convert to base64 in chunks to avoid call stack overflow
       const chunkSize = 8192
       const parts: string[] = []
       for (let i = 0; i < bytes.length; i += chunkSize) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, memo, useCallback, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, memo, useImperativeHandle, useRef, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 
 interface EditConfig {
@@ -49,12 +49,12 @@ const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataT
     []
   )
 
-  const setInputRef = useCallback((node: HTMLInputElement | null) => {
+  const setInputRef = (node: HTMLInputElement | null) => {
     if (node) {
       node.focus()
       node.select()
     }
-  }, [])
+  }
 
   const startEdit = (row: number, col: number, currentValue: string) => {
     if (!editConfig) return
