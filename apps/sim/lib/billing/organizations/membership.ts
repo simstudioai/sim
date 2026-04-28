@@ -237,6 +237,7 @@ export interface AddMemberResult {
   success: boolean
   memberId?: string
   error?: string
+  failureCode?: MembershipAdditionFailureCode
   billingActions: {
     proUsageSnapshotted: boolean
     /**
@@ -281,6 +282,13 @@ export interface RemoveExternalWorkspaceAccessResult {
   credentialMembershipsRevoked: number
   pendingInvitationsCancelled: number
 }
+
+export type MembershipAdditionFailureCode =
+  | 'user-not-found'
+  | 'organization-not-found'
+  | 'already-member'
+  | 'already-in-other-organization'
+  | 'no-seats-available'
 
 async function reassignOwnedOrganizationWorkspacesTx({
   tx,
@@ -455,6 +463,7 @@ async function revokeWorkspaceCredentialMembershipsTx({
 export interface MembershipValidationResult {
   canAdd: boolean
   reason?: string
+  failureCode?: MembershipAdditionFailureCode
   existingOrgId?: string
   seatValidation?: {
     currentSeats: number
@@ -485,6 +494,7 @@ export async function ensureUserInOrganization(
       success: false,
       alreadyMember: false,
       existingOrgId: existingMembership.organizationId,
+      failureCode: 'already-in-other-organization',
       error:
         'User is already a member of another organization. Users can only belong to one organization at a time.',
       billingActions: {
@@ -514,7 +524,7 @@ export async function validateMembershipAddition(
   const [userData] = await db.select({ id: user.id }).from(user).where(eq(user.id, userId)).limit(1)
 
   if (!userData) {
-    return { canAdd: false, reason: 'User not found' }
+    return { canAdd: false, reason: 'User not found', failureCode: 'user-not-found' }
   }
 
   const [orgData] = await db
@@ -524,7 +534,11 @@ export async function validateMembershipAddition(
     .limit(1)
 
   if (!orgData) {
-    return { canAdd: false, reason: 'Organization not found' }
+    return {
+      canAdd: false,
+      reason: 'Organization not found',
+      failureCode: 'organization-not-found',
+    }
   }
 
   const existingMemberships = await db
@@ -538,13 +552,18 @@ export async function validateMembershipAddition(
     )
 
     if (isAlreadyMemberOfThisOrg) {
-      return { canAdd: false, reason: 'User is already a member of this organization' }
+      return {
+        canAdd: false,
+        reason: 'User is already a member of this organization',
+        failureCode: 'already-member',
+      }
     }
 
     return {
       canAdd: false,
       reason:
         'User is already a member of another organization. Users can only belong to one organization at a time.',
+      failureCode: 'already-in-other-organization',
       existingOrgId: existingMemberships[0].organizationId,
     }
   }
@@ -556,6 +575,7 @@ export async function validateMembershipAddition(
     return {
       canAdd: false,
       reason: seatValidation.reason || 'No seats available',
+      failureCode: 'no-seats-available',
       seatValidation: {
         currentSeats: seatValidation.currentSeats,
         maxSeats: seatValidation.maxSeats,
@@ -757,7 +777,12 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
         acceptingInvitationId,
       })
       if (!validation.canAdd) {
-        return { success: false, error: validation.reason, billingActions }
+        return {
+          success: false,
+          error: validation.reason,
+          failureCode: validation.failureCode,
+          billingActions,
+        }
       }
     } else {
       const existingMemberships = await db
@@ -774,6 +799,7 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
           return {
             success: false,
             error: 'User is already a member of this organization',
+            failureCode: 'already-member',
             billingActions,
           }
         }
@@ -782,6 +808,7 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
           success: false,
           error:
             'User is already a member of another organization. Users can only belong to one organization at a time.',
+          failureCode: 'already-in-other-organization',
           billingActions,
         }
       }

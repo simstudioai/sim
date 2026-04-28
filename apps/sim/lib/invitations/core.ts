@@ -257,7 +257,8 @@ export async function acceptInvitation(
   }
 
   let membershipAlreadyExists = false
-  const shouldJoinOrganization = Boolean(inv.organizationId && inv.membershipIntent !== 'external')
+  let acceptedMembershipIntent = inv.membershipIntent
+  let shouldJoinOrganization = Boolean(inv.organizationId && inv.membershipIntent !== 'external')
 
   if (shouldJoinOrganization && inv.organizationId) {
     const membershipResult = await ensureUserInOrganization({
@@ -269,16 +270,21 @@ export async function acceptInvitation(
 
     if (!membershipResult.success) {
       if (membershipResult.existingOrgId) {
-        await db
-          .update(invitation)
-          .set({ status: 'rejected', updatedAt: new Date() })
-          .where(eq(invitation.id, inv.id))
-        return { success: false, kind: 'already-in-organization' }
-      }
-      if (membershipResult.error?.toLowerCase().includes('no available seats')) {
+        if (inv.kind === 'workspace' && inv.grants.length > 0) {
+          acceptedMembershipIntent = 'external'
+          shouldJoinOrganization = false
+        } else {
+          await db
+            .update(invitation)
+            .set({ status: 'rejected', updatedAt: new Date() })
+            .where(eq(invitation.id, inv.id))
+          return { success: false, kind: 'already-in-organization' }
+        }
+      } else if (membershipResult.failureCode === 'no-seats-available') {
         return { success: false, kind: 'no-seats-available' }
+      } else {
+        return { success: false, kind: 'server-error', message: membershipResult.error }
       }
-      return { success: false, kind: 'server-error', message: membershipResult.error }
     }
 
     membershipAlreadyExists = membershipResult.alreadyMember
@@ -289,7 +295,11 @@ export async function acceptInvitation(
   await db.transaction(async (tx) => {
     await tx
       .update(invitation)
-      .set({ status: 'accepted', updatedAt: new Date() })
+      .set({
+        status: 'accepted',
+        membershipIntent: acceptedMembershipIntent,
+        updatedAt: new Date(),
+      })
       .where(eq(invitation.id, inv.id))
 
     for (const grant of inv.grants) {
@@ -393,7 +403,7 @@ export async function acceptInvitation(
 
   return {
     success: true,
-    invitation: { ...inv, status: 'accepted' },
+    invitation: { ...inv, status: 'accepted', membershipIntent: acceptedMembershipIntent },
     acceptedWorkspaceIds,
     redirectPath,
     membershipAlreadyExists,
