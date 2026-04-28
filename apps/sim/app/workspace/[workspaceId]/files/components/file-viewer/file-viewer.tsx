@@ -852,7 +852,12 @@ function TextEditor({
     if (monacoValue === content) return
 
     if (isStreamInteractionLocked || monacoValue === lastSyncedContentRef.current) {
+      // Preserve the user's scroll position during streaming updates, unless they
+      // are already at the bottom (in which case Effect 3 will scroll to the new bottom).
+      const viewState =
+        isStreamInteractionLocked && !textareaStuckRef.current ? editor.saveViewState() : null
       model.setValue(content)
+      if (viewState) editor.restoreViewState(viewState)
       lastSyncedContentRef.current = content
     }
   }, [content, isStreamInteractionLocked])
@@ -865,20 +870,23 @@ function TextEditor({
       return
     }
 
-    textareaStuckRef.current = true
-    const domNode = editor.getDomNode()
-    if (!domNode) return
-
-    const scrollable = domNode.querySelector('.monaco-scrollable-element') as HTMLElement | null
-    if (!scrollable) return
-
-    const onWheel = (e: Event) => {
-      if ((e as WheelEvent).deltaY < 0) textareaStuckRef.current = false
+    const isAtBottom = () => {
+      const scrollTop = editor.getScrollTop()
+      const scrollHeight = editor.getScrollHeight()
+      const { height } = editor.getLayoutInfo()
+      return scrollHeight - scrollTop - height < 80
     }
-    scrollable.addEventListener('wheel', onWheel, { passive: true })
+
+    // Initialize from actual position — only follow if already at the bottom.
+    textareaStuckRef.current = isAtBottom()
+
+    // Use Monaco's scroll API so trackpad, scrollbar drag, and keyboard all update the flag.
+    const disposable = editor.onDidScrollChange(() => {
+      textareaStuckRef.current = isAtBottom()
+    })
 
     return () => {
-      scrollable.removeEventListener('wheel', onWheel)
+      disposable.dispose()
     }
   }, [isStreamInteractionLocked, disableStreamingAutoScroll])
 
