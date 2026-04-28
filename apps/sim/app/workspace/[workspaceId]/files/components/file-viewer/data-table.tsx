@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useState } from 'react'
+import { forwardRef, memo, useCallback, useImperativeHandle, useRef, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 
 interface EditConfig {
@@ -14,11 +14,40 @@ interface DataTableProps {
   editConfig?: EditConfig
 }
 
+export interface DataTableHandle {
+  commitEdit: () => void
+}
+
 type EditingCell = { row: number; col: number } | null
 
-export const DataTable = memo(function DataTable({ headers, rows, editConfig }: DataTableProps) {
+const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataTable(
+  { headers, rows, editConfig },
+  ref
+) {
   const [editingCell, setEditingCell] = useState<EditingCell>(null)
   const [editValue, setEditValue] = useState('')
+
+  // Always-current ref so the imperative handle doesn't go stale
+  const editStateRef = useRef({ editingCell, editValue, editConfig })
+  editStateRef.current = { editingCell, editValue, editConfig }
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      commitEdit: () => {
+        const { editingCell, editValue, editConfig } = editStateRef.current
+        if (!editingCell || !editConfig) return
+        const { row, col } = editingCell
+        if (row === -1) {
+          editConfig.onHeaderChange(col, editValue)
+        } else {
+          editConfig.onCellChange(row, col, editValue)
+        }
+        setEditingCell(null)
+      },
+    }),
+    []
+  )
 
   const setInputRef = useCallback((node: HTMLInputElement | null) => {
     if (node) {
@@ -121,3 +150,5 @@ export const DataTable = memo(function DataTable({ headers, rows, editConfig }: 
     </div>
   )
 })
+
+export const DataTable = memo(DataTableBase)

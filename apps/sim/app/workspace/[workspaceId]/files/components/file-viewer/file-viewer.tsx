@@ -17,6 +17,7 @@ import {
   useWorkspaceFileContent,
 } from '@/hooks/queries/workspace-files'
 import { useAutosave } from '@/hooks/use-autosave'
+import type { DataTableHandle } from './data-table'
 import { DataTable } from './data-table'
 import type { PdfDocumentSource } from './pdf-viewer'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
@@ -658,6 +659,7 @@ function TextEditor({
   const monacoEditorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const lastSyncedContentRef = useRef('')
   const hasAutoFocusedRef = useRef(false)
+  const contentRef = useRef('')
 
   const [splitPct, setSplitPct] = useState(SPLIT_DEFAULT_PCT)
   const [isResizing, setIsResizing] = useState(false)
@@ -700,6 +702,7 @@ function TextEditor({
     streamingContent,
     streamingMode,
   })
+  contentRef.current = content
 
   // Sync external content (initial load + streaming) to Monaco model
   useEffect(() => {
@@ -841,9 +844,10 @@ function TextEditor({
     })
 
     const model = editor.getModel()
-    if (model && content && model.getValue() !== content) {
-      model.setValue(content)
-      lastSyncedContentRef.current = content
+    const currentContent = contentRef.current
+    if (model && currentContent && model.getValue() !== currentContent) {
+      model.setValue(currentContent)
+      lastSyncedContentRef.current = currentContent
     }
 
     if (autoFocus && !hasAutoFocusedRef.current) {
@@ -1887,6 +1891,8 @@ const XlsxPreview = memo(function XlsxPreview({
   const [isSaving, setIsSaving] = useState(false)
   const isSavingRef = useRef(false)
   const workbookRef = useRef<import('xlsx').WorkBook | null>(null)
+  const xlsxModuleRef = useRef<typeof import('xlsx') | null>(null)
+  const dataTableRef = useRef<DataTableHandle>(null)
   const updateContent = useUpdateWorkspaceFileContent()
   const updateContentRef = useRef(updateContent)
   updateContentRef.current = updateContent
@@ -1904,6 +1910,7 @@ const XlsxPreview = memo(function XlsxPreview({
         setRenderError(null)
         setIsDirty(false)
         const XLSX = await import('xlsx')
+        xlsxModuleRef.current = XLSX
         const workbook = XLSX.read(new Uint8Array(data), { type: 'array' })
         if (!cancelled) {
           workbookRef.current = workbook
@@ -1966,17 +1973,16 @@ const XlsxPreview = memo(function XlsxPreview({
   const handleCellChange = useCallback(
     (row: number, col: number, value: string) => {
       const wb = workbookRef.current
-      if (wb) {
-        // Update cell in workbook for save fidelity
-        import('xlsx').then(({ utils }) => {
-          const sheetName = sheetNames[activeSheet]
-          const ws = wb.Sheets[sheetName]
-          if (!ws) return
-          const cellAddr = utils.encode_cell({ r: row + 1, c: col })
+      const XLSX = xlsxModuleRef.current
+      if (wb && XLSX) {
+        const sheetName = sheetNames[activeSheet]
+        const ws = wb.Sheets[sheetName]
+        if (ws) {
+          const cellAddr = XLSX.utils.encode_cell({ r: row + 1, c: col })
           const numValue = Number(value)
           ws[cellAddr] =
             value !== '' && !Number.isNaN(numValue) ? { t: 'n', v: numValue } : { t: 's', v: value }
-        })
+        }
       }
       setCurrentSheet((prev) => {
         if (!prev) return prev
@@ -1993,14 +1999,14 @@ const XlsxPreview = memo(function XlsxPreview({
   const handleHeaderChange = useCallback(
     (col: number, value: string) => {
       const wb = workbookRef.current
-      if (wb) {
-        import('xlsx').then(({ utils }) => {
-          const sheetName = sheetNames[activeSheet]
-          const ws = wb.Sheets[sheetName]
-          if (!ws) return
-          const cellAddr = utils.encode_cell({ r: 0, c: col })
+      const XLSX = xlsxModuleRef.current
+      if (wb && XLSX) {
+        const sheetName = sheetNames[activeSheet]
+        const ws = wb.Sheets[sheetName]
+        if (ws) {
+          const cellAddr = XLSX.utils.encode_cell({ r: 0, c: col })
           ws[cellAddr] = { t: 's', v: value }
-        })
+        }
       }
       setCurrentSheet((prev) => {
         if (!prev) return prev
@@ -2013,6 +2019,8 @@ const XlsxPreview = memo(function XlsxPreview({
   )
 
   const handleSave = useCallback(async () => {
+    // Commit any in-progress cell edit before reading the workbook
+    dataTableRef.current?.commitEdit()
     const wb = workbookRef.current
     if (!wb || isSavingRef.current) return
 
@@ -2116,6 +2124,7 @@ const XlsxPreview = memo(function XlsxPreview({
       </div>
       <div className='flex-1 overflow-auto p-6'>
         <DataTable
+          ref={dataTableRef}
           headers={currentSheet.headers}
           rows={currentSheet.rows}
           editConfig={editConfig}
