@@ -24,7 +24,7 @@ import { PreviewPanel, resolvePreviewType } from './preview-panel'
 
 // Token rules shared by both themes — override the major categories; base handles the rest
 const SIM_DARK_RULES: import('monaco-editor').editor.ITokenThemeRule[] = [
-  { token: 'comment', foreground: '4a4a4a', fontStyle: 'italic' },
+  { token: 'comment', foreground: '606060', fontStyle: 'italic' },
   { token: 'string', foreground: '3ab872' },
   { token: 'string.escape', foreground: '3ab872' },
   { token: 'number', foreground: 'e8a87c' },
