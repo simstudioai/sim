@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 export const copilotChatSelectionKeys = {
   all: ['copilot-chat-selection'] as const,
@@ -9,29 +9,36 @@ export const copilotChatSelectionKeys = {
 }
 
 /**
- * In-memory selection of which copilot chat is active per workflow.
- * Backed by the React Query cache as a keyed KV store — no `queryFn`,
- * values only land via `setChatId`. Survives in-session workflow switches
- * so A → B → A returns to A's last-used chat; cleared on hard refresh.
+ * Reactive per-workflow copilot chat selection. The active workflow's
+ * chatId lives in the React Query cache under a workflow-keyed entry, so
+ * switching workflows naturally reads the per-workflow remembered value
+ * with no save/restore effect required. No `queryFn` runs — values land
+ * exclusively via the returned setter.
+ *
+ * In-memory only (no `persistQueryClient`); refresh wipes the memory and
+ * the panel falls back to auto-selecting the workflow's most recent chat.
  */
-export function useCopilotChatSelection() {
+export function useCopilotChatSelection(workflowId?: string) {
   const queryClient = useQueryClient()
 
-  const getChatId = useCallback(
-    (workflowId: string): string | undefined =>
-      queryClient.getQueryData<string>(copilotChatSelectionKeys.workflow(workflowId)),
-    [queryClient]
-  )
+  const { data: chatId } = useQuery({
+    queryKey: copilotChatSelectionKeys.workflow(workflowId),
+    queryFn: (): string | null => null,
+    enabled: false,
+    staleTime: Number.POSITIVE_INFINITY,
+    initialData: null,
+  })
 
   const setChatId = useCallback(
-    (workflowId: string, chatId: string | undefined) => {
-      queryClient.setQueryData<string | undefined>(
+    (next: string | undefined) => {
+      if (!workflowId) return
+      queryClient.setQueryData<string | null>(
         copilotChatSelectionKeys.workflow(workflowId),
-        chatId
+        next ?? null
       )
     },
-    [queryClient]
+    [workflowId, queryClient]
   )
 
-  return { getChatId, setChatId }
+  return { chatId: chatId ?? undefined, setChatId }
 }
