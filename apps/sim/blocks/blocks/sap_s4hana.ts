@@ -5,16 +5,16 @@ import type { SapProxyResponse } from '@/tools/sap_s4hana/types'
 
 export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
   type: 'sap_s4hana',
-  name: 'SAP S/4HANA',
-  description: 'Read and write SAP S/4HANA Cloud business data via OData',
+  name: 'SAP S4HANA',
+  description: 'Read and write SAP S4HANA Cloud business data via OData',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Connect SAP S/4HANA Cloud Public Edition with per-tenant OAuth 2.0 client credentials configured in your Communication Arrangements. Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices, or run arbitrary OData v2 queries against any whitelisted Communication Scenario.',
+    'Connect SAP S4HANA Cloud Public Edition with per-tenant OAuth 2.0 client credentials configured in your Communication Arrangements. Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices, or run arbitrary OData v2 queries against any whitelisted Communication Scenario.',
   docsLink: 'https://docs.sim.ai/tools/sap_s4hana',
   category: 'tools',
   integrationType: IntegrationType.Other,
   tags: ['automation'],
-  bgColor: '#0A6ED1',
+  bgColor: '#FFFFFF',
   icon: SapS4HanaIcon,
   subBlocks: [
     {
@@ -700,9 +700,9 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
       title: 'Deployment',
       type: 'dropdown',
       options: [
-        { label: 'S/4HANA Cloud Public Edition', id: 'cloud_public' },
-        { label: 'S/4HANA Cloud Private Edition (RISE)', id: 'cloud_private' },
-        { label: 'S/4HANA On-Premise', id: 'on_premise' },
+        { label: 'S4HANA Cloud Public Edition', id: 'cloud_public' },
+        { label: 'S4HANA Cloud Private Edition (RISE)', id: 'cloud_private' },
+        { label: 'S4HANA On-Premise', id: 'on_premise' },
       ],
       value: () => 'cloud_public',
       required: true,
