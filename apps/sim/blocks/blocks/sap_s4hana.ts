@@ -417,7 +417,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
       id: 'deliveryDocument',
       title: 'DeliveryDocument',
       type: 'short-input',
-      placeholder: '80000000',
+      placeholder: 'e.g., 80000000 (outbound) or 180000000 (inbound)',
       condition: {
         field: 'operation',
         value: ['sap_s4hana_get_outbound_delivery', 'sap_s4hana_get_inbound_delivery'],

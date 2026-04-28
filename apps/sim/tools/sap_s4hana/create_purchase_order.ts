@@ -107,10 +107,10 @@ export const createPurchaseOrderTool: ToolConfig<CreatePurchaseOrderParams, SapP
     },
     body: {
       type: 'json',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description:
-        'Additional A_PurchaseOrder fields and to_PurchaseOrderItem deep-insert items merged into the create payload (e.g., {"to_PurchaseOrderItem":[{"PurchaseOrderItem":"10","Material":"TG11","OrderQuantity":"5","Plant":"1010","PurchaseOrderQuantityUnit":"PC","NetPriceAmount":"100.00","DocumentCurrency":"USD"}]}).',
+        'A_PurchaseOrder body containing to_PurchaseOrderItem deep-insert items (required by SAP) plus any additional header fields, e.g., {"to_PurchaseOrderItem":[{"PurchaseOrderItem":"10","Material":"TG11","OrderQuantity":"5","Plant":"1010","PurchaseOrderQuantityUnit":"PC","NetPriceAmount":"100.00","DocumentCurrency":"USD"}]}.',
     },
   },
   request: {
@@ -119,6 +119,12 @@ export const createPurchaseOrderTool: ToolConfig<CreatePurchaseOrderParams, SapP
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => {
       const extra = parseJsonInput<Record<string, unknown>>(params.body, 'body') ?? {}
+      const items = Array.isArray(extra.to_PurchaseOrderItem) ? extra.to_PurchaseOrderItem : null
+      if (!items || items.length === 0) {
+        throw new Error(
+          'body must include a non-empty "to_PurchaseOrderItem" array of purchase order line items'
+        )
+      }
       const payload: Record<string, unknown> = {
         ...extra,
         PurchaseOrderType: params.purchaseOrderType,
