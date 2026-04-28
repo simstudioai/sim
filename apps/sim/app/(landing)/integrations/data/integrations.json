@@ -11494,6 +11494,10 @@
         "description": "List material document headers (goods movements) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
       },
       {
+        "name": "Get Material Document",
+        "description": "Retrieve a single material document header by composite key (MaterialDocument + MaterialDocumentYear) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader)."
+      },
+      {
         "name": "List Purchase Requisitions",
         "description": "List purchase requisitions from SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, A_PurchaseRequisitionHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand. Note: API_PURCHASEREQ_PROCESS_SRV is deprecated since S/4HANA Cloud Public Edition 2402; the successor is API_PURCHASEREQUISITION_2 (OData v4). This tool still works against tenants where the legacy service is enabled."
       },
@@ -11538,7 +11542,7 @@
         "description": "Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Communication Scenario. Use when no dedicated tool exists for the entity. The proxy handles auth, CSRF, and OData unwrapping."
       }
     ],
-    "operationCount": 37,
+    "operationCount": 38,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
@@ -12151,6 +12155,22 @@
         "description": "Create a canvas pinned to a Slack channel as its resource hub"
       },
       {
+        "name": "Get Canvas Info",
+        "description": "Get Slack canvas file metadata by canvas ID"
+      },
+      {
+        "name": "List Canvases",
+        "description": "List Slack canvases available to the authenticated user or bot"
+      },
+      {
+        "name": "Lookup Canvas Sections",
+        "description": "Find Slack canvas section IDs matching criteria for later edits"
+      },
+      {
+        "name": "Delete Canvas",
+        "description": "Delete a Slack canvas by its canvas ID"
+      },
+      {
         "name": "Create Conversation",
         "description": "Create a new public or private channel in a Slack workspace."
       },
@@ -12175,7 +12195,7 @@
         "description": "Publish a static view to a user"
       }
     ],
-    "operationCount": 25,
+    "operationCount": 29,
     "triggers": [
       {
         "id": "slack_webhook",

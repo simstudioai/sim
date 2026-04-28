@@ -1,17 +1,18 @@
-import type { CreatePurchaseOrderParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
+import type { GetMaterialDocumentParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
 import {
   baseProxyBody,
-  parseJsonInput,
+  buildEntityQuery,
+  quoteOdataKey,
   SAP_PROXY_URL,
   transformSapProxyResponse,
 } from '@/tools/sap_s4hana/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const createPurchaseOrderTool: ToolConfig<CreatePurchaseOrderParams, SapProxyResponse> = {
-  id: 'sap_s4hana_create_purchase_order',
-  name: 'SAP S/4HANA Create Purchase Order',
+export const getMaterialDocumentTool: ToolConfig<GetMaterialDocumentParams, SapProxyResponse> = {
+  id: 'sap_s4hana_get_material_document',
+  name: 'SAP S/4HANA Get Material Document',
   description:
-    'Create a purchase order in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_PurchaseOrder). PurchaseOrder is auto-assigned by SAP from the document number range; provide line items via the body parameter.',
+    'Retrieve a single material document header by composite key (MaterialDocument + MaterialDocumentYear) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader).',
   version: '1.0.0',
   params: {
     subdomain: {
@@ -75,77 +76,47 @@ export const createPurchaseOrderTool: ToolConfig<CreatePurchaseOrderParams, SapP
       visibility: 'user-only',
       description: 'Password for HTTP Basic auth',
     },
-    purchaseOrderType: {
+    materialDocumentYear: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'PurchaseOrderType (e.g., "NB" Standard PO)',
+      description: 'MaterialDocumentYear (4-character year, e.g., "2024")',
     },
-    companyCode: {
+    materialDocument: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'CompanyCode (4 chars, e.g., "1010")',
+      description: 'MaterialDocument key (string, up to 10 characters)',
     },
-    purchasingOrganization: {
+    select: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'PurchasingOrganization (4 chars)',
+      description: 'Comma-separated fields to return ($select)',
     },
-    purchasingGroup: {
+    expand: {
       type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'PurchasingGroup (3 chars)',
-    },
-    supplier: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Supplier business partner key (up to 10 chars)',
-    },
-    body: {
-      type: 'json',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'A_PurchaseOrder body containing to_PurchaseOrderItem deep-insert items (required by SAP) plus any additional header fields, e.g., {"to_PurchaseOrderItem":[{"PurchaseOrderItem":"10","Material":"TG11","OrderQuantity":"5","Plant":"1010","PurchaseOrderQuantityUnit":"PC","NetPriceAmount":"100.00","DocumentCurrency":"USD"}]}.',
+        'Comma-separated navigation properties to expand (e.g., "to_MaterialDocumentItem")',
     },
   },
   request: {
     url: SAP_PROXY_URL,
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
-      const extra = parseJsonInput<Record<string, unknown>>(params.body, 'body') ?? {}
-      const items = Array.isArray(extra.to_PurchaseOrderItem) ? extra.to_PurchaseOrderItem : null
-      if (!items || items.length === 0) {
-        throw new Error(
-          'body must include a non-empty "to_PurchaseOrderItem" array of purchase order line items'
-        )
-      }
-      const payload: Record<string, unknown> = {
-        ...extra,
-        PurchaseOrderType: params.purchaseOrderType,
-        CompanyCode: params.companyCode,
-        PurchasingOrganization: params.purchasingOrganization,
-        PurchasingGroup: params.purchasingGroup,
-        Supplier: params.supplier,
-      }
-      return {
-        ...baseProxyBody(params),
-        service: 'API_PURCHASEORDER_PROCESS_SRV',
-        path: '/A_PurchaseOrder',
-        method: 'POST',
-        query: { $format: 'json' },
-        body: payload,
-      }
-    },
+    body: (params) => ({
+      ...baseProxyBody(params),
+      service: 'API_MATERIAL_DOCUMENT_SRV',
+      path: `/A_MaterialDocumentHeader(MaterialDocument=${quoteOdataKey(params.materialDocument)},MaterialDocumentYear=${quoteOdataKey(params.materialDocumentYear)})`,
+      method: 'GET',
+      query: buildEntityQuery(params),
+    }),
   },
   transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
-    data: { type: 'json', description: 'Created A_PurchaseOrder entity' },
+    data: { type: 'json', description: 'A_MaterialDocumentHeader entity' },
   },
 }

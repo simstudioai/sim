@@ -48,6 +48,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
         { label: 'Update Product', id: 'sap_s4hana_update_product' },
         { label: 'List Material Stock', id: 'sap_s4hana_list_material_stock' },
         { label: 'List Material Documents', id: 'sap_s4hana_list_material_documents' },
+        { label: 'Get Material Document', id: 'sap_s4hana_get_material_document' },
         { label: 'List Purchase Requisitions', id: 'sap_s4hana_list_purchase_requisitions' },
         { label: 'Get Purchase Requisition', id: 'sap_s4hana_get_purchase_requisition' },
         { label: 'Create Purchase Requisition', id: 'sap_s4hana_create_purchase_requisition' },
@@ -189,6 +190,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
           'sap_s4hana_get_product',
           'sap_s4hana_list_material_stock',
           'sap_s4hana_list_material_documents',
+          'sap_s4hana_get_material_document',
           'sap_s4hana_list_purchase_requisitions',
           'sap_s4hana_get_purchase_requisition',
           'sap_s4hana_list_purchase_orders',
@@ -225,6 +227,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
           'sap_s4hana_get_product',
           'sap_s4hana_list_material_stock',
           'sap_s4hana_list_material_documents',
+          'sap_s4hana_get_material_document',
           'sap_s4hana_list_purchase_requisitions',
           'sap_s4hana_get_purchase_requisition',
           'sap_s4hana_list_purchase_orders',
@@ -417,7 +420,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
       id: 'deliveryDocument',
       title: 'DeliveryDocument',
       type: 'short-input',
-      placeholder: '80000000',
+      placeholder: 'e.g., 80000000 (outbound) or 180000000 (inbound)',
       condition: {
         field: 'operation',
         value: ['sap_s4hana_get_outbound_delivery', 'sap_s4hana_get_inbound_delivery'],
@@ -553,6 +556,24 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
       placeholder:
         '{"to_PurchaseOrderItem":[{"PurchaseOrderItem":"10","Material":"TG11","OrderQuantity":"5","Plant":"1010","PurchaseOrderQuantityUnit":"PC","NetPriceAmount":"100.00","DocumentCurrency":"USD"}]}',
       condition: { field: 'operation', value: 'sap_s4hana_create_purchase_order' },
+      required: true,
+    },
+
+    // Material Document: get
+    {
+      id: 'materialDocumentYear',
+      title: 'MaterialDocumentYear',
+      type: 'short-input',
+      placeholder: '2024',
+      condition: { field: 'operation', value: 'sap_s4hana_get_material_document' },
+      required: true,
+    },
+    {
+      id: 'materialDocument',
+      title: 'MaterialDocument',
+      type: 'short-input',
+      placeholder: '4900000000',
+      condition: { field: 'operation', value: 'sap_s4hana_get_material_document' },
       required: true,
     },
 
@@ -844,6 +865,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
       'sap_s4hana_update_product',
       'sap_s4hana_list_material_stock',
       'sap_s4hana_list_material_documents',
+      'sap_s4hana_get_material_document',
       'sap_s4hana_list_purchase_requisitions',
       'sap_s4hana_get_purchase_requisition',
       'sap_s4hana_create_purchase_requisition',
@@ -991,6 +1013,13 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
             return { ...auth, ...listFields }
           case 'sap_s4hana_list_material_documents':
             return { ...auth, ...listFields }
+          case 'sap_s4hana_get_material_document':
+            return {
+              ...auth,
+              ...entityFields,
+              materialDocumentYear: params.materialDocumentYear,
+              materialDocument: params.materialDocument,
+            }
           case 'sap_s4hana_list_purchase_requisitions':
             return { ...auth, ...listFields }
           case 'sap_s4hana_get_purchase_requisition':
@@ -1124,6 +1153,8 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
     purchaseOrderBody: { type: 'json', description: 'Items and additional A_PurchaseOrder fields' },
     supplierInvoice: { type: 'string', description: 'SupplierInvoice key' },
     fiscalYear: { type: 'string', description: 'FiscalYear (4-digit year)' },
+    materialDocumentYear: { type: 'string', description: 'MaterialDocumentYear (4-digit year)' },
+    materialDocument: { type: 'string', description: 'MaterialDocument key' },
     odataService: { type: 'string', description: 'OData service name' },
     odataPath: { type: 'string', description: 'OData entity path' },
     odataMethod: { type: 'string', description: 'HTTP method for OData call' },
