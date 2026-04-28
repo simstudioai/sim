@@ -59,6 +59,7 @@ import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useCopilotChatSelection } from '@/hooks/queries/copilot-chat-selection'
 import { useDuplicateWorkflowMutation, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -232,12 +233,48 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const copilotChatIdRef = useRef(copilotChatId)
   copilotChatIdRef.current = copilotChatId
   const copilotInitialLoadDoneRef = useRef(false)
+  // Tracks the live workflow so async chat-list fetches can detect
+  // workflow switches that happened mid-flight and bail out.
+  const activeWorkflowIdRef = useRef(activeWorkflowId)
+  activeWorkflowIdRef.current = activeWorkflowId
+
+  // Per-workflow chat memory: switching A→B→A returns to A's last-used chat
+  // instead of jumping to A's most recent. Backed by the React Query cache so
+  // it survives in-session workflow switches and clears on hard refresh.
+  const { getChatId: getRememberedChatId, setChatId: setRememberedChatId } =
+    useCopilotChatSelection()
+  const lastWorkflowIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    const previous = lastWorkflowIdRef.current
+    lastWorkflowIdRef.current = activeWorkflowId ?? null
+    if (previous === activeWorkflowId) return
+
+    if (previous && copilotChatIdRef.current) {
+      setRememberedChatId(previous, copilotChatIdRef.current)
+    }
+
+    if (activeWorkflowId) {
+      const remembered = getRememberedChatId(activeWorkflowId)
+      setCopilotChatId(remembered)
+      setCopilotChatTitle(null)
+    } else {
+      setCopilotChatId(undefined)
+      setCopilotChatTitle(null)
+    }
+  }, [activeWorkflowId, getRememberedChatId, setRememberedChatId])
 
   const loadCopilotChats = useCallback(() => {
     if (!activeWorkflowId) return
+    const requestWorkflowId = activeWorkflowId
     fetch('/api/copilot/chats')
       .then((res) => (res.ok ? res.json() : { chats: [] }))
       .then((data) => {
+        // Stale-fetch guard: bail if the user switched workflows mid-flight.
+        // Without this the in-flight response would clobber the new
+        // workflow's state (filtering against the old workflow id, clearing
+        // the restored chat, and auto-selecting the wrong list's first chat).
+        if (requestWorkflowId !== activeWorkflowIdRef.current) return
         const allChats = Array.isArray(data?.chats) ? data.chats : []
         const filtered = allChats.filter(
           (c: { workflowId?: string }) => c.workflowId === activeWorkflowId
@@ -250,20 +287,29 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         setCopilotChatList(filtered)
 
         const currentId = copilotChatIdRef.current
+        let resolvedCurrentId = currentId
         if (currentId) {
           const match = filtered.find((c: { id: string }) => c.id === currentId)
-          if (match?.title) setCopilotChatTitle(match.title)
+          if (match) {
+            if (match.title) setCopilotChatTitle(match.title)
+          } else {
+            // Remembered chat was deleted (here or in another tab). Drop it
+            // so the next send doesn't hit a 404, and forget it for next time.
+            setRememberedChatId(activeWorkflowId, undefined)
+            setCopilotChatId(undefined)
+            setCopilotChatTitle(null)
+            resolvedCurrentId = undefined
+          }
         }
 
-        if (!copilotInitialLoadDoneRef.current && !currentId && filtered.length > 0) {
-          copilotInitialLoadDoneRef.current = true
+        if (!copilotInitialLoadDoneRef.current && !resolvedCurrentId && filtered.length > 0) {
           setCopilotChatId(filtered[0].id)
           setCopilotChatTitle(filtered[0].title)
         }
         copilotInitialLoadDoneRef.current = true
       })
       .catch(() => {})
-  }, [activeWorkflowId])
+  }, [activeWorkflowId, setRememberedChatId])
 
   useEffect(() => {
     copilotInitialLoadDoneRef.current = false
@@ -291,12 +337,15 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
           if (copilotChatId === chatId) {
             setCopilotChatId(undefined)
             setCopilotChatTitle(null)
+            if (activeWorkflowId) {
+              setRememberedChatId(activeWorkflowId, undefined)
+            }
           }
           loadCopilotChats()
         })
         .catch(() => {})
     },
-    [copilotChatId, loadCopilotChats]
+    [copilotChatId, loadCopilotChats, activeWorkflowId, setRememberedChatId]
   )
 
   const handleCopilotToolResult = useCallback(
