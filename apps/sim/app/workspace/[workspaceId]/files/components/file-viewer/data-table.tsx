@@ -1,11 +1,63 @@
-import { memo } from 'react'
+'use client'
+
+import { memo, useCallback, useState } from 'react'
+import { cn } from '@/lib/core/utils/cn'
+
+interface EditConfig {
+  onCellChange: (row: number, col: number, value: string) => void
+  onHeaderChange: (col: number, value: string) => void
+}
 
 interface DataTableProps {
   headers: string[]
   rows: string[][]
+  editConfig?: EditConfig
 }
 
-export const DataTable = memo(function DataTable({ headers, rows }: DataTableProps) {
+type EditingCell = { row: number; col: number } | null
+
+export const DataTable = memo(function DataTable({ headers, rows, editConfig }: DataTableProps) {
+  const [editingCell, setEditingCell] = useState<EditingCell>(null)
+  const [editValue, setEditValue] = useState('')
+
+  const setInputRef = useCallback((node: HTMLInputElement | null) => {
+    if (node) {
+      node.focus()
+      node.select()
+    }
+  }, [])
+
+  const startEdit = (row: number, col: number, currentValue: string) => {
+    if (!editConfig) return
+    setEditingCell({ row, col })
+    setEditValue(currentValue)
+  }
+
+  const commitEdit = () => {
+    if (!editingCell || !editConfig) return
+    const { row, col } = editingCell
+    if (row === -1) {
+      editConfig.onHeaderChange(col, editValue)
+    } else {
+      editConfig.onCellChange(row, col, editValue)
+    }
+    setEditingCell(null)
+  }
+
+  const cancelEdit = () => setEditingCell(null)
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault()
+      commitEdit()
+    } else if (e.key === 'Escape') {
+      cancelEdit()
+    }
+  }
+
+  const isEditing = (row: number, col: number) =>
+    editingCell?.row === row && editingCell?.col === col
+
   return (
     <div className='overflow-x-auto rounded-md border border-[var(--border)]'>
       <table className='w-full border-collapse text-[13px]'>
@@ -14,9 +66,24 @@ export const DataTable = memo(function DataTable({ headers, rows }: DataTablePro
             {headers.map((header, i) => (
               <th
                 key={i}
-                className='whitespace-nowrap px-3 py-2 text-left font-semibold text-[12px] text-[var(--text-primary)]'
+                className={cn(
+                  'whitespace-nowrap px-3 py-2 text-left font-semibold text-[12px] text-[var(--text-primary)]',
+                  editConfig && 'cursor-pointer select-none hover:bg-[var(--surface-3)]'
+                )}
+                onClick={() => editConfig && startEdit(-1, i, String(header ?? ''))}
               >
-                {String(header ?? '')}
+                {isEditing(-1, i) ? (
+                  <input
+                    ref={setInputRef}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onBlur={commitEdit}
+                    onKeyDown={handleKeyDown}
+                    className='w-full min-w-[60px] bg-transparent font-semibold text-[12px] text-[var(--text-primary)] outline-none ring-1 ring-[var(--brand-secondary)] ring-inset'
+                  />
+                ) : (
+                  String(header ?? '')
+                )}
               </th>
             ))}
           </tr>
@@ -25,8 +92,26 @@ export const DataTable = memo(function DataTable({ headers, rows }: DataTablePro
           {rows.map((row, ri) => (
             <tr key={ri} className='border-[var(--border)] border-t'>
               {headers.map((_, ci) => (
-                <td key={ci} className='whitespace-nowrap px-3 py-2 text-[var(--text-secondary)]'>
-                  {String(row[ci] ?? '')}
+                <td
+                  key={ci}
+                  className={cn(
+                    'whitespace-nowrap px-3 py-2 text-[var(--text-secondary)]',
+                    editConfig && 'cursor-pointer select-none hover:bg-[var(--surface-2)]'
+                  )}
+                  onClick={() => editConfig && startEdit(ri, ci, String(row[ci] ?? ''))}
+                >
+                  {isEditing(ri, ci) ? (
+                    <input
+                      ref={setInputRef}
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={commitEdit}
+                      onKeyDown={handleKeyDown}
+                      className='w-full min-w-[60px] bg-transparent text-[13px] text-[var(--text-secondary)] outline-none ring-1 ring-[var(--brand-secondary)] ring-inset'
+                    />
+                  ) : (
+                    String(row[ci] ?? '')
+                  )}
                 </td>
               ))}
             </tr>

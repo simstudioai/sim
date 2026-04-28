@@ -65,6 +65,7 @@ const STATIC_IMG_SRC = [
   "'self'",
   'data:',
   'blob:',
+  'https:',
   'https://*.googleusercontent.com',
   'https://*.google.com',
   'https://*.atlassian.com',

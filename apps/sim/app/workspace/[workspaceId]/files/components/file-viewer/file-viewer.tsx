@@ -1,33 +1,11 @@
 'use client'
 
-import {
-  memo,
-  type ReactElement,
-  useCallback,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  useState,
-} from 'react'
-import Editor from 'react-simple-code-editor'
-import 'prismjs/components/prism-bash'
-import 'prismjs/components/prism-css'
-import 'prismjs/components/prism-markup'
-import 'prismjs/components/prism-sql'
-import 'prismjs/components/prism-typescript'
-import 'prismjs/components/prism-yaml'
+import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import type { OnMount } from '@monaco-editor/react'
 import { createLogger } from '@sim/logger'
 import { ZoomIn, ZoomOut } from 'lucide-react'
-import {
-  CODE_LINE_HEIGHT_PX,
-  Code as CodeEditor,
-  calculateGutterWidth,
-  getCodeEditorProps,
-  highlight,
-  languages,
-  Skeleton,
-} from '@/components/emcn'
+import dynamic from 'next/dynamic'
+import { Button, Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
@@ -39,7 +17,53 @@ import {
 } from '@/hooks/queries/workspace-files'
 import { useAutosave } from '@/hooks/use-autosave'
 import { DataTable } from './data-table'
+import type { PdfDocumentSource } from './pdf-viewer'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
+
+const MonacoEditor = dynamic(
+  async () => {
+    const [{ default: Editor, loader }, monaco] = await Promise.all([
+      import('@monaco-editor/react'),
+      import('monaco-editor'),
+    ])
+
+    if (typeof window !== 'undefined' && !window.MonacoEnvironment) {
+      window.MonacoEnvironment = {
+        getWorker(_: string, label: string) {
+          if (label === 'json') {
+            return new Worker(
+              new URL('monaco-editor/esm/vs/language/json/json.worker', import.meta.url)
+            )
+          }
+          if (label === 'css' || label === 'scss' || label === 'less') {
+            return new Worker(
+              new URL('monaco-editor/esm/vs/language/css/css.worker', import.meta.url)
+            )
+          }
+          if (label === 'html' || label === 'handlebars' || label === 'razor') {
+            return new Worker(
+              new URL('monaco-editor/esm/vs/language/html/html.worker', import.meta.url)
+            )
+          }
+          if (label === 'typescript' || label === 'javascript') {
+            return new Worker(
+              new URL('monaco-editor/esm/vs/language/typescript/ts.worker', import.meta.url)
+            )
+          }
+          return new Worker(new URL('monaco-editor/esm/vs/editor/editor.worker', import.meta.url))
+        },
+      }
+    }
+
+    loader.config({ monaco })
+    return Editor
+  },
+  { ssr: false }
+)
+
+const PdfViewerCore = dynamic(() => import('./pdf-viewer').then((m) => m.PdfViewerCore), {
+  ssr: false,
+})
 
 const logger = createLogger('FileViewer')
 
@@ -65,6 +89,7 @@ const TEXT_EDITABLE_MIME_TYPES = new Set([
   'text/x-sh',
   'text/x-sql',
   'image/svg+xml',
+  'text/x-mermaid',
 ])
 
 const TEXT_EDITABLE_EXTENSIONS = new Set([
@@ -77,6 +102,7 @@ const TEXT_EDITABLE_EXTENSIONS = new Set([
   'html',
   'htm',
   'svg',
+  'mmd',
   ...SUPPORTED_CODE_EXTENSIONS,
 ])
 
@@ -85,6 +111,28 @@ const IFRAME_PREVIEWABLE_EXTENSIONS = new Set(['pdf'])
 
 const IMAGE_PREVIEWABLE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
 const IMAGE_PREVIEWABLE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp'])
+
+const AUDIO_PREVIEWABLE_MIME_TYPES = new Set([
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/wav',
+  'audio/webm',
+  'audio/ogg',
+  'audio/flac',
+  'audio/aac',
+  'audio/opus',
+  'audio/x-m4a',
+])
+const AUDIO_PREVIEWABLE_EXTENSIONS = new Set(['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac', 'opus'])
+
+const VIDEO_PREVIEWABLE_MIME_TYPES = new Set([
+  'video/mp4',
+  'video/quicktime',
+  'video/x-msvideo',
+  'video/x-matroska',
+  'video/webm',
+])
+const VIDEO_PREVIEWABLE_EXTENSIONS = new Set(['mp4', 'mov', 'avi', 'mkv'])
 
 const PPTX_PREVIEWABLE_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
@@ -107,68 +155,95 @@ type FileCategory =
   | 'text-editable'
   | 'iframe-previewable'
   | 'image-previewable'
+  | 'audio-previewable'
+  | 'video-previewable'
   | 'pptx-previewable'
   | 'docx-previewable'
   | 'xlsx-previewable'
   | 'unsupported'
 
-type CodeEditorLanguage =
-  | 'javascript'
-  | 'json'
-  | 'python'
-  | 'typescript'
-  | 'bash'
-  | 'css'
-  | 'markup'
-  | 'sql'
-  | 'yaml'
-
-const CODE_EDITOR_LANGUAGE_BY_EXTENSION: Partial<Record<string, CodeEditorLanguage>> = {
+/** Maps file extensions to Monaco editor language IDs. */
+const MONACO_LANGUAGE_BY_EXTENSION: Partial<Record<string, string>> = {
   js: 'javascript',
   jsx: 'javascript',
   ts: 'typescript',
   tsx: 'typescript',
   py: 'python',
-  json: 'json',
-  sh: 'bash',
-  bash: 'bash',
-  zsh: 'bash',
-  fish: 'bash',
-  css: 'css',
-  scss: 'css',
-  less: 'css',
-  html: 'markup',
-  htm: 'markup',
-  xml: 'markup',
-  svg: 'markup',
+  rb: 'ruby',
+  go: 'go',
+  rs: 'rust',
+  java: 'java',
+  kt: 'kotlin',
+  swift: 'swift',
+  c: 'c',
+  cpp: 'cpp',
+  h: 'cpp',
+  hpp: 'cpp',
+  cs: 'csharp',
+  php: 'php',
+  sh: 'shell',
+  bash: 'shell',
+  zsh: 'shell',
+  fish: 'shell',
   sql: 'sql',
+  graphql: 'graphql',
+  gql: 'graphql',
+  json: 'json',
+  jsonl: 'json',
   yaml: 'yaml',
   yml: 'yaml',
+  toml: 'toml',
+  html: 'html',
+  htm: 'html',
+  xml: 'xml',
+  svg: 'xml',
+  css: 'css',
+  scss: 'scss',
+  less: 'less',
+  md: 'markdown',
+  mdx: 'markdown',
+  mmd: 'markdown',
+  dockerfile: 'dockerfile',
+  ini: 'ini',
+  conf: 'ini',
+  cfg: 'ini',
+  env: 'shell',
+  diff: 'diff',
+  patch: 'diff',
 }
 
-const CODE_EDITOR_LANGUAGE_BY_MIME: Partial<Record<string, CodeEditorLanguage>> = {
+const MONACO_LANGUAGE_BY_MIME: Partial<Record<string, string>> = {
   'text/javascript': 'javascript',
   'application/javascript': 'javascript',
   'text/typescript': 'typescript',
   'application/typescript': 'typescript',
   'text/x-python': 'python',
   'application/json': 'json',
-  'text/x-shellscript': 'bash',
+  'text/x-shellscript': 'shell',
+  'text/x-sh': 'shell',
   'text/css': 'css',
-  'text/html': 'markup',
-  'text/xml': 'markup',
-  'application/xml': 'markup',
-  'image/svg+xml': 'markup',
+  'text/html': 'html',
+  'text/xml': 'xml',
+  'application/xml': 'xml',
+  'image/svg+xml': 'xml',
   'text/x-sql': 'sql',
   'application/x-yaml': 'yaml',
+  'text/markdown': 'markdown',
+  'text/x-mermaid': 'markdown',
+  'text/plain': 'plaintext',
 }
 
-const CODE_EDITOR_LINE_HEIGHT_PX = CODE_LINE_HEIGHT_PX
+function resolveMonacoLanguage(file: { type: string; name: string }): string {
+  const ext = getFileExtension(file.name)
+  return MONACO_LANGUAGE_BY_EXTENSION[ext] ?? MONACO_LANGUAGE_BY_MIME[file.type] ?? 'plaintext'
+}
 
 function resolveFileCategory(mimeType: string | null, filename: string): FileCategory {
   if (mimeType && TEXT_EDITABLE_MIME_TYPES.has(mimeType)) return 'text-editable'
   if (mimeType && IFRAME_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'iframe-previewable'
   if (mimeType && IMAGE_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'image-previewable'
+  if (mimeType && AUDIO_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'audio-previewable'
+  if (mimeType && VIDEO_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'video-previewable'
   if (mimeType && DOCX_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'docx-previewable'
   if (mimeType && PPTX_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'pptx-previewable'
   if (mimeType && XLSX_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'xlsx-previewable'
@@ -178,6 +253,8 @@ function resolveFileCategory(mimeType: string | null, filename: string): FileCat
   if (TEXT_EDITABLE_EXTENSIONS.has(nameKey)) return 'text-editable'
   if (IFRAME_PREVIEWABLE_EXTENSIONS.has(ext)) return 'iframe-previewable'
   if (IMAGE_PREVIEWABLE_EXTENSIONS.has(ext)) return 'image-previewable'
+  if (AUDIO_PREVIEWABLE_EXTENSIONS.has(ext)) return 'audio-previewable'
+  if (VIDEO_PREVIEWABLE_EXTENSIONS.has(ext)) return 'video-previewable'
   if (DOCX_PREVIEWABLE_EXTENSIONS.has(ext)) return 'docx-previewable'
   if (PPTX_PREVIEWABLE_EXTENSIONS.has(ext)) return 'pptx-previewable'
   if (XLSX_PREVIEWABLE_EXTENSIONS.has(ext)) return 'xlsx-previewable'
@@ -200,7 +277,6 @@ interface FileViewerProps {
   file: WorkspaceFileRecord
   workspaceId: string
   canEdit: boolean
-  showPreview?: boolean
   previewMode?: PreviewMode
   autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
@@ -209,39 +285,7 @@ interface FileViewerProps {
   streamingContent?: string
   streamingMode?: StreamingMode
   disableStreamingAutoScroll?: boolean
-  useCodeRendererForCodeFiles?: boolean
   previewContextKey?: string
-}
-
-function isCodeFile(file: { type: string; name: string }): boolean {
-  const ext = getFileExtension(file.name)
-  return (
-    SUPPORTED_CODE_EXTENSIONS.includes(ext as (typeof SUPPORTED_CODE_EXTENSIONS)[number]) ||
-    ext === 'html' ||
-    ext === 'htm' ||
-    ext === 'xml' ||
-    ext === 'svg'
-  )
-}
-
-function resolveCodeEditorLanguage(file: { type: string; name: string }): CodeEditorLanguage {
-  const ext = getFileExtension(file.name)
-  return (
-    CODE_EDITOR_LANGUAGE_BY_EXTENSION[ext] ??
-    CODE_EDITOR_LANGUAGE_BY_MIME[file.type] ??
-    (ext === 'json' ? 'json' : 'javascript')
-  )
-}
-
-function areNumberArraysEqual(a: number[], b: number[]): boolean {
-  if (a === b) return true
-  if (a.length !== b.length) return false
-  for (let index = 0; index < a.length; index++) {
-    if (a[index] !== b[index]) {
-      return false
-    }
-  }
-  return true
 }
 
 type TextEditorContentPhase = 'uninitialized' | 'ready' | 'streaming' | 'reconciling'
@@ -489,11 +533,25 @@ function useTextEditorContentState(options: SyncTextEditorContentStateOptions) {
   }
 }
 
+function useMonacoTheme(): string {
+  const [isDark, setIsDark] = useState(
+    () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  )
+
+  useEffect(() => {
+    const update = () => setIsDark(document.documentElement.classList.contains('dark'))
+    const observer = new MutationObserver(update)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
+
+  return isDark ? 'vs-dark' : 'vs'
+}
+
 export function FileViewer({
   file,
   workspaceId,
   canEdit,
-  showPreview,
   previewMode,
   autoFocus,
   onDirtyChange,
@@ -502,7 +560,6 @@ export function FileViewer({
   streamingContent,
   streamingMode,
   disableStreamingAutoScroll = false,
-  useCodeRendererForCodeFiles = false,
   previewContextKey,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
@@ -513,7 +570,7 @@ export function FileViewer({
         file={file}
         workspaceId={workspaceId}
         canEdit={canEdit}
-        previewMode={previewMode ?? (showPreview ? 'preview' : 'editor')}
+        previewMode={previewMode ?? 'editor'}
         autoFocus={autoFocus}
         onDirtyChange={onDirtyChange}
         onSaveStatusChange={onSaveStatusChange}
@@ -521,7 +578,6 @@ export function FileViewer({
         streamingContent={streamingContent}
         streamingMode={streamingMode}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
-        useCodeRendererForCodeFiles={useCodeRendererForCodeFiles}
         previewContextKey={previewContextKey}
       />
     )
@@ -534,7 +590,15 @@ export function FileViewer({
   }
 
   if (category === 'image-previewable') {
-    return <ImagePreview file={file} workspaceId={workspaceId} />
+    return <ImagePreview key={file.key} file={file} />
+  }
+
+  if (category === 'audio-previewable') {
+    return <AudioPreview file={file} workspaceId={workspaceId} />
+  }
+
+  if (category === 'video-previewable') {
+    return <VideoPreview file={file} workspaceId={workspaceId} />
   }
 
   if (category === 'docx-previewable') {
@@ -546,7 +610,15 @@ export function FileViewer({
   }
 
   if (category === 'xlsx-previewable') {
-    return <XlsxPreview file={file} workspaceId={workspaceId} />
+    return (
+      <XlsxPreview
+        file={file}
+        workspaceId={workspaceId}
+        canEdit={canEdit}
+        onSaveStatusChange={onSaveStatusChange}
+        saveRef={saveRef}
+      />
+    )
   }
 
   return <UnsupportedPreview file={file} />
@@ -564,7 +636,6 @@ interface TextEditorProps {
   streamingContent?: string
   streamingMode?: StreamingMode
   disableStreamingAutoScroll: boolean
-  useCodeRendererForCodeFiles?: boolean
   previewContextKey?: string
 }
 
@@ -580,19 +651,15 @@ function TextEditor({
   streamingContent,
   streamingMode = 'append',
   disableStreamingAutoScroll,
-  useCodeRendererForCodeFiles = false,
   previewContextKey,
 }: TextEditorProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const codeEditorRef = useRef<HTMLDivElement>(null)
-  const codeScrollRef = useRef<HTMLDivElement>(null)
+  const monacoEditorRef = useRef<Parameters<OnMount>[0] | null>(null)
+  const lastSyncedContentRef = useRef('')
   const hasAutoFocusedRef = useRef(false)
 
   const [splitPct, setSplitPct] = useState(SPLIT_DEFAULT_PCT)
   const [isResizing, setIsResizing] = useState(false)
-  const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
-  const [activeLineNumber, setActiveLineNumber] = useState(1)
 
   const {
     data: fetchedContent,
@@ -611,8 +678,9 @@ function TextEditor({
   const updateContentRef = useRef(updateContent)
   updateContentRef.current = updateContent
 
-  const shouldUseCodeRenderer = useCodeRendererForCodeFiles && isCodeFile(file)
-  const codeLanguage = useMemo(() => resolveCodeEditorLanguage(file), [file.name, file.type])
+  const monacoLanguage = resolveMonacoLanguage(file)
+  const monacoTheme = useMonacoTheme()
+
   const onDirtyChangeRef = useRef(onDirtyChange)
   const onSaveStatusChangeRef = useRef(onSaveStatusChange)
   onDirtyChangeRef.current = onDirtyChange
@@ -632,33 +700,61 @@ function TextEditor({
     streamingMode,
   })
 
+  // Sync external content (initial load + streaming) to Monaco model
   useEffect(() => {
-    if (!autoFocus || !isInitialized || hasAutoFocusedRef.current) {
+    const editor = monacoEditorRef.current
+    if (!editor) return
+    const model = editor.getModel()
+    if (!model) return
+    const monacoValue = model.getValue()
+    if (monacoValue === content) return
+
+    // Only override Monaco when we're pushing external content, not user edits:
+    // - During streaming/reconciling: always push
+    // - On first init (monacoValue matches last synced value): push
+    if (isStreamInteractionLocked || monacoValue === lastSyncedContentRef.current) {
+      model.setValue(content)
+      lastSyncedContentRef.current = content
+    }
+  }, [content, isStreamInteractionLocked])
+
+  const textareaStuckRef = useRef(true)
+  useEffect(() => {
+    const editor = monacoEditorRef.current
+    if (!editor || !isStreamInteractionLocked || disableStreamingAutoScroll) {
+      textareaStuckRef.current = false
       return
     }
 
-    hasAutoFocusedRef.current = true
-    requestAnimationFrame(() => {
-      const editorTextarea = codeEditorRef.current?.querySelector('textarea')
-      if (editorTextarea instanceof HTMLTextAreaElement) {
-        editorTextarea.focus()
-        return
-      }
-      textareaRef.current?.focus()
-    })
-  }, [autoFocus, isInitialized])
+    textareaStuckRef.current = true
+    const domNode = editor.getDomNode()
+    if (!domNode) return
 
-  const handleContentChange = useCallback(
-    (value: string) => {
-      if (value === content) {
-        return
-      }
-      setDraftContent(value)
-    },
-    [content, setDraftContent]
-  )
+    const scrollable = domNode.querySelector('.monaco-scrollable-element') as HTMLElement | null
+    if (!scrollable) return
 
-  const onSave = useCallback(async () => {
+    const onWheel = (e: Event) => {
+      if ((e as WheelEvent).deltaY < 0) textareaStuckRef.current = false
+    }
+    scrollable.addEventListener('wheel', onWheel, { passive: true })
+
+    return () => {
+      scrollable.removeEventListener('wheel', onWheel)
+    }
+  }, [isStreamInteractionLocked, disableStreamingAutoScroll])
+
+  useEffect(() => {
+    if (!isStreamInteractionLocked || !textareaStuckRef.current || disableStreamingAutoScroll)
+      return
+    const editor = monacoEditorRef.current
+    if (!editor) return
+    const lineCount = editor.getModel()?.getLineCount() ?? 0
+    if (lineCount > 0) {
+      editor.revealLine(lineCount)
+    }
+  }, [content, isStreamInteractionLocked, disableStreamingAutoScroll])
+
+  async function onSave() {
     if (content === savedContent) return
 
     await updateContentRef.current.mutateAsync({
@@ -667,7 +763,7 @@ function TextEditor({
       content,
     })
     markSavedContent(content)
-  }, [content, file.id, markSavedContent, savedContent, workspaceId])
+  }
 
   const { saveStatus, saveImmediately, isDirty } = useAutosave({
     content,
@@ -685,12 +781,8 @@ function TextEditor({
   }, [saveStatus])
 
   useEffect(() => {
-    if (!saveRef) {
-      return
-    }
-
+    if (!saveRef) return
     saveRef.current = saveImmediately
-
     return () => {
       if (saveRef.current === saveImmediately) {
         saveRef.current = null
@@ -728,211 +820,46 @@ function TextEditor({
     (checkboxIndex: number, checked: boolean) => {
       const toggled = toggleMarkdownCheckbox(content, checkboxIndex, checked)
       if (toggled !== content) {
-        handleContentChange(toggled)
+        setDraftContent(toggled)
+        // Also update Monaco synchronously so the user sees the change
+        const model = monacoEditorRef.current?.getModel()
+        if (model) {
+          model.setValue(toggled)
+          lastSyncedContentRef.current = toggled
+        }
       }
     },
-    [content, handleContentChange]
+    [content, setDraftContent]
+  )
+
+  const handleEditorMount: OnMount = useCallback((editor, monaco) => {
+    monacoEditorRef.current = editor
+
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      saveImmediately()
+    })
+
+    const model = editor.getModel()
+    if (model && content && model.getValue() !== content) {
+      model.setValue(content)
+      lastSyncedContentRef.current = content
+    }
+
+    if (autoFocus && !hasAutoFocusedRef.current) {
+      hasAutoFocusedRef.current = true
+      editor.focus()
+    }
+  }, [])
+
+  const handleEditorChange = useCallback(
+    (value: string | undefined) => {
+      setDraftContent(value ?? '')
+    },
+    [setDraftContent]
   )
 
   const isStreaming = isStreamInteractionLocked
   const isEditorReadOnly = isStreamInteractionLocked || !canEdit
-  const renderedContent = content
-  const gutterWidthPx = useMemo(() => {
-    const lineCount = renderedContent.split('\n').length
-    return calculateGutterWidth(lineCount)
-  }, [renderedContent])
-  const sharedCodeEditorProps = useMemo(
-    () =>
-      getCodeEditorProps({
-        disabled: isEditorReadOnly,
-        isStreaming: isStreaming,
-      }),
-    [isEditorReadOnly, isStreaming]
-  )
-  const highlightCode = useMemo(() => {
-    return (value: string) => {
-      const grammar = languages[codeLanguage] || languages.javascript
-      return highlight(value, grammar, codeLanguage)
-    }
-  }, [codeLanguage])
-  const handleCodeContentChange = useCallback(
-    (value: string) => {
-      if (isEditorReadOnly) return
-      handleContentChange(value)
-    },
-    [handleContentChange, isEditorReadOnly]
-  )
-
-  const textareaStuckRef = useRef(true)
-  const renderedContentRef = useRef(renderedContent)
-  renderedContentRef.current = renderedContent
-
-  useEffect(() => {
-    if (!shouldUseCodeRenderer) return
-    const textarea = codeEditorRef.current?.querySelector('textarea')
-    if (!(textarea instanceof HTMLTextAreaElement)) return
-
-    const updateActiveLineNumber = () => {
-      const pos = textarea.selectionStart
-      const textBeforeCursor = renderedContentRef.current.substring(0, pos)
-      const nextActiveLineNumber = textBeforeCursor.split('\n').length
-      setActiveLineNumber((currentLineNumber) =>
-        currentLineNumber === nextActiveLineNumber ? currentLineNumber : nextActiveLineNumber
-      )
-    }
-
-    textarea.addEventListener('click', updateActiveLineNumber)
-    textarea.addEventListener('keyup', updateActiveLineNumber)
-    textarea.addEventListener('focus', updateActiveLineNumber)
-
-    return () => {
-      textarea.removeEventListener('click', updateActiveLineNumber)
-      textarea.removeEventListener('keyup', updateActiveLineNumber)
-      textarea.removeEventListener('focus', updateActiveLineNumber)
-    }
-  }, [shouldUseCodeRenderer])
-
-  const calculateVisualLinesRef = useRef(() => {})
-  calculateVisualLinesRef.current = () => {
-    const preElement = codeEditorRef.current?.querySelector('pre')
-    if (!(preElement instanceof HTMLElement)) return
-
-    const lines = renderedContentRef.current.split('\n')
-    const newVisualLineHeights: number[] = []
-
-    const tempContainer = document.createElement('div')
-    tempContainer.style.cssText = `
-      position: absolute;
-      visibility: hidden;
-      height: auto;
-      width: ${preElement.clientWidth}px;
-      font-family: ${window.getComputedStyle(preElement).fontFamily};
-      font-size: ${window.getComputedStyle(preElement).fontSize};
-      line-height: ${CODE_EDITOR_LINE_HEIGHT_PX}px;
-      padding: 8px;
-      white-space: pre-wrap;
-      word-break: break-word;
-      box-sizing: border-box;
-    `
-    document.body.appendChild(tempContainer)
-
-    lines.forEach((line) => {
-      const lineDiv = document.createElement('div')
-      lineDiv.textContent = line || ' '
-      tempContainer.appendChild(lineDiv)
-      const actualHeight = lineDiv.getBoundingClientRect().height
-      const lineUnits = Math.max(1, Math.ceil(actualHeight / CODE_EDITOR_LINE_HEIGHT_PX))
-      newVisualLineHeights.push(lineUnits)
-      tempContainer.removeChild(lineDiv)
-    })
-
-    document.body.removeChild(tempContainer)
-    setVisualLineHeights((currentVisualLineHeights) =>
-      areNumberArraysEqual(currentVisualLineHeights, newVisualLineHeights)
-        ? currentVisualLineHeights
-        : newVisualLineHeights
-    )
-  }
-
-  useEffect(() => {
-    if (!shouldUseCodeRenderer || !codeEditorRef.current) return
-
-    const resizeObserver = new ResizeObserver(() => calculateVisualLinesRef.current())
-    resizeObserver.observe(codeEditorRef.current)
-
-    return () => {
-      resizeObserver.disconnect()
-    }
-  }, [shouldUseCodeRenderer])
-
-  useEffect(() => {
-    if (!shouldUseCodeRenderer) return
-    calculateVisualLinesRef.current()
-  }, [renderedContent, shouldUseCodeRenderer])
-
-  const renderCodeLineNumbers = useCallback((): ReactElement[] => {
-    const numbers: ReactElement[] = []
-    let lineNumber = 1
-
-    visualLineHeights.forEach((height) => {
-      const isActive = lineNumber === activeLineNumber
-      numbers.push(
-        <div
-          key={`${lineNumber}-0`}
-          className={cn(
-            'text-right text-xs tabular-nums leading-[21px]',
-            isActive
-              ? 'text-[var(--text-primary)] dark:text-[var(--code-foreground)]'
-              : 'text-[var(--text-muted)] dark:text-[var(--code-line-number)]'
-          )}
-        >
-          {lineNumber}
-        </div>
-      )
-
-      for (let i = 1; i < height; i++) {
-        numbers.push(
-          <div
-            key={`${lineNumber}-${i}`}
-            className='invisible text-right text-xs tabular-nums leading-[21px]'
-          >
-            {lineNumber}
-          </div>
-        )
-      }
-
-      lineNumber++
-    })
-
-    if (numbers.length === 0) {
-      numbers.push(
-        <div
-          key='1-0'
-          className='text-right text-[var(--text-muted)] text-xs tabular-nums leading-[21px] dark:text-[var(--code-line-number)]'
-        >
-          1
-        </div>
-      )
-    }
-
-    return numbers
-  }, [activeLineNumber, visualLineHeights])
-
-  useEffect(() => {
-    if (!isStreaming) return
-    if (disableStreamingAutoScroll) {
-      textareaStuckRef.current = false
-      return
-    }
-    textareaStuckRef.current = true
-
-    const el = (shouldUseCodeRenderer ? codeScrollRef.current : textareaRef.current) ?? null
-    if (!el) return
-
-    const onWheel = (e: Event) => {
-      if ((e as WheelEvent).deltaY < 0) textareaStuckRef.current = false
-    }
-
-    const onScroll = () => {
-      const dist = el.scrollHeight - el.scrollTop - el.clientHeight
-      if (dist <= 5) textareaStuckRef.current = true
-    }
-
-    el.addEventListener('wheel', onWheel, { passive: true })
-    el.addEventListener('scroll', onScroll, { passive: true })
-
-    return () => {
-      el.removeEventListener('wheel', onWheel)
-      el.removeEventListener('scroll', onScroll)
-    }
-  }, [disableStreamingAutoScroll, isStreaming, shouldUseCodeRenderer])
-
-  useEffect(() => {
-    if (!isStreaming || !textareaStuckRef.current || disableStreamingAutoScroll) return
-    const el = (shouldUseCodeRenderer ? codeScrollRef.current : textareaRef.current) ?? null
-    if (!el) return
-    el.scrollTop = el.scrollHeight
-  }, [disableStreamingAutoScroll, isStreaming, renderedContent, shouldUseCodeRenderer])
 
   const previewType = resolvePreviewType(file.type, file.name)
   const isIframeRendered = previewType === 'html' || previewType === 'svg'
@@ -954,54 +881,47 @@ function TextEditor({
 
   return (
     <div ref={containerRef} className='relative flex flex-1 overflow-hidden'>
-      {showEditor &&
-        (shouldUseCodeRenderer ? (
-          <div
-            style={showPreviewPane ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
-            className={cn(
-              'min-w-0',
-              !showPreviewPane && 'w-full',
-              isResizing && 'pointer-events-none'
-            )}
-          >
-            <div ref={codeScrollRef} className='h-full overflow-auto'>
-              <CodeEditor.Container className='min-h-full min-w-full overflow-visible rounded-none border-0 bg-transparent'>
-                <CodeEditor.Gutter width={gutterWidthPx}>
-                  {renderCodeLineNumbers()}
-                </CodeEditor.Gutter>
-                <CodeEditor.Content paddingLeft={`${gutterWidthPx}px`} editorRef={codeEditorRef}>
-                  <Editor
-                    value={renderedContent}
-                    onValueChange={handleCodeContentChange}
-                    highlight={highlightCode}
-                    padding={sharedCodeEditorProps.padding}
-                    readOnly={isEditorReadOnly}
-                    className={cn(
-                      sharedCodeEditorProps.className,
-                      'min-h-full',
-                      isEditorReadOnly && 'opacity-100'
-                    )}
-                    textareaClassName={cn(sharedCodeEditorProps.textareaClassName, 'min-h-full')}
-                  />
-                </CodeEditor.Content>
-              </CodeEditor.Container>
-            </div>
-          </div>
-        ) : (
-          <textarea
-            ref={textareaRef}
-            value={renderedContent}
-            onChange={(e) => handleContentChange(e.target.value)}
-            readOnly={isEditorReadOnly}
-            spellCheck={false}
-            style={showPreviewPane ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
-            className={cn(
-              'h-full resize-none border-0 bg-transparent p-[24px] font-mono text-[14px] text-[var(--text-body)] outline-none placeholder:text-[var(--text-subtle)]',
-              !showPreviewPane && 'w-full',
-              isResizing && 'pointer-events-none'
-            )}
+      {showEditor && (
+        <div
+          style={showPreviewPane ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
+          className={cn(
+            'min-w-0',
+            !showPreviewPane && 'w-full',
+            isResizing && 'pointer-events-none'
+          )}
+        >
+          <MonacoEditor
+            key={file.id}
+            defaultValue={content}
+            language={monacoLanguage}
+            theme={monacoTheme}
+            options={{
+              readOnly: isEditorReadOnly,
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              wordWrap: 'on',
+              fontSize: 13,
+              lineNumbers: 'on',
+              padding: { top: 24, bottom: 24 },
+              fontFamily:
+                'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+              tabSize: 2,
+              automaticLayout: true,
+              renderLineHighlight: 'line',
+              occurrencesHighlight: 'off',
+              overviewRulerLanes: 0,
+              hideCursorInOverviewRuler: true,
+              scrollbar: {
+                verticalScrollbarSize: 6,
+                horizontalScrollbarSize: 6,
+              },
+            }}
+            onChange={handleEditorChange}
+            onMount={handleEditorMount}
+            className='h-full'
           />
-        ))}
+        </div>
+      )}
       {showPreviewPane && (
         <>
           {showEditor && (
@@ -1024,7 +944,7 @@ function TextEditor({
           >
             <PreviewPanel
               key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
-              content={renderedContent}
+              content={content}
               mimeType={file.type}
               filename={file.name}
               isStreaming={isStreaming}
@@ -1037,6 +957,28 @@ function TextEditor({
   )
 }
 
+const PDF_PAGE_SKELETON = (
+  <div className='absolute inset-0 flex flex-col items-center gap-4 overflow-y-auto bg-[var(--surface-1)] p-6'>
+    {[0, 1].map((i) => (
+      <div
+        key={i}
+        className='w-full max-w-[640px] shrink-0 rounded-md bg-[var(--surface-2)] p-8 shadow-medium'
+        style={{ aspectRatio: '1 / 1.414' }}
+      >
+        <div className='flex flex-col gap-3'>
+          <Skeleton className='h-[14px] w-[60%]' />
+          <Skeleton className='h-[14px] w-[80%]' />
+          <Skeleton className='h-[14px] w-[55%]' />
+          <Skeleton className='mt-2 h-[14px] w-[75%]' />
+          <Skeleton className='h-[14px] w-[65%]' />
+          <Skeleton className='h-[14px] w-[85%]' />
+          <Skeleton className='h-[14px] w-[50%]' />
+        </div>
+      </div>
+    ))}
+  </div>
+)
+
 const IframePreview = memo(function IframePreview({
   file,
   workspaceId,
@@ -1046,45 +988,10 @@ const IframePreview = memo(function IframePreview({
   workspaceId: string
   streamingContent?: string
 }) {
-  const {
-    data: fileData,
-    isLoading,
-    error: fetchError,
-  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
-  const [blobUrl, setBlobUrl] = useState<string | null>(null)
-  const blobUrlRef = useRef<string | null>(null)
+  const [streamingBuffer, setStreamingBuffer] = useState<ArrayBuffer | null>(null)
+  const streamingBufferRef = useRef<ArrayBuffer | null>(null)
   const [rendering, setRendering] = useState(false)
   const [renderError, setRenderError] = useState<string | null>(null)
-
-  const replaceBlobUrl = useCallback((nextUrl: string | null) => {
-    const previousUrl = blobUrlRef.current
-    blobUrlRef.current = nextUrl
-    setBlobUrl(nextUrl)
-    if (previousUrl && previousUrl !== nextUrl) {
-      URL.revokeObjectURL(previousUrl)
-    }
-  }, [])
-
-  useEffect(() => {
-    replaceBlobUrl(null)
-    setRenderError(null)
-    setRendering(false)
-  }, [file.id, file.key, replaceBlobUrl])
-
-  useEffect(() => {
-    return () => {
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current)
-        blobUrlRef.current = null
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    if (streamingContent !== undefined || !fileData) return
-    setRenderError(null)
-    replaceBlobUrl(URL.createObjectURL(new Blob([fileData], { type: 'application/pdf' })))
-  }, [fileData, streamingContent, replaceBlobUrl])
 
   useEffect(() => {
     if (streamingContent === undefined) return
@@ -1110,22 +1017,15 @@ const IframePreview = memo(function IframePreview({
           throw new Error(err.error || 'Preview failed')
         }
 
-        const arrayBuffer = await response.arrayBuffer()
+        const buf = await response.arrayBuffer()
         if (cancelled) return
 
-        const nextBlobUrl = URL.createObjectURL(
-          new Blob([arrayBuffer], { type: 'application/pdf' })
-        )
-        if (cancelled) {
-          URL.revokeObjectURL(nextBlobUrl)
-          return
-        }
-
-        replaceBlobUrl(nextBlobUrl)
+        streamingBufferRef.current = buf
+        setStreamingBuffer(buf)
       } catch (err) {
         if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
           const msg = err instanceof Error ? err.message : 'Failed to render PDF'
-          if (blobUrlRef.current || shouldSuppressStreamingDocumentError(msg)) {
+          if (streamingBufferRef.current || shouldSuppressStreamingDocumentError(msg)) {
             logger.info('Suppressing transient PDF streaming preview error', { error: msg })
           } else {
             logger.error('PDF render failed', { error: msg })
@@ -1133,9 +1033,7 @@ const IframePreview = memo(function IframePreview({
           }
         }
       } finally {
-        if (!cancelled) {
-          setRendering(false)
-        }
+        if (!cancelled) setRendering(false)
       }
     }, 500)
 
@@ -1144,42 +1042,39 @@ const IframePreview = memo(function IframePreview({
       clearTimeout(debounceTimer)
       controller.abort()
     }
-  }, [streamingContent, workspaceId, replaceBlobUrl])
+  }, [streamingContent, workspaceId])
 
-  const error =
-    blobUrl !== null
-      ? null
-      : streamingContent !== undefined
-        ? renderError
-        : resolvePreviewError(fetchError, renderError)
+  const staticSource = useMemo<PdfDocumentSource>(
+    () => ({
+      kind: 'url',
+      url: `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`,
+    }),
+    [file.key]
+  )
 
-  if (error) {
-    return <PreviewError label='PDF' error={error} />
+  const streamingSource = useMemo<PdfDocumentSource | null>(
+    () => (streamingBuffer ? { kind: 'buffer', buffer: streamingBuffer } : null),
+    [streamingBuffer]
+  )
+
+  if (renderError) return <PreviewError label='PDF' error={renderError} />
+
+  if (rendering && !streamingBuffer) {
+    return <div className='relative flex flex-1 overflow-hidden'>{PDF_PAGE_SKELETON}</div>
   }
 
-  if (
-    (streamingContent !== undefined && !blobUrl) ||
-    (streamingContent === undefined && (isLoading || rendering) && !blobUrl)
-  ) {
+  if (streamingContent !== undefined) {
+    if (!streamingSource) return null
     return (
-      <div className='flex h-full items-center justify-center'>
-        <Skeleton className='h-[200px] w-[80%]' />
-      </div>
+      <PdfViewerCore
+        key={streamingBuffer!.byteLength}
+        source={streamingSource}
+        filename={file.name}
+      />
     )
   }
 
-  return (
-    <div className='flex flex-1 overflow-hidden'>
-      <iframe
-        src={blobUrl ?? undefined}
-        className='h-full w-full border-0'
-        title={file.name}
-        onError={() => {
-          logger.error(`Failed to load file: ${file.name}`)
-        }}
-      />
-    </div>
-  )
+  return <PdfViewerCore source={staticSource} filename={file.name} />
 })
 
 const ZOOM_MIN = 0.25
@@ -1189,20 +1084,8 @@ const ZOOM_BUTTON_FACTOR = 1.2
 
 const clampZoom = (z: number) => Math.min(Math.max(z, ZOOM_MIN), ZOOM_MAX)
 
-const ImagePreview = memo(function ImagePreview({
-  file,
-  workspaceId,
-}: {
-  file: WorkspaceFileRecord
-  workspaceId: string
-}) {
-  const {
-    data: fileData,
-    isLoading,
-    error: fetchError,
-  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
-  const [blobUrl, setBlobUrl] = useState<string | null>(null)
-  const blobUrlRef = useRef<string | null>(null)
+const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
+  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
   const [zoom, setZoom] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const isDragging = useRef(false)
@@ -1213,17 +1096,8 @@ const ImagePreview = memo(function ImagePreview({
 
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const replaceBlobUrl = useCallback((nextUrl: string | null) => {
-    const previousUrl = blobUrlRef.current
-    blobUrlRef.current = nextUrl
-    setBlobUrl(nextUrl)
-    if (previousUrl && previousUrl !== nextUrl) {
-      URL.revokeObjectURL(previousUrl)
-    }
-  }, [])
-
-  const zoomIn = useCallback(() => setZoom((z) => clampZoom(z * ZOOM_BUTTON_FACTOR)), [])
-  const zoomOut = useCallback(() => setZoom((z) => clampZoom(z / ZOOM_BUTTON_FACTOR)), [])
+  const zoomIn = () => setZoom((z) => clampZoom(z * ZOOM_BUTTON_FACTOR))
+  const zoomOut = () => setZoom((z) => clampZoom(z / ZOOM_BUTTON_FACTOR))
 
   useEffect(() => {
     const el = containerRef.current
@@ -1240,63 +1114,26 @@ const ImagePreview = memo(function ImagePreview({
     return () => el.removeEventListener('wheel', onWheel)
   }, [])
 
-  useEffect(() => {
-    replaceBlobUrl(null)
-  }, [file.id, file.key, replaceBlobUrl])
-
-  useEffect(() => {
-    return () => {
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current)
-        blobUrlRef.current = null
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!fileData) return
-    replaceBlobUrl(URL.createObjectURL(new Blob([fileData], { type: file.type || 'image/png' })))
-  }, [file.type, fileData, replaceBlobUrl])
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return
     isDragging.current = true
     dragStart.current = { x: e.clientX, y: e.clientY }
     offsetAtDragStart.current = offsetRef.current
     if (containerRef.current) containerRef.current.style.cursor = 'grabbing'
     e.preventDefault()
-  }, [])
+  }
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+  const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging.current) return
     setOffset({
       x: offsetAtDragStart.current.x + (e.clientX - dragStart.current.x),
       y: offsetAtDragStart.current.y + (e.clientY - dragStart.current.y),
     })
-  }, [])
-
-  const handleMouseUp = useCallback(() => {
-    isDragging.current = false
-    if (containerRef.current) containerRef.current.style.cursor = 'grab'
-  }, [])
-
-  useEffect(() => {
-    setZoom(1)
-    setOffset({ x: 0, y: 0 })
-  }, [blobUrl])
-
-  const error = blobUrl !== null ? null : resolvePreviewError(fetchError, null)
-
-  if (error) {
-    return <PreviewError label='Image' error={error} />
   }
 
-  if (isLoading && !blobUrl) {
-    return (
-      <div className='flex h-full items-center justify-center'>
-        <Skeleton className='h-[200px] w-[80%]' />
-      </div>
-    )
+  const handleMouseUp = () => {
+    isDragging.current = false
+    if (containerRef.current) containerRef.current.style.cursor = 'grab'
   }
 
   return (
@@ -1316,7 +1153,7 @@ const ImagePreview = memo(function ImagePreview({
         }}
       >
         <img
-          src={blobUrl ?? undefined}
+          src={serveUrl}
           alt={file.name}
           className='max-h-full max-w-full select-none rounded-md object-contain'
           draggable={false}
@@ -1324,31 +1161,165 @@ const ImagePreview = memo(function ImagePreview({
         />
       </div>
       <div
-        className='absolute right-4 bottom-4 flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 shadow-sm'
+        className='absolute right-4 bottom-4 flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 shadow-card'
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <button
-          type='button'
+        <Button
+          variant='ghost'
+          size='sm'
           onClick={zoomOut}
           disabled={zoom <= ZOOM_MIN}
-          className='flex h-6 w-6 items-center justify-center rounded text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40'
+          className='h-6 w-6 p-0'
           aria-label='Zoom out'
         >
           <ZoomOut className='h-3.5 w-3.5' />
-        </button>
+        </Button>
         <span className='min-w-[3rem] text-center text-[11px] text-[var(--text-secondary)]'>
           {Math.round(zoom * 100)}%
         </span>
-        <button
-          type='button'
+        <Button
+          variant='ghost'
+          size='sm'
           onClick={zoomIn}
           disabled={zoom >= ZOOM_MAX}
-          className='flex h-6 w-6 items-center justify-center rounded text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40'
+          className='h-6 w-6 p-0'
           aria-label='Zoom in'
         >
           <ZoomIn className='h-3.5 w-3.5' />
-        </button>
+        </Button>
       </div>
+    </div>
+  )
+})
+
+const AudioPreview = memo(function AudioPreview({
+  file,
+  workspaceId,
+}: {
+  file: WorkspaceFileRecord
+  workspaceId: string
+}) {
+  const {
+    data: fileData,
+    isLoading,
+    error: fetchError,
+  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  const blobUrlRef = useRef<string | null>(null)
+
+  const replaceBlobUrl = useCallback((nextUrl: string | null) => {
+    const previousUrl = blobUrlRef.current
+    blobUrlRef.current = nextUrl
+    setBlobUrl(nextUrl)
+    if (previousUrl && previousUrl !== nextUrl) {
+      URL.revokeObjectURL(previousUrl)
+    }
+  }, [])
+
+  useEffect(() => {
+    replaceBlobUrl(null)
+  }, [file.id, file.key, replaceBlobUrl])
+
+  useEffect(() => {
+    return () => {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current)
+        blobUrlRef.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!fileData) return
+    replaceBlobUrl(URL.createObjectURL(new Blob([fileData], { type: file.type || 'audio/mpeg' })))
+  }, [file.type, fileData, replaceBlobUrl])
+
+  const error = blobUrl !== null ? null : resolvePreviewError(fetchError, null)
+  if (error) return <PreviewError label='audio' error={error} />
+
+  if (isLoading && !blobUrl) {
+    return (
+      <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
+        <Skeleton className='h-[40px] w-[40px] rounded-full' />
+        <Skeleton className='h-[14px] w-[160px]' />
+        <Skeleton className='h-[40px] w-full max-w-[480px] rounded-lg' />
+      </div>
+    )
+  }
+
+  return (
+    <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
+      <div className='flex flex-col items-center gap-2 text-center'>
+        <div className='text-[32px]'>🎵</div>
+        <p className='font-medium text-[14px] text-[var(--text-primary)]'>{file.name}</p>
+      </div>
+      {blobUrl && (
+        // biome-ignore lint/a11y/useMediaCaption: audio from workspace files
+        <audio src={blobUrl} controls className='w-full max-w-[480px]' />
+      )}
+    </div>
+  )
+})
+
+const VideoPreview = memo(function VideoPreview({
+  file,
+  workspaceId,
+}: {
+  file: WorkspaceFileRecord
+  workspaceId: string
+}) {
+  const {
+    data: fileData,
+    isLoading,
+    error: fetchError,
+  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  const blobUrlRef = useRef<string | null>(null)
+
+  const replaceBlobUrl = useCallback((nextUrl: string | null) => {
+    const previousUrl = blobUrlRef.current
+    blobUrlRef.current = nextUrl
+    setBlobUrl(nextUrl)
+    if (previousUrl && previousUrl !== nextUrl) {
+      URL.revokeObjectURL(previousUrl)
+    }
+  }, [])
+
+  useEffect(() => {
+    replaceBlobUrl(null)
+  }, [file.id, file.key, replaceBlobUrl])
+
+  useEffect(() => {
+    return () => {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current)
+        blobUrlRef.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!fileData) return
+    replaceBlobUrl(URL.createObjectURL(new Blob([fileData], { type: file.type || 'video/mp4' })))
+  }, [file.type, fileData, replaceBlobUrl])
+
+  const error = blobUrl !== null ? null : resolvePreviewError(fetchError, null)
+  if (error) return <PreviewError label='video' error={error} />
+
+  if (isLoading && !blobUrl) {
+    return (
+      <div className='flex h-full items-center justify-center bg-[var(--surface-1)] p-8'>
+        <Skeleton className='w-full max-w-[720px]' style={{ aspectRatio: '16 / 9' }} />
+      </div>
+    )
+  }
+
+  return (
+    <div className='flex h-full items-center justify-center bg-black'>
+      {blobUrl && (
+        // biome-ignore lint/a11y/useMediaCaption: video from workspace files
+        <video src={blobUrl} controls className='max-h-full max-w-full' />
+      )}
     </div>
   )
 })
@@ -1382,11 +1353,65 @@ function PreviewError({ label, error }: { label: string; error: string }) {
 }
 
 const DOCUMENT_SKELETON = (
-  <div className='flex flex-1 flex-col gap-[8px] p-[24px]'>
-    <Skeleton className='h-[16px] w-[60%]' />
-    <Skeleton className='h-[16px] w-[80%]' />
-    <Skeleton className='h-[16px] w-[40%]' />
-    <Skeleton className='h-[16px] w-[70%]' />
+  <div className='flex flex-1 flex-col gap-[6px] p-[24px]'>
+    <Skeleton className='h-[14px] w-[45%]' />
+    <Skeleton className='h-[14px] w-[70%]' />
+    <Skeleton className='h-[14px] w-[55%]' />
+    <Skeleton className='mt-2 h-[14px] w-[80%]' />
+    <Skeleton className='h-[14px] w-[60%]' />
+    <Skeleton className='h-[14px] w-[75%]' />
+    <Skeleton className='h-[14px] w-[50%]' />
+    <Skeleton className='mt-2 h-[14px] w-[65%]' />
+    <Skeleton className='h-[14px] w-[40%]' />
+  </div>
+)
+
+const XLSX_SKELETON = (
+  <div className='flex flex-1 flex-col overflow-hidden'>
+    <div className='flex shrink-0 items-center gap-2 border-[var(--border)] border-b bg-[var(--surface-1)] px-3 py-2'>
+      <Skeleton className='h-[22px] w-[60px] rounded' />
+      <Skeleton className='h-[22px] w-[48px] rounded' />
+    </div>
+    <div className='flex-1 overflow-auto p-6'>
+      <div className='overflow-hidden rounded-md border border-[var(--border)]'>
+        <div className='flex gap-4 bg-[var(--surface-2)] px-3 py-2'>
+          {[1, 1, 1, 1].map((_, i) => (
+            <Skeleton key={i} className='h-[12px] flex-1' />
+          ))}
+        </div>
+        {[...Array(7)].map((_, i) => (
+          <div key={i} className='flex gap-4 border-[var(--border)] border-t px-3 py-2'>
+            {[1, 1, 1, 1].map((_, j) => (
+              <Skeleton key={j} className='h-[12px] flex-1' />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+)
+
+const PPTX_SLIDE_SKELETON = (
+  <div className='flex flex-1 flex-col items-center gap-4 overflow-y-auto bg-[var(--surface-1)] p-6'>
+    {[0, 1].map((i) => (
+      <div
+        key={i}
+        className='w-full max-w-[720px] shrink-0 rounded-md bg-[var(--surface-2)] p-8 shadow-medium'
+        style={{ aspectRatio: '16 / 9' }}
+      >
+        <div className='flex h-full flex-col justify-between'>
+          <div className='flex flex-col gap-3'>
+            <Skeleton className='h-[18px] w-[50%]' />
+            <Skeleton className='h-[14px] w-[70%]' />
+            <Skeleton className='h-[14px] w-[60%]' />
+          </div>
+          <div className='flex flex-col gap-2'>
+            <Skeleton className='h-[14px] w-[80%]' />
+            <Skeleton className='h-[14px] w-[65%]' />
+          </div>
+        </div>
+      </div>
+    ))}
   </div>
 )
 
@@ -1438,6 +1463,11 @@ const DocxPreview = memo(function DocxPreview({
           ignoreHeight: false,
         })
         if (!cancelled && containerRef.current) {
+          const wrapper = containerRef.current.querySelector<HTMLElement>('.docx-wrapper')
+          if (wrapper) wrapper.style.background = 'transparent'
+          containerRef.current.querySelectorAll<HTMLElement>('section.docx').forEach((page) => {
+            page.style.boxShadow = 'var(--shadow-medium)'
+          })
           lastSuccessfulHtmlRef.current = containerRef.current.innerHTML
           setHasRenderedPreview(true)
         }
@@ -1501,6 +1531,11 @@ const DocxPreview = memo(function DocxPreview({
         })
 
         if (!cancelled && containerRef.current) {
+          const wrapper = containerRef.current.querySelector<HTMLElement>('.docx-wrapper')
+          if (wrapper) wrapper.style.background = 'transparent'
+          containerRef.current.querySelectorAll<HTMLElement>('section.docx').forEach((page) => {
+            page.style.boxShadow = 'var(--shadow-medium)'
+          })
           lastSuccessfulHtmlRef.current = containerRef.current.innerHTML
           setHasRenderedPreview(true)
         }
@@ -1544,11 +1579,13 @@ const DocxPreview = memo(function DocxPreview({
     ((streamingContent !== undefined && rendering) || (streamingContent === undefined && isLoading))
 
   return (
-    <div className='relative h-full w-full overflow-auto bg-white'>
-      {showSkeleton && <div className='absolute inset-0 z-10 bg-white'>{DOCUMENT_SKELETON}</div>}
+    <div className='relative h-full w-full overflow-auto bg-[var(--surface-1)]'>
+      {showSkeleton && (
+        <div className='absolute inset-0 z-10 bg-[var(--surface-1)]'>{PDF_PAGE_SKELETON}</div>
+      )}
       <div
         ref={containerRef}
-        className={cn('h-full w-full overflow-auto bg-white', showSkeleton && 'opacity-0')}
+        className={cn('h-full w-full overflow-auto', showSkeleton && 'opacity-0')}
       />
     </div>
   )
@@ -1558,6 +1595,15 @@ const pptxSlideCache = new Map<string, string[]>()
 
 function pptxCacheKey(fileId: string, dataUpdatedAt: number, byteLength: number): string {
   return `${fileId}:${dataUpdatedAt}:${byteLength}`
+}
+
+function shouldSuppressStreamingPptxError(message: string): boolean {
+  return (
+    shouldSuppressStreamingDocumentError(message) ||
+    message.includes('SyntaxError: Invalid or unexpected token') ||
+    message.includes('PPTX generation cancelled') ||
+    message.includes('SyntaxError: Unexpected end of input')
+  )
 }
 
 function pptxCacheSet(key: string, slides: string[]): void {
@@ -1666,18 +1712,6 @@ function PptxPreview({
   const [rendering, setRendering] = useState(false)
   const [renderError, setRenderError] = useState<string | null>(null)
 
-  const shouldSuppressStreamingPptxError = (message: string): boolean => {
-    return (
-      shouldSuppressStreamingDocumentError(message) ||
-      message.includes('SyntaxError: Invalid or unexpected token') ||
-      message.includes('PPTX generation cancelled') ||
-      message.includes('SyntaxError: Unexpected end of input')
-    )
-  }
-
-  // Streaming preview: only re-triggers when the streaming source code or
-  // workspace changes. Isolated from fileData/dataUpdatedAt so that file-list
-  // refreshes don't abort the in-flight compilation request.
   useEffect(() => {
     if (streamingContent === undefined) return
 
@@ -1735,8 +1769,6 @@ function PptxPreview({
     }
   }, [streamingContent, workspaceId])
 
-  // Non-streaming render: uses the fetched binary directly on the client.
-  // Skipped while streaming is active so it doesn't interfere.
   useEffect(() => {
     if (streamingContent !== undefined) return
 
@@ -1791,30 +1823,19 @@ function PptxPreview({
   if (error) return <PreviewError label='presentation' error={error} />
 
   if (loading && slides.length === 0) {
-    return (
-      <div className='flex flex-1 items-center justify-center bg-[var(--surface-1)]'>
-        <div className='flex flex-col items-center gap-[8px]'>
-          <div
-            className='h-[18px] w-[18px] animate-spin rounded-full'
-            style={{
-              background:
-                'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
-              mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-              WebkitMask:
-                'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-            }}
-          />
-          <p className='text-[13px] text-[var(--text-muted)]'>Loading presentation...</p>
-        </div>
-      </div>
-    )
+    return PPTX_SLIDE_SKELETON
   }
 
   return (
     <div className='flex-1 overflow-y-auto bg-[var(--surface-1)] p-[24px]'>
       <div className='mx-auto flex max-w-[960px] flex-col gap-[16px]'>
         {slides.map((src, i) => (
-          <img key={i} src={src} alt={`Slide ${i + 1}`} className='w-full rounded-md shadow-lg' />
+          <img
+            key={i}
+            src={src}
+            alt={`Slide ${i + 1}`}
+            className='w-full rounded-md shadow-medium'
+          />
         ))}
       </div>
     </div>
@@ -1841,9 +1862,15 @@ interface XlsxSheet {
 const XlsxPreview = memo(function XlsxPreview({
   file,
   workspaceId,
+  canEdit,
+  onSaveStatusChange,
+  saveRef,
 }: {
   file: WorkspaceFileRecord
   workspaceId: string
+  canEdit: boolean
+  onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
+  saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
 }) {
   const {
     data: fileData,
@@ -1855,7 +1882,15 @@ const XlsxPreview = memo(function XlsxPreview({
   const [activeSheet, setActiveSheet] = useState(0)
   const [currentSheet, setCurrentSheet] = useState<XlsxSheet | null>(null)
   const [renderError, setRenderError] = useState<string | null>(null)
+  const [isDirty, setIsDirty] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const isSavingRef = useRef(false)
   const workbookRef = useRef<import('xlsx').WorkBook | null>(null)
+  const updateContent = useUpdateWorkspaceFileContent()
+  const updateContentRef = useRef(updateContent)
+  updateContentRef.current = updateContent
+  const onSaveStatusChangeRef = useRef(onSaveStatusChange)
+  onSaveStatusChangeRef.current = onSaveStatusChange
 
   useEffect(() => {
     if (!fileData) return
@@ -1866,6 +1901,7 @@ const XlsxPreview = memo(function XlsxPreview({
     async function parse() {
       try {
         setRenderError(null)
+        setIsDirty(false)
         const XLSX = await import('xlsx')
         const workbook = XLSX.read(new Uint8Array(data), { type: 'array' })
         if (!cancelled) {
@@ -1900,8 +1936,8 @@ const XlsxPreview = memo(function XlsxPreview({
         const name = sheetNames[activeSheet]
         const sheet = workbook.Sheets[name]
         const allRows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 })
-        const headers = allRows[0] ?? []
-        const dataRows = allRows.slice(1)
+        const headers = (allRows[0] ?? []) as string[]
+        const dataRows = allRows.slice(1) as string[][]
         const truncated = dataRows.length > XLSX_MAX_ROWS
         if (!cancelled) {
           setCurrentSheet({
@@ -1926,33 +1962,163 @@ const XlsxPreview = memo(function XlsxPreview({
     }
   }, [sheetNames, activeSheet])
 
+  const handleCellChange = useCallback(
+    (row: number, col: number, value: string) => {
+      const wb = workbookRef.current
+      if (wb) {
+        // Update cell in workbook for save fidelity
+        import('xlsx').then(({ utils }) => {
+          const sheetName = sheetNames[activeSheet]
+          const ws = wb.Sheets[sheetName]
+          if (!ws) return
+          const cellAddr = utils.encode_cell({ r: row + 1, c: col })
+          const numValue = Number(value)
+          ws[cellAddr] =
+            value !== '' && !Number.isNaN(numValue) ? { t: 'n', v: numValue } : { t: 's', v: value }
+        })
+      }
+      setCurrentSheet((prev) => {
+        if (!prev) return prev
+        const newRows = prev.rows.map((r, ri) =>
+          ri === row ? r.map((v, ci) => (ci === col ? value : v)) : r
+        )
+        return { ...prev, rows: newRows }
+      })
+      setIsDirty(true)
+    },
+    [activeSheet, sheetNames]
+  )
+
+  const handleHeaderChange = useCallback(
+    (col: number, value: string) => {
+      const wb = workbookRef.current
+      if (wb) {
+        import('xlsx').then(({ utils }) => {
+          const sheetName = sheetNames[activeSheet]
+          const ws = wb.Sheets[sheetName]
+          if (!ws) return
+          const cellAddr = utils.encode_cell({ r: 0, c: col })
+          ws[cellAddr] = { t: 's', v: value }
+        })
+      }
+      setCurrentSheet((prev) => {
+        if (!prev) return prev
+        const newHeaders = prev.headers.map((h, i) => (i === col ? value : h))
+        return { ...prev, headers: newHeaders }
+      })
+      setIsDirty(true)
+    },
+    [activeSheet, sheetNames]
+  )
+
+  const handleSave = useCallback(async () => {
+    const wb = workbookRef.current
+    if (!wb || isSavingRef.current) return
+
+    try {
+      isSavingRef.current = true
+      setIsSaving(true)
+      onSaveStatusChangeRef.current?.('saving')
+
+      const XLSX = await import('xlsx')
+      const binary: number[] = XLSX.write(wb, { type: 'array', bookType: 'xlsx' })
+      const bytes = new Uint8Array(binary)
+
+      // Convert to base64 in chunks to avoid call stack overflow
+      const chunkSize = 8192
+      const parts: string[] = []
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        parts.push(String.fromCharCode(...bytes.slice(i, i + chunkSize)))
+      }
+      const base64 = btoa(parts.join(''))
+
+      await updateContentRef.current.mutateAsync({
+        workspaceId,
+        fileId: file.id,
+        content: base64,
+        encoding: 'base64',
+      })
+
+      setIsDirty(false)
+      onSaveStatusChangeRef.current?.('saved')
+    } catch (err) {
+      logger.error('XLSX save failed', { error: err instanceof Error ? err.message : String(err) })
+      onSaveStatusChangeRef.current?.('error')
+    } finally {
+      isSavingRef.current = false
+      setIsSaving(false)
+    }
+  }, [workspaceId, file.id])
+
+  useEffect(() => {
+    if (!saveRef) return
+    saveRef.current = handleSave
+    return () => {
+      if (saveRef.current === handleSave) saveRef.current = null
+    }
+  }, [handleSave, saveRef])
+
+  useEffect(() => {
+    if (!canEdit) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+        handleSave()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [canEdit, handleSave])
+
+  const editConfig = useMemo(
+    () =>
+      canEdit ? { onCellChange: handleCellChange, onHeaderChange: handleHeaderChange } : undefined,
+    [canEdit, handleCellChange, handleHeaderChange]
+  )
+
   const error = resolvePreviewError(fetchError, renderError)
   if (error) return <PreviewError label='spreadsheet' error={error} />
-  if (isLoading || currentSheet === null) return DOCUMENT_SKELETON
+  if (isLoading || currentSheet === null) return XLSX_SKELETON
 
   return (
     <div className='flex flex-1 flex-col overflow-hidden'>
-      {sheetNames.length > 1 && (
-        <div className='flex shrink-0 gap-0 border-[var(--border)] border-b bg-[var(--surface-1)]'>
+      <div className='flex shrink-0 items-center justify-between border-[var(--border)] border-b bg-[var(--surface-1)]'>
+        <div className='flex gap-0'>
           {sheetNames.map((name, i) => (
-            <button
+            <Button
               key={name}
-              type='button'
+              variant='ghost'
+              size='sm'
               onClick={() => setActiveSheet(i)}
               className={cn(
-                'px-3 py-1.5 text-[12px] transition-colors',
+                'rounded-none px-3 py-1.5 text-[12px]',
                 i === activeSheet
                   ? 'border-[var(--brand-secondary)] border-b-2 font-medium text-[var(--text-primary)]'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
               )}
             >
               {name}
-            </button>
+            </Button>
           ))}
         </div>
-      )}
+        {canEdit && isDirty && (
+          <Button
+            variant='primary'
+            size='sm'
+            onClick={handleSave}
+            disabled={isSaving}
+            className='mr-3'
+          >
+            {isSaving ? 'Saving…' : 'Save'}
+          </Button>
+        )}
+      </div>
       <div className='flex-1 overflow-auto p-6'>
-        <DataTable headers={currentSheet.headers} rows={currentSheet.rows} />
+        <DataTable
+          headers={currentSheet.headers}
+          rows={currentSheet.rows}
+          editConfig={editConfig}
+        />
         {currentSheet.truncated && (
           <p className='mt-3 text-center text-[12px] text-[var(--text-muted)]'>
             Showing first {XLSX_MAX_ROWS.toLocaleString()} rows. Download the file to view all data.
