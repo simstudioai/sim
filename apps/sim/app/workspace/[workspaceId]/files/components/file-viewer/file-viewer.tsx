@@ -40,7 +40,7 @@ const SIM_DARK_RULES: import('monaco-editor').editor.ITokenThemeRule[] = [
 ]
 
 const SIM_LIGHT_RULES: import('monaco-editor').editor.ITokenThemeRule[] = [
-  { token: 'comment', foreground: 'aaaaaa', fontStyle: 'italic' },
+  { token: 'comment', foreground: '888888', fontStyle: 'italic' },
   { token: 'string', foreground: '16825d' },
   { token: 'string.escape', foreground: '16825d' },
   { token: 'number', foreground: 'c9660c' },
