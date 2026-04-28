@@ -183,11 +183,13 @@ export async function getWorkspaceCreationPolicy({
           )[0]?.role
 
   if (activeOrganizationId && !orgRole) {
+    const billedAccountUserId = await requireOrganizationOwnerId(activeOrganizationId)
+
     return {
       canCreate: false,
       workspaceMode: WORKSPACE_MODE.ORGANIZATION,
       organizationId: activeOrganizationId,
-      billedAccountUserId: (await getOrganizationOwnerId(activeOrganizationId)) ?? userId,
+      billedAccountUserId,
       maxWorkspaces: null,
       currentWorkspaceCount: 0,
       reason: 'Only organization owners and admins can create organization workspaces.',
