@@ -120,7 +120,7 @@ const MonacoEditor = dynamic(
         'editorBracketMatch.border': '#33b4ff80',
         'editorIndentGuide.background1': '#2a2a2a',
         'editorIndentGuide.activeBackground1': '#454545',
-        'editorCursor.foreground': '#33b4ff',
+        'editorCursor.foreground': '#e6e6e6',
         'editor.wordHighlightBackground': '#33b4ff14',
         'editor.wordHighlightBorder': '#33b4ff40',
         'editorSuggestWidget.background': '#242424',
@@ -169,7 +169,7 @@ const MonacoEditor = dynamic(
         'editorBracketMatch.border': '#33b4ff80',
         'editorIndentGuide.background1': '#f0f0f0',
         'editorIndentGuide.activeBackground1': '#d8d8d8',
-        'editorCursor.foreground': '#33b4ff',
+        'editorCursor.foreground': '#1a1a1a',
         'editor.wordHighlightBackground': '#33b4ff14',
         'editor.wordHighlightBorder': '#33b4ff40',
         'editorSuggestWidget.background': '#ffffff',
@@ -1443,7 +1443,7 @@ const VideoPreview = memo(function VideoPreview({
   }
 
   return (
-    <div className='flex h-full items-center justify-center bg-[var(--surface-inverted)]'>
+    <div className='flex h-full items-center justify-center bg-[var(--surface-1)]'>
       {blobUrl && (
         // biome-ignore lint/a11y/useMediaCaption: video from workspace files
         <video src={blobUrl} controls className='max-h-full max-w-full' />
