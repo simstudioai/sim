@@ -262,7 +262,7 @@ export function PptxPreview({
     return () => {
       cancelled = true
     }
-  }, [fileData, dataUpdatedAt, streamingContent, cacheKey, workspaceId])
+  }, [fileData, streamingContent, cacheKey])
 
   const error = resolvePreviewError(fetchError, renderError)
   const loading = isFetching || rendering

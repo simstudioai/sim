@@ -498,9 +498,9 @@ function useTextEditorContentState(options: SyncTextEditorContentStateOptions) {
     dispatch({ type: 'edit', content })
   }, [])
 
-  const markSavedContent = (content: string) => {
+  const markSavedContent = useCallback((content: string) => {
     dispatch({ type: 'save-success', content })
-  }
+  }, [])
 
   return {
     content: state.content,
@@ -786,9 +786,12 @@ export const TextEditor = memo(function TextEditor({
     }
   }
 
-  const handleEditorChange = (value: string | undefined) => {
-    setDraftContent(value ?? '')
-  }
+  const handleEditorChange = useCallback(
+    (value: string | undefined) => {
+      setDraftContent(value ?? '')
+    },
+    [setDraftContent]
+  )
 
   const isStreaming = isStreamInteractionLocked
   const isEditorReadOnly = isStreamInteractionLocked || !canEdit

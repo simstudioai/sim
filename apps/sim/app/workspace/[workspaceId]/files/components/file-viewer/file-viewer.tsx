@@ -351,18 +351,8 @@ const IframePreview = memo(function IframePreview({
   return <PdfViewerCore source={staticSource} filename={file.name} />
 })
 
-const AudioPreview = memo(function AudioPreview({
-  file,
-  workspaceId,
-}: {
-  file: WorkspaceFileRecord
-  workspaceId: string
-}) {
-  const {
-    data: fileData,
-    isLoading,
-    error: fetchError,
-  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+function useBlobUrl(workspaceId: string, fileId: string, fileKey: string) {
+  const { data: fileData, isLoading, error } = useWorkspaceFileBinary(workspaceId, fileId, fileKey)
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const blobUrlRef = useRef<string | null>(null)
 
@@ -370,9 +360,7 @@ const AudioPreview = memo(function AudioPreview({
     const previousUrl = blobUrlRef.current
     blobUrlRef.current = nextUrl
     setBlobUrl(nextUrl)
-    if (previousUrl && previousUrl !== nextUrl) {
-      URL.revokeObjectURL(previousUrl)
-    }
+    if (previousUrl && previousUrl !== nextUrl) URL.revokeObjectURL(previousUrl)
   }, [])
 
   useEffect(() => {
@@ -383,6 +371,24 @@ const AudioPreview = memo(function AudioPreview({
       }
     }
   }, [])
+
+  return { fileData, isLoading, error, blobUrl, replaceBlobUrl }
+}
+
+const AudioPreview = memo(function AudioPreview({
+  file,
+  workspaceId,
+}: {
+  file: WorkspaceFileRecord
+  workspaceId: string
+}) {
+  const {
+    fileData,
+    isLoading,
+    error: fetchError,
+    blobUrl,
+    replaceBlobUrl,
+  } = useBlobUrl(workspaceId, file.id, file.key)
 
   useEffect(() => {
     if (!fileData) return
@@ -424,30 +430,12 @@ const VideoPreview = memo(function VideoPreview({
   workspaceId: string
 }) {
   const {
-    data: fileData,
+    fileData,
     isLoading,
     error: fetchError,
-  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
-  const [blobUrl, setBlobUrl] = useState<string | null>(null)
-  const blobUrlRef = useRef<string | null>(null)
-
-  const replaceBlobUrl = useCallback((nextUrl: string | null) => {
-    const previousUrl = blobUrlRef.current
-    blobUrlRef.current = nextUrl
-    setBlobUrl(nextUrl)
-    if (previousUrl && previousUrl !== nextUrl) {
-      URL.revokeObjectURL(previousUrl)
-    }
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current)
-        blobUrlRef.current = null
-      }
-    }
-  }, [])
+    blobUrl,
+    replaceBlobUrl,
+  } = useBlobUrl(workspaceId, file.id, file.key)
 
   useEffect(() => {
     if (!fileData) return
