@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { normalizeEmail } from '@/lib/invitations/core'
@@ -20,9 +21,19 @@ interface BatchInvitationFailure {
   error: string
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
+const batchInvitationSchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  invitations: z
+    .array(
+      z.object({
+        email: z.string().trim().min(1, 'Invitation email is required'),
+        permission: z.string().optional(),
+      })
+    )
+    .min(1, 'At least one invitation is required'),
+})
+
+type BatchInvitationRequest = z.infer<typeof batchInvitationSchema>
 
 function batchErrorResponse(error: unknown) {
   if (error instanceof WorkspaceInvitationError) {
@@ -51,14 +62,14 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   }
 
   try {
-    const body = (await req.json()) as { workspaceId?: unknown; invitations?: unknown }
-    if (typeof body.workspaceId !== 'string' || body.workspaceId.length === 0) {
-      return NextResponse.json({ error: 'Workspace ID is required' }, { status: 400 })
+    const parsedBody = batchInvitationSchema.safeParse(await req.json().catch(() => null))
+    if (!parsedBody.success) {
+      return NextResponse.json(
+        { error: parsedBody.error.errors[0]?.message ?? 'Invalid invitation batch payload' },
+        { status: 400 }
+      )
     }
-
-    if (!Array.isArray(body.invitations) || body.invitations.length === 0) {
-      return NextResponse.json({ error: 'At least one invitation is required' }, { status: 400 })
-    }
+    const body: BatchInvitationRequest = parsedBody.data
 
     const context = await prepareWorkspaceInvitationContext({
       workspaceId: body.workspaceId,
@@ -73,20 +84,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const seenEmails = new Set<string>()
 
     for (const item of body.invitations) {
-      if (!isRecord(item) || typeof item.email !== 'string') {
-        return NextResponse.json(
-          { error: 'Each invitation must include an email' },
-          { status: 400 }
-        )
-      }
-
-      if (item.permission !== undefined && typeof item.permission !== 'string') {
-        return NextResponse.json(
-          { error: 'Invitation permission must be a string when provided' },
-          { status: 400 }
-        )
-      }
-
       const normalizedEmail = normalizeEmail(item.email)
       if (seenEmails.has(normalizedEmail)) {
         failed.push({
