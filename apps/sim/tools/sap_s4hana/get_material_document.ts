@@ -12,7 +12,7 @@ export const getMaterialDocumentTool: ToolConfig<GetMaterialDocumentParams, SapP
   id: 'sap_s4hana_get_material_document',
   name: 'SAP S/4HANA Get Material Document',
   description:
-    'Retrieve a single material document header by composite key (MaterialDocumentYear + MaterialDocument) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader).',
+    'Retrieve a single material document header by composite key (MaterialDocument + MaterialDocumentYear) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader).',
   version: '1.0.0',
   params: {
     subdomain: {

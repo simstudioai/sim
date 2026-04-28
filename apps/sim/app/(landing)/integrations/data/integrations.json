@@ -11495,7 +11495,7 @@
       },
       {
         "name": "Get Material Document",
-        "description": "Retrieve a single material document header by composite key (MaterialDocumentYear + MaterialDocument) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader)."
+        "description": "Retrieve a single material document header by composite key (MaterialDocument + MaterialDocumentYear) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader)."
       },
       {
         "name": "List Purchase Requisitions",
