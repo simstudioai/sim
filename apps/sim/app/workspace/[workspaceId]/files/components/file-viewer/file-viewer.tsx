@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { OnMount } from '@monaco-editor/react'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { ZoomIn, ZoomOut } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { Button, Skeleton } from '@/components/emcn'
@@ -1024,7 +1025,7 @@ const IframePreview = memo(function IframePreview({
         setStreamingBuffer(buf)
       } catch (err) {
         if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          const msg = err instanceof Error ? err.message : 'Failed to render PDF'
+          const msg = toError(err).message || 'Failed to render PDF'
           if (streamingBufferRef.current || shouldSuppressStreamingDocumentError(msg)) {
             logger.info('Suppressing transient PDF streaming preview error', { error: msg })
           } else {
@@ -1473,7 +1474,7 @@ const DocxPreview = memo(function DocxPreview({
         }
       } catch (err) {
         if (!cancelled) {
-          const msg = err instanceof Error ? err.message : 'Failed to render document'
+          const msg = toError(err).message || 'Failed to render document'
           logger.error('DOCX render failed', { error: msg })
           setRenderError(msg)
         }
@@ -1545,7 +1546,7 @@ const DocxPreview = memo(function DocxPreview({
             containerRef.current.innerHTML = previousHtml
             setHasRenderedPreview(true)
           }
-          const msg = err instanceof Error ? err.message : 'Failed to render document'
+          const msg = toError(err).message || 'Failed to render document'
           if (previousHtml || shouldSuppressStreamingDocumentError(msg)) {
             logger.info('Suppressing transient DOCX streaming preview error', { error: msg })
           } else {
@@ -1749,7 +1750,7 @@ function PptxPreview({
         )
       } catch (err) {
         if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          const msg = err instanceof Error ? err.message : 'Failed to render presentation'
+          const msg = toError(err).message || 'Failed to render presentation'
           if (shouldSuppressStreamingPptxError(msg)) {
             logger.info('Suppressing transient PPTX streaming preview error', { error: msg })
           } else {
@@ -1801,7 +1802,7 @@ function PptxPreview({
         }
       } catch (err) {
         if (!cancelled) {
-          const msg = err instanceof Error ? err.message : 'Failed to render presentation'
+          const msg = toError(err).message || 'Failed to render presentation'
           logger.error('PPTX render failed', { error: msg })
           setRenderError(msg)
         }
@@ -1911,7 +1912,7 @@ const XlsxPreview = memo(function XlsxPreview({
         }
       } catch (err) {
         if (!cancelled) {
-          const msg = err instanceof Error ? err.message : 'Failed to parse spreadsheet'
+          const msg = toError(err).message || 'Failed to parse spreadsheet'
           logger.error('XLSX parse failed', { error: msg })
           setRenderError(msg)
         }
@@ -1949,7 +1950,7 @@ const XlsxPreview = memo(function XlsxPreview({
         }
       } catch (err) {
         if (!cancelled) {
-          const msg = err instanceof Error ? err.message : 'Failed to parse sheet'
+          const msg = toError(err).message || 'Failed to parse sheet'
           logger.error('XLSX sheet parse failed', { error: msg })
           setRenderError(msg)
         }
@@ -2042,7 +2043,7 @@ const XlsxPreview = memo(function XlsxPreview({
       setIsDirty(false)
       onSaveStatusChangeRef.current?.('saved')
     } catch (err) {
-      logger.error('XLSX save failed', { error: err instanceof Error ? err.message : String(err) })
+      logger.error('XLSX save failed', { error: toError(err).message })
       onSaveStatusChangeRef.current?.('error')
     } finally {
       isSavingRef.current = false

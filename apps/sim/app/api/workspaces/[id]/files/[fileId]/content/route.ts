@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -80,7 +81,7 @@ export const PUT = withRouteHandler(
         file: updatedFile,
       })
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update file content'
+      const errorMessage = toError(error).message || 'Failed to update file content'
       const isNotFound = errorMessage.includes('File not found')
       const isQuotaExceeded = errorMessage.includes('Storage limit exceeded')
       const status = isNotFound ? 404 : isQuotaExceeded ? 402 : 500

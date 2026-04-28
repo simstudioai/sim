@@ -1041,7 +1041,7 @@ export function Files() {
           {[0, 1].map((i) => (
             <div
               key={i}
-              className='w-full max-w-[640px] shrink-0 rounded-md bg-white p-8 shadow-[var(--shadow-medium)]'
+              className='w-full max-w-[640px] shrink-0 rounded-md bg-[var(--surface-2)] p-8 shadow-medium'
               style={{ aspectRatio: '1 / 1.414' }}
             >
               <div className='flex flex-col gap-3'>

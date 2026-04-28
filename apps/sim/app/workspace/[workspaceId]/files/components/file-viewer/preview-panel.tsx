@@ -8,6 +8,7 @@ import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
+import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { Checkbox, CopyCodeButton, highlight, languages } from '@/components/emcn'
 import '@/components/emcn/components/code/code.css'
@@ -270,7 +271,7 @@ const MermaidDiagram = memo(function MermaidDiagram({ definition }: { definition
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to render diagram')
+          setError(toError(err).message || 'Failed to render diagram')
           setSvg(null)
         }
       }
