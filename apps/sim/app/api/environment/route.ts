@@ -120,17 +120,22 @@ export const GET = withRouteHandler(async (request: Request) => {
     }
 
     const encryptedVariables = result[0].variables as Record<string, string>
-    const decryptedVariables: Record<string, EnvironmentVariable> = {}
 
-    for (const [key, encryptedValue] of Object.entries(encryptedVariables)) {
-      try {
-        const { decrypted } = await decryptSecret(encryptedValue)
-        decryptedVariables[key] = { key, value: decrypted }
-      } catch (error) {
-        logger.error(`[${requestId}] Error decrypting variable ${key}`, error)
-        decryptedVariables[key] = { key, value: '' }
-      }
-    }
+    const decryptedEntries = await Promise.all(
+      Object.entries(encryptedVariables).map(async ([key, encryptedValue]) => {
+        try {
+          const { decrypted } = await decryptSecret(encryptedValue)
+          return [key, { key, value: decrypted }] as const
+        } catch (error) {
+          logger.error(`[${requestId}] Error decrypting variable ${key}`, error)
+          return [key, { key, value: '' }] as const
+        }
+      })
+    )
+    const decryptedVariables = Object.fromEntries(decryptedEntries) as Record<
+      string,
+      EnvironmentVariable
+    >
 
     return NextResponse.json({ data: decryptedVariables }, { status: 200 })
   } catch (error: any) {
