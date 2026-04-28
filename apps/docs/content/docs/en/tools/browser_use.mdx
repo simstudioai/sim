@@ -42,9 +42,18 @@ Runs a browser automation task using BrowserUse
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `task` | string | Yes | What should the browser agent do |
-| `variables` | json | No | Optional variables to use as secrets \(format: \{key: value\}\) |
-| `save_browser_data` | boolean | No | Whether to save browser data |
-| `model` | string | No | LLM model to use \(default: gpt-4o\) |
+| `startUrl` | string | No | Initial page URL to start the agent on \(reduces navigation steps\) |
+| `variables` | json | No | Optional secrets injected into the task \(format: \{key: value\}\) |
+| `allowedDomains` | string | No | Comma-separated list of domains the agent is allowed to visit |
+| `maxSteps` | number | No | Maximum number of steps the agent may take \(default 100, max 10000\) |
+| `flashMode` | boolean | No | Enable flash mode \(faster, less careful navigation\) |
+| `thinking` | boolean | No | Enable extended reasoning mode |
+| `vision` | string | No | Vision capability: "true", "false", or "auto" |
+| `systemPromptExtension` | string | No | Optional text appended to the agent system prompt \(max 2000 chars\) |
+| `structuredOutput` | string | No | Stringified JSON schema for the structured output |
+| `highlightElements` | boolean | No | Highlight interactive elements on the page \(default true\) |
+| `metadata` | json | No | Custom key-value metadata \(up to 10 pairs\) for tracking |
+| `model` | string | No | LLM model identifier \(e.g. browser-use-2.0\) |
 | `apiKey` | string | Yes | API key for BrowserUse API |
 | `profile_id` | string | No | Browser profile ID for persistent sessions \(cookies, login state\) |
 
@@ -54,7 +63,18 @@ Runs a browser automation task using BrowserUse
 | --------- | ---- | ----------- |
 | `id` | string | Task execution identifier |
 | `success` | boolean | Task completion status |
-| `output` | json | Task output data |
-| `steps` | json | Execution steps taken |
+| `output` | json | Final task output \(string or structured\) |
+| `steps` | array | Steps the agent executed \(number, memory, nextGoal, url, actions, duration\) |
+|   ↳ `number` | number | Sequential step number |
+|   ↳ `memory` | string | Agent memory at this step |
+|   ↳ `evaluationPreviousGoal` | string | Evaluation of previous goal completion |
+|   ↳ `nextGoal` | string | Goal for the next step |
+|   ↳ `url` | string | Current URL of the browser |
+|   ↳ `screenshotUrl` | string | Optional screenshot URL |
+|   ↳ `actions` | array | Stringified JSON actions performed |
+|   ↳ `duration` | number | Step duration in seconds |
+| `liveUrl` | string | Embeddable live browser session URL \(active during execution\) |
+| `shareUrl` | string | Public shareable URL for the recorded session \(post-run\) |
+| `sessionId` | string | Browser Use session identifier |
 
 
