@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
 import { ArrowUpRight, Loader2 } from 'lucide-react'
 import Link from 'next/link'
@@ -288,16 +288,28 @@ export function LogsList({
 
   const itemCount = hasNextPage ? logs.length + 1 : logs.length
 
-  const rowProps: RowProps = {
-    logs,
-    selectedLogId,
-    onLogClick,
-    onLogHover,
-    onLogContextMenu,
-    selectedRowRef,
-    isFetchingNextPage,
-    loaderRef,
-  }
+  const rowProps = useMemo<RowProps>(
+    () => ({
+      logs,
+      selectedLogId,
+      onLogClick,
+      onLogHover,
+      onLogContextMenu,
+      selectedRowRef,
+      isFetchingNextPage,
+      loaderRef,
+    }),
+    [
+      logs,
+      selectedLogId,
+      onLogClick,
+      onLogHover,
+      onLogContextMenu,
+      selectedRowRef,
+      isFetchingNextPage,
+      loaderRef,
+    ]
+  )
 
   return (
     <div ref={containerRef} className='h-full w-full'>
