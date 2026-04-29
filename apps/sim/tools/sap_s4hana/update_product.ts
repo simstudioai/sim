@@ -109,7 +109,7 @@ export const updateProductTool: ToolConfig<UpdateProductParams, SapProxyResponse
         ...baseProxyBody(params),
         service: 'API_PRODUCT_SRV',
         path: `/A_Product(${quoteOdataKey(params.product)})`,
-        method: 'PATCH',
+        method: 'MERGE',
         query: { $format: 'json' },
         body: payload,
         ifMatch: params.ifMatch || '*',
