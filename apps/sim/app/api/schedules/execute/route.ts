@@ -4,8 +4,6 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, lt, lte, ne, not, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { noInputSchema } from '@/lib/api/contracts/primitives'
-import { validateSchema } from '@/lib/api/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -35,11 +33,6 @@ const dueFilter = (queuedAt: Date) =>
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Scheduled execution triggered at ${new Date().toISOString()}`)
-  const queryValidation = validateSchema(
-    noInputSchema,
-    Object.fromEntries(request.nextUrl.searchParams.entries())
-  )
-  if (!queryValidation.success) return queryValidation.response
 
   const authError = verifyCronAuth(request, 'Schedule execution')
   if (authError) {

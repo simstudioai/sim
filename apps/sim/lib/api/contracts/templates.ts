@@ -1,10 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const booleanQuerySchema = z
-  .union([z.boolean(), z.enum(['true', 'false']).transform((value) => value === 'true')])
-  .optional()
-  .default(false)
+const booleanQuerySchema = z.coerce.boolean().optional().default(false)
 
 export const templateStatusSchema = z.enum(['pending', 'approved', 'rejected'])
 
@@ -59,8 +56,8 @@ export const templateSchema = z.object({
 export type TemplateContractData = z.output<typeof templateSchema>
 
 export const templateListQuerySchema = z.object({
-  limit: z.coerce.number().int().positive().default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().optional().default(50),
+  offset: z.coerce.number().optional().default(0),
   search: z.string().optional(),
   workflowId: z.string().optional(),
   status: templateStatusSchema.optional(),

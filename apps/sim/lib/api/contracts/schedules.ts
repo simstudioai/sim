@@ -45,7 +45,12 @@ export const workflowScheduleRowSchema = z.object({
   failedCount: z.number(),
   status: scheduleStatusSchema,
   lastFailedAt: z.string().nullable(),
-  sourceType: scheduleSourceTypeSchema,
+  /**
+   * Legacy rows pre-dating the `sourceType` column can still surface in
+   * workspace listings via `isNull(sourceType)` filters, so the wire may emit
+   * `null` even though the column is `notNull` for new rows.
+   */
+  sourceType: scheduleSourceTypeSchema.nullable(),
   jobTitle: z.string().nullable(),
   prompt: z.string().nullable(),
   lifecycle: scheduleLifecycleSchema,

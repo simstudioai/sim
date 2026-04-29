@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { outlookDraftBodySchema } from '@/lib/api/contracts/tools/microsoft'
-import { validateJsonBody } from '@/lib/api/server'
+import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -35,8 +35,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const validation = await validateJsonBody(request, outlookDraftBodySchema)
     if (!validation.success) {
+      if (!validation.error) return validation.response
       return NextResponse.json(
-        { success: false, error: validation.error?.issues[0]?.message ?? 'Invalid request' },
+        {
+          success: false,
+          error: getValidationErrorMessage(validation.error, 'Invalid request'),
+          details: validation.error.issues,
+        },
         { status: 400 }
       )
     }

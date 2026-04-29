@@ -198,7 +198,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       logger.warn(`[${requestId}] Invalid webhook request data`, {
         issues: bodyResult.error.issues,
       })
-      return NextResponse.json({ error: 'Invalid request data' }, { status: 400 })
+      return bodyResult.response
     }
 
     const body = bodyResult.data

@@ -5,12 +5,13 @@ import {
 } from '@/lib/api/contracts/mothership-tasks'
 import { validateSchema } from '@/lib/api/server'
 import { handleUnifiedChatPost, maxDuration } from '@/lib/copilot/chat/post'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { GET as copilotChatGet } from '@/app/api/copilot/chat/queries'
 
 export { maxDuration }
 
 // Unified chat route surface.
-export function GET(request: NextRequest) {
+export const GET = withRouteHandler((request: NextRequest) => {
   const validation = validateSchema(
     mothershipChatGetQuerySchema,
     Object.fromEntries(request.nextUrl.searchParams.entries())
@@ -18,9 +19,9 @@ export function GET(request: NextRequest) {
   if (!validation.success) return validation.response as NextResponse
 
   return copilotChatGet(request)
-}
+})
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const body = await request
     .clone()
     .json()
@@ -37,4 +38,4 @@ export async function POST(request: NextRequest) {
   }
 
   return handleUnifiedChatPost(request)
-}
+})

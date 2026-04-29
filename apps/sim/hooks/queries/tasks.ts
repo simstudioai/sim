@@ -1,9 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
+  addMothershipChatResourceContract,
   deleteMothershipChatContract,
   listMothershipChatsContract,
   type MothershipTask,
+  removeMothershipChatResourceContract,
+  reorderMothershipChatResourcesContract,
   updateMothershipChatContract,
 } from '@/lib/api/contracts/mothership-tasks'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
@@ -215,12 +218,14 @@ export async function fetchChatHistory(
   chatId: string,
   signal?: AbortSignal
 ): Promise<TaskChatHistory> {
+  // boundary-raw-fetch: mothership chat GET returns variable shape with optional stream snapshots
   const mothershipRes = await fetch(`/api/mothership/chats/${chatId}`, { signal })
 
   if (mothershipRes.ok) {
     return parseChatHistory(await mothershipRes.json(), 'mothership')
   }
 
+  // boundary-raw-fetch: copilot chat fallback returns a different mothership/copilot lifecycle shape
   const copilotRes = await fetch(`/api/mothership/chat?chatId=${encodeURIComponent(chatId)}`, {
     signal,
   })
@@ -324,13 +329,10 @@ async function addChatResource(params: {
   chatId: string
   resource: MothershipResource
 }): Promise<{ resources: MothershipResource[] }> {
-  const response = await fetch('/api/mothership/chat/resources', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chatId: params.chatId, resource: params.resource }),
+  const data = await requestJson(addMothershipChatResourceContract, {
+    body: { chatId: params.chatId, resource: params.resource },
   })
-  if (!response.ok) throw new Error('Failed to add resource')
-  return parseChatResourcesResponse(await response.json())
+  return parseChatResourcesResponse(data)
 }
 
 export function useAddChatResource(chatId?: string) {
@@ -371,13 +373,10 @@ async function reorderChatResources(params: {
   chatId: string
   resources: MothershipResource[]
 }): Promise<{ resources: MothershipResource[] }> {
-  const response = await fetch('/api/mothership/chat/resources', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chatId: params.chatId, resources: params.resources }),
+  const data = await requestJson(reorderMothershipChatResourcesContract, {
+    body: { chatId: params.chatId, resources: params.resources },
   })
-  if (!response.ok) throw new Error('Failed to reorder resources')
-  return parseChatResourcesResponse(await response.json())
+  return parseChatResourcesResponse(data)
 }
 
 export function useReorderChatResources(chatId?: string) {
@@ -414,13 +413,10 @@ async function removeChatResource(params: {
   resourceType: string
   resourceId: string
 }): Promise<{ resources: MothershipResource[] }> {
-  const response = await fetch('/api/mothership/chat/resources', {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
+  const data = await requestJson(removeMothershipChatResourceContract, {
+    body: params,
   })
-  if (!response.ok) throw new Error('Failed to remove resource')
-  return parseChatResourcesResponse(await response.json())
+  return parseChatResourcesResponse(data)
 }
 
 export function useRemoveChatResource(chatId?: string) {

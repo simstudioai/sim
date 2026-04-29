@@ -128,7 +128,7 @@ async function fetchLogsPage(
   }
 }
 
-async function fetchLogDetail(logId: string, signal?: AbortSignal): Promise<WorkflowLog> {
+export async function fetchLogDetail(logId: string, signal?: AbortSignal): Promise<WorkflowLog> {
   const { data } = await requestJson(getLogDetailContract, {
     params: { id: logId },
     signal,
@@ -316,6 +316,7 @@ export function useRetryExecution() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ workflowId, input }: { workflowId: string; input?: unknown }) => {
+      // boundary-raw-fetch: stream response, body is a ReadableStream consumed one chunk at a time
       const res = await fetch(`/api/workflows/${workflowId}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

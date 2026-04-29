@@ -393,6 +393,10 @@ export type McpServerTestConfig = McpServerTestBody & {
 
 export type { McpServerTestResult }
 
+function isMcpTestErrorBody(body: unknown): body is { data?: McpServerTestResult } {
+  return Boolean(body) && typeof body === 'object' && 'data' in (body as Record<string, unknown>)
+}
+
 async function testMcpServerConnection(
   config: McpServerTestConfig,
   signal?: AbortSignal
@@ -403,28 +407,26 @@ async function testMcpServerConnection(
     headers: sanitizeHeaders(config.headers) || {},
   }
 
-  const response = await fetch(testMcpServerConnectionContract.path, {
-    method: testMcpServerConnectionContract.method,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(cleanConfig),
-    signal,
-  })
-
-  const result = await response.json()
-
-  if (!response.ok) {
-    if (result.data?.error || result.data?.success === false) {
-      return {
-        success: false,
-        message: result.data.error || 'Connection failed',
-        error: result.data.error,
-        warnings: result.data.warnings,
+  try {
+    const data = await requestJson(testMcpServerConnectionContract, {
+      body: cleanConfig,
+      signal,
+    })
+    return data.data
+  } catch (error) {
+    if (error instanceof ApiClientError && isMcpTestErrorBody(error.body) && error.body.data) {
+      const inner = error.body.data
+      if (inner.error || inner.success === false) {
+        return {
+          success: false,
+          message: inner.error || 'Connection failed',
+          error: inner.error,
+          warnings: inner.warnings,
+        }
       }
     }
-    throw new Error(result.error || 'Connection test failed')
+    throw error
   }
-
-  return result.data || result
 }
 
 export function useMcpServerTest() {

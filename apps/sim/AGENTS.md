@@ -76,8 +76,31 @@ Boundary HTTP request and response shapes for all routes under `apps/sim/app/api
 - Each contract is built with `defineRouteContract({ method, path, params?, query?, body?, headers?, response: { mode: 'json', schema } })` from `@/lib/api/contracts`.
 - Contracts export named schemas AND named TypeScript type aliases (e.g., `export type CreateFolderBody = z.input<typeof createFolderBodySchema>`). Clients import the named aliases — never `z.input<...>` / `z.output<...>` in hooks.
 - Shared identifier schemas live in `apps/sim/lib/api/contracts/primitives.ts` (e.g., `workspaceIdSchema`, `workflowIdSchema`).
-- Audit script: `bun run check:api-validation` enforces boundary policy and prints ratchet metrics for route Zod imports, route-local schema constructors, route `ZodError` references, client hook Zod imports, and related counters. It must pass on PRs.
+- Audit script: `bun run check:api-validation` enforces boundary policy and prints ratchet metrics for route Zod imports, route-local schema constructors, route `ZodError` references, client hook Zod imports, and related counters. It must pass on PRs. `bun run check:api-validation:strict` is the strict CI gate and additionally fails on annotations with empty reasons.
 - Domain validators that are not HTTP boundaries — tools, blocks, triggers, connectors, realtime handlers, and internal helpers — may still use Zod directly. The contract rule is boundary-only.
+
+### Boundary annotations
+
+A small number of legitimate exceptions to the boundary rules are tolerated when annotated. The audit script recognizes two annotation forms:
+
+- `// boundary-raw-fetch: <reason>` — placed on the line directly above a raw `fetch(` call inside `apps/sim/hooks/queries/**` or `apps/sim/hooks/selectors/**`. Use only for documented exceptions: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests.
+- `// double-cast-allowed: <reason>` — placed on the line directly above an `as unknown as X` cast outside test files.
+
+Placement rule: the annotation must immediately precede the call or cast. Up to three non-empty preceding comment lines are tolerated, so additional context comments above the annotation are fine. The reason must be non-empty after trimming — annotations with empty reasons fail strict mode (`annotationsMissingReason`).
+
+Whole-file allowlists for routes (legitimate non-boundary or auth-handled routes that legitimately import Zod for non-boundary reasons) go through `INDIRECT_ZOD_ROUTES` in `scripts/check-api-validation-contracts.ts`, not per-line annotations.
+
+Examples:
+
+```ts
+// boundary-raw-fetch: streaming SSE chunks must be processed as they arrive
+const response = await fetch(`/api/copilot/chat/stream?chatId=${chatId}`, { signal })
+```
+
+```ts
+// double-cast-allowed: legacy provider type lacks the discriminator field we need
+const provider = config as unknown as LegacyProvider
+```
 
 ## API Route Pattern
 

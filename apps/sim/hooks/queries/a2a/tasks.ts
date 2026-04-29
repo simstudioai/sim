@@ -78,6 +78,7 @@ async function sendA2ATask(params: SendA2ATaskParams): Promise<SendA2ATaskOutcom
     ...(params.contextId && { contextId: params.contextId }),
   }
 
+  // boundary-raw-fetch: external-origin A2A agent endpoint, JSON-RPC payload not modeled by a same-origin contract
   const response = await fetch(params.agentUrl, {
     method: 'POST',
     headers: {
@@ -156,6 +157,7 @@ export interface GetA2ATaskParams {
  * Fetch a task from an A2A agent
  */
 async function fetchA2ATask(params: GetA2ATaskParams, signal?: AbortSignal): Promise<A2ATask> {
+  // boundary-raw-fetch: external-origin A2A agent endpoint, JSON-RPC payload not modeled by a same-origin contract
   const response = await fetch(params.agentUrl, {
     method: 'POST',
     signal,
@@ -220,6 +222,7 @@ export interface CancelA2ATaskParams {
  * Cancel a task
  */
 async function cancelA2ATask(params: CancelA2ATaskParams): Promise<A2ATask> {
+  // boundary-raw-fetch: external-origin A2A agent endpoint, JSON-RPC payload not modeled by a same-origin contract
   const response = await fetch(params.agentUrl, {
     method: 'POST',
     headers: {

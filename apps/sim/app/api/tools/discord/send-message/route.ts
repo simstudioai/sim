@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { discordSendMessageBodySchema } from '@/lib/api/contracts'
-import { validateJsonBody } from '@/lib/api/server'
+import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateNumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -36,10 +36,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const validation = await validateJsonBody(request, discordSendMessageBodySchema)
     if (!validation.success) {
+      if (!validation.error) return validation.response
       return NextResponse.json(
         {
           success: false,
-          error: validation.error?.issues[0]?.message ?? 'Invalid request data',
+          error: getValidationErrorMessage(validation.error, 'Invalid request data'),
+          details: validation.error.issues,
         },
         { status: 400 }
       )

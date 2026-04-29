@@ -113,6 +113,63 @@ export const adminMothershipQuerySchema = z
   .passthrough()
 export type AdminMothershipQuery = z.output<typeof adminMothershipQuerySchema>
 
+const mothershipChatResourceItemSchema = z.object({
+  type: z.string(),
+  id: z.string(),
+  title: z.string(),
+})
+
+const mothershipChatResourcesResponseSchema = z.object({
+  success: z.literal(true),
+  resources: z.array(mothershipChatResourceItemSchema),
+})
+
+const addMothershipChatResourceBodySchema = z.object({
+  chatId: z.string().min(1),
+  resource: mothershipChatResourceItemSchema,
+})
+
+const reorderMothershipChatResourcesBodySchema = z.object({
+  chatId: z.string().min(1),
+  resources: z.array(mothershipChatResourceItemSchema),
+})
+
+const removeMothershipChatResourceBodySchema = z.object({
+  chatId: z.string().min(1),
+  resourceType: z.string().min(1),
+  resourceId: z.string().min(1),
+})
+
+export const addMothershipChatResourceContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/mothership/chat/resources',
+  body: addMothershipChatResourceBodySchema,
+  response: {
+    mode: 'json',
+    schema: mothershipChatResourcesResponseSchema,
+  },
+})
+
+export const reorderMothershipChatResourcesContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/mothership/chat/resources',
+  body: reorderMothershipChatResourcesBodySchema,
+  response: {
+    mode: 'json',
+    schema: mothershipChatResourcesResponseSchema,
+  },
+})
+
+export const removeMothershipChatResourceContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/mothership/chat/resources',
+  body: removeMothershipChatResourceBodySchema,
+  response: {
+    mode: 'json',
+    schema: mothershipChatResourcesResponseSchema,
+  },
+})
+
 export const mothershipTaskSchema = z.object({
   id: z.string(),
   title: z.string().nullable(),

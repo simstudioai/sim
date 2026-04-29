@@ -28,7 +28,8 @@ export const createFolderBodySchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1, 'Name is required'),
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  parentId: z.string().optional(),
+  /** Mirrors `updateFolderBodySchema.parentId` so explicit `null` (root folder) is accepted on create. */
+  parentId: z.string().nullable().optional(),
   color: z.string().optional(),
   sortOrder: z.number().int().optional(),
 })

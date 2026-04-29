@@ -178,6 +178,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       name: data.name,
       profileImageUrl: data.profileImageUrl || null,
       details: Object.keys(details).length > 0 ? details : null,
+      verified: false,
       createdBy: session.user.id,
       createdAt: now,
       updatedAt: now,

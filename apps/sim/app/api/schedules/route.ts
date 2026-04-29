@@ -7,6 +7,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createScheduleBodySchema, scheduleQuerySchema } from '@/lib/api/contracts/schedules'
+import { validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -26,9 +27,12 @@ const logger = createLogger('ScheduledAPI')
 export const GET = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   const url = new URL(req.url)
-  const { workflowId, workspaceId, blockId } = scheduleQuerySchema.parse(
+  const queryValidation = validateSchema(
+    scheduleQuerySchema,
     Object.fromEntries(url.searchParams.entries())
   )
+  if (!queryValidation.success) return queryValidation.response
+  const { workflowId, workspaceId, blockId } = queryValidation.data
 
   try {
     const session = await getSession()

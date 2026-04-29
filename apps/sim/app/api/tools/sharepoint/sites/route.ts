@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { selectorContractsByPath } from '@/lib/api/contracts/selectors'
-import { validateJsonBody } from '@/lib/api/server'
+import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -24,8 +24,12 @@ export const POST = withRouteHandler(async (request: Request) => {
       logger.warn(`[${requestId}] Invalid sites request data`, {
         errors: validation.error?.issues ?? [],
       })
+      if (!validation.error) return validation.response
       return NextResponse.json(
-        { error: validation.error?.issues[0]?.message ?? 'Invalid request' },
+        {
+          error: getValidationErrorMessage(validation.error, 'Invalid request'),
+          details: validation.error.issues,
+        },
         { status: 400 }
       )
     }

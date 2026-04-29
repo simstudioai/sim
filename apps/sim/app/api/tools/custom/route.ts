@@ -10,7 +10,7 @@ import {
   listCustomToolsContract,
   upsertCustomToolsContract,
 } from '@/lib/api/contracts/custom-tools'
-import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -116,7 +116,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           logger.warn(`[${requestId}] Invalid custom tools data`, { errors: error.issues })
           return NextResponse.json(
             {
-              error: getValidationErrorMessage(error, 'Invalid request data'),
+              error: 'Invalid request data',
               details: error.issues,
             },
             { status: 400 }
@@ -198,7 +198,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
         logger.warn(`[${requestId}] Missing tool ID for deletion`)
         return NextResponse.json(
           {
-            error: getValidationErrorMessage(error, 'Tool ID is required'),
+            error: 'Tool ID is required',
             details: error.issues,
           },
           { status: 400 }

@@ -167,6 +167,6 @@ describe('tasks query boundary parsing', () => {
         chatId: 'chat-1',
         resource: { type: 'file', id: 'file-1', title: 'Spec.md' },
       })
-    ).rejects.toThrow('Invalid chat resources response: resources must be an array')
+    ).rejects.toThrow('Response failed contract validation')
   })
 })

@@ -88,7 +88,8 @@ export const updateUserSettingsBodySchema = z.object({
   errorNotificationsEnabled: z.boolean().optional(),
   snapToGridSize: z.number().min(0).max(50).optional(),
   showActionBar: z.boolean().optional(),
-  lastActiveWorkspaceId: z.string().optional(),
+  /** Mirrors `userSettingsSchema.lastActiveWorkspaceId` so explicit `null` is accepted to clear the active workspace. */
+  lastActiveWorkspaceId: z.string().nullable().optional(),
 })
 
 export const getUserSettingsContract = defineRouteContract({

@@ -89,7 +89,7 @@ export const mcpServerSchema = z
     description: optionalStringFromNullableSchema,
     transport: mcpTransportSchema,
     url: optionalStringFromNullableSchema,
-    timeout: z.number(),
+    timeout: optionalNumberFromNullableSchema,
     retries: optionalNumberFromNullableSchema,
     headers: optionalHeadersFromNullableSchema,
     enabled: z.boolean(),

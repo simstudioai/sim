@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { organizationBillingDataSchema } from '@/lib/api/contracts/subscription'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
+import { HEX_COLOR_REGEX } from '@/lib/branding'
 
 const booleanQueryParamSchema = z
   .preprocess((value) => {
@@ -106,8 +107,6 @@ export const updateOrganizationDataRetentionBodySchema = z.object({
   taskCleanupHours: organizationDataRetentionHoursSchema,
 })
 
-const HEX_COLOR_REGEX_SCHEMA = /^#[0-9a-fA-F]{6}$/
-
 export const updateOrganizationWhitelabelBodySchema = z.object({
   brandName: z
     .string()
@@ -119,22 +118,22 @@ export const updateOrganizationWhitelabelBodySchema = z.object({
   wordmarkUrl: z.string().min(1).nullable().optional(),
   primaryColor: z
     .string()
-    .regex(HEX_COLOR_REGEX_SCHEMA, 'Primary color must be a valid hex color (e.g. #701ffc)')
+    .regex(HEX_COLOR_REGEX, 'Primary color must be a valid hex color (e.g. #701ffc)')
     .nullable()
     .optional(),
   primaryHoverColor: z
     .string()
-    .regex(HEX_COLOR_REGEX_SCHEMA, 'Primary hover color must be a valid hex color')
+    .regex(HEX_COLOR_REGEX, 'Primary hover color must be a valid hex color')
     .nullable()
     .optional(),
   accentColor: z
     .string()
-    .regex(HEX_COLOR_REGEX_SCHEMA, 'Accent color must be a valid hex color')
+    .regex(HEX_COLOR_REGEX, 'Accent color must be a valid hex color')
     .nullable()
     .optional(),
   accentHoverColor: z
     .string()
-    .regex(HEX_COLOR_REGEX_SCHEMA, 'Accent hover color must be a valid hex color')
+    .regex(HEX_COLOR_REGEX, 'Accent hover color must be a valid hex color')
     .nullable()
     .optional(),
   supportEmail: z

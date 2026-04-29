@@ -44,12 +44,12 @@ const logFilterQuerySchema = z.object({
 
 export const listLogsQuerySchema = logFilterQuerySchema.extend({
   details: z.enum(['basic', 'full']).optional().default('basic'),
-  limit: z.coerce.number().int().positive().optional().default(100),
-  offset: z.coerce.number().int().min(0).optional().default(0),
+  limit: z.coerce.number().optional().default(100),
+  offset: z.coerce.number().optional().default(0),
 })
 
 export const statsQueryParamsSchema = logFilterQuerySchema.extend({
-  segmentCount: z.coerce.number().int().positive().optional().default(72),
+  segmentCount: z.coerce.number().optional().default(72),
 })
 
 const workflowSummarySchema = z
@@ -131,16 +131,8 @@ export const v1ListLogsQuerySchema = z.object({
   maxCost: z.coerce.number().optional(),
   model: z.string().optional(),
   details: z.enum(['basic', 'full']).optional().default('basic'),
-  includeTraceSpans: z
-    .enum(['true', 'false'])
-    .transform((value) => value === 'true')
-    .optional()
-    .default(false),
-  includeFinalOutput: z
-    .enum(['true', 'false'])
-    .transform((value) => value === 'true')
-    .optional()
-    .default(false),
+  includeTraceSpans: z.coerce.boolean().optional().default(false),
+  includeFinalOutput: z.coerce.boolean().optional().default(false),
   limit: z.coerce.number().optional().default(100),
   cursor: z.string().optional(),
   order: z.enum(['desc', 'asc']).optional().default('desc'),

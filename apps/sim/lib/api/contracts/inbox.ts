@@ -77,7 +77,10 @@ export const inboxTasksQuerySchema = z.object({
   cursor: z.string().optional(),
   limit: z.preprocess(
     (value) => (value === undefined || value === '' ? undefined : value),
-    z.coerce.number().int().positive().max(50).optional()
+    z.coerce
+      .number()
+      .optional()
+      .transform((value) => (value === undefined ? undefined : Math.min(value, 50)))
   ),
 })
 

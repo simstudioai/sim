@@ -5,6 +5,7 @@ import path from 'node:path'
 const ROOT = path.resolve(import.meta.dir, '..')
 const API_DIR = path.join(ROOT, 'apps/sim/app/api')
 const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
+const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
   totalRoutes: 711,
@@ -13,13 +14,16 @@ const BASELINE = {
 } as const
 
 const BOUNDARY_POLICY_BASELINE = {
-  routeZodImports: 2,
-  routeLocalSchemaRoutes: 2,
-  routeLocalSchemaConstructors: 6,
+  routeZodImports: 0,
+  routeLocalSchemaRoutes: 0,
+  routeLocalSchemaConstructors: 0,
   routeZodErrorReferences: 0,
   clientHookZodImports: 0,
   clientHookLocalSchemaFiles: 0,
   clientHookLocalSchemaConstructors: 0,
+  clientHookRawFetches: 0,
+  doubleCasts: 8,
+  annotationsMissingReason: 0,
 } as const
 
 const INDIRECT_ZOD_ROUTES = new Set([
@@ -40,6 +44,11 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/auth/socket-token/route.ts',
   'apps/sim/app/api/credential-sets/invitations/route.ts',
   'apps/sim/app/api/workspaces/invitations/route.ts',
+  // Internal cron entry point that authenticates via `Authorization: Bearer
+  // CRON_SECRET` and ignores query/body. The boundary contract is "no
+  // client-supplied input"; query params from external callers are not
+  // consumed.
+  'apps/sim/app/api/schedules/execute/route.ts',
   // Document preview routes delegate validation to
   // `createDocumentPreviewRoute(...)`, which calls `safeParse` on the
   // contract-owned `routeParamsSchema` and `previewBodySchema`.
@@ -68,6 +77,51 @@ const WIRE_TYPE_DECLARATION_PATTERN =
   /(?:^|\n)\s*(?:export\s+)?(interface|type)\s+([A-Z]\w*(?:Response|Result))\b(?=\s*(?:=|extends|\{))/g
 const CONTRACT_DERIVED_WIRE_TYPE_PATTERN =
   /\b(?:ContractJsonResponse|ContractJsonErrorResponse|z\.(?:input|output|infer))\b/
+
+const RAW_FETCH_PATTERN = /\bfetch\(/g
+const RAW_FETCH_HELPER_GUARD_PATTERN = /(?:requestJson|requestRaw|prefetchJson|preFetchJson)$/
+const DOUBLE_CAST_PATTERN = /\bas unknown as\b/g
+const RAW_FETCH_ANNOTATION_PREFIX = '// boundary-raw-fetch:'
+const DOUBLE_CAST_ANNOTATION_PREFIX = '// double-cast-allowed:'
+const SOURCE_FILE_EXTENSIONS = /\.(?:ts|tsx)$/
+const TEST_FILE_PATTERN = /(?:\.test|\.spec)\.(?:ts|tsx)$/
+const TEST_HELPER_FILE_PATTERN = /(?:^|\/)test-[^/]+\.ts$/
+const TEST_DIR_SEGMENT_PATTERN = /(?:^|\/)(?:__tests__|testing)(?:\/|$)/
+const SOURCE_SKIP_DIRS = new Set([
+  'node_modules',
+  '.next',
+  '.turbo',
+  'coverage',
+  'dist',
+  '__tests__',
+  'testing',
+  'uploads',
+])
+
+type AnnotationKind = 'raw-fetch' | 'double-cast'
+
+interface AnnotationResult {
+  allowed: boolean
+  missingReason: boolean
+}
+
+interface RawFetchFinding {
+  path: string
+  line: number
+  preview: string
+}
+
+interface DoubleCastFinding {
+  path: string
+  line: number
+  preview: string
+}
+
+interface AnnotationMissingReasonFinding {
+  path: string
+  line: number
+  kind: AnnotationKind
+}
 
 interface RouteAudit {
   path: string
@@ -140,6 +194,178 @@ function lineNumberForIndex(content: string, index: number): number {
     if (content.charCodeAt(i) === 10) line += 1
   }
   return line
+}
+
+/**
+ * Inspects up to three consecutive non-empty preceding lines for an
+ * opt-out annotation matching the given kind. The annotation is allowed
+ * when the matching prefix is followed by a non-empty reason. When the
+ * prefix is present but the reason is empty, `missingReason` is set so
+ * the audit can flag and fail on dangling annotations.
+ */
+function extractAnnotation(
+  content: string,
+  lineIndex: number,
+  kind: AnnotationKind
+): AnnotationResult {
+  const prefix = kind === 'raw-fetch' ? RAW_FETCH_ANNOTATION_PREFIX : DOUBLE_CAST_ANNOTATION_PREFIX
+  const lines = content.split('\n')
+  let inspected = 0
+
+  for (let i = lineIndex - 1; i >= 0 && inspected < 3; i -= 1) {
+    const trimmed = lines[i]?.trim() ?? ''
+    if (trimmed.length === 0) continue
+    inspected += 1
+
+    if (!trimmed.startsWith('//')) {
+      return { allowed: false, missingReason: false }
+    }
+
+    const prefixIndex = trimmed.indexOf(prefix)
+    if (prefixIndex === -1) continue
+
+    const reason = trimmed.slice(prefixIndex + prefix.length).trim()
+    if (reason.length === 0) {
+      return { allowed: false, missingReason: true }
+    }
+    return { allowed: true, missingReason: false }
+  }
+
+  return { allowed: false, missingReason: false }
+}
+
+/**
+ * Walks `apps/sim/**` and optionally `packages/**` for `.ts` / `.tsx`
+ * source files, excluding tests, build artifacts, and coverage output.
+ * Kept separate from `walk(API_DIR)` because the source-wide audit has
+ * different exclusion rules than the route audit.
+ */
+async function walkAllSourceFiles(root: string, includePackages: boolean): Promise<string[]> {
+  const roots = includePackages
+    ? [path.join(root, 'apps/sim'), path.join(root, 'packages')]
+    : [path.join(root, 'apps/sim')]
+  const results: string[] = []
+
+  for (const start of roots) {
+    await walkSourceTree(start, results)
+  }
+
+  return results
+}
+
+async function walkSourceTree(dir: string, results: string[]): Promise<void> {
+  let entries
+  try {
+    entries = await readdir(dir, { withFileTypes: true })
+  } catch {
+    return
+  }
+
+  for (const entry of entries) {
+    if (SOURCE_SKIP_DIRS.has(entry.name)) continue
+
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      await walkSourceTree(fullPath, results)
+      continue
+    }
+
+    if (!SOURCE_FILE_EXTENSIONS.test(entry.name)) continue
+    if (TEST_FILE_PATTERN.test(entry.name)) continue
+    if (TEST_HELPER_FILE_PATTERN.test(entry.name)) continue
+    if (TEST_DIR_SEGMENT_PATTERN.test(fullPath)) continue
+
+    results.push(fullPath)
+  }
+}
+
+function isContractFetchHelperCall(line: string, matchIndex: number): boolean {
+  const before = line.slice(0, matchIndex)
+  return RAW_FETCH_HELPER_GUARD_PATTERN.test(before)
+}
+
+function buildPreview(line: string): string {
+  return line.trim().slice(0, 160)
+}
+
+function findRawFetchFindings(
+  filePath: string,
+  content: string
+): {
+  findings: RawFetchFinding[]
+  exemptions: number
+  missingReasons: AnnotationMissingReasonFinding[]
+} {
+  const relativePath = path.relative(ROOT, filePath)
+  const lines = content.split('\n')
+  const findings: RawFetchFinding[] = []
+  const missingReasons: AnnotationMissingReasonFinding[] = []
+  let exemptions = 0
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] ?? ''
+    RAW_FETCH_PATTERN.lastIndex = 0
+    let match: RegExpExecArray | null
+    while ((match = RAW_FETCH_PATTERN.exec(line)) !== null) {
+      if (isContractFetchHelperCall(line, match.index)) continue
+
+      const annotation = extractAnnotation(content, i, 'raw-fetch')
+      if (annotation.missingReason) {
+        missingReasons.push({ path: relativePath, line: i + 1, kind: 'raw-fetch' })
+        findings.push({ path: relativePath, line: i + 1, preview: buildPreview(line) })
+        continue
+      }
+      if (annotation.allowed) {
+        exemptions += 1
+        continue
+      }
+      findings.push({ path: relativePath, line: i + 1, preview: buildPreview(line) })
+    }
+  }
+
+  return { findings, exemptions, missingReasons }
+}
+
+function findDoubleCastFindings(
+  filePath: string,
+  content: string
+): {
+  findings: DoubleCastFinding[]
+  exemptions: number
+  missingReasons: AnnotationMissingReasonFinding[]
+} {
+  const relativePath = path.relative(ROOT, filePath)
+  const lines = content.split('\n')
+  const findings: DoubleCastFinding[] = []
+  const missingReasons: AnnotationMissingReasonFinding[] = []
+  let exemptions = 0
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] ?? ''
+    DOUBLE_CAST_PATTERN.lastIndex = 0
+    while (DOUBLE_CAST_PATTERN.exec(line) !== null) {
+      const annotation = extractAnnotation(content, i, 'double-cast')
+      if (annotation.missingReason) {
+        missingReasons.push({ path: relativePath, line: i + 1, kind: 'double-cast' })
+        findings.push({ path: relativePath, line: i + 1, preview: buildPreview(line) })
+        continue
+      }
+      if (annotation.allowed) {
+        exemptions += 1
+        continue
+      }
+      findings.push({ path: relativePath, line: i + 1, preview: buildPreview(line) })
+    }
+  }
+
+  return { findings, exemptions, missingReasons }
+}
+
+function isClientHookFile(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/')
+  return (
+    normalized.startsWith(`${QUERY_HOOKS_DIR}/`) || normalized.startsWith(`${SELECTOR_HOOKS_DIR}/`)
+  )
 }
 
 function routeFamily(routePath: string): string {
@@ -319,7 +545,10 @@ function printAllNonZodRoutes(audits: RouteAudit[]) {
 
 function buildBoundaryPolicyMetrics(
   routeAudits: RouteAudit[],
-  queryHookAudits: QueryHookAudit[]
+  queryHookAudits: QueryHookAudit[],
+  rawFetchSummary: { findings: RawFetchFinding[]; exemptions: number },
+  doubleCastSummary: { findings: DoubleCastFinding[]; exemptions: number },
+  annotationsMissingReason: AnnotationMissingReasonFinding[]
 ): {
   ratchetedMetrics: BoundaryPolicyMetric[]
   printOnlyMetrics: PrintOnlyBoundaryPolicyMetric[]
@@ -378,11 +607,34 @@ function buildBoundaryPolicyMetrics(
         label: 'client hook local schema constructor calls',
         current: queryHookLocalSchemaConstructors,
       },
+      {
+        key: 'clientHookRawFetches',
+        label: 'client hook raw fetch() calls',
+        current: rawFetchSummary.findings.length,
+      },
+      {
+        key: 'doubleCasts',
+        label: 'as unknown as double-casts (non-test)',
+        current: doubleCastSummary.findings.length,
+      },
+      {
+        key: 'annotationsMissingReason',
+        label: 'audit annotations missing reason',
+        current: annotationsMissingReason.length,
+      },
     ],
     printOnlyMetrics: [
       {
         label: 'client hook ad-hoc wire Response/Result types',
         current: queryHookAdHocWireTypes.length,
+      },
+      {
+        label: 'client hook raw fetch() exemptions (annotated)',
+        current: rawFetchSummary.exemptions,
+      },
+      {
+        label: 'as unknown as double-cast exemptions (annotated)',
+        current: doubleCastSummary.exemptions,
       },
     ],
   }
@@ -393,6 +645,49 @@ function printBoundaryPolicyMetric(metric: BoundaryPolicyMetric) {
   const delta = metric.current - baseline
   const deltaText = delta === 0 ? 'at baseline' : `${delta > 0 ? '+' : ''}${delta} vs baseline`
   console.log(`  ${metric.label}: ${metric.current} (${deltaText})`)
+}
+
+function printRawFetchAndDoubleCastMetrics(
+  rawFetchFindings: RawFetchFinding[],
+  doubleCastFindings: DoubleCastFinding[],
+  annotationsMissingReason: AnnotationMissingReasonFinding[],
+  rawFetchExemptions: number,
+  doubleCastExemptions: number
+) {
+  console.log('\nRaw fetch and double-cast metrics:')
+  console.log(`  client hook raw fetch() calls: ${rawFetchFindings.length}`)
+  console.log(`  client hook raw fetch() exemptions (annotated): ${rawFetchExemptions}`)
+  console.log(`  as unknown as double-casts (non-test): ${doubleCastFindings.length}`)
+  console.log(`  as unknown as double-cast exemptions (annotated): ${doubleCastExemptions}`)
+  console.log(`  audit annotations missing reason: ${annotationsMissingReason.length}`)
+
+  console.log('  raw fetch examples:')
+  for (const finding of rawFetchFindings.slice(0, 25)) {
+    console.log(`    ${finding.path}:${finding.line} ${finding.preview}`)
+  }
+  if (rawFetchFindings.length > 25) {
+    console.log(`    ... ${rawFetchFindings.length - 25} more`)
+  }
+
+  console.log('  double-cast examples:')
+  for (const finding of doubleCastFindings.slice(0, 25)) {
+    console.log(`    ${finding.path}:${finding.line} ${finding.preview}`)
+  }
+  if (doubleCastFindings.length > 25) {
+    console.log(`    ... ${doubleCastFindings.length - 25} more`)
+  }
+
+  console.log('  annotations missing reason (must be 0 for --enforce-boundary-baseline):')
+  for (const finding of annotationsMissingReason.slice(0, 25)) {
+    console.log(`    ${finding.path}:${finding.line} (${finding.kind})`)
+  }
+  if (annotationsMissingReason.length > 25) {
+    console.log(`    ... ${annotationsMissingReason.length - 25} more`)
+  }
+
+  console.log(
+    '  annotation forms: `// boundary-raw-fetch: <reason>` (raw fetch), `// double-cast-allowed: <reason>` (double-cast)'
+  )
 }
 
 function printBoundaryContractDrift(
@@ -513,7 +808,37 @@ async function main() {
     audits.push(auditRoute(filePath, content))
   }
   const queryHookAudits = await auditQueryHooks()
-  const { ratchetedMetrics, printOnlyMetrics } = buildBoundaryPolicyMetrics(audits, queryHookAudits)
+
+  const sourceFiles = await walkAllSourceFiles(ROOT, true)
+  const rawFetchFindings: RawFetchFinding[] = []
+  const doubleCastFindings: DoubleCastFinding[] = []
+  const annotationsMissingReason: AnnotationMissingReasonFinding[] = []
+  let rawFetchExemptions = 0
+  let doubleCastExemptions = 0
+
+  for (const filePath of sourceFiles) {
+    const content = await readFile(filePath, 'utf8')
+
+    if (isClientHookFile(filePath)) {
+      const rawFetch = findRawFetchFindings(filePath, content)
+      rawFetchFindings.push(...rawFetch.findings)
+      rawFetchExemptions += rawFetch.exemptions
+      annotationsMissingReason.push(...rawFetch.missingReasons)
+    }
+
+    const doubleCast = findDoubleCastFindings(filePath, content)
+    doubleCastFindings.push(...doubleCast.findings)
+    doubleCastExemptions += doubleCast.exemptions
+    annotationsMissingReason.push(...doubleCast.missingReasons)
+  }
+
+  const { ratchetedMetrics, printOnlyMetrics } = buildBoundaryPolicyMetrics(
+    audits,
+    queryHookAudits,
+    { findings: rawFetchFindings, exemptions: rawFetchExemptions },
+    { findings: doubleCastFindings, exemptions: doubleCastExemptions },
+    annotationsMissingReason
+  )
 
   const totalRoutes = audits.length
   const zodRoutes = audits.filter((audit) => audit.usesZod).length
@@ -531,6 +856,13 @@ async function main() {
   printRiskyNonZodRoutes(audits)
   printAllNonZodRoutes(audits)
   printBoundaryContractDrift(audits, queryHookAudits, ratchetedMetrics, printOnlyMetrics)
+  printRawFetchAndDoubleCastMetrics(
+    rawFetchFindings,
+    doubleCastFindings,
+    annotationsMissingReason,
+    rawFetchExemptions,
+    doubleCastExemptions
+  )
 
   if (!checkOnly) return
 

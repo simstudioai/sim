@@ -128,7 +128,7 @@ const handler = useCallback(() => {
 
 - Hooks must import named type aliases from `@/lib/api/contracts/**` (e.g., `import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'`). Never write `z.input<...>` or `z.output<...>` in hooks.
 - Hooks must not `import { z } from 'zod'`. Boundary types come from contract aliases; non-boundary helpers can stay in plain TypeScript.
-- For non-contract endpoints (multipart uploads, binary downloads, streaming responses, signed-URL flows, OAuth redirects, external origins), it is OK to keep raw `fetch`. Mark each raw `fetch` with a TSDoc comment explaining which exception applies.
+- For non-contract endpoints (multipart uploads, binary downloads, streaming responses, signed-URL flows, OAuth redirects, external origins), it is OK to keep raw `fetch`. Each legitimate raw `fetch(` call inside `apps/sim/hooks/queries/**` or `apps/sim/hooks/selectors/**` must be preceded by a `// boundary-raw-fetch: <reason>` annotation on the immediately preceding line (up to three non-empty preceding comment lines are tolerated). The reason must be non-empty — empty reasons fail strict mode. The audit script `scripts/check-api-validation-contracts.ts` (`bun run check:api-validation` / `bun run check:api-validation:strict`) enforces this.
 
 ## Naming
 

@@ -5,7 +5,7 @@ import {
   toolSuccessResponseSchema,
 } from '@/lib/api/contracts/tool-primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { CodeLanguage, DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
+import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 
 export const thinkingToolContract = defineRouteContract({
   method: 'POST',
@@ -112,7 +112,7 @@ export const functionExecuteContract = defineRouteContract({
     code: z.string().min(1, 'Code is required'),
     params: unknownRecordSchema.optional().default({}),
     timeout: z.coerce.number().int().positive().optional(),
-    language: z.nativeEnum(CodeLanguage).optional().default(DEFAULT_CODE_LANGUAGE),
+    language: z.string().optional().default(DEFAULT_CODE_LANGUAGE),
     outputPath: z.string().optional(),
     outputFormat: z.string().optional(),
     outputTable: z.string().optional(),

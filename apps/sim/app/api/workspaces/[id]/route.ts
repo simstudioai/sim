@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteWorkspaceBodySchema, updateWorkspaceBodySchema } from '@/lib/api/contracts'
+import { validateJsonBody, validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
@@ -44,7 +45,11 @@ export const GET = withRouteHandler(
           .where(eq(workflow.workspaceId, workspaceId))
 
         if (workspaceWorkflows.length === 0) {
-          return NextResponse.json({ hasPublishedTemplates: false, publishedTemplates: [] })
+          return NextResponse.json({
+            hasPublishedTemplates: false,
+            publishedTemplates: [],
+            count: 0,
+          })
         }
 
         const workflowIds = workspaceWorkflows.map((w) => w.id)
@@ -107,8 +112,11 @@ export const PATCH = withRouteHandler(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
+    const bodyValidation = await validateJsonBody(request, updateWorkspaceBodySchema)
+    if (!bodyValidation.success) return bodyValidation.response
+
     try {
-      const body = updateWorkspaceBodySchema.parse(await request.json())
+      const body = bodyValidation.data
       const { name, color, logoUrl, billedAccountUserId, allowPersonalApiKeys } = body
 
       if (
@@ -277,8 +285,10 @@ export const DELETE = withRouteHandler(
     }
 
     const workspaceId = id
-    const body = deleteWorkspaceBodySchema.parse(await request.json().catch(() => ({})))
-    const { deleteTemplates } = body // User's choice: false = keep templates (recommended), true = delete templates
+    const rawBody = await request.json().catch(() => ({}))
+    const bodyValidation = validateSchema(deleteWorkspaceBodySchema, rawBody)
+    if (!bodyValidation.success) return bodyValidation.response
+    const { deleteTemplates } = bodyValidation.data // User's choice: false = keep templates (recommended), true = delete templates
 
     // Check if user has admin permissions to delete workspace
     const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)

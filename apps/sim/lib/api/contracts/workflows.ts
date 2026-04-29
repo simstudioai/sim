@@ -139,11 +139,7 @@ export const workflowListQuerySchema = z.object({
 export const v1ListWorkflowsQuerySchema = z.object({
   workspaceId: z.string().min(1),
   folderId: z.string().optional(),
-  deployedOnly: z
-    .enum(['true', 'false'])
-    .transform((value) => value === 'true')
-    .optional()
-    .default(false),
+  deployedOnly: z.coerce.boolean().optional().default(false),
   limit: z.coerce.number().min(1).max(100).optional().default(50),
   cursor: z.string().optional(),
 })

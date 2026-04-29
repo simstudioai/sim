@@ -98,6 +98,7 @@ async function fetchWorkspaceFileContent(
   raw?: boolean
 ): Promise<string> {
   const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&t=${Date.now()}${raw ? '&raw=1' : ''}`
+  // boundary-raw-fetch: binary/text download, response is not JSON
   const response = await fetch(serveUrl, { signal, cache: 'no-store' })
 
   if (!response.ok) {
@@ -129,6 +130,7 @@ export function useWorkspaceFileContent(
 
 async function fetchWorkspaceFileBinary(key: string, signal?: AbortSignal): Promise<ArrayBuffer> {
   const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&t=${Date.now()}`
+  // boundary-raw-fetch: binary download consumed as ArrayBuffer
   const response = await fetch(serveUrl, { signal, cache: 'no-store' })
   if (!response.ok) throw new Error('Failed to fetch file content')
   return response.arrayBuffer()
@@ -203,6 +205,7 @@ export function useUploadWorkspaceFile() {
       const formData = new FormData()
       formData.append('file', file)
 
+      // boundary-raw-fetch: multipart/form-data file upload, requestJson only supports JSON bodies
       const response = await fetch(`/api/workspaces/${workspaceId}/files`, {
         method: 'POST',
         body: formData,

@@ -306,6 +306,28 @@ export const listCopilotApiKeysContract = defineRouteContract({
   },
 })
 
+export const copilotChatListItemSchema = z.object({
+  id: z.string(),
+  title: z.string().nullable(),
+  workflowId: z.string().nullable().optional(),
+  workspaceId: z.string().nullable().optional(),
+  activeStreamId: z.string().nullable(),
+  updatedAt: z.string().nullable(),
+})
+export type CopilotChatListItem = z.output<typeof copilotChatListItemSchema>
+
+export const listCopilotChatsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/copilot/chats',
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      chats: z.array(copilotChatListItemSchema),
+    }),
+  },
+})
+
 export const generateCopilotApiKeyContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/api-keys/generate',

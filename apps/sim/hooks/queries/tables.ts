@@ -657,6 +657,7 @@ export function useUploadCsvToTable() {
       formData.append('file', file)
       formData.append('workspaceId', workspaceId)
 
+      // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
       const response = await fetch('/api/table/import-csv', {
         method: 'POST',
         body: formData,
@@ -726,6 +727,7 @@ export function useImportCsvIntoTable() {
         formData.append('mapping', JSON.stringify(mapping))
       }
 
+      // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
       const response = await fetch(`/api/table/${tableId}/import-csv`, {
         method: 'POST',
         body: formData,
