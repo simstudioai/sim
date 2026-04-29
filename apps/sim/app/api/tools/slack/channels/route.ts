@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { selectorContractsByPath } from '@/lib/api/contracts/selectors'
+import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -21,13 +23,22 @@ interface SlackChannel {
 export const POST = withRouteHandler(async (request: Request) => {
   try {
     const requestId = generateRequestId()
-    const body = await request.json()
-    const { credential, workflowId } = body
-
-    if (!credential) {
+    const validation = await validateJsonBody(
+      request,
+      selectorContractsByPath['/api/tools/slack/channels'].body!
+    )
+    if (!validation.success) {
       logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
+      if (!validation.error) return validation.response
+      return NextResponse.json(
+        {
+          error: getValidationErrorMessage(validation.error, 'Invalid request data'),
+          details: validation.error.issues,
+        },
+        { status: 400 }
+      )
     }
+    const { credential, workflowId } = validation.data
 
     let accessToken: string
     let isBotToken = false
@@ -39,7 +50,7 @@ export const POST = withRouteHandler(async (request: Request) => {
     } else {
       const authz = await authorizeCredentialUse(request as any, {
         credentialId: credential,
-        workflowId,
+        workflowId: workflowId ?? undefined,
       })
       if (!authz.ok || !authz.credentialOwnerUserId) {
         return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })

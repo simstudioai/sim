@@ -123,6 +123,16 @@ async function serviceNowApiGet(
   }
 }
 
+function isServiceNowRecord(record: unknown): record is ServiceNowRecord & Record<string, unknown> {
+  return (
+    typeof record === 'object' &&
+    record !== null &&
+    !Array.isArray(record) &&
+    typeof (record as Record<string, unknown>).sys_id === 'string' &&
+    ((record as Record<string, unknown>).sys_id as string).length > 0
+  )
+}
+
 /**
  * Extracts a display value from a field that may be a string or a reference object.
  * When sysparm_display_value=true, fields are plain strings.
@@ -198,7 +208,7 @@ function kbArticleToDocument(article: KBArticle, instanceUrl: string): ExternalD
   const title = rawValue(article.short_description) || rawValue(article.number) || article.sys_id
   const articleText = rawValue(article.text) || rawValue(article.wiki) || ''
   const content = htmlToPlainText(articleText)
-  const sysId = rawValue(article.sys_id as unknown as string) || article.sys_id
+  const sysId = rawValue(article.sys_id) || article.sys_id
   const updatedOn = rawValue(article.sys_updated_on) || ''
   const contentHash = `servicenow:${sysId}:${updatedOn}`
   const sourceUrl = `${instanceUrl}/kb_view.do?sys_kb_id=${sysId}`
@@ -263,7 +273,7 @@ function incidentToDocument(incident: Incident, instanceUrl: string): ExternalDo
   }
 
   const content = parts.join('\n')
-  const sysId = rawValue(incident.sys_id as unknown as string) || incident.sys_id
+  const sysId = rawValue(incident.sys_id) || incident.sys_id
   const updatedOn = rawValue(incident.sys_updated_on) || ''
   const contentHash = `servicenow:${sysId}:${updatedOn}`
   const sourceUrl = `${instanceUrl}/incident.do?sys_id=${sysId}`
@@ -483,9 +493,14 @@ export const servicenowConnector: ConnectorConfig = {
 
     const documents: ExternalDocument[] = []
     for (const record of result) {
+      if (!isServiceNowRecord(record)) {
+        logger.warn('Skipping ServiceNow record without sys_id', { table: tableName })
+        continue
+      }
+
       const doc = isKB
-        ? kbArticleToDocument(record as unknown as KBArticle, instanceUrl)
-        : incidentToDocument(record as unknown as Incident, instanceUrl)
+        ? kbArticleToDocument(record, instanceUrl)
+        : incidentToDocument(record, instanceUrl)
 
       if (doc.content.trim()) {
         documents.push(doc)
@@ -538,9 +553,13 @@ export const servicenowConnector: ConnectorConfig = {
       }
 
       const record = result[0]
+      if (!record || !isServiceNowRecord(record)) {
+        return null
+      }
+
       const doc = isKB
-        ? kbArticleToDocument(record as unknown as KBArticle, instanceUrl)
-        : incidentToDocument(record as unknown as Incident, instanceUrl)
+        ? kbArticleToDocument(record, instanceUrl)
+        : incidentToDocument(record, instanceUrl)
 
       return doc.content.trim() ? doc : null
     } catch (error) {

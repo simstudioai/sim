@@ -6,7 +6,8 @@ import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { upsertDocumentBodySchema } from '@/lib/api/contracts/knowledge'
+import { parseJsonBody, validateSchema } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -19,29 +20,15 @@ import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('DocumentUpsertAPI')
 
-const UpsertDocumentSchema = z.object({
-  documentId: z.string().optional(),
-  filename: z.string().min(1, 'Filename is required'),
-  fileUrl: z.string().min(1, 'File URL is required'),
-  fileSize: z.number().min(1, 'File size must be greater than 0'),
-  mimeType: z.string().min(1, 'MIME type is required'),
-  documentTagsData: z.string().optional(),
-  processingOptions: z
-    .object({
-      recipe: z.string().optional(),
-      lang: z.string().optional(),
-    })
-    .optional(),
-  workflowId: z.string().optional(),
-})
-
 export const POST = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateId().slice(0, 8)
     const { id: knowledgeBaseId } = await params
 
     try {
-      const body = await req.json()
+      const parsedBody = await parseJsonBody(req)
+      if (!parsedBody.success) return parsedBody.response
+      const body = parsedBody.data as Record<string, unknown>
 
       logger.info(`[${requestId}] Knowledge base document upsert request`, {
         knowledgeBaseId,
@@ -56,7 +43,14 @@ export const POST = withRouteHandler(
       }
       const userId = auth.userId
 
-      const validatedData = UpsertDocumentSchema.parse(body)
+      const validation = validateSchema(upsertDocumentBodySchema, body, 'Invalid request data')
+      if (!validation.success) {
+        logger.warn(`[${requestId}] Invalid upsert request data`, {
+          errors: validation.error.issues,
+        })
+        return validation.response
+      }
+      const validatedData = validation.data
 
       if (validatedData.workflowId) {
         const authorization = await authorizeWorkflowByWorkspacePermission({
@@ -231,14 +225,6 @@ export const POST = withRouteHandler(
         },
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid upsert request data`, { errors: error.errors })
-        return NextResponse.json(
-          { error: 'Invalid request data', details: error.errors },
-          { status: 400 }
-        )
-      }
-
       logger.error(`[${requestId}] Error upserting document`, error)
 
       const errorMessage = error instanceof Error ? error.message : 'Failed to upsert document'

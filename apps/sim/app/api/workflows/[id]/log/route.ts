@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
-import { z } from 'zod'
+import { workflowLogBodySchema } from '@/lib/api/contracts/workflows'
+import { getValidationErrorMessage, parseJsonBody, validateSchema } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -11,24 +12,6 @@ import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/
 import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('WorkflowLogAPI')
-
-const postBodySchema = z.object({
-  logs: z.array(z.any()).optional(),
-  executionId: z.string().min(1, 'Execution ID is required').optional(),
-  result: z
-    .object({
-      success: z.boolean(),
-      error: z.string().optional(),
-      output: z.any(),
-      metadata: z
-        .object({
-          source: z.string().optional(),
-          duration: z.number().optional(),
-        })
-        .optional(),
-    })
-    .optional(),
-})
 
 export const dynamic = 'force-dynamic'
 
@@ -46,13 +29,18 @@ export const POST = withRouteHandler(
         return createErrorResponse(accessValidation.error.message, accessValidation.error.status)
       }
 
-      const body = await request.json()
-      const validation = postBodySchema.safeParse(body)
+      const parsedBody = await parseJsonBody(request)
+      if (!parsedBody.success) return parsedBody.response
 
+      const validation = validateSchema(
+        workflowLogBodySchema,
+        parsedBody.data,
+        'Invalid request body'
+      )
       if (!validation.success) {
-        logger.warn(`[${requestId}] Invalid request body: ${validation.error.message}`)
+        logger.warn(`[${requestId}] Invalid request body`)
         return createErrorResponse(
-          validation.error.errors[0]?.message || 'Invalid request body',
+          getValidationErrorMessage(validation.error, 'Invalid request body'),
           400
         )
       }

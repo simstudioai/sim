@@ -1,5 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  fileManageAppendBodySchema,
+  fileManageBaseBodySchema,
+  fileManageQuerySchema,
+  fileManageWriteBodySchema,
+} from '@/lib/api/contracts/media-tools'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
@@ -16,6 +23,13 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('FileManageAPI')
 
+function validationResponse(errorMessage: string) {
+  return NextResponse.json(
+    { success: false, error: errorMessage || 'Invalid request data' },
+    { status: 400 }
+  )
+}
+
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!auth.success) {
@@ -23,46 +37,47 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   const { searchParams } = new URL(request.url)
-  const userId = auth.userId || searchParams.get('userId')
+  const queryResult = validateSchema(fileManageQuerySchema, {
+    userId: searchParams.get('userId'),
+    workspaceId: searchParams.get('workspaceId'),
+  })
+  if (!queryResult.success) {
+    return validationResponse(getValidationErrorMessage(queryResult.error))
+  }
+  const query = queryResult.data
+  const userId = auth.userId || query.userId
 
   if (!userId) {
     return NextResponse.json({ success: false, error: 'userId is required' }, { status: 400 })
   }
 
-  let body: Record<string, unknown>
+  let body: unknown
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const workspaceId = (body.workspaceId as string) || searchParams.get('workspaceId')
+  const baseResult = validateSchema(fileManageBaseBodySchema, body)
+  if (!baseResult.success) {
+    return validationResponse(getValidationErrorMessage(baseResult.error))
+  }
+
+  const workspaceId = baseResult.data.workspaceId || query.workspaceId
   if (!workspaceId) {
     return NextResponse.json({ success: false, error: 'workspaceId is required' }, { status: 400 })
   }
 
-  const operation = body.operation as string
+  const operation = baseResult.data.operation
 
   try {
     switch (operation) {
       case 'write': {
-        const fileName = body.fileName as string | undefined
-        const content = body.content as string | undefined
-        const contentType = body.contentType as string | undefined
-
-        if (!fileName) {
-          return NextResponse.json(
-            { success: false, error: 'fileName is required for write operation' },
-            { status: 400 }
-          )
+        const writeResult = validateSchema(fileManageWriteBodySchema, body)
+        if (!writeResult.success) {
+          return validationResponse(getValidationErrorMessage(writeResult.error))
         }
-
-        if (!content && content !== '') {
-          return NextResponse.json(
-            { success: false, error: 'content is required for write operation' },
-            { status: 400 }
-          )
-        }
+        const { fileName, content, contentType } = writeResult.data
 
         const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(fileName))
         const fileBuffer = Buffer.from(content ?? '', 'utf-8')
@@ -92,22 +107,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       case 'append': {
-        const fileName = body.fileName as string | undefined
-        const content = body.content as string | undefined
-
-        if (!fileName) {
-          return NextResponse.json(
-            { success: false, error: 'fileName is required for append operation' },
-            { status: 400 }
-          )
+        const appendResult = validateSchema(fileManageAppendBodySchema, body)
+        if (!appendResult.success) {
+          return validationResponse(getValidationErrorMessage(appendResult.error))
         }
-
-        if (!content && content !== '') {
-          return NextResponse.json(
-            { success: false, error: 'content is required for append operation' },
-            { status: 400 }
-          )
-        }
+        const { fileName, content } = appendResult.data
 
         const existing = await getWorkspaceFileByName(workspaceId, fileName)
         if (!existing) {

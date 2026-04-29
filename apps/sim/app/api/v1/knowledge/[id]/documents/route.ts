@@ -1,6 +1,10 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  v1ListKnowledgeDocumentsContract,
+  v1UploadKnowledgeDocumentContract,
+} from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createSingleDocument,
@@ -11,13 +15,8 @@ import {
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { validateFileType } from '@/lib/uploads/utils/validation'
-import {
-  authenticateRequest,
-  handleError,
-  resolveKnowledgeBase,
-  serializeDate,
-  validateSchema,
-} from '@/app/api/v1/knowledge/utils'
+import { handleError, resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
+import { authenticateRequest } from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -28,101 +27,71 @@ interface DocumentsRouteParams {
   params: Promise<{ id: string }>
 }
 
-const ListDocumentsSchema = z.object({
-  workspaceId: z.string().min(1, 'workspaceId query parameter is required'),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
-  search: z.string().optional(),
-  enabledFilter: z.enum(['all', 'enabled', 'disabled']).default('all'),
-  sortBy: z
-    .enum([
-      'filename',
-      'fileSize',
-      'tokenCount',
-      'chunkCount',
-      'uploadedAt',
-      'processingStatus',
-      'enabled',
-    ])
-    .default('uploadedAt'),
-  sortOrder: z.enum(['asc', 'desc']).default('desc'),
-})
-
 /** GET /api/v1/knowledge/[id]/documents — List documents in a knowledge base. */
-export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: DocumentsRouteParams) => {
-    const auth = await authenticateRequest(request, 'knowledge-detail')
-    if (auth instanceof NextResponse) return auth
-    const { requestId, userId, rateLimit } = auth
+export const GET = withRouteHandler(async (request: NextRequest, context: DocumentsRouteParams) => {
+  const auth = await authenticateRequest(request, 'knowledge-detail')
+  if (auth instanceof NextResponse) return auth
+  const { requestId, userId, rateLimit } = auth
 
-    try {
-      const { id: knowledgeBaseId } = await params
-      const { searchParams } = new URL(request.url)
+  try {
+    const parsed = await parseRequest(v1ListKnowledgeDocumentsContract, request, context)
+    if (!parsed.success) return parsed.response
 
-      const validation = validateSchema(ListDocumentsSchema, {
-        workspaceId: searchParams.get('workspaceId'),
-        limit: searchParams.get('limit') ?? undefined,
-        offset: searchParams.get('offset') ?? undefined,
-        search: searchParams.get('search') ?? undefined,
-        enabledFilter: searchParams.get('enabledFilter') ?? undefined,
-        sortBy: searchParams.get('sortBy') ?? undefined,
-        sortOrder: searchParams.get('sortOrder') ?? undefined,
-      })
-      if (!validation.success) return validation.response
+    const { workspaceId, limit, offset, search, enabledFilter, sortBy, sortOrder } =
+      parsed.data.query
+    const { id: knowledgeBaseId } = parsed.data.params
 
-      const { workspaceId, limit, offset, search, enabledFilter, sortBy, sortOrder } =
-        validation.data
+    const result = await resolveKnowledgeBase(knowledgeBaseId, workspaceId, userId, rateLimit)
+    if (result instanceof NextResponse) return result
 
-      const result = await resolveKnowledgeBase(knowledgeBaseId, workspaceId, userId, rateLimit)
-      if (result instanceof NextResponse) return result
+    const documentsResult = await getDocuments(
+      knowledgeBaseId,
+      {
+        enabledFilter: enabledFilter === 'all' ? undefined : enabledFilter,
+        search,
+        limit,
+        offset,
+        sortBy: sortBy as DocumentSortField,
+        sortOrder: sortOrder as SortOrder,
+      },
+      requestId
+    )
 
-      const documentsResult = await getDocuments(
-        knowledgeBaseId,
-        {
-          enabledFilter: enabledFilter === 'all' ? undefined : enabledFilter,
-          search,
-          limit,
-          offset,
-          sortBy: sortBy as DocumentSortField,
-          sortOrder: sortOrder as SortOrder,
-        },
-        requestId
-      )
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          documents: documentsResult.documents.map((doc) => ({
-            id: doc.id,
-            knowledgeBaseId,
-            filename: doc.filename,
-            fileSize: doc.fileSize,
-            mimeType: doc.mimeType,
-            processingStatus: doc.processingStatus,
-            chunkCount: doc.chunkCount,
-            tokenCount: doc.tokenCount,
-            characterCount: doc.characterCount,
-            enabled: doc.enabled,
-            createdAt: serializeDate(doc.uploadedAt),
-          })),
-          pagination: documentsResult.pagination,
-        },
-      })
-    } catch (error) {
-      return handleError(requestId, error, 'Failed to list documents')
-    }
+    return NextResponse.json({
+      success: true,
+      data: {
+        documents: documentsResult.documents.map((doc) => ({
+          id: doc.id,
+          knowledgeBaseId,
+          filename: doc.filename,
+          fileSize: doc.fileSize,
+          mimeType: doc.mimeType,
+          processingStatus: doc.processingStatus,
+          chunkCount: doc.chunkCount,
+          tokenCount: doc.tokenCount,
+          characterCount: doc.characterCount,
+          enabled: doc.enabled,
+          createdAt: serializeDate(doc.uploadedAt),
+        })),
+        pagination: documentsResult.pagination,
+      },
+    })
+  } catch (error) {
+    return handleError(requestId, error, 'Failed to list documents')
   }
-)
+})
 
 /** POST /api/v1/knowledge/[id]/documents — Upload a document to a knowledge base. */
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: DocumentsRouteParams) => {
+  async (request: NextRequest, context: DocumentsRouteParams) => {
     const auth = await authenticateRequest(request, 'knowledge-detail')
     if (auth instanceof NextResponse) return auth
     const { requestId, userId, rateLimit } = auth
 
     try {
-      const { id: knowledgeBaseId } = await params
+      const parsed = await parseRequest(v1UploadKnowledgeDocumentContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id: knowledgeBaseId } = parsed.data.params
 
       let formData: FormData
       try {

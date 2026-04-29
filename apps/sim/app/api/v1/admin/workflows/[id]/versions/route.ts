@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getActiveWorkflowRecord } from '@sim/workflow-authz'
+import { adminV1ListWorkflowVersionsContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { listWorkflowVersions } from '@/lib/workflows/persistence/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -18,7 +20,10 @@ interface RouteParams {
 
 export const GET = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: workflowId } = await context.params
+    const parsed = await parseRequest(adminV1ListWorkflowVersionsContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id: workflowId } = parsed.data.params
 
     try {
       const workflowRecord = await getActiveWorkflowRecord(workflowId)

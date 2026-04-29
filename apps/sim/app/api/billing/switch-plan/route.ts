@@ -4,7 +4,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { billingSwitchPlanBodySchema } from '@/lib/api/contracts/subscription'
+import { validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
@@ -23,11 +24,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('SwitchPlan')
-
-const switchPlanSchema = z.object({
-  targetPlanName: z.string(),
-  interval: z.enum(['month', 'year']).optional(),
-})
 
 /**
  * POST /api/billing/switch-plan
@@ -53,12 +49,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const body = await request.json()
-    const parsed = switchPlanSchema.safeParse(body)
+    const parsed = validateSchema(billingSwitchPlanBodySchema, body, 'Invalid request')
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid request', details: parsed.error.flatten() },
-        { status: 400 }
-      )
+      return parsed.response
     }
 
     const { targetPlanName, interval } = parsed.data

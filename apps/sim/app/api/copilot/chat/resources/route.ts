@@ -3,7 +3,12 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  addCopilotChatResourceBodySchema,
+  removeCopilotChatResourceBodySchema,
+  reorderCopilotChatResourcesBodySchema,
+} from '@/lib/api/contracts/copilot'
+import { validateSchema } from '@/lib/api/server'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -26,32 +31,6 @@ const VALID_RESOURCE_TYPES = new Set<ResourceType>([
 ])
 const GENERIC_TITLES = new Set(['Table', 'File', 'Workflow', 'Knowledge Base', 'Folder', 'Log'])
 
-const AddResourceSchema = z.object({
-  chatId: z.string(),
-  resource: z.object({
-    type: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder', 'log']),
-    id: z.string(),
-    title: z.string(),
-  }),
-})
-
-const RemoveResourceSchema = z.object({
-  chatId: z.string(),
-  resourceType: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder', 'log']),
-  resourceId: z.string(),
-})
-
-const ReorderResourcesSchema = z.object({
-  chatId: z.string(),
-  resources: z.array(
-    z.object({
-      type: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder', 'log']),
-      id: z.string(),
-      title: z.string(),
-    })
-  ),
-})
-
 export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
@@ -60,7 +39,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     const body = await req.json()
-    const { chatId, resource } = AddResourceSchema.parse(body)
+    const validation = validateSchema(addCopilotChatResourceBodySchema, body)
+    if (!validation.success) {
+      return createBadRequestResponse(validation.error.issues.map((e) => e.message).join(', '))
+    }
+    const { chatId, resource } = validation.data
 
     // Ephemeral UI tab (client does not POST this; guard for old clients / bugs).
     if (resource.id === 'streaming-file') {
@@ -101,15 +84,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     await db
       .update(copilotChats)
       .set({ resources: sql`${JSON.stringify(merged)}::jsonb`, updatedAt: new Date() })
-      .where(eq(copilotChats.id, chatId))
+      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
 
     logger.info('Added resource to chat', { chatId, resource })
 
     return NextResponse.json({ success: true, resources: merged })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return createBadRequestResponse(error.errors.map((e) => e.message).join(', '))
-    }
     logger.error('Error adding chat resource:', error)
     return createInternalServerErrorResponse('Failed to add resource')
   }
@@ -123,7 +103,11 @@ export const PATCH = withRouteHandler(async (req: NextRequest) => {
     }
 
     const body = await req.json()
-    const { chatId, resources: newOrder } = ReorderResourcesSchema.parse(body)
+    const validation = validateSchema(reorderCopilotChatResourcesBodySchema, body)
+    if (!validation.success) {
+      return createBadRequestResponse(validation.error.issues.map((e) => e.message).join(', '))
+    }
+    const { chatId, resources: newOrder } = validation.data
 
     const [chat] = await db
       .select({ resources: copilotChats.resources })
@@ -146,15 +130,12 @@ export const PATCH = withRouteHandler(async (req: NextRequest) => {
     await db
       .update(copilotChats)
       .set({ resources: sql`${JSON.stringify(newOrder)}::jsonb`, updatedAt: new Date() })
-      .where(eq(copilotChats.id, chatId))
+      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
 
     logger.info('Reordered resources for chat', { chatId, count: newOrder.length })
 
     return NextResponse.json({ success: true, resources: newOrder })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return createBadRequestResponse(error.errors.map((e) => e.message).join(', '))
-    }
     logger.error('Error reordering chat resources:', error)
     return createInternalServerErrorResponse('Failed to reorder resources')
   }
@@ -168,7 +149,11 @@ export const DELETE = withRouteHandler(async (req: NextRequest) => {
     }
 
     const body = await req.json()
-    const { chatId, resourceType, resourceId } = RemoveResourceSchema.parse(body)
+    const validation = validateSchema(removeCopilotChatResourceBodySchema, body)
+    if (!validation.success) {
+      return createBadRequestResponse(validation.error.issues.map((e) => e.message).join(', '))
+    }
+    const { chatId, resourceType, resourceId } = validation.data
 
     const [updated] = await db
       .update(copilotChats)
@@ -193,9 +178,6 @@ export const DELETE = withRouteHandler(async (req: NextRequest) => {
 
     return NextResponse.json({ success: true, resources: merged })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return createBadRequestResponse(error.errors.map((e) => e.message).join(', '))
-    }
     logger.error('Error removing chat resource:', error)
     return createInternalServerErrorResponse('Failed to remove resource')
   }

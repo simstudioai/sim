@@ -6,6 +6,7 @@ import { CheckCircle2, GraduationCap, XCircle } from 'lucide-react'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import type { AcademyCertificate } from '@/lib/academy/types'
+import { academyCertificateMetadataSchema } from '@/lib/api/contracts/academy'
 
 interface CertificatePageProps {
   params: Promise<{ certificateNumber: string }>
@@ -28,7 +29,11 @@ const fetchCertificate = cache(
       .from(academyCertificate)
       .where(eq(academyCertificate.certificateNumber, certificateNumber))
       .limit(1)
-    return (row as unknown as AcademyCertificate) ?? null
+    if (!row) return null
+    return {
+      ...row,
+      metadata: academyCertificateMetadataSchema.nullable().parse(row.metadata),
+    }
   }
 )
 

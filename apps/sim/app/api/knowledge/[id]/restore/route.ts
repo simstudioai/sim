@@ -4,6 +4,8 @@ import { knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { knowledgeBaseParamsSchema } from '@/lib/api/contracts/knowledge'
+import { validateSchema } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -15,7 +17,13 @@ const logger = createLogger('RestoreKnowledgeBaseAPI')
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const validation = validateSchema(
+      knowledgeBaseParamsSchema,
+      await params,
+      'Invalid request parameters'
+    )
+    if (!validation.success) return validation.response
+    const { id } = validation.data
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })

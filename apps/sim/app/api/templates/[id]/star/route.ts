@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { templateIdParamsSchema } from '@/lib/api/contracts/templates'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -13,11 +14,18 @@ const logger = createLogger('TemplateStarAPI')
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+function getErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object' || !('code' in error)) return undefined
+
+  const { code } = error as { code?: unknown }
+  return typeof code === 'string' ? code : undefined
+}
+
 // GET /api/templates/[id]/star - Check if user has starred this template
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const { id } = templateIdParamsSchema.parse(await params)
 
     try {
       const session = await getSession()
@@ -42,7 +50,7 @@ export const GET = withRouteHandler(
       logger.info(`[${requestId}] Star status checked: ${isStarred} for template: ${id}`)
 
       return NextResponse.json({ data: { isStarred } })
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`[${requestId}] Error checking star status for template: ${id}`, error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
@@ -53,7 +61,7 @@ export const GET = withRouteHandler(
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const { id } = templateIdParamsSchema.parse(await params)
 
     try {
       const session = await getSession()
@@ -108,9 +116,9 @@ export const POST = withRouteHandler(
 
       logger.info(`[${requestId}] Successfully starred template: ${id}`)
       return NextResponse.json({ message: 'Template starred successfully' }, { status: 201 })
-    } catch (error: any) {
+    } catch (error) {
       // Handle unique constraint violations gracefully
-      if (error.code === '23505') {
+      if (getErrorCode(error) === '23505') {
         logger.info(`[${requestId}] Duplicate star attempt for template: ${id}`)
         return NextResponse.json({ message: 'Template already starred' }, { status: 200 })
       }
@@ -125,7 +133,7 @@ export const POST = withRouteHandler(
 export const DELETE = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const { id } = templateIdParamsSchema.parse(await params)
 
     try {
       const session = await getSession()
@@ -164,7 +172,7 @@ export const DELETE = withRouteHandler(
 
       logger.info(`[${requestId}] Successfully unstarred template: ${id}`)
       return NextResponse.json({ message: 'Template unstarred successfully' }, { status: 200 })
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`[${requestId}] Error unstarring template: ${id}`, error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }

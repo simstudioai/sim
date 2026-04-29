@@ -5,7 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { savePersonalEnvironmentBodySchema } from '@/lib/api/contracts/environment'
+import { isZodError } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -14,10 +15,6 @@ import { syncPersonalEnvCredentialsForUser } from '@/lib/credentials/environment
 import type { EnvironmentVariable } from '@/lib/environment/api'
 
 const logger = createLogger('EnvironmentAPI')
-
-const EnvVarSchema = z.object({
-  variables: z.record(z.string()),
-})
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
@@ -32,7 +29,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const body = await req.json()
 
     try {
-      const { variables } = EnvVarSchema.parse(body)
+      const { variables } = savePersonalEnvironmentBodySchema.parse(body)
 
       const encryptedVariables = await Promise.all(
         Object.entries(variables).map(async ([key, value]) => {
@@ -80,12 +77,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       return NextResponse.json({ success: true })
     } catch (validationError) {
-      if (validationError instanceof z.ZodError) {
+      if (isZodError(validationError)) {
         logger.warn(`[${requestId}] Invalid environment variables data`, {
-          errors: validationError.errors,
+          errors: validationError.issues,
         })
         return NextResponse.json(
-          { error: 'Invalid request data', details: validationError.errors },
+          { error: 'Invalid request data', details: validationError.issues },
           { status: 400 }
         )
       }

@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
+import { knowledgeBaseParamsSchema } from '@/lib/api/contracts/knowledge'
+import { validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getTagUsage } from '@/lib/knowledge/tags/service'
@@ -14,7 +16,13 @@ const logger = createLogger('TagUsageAPI')
 export const GET = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateId().slice(0, 8)
-    const { id: knowledgeBaseId } = await params
+    const validation = validateSchema(
+      knowledgeBaseParamsSchema,
+      await params,
+      'Invalid request parameters'
+    )
+    if (!validation.success) return validation.response
+    const { id: knowledgeBaseId } = validation.data
 
     try {
       logger.info(

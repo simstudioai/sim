@@ -2,38 +2,18 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import { z } from 'zod'
+import { smtpSendBodySchema } from '@/lib/api/contracts'
+import { validateJsonBody } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SmtpSendAPI')
-
-const SmtpSendSchema = z.object({
-  smtpHost: z.string().min(1, 'SMTP host is required'),
-  smtpPort: z.number().min(1).max(65535, 'Port must be between 1 and 65535'),
-  smtpUsername: z.string().min(1, 'SMTP username is required'),
-  smtpPassword: z.string().min(1, 'SMTP password is required'),
-  smtpSecure: z.enum(['TLS', 'SSL', 'None']),
-
-  from: z.string().email('Invalid from email address').min(1, 'From address is required'),
-  to: z.string().min(1, 'To email is required'),
-  subject: z.string().min(1, 'Subject is required'),
-  body: z.string().min(1, 'Email body is required'),
-  contentType: z.enum(['text', 'html']).optional().nullable(),
-
-  fromName: z.string().optional().nullable(),
-  cc: z.string().optional().nullable(),
-  bcc: z.string().optional().nullable(),
-  replyTo: z.string().optional().nullable(),
-  attachments: RawFileInputArraySchema.optional().nullable(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -56,8 +36,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = SmtpSendSchema.parse(body)
+    const validation = await validateJsonBody(request, smtpSendBodySchema)
+    if (!validation.success) {
+      logger.warn(`[${requestId}] Invalid request data`, { errors: validation.error?.issues ?? [] })
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Invalid request data',
+          details: validation.error?.issues ?? [],
+        },
+        { status: 400 }
+      )
+    }
+    const validatedData = validation.data
 
     const hostValidation = await validateDatabaseHost(validatedData.smtpHost, 'smtpHost')
     if (!hostValidation.isValid) {
@@ -180,18 +171,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       subject: validatedData.subject,
     })
   } catch (error: unknown) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     // Type guard for error objects with code property
     const isNodeError = (err: unknown): err is NodeJS.ErrnoException => {
       return err instanceof Error && 'code' in err

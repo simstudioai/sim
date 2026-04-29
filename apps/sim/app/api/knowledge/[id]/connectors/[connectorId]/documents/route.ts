@@ -4,7 +4,8 @@ import { document, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { connectorDocumentsPatchBodySchema } from '@/lib/api/contracts/knowledge'
+import { parseJsonBody, validateSchema } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -116,11 +117,6 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   }
 })
 
-const PatchSchema = z.object({
-  operation: z.enum(['restore', 'exclude']),
-  documentIds: z.array(z.string()).min(1),
-})
-
 /**
  * PATCH /api/knowledge/[id]/connectors/[connectorId]/documents
  * Restore or exclude connector documents.
@@ -158,16 +154,17 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       return NextResponse.json({ error: 'Connector not found' }, { status: 404 })
     }
 
-    const body = await request.json()
-    const parsed = PatchSchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid request', details: parsed.error.flatten() },
-        { status: 400 }
-      )
-    }
+    const parsedBody = await parseJsonBody(request)
+    if (!parsedBody.success) return parsedBody.response
 
-    const { operation, documentIds } = parsed.data
+    const validation = validateSchema(
+      connectorDocumentsPatchBodySchema,
+      parsedBody.data,
+      'Invalid request'
+    )
+    if (!validation.success) return validation.response
+
+    const { operation, documentIds } = validation.data
 
     if (operation === 'restore') {
       const updated = await db

@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { googleDriveUploadContract } from '@/lib/api/contracts/google-tools'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import {
@@ -18,14 +18,6 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('GoogleDriveUploadAPI')
 
 const GOOGLE_DRIVE_API_BASE = 'https://www.googleapis.com/upload/drive/v3/files'
-
-const GoogleDriveUploadSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  fileName: z.string().min(1, 'File name is required'),
-  file: RawFileInputSchema.optional().nullable(),
-  mimeType: z.string().optional().nullable(),
-  folderId: z.string().optional().nullable(),
-})
 
 /**
  * Build multipart upload body for Google Drive API
@@ -78,8 +70,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
-    const body = await request.json()
-    const validatedData = GoogleDriveUploadSchema.parse(body)
+    const parsed = await parseRequest(googleDriveUploadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Uploading file to Google Drive`, {
       fileName: validatedData.fileName,
@@ -276,18 +269,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error uploading file to Google Drive:`, error)
 
     return NextResponse.json(

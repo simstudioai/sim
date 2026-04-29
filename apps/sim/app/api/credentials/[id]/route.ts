@@ -5,7 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateCredentialByIdBodySchema } from '@/lib/api/contracts/credentials'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -17,24 +18,6 @@ import {
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialByIdAPI')
-
-const updateCredentialSchema = z
-  .object({
-    displayName: z.string().trim().min(1).max(255).optional(),
-    description: z.string().trim().max(500).nullish(),
-    serviceAccountJson: z.string().min(1).optional(),
-  })
-  .strict()
-  .refine(
-    (data) =>
-      data.displayName !== undefined ||
-      data.description !== undefined ||
-      data.serviceAccountJson !== undefined,
-    {
-      message: 'At least one field must be provided',
-      path: ['displayName'],
-    }
-  )
 
 async function getCredentialResponse(credentialId: string, userId: string) {
   const [row] = await db
@@ -102,9 +85,12 @@ export const PUT = withRouteHandler(
     const { id } = await params
 
     try {
-      const parseResult = updateCredentialSchema.safeParse(await request.json())
+      const parseResult = updateCredentialByIdBodySchema.safeParse(await request.json())
       if (!parseResult.success) {
-        return NextResponse.json({ error: parseResult.error.errors[0]?.message }, { status: 400 })
+        return NextResponse.json(
+          { error: getValidationErrorMessage(parseResult.error) },
+          { status: 400 }
+        )
       }
 
       const access = await getCredentialActorContext(id, session.user.id)

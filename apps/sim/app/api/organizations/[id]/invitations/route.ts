@@ -4,6 +4,12 @@ import { invitation, member, organization, user, workspace } from '@sim/db/schem
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  createOrganizationInvitationBodySchema,
+  organizationInvitationsQuerySchema,
+  organizationParamsSchema,
+} from '@/lib/api/contracts/organization'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import {
   validateBulkInvitations,
@@ -38,7 +44,15 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { id: organizationId } = await params
+      const paramsResult = organizationParamsSchema.safeParse(await params)
+      if (!paramsResult.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
+          { status: 400 }
+        )
+      }
+
+      const { id: organizationId } = paramsResult.data
 
       const [memberEntry] = await db
         .select()
@@ -94,24 +108,45 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { id: organizationId } = await params
+      const paramsResult = organizationParamsSchema.safeParse(await params)
+      if (!paramsResult.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
+          { status: 400 }
+        )
+      }
+
+      const { id: organizationId } = paramsResult.data
 
       await validateInvitationsAllowed(session.user.id, { organizationId })
 
-      const url = new URL(request.url)
-      const validateOnly = url.searchParams.get('validate') === 'true'
-      const isBatch = url.searchParams.get('batch') === 'true'
+      const queryResult = organizationInvitationsQuerySchema.safeParse(
+        Object.fromEntries(new URL(request.url).searchParams.entries())
+      )
+      if (!queryResult.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(queryResult.error, 'Invalid query parameters') },
+          { status: 400 }
+        )
+      }
+      const validateOnly = queryResult.data.validate === true
+      const isBatch = queryResult.data.batch === true
 
-      const body = await request.json()
-      const { email, emails, role = 'member', workspaceInvitations } = body
+      const bodyResult = createOrganizationInvitationBodySchema.safeParse(
+        await request.json().catch(() => ({}))
+      )
+      if (!bodyResult.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(bodyResult.error, 'Invalid request body') },
+          { status: 400 }
+        )
+      }
+
+      const { email, emails, role = 'member', workspaceInvitations } = bodyResult.data
       const invitationEmails = email ? [email] : emails
 
       if (!invitationEmails || !Array.isArray(invitationEmails) || invitationEmails.length === 0) {
         return NextResponse.json({ error: 'Email or emails array is required' }, { status: 400 })
-      }
-
-      if (!['member', 'admin'].includes(role)) {
-        return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
       }
 
       const [memberEntry] = await db
@@ -154,7 +189,7 @@ export const POST = withRouteHandler(
       const processedEmails = Array.from(
         new Set(
           invitationEmails
-            .map((raw: string) => {
+            .map((raw) => {
               const normalized = raw.trim().toLowerCase()
               return quickValidateEmail(normalized).isValid ? normalized : null
             })
@@ -310,7 +345,7 @@ export const POST = withRouteHandler(
             email,
             inviterId: session.user.id,
             organizationId,
-            role: role as 'admin' | 'member',
+            role,
             grants: validGrants,
           })
 
@@ -321,7 +356,7 @@ export const POST = withRouteHandler(
             email,
             inviterName,
             organizationId,
-            organizationRole: role as 'admin' | 'member',
+            organizationRole: role,
             grants: validGrants,
           })
 
@@ -381,7 +416,7 @@ export const POST = withRouteHandler(
         existingMembers: processedEmails.filter((email) => existingEmails.includes(email)),
         pendingInvitations: processedEmails.filter((email) => pendingEmails.includes(email)),
         invalidEmails: invitationEmails.filter(
-          (email: string) => !quickValidateEmail(email.trim().toLowerCase()).isValid
+          (email) => !quickValidateEmail(email.trim().toLowerCase()).isValid
         ),
         workspaceGrantsPerInvite: validGrants.length,
         seatInfo: {

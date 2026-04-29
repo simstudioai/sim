@@ -218,7 +218,15 @@ export function useExecutionStream() {
       })
 
       if (!response.ok) {
-        const errorResponse = await response.json()
+        let errorResponse: any
+        try {
+          errorResponse = await response.json()
+        } catch {
+          throw new ExecutionStreamHttpError(
+            `Server error (${response.status}): ${response.statusText}`,
+            response.status
+          )
+        }
         const error = new ExecutionStreamHttpError(
           errorResponse.error || 'Failed to start execution',
           response.status

@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { z } from 'zod'
+import { createWorkspaceBodySchema, listWorkspacesQuerySchema } from '@/lib/api/contracts'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -22,18 +22,8 @@ import {
   UPGRADE_TO_INVITE_REASON,
   WORKSPACE_MODE,
 } from '@/lib/workspaces/policy'
-import type { WorkspaceScope } from '@/lib/workspaces/utils'
 
 const logger = createLogger('Workspaces')
-
-const createWorkspaceSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
-  color: z
-    .string()
-    .regex(/^#[0-9a-fA-F]{6}$/)
-    .optional(),
-  skipDefaultWorkflow: z.boolean().optional().default(false),
-})
 
 // Get all workspaces for the current user
 export const GET = withRouteHandler(async (request: Request) => {
@@ -50,10 +40,16 @@ export const GET = withRouteHandler(async (request: Request) => {
     activeOrganizationId,
   })
 
-  const scope = (new URL(request.url).searchParams.get('scope') ?? 'active') as WorkspaceScope
-  if (!['active', 'archived', 'all'].includes(scope)) {
-    return NextResponse.json({ error: 'Invalid scope' }, { status: 400 })
+  const scopeResult = listWorkspacesQuerySchema.safeParse(
+    Object.fromEntries(new URL(request.url).searchParams.entries())
+  )
+  if (!scopeResult.success) {
+    return NextResponse.json(
+      { error: 'Invalid query parameters', details: scopeResult.error.issues },
+      { status: 400 }
+    )
   }
+  const { scope } = scopeResult.data
 
   const settingsQuery = db
     .select({ lastActiveWorkspaceId: settings.lastActiveWorkspaceId })
@@ -180,7 +176,7 @@ export const POST = withRouteHandler(async (req: Request) => {
   }
 
   try {
-    const { name, color, skipDefaultWorkflow } = createWorkspaceSchema.parse(await req.json())
+    const { name, color, skipDefaultWorkflow } = createWorkspaceBodySchema.parse(await req.json())
     const activeOrganizationId =
       (session.session as { activeOrganizationId?: string } | null)?.activeOrganizationId ?? null
     const creationPolicy = await getWorkspaceCreationPolicy({

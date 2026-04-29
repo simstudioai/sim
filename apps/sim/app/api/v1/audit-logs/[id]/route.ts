@@ -16,6 +16,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { v1GetAuditLogContract } from '@/lib/api/contracts/audit-logs'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
@@ -27,7 +29,7 @@ const logger = createLogger('V1AuditLogDetailAPI')
 export const revalidate = 0
 
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateId().slice(0, 8)
 
     try {
@@ -37,7 +39,13 @@ export const GET = withRouteHandler(
       }
 
       const userId = rateLimit.userId!
-      const { id } = await params
+      const parsed = await parseRequest(v1GetAuditLogContract, request, context, {
+        validationErrorResponse: () =>
+          NextResponse.json({ error: 'Invalid audit log ID' }, { status: 400 }),
+      })
+      if (!parsed.success) return parsed.response
+
+      const { id } = parsed.data.params
 
       const authResult = await validateEnterpriseAuditAccess(userId)
       if (!authResult.success) {

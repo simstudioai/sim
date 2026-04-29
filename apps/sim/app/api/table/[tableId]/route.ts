@@ -1,25 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { getTableQuerySchema, renameTableBodySchema } from '@/lib/api/contracts/tables'
+import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  deleteTable,
-  NAME_PATTERN,
-  renameTable,
-  TABLE_LIMITS,
-  TableConflictError,
-  type TableSchema,
-} from '@/lib/table'
+import { deleteTable, renameTable, TableConflictError, type TableSchema } from '@/lib/table'
 import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableDetailAPI')
-
-const GetTableSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-})
 
 interface TableRouteParams {
   params: Promise<{ tableId: string }>
@@ -38,7 +28,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Tab
     }
 
     const { searchParams } = new URL(request.url)
-    const validated = GetTableSchema.parse({
+    const validated = getTableQuerySchema.parse({
       workspaceId: searchParams.get('workspaceId'),
     })
 
@@ -80,31 +70,13 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Tab
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
+    if (isZodError(error)) {
+      return validationErrorResponse(error)
     }
 
     logger.error(`[${requestId}] Error getting table:`, error)
     return NextResponse.json({ error: 'Failed to get table' }, { status: 500 })
   }
-})
-
-const PatchTableSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  name: z
-    .string()
-    .min(1, 'Name is required')
-    .max(
-      TABLE_LIMITS.MAX_TABLE_NAME_LENGTH,
-      `Name must be at most ${TABLE_LIMITS.MAX_TABLE_NAME_LENGTH} characters`
-    )
-    .regex(
-      NAME_PATTERN,
-      'Name must start with letter or underscore, followed by alphanumeric or underscore'
-    ),
 })
 
 /** PATCH /api/table/[tableId] - Renames a table. */
@@ -121,7 +93,7 @@ export const PATCH = withRouteHandler(
       }
 
       const body = await request.json()
-      const validated = PatchTableSchema.parse(body)
+      const validated = renameTableBodySchema.parse(body)
 
       const result = await checkAccess(tableId, authResult.userId, 'write')
       if (!result.ok) return accessError(result, requestId, tableId)
@@ -139,11 +111,8 @@ export const PATCH = withRouteHandler(
         data: { table: updated },
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Validation error', details: error.errors },
-          { status: 400 }
-        )
+      if (isZodError(error)) {
+        return validationErrorResponse(error)
       }
 
       if (error instanceof TableConflictError) {
@@ -173,7 +142,7 @@ export const DELETE = withRouteHandler(
       }
 
       const { searchParams } = new URL(request.url)
-      const validated = GetTableSchema.parse({
+      const validated = getTableQuerySchema.parse({
         workspaceId: searchParams.get('workspaceId'),
       })
 
@@ -202,11 +171,8 @@ export const DELETE = withRouteHandler(
         },
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Validation error', details: error.errors },
-          { status: 400 }
-        )
+      if (isZodError(error)) {
+        return validationErrorResponse(error)
       }
 
       logger.error(`[${requestId}] Error deleting table:`, error)

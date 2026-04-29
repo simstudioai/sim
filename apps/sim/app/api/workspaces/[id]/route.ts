@@ -3,7 +3,8 @@ import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { deleteWorkspaceBodySchema, updateWorkspaceBodySchema } from '@/lib/api/contracts'
+import { validateJsonBody, validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
@@ -14,27 +15,6 @@ import { db } from '@sim/db'
 import { permissions, templates, workspace } from '@sim/db/schema'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-
-const patchWorkspaceSchema = z.object({
-  name: z.string().trim().min(1).optional(),
-  color: z
-    .string()
-    .regex(/^#[0-9a-fA-F]{6}$/)
-    .optional(),
-  logoUrl: z
-    .string()
-    .refine((val) => val.startsWith('/') || val.startsWith('https://'), {
-      message: 'Logo URL must be an absolute path or HTTPS URL',
-    })
-    .nullable()
-    .optional(),
-  billedAccountUserId: z.string().optional(),
-  allowPersonalApiKeys: z.boolean().optional(),
-})
-
-const deleteWorkspaceSchema = z.object({
-  deleteTemplates: z.boolean().default(false),
-})
 
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -65,7 +45,11 @@ export const GET = withRouteHandler(
           .where(eq(workflow.workspaceId, workspaceId))
 
         if (workspaceWorkflows.length === 0) {
-          return NextResponse.json({ hasPublishedTemplates: false, publishedTemplates: [] })
+          return NextResponse.json({
+            hasPublishedTemplates: false,
+            publishedTemplates: [],
+            count: 0,
+          })
         }
 
         const workflowIds = workspaceWorkflows.map((w) => w.id)
@@ -128,8 +112,11 @@ export const PATCH = withRouteHandler(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
+    const bodyValidation = await validateJsonBody(request, updateWorkspaceBodySchema)
+    if (!bodyValidation.success) return bodyValidation.response
+
     try {
-      const body = patchWorkspaceSchema.parse(await request.json())
+      const body = bodyValidation.data
       const { name, color, logoUrl, billedAccountUserId, allowPersonalApiKeys } = body
 
       if (
@@ -298,8 +285,10 @@ export const DELETE = withRouteHandler(
     }
 
     const workspaceId = id
-    const body = deleteWorkspaceSchema.parse(await request.json().catch(() => ({})))
-    const { deleteTemplates } = body // User's choice: false = keep templates (recommended), true = delete templates
+    const rawBody = await request.json().catch(() => ({}))
+    const bodyValidation = validateSchema(deleteWorkspaceBodySchema, rawBody)
+    if (!bodyValidation.success) return bodyValidation.response
+    const { deleteTemplates } = bodyValidation.data // User's choice: false = keep templates (recommended), true = delete templates
 
     // Check if user has admin permissions to delete workspace
     const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)

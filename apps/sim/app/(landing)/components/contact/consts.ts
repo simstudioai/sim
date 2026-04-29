@@ -45,7 +45,7 @@ export const contactRequestSchema = z.object({
     .optional()
     .transform((value) => (value && value.length > 0 ? value : undefined)),
   topic: z.enum(CONTACT_TOPIC_VALUES, {
-    errorMap: () => ({ message: 'Please select a topic' }),
+    error: 'Please select a topic',
   }),
   subject: z
     .string()

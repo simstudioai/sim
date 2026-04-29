@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { batchPresignedUrlBodySchema, uploadTypeSchema } from '@/lib/api/contracts/storage-transfer'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { StorageContext } from '@/lib/uploads/config'
@@ -13,15 +15,8 @@ import { createErrorResponse } from '@/app/api/files/utils'
 
 const logger = createLogger('BatchPresignedUploadAPI')
 
-interface BatchFileRequest {
-  fileName: string
-  contentType: string
-  fileSize: number
-}
-
-interface BatchPresignedUrlRequest {
-  files: BatchFileRequest[]
-}
+const MAX_FILE_SIZE = 100 * 1024 * 1024
+const VALID_UPLOAD_TYPES = ['knowledge-base', 'chat', 'copilot', 'profile-pictures'] as const
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -30,13 +25,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    let data: BatchPresignedUrlRequest
+    let rawData: unknown
     try {
-      data = await request.json()
+      rawData = await request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
     }
 
+    const validationResult = batchPresignedUrlBodySchema.safeParse(rawData)
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(validationResult.error, 'Invalid request data') },
+        { status: 400 }
+      )
+    }
+
+    const data = validationResult.data
     const { files } = data
 
     if (!files || !Array.isArray(files) || files.length === 0) {
@@ -58,17 +62,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'type query parameter is required' }, { status: 400 })
     }
 
-    const validTypes: StorageContext[] = ['knowledge-base', 'chat', 'copilot', 'profile-pictures']
-    if (!validTypes.includes(uploadTypeParam as StorageContext)) {
+    const uploadTypeResult = uploadTypeSchema.safeParse(uploadTypeParam)
+    if (!uploadTypeResult.success) {
       return NextResponse.json(
-        { error: `Invalid type parameter. Must be one of: ${validTypes.join(', ')}` },
+        { error: `Invalid type parameter. Must be one of: ${VALID_UPLOAD_TYPES.join(', ')}` },
         { status: 400 }
       )
     }
 
-    const uploadType = uploadTypeParam as StorageContext
+    const uploadType = uploadTypeResult.data as StorageContext
 
-    const MAX_FILE_SIZE = 100 * 1024 * 1024
     for (const file of files) {
       if (!file.fileName?.trim()) {
         return NextResponse.json({ error: 'fileName is required for all files' }, { status: 400 })
@@ -106,6 +109,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
       }
     }
+    const validatedFiles = files as Array<{
+      fileName: string
+      contentType: string
+      fileSize: number
+    }>
 
     const sessionUserId = session.user.id
 
@@ -121,7 +129,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         `Local storage detected - batch presigned URLs not available, client will use API fallback`
       )
       return NextResponse.json({
-        files: files.map((file) => ({
+        files: validatedFiles.map((file) => ({
           fileName: file.fileName,
           presignedUrl: '', // Empty URL signals fallback to API upload
           fileInfo: {
@@ -142,7 +150,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const startTime = Date.now()
 
     const presignedUrls = await generateBatchPresignedUploadUrls(
-      files.map((file) => ({
+      validatedFiles.map((file) => ({
         fileName: file.fileName,
         contentType: file.contentType,
         fileSize: file.fileSize,
@@ -162,16 +170,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({
       files: presignedUrls.map((urlResponse, index) => {
         const finalPath = `/api/files/serve/${storagePrefix}/${encodeURIComponent(urlResponse.key)}?context=${uploadType}`
+        const file = validatedFiles[index]
 
         return {
-          fileName: files[index].fileName,
+          fileName: file.fileName,
           presignedUrl: urlResponse.url,
           fileInfo: {
             path: finalPath,
             key: urlResponse.key,
-            name: files[index].fileName,
-            size: files[index].fileSize,
-            type: files[index].contentType,
+            name: file.fileName,
+            size: file.fileSize,
+            type: file.contentType,
           },
           uploadHeaders: urlResponse.uploadHeaders,
           directUploadSupported: true,

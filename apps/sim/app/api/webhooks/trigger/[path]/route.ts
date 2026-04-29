@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { webhookTriggerParamsSchema } from '@/lib/api/contracts/webhooks'
+import { validateSchema } from '@/lib/api/server'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -26,7 +28,11 @@ export const maxDuration = 60
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ path: string }> }) => {
     const requestId = generateRequestId()
-    const { path } = await params
+    const paramsResult = validateSchema(webhookTriggerParamsSchema, await params)
+    if (!paramsResult.success) {
+      return new NextResponse('Not Found', { status: 404 })
+    }
+    const { path } = paramsResult.data
 
     // Handle provider-specific GET verifications (Microsoft Graph, WhatsApp, etc.)
     const challengeResponse = await handleProviderChallenges({}, request, requestId, path)
@@ -61,7 +67,11 @@ async function handleWebhookPost(
   params: Promise<{ path: string }>
 ): Promise<NextResponse> {
   const requestId = generateRequestId()
-  const { path } = await params
+  const paramsResult = validateSchema(webhookTriggerParamsSchema, await params)
+  if (!paramsResult.success) {
+    return new NextResponse('Not Found', { status: 404 })
+  }
+  const { path } = paramsResult.data
 
   const earlyChallenge = await handleProviderChallenges({}, request, requestId, path)
   if (earlyChallenge) {

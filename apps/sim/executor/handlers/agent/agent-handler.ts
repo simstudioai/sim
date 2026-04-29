@@ -37,7 +37,7 @@ import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
-import { filterSchemaForLLM } from '@/tools/params'
+import { filterSchemaForLLM, type ToolSchema } from '@/tools/params'
 import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
@@ -514,15 +514,11 @@ export class AgentBlockHandler implements BlockHandler {
     serverId: string
     toolName: string
     description: string
-    schema: Record<string, unknown>
+    schema: ToolSchema
     userProvidedParams: Record<string, unknown>
     usageControl?: 'auto' | 'force' | 'none'
   }) {
-    const { filterSchemaForLLM } = await import('@/tools/params')
-    const filteredSchema = filterSchemaForLLM(
-      config.schema as unknown as Parameters<typeof filterSchemaForLLM>[0],
-      config.userProvidedParams as Record<string, unknown>
-    )
+    const filteredSchema = filterSchemaForLLM(config.schema, config.userProvidedParams)
     const toolId = createMcpToolId(config.serverId, config.toolName)
 
     return {

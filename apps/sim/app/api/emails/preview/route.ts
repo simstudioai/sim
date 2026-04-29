@@ -16,6 +16,8 @@ import {
   renderWorkflowNotificationEmail,
   renderWorkspaceInvitationEmail,
 } from '@/components/emails'
+import { emailPreviewQuerySchema } from '@/lib/api/contracts/common'
+import { validateSchema } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const emailTemplates = {
@@ -141,9 +143,18 @@ const emailTemplates = {
 
 type EmailTemplate = keyof typeof emailTemplates
 
+function isEmailTemplate(template: string): template is EmailTemplate {
+  return template in emailTemplates
+}
+
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url)
-  const template = searchParams.get('template') as EmailTemplate | null
+  const queryValidation = validateSchema(
+    emailPreviewQuerySchema,
+    Object.fromEntries(searchParams.entries())
+  )
+  if (!queryValidation.success) return queryValidation.response
+  const { template } = queryValidation.data
 
   if (!template) {
     const categories = {
@@ -198,7 +209,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
-  if (!(template in emailTemplates)) {
+  if (!isEmailTemplate(template)) {
     return NextResponse.json({ error: `Unknown template: ${template}` }, { status: 400 })
   }
 

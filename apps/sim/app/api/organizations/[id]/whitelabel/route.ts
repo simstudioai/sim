@@ -4,54 +4,14 @@ import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateOrganizationWhitelabelBodySchema } from '@/lib/api/contracts/organization'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { HEX_COLOR_REGEX } from '@/lib/branding'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('WhitelabelAPI')
-
-const updateWhitelabelSchema = z.object({
-  brandName: z
-    .string()
-    .trim()
-    .max(64, 'Brand name must be 64 characters or fewer')
-    .nullable()
-    .optional(),
-  logoUrl: z.string().min(1).nullable().optional(),
-  wordmarkUrl: z.string().min(1).nullable().optional(),
-  primaryColor: z
-    .string()
-    .regex(HEX_COLOR_REGEX, 'Primary color must be a valid hex color (e.g. #701ffc)')
-    .nullable()
-    .optional(),
-  primaryHoverColor: z
-    .string()
-    .regex(HEX_COLOR_REGEX, 'Primary hover color must be a valid hex color')
-    .nullable()
-    .optional(),
-  accentColor: z
-    .string()
-    .regex(HEX_COLOR_REGEX, 'Accent color must be a valid hex color')
-    .nullable()
-    .optional(),
-  accentHoverColor: z
-    .string()
-    .regex(HEX_COLOR_REGEX, 'Accent hover color must be a valid hex color')
-    .nullable()
-    .optional(),
-  supportEmail: z
-    .string()
-    .email('Support email must be a valid email address')
-    .nullable()
-    .optional(),
-  documentationUrl: z.string().url('Documentation URL must be a valid URL').nullable().optional(),
-  termsUrl: z.string().url('Terms URL must be a valid URL').nullable().optional(),
-  privacyUrl: z.string().url('Privacy URL must be a valid URL').nullable().optional(),
-  hidePoweredBySim: z.boolean().optional(),
-})
 
 /**
  * GET /api/organizations/[id]/whitelabel
@@ -120,11 +80,11 @@ export const PUT = withRouteHandler(
       const { id: organizationId } = await params
 
       const body = await request.json()
-      const parsed = updateWhitelabelSchema.safeParse(body)
+      const parsed = updateOrganizationWhitelabelBodySchema.safeParse(body)
 
       if (!parsed.success) {
         return NextResponse.json(
-          { error: parsed.error.errors[0]?.message ?? 'Invalid request body' },
+          { error: getValidationErrorMessage(parsed.error, 'Invalid request body') },
           { status: 400 }
         )
       }

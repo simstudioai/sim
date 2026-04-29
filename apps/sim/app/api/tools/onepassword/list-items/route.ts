@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { onePasswordListItemsContract } from '@/lib/api/contracts/internal-tools'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -13,15 +14,6 @@ import {
 
 const logger = createLogger('OnePasswordListItemsAPI')
 
-const ListItemsSchema = z.object({
-  connectionMode: z.enum(['service_account', 'connect']).nullish(),
-  serviceAccountToken: z.string().nullish(),
-  serverUrl: z.string().nullish(),
-  apiKey: z.string().nullish(),
-  vaultId: z.string().min(1, 'Vault ID is required'),
-  filter: z.string().nullish(),
-})
-
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
@@ -32,8 +24,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-    const params = ListItemsSchema.parse(body)
+    const parsed = await parseRequest(
+      onePasswordListItemsContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => validationErrorResponse(error, 'Invalid request data'),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
     const creds = resolveCredentials(params)
 
     logger.info(`[${requestId}] Listing items in vault ${params.vaultId} (${creds.mode} mode)`)
@@ -75,12 +75,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(data)
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
     const message = error instanceof Error ? error.message : 'Unknown error'
     logger.error(`[${requestId}] List items failed:`, error)
     return NextResponse.json({ error: `Failed to list items: ${message}` }, { status: 500 })

@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
+import { z } from 'zod'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { parseCronToHumanReadable, validateCronExpression } from '@/lib/workflows/schedules/utils'
 
@@ -17,22 +18,57 @@ const ACTIVE_JOB_CONDITION = (workspaceId: string) =>
     isNull(workflowSchedule.archivedAt)
   )
 
-interface CreateJobParams {
-  title?: string
-  prompt: string
-  cron?: string
-  time?: string
-  timezone?: string
-  lifecycle?: 'persistent' | 'until_complete'
-  successCondition?: string
-  maxRuns?: number
-}
+const JobLifecycleSchema = z.enum(['persistent', 'until_complete'])
+
+const CreateJobParamsSchema = z
+  .object({
+    title: z.string().optional(),
+    prompt: z.string().optional(),
+    cron: z.string().optional(),
+    time: z.string().optional(),
+    timezone: z.string().optional(),
+    lifecycle: JobLifecycleSchema.optional(),
+    successCondition: z.string().optional(),
+    maxRuns: z.number().optional(),
+  })
+  .passthrough()
+
+const ManageJobArgsSchema = z
+  .object({
+    jobId: z.string().optional(),
+    jobIds: z.array(z.string()).optional(),
+    title: z.string().optional(),
+    prompt: z.string().optional(),
+    cron: z.string().optional(),
+    time: z.string().optional(),
+    timezone: z.string().optional(),
+    status: z.string().optional(),
+    lifecycle: z.string().optional(),
+    successCondition: z.string().optional(),
+    maxRuns: z.number().optional(),
+  })
+  .passthrough()
+
+const ManageJobParamsSchema = z
+  .object({
+    operation: z.string().optional(),
+    args: ManageJobArgsSchema.optional(),
+  })
+  .passthrough()
+
+type CreateJobParams = z.infer<typeof CreateJobParamsSchema>
+type ManageJobParams = z.infer<typeof ManageJobParamsSchema>
 
 export async function executeCreateJob(
   params: Record<string, unknown>,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
-  const rawParams = params as unknown as CreateJobParams
+  const parsedParams = CreateJobParamsSchema.safeParse(params)
+  if (!parsedParams.success) {
+    return { success: false, error: 'Invalid create job parameters' }
+  }
+
+  const rawParams: CreateJobParams = parsedParams.data
   const timezone = rawParams.timezone || context.userTimezone || 'UTC'
   const { title, prompt, cron, time, lifecycle, successCondition, maxRuns } = rawParams
 
@@ -181,28 +217,16 @@ export async function executeCreateJob(
   }
 }
 
-interface ManageJobParams {
-  operation: 'create' | 'list' | 'get' | 'update' | 'delete'
-  args?: {
-    jobId?: string
-    jobIds?: string[]
-    title?: string
-    prompt?: string
-    cron?: string
-    time?: string
-    timezone?: string
-    status?: string
-    lifecycle?: 'persistent' | 'until_complete'
-    successCondition?: string
-    maxRuns?: number
-  }
-}
-
 export async function executeManageJob(
   params: Record<string, unknown>,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
-  const rawParams = params as unknown as ManageJobParams
+  const parsedParams = ManageJobParamsSchema.safeParse(params)
+  if (!parsedParams.success) {
+    return { success: false, error: 'Invalid manage job parameters' }
+  }
+
+  const rawParams: ManageJobParams = parsedParams.data
   const { operation, args } = rawParams
 
   if (!context.userId || !context.workspaceId) {
@@ -374,7 +398,7 @@ export async function executeManageJob(
         }
 
         if (args.lifecycle !== undefined) {
-          if (!['persistent', 'until_complete'].includes(args.lifecycle)) {
+          if (args.lifecycle !== 'persistent' && args.lifecycle !== 'until_complete') {
             return { success: false, error: 'lifecycle must be "persistent" or "until_complete"' }
           }
           updates.lifecycle = args.lifecycle

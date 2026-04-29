@@ -4,6 +4,8 @@ import { knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { knowledgeConnectorParamsSchema } from '@/lib/api/contracts/knowledge'
+import { validateSchema } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -20,7 +22,13 @@ type RouteParams = { params: Promise<{ id: string; connectorId: string }> }
  */
 export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
-  const { id: knowledgeBaseId, connectorId } = await params
+  const validation = validateSchema(
+    knowledgeConnectorParamsSchema,
+    await params,
+    'Invalid request parameters'
+  )
+  if (!validation.success) return validation.response
+  const { id: knowledgeBaseId, connectorId } = validation.data
 
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })

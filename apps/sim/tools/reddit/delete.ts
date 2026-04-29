@@ -46,7 +46,7 @@ export const deleteTool: ToolConfig<RedditDeleteParams, RedditWriteResponse> = {
         id: params.id,
       })
 
-      return formData.toString() as unknown as Record<string, any>
+      return formData.toString()
     },
   },
 

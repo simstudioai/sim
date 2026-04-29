@@ -2,17 +2,17 @@ import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { textractParseBodySchema } from '@/lib/api/contracts/media-tools'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
-import { validateAwsRegion, validateS3BucketName } from '@/lib/core/security/input-validation'
+import { validateS3BucketName } from '@/lib/core/security/input-validation'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import {
   downloadFileFromStorage,
@@ -23,51 +23,6 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes for large multi-page PDF processing
 
 const logger = createLogger('TextractParseAPI')
-
-const QuerySchema = z.object({
-  Text: z.string().min(1),
-  Alias: z.string().optional(),
-  Pages: z.array(z.string()).optional(),
-})
-
-const TextractParseSchema = z
-  .object({
-    accessKeyId: z.string().min(1, 'AWS Access Key ID is required'),
-    secretAccessKey: z.string().min(1, 'AWS Secret Access Key is required'),
-    region: z.string().min(1, 'AWS region is required'),
-    processingMode: z.enum(['sync', 'async']).optional().default('sync'),
-    filePath: z.string().optional(),
-    file: RawFileInputSchema.optional(),
-    s3Uri: z.string().optional(),
-    featureTypes: z
-      .array(z.enum(['TABLES', 'FORMS', 'QUERIES', 'SIGNATURES', 'LAYOUT']))
-      .optional(),
-    queries: z.array(QuerySchema).optional(),
-  })
-  .superRefine((data, ctx) => {
-    const regionValidation = validateAwsRegion(data.region, 'AWS region')
-    if (!regionValidation.isValid) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: regionValidation.error,
-        path: ['region'],
-      })
-    }
-    if (data.processingMode === 'async' && !data.s3Uri) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'S3 URI is required for multi-page processing (s3://bucket/key)',
-        path: ['s3Uri'],
-      })
-    }
-    if (data.processingMode !== 'async' && !data.file && !data.filePath) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'File input is required for single-page processing',
-        path: ['filePath'],
-      })
-    }
-  })
 
 function getSignatureKey(
   key: string,
@@ -330,7 +285,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const userId = authResult.userId
     const body = await request.json()
-    const validatedData = TextractParseSchema.parse(body)
+    const validation = validateSchema(textractParseBodySchema, body)
+    if (!validation.success) {
+      logger.warn(`[${requestId}] Invalid request data`, { errors: validation.error.issues })
+      return NextResponse.json(
+        {
+          success: false,
+          error: getValidationErrorMessage(validation.error, 'Invalid request data'),
+          details: validation.error.issues,
+        },
+        { status: 400 }
+      )
+    }
+    const validatedData = validation.data
 
     const processingMode = validatedData.processingMode || 'sync'
     const featureTypes = validatedData.featureTypes ?? []
@@ -632,18 +599,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error in Textract parse:`, error)
 
     return NextResponse.json(

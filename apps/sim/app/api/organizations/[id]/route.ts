@@ -4,7 +4,8 @@ import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateOrganizationBodySchema } from '@/lib/api/contracts/organization'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import {
   getOrganizationSeatAnalytics,
@@ -14,19 +15,22 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationAPI')
 
-const updateOrganizationSchema = z.object({
-  name: z.string().trim().min(1, 'Organization name is required').optional(),
-  slug: z
-    .string()
-    .trim()
-    .min(1, 'Organization slug is required')
-    .regex(
-      /^[a-z0-9-_]+$/,
-      'Slug can only contain lowercase letters, numbers, hyphens, and underscores'
-    )
-    .optional(),
-  logo: z.string().nullable().optional(),
-})
+type OrganizationDetailsResponse = {
+  success: true
+  data: {
+    id: string
+    name: string
+    slug: string | null
+    logo: string | null
+    metadata: unknown
+    createdAt: Date
+    updatedAt: Date
+    seats?: NonNullable<Awaited<ReturnType<typeof getOrganizationSeatInfo>>>
+    seatAnalytics?: NonNullable<Awaited<ReturnType<typeof getOrganizationSeatAnalytics>>>
+  }
+  userRole: string
+  hasAdminAccess: boolean
+}
 
 /**
  * GET /api/organizations/[id]
@@ -73,7 +77,7 @@ export const GET = withRouteHandler(
       const userRole = memberEntry[0].role
       const hasAdminAccess = ['owner', 'admin'].includes(userRole)
 
-      const response: any = {
+      const response: OrganizationDetailsResponse = {
         success: true,
         data: {
           id: organizationEntry[0].id,
@@ -133,10 +137,12 @@ export const PUT = withRouteHandler(
       const { id: organizationId } = await params
       const body = await request.json()
 
-      const validation = updateOrganizationSchema.safeParse(body)
+      const validation = updateOrganizationBodySchema.safeParse(body)
       if (!validation.success) {
-        const firstError = validation.error.errors[0]
-        return NextResponse.json({ error: firstError.message }, { status: 400 })
+        return NextResponse.json(
+          { error: getValidationErrorMessage(validation.error) },
+          { status: 400 }
+        )
       }
 
       const { name, slug, logo } = validation.data
@@ -175,7 +181,12 @@ export const PUT = withRouteHandler(
         }
 
         // Build update object with only provided fields
-        const updateData: any = { updatedAt: new Date() }
+        const updateData: {
+          updatedAt: Date
+          name?: string
+          slug?: string
+          logo?: string | null
+        } = { updatedAt: new Date() }
         if (name !== undefined) updateData.name = name
         if (slug !== undefined) updateData.slug = slug
         if (logo !== undefined) updateData.logo = logo

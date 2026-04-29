@@ -7,29 +7,39 @@
  * Auth is handled via session cookies (EventSource sends cookies automatically).
  */
 
+import type { NextRequest } from 'next/server'
+import { mothershipEventsQuerySchema } from '@/lib/api/contracts/mothership-tasks'
+import { validateSchema } from '@/lib/api/server'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createWorkspaceSSE } from '@/lib/events/sse-endpoint'
 
 export const dynamic = 'force-dynamic'
 
-export const GET = withRouteHandler(
-  createWorkspaceSSE({
-    label: 'mothership-events',
-    subscriptions: [
-      {
-        subscribe: (workspaceId, send) => {
-          if (!taskPubSub) return () => {}
-          return taskPubSub.onStatusChanged((event) => {
-            if (event.workspaceId !== workspaceId) return
-            send('task_status', {
-              chatId: event.chatId,
-              type: event.type,
-              timestamp: Date.now(),
-            })
+const mothershipEventsHandler = createWorkspaceSSE({
+  label: 'mothership-events',
+  subscriptions: [
+    {
+      subscribe: (workspaceId, send) => {
+        if (!taskPubSub) return () => {}
+        return taskPubSub.onStatusChanged((event) => {
+          if (event.workspaceId !== workspaceId) return
+          send('task_status', {
+            chatId: event.chatId,
+            type: event.type,
+            timestamp: Date.now(),
           })
-        },
+        })
       },
-    ],
-  })
-)
+    },
+  ],
+})
+
+export const GET = withRouteHandler((request: NextRequest) => {
+  const validation = validateSchema(
+    mothershipEventsQuerySchema,
+    Object.fromEntries(request.nextUrl.searchParams.entries())
+  )
+  if (!validation.success) return validation.response
+  return mothershipEventsHandler(request)
+})

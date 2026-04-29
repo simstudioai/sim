@@ -1,6 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  type CreatorOrganization,
+  type CreatorProfileContract,
+  type CreatorProfileDetails,
+  createCreatorProfileContract,
+  listCreatorOrganizationsContract,
+  listCreatorProfilesContract,
+  updateCreatorProfileContract,
+} from '@/lib/api/contracts/creator-profile'
 
 const logger = createLogger('CreatorProfileQuery')
 
@@ -17,39 +26,20 @@ export const creatorProfileKeys = {
 /**
  * Organization type
  */
-export interface Organization {
-  id: string
-  name: string
-  role: string
-}
+export type Organization = CreatorOrganization
 
 /**
  * Creator profile type
  */
-export interface CreatorProfile {
-  id: string
-  referenceType: 'user' | 'organization'
-  referenceId: string
-  name: string
-  profileImageUrl: string
-  details?: CreatorProfileDetails
-  createdAt: string
-  updatedAt: string
-}
+export type CreatorProfile = CreatorProfileContract
 
 /**
  * Fetch organizations where user is owner or admin
  * Note: Filtering is done server-side in the API route
  */
 async function fetchOrganizations(signal?: AbortSignal): Promise<Organization[]> {
-  const response = await fetch('/api/organizations', { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch organizations')
-  }
-
-  const data = await response.json()
-  return data.organizations || []
+  const data = await requestJson(listCreatorOrganizationsContract, { signal })
+  return data.organizations
 }
 
 /**
@@ -67,14 +57,8 @@ export function useOrganizations() {
  * Fetch all creator profiles for the current user
  */
 async function fetchCreatorProfiles(signal?: AbortSignal): Promise<CreatorProfile[]> {
-  const response = await fetch('/api/creators', { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch creator profiles')
-  }
-
-  const data = await response.json()
-  return data.profiles || []
+  const data = await requestJson(listCreatorProfilesContract, { query: {}, signal })
+  return data.profiles
 }
 
 /**
@@ -95,20 +79,12 @@ async function fetchCreatorProfile(
   userId: string,
   signal?: AbortSignal
 ): Promise<CreatorProfile | null> {
-  const response = await fetch(`/api/creators?userId=${userId}`, { signal })
+  const data = await requestJson(listCreatorProfilesContract, {
+    query: { userId },
+    signal,
+  })
 
-  // Treat 404 as "no profile"
-  if (response.status === 404) {
-    return null
-  }
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch creator profile')
-  }
-
-  const data = await response.json()
-
-  if (data.profiles && data.profiles.length > 0) {
+  if (data.profiles.length > 0) {
     return data.profiles[0]
   }
 
@@ -161,22 +137,15 @@ export function useSaveCreatorProfile() {
         details: details && Object.keys(details).length > 0 ? details : undefined,
       }
 
-      const url = existingProfileId ? `/api/creators/${existingProfileId}` : '/api/creators'
-      const method = existingProfileId ? 'PUT' : 'POST'
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        const errorMessage = errorData.error || 'Failed to save creator profile'
-        throw new Error(errorMessage)
+      if (existingProfileId) {
+        const result = await requestJson(updateCreatorProfileContract, {
+          params: { id: existingProfileId },
+          body: payload,
+        })
+        return result.data
       }
 
-      const result = await response.json()
+      const result = await requestJson(createCreatorProfileContract, { body: payload })
       return result.data
     },
     onSuccess: (_data, variables) => {

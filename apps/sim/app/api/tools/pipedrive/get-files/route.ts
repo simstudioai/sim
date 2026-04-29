@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { pipedriveGetFilesContract } from '@/lib/api/contracts/tools/pipedrive'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -32,14 +33,6 @@ interface PipedriveApiResponse {
   error?: string
 }
 
-const PipedriveGetFilesSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  sort: z.enum(['id', 'update_time']).optional().nullable(),
-  limit: z.string().optional().nullable(),
-  start: z.string().optional().nullable(),
-  downloadFiles: z.boolean().optional().default(false),
-})
-
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
@@ -57,10 +50,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const body = await request.json()
-    const validatedData = PipedriveGetFilesSchema.parse(body)
+    const parsed = await parseRequest(pipedriveGetFilesContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const { accessToken, sort, limit, start, downloadFiles } = validatedData
+    const { accessToken, sort, limit, start, downloadFiles } = parsed.data.body
 
     const baseUrl = 'https://api.pipedrive.com/v1/files'
     const queryParams = new URLSearchParams()

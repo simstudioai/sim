@@ -10,9 +10,12 @@ import { db } from '@sim/db'
 import { auditLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { v1AdminGetAuditLogContract } from '@/lib/api/contracts/audit-logs'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminValidationErrorResponse,
   internalErrorResponse,
   notFoundResponse,
   singleResponse,
@@ -27,7 +30,12 @@ interface RouteParams {
 
 export const GET = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id } = await context.params
+    const parsed = await parseRequest(v1AdminGetAuditLogContract, request, context, {
+      validationErrorResponse: adminValidationErrorResponse,
+    })
+    if (!parsed.success) return parsed.response
+
+    const { id } = parsed.data.params
 
     try {
       const [log] = await db.select().from(auditLog).where(eq(auditLog.id, id)).limit(1)

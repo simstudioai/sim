@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { slackUpdateMessageBodySchema } from '@/lib/api/contracts'
+import { validateJsonBody } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -8,14 +9,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SlackUpdateMessageAPI')
-
-const SlackUpdateMessageSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  channel: z.string().min(1, 'Channel is required'),
-  timestamp: z.string().min(1, 'Message timestamp is required'),
-  text: z.string().min(1, 'Message text is required'),
-  blocks: z.array(z.record(z.unknown())).optional().nullable(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -41,8 +34,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
-    const body = await request.json()
-    const validatedData = SlackUpdateMessageSchema.parse(body)
+    const validation = await validateJsonBody(request, slackUpdateMessageBodySchema)
+    if (!validation.success) {
+      logger.warn(`[${requestId}] Invalid request data`, { errors: validation.error?.issues ?? [] })
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Invalid request data',
+          details: validation.error?.issues ?? [],
+        },
+        { status: 400 }
+      )
+    }
+    const validatedData = validation.data
 
     logger.info(`[${requestId}] Updating Slack message`, {
       channel: validatedData.channel,
@@ -102,18 +106,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error updating Slack message:`, error)
     return NextResponse.json(
       {

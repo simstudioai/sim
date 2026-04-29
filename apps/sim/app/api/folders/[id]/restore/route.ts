@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { restoreFolderBodySchema } from '@/lib/api/contracts'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -19,11 +21,16 @@ export const POST = withRouteHandler(
       }
 
       const body = await request.json().catch(() => ({}))
-      const workspaceId = body.workspaceId as string | undefined
+      const validation = restoreFolderBodySchema.safeParse(body)
 
-      if (!workspaceId) {
-        return NextResponse.json({ error: 'Workspace ID is required' }, { status: 400 })
+      if (!validation.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(validation.error) },
+          { status: 400 }
+        )
       }
+
+      const { workspaceId } = validation.data
 
       const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
       if (permission !== 'admin' && permission !== 'write') {

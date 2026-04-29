@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { removeWorkspaceMemberBodySchema } from '@/lib/api/contracts/invitations'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
@@ -13,9 +13,6 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceMemberAPI')
-const deleteMemberSchema = z.object({
-  workspaceId: z.string().uuid(),
-})
 
 // DELETE /api/workspaces/members/[id] - Remove a member from a workspace
 export const DELETE = withRouteHandler(
@@ -29,7 +26,7 @@ export const DELETE = withRouteHandler(
 
     try {
       // Get the workspace ID from the request body or URL
-      const body = deleteMemberSchema.parse(await req.json())
+      const body = removeWorkspaceMemberBodySchema.parse(await req.json())
       const { workspaceId } = body
 
       const workspaceRow = await db

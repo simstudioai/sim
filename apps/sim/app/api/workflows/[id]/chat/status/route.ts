@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -16,7 +18,14 @@ const logger = createLogger('ChatStatusAPI')
  */
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id } = await params
+    const paramsValidation = validateSchema(workflowIdParamsSchema, await params)
+    if (!paramsValidation.success) {
+      return createErrorResponse(
+        getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
+        400
+      )
+    }
+    const { id } = paramsValidation.data
     const requestId = generateRequestId()
 
     try {

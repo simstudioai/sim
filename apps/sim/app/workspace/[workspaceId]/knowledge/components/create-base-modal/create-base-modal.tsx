@@ -108,7 +108,8 @@ const FormSchema = z
     }
   )
 
-type FormValues = z.infer<typeof FormSchema>
+type FormInputValues = z.input<typeof FormSchema>
+type FormValues = z.output<typeof FormSchema>
 
 interface SubmitStatus {
   type: 'success' | 'error'
@@ -163,7 +164,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     watch,
     setValue,
     formState: { errors },
-  } = useForm<FormValues>({
+  } = useForm<FormInputValues, unknown, FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       name: '',

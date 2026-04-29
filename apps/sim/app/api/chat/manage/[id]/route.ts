@@ -4,7 +4,8 @@ import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { z } from 'zod'
+import { chatIdParamsSchema, updateChatBodySchema } from '@/lib/api/contracts/chats'
+import { getValidationErrorMessage, isZodError } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
@@ -19,41 +20,16 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ChatDetailAPI')
 
-const chatUpdateSchema = z.object({
-  workflowId: z.string().min(1, 'Workflow ID is required').optional(),
-  identifier: z
-    .string()
-    .min(1, 'Identifier is required')
-    .regex(/^[a-z0-9-]+$/, 'Identifier can only contain lowercase letters, numbers, and hyphens')
-    .optional(),
-  title: z.string().min(1, 'Title is required').optional(),
-  description: z.string().optional(),
-  customizations: z
-    .object({
-      primaryColor: z.string(),
-      welcomeMessage: z.string(),
-      imageUrl: z.string().optional(),
-    })
-    .optional(),
-  authType: z.enum(['public', 'password', 'email', 'sso']).optional(),
-  password: z.string().optional(),
-  allowedEmails: z.array(z.string()).optional(),
-  outputConfigs: z
-    .array(
-      z.object({
-        blockId: z.string(),
-        path: z.string(),
-      })
-    )
-    .optional(),
-})
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
 
 /**
  * GET endpoint to fetch a specific chat deployment by ID
  */
 export const GET = withRouteHandler(
   async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id } = await params
+    const { id } = chatIdParamsSchema.parse(await params)
     const chatId = id
 
     try {
@@ -82,9 +58,9 @@ export const GET = withRouteHandler(
       }
 
       return createSuccessResponse(result)
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error fetching chat deployment:', error)
-      return createErrorResponse(error.message || 'Failed to fetch chat deployment', 500)
+      return createErrorResponse(getErrorMessage(error, 'Failed to fetch chat deployment'), 500)
     }
   }
 )
@@ -94,7 +70,7 @@ export const GET = withRouteHandler(
  */
 export const PATCH = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id } = await params
+    const { id } = chatIdParamsSchema.parse(await params)
     const chatId = id
 
     try {
@@ -107,7 +83,7 @@ export const PATCH = withRouteHandler(
       const body = await request.json()
 
       try {
-        const validatedData = chatUpdateSchema.parse(body)
+        const validatedData = updateChatBodySchema.parse(body)
 
         const {
           hasAccess,
@@ -175,7 +151,7 @@ export const PATCH = withRouteHandler(
           logger.info('Keeping existing password')
         }
 
-        const updateData: any = {
+        const updateData: Record<string, unknown> = {
           updatedAt: new Date(),
         }
 
@@ -210,14 +186,19 @@ export const PATCH = withRouteHandler(
           updateData.outputConfigs = outputConfigs
         }
 
+        const emailCount = Array.isArray(updateData.allowedEmails)
+          ? updateData.allowedEmails.length
+          : undefined
+        const outputConfigsCount = Array.isArray(updateData.outputConfigs)
+          ? updateData.outputConfigs.length
+          : undefined
+
         logger.info('Updating chat deployment with values:', {
           chatId,
           authType: updateData.authType,
           hasPassword: updateData.password !== undefined,
-          emailCount: updateData.allowedEmails?.length,
-          outputConfigsCount: updateData.outputConfigs
-            ? updateData.outputConfigs.length
-            : undefined,
+          emailCount,
+          outputConfigsCount,
         })
 
         await db.update(chat).set(updateData).where(eq(chat.id, chatId))
@@ -255,15 +236,18 @@ export const PATCH = withRouteHandler(
           message: 'Chat deployment updated successfully',
         })
       } catch (validationError) {
-        if (validationError instanceof z.ZodError) {
-          const errorMessage = validationError.errors[0]?.message || 'Invalid request data'
-          return createErrorResponse(errorMessage, 400, 'VALIDATION_ERROR')
+        if (isZodError(validationError)) {
+          return createErrorResponse(
+            getValidationErrorMessage(validationError),
+            400,
+            'VALIDATION_ERROR'
+          )
         }
         throw validationError
       }
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error updating chat deployment:', error)
-      return createErrorResponse(error.message || 'Failed to update chat deployment', 500)
+      return createErrorResponse(getErrorMessage(error, 'Failed to update chat deployment'), 500)
     }
   }
 )
@@ -273,7 +257,7 @@ export const PATCH = withRouteHandler(
  */
 export const DELETE = withRouteHandler(
   async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id } = await params
+    const { id } = chatIdParamsSchema.parse(await params)
     const chatId = id
 
     try {
@@ -305,9 +289,9 @@ export const DELETE = withRouteHandler(
       return createSuccessResponse({
         message: 'Chat deployment deleted successfully',
       })
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error deleting chat deployment:', error)
-      return createErrorResponse(error.message || 'Failed to delete chat deployment', 500)
+      return createErrorResponse(getErrorMessage(error, 'Failed to delete chat deployment'), 500)
     }
   }
 )

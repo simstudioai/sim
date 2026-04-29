@@ -4,7 +4,12 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  deleteTableRowBodySchema,
+  getTableQuerySchema,
+  updateTableRowBodySchema,
+} from '@/lib/api/contracts/tables'
+import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -13,19 +18,6 @@ import { deleteRow, updateRow } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowAPI')
-
-const GetRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-})
-
-const UpdateRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  data: z.record(z.unknown(), { required_error: 'Row data is required' }),
-})
-
-const DeleteRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-})
 
 interface RowRouteParams {
   params: Promise<{ tableId: string; rowId: string }>
@@ -43,7 +35,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Row
     }
 
     const { searchParams } = new URL(request.url)
-    const validated = GetRowSchema.parse({
+    const validated = getTableQuerySchema.parse({
       workspaceId: searchParams.get('workspaceId'),
     })
 
@@ -95,11 +87,8 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Row
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
+    if (isZodError(error)) {
+      return validationErrorResponse(error)
     }
 
     logger.error(`[${requestId}] Error getting row:`, error)
@@ -125,7 +114,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
     }
 
-    const validated = UpdateRowSchema.parse(body)
+    const validated = updateTableRowBodySchema.parse(body)
 
     const result = await checkAccess(tableId, authResult.userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -167,11 +156,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
+    if (isZodError(error)) {
+      return validationErrorResponse(error)
     }
 
     const errorMessage = toError(error).message
@@ -213,7 +199,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, { params }: 
       return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
     }
 
-    const validated = DeleteRowSchema.parse(body)
+    const validated = deleteTableRowBodySchema.parse(body)
 
     const result = await checkAccess(tableId, authResult.userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -234,11 +220,8 @@ export const DELETE = withRouteHandler(async (request: NextRequest, { params }: 
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
+    if (isZodError(error)) {
+      return validationErrorResponse(error)
     }
 
     const errorMessage = toError(error).message

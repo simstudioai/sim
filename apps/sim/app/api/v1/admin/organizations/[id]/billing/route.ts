@@ -19,11 +19,17 @@ import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
+import {
+  adminV1GetOrganizationBillingContract,
+  adminV1UpdateOrganizationBillingContract,
+} from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getOrganizationBillingData } from '@/lib/billing/core/organization'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminValidationErrorResponse,
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
@@ -38,8 +44,13 @@ interface RouteParams {
 }
 
 export const GET = withRouteHandler(
-  withAdminAuthParams<RouteParams>(async (_, context) => {
-    const { id: organizationId } = await context.params
+  withAdminAuthParams<RouteParams>(async (request, context) => {
+    const parsed = await parseRequest(adminV1GetOrganizationBillingContract, request, context, {
+      validationErrorResponse: adminValidationErrorResponse,
+    })
+    if (!parsed.success) return parsed.response
+
+    const { id: organizationId } = parsed.data.params
 
     try {
       if (!isBillingEnabled) {
@@ -127,10 +138,20 @@ export const GET = withRouteHandler(
 
 export const PATCH = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: organizationId } = await context.params
+    const routeParams = await context.params
+    const { id: organizationId } = routeParams
 
     try {
-      const body = await request.json()
+      const parsed = await parseRequest(
+        adminV1UpdateOrganizationBillingContract,
+        request,
+        { params: routeParams },
+        {
+          validationErrorResponse: adminValidationErrorResponse,
+          invalidJson: 'throw',
+        }
+      )
+      if (!parsed.success) return parsed.response
 
       const [orgData] = await db
         .select()
@@ -142,15 +163,15 @@ export const PATCH = withRouteHandler(
         return notFoundResponse('Organization')
       }
 
-      if (body.orgUsageLimit !== undefined) {
+      const { orgUsageLimit } = parsed.data.body
+
+      if (orgUsageLimit !== undefined) {
         let newLimit: string | null = null
 
-        if (body.orgUsageLimit === null) {
+        if (orgUsageLimit === null) {
           newLimit = null
-        } else if (typeof body.orgUsageLimit === 'number' && body.orgUsageLimit >= 0) {
-          newLimit = body.orgUsageLimit.toFixed(2)
         } else {
-          return badRequestResponse('orgUsageLimit must be a non-negative number or null')
+          newLimit = orgUsageLimit.toFixed(2)
         }
 
         await db

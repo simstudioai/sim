@@ -1,3 +1,4 @@
+import { workspaceParamsSchema, workspacePreviewBodySchema } from '@/lib/api/contracts/workspaces'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createDocumentPreviewRoute } from '@/app/api/workspaces/[id]/_preview/create-preview-route'
 
@@ -13,5 +14,7 @@ export const POST = withRouteHandler(
     taskId: 'pdf-generate',
     contentType: 'application/pdf',
     label: 'PDF',
+    routeParamsSchema: workspaceParamsSchema,
+    previewBodySchema: workspacePreviewBodySchema,
   })
 )

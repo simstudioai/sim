@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { visionAnalyzeBodySchema } from '@/lib/api/contracts/media-tools'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -9,7 +9,6 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import {
   downloadFileFromStorage,
@@ -20,14 +19,6 @@ import { convertUsageMetadata, extractTextContent } from '@/providers/google/uti
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('VisionAnalyzeAPI')
-
-const VisionAnalyzeSchema = z.object({
-  apiKey: z.string().min(1, 'API key is required'),
-  imageUrl: z.string().optional().nullable(),
-  imageFile: RawFileInputSchema.optional().nullable(),
-  model: z.string().optional().default('gpt-5.2'),
-  prompt: z.string().optional().nullable(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -52,7 +43,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const userId = authResult.userId
     const body = await request.json()
-    const validatedData = VisionAnalyzeSchema.parse(body)
+    const validatedData = visionAnalyzeBodySchema.parse(body)
 
     if (!validatedData.imageUrl && !validatedData.imageFile) {
       return NextResponse.json(

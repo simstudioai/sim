@@ -6,6 +6,8 @@ import { generateId, generateShortId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { webhooksRouteQuerySchema, webhookUpsertBodySchema } from '@/lib/api/contracts/webhooks'
+import { validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -68,8 +70,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const { searchParams } = new URL(request.url)
-    const workflowId = searchParams.get('workflowId')
-    const blockId = searchParams.get('blockId')
+    const queryValidation = validateSchema(webhooksRouteQuerySchema, {
+      workflowId: searchParams.get('workflowId'),
+      blockId: searchParams.get('blockId'),
+    })
+    if (!queryValidation.success) return queryValidation.response
+    const { workflowId, blockId } = queryValidation.data
 
     if (workflowId && blockId) {
       // Collaborative-aware path: allow collaborators with read access to view webhooks
@@ -183,8 +189,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-    const { workflowId, path, provider, providerConfig, blockId } = body
+    const bodyResult = validateSchema(
+      webhookUpsertBodySchema,
+      await request.json(),
+      'Invalid request data'
+    )
+    if (!bodyResult.success) {
+      logger.warn(`[${requestId}] Invalid webhook request data`, {
+        issues: bodyResult.error.issues,
+      })
+      return bodyResult.response
+    }
+
+    const body = bodyResult.data
+    const { workflowId, path, providerConfig, blockId } = body
+    const provider = body.provider || ''
 
     // Validate input
     if (!workflowId) {
@@ -376,7 +395,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         try {
           const syncResult = await syncWebhooksForCredentialSet({
             workflowId,
-            blockId,
+            blockId: blockId || '',
             provider,
             basePath: finalPath,
             credentialSetId,

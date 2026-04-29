@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { noInputSchema } from '@/lib/api/contracts/primitives'
+import { validateSchema } from '@/lib/api/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { cleanupExpiredIdempotencyKeys, getIdempotencyKeyStats } from '@/lib/core/idempotency'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -11,6 +13,9 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // Allow up to 5 minutes for cleanup
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
+  const queryValidation = validateSchema(noInputSchema, {})
+  if (!queryValidation.success) return queryValidation.response
+
   const requestId = generateRequestId()
   logger.info(`Idempotency cleanup triggered (${requestId})`)
 

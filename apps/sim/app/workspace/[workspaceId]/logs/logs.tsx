@@ -1513,7 +1513,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Time Range</span>
         <div className='relative'>
           <Combobox
-            options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
+            options={TIME_RANGE_OPTIONS}
             value={timeRange}
             onChange={handleTimeRangeChange}
             placeholder='All time'

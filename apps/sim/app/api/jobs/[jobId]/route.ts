@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { jobIdParamsSchema } from '@/lib/api/contracts/primitives'
+import { validateSchema } from '@/lib/api/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -11,7 +13,8 @@ const logger = createLogger('TaskStatusAPI')
 
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ jobId: string }> }) => {
-    const { jobId: taskId } = await params
+    const paramsResult = validateSchema(jobIdParamsSchema, await params)
+    const taskId = paramsResult.success ? paramsResult.data.jobId : ''
     const requestId = generateRequestId()
 
     try {

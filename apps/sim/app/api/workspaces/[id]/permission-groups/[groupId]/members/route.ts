@@ -6,7 +6,8 @@ import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/erro
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { addPermissionGroupMemberBodySchema } from '@/lib/api/contracts/permission-groups'
+import { getValidationErrorMessage, isZodError } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -76,10 +77,6 @@ export const GET = withRouteHandler(
   }
 )
 
-const addMemberSchema = z.object({
-  userId: z.string().min(1),
-})
-
 export const POST = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ id: string; groupId: string }> }) => {
     const session = await getSession()
@@ -109,7 +106,7 @@ export const POST = withRouteHandler(
       }
 
       const body = await req.json()
-      const { userId } = addMemberSchema.parse(body)
+      const { userId } = addPermissionGroupMemberBodySchema.parse(body)
 
       const [workspaceMember] = await db
         .select({ email: user.email })
@@ -202,8 +199,8 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ member: newMember }, { status: 201 })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
+      if (isZodError(error)) {
+        return NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 })
       }
       if (error instanceof Error && error.message === 'ALREADY_IN_GROUP') {
         return NextResponse.json(

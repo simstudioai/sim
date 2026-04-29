@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { templateIdParamsSchema, useTemplateBodySchema } from '@/lib/api/contracts/templates'
+import { parseJsonBody, validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
@@ -31,7 +33,9 @@ interface TemplateDetails {
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const paramsValidation = validateSchema(templateIdParamsSchema, await params)
+    if (!paramsValidation.success) return paramsValidation.response
+    const { id } = paramsValidation.data
 
     try {
       const session = await getSession()
@@ -40,8 +44,16 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      // Get workspace ID and connectToTemplate flag from request body
-      const body = await request.json()
+      const parsedBody = await parseJsonBody(request)
+      const bodyResult = parsedBody.success
+        ? validateSchema(useTemplateBodySchema, parsedBody.data)
+        : null
+      const body = bodyResult?.success
+        ? bodyResult.data
+        : ({ workspaceId: undefined, connectToTemplate: false } as {
+            workspaceId?: string
+            connectToTemplate?: boolean
+          })
       const { workspaceId, connectToTemplate = false } = body
 
       if (!workspaceId) {

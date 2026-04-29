@@ -5,6 +5,8 @@ import { useCallback, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button, Input, Label, Textarea } from '@/components/emcn'
 import { Upload } from '@/components/emcn/icons'
+import { requestJson } from '@/lib/api/client/request'
+import { importSkillContract } from '@/lib/api/contracts'
 import { cn } from '@/lib/core/utils/cn'
 import { extractSkillFromZip, parseSkillMarkdown } from './utils'
 
@@ -130,18 +132,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
     setGithubError('')
 
     try {
-      const res = await fetch('/api/skills/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: trimmed }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error || `Import failed (HTTP ${res.status})`)
-      }
-
+      const data = await requestJson(importSkillContract, { body: { url: trimmed } })
       const parsed = parseSkillMarkdown(data.content)
       setGithubState('idle')
       onImport(parsed)

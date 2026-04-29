@@ -4,7 +4,11 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  createCopilotCheckpointBodySchema,
+  listCopilotCheckpointsQuerySchema,
+} from '@/lib/api/contracts/copilot'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -16,13 +20,6 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('WorkflowCheckpointsAPI')
-
-const CreateCheckpointSchema = z.object({
-  workflowId: z.string(),
-  chatId: z.string(),
-  messageId: z.string().optional(), // ID of the user message that triggered this checkpoint
-  workflowState: z.string(), // JSON stringified workflow state
-})
 
 /**
  * POST /api/copilot/checkpoints
@@ -38,7 +35,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     const body = await req.json()
-    const { workflowId, chatId, messageId, workflowState } = CreateCheckpointSchema.parse(body)
+    const validation = validateSchema(createCopilotCheckpointBodySchema, body)
+    if (!validation.success) {
+      return createBadRequestResponse(
+        getValidationErrorMessage(validation.error, 'Invalid checkpoint payload')
+      )
+    }
+    const { workflowId, chatId, messageId, workflowState } = validation.data
 
     logger.info(`[${tracker.requestId}] Creating workflow checkpoint`, {
       userId,
@@ -133,12 +136,15 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const { searchParams } = new URL(req.url)
-    const chatId = searchParams.get('chatId')
+    const queryResult = validateSchema(
+      listCopilotCheckpointsQuerySchema,
+      Object.fromEntries(new URL(req.url).searchParams)
+    )
 
-    if (!chatId) {
-      return createBadRequestResponse('chatId is required')
+    if (!queryResult.success) {
+      return createBadRequestResponse(getValidationErrorMessage(queryResult.error))
     }
+    const { chatId } = queryResult.data
 
     logger.info(`[${tracker.requestId}] Fetching workflow checkpoints for chat`, {
       userId,

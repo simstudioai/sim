@@ -2,6 +2,8 @@ import { db, user, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
@@ -15,7 +17,14 @@ export const runtime = 'nodejs'
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const paramsValidation = validateSchema(workflowIdParamsSchema, await params)
+    if (!paramsValidation.success) {
+      return createErrorResponse(
+        getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
+        400
+      )
+    }
+    const { id } = paramsValidation.data
 
     try {
       const { error } = await validateWorkflowPermissions(id, requestId, 'read')

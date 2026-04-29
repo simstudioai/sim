@@ -2,10 +2,13 @@ import { db } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+import { adminV1TransferOwnershipContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { transferOrganizationOwnership } from '@/lib/billing/organizations/membership'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminValidationErrorResponse,
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
@@ -20,23 +23,22 @@ interface RouteParams {
 
 export const POST = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: organizationId } = await context.params
+    const routeParams = await context.params
+    const { id: organizationId } = routeParams
 
     try {
-      const body = await request.json().catch(() => null)
-      const newOwnerUserId: unknown = body?.newOwnerUserId
-      const currentOwnerUserIdOverride: unknown = body?.currentOwnerUserId
+      const parsed = await parseRequest(
+        adminV1TransferOwnershipContract,
+        request,
+        { params: routeParams },
+        {
+          validationErrorResponse: adminValidationErrorResponse,
+          invalidJsonResponse: () => badRequestResponse('Invalid request body'),
+        }
+      )
+      if (!parsed.success) return parsed.response
 
-      if (typeof newOwnerUserId !== 'string' || newOwnerUserId.length === 0) {
-        return badRequestResponse('newOwnerUserId is required')
-      }
-
-      if (
-        currentOwnerUserIdOverride !== undefined &&
-        (typeof currentOwnerUserIdOverride !== 'string' || currentOwnerUserIdOverride.length === 0)
-      ) {
-        return badRequestResponse('currentOwnerUserId must be a non-empty string when provided')
-      }
+      const { newOwnerUserId, currentOwnerUserId: currentOwnerUserIdOverride } = parsed.data.body
 
       const [orgRow] = await db
         .select({ id: organization.id })
@@ -49,7 +51,7 @@ export const POST = withRouteHandler(
       }
 
       let currentOwnerUserId: string
-      if (typeof currentOwnerUserIdOverride === 'string') {
+      if (currentOwnerUserIdOverride) {
         currentOwnerUserId = currentOwnerUserIdOverride
       } else {
         const [ownerMembership] = await db

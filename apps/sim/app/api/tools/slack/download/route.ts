@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { slackDownloadBodySchema } from '@/lib/api/contracts'
+import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -12,12 +13,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SlackDownloadAPI')
-
-const SlackDownloadSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  fileId: z.string().min(1, 'File ID is required'),
-  fileName: z.string().optional().nullable(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -40,8 +35,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = SlackDownloadSchema.parse(body)
+    const validation = await validateJsonBody(request, slackDownloadBodySchema)
+    if (!validation.success) {
+      if (!validation.error) return validation.response
+      return NextResponse.json(
+        {
+          success: false,
+          error: getValidationErrorMessage(validation.error, 'Invalid request'),
+          details: validation.error.issues,
+        },
+        { status: 400 }
+      )
+    }
+    const validatedData = validation.data
 
     const { accessToken, fileId, fileName } = validatedData
 
@@ -159,12 +165,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: error.errors[0]?.message ?? 'Invalid request' },
-        { status: 400 }
-      )
-    }
     logger.error(`[${requestId}] Error downloading Slack file:`, error)
     return NextResponse.json(
       {

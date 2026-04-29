@@ -3,7 +3,8 @@ import { copilotFeedback } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { submitCopilotFeedbackBodySchema } from '@/lib/api/contracts'
+import { isZodError } from '@/lib/api/server'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -15,16 +16,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CopilotFeedbackAPI')
-
-// Schema for feedback submission
-const FeedbackSchema = z.object({
-  chatId: z.string().uuid('Chat ID must be a valid UUID'),
-  userQuery: z.string().min(1, 'User query is required'),
-  agentResponse: z.string().min(1, 'Agent response is required'),
-  isPositiveFeedback: z.boolean(),
-  feedback: z.string().optional(),
-  workflowYaml: z.string().optional(), // Optional workflow YAML when edit/build workflow tools were used
-})
 
 /**
  * POST /api/copilot/feedback
@@ -44,7 +35,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const body = await req.json()
     const { chatId, userQuery, agentResponse, isPositiveFeedback, feedback, workflowYaml } =
-      FeedbackSchema.parse(body)
+      submitCopilotFeedbackBodySchema.parse(body)
 
     logger.info(`[${tracker.requestId}] Processing copilot feedback submission`, {
       userId: authenticatedUserId,
@@ -96,13 +87,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   } catch (error) {
     const duration = tracker.getDuration()
 
-    if (error instanceof z.ZodError) {
+    if (isZodError(error)) {
       logger.error(`[${tracker.requestId}] Validation error:`, {
         duration,
-        errors: error.errors,
+        errors: error.issues,
       })
       return createBadRequestResponse(
-        `Invalid request data: ${error.errors.map((e) => e.message).join(', ')}`
+        `Invalid request data: ${error.issues.map((e) => e.message).join(', ')}`
       )
     }
 

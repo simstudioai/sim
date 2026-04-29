@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { outlookFoldersQuerySchema } from '@/lib/api/contracts/selectors/microsoft'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -25,12 +27,17 @@ export const GET = withRouteHandler(async (request: Request) => {
   try {
     const session = await getSession()
     const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-
-    if (!credentialId) {
-      logger.error('Missing credentialId in request')
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
+    const validation = validateSchema(outlookFoldersQuerySchema, {
+      credentialId: searchParams.get('credentialId') ?? '',
+    })
+    if (!validation.success) {
+      logger.warn('Invalid Outlook folders request data', { errors: validation.error.issues })
+      return NextResponse.json(
+        { error: getValidationErrorMessage(validation.error, 'Invalid request') },
+        { status: 400 }
+      )
     }
+    const { credentialId } = validation.data
 
     const credentialIdValidation = validateAlphanumericId(credentialId, 'credentialId')
     if (!credentialIdValidation.isValid) {

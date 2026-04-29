@@ -2,6 +2,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
+import { resumeExecutionContextParamsSchema } from '@/lib/api/contracts/workflows'
+import { validateSchema } from '@/lib/api/server'
 import { AuthType } from '@/lib/auth/hybrid'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -48,7 +50,9 @@ export const POST = withRouteHandler(
       params: Promise<{ workflowId: string; executionId: string; contextId: string }>
     }
   ) => {
-    const { workflowId, executionId, contextId } = await params
+    const paramsValidation = validateSchema(resumeExecutionContextParamsSchema, await params)
+    if (!paramsValidation.success) return paramsValidation.response
+    const { workflowId, executionId, contextId } = paramsValidation.data
 
     const access = await validateWorkflowAccess(request, workflowId, false)
     if (access.error) {
@@ -57,14 +61,17 @@ export const POST = withRouteHandler(
 
     const workflow = access.workflow
 
-    let payload: Record<string, unknown> = {}
+    let payload: unknown = {}
     try {
       payload = await request.json()
     } catch {
       payload = {}
     }
 
-    const resumeInput = payload?.input ?? payload ?? {}
+    const resumeInput =
+      typeof payload === 'object' && payload !== null && 'input' in payload
+        ? payload.input
+        : (payload ?? {})
     const isPersonalApiKeyCaller =
       access.auth?.authType === AuthType.API_KEY && access.auth?.apiKeyType === 'personal'
 
@@ -300,7 +307,9 @@ export const GET = withRouteHandler(
       params: Promise<{ workflowId: string; executionId: string; contextId: string }>
     }
   ) => {
-    const { workflowId, executionId, contextId } = await params
+    const paramsValidation = validateSchema(resumeExecutionContextParamsSchema, await params)
+    if (!paramsValidation.success) return paramsValidation.response
+    const { workflowId, executionId, contextId } = paramsValidation.data
 
     const access = await validateWorkflowAccess(request, workflowId, false)
     if (access.error) {

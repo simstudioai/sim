@@ -3,6 +3,11 @@ import { templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  templateIdParamsSchema,
+  updateTemplateOgImageBodySchema,
+} from '@/lib/api/contracts/templates'
+import { parseJsonBody, validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -21,7 +26,9 @@ const logger = createLogger('TemplateOGImageAPI')
 export const PUT = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const paramsValidation = validateSchema(templateIdParamsSchema, await params)
+    if (!paramsValidation.success) return paramsValidation.response
+    const { id } = paramsValidation.data
 
     try {
       const session = await getSession()
@@ -40,7 +47,13 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error }, { status: status || 403 })
       }
 
-      const body = await request.json()
+      const parsedBody = await parseJsonBody(request)
+      const bodyResult = parsedBody.success
+        ? validateSchema(updateTemplateOgImageBodySchema, parsedBody.data)
+        : null
+      const body = bodyResult?.success
+        ? bodyResult.data
+        : ({ imageData: undefined } as { imageData?: string })
       const { imageData } = body
 
       if (!imageData || typeof imageData !== 'string') {
@@ -110,7 +123,9 @@ export const PUT = withRouteHandler(
 export const DELETE = withRouteHandler(
   async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const paramsValidation = validateSchema(templateIdParamsSchema, await params)
+    if (!paramsValidation.success) return paramsValidation.response
+    const { id } = paramsValidation.data
 
     try {
       const session = await getSession()

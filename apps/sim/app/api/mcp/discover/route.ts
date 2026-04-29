@@ -3,6 +3,8 @@ import { permissions, workflowMcpServer, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { unknownRecordSchema } from '@/lib/api/contracts/primitives'
+import { validateSchema } from '@/lib/api/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -16,6 +18,12 @@ export const dynamic = 'force-dynamic'
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
+    const queryValidation = validateSchema(
+      unknownRecordSchema,
+      Object.fromEntries(request.nextUrl.searchParams)
+    )
+    if (!queryValidation.success) return queryValidation.response
+
     const auth = await checkHybridAuth(request, { requireWorkflowId: false })
 
     if (!auth.success || !auth.userId) {

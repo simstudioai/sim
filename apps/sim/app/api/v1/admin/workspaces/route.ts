@@ -14,13 +14,14 @@ import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count } from 'drizzle-orm'
+import { adminV1ListWorkspacesContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import { internalErrorResponse, listResponse } from '@/app/api/v1/admin/responses'
 import {
   type AdminWorkspace,
   createPaginationMeta,
-  parsePaginationParams,
   toAdminWorkspace,
 } from '@/app/api/v1/admin/types'
 
@@ -28,8 +29,10 @@ const logger = createLogger('AdminWorkspacesAPI')
 
 export const GET = withRouteHandler(
   withAdminAuth(async (request) => {
-    const url = new URL(request.url)
-    const { limit, offset } = parsePaginationParams(url)
+    const parsed = await parseRequest(adminV1ListWorkspacesContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const { limit, offset } = parsed.data.query
 
     try {
       const [countResult, workspaces] = await Promise.all([

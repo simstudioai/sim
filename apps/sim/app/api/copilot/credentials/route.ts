@@ -1,4 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { copilotCredentialsQuerySchema } from '@/lib/api/contracts/copilot'
+import { validateSchema } from '@/lib/api/server'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
 import { routeExecution } from '@/lib/copilot/tools/server/router'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -8,7 +10,13 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
  * Returns connected OAuth credentials for the authenticated user.
  * Used by the copilot store for credential masking.
  */
-export const GET = withRouteHandler(async (_req: NextRequest) => {
+export const GET = withRouteHandler(async (req: NextRequest) => {
+  const queryValidation = validateSchema(
+    copilotCredentialsQuerySchema,
+    Object.fromEntries(new URL(req.url).searchParams)
+  )
+  if (!queryValidation.success) return queryValidation.response
+
   const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
   if (!isAuthenticated || !userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

@@ -1,5 +1,8 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { deploymentVersionRouteParamsSchema } from '@/lib/api/contracts/deployments'
+import { workflowDeploymentVersionParamSchema } from '@/lib/api/contracts/workflows'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performRevertToVersion } from '@/lib/workflows/orchestration'
@@ -17,7 +20,18 @@ export const POST = withRouteHandler(
     { params }: { params: Promise<{ id: string; version: string }> }
   ) => {
     const requestId = generateRequestId()
-    const { id, version } = await params
+    const paramsValidation = validateSchema(
+      deploymentVersionRouteParamsSchema,
+      await params,
+      'Invalid route parameters'
+    )
+    if (!paramsValidation.success) {
+      return createErrorResponse(
+        getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
+        400
+      )
+    }
+    const { id, version } = paramsValidation.data
 
     try {
       const {
@@ -29,14 +43,18 @@ export const POST = withRouteHandler(
         return createErrorResponse(error.message, error.status)
       }
 
-      const versionSelector = version === 'active' ? null : Number(version)
-      if (version !== 'active' && !Number.isFinite(versionSelector)) {
+      const versionValidation = validateSchema(
+        workflowDeploymentVersionParamSchema,
+        version,
+        'Invalid version'
+      )
+      if (!versionValidation.success) {
         return createErrorResponse('Invalid version', 400)
       }
 
       const result = await performRevertToVersion({
         workflowId: id,
-        version: version === 'active' ? 'active' : (versionSelector as number),
+        version: versionValidation.data,
         userId: session!.user.id,
         workflow: (workflowRecord ?? {}) as Record<string, unknown>,
         request,

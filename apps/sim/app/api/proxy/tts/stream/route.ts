@@ -3,6 +3,7 @@ import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { ttsStreamBodySchema } from '@/lib/api/contracts/media-tools'
 import { env } from '@/lib/core/config/env'
 import { validateAuthToken } from '@/lib/core/security/deployment'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
@@ -54,22 +55,27 @@ async function validateChatAuth(request: NextRequest, chatId: string): Promise<b
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    let body: any
+    let rawBody: unknown
     try {
-      body = await request.json()
+      rawBody = await request.json()
     } catch {
       return new Response('Invalid request body', { status: 400 })
     }
 
-    const { text, voiceId, modelId = 'eleven_turbo_v2_5', chatId } = body
+    const bodyResult = ttsStreamBodySchema.safeParse(rawBody)
 
-    if (!chatId) {
+    if (
+      !bodyResult.success &&
+      bodyResult.error.issues.some((issue) => issue.path[0] === 'chatId')
+    ) {
       return new Response('chatId is required', { status: 400 })
     }
 
-    if (!text || !voiceId) {
+    if (!bodyResult.success) {
       return new Response('Missing required parameters', { status: 400 })
     }
+
+    const { text, voiceId, modelId, chatId } = bodyResult.data
 
     const isChatAuthed = await validateChatAuth(request, chatId)
     if (!isChatAuthed) {

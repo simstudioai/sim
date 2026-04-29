@@ -1,20 +1,16 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { credentialSet, credentialSetMember, member } from '@sim/db/schema'
+import { credentialSet, credentialSetMember, member, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateCredentialSetBodySchema } from '@/lib/api/contracts/credential-sets'
+import { validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CredentialSet')
-
-const updateCredentialSetSchema = z.object({
-  name: z.string().trim().min(1).max(100).optional(),
-  description: z.string().max(500).nullable().optional(),
-})
 
 async function getCredentialSetWithAccess(credentialSetId: string, userId: string) {
   const [set] = await db
@@ -27,8 +23,11 @@ async function getCredentialSetWithAccess(credentialSetId: string, userId: strin
       createdBy: credentialSet.createdBy,
       createdAt: credentialSet.createdAt,
       updatedAt: credentialSet.updatedAt,
+      creatorName: user.name,
+      creatorEmail: user.email,
     })
     .from(credentialSet)
+    .leftJoin(user, eq(credentialSet.createdBy, user.id))
     .where(eq(credentialSet.id, credentialSetId))
     .limit(1)
 
@@ -42,7 +41,23 @@ async function getCredentialSetWithAccess(credentialSetId: string, userId: strin
 
   if (!membership) return null
 
-  return { set, role: membership.role }
+  const [memberCount] = await db
+    .select({ count: count() })
+    .from(credentialSetMember)
+    .where(
+      and(
+        eq(credentialSetMember.credentialSetId, credentialSetId),
+        eq(credentialSetMember.status, 'active')
+      )
+    )
+
+  return {
+    set: {
+      ...set,
+      memberCount: memberCount?.count ?? 0,
+    },
+    role: membership.role,
+  }
 }
 
 export const GET = withRouteHandler(
@@ -104,7 +119,9 @@ export const PUT = withRouteHandler(
       }
 
       const body = await req.json()
-      const updates = updateCredentialSetSchema.parse(body)
+      const validation = validateSchema(updateCredentialSetBodySchema, body)
+      if (!validation.success) return validation.response
+      const updates = validation.data
 
       if (updates.name) {
         const existingSet = await db
@@ -162,9 +179,6 @@ export const PUT = withRouteHandler(
 
       return NextResponse.json({ credentialSet: updated })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
-      }
       logger.error('Error updating credential set', error)
       return NextResponse.json({ error: 'Failed to update credential set' }, { status: 500 })
     }

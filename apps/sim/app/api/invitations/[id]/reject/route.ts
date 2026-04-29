@@ -1,18 +1,27 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  invitationActionBodySchema,
+  invitationActionParamsSchema,
+} from '@/lib/api/contracts/invitations'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { rejectInvitation } from '@/lib/invitations/core'
 
 const logger = createLogger('InvitationRejectAPI')
 
-const bodySchema = z.object({ token: z.string().min(1).optional() })
-
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id } = await params
+    const parsedParams = invitationActionParamsSchema.safeParse(await params)
+    if (!parsedParams.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(parsedParams.error) },
+        { status: 400 }
+      )
+    }
+    const { id } = parsedParams.data
     const session = await getSession()
 
     if (!session?.user?.id || !session.user.email) {
@@ -20,9 +29,12 @@ export const POST = withRouteHandler(
     }
 
     const body = await request.json().catch(() => ({}))
-    const parsed = bodySchema.safeParse(body)
+    const parsed = invitationActionBodySchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+      return NextResponse.json(
+        { error: getValidationErrorMessage(parsed.error, 'Invalid request body') },
+        { status: 400 }
+      )
     }
 
     const result = await rejectInvitation({

@@ -5,8 +5,12 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, gt, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { z } from 'zod'
 import { renderOTPEmail } from '@/components/emails'
+import {
+  chatEmailOtpRequestBodySchema,
+  chatEmailOtpVerifyBodySchema,
+} from '@/lib/api/contracts/chats'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { getRedisClient } from '@/lib/core/config/redis'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -215,15 +219,6 @@ async function deleteOTP(email: string, chatId: string): Promise<void> {
   }
 }
 
-const otpRequestSchema = z.object({
-  email: z.string().email('Invalid email address'),
-})
-
-const otpVerifySchema = z.object({
-  email: z.string().email('Invalid email address'),
-  otp: z.string().length(6, 'OTP must be 6 digits'),
-})
-
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ identifier: string }> }) => {
     const { identifier } = await params
@@ -248,7 +243,14 @@ export const POST = withRouteHandler(
       }
 
       const body = await request.json()
-      const { email } = otpRequestSchema.parse(body)
+      const validation = validateSchema(chatEmailOtpRequestBodySchema, body)
+      if (!validation.success) {
+        return addCorsHeaders(
+          createErrorResponse(getValidationErrorMessage(validation.error, 'Invalid request'), 400),
+          request
+        )
+      }
+      const { email } = validation.data
 
       const deploymentResult = await db
         .select({
@@ -334,12 +336,6 @@ export const POST = withRouteHandler(
       logger.info(`[${requestId}] OTP sent to ${email} for chat ${deployment.id}`)
       return addCorsHeaders(createSuccessResponse({ message: 'Verification code sent' }), request)
     } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        return addCorsHeaders(
-          createErrorResponse(error.errors[0]?.message || 'Invalid request', 400),
-          request
-        )
-      }
       logger.error(`[${requestId}] Error processing OTP request:`, error)
       return addCorsHeaders(
         createErrorResponse(error.message || 'Failed to process request', 500),
@@ -356,7 +352,14 @@ export const PUT = withRouteHandler(
 
     try {
       const body = await request.json()
-      const { email, otp } = otpVerifySchema.parse(body)
+      const validation = validateSchema(chatEmailOtpVerifyBodySchema, body)
+      if (!validation.success) {
+        return addCorsHeaders(
+          createErrorResponse(getValidationErrorMessage(validation.error, 'Invalid request'), 400),
+          request
+        )
+      }
+      const { email, otp } = validation.data
 
       const deploymentResult = await db
         .select({
@@ -429,12 +432,6 @@ export const PUT = withRouteHandler(
 
       return response
     } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        return addCorsHeaders(
-          createErrorResponse(error.errors[0]?.message || 'Invalid request', 400),
-          request
-        )
-      }
       logger.error(`[${requestId}] Error verifying OTP:`, error)
       return addCorsHeaders(
         createErrorResponse(error.message || 'Failed to process request', 500),

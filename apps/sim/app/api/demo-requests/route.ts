@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { validationErrorResponse } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -50,12 +51,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     if (!validationResult.success) {
       logger.warn(`[${requestId}] Invalid demo request data`, {
-        errors: validationResult.error.format(),
+        issues: validationResult.error.issues,
       })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: validationResult.error.format() },
-        { status: 400 }
-      )
+      return validationErrorResponse(validationResult.error, 'Invalid request data')
     }
 
     const { firstName, lastName, companyEmail, phoneNumber, companySize, details } =

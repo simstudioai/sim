@@ -105,15 +105,16 @@ export interface KnowledgeBaseData {
   id: string
   userId: string
   name: string
-  description?: string
+  description: string | null
   tokenCount: number
   embeddingModel: string
   embeddingDimension: number
   chunkingConfig: ExtendedChunkingConfig
   createdAt: string
   updatedAt: string
-  deletedAt?: string | null
-  workspaceId?: string
+  deletedAt: string | null
+  workspaceId: string | null
+  docCount?: number
   connectorTypes?: string[]
 }
 

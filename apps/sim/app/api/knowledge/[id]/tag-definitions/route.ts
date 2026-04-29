@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { createTagDefinitionBodySchema } from '@/lib/api/contracts/knowledge'
+import { parseJsonBody, validateSchema } from '@/lib/api/server'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
@@ -79,27 +80,22 @@ export const POST = withRouteHandler(
         }
       }
 
-      const body = await req.json()
+      const parsedBody = await parseJsonBody(req)
+      if (!parsedBody.success) return parsedBody.response
 
-      const CreateTagDefinitionSchema = z.object({
-        tagSlot: z.string().min(1, 'Tag slot is required'),
-        displayName: z.string().min(1, 'Display name is required'),
-        fieldType: z.enum(SUPPORTED_FIELD_TYPES as [string, ...string[]], {
-          errorMap: () => ({ message: 'Invalid field type' }),
-        }),
-      })
+      const validation = validateSchema(
+        createTagDefinitionBodySchema,
+        parsedBody.data,
+        'Invalid request data'
+      )
+      if (!validation.success) return validation.response
 
-      let validatedData
-      try {
-        validatedData = CreateTagDefinitionSchema.parse(body)
-      } catch (error) {
-        if (error instanceof z.ZodError) {
-          return NextResponse.json(
-            { error: 'Invalid request data', details: error.errors },
-            { status: 400 }
-          )
-        }
-        throw error
+      const validatedData = validation.data
+      if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(validatedData.fieldType)) {
+        return NextResponse.json(
+          { error: 'Invalid request data', details: 'Invalid field type' },
+          { status: 400 }
+        )
       }
 
       const newTagDefinition = await createTagDefinition(

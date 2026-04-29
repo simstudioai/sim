@@ -4,7 +4,8 @@ import { member, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { transferOwnershipBodySchema } from '@/lib/api/contracts/organization'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import {
@@ -14,11 +15,6 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('TransferOwnershipAPI')
-
-const transferOwnershipSchema = z.object({
-  newOwnerUserId: z.string().min(1),
-  alsoLeave: z.boolean().optional().default(false),
-})
 
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -30,10 +26,10 @@ export const POST = withRouteHandler(
 
       const { id: organizationId } = await params
       const body = await request.json().catch(() => ({}))
-      const validation = transferOwnershipSchema.safeParse(body)
+      const validation = transferOwnershipBodySchema.safeParse(body)
       if (!validation.success) {
         return NextResponse.json(
-          { error: validation.error.errors[0]?.message ?? 'Invalid request' },
+          { error: getValidationErrorMessage(validation.error, 'Invalid request') },
           { status: 400 }
         )
       }

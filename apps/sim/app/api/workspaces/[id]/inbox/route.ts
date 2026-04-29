@@ -2,7 +2,8 @@ import { db, mothershipInboxTask, workspace } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateInboxConfigBodySchema } from '@/lib/api/contracts/inbox'
+import { validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasInboxAccess } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -10,11 +11,6 @@ import { disableInbox, enableInbox, updateInboxAddress } from '@/lib/mothership/
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InboxConfigAPI')
-
-const patchSchema = z.object({
-  enabled: z.boolean().optional(),
-  username: z.string().min(1).max(64).optional(),
-})
 
 export const GET = withRouteHandler(
   async (_req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -101,7 +97,13 @@ export const PATCH = withRouteHandler(
     }
 
     try {
-      const body = patchSchema.parse(await req.json())
+      const validation = validateSchema(
+        updateInboxConfigBodySchema,
+        await req.json(),
+        'Invalid request'
+      )
+      if (!validation.success) return validation.response
+      const body = validation.data
 
       if (body.enabled === true) {
         const [current] = await db
@@ -128,13 +130,6 @@ export const PATCH = withRouteHandler(
 
       return NextResponse.json({ error: 'No valid update provided' }, { status: 400 })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Invalid request', details: error.errors },
-          { status: 400 }
-        )
-      }
-
       logger.error('Inbox config update failed', {
         workspaceId,
         error: error instanceof Error ? error.message : 'Unknown error',

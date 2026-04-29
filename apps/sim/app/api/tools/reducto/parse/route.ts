@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { reductoParseBodySchema } from '@/lib/api/contracts/media-tools'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -8,21 +9,12 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ReductoParseAPI')
-
-const ReductoParseSchema = z.object({
-  apiKey: z.string().min(1, 'API key is required'),
-  filePath: z.string().optional(),
-  file: RawFileInputSchema.optional(),
-  pages: z.array(z.number()).optional(),
-  tableOutputFormat: z.enum(['html', 'md']).optional(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -45,7 +37,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const userId = authResult.userId
     const body = await request.json()
-    const validatedData = ReductoParseSchema.parse(body)
+    const validation = validateSchema(reductoParseBodySchema, body)
+    if (!validation.success) {
+      logger.warn(`[${requestId}] Invalid request data`, { errors: validation.error.issues })
+      return NextResponse.json(
+        {
+          success: false,
+          error: getValidationErrorMessage(validation.error, 'Invalid request data'),
+          details: validation.error.issues,
+        },
+        { status: 400 }
+      )
+    }
+    const validatedData = validation.data
 
     logger.info(`[${requestId}] Reducto parse request`, {
       fileName: validatedData.file?.name,
@@ -145,18 +149,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       output: reductoData,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error in Reducto parse:`, error)
 
     return NextResponse.json(

@@ -1,18 +1,13 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { purchaseCreditsBodySchema } from '@/lib/api/contracts/subscription'
 import { getSession } from '@/lib/auth'
 import { getCreditBalance } from '@/lib/billing/credits/balance'
 import { purchaseCredits } from '@/lib/billing/credits/purchase'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CreditsAPI')
-
-const PurchaseSchema = z.object({
-  amount: z.number().min(10).max(1000),
-  requestId: z.string().uuid(),
-})
 
 export const GET = withRouteHandler(async () => {
   const session = await getSession()
@@ -40,7 +35,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   try {
     const body = await request.json()
-    const validation = PurchaseSchema.safeParse(body)
+    const validation = purchaseCreditsBodySchema.safeParse(body)
 
     if (!validation.success) {
       return NextResponse.json(

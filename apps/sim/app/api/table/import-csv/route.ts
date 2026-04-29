@@ -2,13 +2,14 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
+import { csvExtensionSchema, csvImportFormSchema } from '@/lib/api/contracts/tables'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   batchInsertRows,
   CSV_MAX_BATCH_SIZE,
-  CSV_MAX_FILE_SIZE_BYTES,
   coerceRowsForTable,
   createTable,
   deleteTable,
@@ -33,25 +34,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const formData = await request.formData()
-    const file = formData.get('file')
-    const workspaceId = formData.get('workspaceId') as string | null
+    const validation = csvImportFormSchema.safeParse({
+      file: formData.get('file'),
+      workspaceId: formData.get('workspaceId'),
+    })
 
-    if (!file || !(file instanceof File)) {
-      return NextResponse.json({ error: 'CSV file is required' }, { status: 400 })
-    }
-
-    if (file.size > CSV_MAX_FILE_SIZE_BYTES) {
+    if (!validation.success) {
       return NextResponse.json(
-        {
-          error: `File exceeds maximum allowed size of ${CSV_MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB`,
-        },
+        { error: getValidationErrorMessage(validation.error) },
         { status: 400 }
       )
     }
 
-    if (!workspaceId) {
-      return NextResponse.json({ error: 'Workspace ID is required' }, { status: 400 })
-    }
+    const { file, workspaceId } = validation.data
 
     const permission = await getUserEntityPermissions(authResult.userId, 'workspace', workspaceId)
     if (permission !== 'write' && permission !== 'admin') {
@@ -59,12 +54,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const ext = file.name.split('.').pop()?.toLowerCase()
-    if (ext !== 'csv' && ext !== 'tsv') {
-      return NextResponse.json({ error: 'Only CSV and TSV files are supported' }, { status: 400 })
+    const extensionValidation = csvExtensionSchema.safeParse(ext)
+    if (!extensionValidation.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(extensionValidation.error) },
+        { status: 400 }
+      )
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const delimiter = ext === 'tsv' ? '\t' : ','
+    const delimiter = extensionValidation.data === 'tsv' ? '\t' : ','
     const { headers, rows } = await parseCsvBuffer(buffer, delimiter)
 
     const { columns, headerToColumn } = inferSchemaFromCsv(headers, rows)

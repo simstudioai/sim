@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateUsageLimitBodySchema, usageQuerySchema } from '@/lib/api/contracts/subscription'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getUserUsageLimitInfo, updateUserUsageLimit } from '@/lib/billing'
 import {
@@ -11,18 +12,6 @@ import { isUserMemberOfOrganization } from '@/lib/billing/organizations/membersh
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UnifiedUsageAPI')
-
-const usageContextEnum = z.enum(['user', 'organization'])
-
-const usageUpdateSchema = z
-  .object({
-    limit: z.number().min(0, 'Limit must be a positive number'),
-    context: usageContextEnum.optional().default('user'),
-    organizationId: z.string().optional(),
-  })
-  .refine((data) => data.context !== 'organization' || data.organizationId, {
-    message: 'Organization ID is required when context is organization',
-  })
 
 /**
  * Unified Usage Endpoint
@@ -37,17 +26,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const context = searchParams.get('context') || 'user'
-    const userId = searchParams.get('userId') || session.user.id
-    const organizationId = searchParams.get('organizationId')
-
-    if (!['user', 'organization'].includes(context)) {
+    const queryResult = usageQuerySchema.safeParse(
+      Object.fromEntries(request.nextUrl.searchParams.entries())
+    )
+    if (!queryResult.success) {
       return NextResponse.json(
         { error: 'Invalid context. Must be "user" or "organization"' },
         { status: 400 }
       )
     }
+    const { context, userId = session.user.id, organizationId } = queryResult.data
 
     if (context === 'user' && userId !== session.user.id) {
       return NextResponse.json(
@@ -85,7 +73,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       success: true,
       context,
       userId,
-      organizationId,
+      organizationId: organizationId ?? null,
       data: usageLimitInfo,
     })
   } catch (error) {
@@ -107,12 +95,12 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
     }
 
     const body = await request.json()
-    const validation = usageUpdateSchema.safeParse(body)
+    const validation = validateSchema(updateUsageLimitBodySchema, body)
 
     if (!validation.success) {
-      const firstError = validation.error.errors[0]
-      logger.error('Validation error:', firstError)
-      return NextResponse.json({ error: firstError.message }, { status: 400 })
+      const message = getValidationErrorMessage(validation.error)
+      logger.error('Validation error:', message)
+      return NextResponse.json({ error: message }, { status: 400 })
     }
 
     const { limit, context, organizationId } = validation.data
@@ -147,7 +135,7 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       success: true,
       context,
       userId,
-      organizationId,
+      organizationId: organizationId ?? null,
       data: updatedInfo,
     })
   } catch (error) {

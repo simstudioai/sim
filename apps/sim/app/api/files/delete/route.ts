@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { fileDeleteBodySchema } from '@/lib/api/contracts/storage-transfer'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { StorageContext } from '@/lib/uploads/config'
@@ -36,7 +38,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = authResult.userId
-    const requestData = await request.json()
+    const validationResult = fileDeleteBodySchema.safeParse(await request.json())
+    if (!validationResult.success) {
+      throw new InvalidRequestError(
+        getValidationErrorMessage(validationResult.error, 'Invalid request data')
+      )
+    }
+
+    const requestData = validationResult.data
     const { filePath, context } = requestData
 
     logger.info('File delete request received:', { filePath, context, userId })

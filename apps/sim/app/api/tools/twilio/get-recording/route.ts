@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { twilioGetRecordingBodySchema } from '@/lib/api/contracts'
+import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -44,12 +45,6 @@ interface TwilioTranscriptionsResponse {
   transcriptions?: TwilioTranscription[]
 }
 
-const TwilioGetRecordingSchema = z.object({
-  accountSid: z.string().min(1, 'Account SID is required'),
-  authToken: z.string().min(1, 'Auth token is required'),
-  recordingSid: z.string().min(1, 'Recording SID is required'),
-})
-
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
@@ -67,8 +62,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const body = await request.json()
-    const validatedData = TwilioGetRecordingSchema.parse(body)
+    const validation = await validateJsonBody(request, twilioGetRecordingBodySchema)
+    if (!validation.success) {
+      if (!validation.error) return validation.response
+      return NextResponse.json(
+        {
+          success: false,
+          error: getValidationErrorMessage(validation.error, 'Invalid request data'),
+          details: validation.error.issues,
+        },
+        { status: 400 }
+      )
+    }
+    const validatedData = validation.data
 
     const { accountSid, authToken, recordingSid } = validatedData
 

@@ -4,6 +4,20 @@ export const FORMS_API_BASE = 'https://forms.googleapis.com/v1'
 
 const logger = createLogger('GoogleFormsUtils')
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object'
+}
+
+export function getGoogleFormsErrorMessage(data: unknown, fallback: string): string {
+  if (!isRecord(data)) return fallback
+
+  const { error } = data
+  if (!isRecord(error)) return fallback
+
+  const { message } = error
+  return typeof message === 'string' ? message : fallback
+}
+
 export function buildListResponsesUrl(params: { formId: string; pageSize?: number }): string {
   const { formId, pageSize } = params
   const url = new URL(`${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}/responses`)

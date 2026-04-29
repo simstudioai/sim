@@ -1,5 +1,9 @@
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
-import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
+import {
+  getProviderConfig,
+  type PollingProviderHandler,
+  type PollWebhookContext,
+} from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
@@ -87,7 +91,7 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
         logger
       )
 
-      const config = webhookData.providerConfig as unknown as GoogleDriveWebhookConfig
+      const config = getProviderConfig<GoogleDriveWebhookConfig>(webhookData.providerConfig)
 
       // First poll (or re-seed after 410): seed page token, preserve any existing known file IDs.
       if (!config.pageToken) {

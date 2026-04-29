@@ -1,7 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateDocumentBodySchema } from '@/lib/api/contracts/knowledge'
+import { isZodError } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -15,39 +16,6 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('DocumentByIdAPI')
-
-const UpdateDocumentSchema = z.object({
-  filename: z.string().min(1, 'Filename is required').optional(),
-  enabled: z.boolean().optional(),
-  chunkCount: z.number().min(0).optional(),
-  tokenCount: z.number().min(0).optional(),
-  characterCount: z.number().min(0).optional(),
-  processingStatus: z.enum(['pending', 'processing', 'completed', 'failed']).optional(),
-  processingError: z.string().optional(),
-  markFailedDueToTimeout: z.boolean().optional(),
-  retryProcessing: z.boolean().optional(),
-  // Text tag fields
-  tag1: z.string().optional(),
-  tag2: z.string().optional(),
-  tag3: z.string().optional(),
-  tag4: z.string().optional(),
-  tag5: z.string().optional(),
-  tag6: z.string().optional(),
-  tag7: z.string().optional(),
-  // Number tag fields
-  number1: z.string().optional(),
-  number2: z.string().optional(),
-  number3: z.string().optional(),
-  number4: z.string().optional(),
-  number5: z.string().optional(),
-  // Date tag fields
-  date1: z.string().optional(),
-  date2: z.string().optional(),
-  // Boolean tag fields
-  boolean1: z.string().optional(),
-  boolean2: z.string().optional(),
-  boolean3: z.string().optional(),
-})
 
 export const GET = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ id: string; documentId: string }> }) => {
@@ -123,7 +91,7 @@ export const PUT = withRouteHandler(
       const body = await req.json()
 
       try {
-        const validatedData = UpdateDocumentSchema.parse(body)
+        const validatedData = updateDocumentBodySchema.parse(body)
 
         const updateData: any = {}
 
@@ -225,13 +193,13 @@ export const PUT = withRouteHandler(
           })
         }
       } catch (validationError) {
-        if (validationError instanceof z.ZodError) {
+        if (isZodError(validationError)) {
           logger.warn(`[${requestId}] Invalid document update data`, {
-            errors: validationError.errors,
+            errors: validationError.issues,
             documentId,
           })
           return NextResponse.json(
-            { error: 'Invalid request data', details: validationError.errors },
+            { error: 'Invalid request data', details: validationError.issues },
             { status: 400 }
           )
         }

@@ -3,6 +3,11 @@ import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  workflowExecutionParamsSchema,
+  workflowExecutionStreamQuerySchema,
+} from '@/lib/api/contracts/workflows'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -30,7 +35,20 @@ export const GET = withRouteHandler(
     req: NextRequest,
     { params }: { params: Promise<{ id: string; executionId: string }> }
   ) => {
-    const { id: workflowId, executionId } = await params
+    const paramsValidation = validateSchema(
+      workflowExecutionParamsSchema,
+      await params,
+      'Invalid route parameters'
+    )
+    if (!paramsValidation.success) {
+      return NextResponse.json(
+        {
+          error: getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
+        },
+        { status: 400 }
+      )
+    }
+    const { id: workflowId, executionId } = paramsValidation.data
 
     try {
       const session = await getSession()
@@ -59,9 +77,20 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Run does not belong to this workflow' }, { status: 403 })
       }
 
-      const fromParam = req.nextUrl.searchParams.get('from')
-      const parsed = fromParam ? Number.parseInt(fromParam, 10) : 0
-      const fromEventId = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
+      const queryValidation = validateSchema(
+        workflowExecutionStreamQuerySchema,
+        { from: req.nextUrl.searchParams.get('from') },
+        'Invalid query parameters'
+      )
+      if (!queryValidation.success) {
+        return NextResponse.json(
+          {
+            error: getValidationErrorMessage(queryValidation.error, 'Invalid query parameters'),
+          },
+          { status: 400 }
+        )
+      }
+      const { from: fromEventId } = queryValidation.data
 
       logger.info('Reconnection stream requested', {
         workflowId,

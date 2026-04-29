@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { mistralParseBodySchema } from '@/lib/api/contracts/media-tools'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -8,7 +9,6 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import {
   downloadFileFromStorage,
@@ -18,18 +18,6 @@ import {
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('MistralParseAPI')
-
-const MistralParseSchema = z.object({
-  apiKey: z.string().min(1, 'API key is required'),
-  filePath: z.string().min(1, 'File path is required').optional(),
-  fileData: FileInputSchema.optional(),
-  file: FileInputSchema.optional(),
-  resultType: z.string().optional(),
-  pages: z.array(z.number()).optional(),
-  includeImageBase64: z.boolean().optional(),
-  imageLimit: z.number().optional(),
-  imageMinSize: z.number().optional(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -52,7 +40,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const userId = authResult.userId
     const body = await request.json()
-    const validatedData = MistralParseSchema.parse(body)
+    const validation = validateSchema(mistralParseBodySchema, body)
+    if (!validation.success) {
+      logger.warn(`[${requestId}] Invalid request data`, { errors: validation.error.issues })
+      return NextResponse.json(
+        {
+          success: false,
+          error: getValidationErrorMessage(validation.error, 'Invalid request data'),
+          details: validation.error.issues,
+        },
+        { status: 400 }
+      )
+    }
+    const validatedData = validation.data
 
     const fileData = validatedData.file || validatedData.fileData
     const filePath = typeof fileData === 'string' ? fileData : validatedData.filePath
@@ -253,18 +253,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       output: mistralData,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error in Mistral parse:`, error)
 
     return NextResponse.json(

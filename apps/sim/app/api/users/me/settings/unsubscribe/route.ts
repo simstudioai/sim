@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { unsubscribeBodySchema, unsubscribeQuerySchema } from '@/lib/api/contracts/user'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { EmailType } from '@/lib/messaging/email/mailer'
@@ -14,24 +14,21 @@ import {
 
 const logger = createLogger('UnsubscribeAPI')
 
-const unsubscribeSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  token: z.string().min(1, 'Token is required'),
-  type: z.enum(['all', 'marketing', 'updates', 'notifications']).optional().default('all'),
-})
-
 export const GET = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
     const { searchParams } = new URL(req.url)
-    const email = searchParams.get('email')
-    const token = searchParams.get('token')
+    const parsedQuery = unsubscribeQuerySchema.safeParse({
+      email: searchParams.get('email') || undefined,
+      token: searchParams.get('token') || undefined,
+    })
 
-    if (!email || !token) {
+    if (!parsedQuery.success) {
       logger.warn(`[${requestId}] Missing email or token in GET request`)
       return NextResponse.json({ error: 'Missing email or token parameter' }, { status: 400 })
     }
+    const { email, token } = parsedQuery.data
 
     const tokenVerification = verifyUnsubscribeToken(email, token)
     if (!tokenVerification.valid) {
@@ -74,25 +71,30 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     let type: 'all' | 'marketing' | 'updates' | 'notifications' = 'all'
 
     if (contentType.includes('application/x-www-form-urlencoded')) {
-      email = searchParams.get('email') || ''
-      token = searchParams.get('token') || ''
+      const parsedQuery = unsubscribeQuerySchema.safeParse({
+        email: searchParams.get('email') || undefined,
+        token: searchParams.get('token') || undefined,
+      })
 
-      if (!email || !token) {
+      if (!parsedQuery.success) {
         logger.warn(`[${requestId}] One-click unsubscribe missing email or token in URL`)
         return NextResponse.json({ error: 'Missing email or token parameter' }, { status: 400 })
       }
 
+      email = parsedQuery.data.email
+      token = parsedQuery.data.token
+
       logger.info(`[${requestId}] Processing one-click unsubscribe for: ${email}`)
     } else {
       const body = await req.json()
-      const result = unsubscribeSchema.safeParse(body)
+      const result = unsubscribeBodySchema.safeParse(body)
 
       if (!result.success) {
         logger.warn(`[${requestId}] Invalid unsubscribe POST data`, {
-          errors: result.error.format(),
+          errors: result.error.issues,
         })
         return NextResponse.json(
-          { error: 'Invalid request data', details: result.error.format() },
+          { error: 'Invalid request data', details: result.error.issues },
           { status: 400 }
         )
       }

@@ -12,7 +12,8 @@ import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { createTemplateBodySchema, templateListQuerySchema } from '@/lib/api/contracts/templates'
+import { validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -21,40 +22,15 @@ import {
   extractRequiredCredentials,
   sanitizeCredentials,
 } from '@/lib/workflows/credentials/credential-extractor'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('TemplatesAPI')
 
 export const revalidate = 0
 
-// Function to sanitize sensitive data from workflow state
-// Now uses the more comprehensive sanitizeCredentials from credential-extractor
-function sanitizeWorkflowState(state: any): any {
+function sanitizeWorkflowState(state: Partial<WorkflowState> | null | undefined): unknown {
   return sanitizeCredentials(state)
 }
-
-// Schema for creating a template
-const CreateTemplateSchema = z.object({
-  workflowId: z.string().min(1, 'Workflow ID is required'),
-  name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
-  details: z
-    .object({
-      tagline: z.string().max(500, 'Tagline must be less than 500 characters').optional(),
-      about: z.string().optional(), // Markdown long description
-    })
-    .optional(),
-  creatorId: z.string().min(1, 'Creator profile is required'),
-  tags: z.array(z.string()).max(10, 'Maximum 10 tags allowed').optional().default([]),
-})
-
-// Schema for query parameters
-const QueryParamsSchema = z.object({
-  limit: z.coerce.number().optional().default(50),
-  offset: z.coerce.number().optional().default(0),
-  search: z.string().optional(),
-  workflowId: z.string().optional(),
-  status: z.enum(['pending', 'approved', 'rejected']).optional(),
-  includeAllStatuses: z.coerce.boolean().optional().default(false), // For super users
-})
 
 // GET /api/templates - Retrieve templates
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -68,7 +44,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const { searchParams } = new URL(request.url)
-    const params = QueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
+    const validation = validateSchema(
+      templateListQuerySchema,
+      Object.fromEntries(searchParams.entries()),
+      'Invalid query parameters'
+    )
+    if (!validation.success) {
+      logger.warn(`[${requestId}] Invalid query parameters`, {
+        errors: validation.error.issues,
+      })
+      return validation.response
+    }
+    const params = validation.data
 
     // Check if user is a super user
     const { effectiveSuperUser } = await verifyEffectiveSuperUser(session.user.id)
@@ -209,15 +196,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         ),
       },
     })
-  } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid query parameters`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid query parameters', details: error.errors },
-        { status: 400 }
-      )
-    }
-
+  } catch (error) {
     logger.error(`[${requestId}] Error fetching templates`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -235,7 +214,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const body = await request.json()
-    const data = CreateTemplateSchema.parse(body)
+    const validation = validateSchema(createTemplateBodySchema, body, 'Invalid template data')
+    if (!validation.success) {
+      logger.warn(`[${requestId}] Invalid template data`, { errors: validation.error.issues })
+      return validation.response
+    }
+    const data = validation.data
 
     const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
       workflowId: data.workflowId,
@@ -297,7 +281,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     // Ensure the state includes workflow variables (if not already included)
-    let stateWithVariables = activeVersion[0].state as any
+    let stateWithVariables = activeVersion[0].state as Partial<WorkflowState> | null | undefined
     if (stateWithVariables && !stateWithVariables.variables) {
       // Fetch workflow variables if not in deployment version
       const [workflowRecord] = await db
@@ -308,7 +292,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       stateWithVariables = {
         ...stateWithVariables,
-        variables: workflowRecord?.variables || undefined,
+        variables: (workflowRecord?.variables as WorkflowState['variables']) || undefined,
       }
     }
 
@@ -365,15 +349,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
       { status: 201 }
     )
-  } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid template data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid template data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
+  } catch (error) {
     logger.error(`[${requestId}] Error creating template`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

@@ -261,7 +261,7 @@ export const pulseParserV2Tool: ToolConfig<PulseParserV2Input, PulseParserOutput
   directExecution: undefined,
   transformResponse: pulseParserTool.transformResponse
     ? (response: Response, params?: PulseParserV2Input) =>
-        pulseParserTool.transformResponse!(response, params as unknown as PulseParserInput)
+        pulseParserTool.transformResponse!(response, params)
     : undefined,
   params: {
     file: {

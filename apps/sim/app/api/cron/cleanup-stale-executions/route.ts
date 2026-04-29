@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { noInputSchema } from '@/lib/api/contracts/primitives'
+import { validateSchema } from '@/lib/api/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { JOB_RETENTION_HOURS, JOB_STATUS } from '@/lib/core/async-jobs'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
@@ -17,6 +19,9 @@ const MAX_INT32 = 2_147_483_647
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
+    const validation = validateSchema(noInputSchema, {})
+    if (!validation.success) return validation.response
+
     const authError = verifyCronAuth(request, 'Stale execution cleanup')
     if (authError) {
       return authError

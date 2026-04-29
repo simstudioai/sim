@@ -4,7 +4,11 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
-import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
+import {
+  getProviderConfig,
+  type PollingProviderHandler,
+  type PollWebhookContext,
+} from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
@@ -78,7 +82,7 @@ export const rssPollingHandler: PollingProviderHandler = {
     const webhookId = webhookData.id
 
     try {
-      const config = webhookData.providerConfig as unknown as RssWebhookConfig
+      const config = getProviderConfig<RssWebhookConfig>(webhookData.providerConfig)
 
       if (!config?.feedUrl) {
         logger.error(`[${requestId}] Missing feedUrl for webhook ${webhookId}`)

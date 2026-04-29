@@ -5,6 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { removeCredentialSetMemberQuerySchema } from '@/lib/api/contracts/credential-sets'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -138,11 +140,18 @@ export const DELETE = withRouteHandler(
 
     const { id } = await params
     const { searchParams } = new URL(req.url)
-    const memberId = searchParams.get('memberId')
+    const validation = removeCredentialSetMemberQuerySchema.safeParse({
+      memberId: searchParams.get('memberId') ?? '',
+    })
 
-    if (!memberId) {
-      return NextResponse.json({ error: 'memberId is required' }, { status: 400 })
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(validation.error) },
+        { status: 400 }
+      )
     }
+
+    const { memberId } = validation.data
 
     try {
       const result = await getCredentialSetWithAccess(id, session.user.id)
