@@ -30,6 +30,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
@@ -37,6 +38,7 @@ import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/compo
 import { getBlock, getBlockByToolName } from '@/blocks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
+import { normalizeToolId } from '@/tools'
 
 const DEFAULT_BLOCK_COLOR = '#6b7280'
 const DEFAULT_TREE_PANE_WIDTH = 360
@@ -153,8 +155,9 @@ function getDisplayChildren(span: TraceSpan): TraceSpan[] {
 function getBlockAppearance(type: string, toolName?: string, provider?: string): BlockAppearance {
   const lowerType = type.toLowerCase()
   if (lowerType === 'tool' && toolName) {
-    if (toolName === 'load_skill') return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
-    const toolBlock = getBlockByToolName(toolName)
+    const normalized = normalizeToolId(toolName)
+    if (normalized === 'load_skill') return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
+    const toolBlock = getBlockByToolName(normalized)
     if (toolBlock) return { icon: toolBlock.icon, bgColor: toolBlock.bgColor }
   }
   if (lowerType === 'loop' || lowerType === 'loop-iteration')
@@ -191,8 +194,9 @@ function formatTokenCount(value: number | undefined): string | undefined {
 
 function formatCostAmount(value: number | undefined): string | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
-  if (value < 0.0001) return '<$0.0001'
-  return `$${value.toFixed(4)}`
+  const credits = dollarsToCredits(value)
+  if (credits <= 0) return undefined
+  return `${credits.toLocaleString()} credits`
 }
 
 function formatTtft(ms: number | undefined): string | undefined {
@@ -206,6 +210,11 @@ function formatTps(outputTokens: number | undefined, durationMs: number): string
   if (!(durationMs > 0)) return undefined
   const tps = Math.round(outputTokens / (durationMs / 1000))
   return tps > 0 ? `${tps.toLocaleString('en-US')} tok/s` : undefined
+}
+
+function getDisplayName(span: TraceSpan): string {
+  if (span.type?.toLowerCase() === 'tool') return normalizeToolId(span.name)
+  return span.name
 }
 
 /**
@@ -294,7 +303,7 @@ function findSpan(spans: TraceSpan[], id: string | null): TraceSpan | null {
  */
 function spanMatchesQuery(span: TraceSpan, query: string): boolean {
   if (!query) return true
-  return (span.name ?? '').toLowerCase().includes(query.toLowerCase())
+  return getDisplayName(span).toLowerCase().includes(query.toLowerCase())
 }
 
 /**
@@ -431,12 +440,12 @@ const TraceTreeRow = memo(function TraceTreeRow({
                 nameMatches && 'text-[var(--text-primary)]'
               )}
             >
-              {span.name}
+              {getDisplayName(span)}
             </span>
           </Tooltip.Trigger>
           <Tooltip.Content side='right' className='max-w-[320px]'>
             <div className='flex flex-col gap-0.5'>
-              <span className='font-medium'>{span.name}</span>
+              <span className='font-medium'>{getDisplayName(span)}</span>
               <span className='text-[var(--text-tertiary)] text-caption'>
                 {formatDuration(duration, { precision: 2 }) || '—'}
                 {offsetMs > 0 && ` · +${formatDuration(offsetMs, { precision: 2 })}`}
@@ -797,7 +806,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
               hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
-            {span.name}
+            {getDisplayName(span)}
           </h3>
           <div className='flex items-center gap-1.5 font-medium text-[var(--text-tertiary)] text-caption'>
             <Badge variant={hasError ? 'red' : 'green'} size='sm'>

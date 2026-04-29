@@ -556,7 +556,7 @@ async function applyHostedKeyCostToResult(
  * Knowledge tools: 'knowledge_search_<uuid>' -> 'knowledge_search'
  * Table tools: 'table_query_rows_<tableId>' -> 'table_query_rows'
  */
-function normalizeToolId(toolId: string): string {
+export function normalizeToolId(toolId: string): string {
   if (toolId.startsWith('workflow_executor_') && toolId.length > 'workflow_executor_'.length) {
     return 'workflow_executor'
   }
