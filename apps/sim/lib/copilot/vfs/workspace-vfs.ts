@@ -462,8 +462,9 @@ export class WorkspaceVFS {
       try {
         const record = await getWorkspaceFile(this._workspaceId, fileId)
         if (!record) return null
-        const ext = record.name.split('.').pop()?.toLowerCase()
-        if (ext !== 'docx' && ext !== 'pptx') return null
+        const rawExt = record.name.split('.').pop()?.toLowerCase()
+        if (rawExt !== 'docx' && rawExt !== 'pptx') return null
+        const ext: 'docx' | 'pptx' = rawExt
         const buffer = await downloadWorkspaceFile(record)
         const summary = await extractDocumentStyle(buffer, ext)
         if (!summary) return null

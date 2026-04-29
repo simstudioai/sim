@@ -55,6 +55,7 @@ function between(xml: string, open: string, close: string): string {
 function parseColorSlot(xml: string, slot: string): string {
   const inner = between(xml, `<a:${slot}>`, `</a:${slot}>`)
   if (!inner) return ''
+  // srgbClr uses val=; sysClr has val="windowText" but lastClr holds the fallback hex
   const srgb = attr(inner, 'val')
   if (srgb && inner.includes('<a:srgbClr')) return srgb.toUpperCase()
   const lastClr = attr(inner, 'lastClr')
@@ -138,7 +139,6 @@ export async function extractDocumentStyle(
   buffer: Buffer,
   ext: 'docx' | 'pptx'
 ): Promise<DocumentStyleSummary | null> {
-  // Verify ZIP magic bytes
   if (buffer.length < 4) return null
   for (let i = 0; i < 4; i++) {
     if (buffer[i] !== ZIP_MAGIC[i]) return null
@@ -152,14 +152,14 @@ export async function extractDocumentStyle(
     const themeFile = zip.file(themePath)
     if (!themeFile) return null
 
-    const themeXml = await themeFile.async('string')
-    const theme = parseThemeXml(themeXml)
+    const theme = parseThemeXml(await themeFile.async('string'))
     const summary: DocumentStyleSummary = { format: ext, theme }
 
     if (ext === 'docx') {
       const stylesFile = zip.file('word/styles.xml')
       if (stylesFile) {
-        summary.styles = parseDocxStyles(await stylesFile.async('string'))
+        const styles = parseDocxStyles(await stylesFile.async('string'))
+        if (styles && styles.length > 0) summary.styles = styles
       }
     }
 

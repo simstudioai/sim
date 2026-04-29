@@ -37,13 +37,14 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
-    const ext = fileRecord.name.split('.').pop()?.toLowerCase()
-    if (ext !== 'docx' && ext !== 'pptx') {
+    const rawExt = fileRecord.name.split('.').pop()?.toLowerCase()
+    if (rawExt !== 'docx' && rawExt !== 'pptx') {
       return NextResponse.json(
         { error: 'Style extraction only supports .docx and .pptx files' },
         { status: 422 }
       )
     }
+    const ext: 'docx' | 'pptx' = rawExt
 
     let buffer: Buffer
     try {
