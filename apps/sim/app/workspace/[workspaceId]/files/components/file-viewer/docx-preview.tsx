@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { cn } from '@/lib/core/utils/cn'
@@ -14,6 +14,42 @@ import {
 } from './preview-shared'
 
 const logger = createLogger('DocxPreview')
+
+/**
+ * Fit the rendered docx pages to the host container width using a CSS scale.
+ * The library renders `<section class="docx">` at the document's natural page
+ * width (in cm), which overflows narrow panels.
+ */
+function fitDocxToContainer(host: HTMLElement) {
+  const wrapper = host.querySelector<HTMLElement>('.docx-wrapper')
+  if (!wrapper) return
+  const section = wrapper.querySelector<HTMLElement>('section.docx')
+  if (!section) return
+
+  wrapper.style.transform = ''
+  wrapper.style.transformOrigin = 'top left'
+  wrapper.style.width = ''
+  wrapper.style.marginRight = ''
+  wrapper.style.marginBottom = ''
+
+  const naturalPageWidth = section.offsetWidth
+  if (!naturalPageWidth) return
+
+  const wrapperStyle = window.getComputedStyle(wrapper)
+  const horizontalPadding =
+    Number.parseFloat(wrapperStyle.paddingLeft) + Number.parseFloat(wrapperStyle.paddingRight)
+  const naturalWrapperWidth = naturalPageWidth + horizontalPadding
+  const available = host.clientWidth
+  const scale = Math.min(1, available / naturalWrapperWidth)
+
+  if (scale >= 1) return
+
+  wrapper.style.width = `${naturalWrapperWidth}px`
+  wrapper.style.transform = `scale(${scale})`
+  const naturalHeight = wrapper.offsetHeight
+  wrapper.style.marginRight = `${(scale - 1) * naturalWrapperWidth}px`
+  wrapper.style.marginBottom = `${(scale - 1) * naturalHeight}px`
+}
 
 export const DocxPreview = memo(function DocxPreview({
   file,
@@ -35,6 +71,25 @@ export const DocxPreview = memo(function DocxPreview({
   const [rendering, setRendering] = useState(false)
   const [hasRenderedPreview, setHasRenderedPreview] = useState(false)
 
+  const applyPostRenderStyling = useCallback(() => {
+    const container = containerRef.current
+    if (!container) return
+    const wrapper = container.querySelector<HTMLElement>('.docx-wrapper')
+    if (wrapper) wrapper.style.background = 'transparent'
+    container.querySelectorAll<HTMLElement>('section.docx').forEach((page) => {
+      page.style.boxShadow = 'var(--shadow-medium)'
+    })
+    fitDocxToContainer(container)
+  }, [])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const observer = new ResizeObserver(() => fitDocxToContainer(container))
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
+
   useEffect(() => {
     if (!containerRef.current || !fileData || streamingContent !== undefined) return
 
@@ -53,11 +108,7 @@ export const DocxPreview = memo(function DocxPreview({
           ignoreHeight: false,
         })
         if (!cancelled && containerRef.current) {
-          const wrapper = containerRef.current.querySelector<HTMLElement>('.docx-wrapper')
-          if (wrapper) wrapper.style.background = 'transparent'
-          containerRef.current.querySelectorAll<HTMLElement>('section.docx').forEach((page) => {
-            page.style.boxShadow = 'var(--shadow-medium)'
-          })
+          applyPostRenderStyling()
           lastSuccessfulHtmlRef.current = containerRef.current.innerHTML
           setHasRenderedPreview(true)
         }
@@ -78,7 +129,7 @@ export const DocxPreview = memo(function DocxPreview({
     return () => {
       cancelled = true
     }
-  }, [fileData, streamingContent])
+  }, [fileData, streamingContent, applyPostRenderStyling])
 
   useEffect(() => {
     if (streamingContent === undefined || !containerRef.current) return
@@ -121,11 +172,7 @@ export const DocxPreview = memo(function DocxPreview({
         })
 
         if (!cancelled && containerRef.current) {
-          const wrapper = containerRef.current.querySelector<HTMLElement>('.docx-wrapper')
-          if (wrapper) wrapper.style.background = 'transparent'
-          containerRef.current.querySelectorAll<HTMLElement>('section.docx').forEach((page) => {
-            page.style.boxShadow = 'var(--shadow-medium)'
-          })
+          applyPostRenderStyling()
           lastSuccessfulHtmlRef.current = containerRef.current.innerHTML
           setHasRenderedPreview(true)
         }
@@ -133,6 +180,7 @@ export const DocxPreview = memo(function DocxPreview({
         if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
           if (containerRef.current && previousHtml) {
             containerRef.current.innerHTML = previousHtml
+            applyPostRenderStyling()
             setHasRenderedPreview(true)
           }
           const msg = toError(err).message || 'Failed to render document'
@@ -155,7 +203,7 @@ export const DocxPreview = memo(function DocxPreview({
       clearTimeout(debounceTimer)
       controller.abort()
     }
-  }, [streamingContent, workspaceId])
+  }, [streamingContent, workspaceId, applyPostRenderStyling])
 
   const error =
     hasRenderedPreview && streamingContent !== undefined
