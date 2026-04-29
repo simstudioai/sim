@@ -7,6 +7,7 @@ import { useMutation } from '@tanstack/react-query'
 import Link from 'next/link'
 import { Combobox, Input, Textarea } from '@/components/emcn'
 import { Check } from '@/components/emcn/icons'
+import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import { getEnv } from '@/lib/core/config/env'
 import { captureClientEvent } from '@/lib/posthog/client'
 import {
@@ -130,15 +131,7 @@ export function ContactForm() {
     })
 
     if (!parsed.success) {
-      const fieldErrors = parsed.error.flatten().fieldErrors
-      setErrors({
-        name: fieldErrors.name?.[0],
-        email: fieldErrors.email?.[0],
-        company: fieldErrors.company?.[0],
-        topic: fieldErrors.topic?.[0],
-        subject: fieldErrors.subject?.[0],
-        message: fieldErrors.message?.[0],
-      })
+      setErrors(flattenFieldErrors<ContactField>(parsed.error))
       setIsSubmitting(false)
       return
     }

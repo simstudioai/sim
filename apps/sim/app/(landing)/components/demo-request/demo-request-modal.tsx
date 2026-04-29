@@ -14,6 +14,7 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { Check } from '@/components/emcn/icons'
+import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import { captureClientEvent } from '@/lib/posthog/client'
 import {
   DEMO_REQUEST_COMPANY_SIZE_OPTIONS,
@@ -129,15 +130,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
     })
 
     if (!parsed.success) {
-      const fieldErrors = parsed.error.flatten().fieldErrors
-      setErrors({
-        firstName: fieldErrors.firstName?.[0],
-        lastName: fieldErrors.lastName?.[0],
-        companyEmail: fieldErrors.companyEmail?.[0],
-        phoneNumber: fieldErrors.phoneNumber?.[0],
-        companySize: fieldErrors.companySize?.[0],
-        details: fieldErrors.details?.[0],
-      })
+      setErrors(flattenFieldErrors<DemoRequestField>(parsed.error))
       return
     }
 

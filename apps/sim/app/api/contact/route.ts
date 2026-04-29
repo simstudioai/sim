@@ -124,7 +124,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     if (!validationResult.success) {
       logger.warn(`[${requestId}] Invalid contact request data`, {
-        errors: validationResult.error.format(),
+        issues: validationResult.error.issues,
       })
       return NextResponse.json(
         { error: getValidationErrorMessage(validationResult.error, 'Invalid request data') },
