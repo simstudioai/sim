@@ -234,4 +234,48 @@ Autonomous web data extraction agent. Searches and gathers information based on 
 | `expiresAt` | string | Timestamp when the results expire \(24 hours\) |
 | `sources` | object | Array of source URLs used by the agent |
 
+### `firecrawl_parse`
+
+Parse uploaded documents (PDF, DOCX, HTML, etc.) into clean markdown using Firecrawl. Supports .html, .htm, .pdf, .docx, .doc, .odt, .rtf, .xlsx, .xls.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `file` | file | Yes | Document file to be parsed |
+| `formats` | array | No | Output formats to return \(e.g., \["markdown"\]\). Defaults to markdown. |
+| `onlyMainContent` | boolean | No | Exclude headers, navs, footers. Defaults to true. |
+| `includeTags` | array | No | HTML tags to include |
+| `excludeTags` | array | No | HTML tags to exclude |
+| `timeout` | number | No | Timeout in milliseconds \(max 300000\). Defaults to 30000. |
+| `parsers` | array | No | Parser configuration \(e.g., \[\{ "type": "pdf" \}\]\) |
+| `removeBase64Images` | boolean | No | Remove base64 images, keep alt text. Defaults to true. |
+| `blockAds` | boolean | No | Block ads and popups. Defaults to true. |
+| `proxy` | string | No | Proxy mode: "basic" or "auto" |
+| `zeroDataRetention` | boolean | No | Enable zero data retention. Defaults to false. |
+| `apiKey` | string | Yes | Firecrawl API key |
+| `rateLimit` | string | No | No description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `markdown` | string | Parsed document content in markdown format |
+| `summary` | string | Generated summary of the document |
+| `html` | string | Processed HTML content |
+| `rawHtml` | string | Unprocessed raw HTML content |
+| `screenshot` | string | Screenshot URL or base64 \(when requested\) |
+| `links` | array | URLs discovered in the document |
+| `metadata` | object | Document metadata |
+|   ↳ `title` | string | Document title |
+|   ↳ `description` | string | Document description |
+|   ↳ `language` | string | Document language code |
+|   ↳ `sourceURL` | string | Source URL |
+|   ↳ `url` | string | Final URL |
+|   ↳ `keywords` | string | Document keywords |
+|   ↳ `statusCode` | number | HTTP status code |
+|   ↳ `contentType` | string | Document content type |
+|   ↳ `error` | string | Error message if parse failed |
+| `warning` | string | Warning message from the parse operation |
+
 
