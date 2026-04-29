@@ -29,7 +29,6 @@ import {
   Search as SearchIcon,
   Tooltip,
 } from '@/components/emcn'
-import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
@@ -37,16 +36,15 @@ import {
   formatTokenCount,
   formatTps,
   formatTtft,
+  getBlockIconAndColor,
+  hasErrorInTree,
+  hasUnhandledErrorInTree,
+  isIterationType,
   parseTime,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
-import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
-import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
-import { getBlock, getBlockByToolName } from '@/blocks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
-import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { normalizeToolId } from '@/tools/normalize'
 
-const DEFAULT_BLOCK_COLOR = '#6b7280'
 const DEFAULT_TREE_PANE_WIDTH = 360
 const MIN_TREE_PANE_WIDTH = 200
 const MAX_TREE_PANE_WIDTH = 600
@@ -65,45 +63,11 @@ interface FlatSpanEntry {
   parentDuration?: number
 }
 
-interface BlockAppearance {
-  icon: React.ComponentType<{ className?: string }> | null
-  bgColor: string
-}
-
-/**
- * Whether a span type represents a loop or parallel iteration container.
- */
-function isIterationType(type: string): boolean {
-  const lower = type?.toLowerCase() || ''
-  return lower === 'loop-iteration' || lower === 'parallel-iteration'
-}
-
 /**
  * Returns the stable id for a span, synthesized when absent.
  */
 function getSpanId(span: TraceSpan): string {
   return span.id || `span-${span.name}-${span.startTime}`
-}
-
-/**
- * Walks a span's descendants to determine if any error exists in the subtree.
- */
-function hasErrorInTree(span: TraceSpan): boolean {
-  if (span.status === 'error') return true
-  if (span.children?.length) return span.children.some(hasErrorInTree)
-  if (span.toolCalls?.length) return span.toolCalls.some((tc) => tc.error)
-  return false
-}
-
-/**
- * Like `hasErrorInTree` but only counts errors that were not handled by an
- * error-handler path. Used for the root workflow status color.
- */
-function hasUnhandledErrorInTree(span: TraceSpan): boolean {
-  if (span.status === 'error' && !span.errorHandled) return true
-  if (span.children?.length) return span.children.some(hasUnhandledErrorInTree)
-  if (span.toolCalls?.length && !span.errorHandled) return span.toolCalls.some((tc) => tc.error)
-  return false
 }
 
 /**
@@ -144,34 +108,6 @@ function getDisplayChildren(span: TraceSpan): TraceSpan[] {
   const hasToolCall = kids.some((c) => c.type?.toLowerCase() === 'tool')
   if (isAgent && !hasToolCall) return kids.filter((c) => c.type?.toLowerCase() !== 'model')
   return kids
-}
-
-/**
- * Resolves the block icon and accent color for a trace span type.
- */
-function getBlockAppearance(type: string, toolName?: string, provider?: string): BlockAppearance {
-  const lowerType = type.toLowerCase()
-  if (lowerType === 'tool' && toolName) {
-    const normalized = normalizeToolId(toolName)
-    if (normalized === 'load_skill') return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
-    const toolBlock = getBlockByToolName(normalized)
-    if (toolBlock) return { icon: toolBlock.icon, bgColor: toolBlock.bgColor }
-  }
-  if (lowerType === 'loop' || lowerType === 'loop-iteration')
-    return { icon: LoopTool.icon, bgColor: LoopTool.bgColor }
-  if (lowerType === 'parallel' || lowerType === 'parallel-iteration')
-    return { icon: ParallelTool.icon, bgColor: ParallelTool.bgColor }
-  if (lowerType === 'workflow') return { icon: WorkflowIcon, bgColor: '#6366F1' }
-  if (lowerType === 'model' && provider) {
-    const providerDef = PROVIDER_DEFINITIONS[provider]
-    if (providerDef?.icon) {
-      return { icon: providerDef.icon, bgColor: providerDef.color ?? DEFAULT_BLOCK_COLOR }
-    }
-  }
-  const blockType = lowerType === 'model' ? 'agent' : lowerType
-  const blockConfig = getBlock(blockType)
-  if (blockConfig) return { icon: blockConfig.icon, bgColor: blockConfig.bgColor }
-  return { icon: null, bgColor: DEFAULT_BLOCK_COLOR }
 }
 
 /** Returns 'text-white' for dark backgrounds, dark text for light ones. */
@@ -344,7 +280,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
   const duration = span.duration || endMs - startMs
   const isRootWorkflow = depth === 0 && span.type?.toLowerCase() === 'workflow'
   const hasError = isRootWorkflow ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
-  const { icon: BlockIcon, bgColor } = getBlockAppearance(span.type, span.name, span.provider)
+  const { icon: BlockIcon, bgColor } = getBlockIconAndColor(span.type, span.name, span.provider)
   const nameMatches = !!matchQuery && spanMatchesQuery(span, matchQuery)
 
   const offsetMs = runStartMs > 0 ? Math.max(0, startMs - runStartMs) : 0
@@ -726,7 +662,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   }
 
   const duration = span.duration || parseTime(span.endTime) - parseTime(span.startTime)
-  const { icon: BlockIcon, bgColor } = getBlockAppearance(span.type, span.name, span.provider)
+  const { icon: BlockIcon, bgColor } = getBlockIconAndColor(span.type, span.name, span.provider)
   const isRootWorkflow = span.type?.toLowerCase() === 'workflow'
   const hasError = isRootWorkflow ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
   const isDirectError = span.status === 'error'

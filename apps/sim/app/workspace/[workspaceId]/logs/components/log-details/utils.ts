@@ -1,4 +1,65 @@
+import type React from 'react'
+import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import type { TraceSpan } from '@/lib/logs/types'
+import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
+import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
+import { getBlock, getBlockByToolName } from '@/blocks'
+import { PROVIDER_DEFINITIONS } from '@/providers/models'
+import { normalizeToolId } from '@/tools/normalize'
+
+export const DEFAULT_BLOCK_COLOR = '#6b7280'
+
+export interface BlockIconAndColor {
+  icon: React.ComponentType<{ className?: string }> | null
+  bgColor: string
+}
+
+export function isIterationType(type: string): boolean {
+  const lower = type?.toLowerCase() || ''
+  return lower === 'loop-iteration' || lower === 'parallel-iteration'
+}
+
+export function hasErrorInTree(span: TraceSpan): boolean {
+  if (span.status === 'error') return true
+  if (span.children?.length) return span.children.some(hasErrorInTree)
+  if (span.toolCalls?.length) return span.toolCalls.some((tc) => tc.error)
+  return false
+}
+
+export function hasUnhandledErrorInTree(span: TraceSpan): boolean {
+  if (span.status === 'error' && !span.errorHandled) return true
+  if (span.children?.length) return span.children.some(hasUnhandledErrorInTree)
+  if (span.toolCalls?.length && !span.errorHandled) return span.toolCalls.some((tc) => tc.error)
+  return false
+}
+
+export function getBlockIconAndColor(
+  type: string,
+  toolName?: string,
+  provider?: string
+): BlockIconAndColor {
+  const lowerType = type.toLowerCase()
+  if (lowerType === 'tool' && toolName) {
+    const normalized = normalizeToolId(toolName)
+    if (normalized === 'load_skill') return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
+    const toolBlock = getBlockByToolName(normalized)
+    if (toolBlock) return { icon: toolBlock.icon, bgColor: toolBlock.bgColor }
+  }
+  if (lowerType === 'loop' || lowerType === 'loop-iteration')
+    return { icon: LoopTool.icon, bgColor: LoopTool.bgColor }
+  if (lowerType === 'parallel' || lowerType === 'parallel-iteration')
+    return { icon: ParallelTool.icon, bgColor: ParallelTool.bgColor }
+  if (lowerType === 'workflow') return { icon: WorkflowIcon, bgColor: '#6366F1' }
+  if (lowerType === 'model' && provider) {
+    const providerDef = PROVIDER_DEFINITIONS[provider]
+    if (providerDef?.icon)
+      return { icon: providerDef.icon, bgColor: providerDef.color ?? DEFAULT_BLOCK_COLOR }
+  }
+  const blockType = lowerType === 'model' ? 'agent' : lowerType
+  const blockConfig = getBlock(blockType)
+  if (blockConfig) return { icon: blockConfig.icon, bgColor: blockConfig.bgColor }
+  return { icon: null, bgColor: DEFAULT_BLOCK_COLOR }
+}
 
 export function parseTime(value?: string | number | null): number {
   if (!value) return 0

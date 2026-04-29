@@ -19,30 +19,22 @@ import {
   Search as SearchIcon,
   Tooltip,
 } from '@/components/emcn'
-import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
   formatTokensSummary,
   formatTps,
   formatTtft,
+  getBlockIconAndColor,
+  hasErrorInTree,
+  hasUnhandledErrorInTree,
+  isIterationType,
   parseTime,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
-import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
-import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
-import { getBlock, getBlockByToolName } from '@/blocks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 
 interface TraceSpansProps {
   traceSpans?: TraceSpan[]
-}
-
-/**
- * Checks if a span type is a loop or parallel iteration
- */
-function isIterationType(type: string): boolean {
-  const lower = type?.toLowerCase() || ''
-  return lower === 'loop-iteration' || lower === 'parallel-iteration'
 }
 
 /**
@@ -84,37 +76,6 @@ function formatCostSummary(cost: TraceSpan['cost']): string | undefined {
 }
 
 /**
- * Checks if a span or any of its descendants has an error (any error).
- */
-function hasErrorInTree(span: TraceSpan): boolean {
-  if (span.status === 'error') return true
-  if (span.children && span.children.length > 0) {
-    return span.children.some((child) => hasErrorInTree(child))
-  }
-  if (span.toolCalls && span.toolCalls.length > 0) {
-    return span.toolCalls.some((tc) => tc.error)
-  }
-  return false
-}
-
-/**
- * Checks if a span or any of its descendants has an unhandled error.
- * Spans with errorHandled: true (including containers that propagate it)
- * are skipped. Used only for the root workflow span to match the actual
- * workflow status.
- */
-function hasUnhandledErrorInTree(span: TraceSpan): boolean {
-  if (span.status === 'error' && !span.errorHandled) return true
-  if (span.children && span.children.length > 0) {
-    return span.children.some((child) => hasUnhandledErrorInTree(child))
-  }
-  if (span.toolCalls && span.toolCalls.length > 0 && !span.errorHandled) {
-    return span.toolCalls.some((tc) => tc.error)
-  }
-  return false
-}
-
-/**
  * Normalizes and sorts trace spans recursively.
  * Deduplicates children and sorts by start time.
  */
@@ -134,53 +95,6 @@ function normalizeAndSortSpans(spans: TraceSpan[]): TraceSpan[] {
       if (startDiff !== 0) return startDiff
       return parseTime(a.endTime) - parseTime(b.endTime)
     })
-}
-
-const DEFAULT_BLOCK_COLOR = '#6b7280'
-
-/**
- * Gets icon and color for a span type using block config
- */
-function getBlockIconAndColor(
-  type: string,
-  toolName?: string
-): {
-  icon: React.ComponentType<{ className?: string }> | null
-  bgColor: string
-} {
-  const lowerType = type.toLowerCase()
-
-  // Check for tool by name first (most specific)
-  if (lowerType === 'tool' && toolName) {
-    // Handle load_skill tool with the AgentSkillsIcon
-    if (toolName === 'load_skill') {
-      return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
-    }
-    const toolBlock = getBlockByToolName(toolName)
-    if (toolBlock) {
-      return { icon: toolBlock.icon, bgColor: toolBlock.bgColor }
-    }
-  }
-
-  // Special types not in block registry
-  if (lowerType === 'loop' || lowerType === 'loop-iteration') {
-    return { icon: LoopTool.icon, bgColor: LoopTool.bgColor }
-  }
-  if (lowerType === 'parallel' || lowerType === 'parallel-iteration') {
-    return { icon: ParallelTool.icon, bgColor: ParallelTool.bgColor }
-  }
-  if (lowerType === 'workflow') {
-    return { icon: WorkflowIcon, bgColor: '#6366F1' }
-  }
-
-  // Look up from block registry (model maps to agent)
-  const blockType = lowerType === 'model' ? 'agent' : lowerType
-  const blockConfig = getBlock(blockType)
-  if (blockConfig) {
-    return { icon: blockConfig.icon, bgColor: blockConfig.bgColor }
-  }
-
-  return { icon: null, bgColor: DEFAULT_BLOCK_COLOR }
 }
 
 /**
