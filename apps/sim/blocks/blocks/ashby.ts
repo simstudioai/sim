@@ -745,7 +745,6 @@ Output only the ISO 8601 timestamp string, nothing else.`,
         if (params.noteCreatedAt) result.createdAt = params.noteCreatedAt
         if (params.updateName) result.name = params.updateName
         if (params.website) result.website = params.website
-        if (params.websiteUrl) result.website = params.websiteUrl
         if (params.alternateEmail) result.alternateEmail = params.alternateEmail
         if (params.postingLocation) result.location = params.postingLocation
         if (params.postingDepartment) result.department = params.postingDepartment
