@@ -345,6 +345,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               message: `positions length (${positions.length}) must match rows length (${args.rows.length})`,
             }
           }
+          if (positions !== undefined && new Set(positions).size !== positions.length) {
+            return {
+              success: false,
+              message: 'positions must not contain duplicate values',
+            }
+          }
 
           const table = await getTableById(args.tableId)
           if (!table) {
