@@ -19,24 +19,24 @@ import {
   Search as SearchIcon,
   Tooltip,
 } from '@/components/emcn'
-import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
-import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
-import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
-import { getBlock, getBlockByToolName } from '@/blocks'
+import {
+  formatCostAmount,
+  formatTokensSummary,
+  formatTps,
+  formatTtft,
+  getBlockIconAndColor,
+  getDisplayName,
+  hasErrorInTree,
+  hasUnhandledErrorInTree,
+  isIterationType,
+  parseTime,
+} from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 
 interface TraceSpansProps {
   traceSpans?: TraceSpan[]
-}
-
-/**
- * Checks if a span type is a loop or parallel iteration
- */
-function isIterationType(type: string): boolean {
-  const lower = type?.toLowerCase() || ''
-  return lower === 'loop-iteration' || lower === 'parallel-iteration'
 }
 
 /**
@@ -59,124 +59,9 @@ function useSetToggle() {
   )
 }
 
-/**
- * Formats a token count with locale-aware thousands separators.
- * Returns `undefined` for missing or non-positive counts so callers can
- * filter them out before rendering.
- */
-function formatTokenCount(value: number | undefined): string | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
-  return value.toLocaleString('en-US')
-}
-
-/**
- * Builds a compact, dot-separated token summary for a span:
- * `"1,234 in · 567 out · 1,801 total"` with cache/reasoning appended when
- * present. Returns `undefined` when the span has no meaningful token data.
- */
-function formatTokensSummary(tokens: TraceSpan['tokens']): string | undefined {
-  if (!tokens) return undefined
-  const parts: string[] = []
-  const input = formatTokenCount(tokens.input)
-  const output = formatTokenCount(tokens.output)
-  const total = formatTokenCount(tokens.total)
-  const cacheRead = formatTokenCount(tokens.cacheRead)
-  const cacheWrite = formatTokenCount(tokens.cacheWrite)
-  const reasoning = formatTokenCount(tokens.reasoning)
-  if (input) parts.push(`${input} in`)
-  if (cacheRead) parts.push(`${cacheRead} cached`)
-  if (cacheWrite) parts.push(`${cacheWrite} cache write`)
-  if (output) parts.push(`${output} out`)
-  if (reasoning) parts.push(`${reasoning} reasoning`)
-  if (total) parts.push(`${total} total`)
-  return parts.length > 0 ? parts.join(' · ') : undefined
-}
-
-/**
- * Formats a USD cost value for display. Shows `<$0.0001` for non-zero sub-cent
- * amounts so the user sees it was counted.
- */
-function formatCostAmount(value: number | undefined): string | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
-  if (value < 0.0001) return '<$0.0001'
-  return `$${value.toFixed(4)}`
-}
-
-/**
- * Builds a compact cost summary: `"$0.0023 · $0.0001 in · $0.0022 out"`.
- * Falls back to whichever parts are present.
- */
 function formatCostSummary(cost: TraceSpan['cost']): string | undefined {
   if (!cost) return undefined
-  const parts: string[] = []
-  const total = formatCostAmount(cost.total)
-  const input = formatCostAmount(cost.input)
-  const output = formatCostAmount(cost.output)
-  if (total) parts.push(total)
-  if (input) parts.push(`${input} in`)
-  if (output) parts.push(`${output} out`)
-  return parts.length > 0 ? parts.join(' · ') : undefined
-}
-
-/**
- * Derives tokens-per-second from output tokens over segment duration.
- * Returns `undefined` when inputs are missing or non-positive.
- */
-function formatTps(outputTokens: number | undefined, durationMs: number): string | undefined {
-  if (typeof outputTokens !== 'number' || !(outputTokens > 0)) return undefined
-  if (!(durationMs > 0)) return undefined
-  const tps = Math.round(outputTokens / (durationMs / 1000))
-  if (!(tps > 0)) return undefined
-  return `${tps.toLocaleString('en-US')} tok/s`
-}
-
-/**
- * Formats time-to-first-token. Uses `ms` below 1000, `s` above.
- */
-function formatTtft(ms: number | undefined): string | undefined {
-  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return undefined
-  if (ms < 1000) return `${Math.round(ms)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
-}
-
-/**
- * Parses a time value to milliseconds
- */
-function parseTime(value?: string | number | null): number {
-  if (!value) return 0
-  const ms = typeof value === 'number' ? value : new Date(value).getTime()
-  return Number.isFinite(ms) ? ms : 0
-}
-
-/**
- * Checks if a span or any of its descendants has an error (any error).
- */
-function hasErrorInTree(span: TraceSpan): boolean {
-  if (span.status === 'error') return true
-  if (span.children && span.children.length > 0) {
-    return span.children.some((child) => hasErrorInTree(child))
-  }
-  if (span.toolCalls && span.toolCalls.length > 0) {
-    return span.toolCalls.some((tc) => tc.error)
-  }
-  return false
-}
-
-/**
- * Checks if a span or any of its descendants has an unhandled error.
- * Spans with errorHandled: true (including containers that propagate it)
- * are skipped. Used only for the root workflow span to match the actual
- * workflow status.
- */
-function hasUnhandledErrorInTree(span: TraceSpan): boolean {
-  if (span.status === 'error' && !span.errorHandled) return true
-  if (span.children && span.children.length > 0) {
-    return span.children.some((child) => hasUnhandledErrorInTree(child))
-  }
-  if (span.toolCalls && span.toolCalls.length > 0 && !span.errorHandled) {
-    return span.toolCalls.some((tc) => tc.error)
-  }
-  return false
+  return formatCostAmount(cost.total)
 }
 
 /**
@@ -199,53 +84,6 @@ function normalizeAndSortSpans(spans: TraceSpan[]): TraceSpan[] {
       if (startDiff !== 0) return startDiff
       return parseTime(a.endTime) - parseTime(b.endTime)
     })
-}
-
-const DEFAULT_BLOCK_COLOR = '#6b7280'
-
-/**
- * Gets icon and color for a span type using block config
- */
-function getBlockIconAndColor(
-  type: string,
-  toolName?: string
-): {
-  icon: React.ComponentType<{ className?: string }> | null
-  bgColor: string
-} {
-  const lowerType = type.toLowerCase()
-
-  // Check for tool by name first (most specific)
-  if (lowerType === 'tool' && toolName) {
-    // Handle load_skill tool with the AgentSkillsIcon
-    if (toolName === 'load_skill') {
-      return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
-    }
-    const toolBlock = getBlockByToolName(toolName)
-    if (toolBlock) {
-      return { icon: toolBlock.icon, bgColor: toolBlock.bgColor }
-    }
-  }
-
-  // Special types not in block registry
-  if (lowerType === 'loop' || lowerType === 'loop-iteration') {
-    return { icon: LoopTool.icon, bgColor: LoopTool.bgColor }
-  }
-  if (lowerType === 'parallel' || lowerType === 'parallel-iteration') {
-    return { icon: ParallelTool.icon, bgColor: ParallelTool.bgColor }
-  }
-  if (lowerType === 'workflow') {
-    return { icon: WorkflowIcon, bgColor: '#6366F1' }
-  }
-
-  // Look up from block registry (model maps to agent)
-  const blockType = lowerType === 'model' ? 'agent' : lowerType
-  const blockConfig = getBlock(blockType)
-  if (blockConfig) {
-    return { icon: blockConfig.icon, bgColor: blockConfig.bgColor }
-  }
-
-  return { icon: null, bgColor: DEFAULT_BLOCK_COLOR }
 }
 
 /**
@@ -403,10 +241,10 @@ function InputOutputSection({
           {label}
         </span>
         <ChevronDown
-          className='h-[8px] w-[8px] text-[var(--text-tertiary)] transition-colors transition-transform group-hover:text-[var(--text-primary)]'
-          style={{
-            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-          }}
+          className={cn(
+            'h-[8px] w-[8px] text-[var(--text-tertiary)] transition-colors transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+            isExpanded && 'rotate-180'
+          )}
         />
       </div>
       {isExpanded && (
@@ -684,7 +522,7 @@ const TraceSpanNode = memo(function TraceSpanNode({
             className='min-w-0 max-w-[180px] truncate font-medium text-caption'
             style={{ color: showErrorStyle ? 'var(--text-error)' : 'var(--text-secondary)' }}
           >
-            {span.name}
+            {getDisplayName(span)}
           </span>
           {isToggleable && (
             <ChevronDown
