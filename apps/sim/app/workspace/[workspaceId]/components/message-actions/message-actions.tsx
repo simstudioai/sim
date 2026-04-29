@@ -1,6 +1,8 @@
 'use client'
 
 import { memo, useEffect, useRef, useState } from 'react'
+import { GitBranch } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
   Check,
@@ -16,6 +18,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
+import { useForkTask } from '@/hooks/queries/tasks'
 
 const SPECIAL_TAGS = 'thinking|options|usage_upgrade|credential|mothership-error|file'
 
@@ -48,6 +51,7 @@ interface MessageActionsProps {
   chatId?: string
   userQuery?: string
   requestId?: string
+  messageId?: string
 }
 
 export const MessageActions = memo(function MessageActions({
@@ -55,7 +59,10 @@ export const MessageActions = memo(function MessageActions({
   chatId,
   userQuery,
   requestId,
+  messageId,
 }: MessageActionsProps) {
+  const router = useRouter()
+  const params = useParams<{ workspaceId: string }>()
   const [copied, setCopied] = useState(false)
   const [copiedRequestId, setCopiedRequestId] = useState(false)
   const [pendingFeedback, setPendingFeedback] = useState<'up' | 'down' | null>(null)
@@ -63,6 +70,7 @@ export const MessageActions = memo(function MessageActions({
   const resetTimeoutRef = useRef<number | null>(null)
   const requestIdTimeoutRef = useRef<number | null>(null)
   const submitFeedback = useSubmitCopilotFeedback()
+  const forkTask = useForkTask()
 
   useEffect(() => {
     return () => {
@@ -140,9 +148,20 @@ export const MessageActions = memo(function MessageActions({
     }
   }
 
+  const handleFork = async () => {
+    if (!chatId || !messageId || forkTask.isPending) return
+    try {
+      const result = await forkTask.mutateAsync({ chatId, upToMessageId: messageId })
+      router.push(`/workspace/${params.workspaceId}/task/${result.id}`)
+    } catch {
+      /* fork failed — button resets, user can retry */
+    }
+  }
+
   const hasContent = Boolean(content)
   const canSubmitFeedback = Boolean(chatId && userQuery)
-  if (!hasContent && !canSubmitFeedback) return null
+  const canFork = Boolean(chatId && messageId)
+  if (!hasContent && !canSubmitFeedback && !canFork) return null
 
   return (
     <>
@@ -193,6 +212,22 @@ export const MessageActions = memo(function MessageActions({
               <Tooltip.Content side='top'>Bad response</Tooltip.Content>
             </Tooltip.Root>
           </>
+        )}
+        {canFork && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button
+                type='button'
+                aria-label='Fork from here'
+                onClick={handleFork}
+                disabled={forkTask.isPending}
+                className={BUTTON_CLASS}
+              >
+                <GitBranch className={ICON_CLASS} />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>Fork from here</Tooltip.Content>
+          </Tooltip.Root>
         )}
       </div>
 
