@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { member, organization, user, userStats } from '@sim/db/schema'
+import { invitation, member, organization, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, count, eq, gt, ne } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
 import {
@@ -172,6 +172,19 @@ export async function getOrganizationBillingData(
 
     const averageUsagePerMember = members.length > 0 ? totalCurrentUsage / members.length : 0
 
+    const [pendingInvitationCount] = await db
+      .select({ count: count() })
+      .from(invitation)
+      .where(
+        and(
+          eq(invitation.organizationId, organizationId),
+          eq(invitation.status, 'pending'),
+          ne(invitation.membershipIntent, 'external'),
+          gt(invitation.expiresAt, new Date())
+        )
+      )
+    const usedSeats = members.length + (pendingInvitationCount?.count ?? 0)
+
     const billingPeriodStart = subscription.periodStart || null
     const billingPeriodEnd = subscription.periodEnd || null
 
@@ -181,7 +194,7 @@ export async function getOrganizationBillingData(
       subscriptionPlan: subscription.plan,
       subscriptionStatus: subscription.status || 'inactive',
       totalSeats: effectiveSeats,
-      usedSeats: members.length,
+      usedSeats,
       seatsCount: licensedSeats,
       totalCurrentUsage: roundCurrency(totalCurrentUsage),
       totalUsageLimit: roundCurrency(totalUsageLimit),

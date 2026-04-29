@@ -174,11 +174,12 @@ describe('buildTraceSpans', () => {
     expect(traceSpans).toHaveLength(1)
     const agentSpan = traceSpans[0]
     expect(agentSpan.type).toBe('agent')
-    expect(agentSpan.toolCalls).toBeDefined()
-    expect(agentSpan.toolCalls).toHaveLength(2)
+    expect(agentSpan.children).toBeDefined()
+    expect(agentSpan.children).toHaveLength(2)
 
     // Check first tool call
-    const firstToolCall = agentSpan.toolCalls![0]
+    const firstToolCall = agentSpan.children![0]
+    expect(firstToolCall.type).toBe('tool')
     expect(firstToolCall.name).toBe('test_tool') // custom_ prefix should be stripped
     expect(firstToolCall.duration).toBe(1000)
     expect(firstToolCall.status).toBe('success')
@@ -186,7 +187,8 @@ describe('buildTraceSpans', () => {
     expect(firstToolCall.output).toEqual({ output: 'test output' })
 
     // Check second tool call
-    const secondToolCall = agentSpan.toolCalls![1]
+    const secondToolCall = agentSpan.children![1]
+    expect(secondToolCall.type).toBe('tool')
     expect(secondToolCall.name).toBe('http_request')
     expect(secondToolCall.duration).toBe(2000)
     expect(secondToolCall.status).toBe('success')
@@ -238,10 +240,11 @@ describe('buildTraceSpans', () => {
 
       expect(traceSpans).toHaveLength(1)
       const agentSpan = traceSpans[0]
-      expect(agentSpan.toolCalls).toBeDefined()
-      expect(agentSpan.toolCalls).toHaveLength(1)
+      expect(agentSpan.children).toBeDefined()
+      expect(agentSpan.children).toHaveLength(1)
 
-      const toolCall = agentSpan.toolCalls![0]
+      const toolCall = agentSpan.children![0]
+      expect(toolCall.type).toBe('tool')
       expect(toolCall.name).toBe('serper_search')
       expect(toolCall.duration).toBe(1500)
       expect(toolCall.status).toBe('success')
@@ -293,10 +296,11 @@ describe('buildTraceSpans', () => {
 
     expect(traceSpans).toHaveLength(1)
     const agentSpan = traceSpans[0]
-    expect(agentSpan.toolCalls).toBeDefined()
-    expect(agentSpan.toolCalls).toHaveLength(1)
+    expect(agentSpan.children).toBeDefined()
+    expect(agentSpan.children).toHaveLength(1)
 
-    const toolCall = agentSpan.toolCalls![0]
+    const toolCall = agentSpan.children![0]
+    expect(toolCall.type).toBe('tool')
     expect(toolCall.name).toBe('analysis_tool') // custom_ prefix should be stripped
     expect(toolCall.duration).toBe(2000)
     expect(toolCall.status).toBe('success')
@@ -2082,4 +2086,124 @@ describe('nested subflow grouping via parentIterations', () => {
       expect(parallel!.children).toHaveLength(2)
     }
   )
+
+  it.concurrent('propagates per-iteration segment content to model child spans', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'final' },
+      logs: [
+        {
+          blockId: 'agent-1',
+          blockName: 'Agent',
+          blockType: 'agent',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:04.000Z',
+          durationMs: 4000,
+          success: true,
+          input: { userPrompt: 'hi' },
+          output: {
+            content: 'final',
+            model: 'claude-3-7-sonnet',
+            providerTiming: {
+              duration: 4000,
+              startTime: '2024-01-01T10:00:00.000Z',
+              endTime: '2024-01-01T10:00:04.000Z',
+              timeSegments: [
+                {
+                  type: 'model',
+                  name: 'claude-3-7-sonnet',
+                  startTime: 1704103200000,
+                  endTime: 1704103202000,
+                  duration: 2000,
+                  assistantContent: 'reasoning about request',
+                  thinkingContent: 'let me think step by step',
+                  toolCalls: [{ id: 'call_abc', name: 'lookup', arguments: { q: 'test' } }],
+                  finishReason: 'tool_use',
+                  tokens: { input: 100, output: 20, total: 120, cacheRead: 5, reasoning: 8 },
+                  cost: { input: 0.001, output: 0.002, total: 0.003 },
+                  ttft: 450,
+                  provider: 'anthropic',
+                },
+                {
+                  type: 'tool',
+                  name: 'lookup',
+                  startTime: 1704103202000,
+                  endTime: 1704103203000,
+                  duration: 1000,
+                  toolCallId: 'call_abc',
+                  errorType: 'TimeoutError',
+                  errorMessage: 'tool timed out',
+                },
+                {
+                  type: 'model',
+                  name: 'claude-3-7-sonnet',
+                  startTime: 1704103203000,
+                  endTime: 1704103204000,
+                  duration: 1000,
+                  assistantContent: 'final answer',
+                  finishReason: 'end_turn',
+                  tokens: { input: 130, output: 10, total: 140 },
+                  cost: { input: 0.002, output: 0.001, total: 0.003 },
+                  provider: 'anthropic',
+                  errorType: 'RateLimitError',
+                  errorMessage: 'too many requests',
+                },
+              ],
+            },
+            toolCalls: {
+              list: [
+                {
+                  name: 'lookup',
+                  arguments: { q: 'test' },
+                  result: { hit: true },
+                  duration: 1000,
+                },
+              ],
+              count: 1,
+            },
+          },
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+    const children = traceSpans[0].children!
+    expect(children).toHaveLength(3)
+
+    const [firstModel, tool, secondModel] = children
+
+    expect(firstModel.type).toBe('model')
+    expect(firstModel.output).toEqual({ content: 'reasoning about request' })
+    expect(firstModel.thinking).toBe('let me think step by step')
+    expect(firstModel.modelToolCalls).toEqual([
+      { id: 'call_abc', name: 'lookup', arguments: { q: 'test' } },
+    ])
+    expect(firstModel.finishReason).toBe('tool_use')
+    expect(firstModel.tokens).toEqual({
+      input: 100,
+      output: 20,
+      total: 120,
+      cacheRead: 5,
+      reasoning: 8,
+    })
+    expect(firstModel.cost).toEqual({ input: 0.001, output: 0.002, total: 0.003 })
+    expect(firstModel.ttft).toBe(450)
+    expect(firstModel.provider).toBe('anthropic')
+    expect(firstModel.status).toBe('success')
+
+    expect(tool.type).toBe('tool')
+    expect(tool.toolCallId).toBe('call_abc')
+    expect(tool.errorType).toBe('TimeoutError')
+    expect(tool.errorMessage).toBe('tool timed out')
+    expect(tool.status).toBe('error')
+
+    expect(secondModel.type).toBe('model')
+    expect(secondModel.output).toEqual({ content: 'final answer' })
+    expect(secondModel.thinking).toBeUndefined()
+    expect(secondModel.modelToolCalls).toBeUndefined()
+    expect(secondModel.finishReason).toBe('end_turn')
+    expect(secondModel.errorType).toBe('RateLimitError')
+    expect(secondModel.errorMessage).toBe('too many requests')
+    expect(secondModel.status).toBe('error')
+  })
 })

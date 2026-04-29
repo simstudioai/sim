@@ -1,6 +1,6 @@
 'use client'
 
-import { createElement, useEffect, useMemo, useState } from 'react'
+import { createElement, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { ArrowRight, ChevronDown, Expandable, ExpandableContent } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -403,14 +403,10 @@ interface OptionsDisplayProps {
 
 function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
   const disabled = !onSelect
-  const [expanded, setExpanded] = useState(!disabled)
+  const [collapsedByUser, setCollapsedByUser] = useState(false)
+  // When interactive (not disabled), always expanded. When disabled, the user can toggle.
+  const expanded = !disabled || !collapsedByUser
   const entries = Object.entries(data)
-
-  useEffect(() => {
-    if (!disabled) {
-      setExpanded(true)
-    }
-  }, [disabled])
 
   if (entries.length === 0) return null
 
@@ -419,7 +415,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
       {disabled ? (
         <button
           type='button'
-          onClick={() => setExpanded((prev) => !prev)}
+          onClick={() => setCollapsedByUser((prev) => !prev)}
           aria-expanded={expanded}
           className='flex items-center gap-2'
         >
@@ -527,12 +523,12 @@ export function WorkspaceResourceDisplay({
     }
   }, [data.id, data.type, files, knowledgeBases, tables, workflows])
 
-  const context = useMemo(() => toChatMessageContext(data, resource.title), [data, resource.title])
+  const context = toChatMessageContext(data, resource.title)
 
-  const workflowColor = useMemo(() => {
-    if (data.type !== 'workflow') return null
-    return workflows.find((workflow) => workflow.id === data.id)?.color ?? null
-  }, [data.id, data.type, workflows])
+  const workflowColor =
+    data.type === 'workflow'
+      ? (workflows.find((workflow) => workflow.id === data.id)?.color ?? null)
+      : null
 
   const mentionContent = (
     <>

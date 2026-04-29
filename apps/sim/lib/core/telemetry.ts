@@ -100,6 +100,9 @@ const BLOCK_TYPE_MAPPING: Record<
       }
 
       if (span.tokens) {
+        // `TraceSpan.tokens` is typed as an object, but older persisted logs
+        // stored it as a bare number (total). Keep the numeric branch for those
+        // legacy rows.
         if (typeof span.tokens === 'number') {
           attrs[GenAIAttributes.USAGE_TOTAL_TOKENS] = span.tokens
         } else {
@@ -540,11 +543,13 @@ export const PlatformEvents = {
     invitedBy: string
     inviteeEmail: string
     role: string
+    membershipIntent?: string
   }) => {
     trackPlatformEvent('platform.workspace.member_invited', {
       'workspace.id': attrs.workspaceId,
       'user.id': attrs.invitedBy,
       'invitation.role': attrs.role,
+      ...(attrs.membershipIntent ? { 'invitation.membership_intent': attrs.membershipIntent } : {}),
     })
   },
 

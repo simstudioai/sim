@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   type InvitationKind,
+  type InvitationMembershipIntent,
   type InvitationStatus,
   invitation,
   invitationWorkspaceGrant,
@@ -35,6 +36,7 @@ export interface InvitationWithGrants {
   kind: InvitationKind
   email: string
   organizationId: string | null
+  membershipIntent: InvitationMembershipIntent
   inviterId: string
   role: string
   status: InvitationStatus
@@ -100,6 +102,7 @@ async function hydrateInvitation(
     kind: row.kind,
     email: row.email,
     organizationId: row.organizationId,
+    membershipIntent: row.membershipIntent,
     inviterId: row.inviterId,
     role: row.role,
     status: row.status,
@@ -254,8 +257,10 @@ export async function acceptInvitation(
   }
 
   let membershipAlreadyExists = false
+  let acceptedMembershipIntent = inv.membershipIntent
+  let shouldJoinOrganization = Boolean(inv.organizationId && inv.membershipIntent !== 'external')
 
-  if (inv.organizationId) {
+  if (shouldJoinOrganization && inv.organizationId) {
     const membershipResult = await ensureUserInOrganization({
       userId: input.userId,
       organizationId: inv.organizationId,
@@ -265,16 +270,21 @@ export async function acceptInvitation(
 
     if (!membershipResult.success) {
       if (membershipResult.existingOrgId) {
-        await db
-          .update(invitation)
-          .set({ status: 'rejected', updatedAt: new Date() })
-          .where(eq(invitation.id, inv.id))
-        return { success: false, kind: 'already-in-organization' }
-      }
-      if (membershipResult.error?.toLowerCase().includes('no available seats')) {
+        if (inv.kind === 'workspace' && inv.grants.length > 0) {
+          acceptedMembershipIntent = 'external'
+          shouldJoinOrganization = false
+        } else {
+          await db
+            .update(invitation)
+            .set({ status: 'rejected', updatedAt: new Date() })
+            .where(eq(invitation.id, inv.id))
+          return { success: false, kind: 'already-in-organization' }
+        }
+      } else if (membershipResult.failureCode === 'no-seats-available') {
         return { success: false, kind: 'no-seats-available' }
+      } else {
+        return { success: false, kind: 'server-error', message: membershipResult.error }
       }
-      return { success: false, kind: 'server-error', message: membershipResult.error }
     }
 
     membershipAlreadyExists = membershipResult.alreadyMember
@@ -285,7 +295,11 @@ export async function acceptInvitation(
   await db.transaction(async (tx) => {
     await tx
       .update(invitation)
-      .set({ status: 'accepted', updatedAt: new Date() })
+      .set({
+        status: 'accepted',
+        membershipIntent: acceptedMembershipIntent,
+        updatedAt: new Date(),
+      })
       .where(eq(invitation.id, inv.id))
 
     for (const grant of inv.grants) {
@@ -331,7 +345,7 @@ export async function acceptInvitation(
     }
   })
 
-  if (inv.organizationId) {
+  if (shouldJoinOrganization && inv.organizationId) {
     try {
       await setActiveOrganizationForCurrentSession(inv.organizationId)
     } catch (activeOrgError) {
@@ -369,7 +383,7 @@ export async function acceptInvitation(
     }
   }
 
-  if (inv.organizationId && !membershipAlreadyExists) {
+  if (shouldJoinOrganization && inv.organizationId && !membershipAlreadyExists) {
     try {
       await syncUsageLimitsFromSubscription(input.userId)
     } catch (syncError) {
@@ -389,7 +403,7 @@ export async function acceptInvitation(
 
   return {
     success: true,
-    invitation: { ...inv, status: 'accepted' },
+    invitation: { ...inv, status: 'accepted', membershipIntent: acceptedMembershipIntent },
     acceptedWorkspaceIds,
     redirectPath,
     membershipAlreadyExists,
@@ -444,6 +458,7 @@ export async function listPendingInvitationsForOrganization(organizationId: stri
       kind: invitation.kind,
       email: invitation.email,
       role: invitation.role,
+      membershipIntent: invitation.membershipIntent,
       status: invitation.status,
       expiresAt: invitation.expiresAt,
       createdAt: invitation.createdAt,
@@ -468,6 +483,7 @@ export async function listInvitationsForWorkspaces(workspaceIds: string[]) {
       createdAt: invitation.createdAt,
       updatedAt: invitation.updatedAt,
       organizationId: invitation.organizationId,
+      membershipIntent: invitation.membershipIntent,
       inviterId: invitation.inviterId,
       workspaceId: invitationWorkspaceGrant.workspaceId,
       permission: invitationWorkspaceGrant.permission,

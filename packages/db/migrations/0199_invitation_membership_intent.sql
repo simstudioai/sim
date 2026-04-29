@@ -1,0 +1,2 @@
+CREATE TYPE "public"."invitation_membership_intent" AS ENUM('internal', 'external');--> statement-breakpoint
+ALTER TABLE "invitation" ADD COLUMN "membership_intent" "invitation_membership_intent" DEFAULT 'internal' NOT NULL;

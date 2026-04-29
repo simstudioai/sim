@@ -12,92 +12,62 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get install -y nodejs
 
 # ========================================
+# Pruner Stage: Emit a minimal monorepo subset that sim depends on
+# ========================================
+FROM base AS pruner
+WORKDIR /app
+
+RUN bun install -g turbo@2.9.6
+
+COPY . .
+
+RUN turbo prune sim --docker
+
+# ========================================
 # Dependencies Stage: Install Dependencies
 # ========================================
 FROM base AS deps
 WORKDIR /app
 
-COPY package.json bun.lock turbo.json ./
-RUN mkdir -p apps \
-    packages/audit \
-    packages/db \
-    packages/logger \
-    packages/realtime-protocol \
-    packages/security \
-    packages/testing \
-    packages/tsconfig \
-    packages/utils \
-    packages/workflow-authz \
-    packages/workflow-persistence \
-    packages/workflow-types
-COPY apps/sim/package.json ./apps/sim/package.json
-COPY packages/audit/package.json ./packages/audit/package.json
-COPY packages/db/package.json ./packages/db/package.json
-COPY packages/logger/package.json ./packages/logger/package.json
-COPY packages/realtime-protocol/package.json ./packages/realtime-protocol/package.json
-COPY packages/security/package.json ./packages/security/package.json
-COPY packages/testing/package.json ./packages/testing/package.json
-COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
-COPY packages/utils/package.json ./packages/utils/package.json
-COPY packages/workflow-authz/package.json ./packages/workflow-authz/package.json
-COPY packages/workflow-persistence/package.json ./packages/workflow-persistence/package.json
-COPY packages/workflow-types/package.json ./packages/workflow-types/package.json
+# Pruned manifests from the pruner stage. This layer only invalidates when
+# package.json/bun.lock content changes — not on source edits.
+COPY --from=pruner /app/out/json/ ./
+# Use the full bun.lock (not the pruned out/bun.lock). turbo prune emits a
+# bun.lock that bun 1.3.x rejects with "Failed to resolve prod dependency",
+# forcing a slow fresh resolve. The full lockfile parses cleanly and bun
+# only installs what the pruned package.jsons reference.
+COPY --from=pruner /app/bun.lock ./bun.lock
 
-# Install dependencies, then rebuild isolated-vm for Node.js
-# Use --linker=hoisted for flat node_modules layout (required for Docker multi-stage builds)
+# Install all dependencies (including devDependencies — tailwindcss/postcss are
+# devDeps but required at build time). Then rebuild isolated-vm against Node.js.
+# JOBS=4 caps node-gyp parallelism — higher values OOM isolated-vm (laverdet/isolated-vm#428).
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
     --mount=type=cache,id=npm-cache,target=/root/.npm \
-    HUSKY=0 bun install --omit=dev --ignore-scripts --linker=hoisted && \
-    cd node_modules/isolated-vm && npx node-gyp rebuild --release
+    HUSKY=0 bun install --ignore-scripts --linker=hoisted && \
+    cd node_modules/isolated-vm && JOBS=4 npx node-gyp rebuild --release
 
 # ========================================
 # Builder Stage: Build the Application
 # ========================================
 FROM base AS builder
+ARG TARGETPLATFORM
 WORKDIR /app
-
-# Install turbo globally (cached for fast reinstall)
-RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
-    bun install -g turbo
 
 # Copy node_modules from deps stage (cached if dependencies don't change)
 COPY --from=deps /app/node_modules ./node_modules
 
-# Copy package configuration files (needed for build)
-COPY package.json bun.lock turbo.json ./
-COPY apps/sim/package.json ./apps/sim/package.json
-COPY packages/audit/package.json ./packages/audit/package.json
-COPY packages/db/package.json ./packages/db/package.json
-COPY packages/logger/package.json ./packages/logger/package.json
-COPY packages/realtime-protocol/package.json ./packages/realtime-protocol/package.json
-COPY packages/security/package.json ./packages/security/package.json
-COPY packages/testing/package.json ./packages/testing/package.json
-COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
-COPY packages/utils/package.json ./packages/utils/package.json
-COPY packages/workflow-authz/package.json ./packages/workflow-authz/package.json
-COPY packages/workflow-persistence/package.json ./packages/workflow-persistence/package.json
-COPY packages/workflow-types/package.json ./packages/workflow-types/package.json
+# Copy pruned source tree (apps/sim + workspace packages it depends on)
+COPY --from=pruner /app/out/full/ ./
 
-# Copy workspace configuration files (needed for turbo)
-COPY apps/sim/next.config.ts ./apps/sim/next.config.ts
-COPY apps/sim/tsconfig.json ./apps/sim/tsconfig.json
-COPY apps/sim/tailwind.config.ts ./apps/sim/tailwind.config.ts
-COPY apps/sim/postcss.config.mjs ./apps/sim/postcss.config.mjs
-
-# Copy source code (changes most frequently - placed last to maximize cache hits)
-COPY apps/sim ./apps/sim
-COPY packages ./packages
-
-# Required for standalone nextjs build
-WORKDIR /app/apps/sim
-RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
-    HUSKY=0 bun install sharp --linker=hoisted
+# Next.js 16 / Turbopack workspace-root detection looks for a lockfile next to
+# the workspace package.json. Without it, `next build` fails with
+# "couldn't find next/package.json from /app/apps/sim". turbo also warns
+# "Lockfile not found at /app/bun.lock" without it.
+COPY --from=pruner /app/bun.lock ./bun.lock
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     VERCEL_TELEMETRY_DISABLED=1 \
     DOCKER_BUILD=1
-
-WORKDIR /app
 
 # Provide dummy database URLs during image build so server code that imports @sim/db
 # can be evaluated without crashing. Runtime environments should override these.
@@ -109,7 +79,10 @@ ENV DATABASE_URL=${DATABASE_URL}
 ARG NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 
-RUN bun run build
+# Per-platform cache id keeps arm64/amd64 SWC artifacts isolated.
+RUN --mount=type=cache,id=next-cache-${TARGETPLATFORM},target=/app/apps/sim/.next/cache \
+    --mount=type=cache,id=turbo-cache-${TARGETPLATFORM},target=/app/.turbo \
+    bun run build
 
 # ========================================
 # Runner Stage: Run the actual app

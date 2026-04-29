@@ -232,7 +232,7 @@ export const POST = withRouteHandler(
         'rows' in body &&
         Array.isArray((body as Record<string, unknown>).rows)
       ) {
-        return handleBatchInsert(
+        return await handleBatchInsert(
           requestId,
           tableId,
           body as z.infer<typeof BatchInsertRowsSchema>,

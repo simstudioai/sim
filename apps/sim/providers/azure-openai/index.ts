@@ -25,6 +25,7 @@ import {
 } from '@/providers/azure-openai/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
+import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
   FunctionCallResponse,
   ProviderConfig,
@@ -223,7 +224,7 @@ async function executeChatCompletionsRequest(
               timeSegments: [
                 {
                   type: 'model',
-                  name: 'Streaming response',
+                  name: request.model,
                   startTime: providerStartTime,
                   endTime: Date.now(),
                   duration: Date.now() - providerStartTime,
@@ -272,12 +273,19 @@ async function executeChatCompletionsRequest(
     const timeSegments: TimeSegment[] = [
       {
         type: 'model',
-        name: 'Initial response',
+        name: request.model,
         startTime: initialCallTime,
         endTime: initialCallTime + firstResponseTime,
         duration: firstResponseTime,
       },
     ]
+
+    enrichLastModelSegmentFromChatCompletions(
+      timeSegments,
+      currentResponse,
+      currentResponse.choices[0]?.message?.tool_calls,
+      { model: request.model, provider: 'azure_openai' }
+    )
 
     const firstCheckResult = checkForForcedToolUsage(
       currentResponse,
@@ -450,11 +458,18 @@ async function executeChatCompletionsRequest(
 
       timeSegments.push({
         type: 'model',
-        name: `Model response (iteration ${iterationCount + 1})`,
+        name: request.model,
         startTime: nextModelStartTime,
         endTime: nextModelEndTime,
         duration: thisModelTime,
       })
+
+      enrichLastModelSegmentFromChatCompletions(
+        timeSegments,
+        currentResponse,
+        currentResponse.choices[0]?.message?.tool_calls,
+        { model: request.model, provider: 'azure_openai' }
+      )
 
       modelTime += thisModelTime
 

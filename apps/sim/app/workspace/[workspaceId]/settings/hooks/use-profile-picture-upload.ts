@@ -78,8 +78,10 @@ export function useProfilePictureUpload({
         })
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: response.statusText }))
-          throw new Error(errorData.error || `Failed to upload file: ${response.status}`)
+          const errorData = await response.json().catch(() => ({ message: response.statusText }))
+          throw new Error(
+            errorData.message || errorData.error || `Failed to upload file: ${response.status}`
+          )
         }
 
         const data = await response.json()

@@ -53,7 +53,9 @@ export function TransferOwnershipDialog({
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
 
   const candidates = useMemo(() => {
-    const others = members.filter((m) => m.userId !== currentUserId && m.role !== 'owner')
+    const others = members.filter(
+      (m) => m.userId !== currentUserId && m.role !== 'owner' && m.role !== 'external'
+    )
     others.sort((a, b) => {
       if (a.role === 'admin' && b.role !== 'admin') return -1
       if (a.role !== 'admin' && b.role === 'admin') return 1
@@ -66,7 +68,9 @@ export function TransferOwnershipDialog({
     )
   }, [members, currentUserId, search])
 
-  const hasCandidates = members.some((m) => m.userId !== currentUserId && m.role !== 'owner')
+  const hasCandidates = members.some(
+    (m) => m.userId !== currentUserId && m.role !== 'owner' && m.role !== 'external'
+  )
 
   const handleClose = (next: boolean) => {
     if (!next) {

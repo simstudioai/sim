@@ -105,6 +105,7 @@ const STATIC_CONNECT_SRC = [
         'https://analytics.google.com',
         'https://www.google.com',
         'https://analytics.ahrefs.com',
+        'https://*.g.doubleclick.net',
       ]
     : []),
 ] as const

@@ -54,6 +54,7 @@ export const GET = withRouteHandler(
           email: inv.email,
           organizationId: inv.organizationId,
           organizationName: inv.organizationName,
+          membershipIntent: inv.membershipIntent,
           role: inv.role,
           status: inv.status,
           expiresAt: inv.expiresAt,
@@ -121,6 +122,12 @@ export const PATCH = withRouteHandler(
       const { role, grants } = parsed.data
 
       if (role !== undefined) {
+        if (inv.membershipIntent === 'external') {
+          return NextResponse.json(
+            { error: 'Role updates are not valid on external workspace invitations' },
+            { status: 400 }
+          )
+        }
         if (!inv.organizationId) {
           return NextResponse.json(
             { error: 'Role updates are only valid on organization-scoped invitations' },
@@ -187,6 +194,7 @@ export const PATCH = withRouteHandler(
           invitationId: id,
           targetEmail: inv.email,
           kind: inv.kind,
+          membershipIntent: inv.membershipIntent,
           roleUpdate: role ?? null,
           grantUpdates: grantsToApply,
         },

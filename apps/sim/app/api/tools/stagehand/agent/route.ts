@@ -22,6 +22,8 @@ const requestSchema = z.object({
   variables: z.any(),
   provider: z.enum(['openai', 'anthropic']).optional().default('openai'),
   apiKey: z.string(),
+  mode: z.enum(['dom', 'hybrid', 'cua']).optional().default('dom'),
+  maxSteps: z.number().int().min(1).max(200).optional().default(20),
 })
 
 /**
@@ -121,7 +123,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const params = validationResult.data
-    const { task, startUrl: rawStartUrl, outputSchema, provider, apiKey } = params
+    const { task, startUrl: rawStartUrl, outputSchema, provider, apiKey, mode, maxSteps } = params
     const variablesObject = processVariables(params.variables)
 
     const startUrl = normalizeUrl(rawStartUrl)
@@ -165,8 +167,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Invalid Anthropic API key format' }, { status: 400 })
     }
 
-    const modelName =
-      provider === 'anthropic' ? 'anthropic/claude-sonnet-4-5-20250929' : 'openai/gpt-5'
+    const modelName = provider === 'anthropic' ? 'anthropic/claude-sonnet-4-6' : 'openai/gpt-5'
+
+    let sessionId: string | null = null
+    let liveViewUrl: string | null = null
 
     try {
       logger.info('Initializing Stagehand with Browserbase (v3)', { provider, modelName })
@@ -189,6 +193,35 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       logger.info('Starting stagehand.init()')
       await stagehand.init()
       logger.info('Stagehand initialized successfully')
+
+      sessionId = stagehand.browserbaseSessionID ?? null
+      if (sessionId) {
+        try {
+          const debugResponse = await fetch(
+            `https://api.browserbase.com/v1/sessions/${sessionId}/debug`,
+            {
+              method: 'GET',
+              headers: {
+                'X-BB-API-Key': BROWSERBASE_API_KEY,
+              },
+            }
+          )
+          if (debugResponse.ok) {
+            const debugData = (await debugResponse.json()) as {
+              debuggerFullscreenUrl?: string
+              debuggerUrl?: string
+            }
+            liveViewUrl = debugData.debuggerFullscreenUrl ?? debugData.debuggerUrl ?? null
+            if (liveViewUrl) {
+              logger.info(`Browserbase live view URL: ${liveViewUrl}`)
+            }
+          } else {
+            logger.warn(`Failed to fetch Browserbase debug URL: ${debugResponse.statusText}`)
+          }
+        } catch (debugError) {
+          logger.warn('Error fetching Browserbase debug URL', { error: debugError })
+        }
+      }
 
       const page = stagehand.context.pages()[0]
       logger.info(`Navigating to ${startUrl}`)
@@ -223,13 +256,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           apiKey: apiKey,
         },
         systemPrompt: agentInstructions,
+        mode,
       })
 
-      logger.info('Executing agent task', { task: taskWithVariables })
+      logger.info('Executing agent task', { task: taskWithVariables, mode, maxSteps })
 
       const agentExecutionResult = await agent.execute({
         instruction: taskWithVariables,
-        maxSteps: 20,
+        maxSteps,
       })
 
       const agentResult = {
@@ -293,6 +327,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({
         agentResult,
         structuredOutput,
+        liveViewUrl,
+        sessionId,
       })
     } catch (error) {
       logger.error('Stagehand agent execution error', {
@@ -327,6 +363,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         {
           error: errorMessage,
           details: errorDetails,
+          liveViewUrl,
+          sessionId,
         },
         { status: 500 }
       )

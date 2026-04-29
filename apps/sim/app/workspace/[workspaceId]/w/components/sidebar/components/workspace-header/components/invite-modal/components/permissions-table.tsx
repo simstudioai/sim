@@ -89,6 +89,7 @@ export const PermissionsTable = ({
           permissionType:
             changes.permissionType !== undefined ? changes.permissionType : permissionType,
           isCurrentUser: user.email === session?.user?.email,
+          isExternal: user.isExternal,
         }
       }) || [],
     [workspacePermissions?.users, existingUserPermissionChanges, session?.user?.email]
@@ -210,6 +211,11 @@ export const PermissionsTable = ({
                         ) : (
                           <span>Sent</span>
                         )}
+                      </Badge>
+                    )}
+                    {user.isExternal && (
+                      <Badge variant='default' className='text-caption'>
+                        External
                       </Badge>
                     )}
                     {hasChanges && (

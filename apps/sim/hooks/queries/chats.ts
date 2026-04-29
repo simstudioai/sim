@@ -330,7 +330,7 @@ export function useCreateChat() {
       logger.info('Chat deployed successfully:', result.chatUrl)
       return { chatUrl: result.chatUrl, chatId: result.chatId }
     },
-    onSuccess: (_, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.chatStatus(variables.workflowId),
       })
@@ -385,7 +385,7 @@ export function useUpdateChat() {
       logger.info('Chat updated successfully:', result.chatUrl)
       return { chatUrl: result.chatUrl, chatId }
     },
-    onSuccess: (_, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.chatStatus(variables.workflowId),
       })
@@ -419,7 +419,7 @@ export function useDeleteChat() {
 
       logger.info('Chat deleted successfully')
     },
-    onSuccess: (_, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.chatStatus(variables.workflowId),
       })

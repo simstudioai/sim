@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { Badge } from '@/components/emcn'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
+import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 
 export const LOG_COLUMNS = {
@@ -441,4 +442,38 @@ export const formatDate = (dateString: string) => {
       return format(date, 'MMM d')
     })(),
   }
+}
+
+/**
+ * Extracts the original workflow input from a log entry for retry.
+ * Prefers the persisted `workflowInput` field (new logs), falls back to
+ * reconstructing from `executionState.blockStates` (old logs).
+ */
+export function extractRetryInput(log: WorkflowLog): unknown | undefined {
+  const execData = log.executionData as Record<string, unknown> | undefined
+  if (!execData) return undefined
+
+  if (execData.workflowInput !== undefined) {
+    return execData.workflowInput
+  }
+
+  const executionState = execData.executionState as
+    | {
+        blockStates?: Record<
+          string,
+          { output?: unknown; executed?: boolean; executionTime?: number }
+        >
+      }
+    | undefined
+  if (!executionState?.blockStates) return undefined
+
+  // Starter/trigger blocks are pre-populated with executed: false and
+  // executionTime: 0, which distinguishes them from blocks that actually ran.
+  for (const state of Object.values(executionState.blockStates)) {
+    if (state.executed === false && state.executionTime === 0 && state.output != null) {
+      return state.output
+    }
+  }
+
+  return undefined
 }

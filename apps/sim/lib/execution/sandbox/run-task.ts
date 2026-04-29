@@ -21,6 +21,24 @@ export interface RunSandboxTaskOptions {
 }
 
 /**
+ * Thrown when the sandbox failure is attributable to the caller — user code
+ * errors (SyntaxError, ReferenceError, user-thrown exceptions), timeouts from
+ * user code, client aborts, or per-owner rate limits. Callers should translate
+ * this into a 4xx response so genuine 5xx remains a signal of server health.
+ *
+ * System-origin failures (worker crash, IPC failure, pool saturation, task
+ * misconfig) are tagged with `isSystemError` at the isolated-vm layer and
+ * surface as a plain `Error` → 500.
+ */
+export class SandboxUserCodeError extends Error {
+  constructor(message: string, name: string, stack?: string) {
+    super(message)
+    this.name = name || 'SandboxUserCodeError'
+    if (stack) this.stack = stack
+  }
+}
+
+/**
  * Executes a sandbox task inside the shared isolated-vm pool and returns the
  * binary result buffer. Throws with a human-readable message if the task fails
  * so callers can propagate the error verbatim to UI.
@@ -70,7 +88,9 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
   const queueMs = result.timings ? Math.max(0, elapsedMs - result.timings.total) : undefined
 
   if (result.error) {
-    logger.warn('Sandbox task failed', {
+    const isSystemError = result.error.isSystemError === true
+    const logFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
+    logFn('Sandbox task failed', {
       taskId,
       requestId,
       workspaceId: input.workspaceId,
@@ -79,11 +99,19 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
       timings: result.timings,
       error: result.error.message,
       errorName: result.error.name,
+      isSystemError,
     })
-    const err = new Error(result.error.message)
-    err.name = result.error.name || 'SandboxTaskError'
-    if (result.error.stack) err.stack = result.error.stack
-    throw err
+    if (isSystemError) {
+      const err = new Error(result.error.message)
+      err.name = result.error.name || 'SandboxSystemError'
+      if (result.error.stack) err.stack = result.error.stack
+      throw err
+    }
+    throw new SandboxUserCodeError(
+      result.error.message,
+      result.error.name || 'SandboxTaskError',
+      result.error.stack
+    )
   }
 
   if (typeof result.bytesBase64 !== 'string' || result.bytesBase64.length === 0) {

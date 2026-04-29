@@ -50,7 +50,7 @@ export function Video({
         height={height}
         className={cn(
           className,
-          enableLightbox && 'cursor-pointer transition-opacity hover:opacity-95'
+          enableLightbox && 'cursor-pointer transition-opacity hover:opacity-[0.97]'
         )}
         src={getAssetUrl(src)}
         onClick={handleVideoClick}

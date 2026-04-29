@@ -49,6 +49,18 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
       visibility: 'user-only',
       description: 'Optional JSON schema defining the structure of data the agent should return',
     },
+    mode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Agent tool mode: dom (default), hybrid, or cua',
+    },
+    maxSteps: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Maximum agent steps (default 20, max 200)',
+    },
   },
 
   request: {
@@ -71,6 +83,8 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
         variables: params.variables,
         provider: params.provider || 'openai',
         apiKey: params.apiKey,
+        mode: params.mode,
+        maxSteps: params.maxSteps,
       }
     },
   },
@@ -82,6 +96,8 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
       output: {
         agentResult: data.agentResult,
         structuredOutput: data.structuredOutput || {},
+        liveViewUrl: data.liveViewUrl ?? null,
+        sessionId: data.sessionId ?? null,
       },
     }
   },
@@ -95,6 +111,17 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
     structuredOutput: {
       type: 'object',
       description: 'Extracted data matching the provided output schema',
+    },
+    liveViewUrl: {
+      type: 'string',
+      description:
+        'Embeddable Browserbase live view URL (active only while the session is running)',
+      optional: true,
+    },
+    sessionId: {
+      type: 'string',
+      description: 'Browserbase session identifier',
+      optional: true,
     },
   },
 }

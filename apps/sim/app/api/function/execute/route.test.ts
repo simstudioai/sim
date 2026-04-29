@@ -191,7 +191,7 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      if (response.status === 500) {
+      if (response.status === 422 || response.status === 500) {
         expect(data.success).toBe(false)
       } else {
         const result = data.output?.result
@@ -504,7 +504,7 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(422)
       expect(data.success).toBe(false)
       expect(data.error).toBeTruthy()
     })
@@ -518,7 +518,7 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(422)
       expect(data.success).toBe(false)
       expect(data.error).toContain('Type Error')
       expect(data.error).toContain('Cannot read properties of null')
@@ -533,7 +533,7 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(422)
       expect(data.success).toBe(false)
       expect(data.error).toContain('Reference Error')
       expect(data.error).toContain('undefinedVariable is not defined')
@@ -548,7 +548,7 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(422)
       expect(data.success).toBe(false)
       expect(data.error).toContain('Custom error message')
     })
@@ -562,7 +562,7 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(422)
       expect(data.success).toBe(false)
       expect(data.error).toBeTruthy()
     })

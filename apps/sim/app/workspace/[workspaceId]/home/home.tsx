@@ -125,11 +125,11 @@ export function Home({ chatId }: HomeProps = {}) {
     setIsResourceCollapsed(true)
   }, [clearWidth])
 
-  const handleResourceEvent = useCallback(() => {
+  function handleResourceEvent() {
     if (isResourceCollapsedRef.current) {
       setIsResourceCollapsed(false)
     }
-  }, [])
+  }
 
   const {
     messages,
@@ -201,34 +201,35 @@ export function Home({ chatId }: HomeProps = {}) {
     }
   }, [resources, collapseResource])
 
-  const handleStopGeneration = useCallback(() => {
+  function handleStopGeneration() {
     captureEvent(posthogRef.current, 'task_generation_aborted', {
       workspace_id: workspaceId,
       view: 'mothership',
     })
     void stopGeneration().catch(() => {})
-  }, [stopGeneration, workspaceId])
+  }
 
-  const handleSubmit = useCallback(
-    (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
-      const trimmed = text.trim()
-      if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
+  function handleSubmit(
+    text: string,
+    fileAttachments?: FileAttachmentForApi[],
+    contexts?: ChatContext[]
+  ) {
+    const trimmed = text.trim()
+    if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
 
-      captureEvent(posthogRef.current, 'task_message_sent', {
-        workspace_id: workspaceId,
-        has_attachments: !!(fileAttachments && fileAttachments.length > 0),
-        has_contexts: !!(contexts && contexts.length > 0),
-        is_new_task: !chatId,
-      })
+    captureEvent(posthogRef.current, 'task_message_sent', {
+      workspace_id: workspaceId,
+      has_attachments: !!(fileAttachments && fileAttachments.length > 0),
+      has_contexts: !!(contexts && contexts.length > 0),
+      is_new_task: !chatId,
+    })
 
-      if (initialViewInputRef.current) {
-        setIsInputEntering(true)
-      }
+    if (initialViewInputRef.current) {
+      setIsInputEntering(true)
+    }
 
-      sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
-    },
-    [sendMessage, workspaceId, chatId]
-  )
+    sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
+  }
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -239,55 +240,45 @@ export function Home({ chatId }: HomeProps = {}) {
     return () => window.removeEventListener('mothership-send-message', handler)
   }, [sendMessage])
 
-  const resolveResourceFromContext = useCallback(
-    (context: ChatContext): { type: MothershipResourceType; id: string } | null => {
-      switch (context.kind) {
-        case 'workflow':
-        case 'current_workflow':
-          return context.workflowId ? { type: 'workflow', id: context.workflowId } : null
-        case 'knowledge':
-          return context.knowledgeId ? { type: 'knowledgebase', id: context.knowledgeId } : null
-        case 'table':
-          return context.tableId ? { type: 'table', id: context.tableId } : null
-        case 'file':
-          return context.fileId ? { type: 'file', id: context.fileId } : null
-        default:
-          return null
-      }
-    },
-    []
-  )
+  function resolveResourceFromContext(
+    context: ChatContext
+  ): { type: MothershipResourceType; id: string } | null {
+    switch (context.kind) {
+      case 'workflow':
+      case 'current_workflow':
+        return context.workflowId ? { type: 'workflow', id: context.workflowId } : null
+      case 'knowledge':
+        return context.knowledgeId ? { type: 'knowledgebase', id: context.knowledgeId } : null
+      case 'table':
+        return context.tableId ? { type: 'table', id: context.tableId } : null
+      case 'file':
+        return context.fileId ? { type: 'file', id: context.fileId } : null
+      default:
+        return null
+    }
+  }
 
-  const handleContextAdd = useCallback(
-    (context: ChatContext) => {
-      const resolved = resolveResourceFromContext(context)
-      if (resolved) {
-        addResource({ ...resolved, title: context.label })
-        handleResourceEvent()
-      }
-    },
-    [resolveResourceFromContext, addResource, handleResourceEvent]
-  )
-
-  const handleInitialContextRemove = useCallback(
-    (context: ChatContext) => {
-      const resolved = resolveResourceFromContext(context)
-      if (!resolved) return
-      removeResource(resolved.type, resolved.id)
-    },
-    [resolveResourceFromContext, removeResource]
-  )
-
-  const handleWorkspaceResourceSelect = useCallback(
-    (resource: MothershipResource) => {
-      const wasAdded = addResource(resource)
-      if (!wasAdded) {
-        setActiveResourceId(resource.id)
-      }
+  function handleContextAdd(context: ChatContext) {
+    const resolved = resolveResourceFromContext(context)
+    if (resolved) {
+      addResource({ ...resolved, title: context.label })
       handleResourceEvent()
-    },
-    [addResource, handleResourceEvent, setActiveResourceId]
-  )
+    }
+  }
+
+  function handleInitialContextRemove(context: ChatContext) {
+    const resolved = resolveResourceFromContext(context)
+    if (!resolved) return
+    removeResource(resolved.type, resolved.id)
+  }
+
+  function handleWorkspaceResourceSelect(resource: MothershipResource) {
+    const wasAdded = addResource(resource)
+    if (!wasAdded) {
+      setActiveResourceId(resource.id)
+    }
+    handleResourceEvent()
+  }
 
   const hasMessages = messages.length > 0
   const showChatSkeleton = Boolean(chatId) && !hasMessages && isChatHistoryPending

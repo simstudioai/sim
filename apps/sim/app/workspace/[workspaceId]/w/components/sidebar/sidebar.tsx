@@ -168,27 +168,24 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
 }) {
   const dragGhostRef = useRef<HTMLElement | null>(null)
 
-  const handleDragStart = useCallback(
-    (e: React.DragEvent) => {
-      e.dataTransfer.effectAllowed = 'copyMove'
-      e.dataTransfer.setData(
-        SIM_RESOURCES_DRAG_TYPE,
-        JSON.stringify([{ type: 'task', id: task.id, title: task.name }])
-      )
-      const ghost = createSidebarDragGhost(task.name, { kind: 'task' })
-      void ghost.offsetHeight
-      e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
-      dragGhostRef.current = ghost
-    },
-    [task.id, task.name]
-  )
+  function handleDragStart(e: React.DragEvent) {
+    e.dataTransfer.effectAllowed = 'copyMove'
+    e.dataTransfer.setData(
+      SIM_RESOURCES_DRAG_TYPE,
+      JSON.stringify([{ type: 'task', id: task.id, title: task.name }])
+    )
+    const ghost = createSidebarDragGhost(task.name, { kind: 'task' })
+    void ghost.offsetHeight
+    e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+    dragGhostRef.current = ghost
+  }
 
-  const handleDragEnd = useCallback(() => {
+  function handleDragEnd() {
     if (dragGhostRef.current) {
       dragGhostRef.current.remove()
       dragGhostRef.current = null
     }
-  }, [])
+  }
 
   return (
     <SidebarTooltip label={task.name} enabled={showCollapsedTooltips}>
@@ -206,10 +203,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
             e.preventDefault()
             onMultiSelectClick(task.id, true)
           } else {
-            useFolderStore.setState({
-              selectedTasks: new Set<string>(),
-              lastSelectedTaskId: task.id,
-            })
+            useFolderStore.getState().selectTaskOnly(task.id)
           }
         }}
         onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}

@@ -97,7 +97,6 @@ export class BlockResolver implements Resolver {
         if (fallback !== undefined) {
           return fallback
         }
-        throw new Error(error.message)
       }
       throw error
     }

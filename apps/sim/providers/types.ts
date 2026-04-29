@@ -1,4 +1,4 @@
-import type { StreamingExecution } from '@/executor/types'
+import type { ProviderTimingSegment, StreamingExecution } from '@/executor/types'
 
 export type ProviderId =
   | 'openai'
@@ -63,13 +63,12 @@ export interface FunctionCallResponse {
   success?: boolean
 }
 
-export interface TimeSegment {
-  type: 'model' | 'tool'
-  name: string
-  startTime: number
-  endTime: number
-  duration: number
-}
+/**
+ * Provider-side alias for the canonical segment type. Providers push these into
+ * `providerTiming.timeSegments` during execution; the trace pipeline reads them
+ * verbatim when constructing child spans.
+ */
+export type TimeSegment = ProviderTimingSegment
 
 export interface ProviderResponse {
   content: string

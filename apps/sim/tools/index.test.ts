@@ -267,6 +267,38 @@ vi.mock('@/tools/registry', () => {
       params: {},
       request: { url: '/api/tools/serper/search', method: 'GET' },
     },
+    notion_add_database_row: {
+      id: 'notion_add_database_row',
+      name: 'Add Notion Database Row',
+      description: 'Add a new row to a Notion database with specified properties',
+      version: '1.0.0',
+      params: {},
+      request: { url: 'https://api.notion.com/v1/pages', method: 'POST' },
+    },
+    notion_add_database_row_v2: {
+      id: 'notion_add_database_row_v2',
+      name: 'Add Notion Database Row',
+      description: 'Add a new row to a Notion database with specified properties',
+      version: '2.0.0',
+      params: {},
+      request: { url: 'https://api.notion.com/v1/pages', method: 'POST' },
+    },
+    notion_update_page: {
+      id: 'notion_update_page',
+      name: 'Notion Page Updater',
+      description: 'Update properties of a Notion page',
+      version: '1.0.0',
+      params: {},
+      request: { url: 'https://api.notion.com/v1/pages/x', method: 'PATCH' },
+    },
+    notion_update_page_v2: {
+      id: 'notion_update_page_v2',
+      name: 'Notion Page Updater',
+      description: 'Update properties of a Notion page',
+      version: '2.0.0',
+      params: {},
+      request: { url: 'https://api.notion.com/v1/pages/x', method: 'PATCH' },
+    },
   }
   return { tools: mockTools }
 })
@@ -388,6 +420,19 @@ describe('Tools Registry', () => {
     expect(gmailTool?.name).toBe('Gmail Read')
   })
 
+  it.each([
+    ['notion_add_database_row', 'notion_add_database_row_v2'],
+    ['notion_update_page', 'notion_update_page_v2'],
+  ])('getTool resolves both the legacy and v2 ids for %s', (legacyId, v2Id) => {
+    const legacy = getTool(legacyId)
+    expect(legacy).toBeDefined()
+    expect(legacy?.id).toBe(legacyId)
+
+    const v2 = getTool(v2Id)
+    expect(v2).toBeDefined()
+    expect(v2?.id).toBe(v2Id)
+  })
+
   it('getTool should return undefined for non-existent tool', () => {
     const nonExistentTool = getTool('non_existent_tool')
     expect(nonExistentTool).toBeUndefined()
@@ -397,6 +442,12 @@ describe('Tools Registry', () => {
 describe('Custom Tools', () => {
   it('does not resolve custom tools through the synchronous client helper', () => {
     expect(getTool('custom_remote-tool-123', 'workspace-1')).toBeUndefined()
+  })
+
+  it('returns the legacy notion_add_database_row tool through the async helper', async () => {
+    const legacy = await getToolAsync('notion_add_database_row')
+    expect(legacy).toBeDefined()
+    expect(legacy?.id).toBe('notion_add_database_row')
   })
 
   it('resolves custom tools through the async helper', async () => {

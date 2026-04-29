@@ -3,6 +3,7 @@ import { credential, credentialMember, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, ne } from 'drizzle-orm'
+import type { DbOrTx } from '@/lib/db/types'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialAccess')
@@ -74,7 +75,15 @@ export async function revokeWorkspaceCredentialMemberships(
   workspaceId: string,
   userId: string
 ): Promise<void> {
-  const workspaceCredentialIds = await db
+  await revokeWorkspaceCredentialMembershipsTx(db, workspaceId, userId)
+}
+
+export async function revokeWorkspaceCredentialMembershipsTx(
+  tx: DbOrTx,
+  workspaceId: string,
+  userId: string
+): Promise<void> {
+  const workspaceCredentialIds = await tx
     .select({ id: credential.id })
     .from(credential)
     .where(eq(credential.workspaceId, workspaceId))
@@ -83,7 +92,7 @@ export async function revokeWorkspaceCredentialMemberships(
 
   const credIds = workspaceCredentialIds.map((c) => c.id)
 
-  const [workspaceRow] = await db
+  const [workspaceRow] = await tx
     .select({ ownerId: workspace.ownerId })
     .from(workspace)
     .where(eq(workspace.id, workspaceId))
@@ -92,7 +101,7 @@ export async function revokeWorkspaceCredentialMemberships(
   const ownerId = workspaceRow?.ownerId
 
   if (ownerId && ownerId !== userId) {
-    const userAdminMemberships = await db
+    const userAdminMemberships = await tx
       .select({ credentialId: credentialMember.credentialId })
       .from(credentialMember)
       .where(
@@ -105,7 +114,7 @@ export async function revokeWorkspaceCredentialMemberships(
       )
 
     for (const { credentialId: credId } of userAdminMemberships) {
-      const otherAdmins = await db
+      const otherAdmins = await tx
         .select({ id: credentialMember.id })
         .from(credentialMember)
         .where(
@@ -121,19 +130,19 @@ export async function revokeWorkspaceCredentialMemberships(
       if (otherAdmins.length > 0) continue
 
       const now = new Date()
-      const [existingOwnerMembership] = await db
+      const [existingOwnerMembership] = await tx
         .select({ id: credentialMember.id, status: credentialMember.status })
         .from(credentialMember)
         .where(and(eq(credentialMember.credentialId, credId), eq(credentialMember.userId, ownerId)))
         .limit(1)
 
       if (existingOwnerMembership) {
-        await db
+        await tx
           .update(credentialMember)
           .set({ role: 'admin', status: 'active', updatedAt: now })
           .where(eq(credentialMember.id, existingOwnerMembership.id))
       } else {
-        await db.insert(credentialMember).values({
+        await tx.insert(credentialMember).values({
           id: generateId(),
           credentialId: credId,
           userId: ownerId,
@@ -154,7 +163,7 @@ export async function revokeWorkspaceCredentialMemberships(
     }
   }
 
-  await db
+  await tx
     .update(credentialMember)
     .set({ status: 'revoked', updatedAt: new Date() })
     .where(

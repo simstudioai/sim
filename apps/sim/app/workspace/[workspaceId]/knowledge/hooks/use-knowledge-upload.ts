@@ -794,7 +794,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         }
 
         throw new DirectUploadError(
-          `Failed to upload ${file.name}: ${errorData?.error || 'Unknown error'}`,
+          `Failed to upload ${file.name}: ${errorData?.message || errorData?.error || 'Unknown error'}`,
           errorData
         )
       }

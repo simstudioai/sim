@@ -75,11 +75,11 @@ function apportionCredits(
   return result
 }
 
-function RoleBadge({ role }: { role: string }) {
-  const variant = role === 'owner' ? 'blue-secondary' : 'gray-secondary'
+function RoleBadge({ memberRole }: { memberRole: string }) {
+  const variant = memberRole === 'owner' ? 'blue-secondary' : 'gray-secondary'
   return (
     <Badge variant={variant} size='sm'>
-      {role.charAt(0).toUpperCase() + role.slice(1)}
+      {memberRole.charAt(0).toUpperCase() + memberRole.slice(1)}
     </Badge>
   )
 }
@@ -521,6 +521,7 @@ export function OrganizationRoster({
                 const rowKey = `member-${m.memberId}`
                 const expanded = expandedRows.has(rowKey)
                 const isSelf = m.email === currentUserEmail
+                const isExternal = m.role === 'external'
                 const credits = memberCredits[m.userId] ?? 0
                 const canRemove = isAdminOrOwner && m.role !== 'owner' && !isSelf
                 const canTransferAndLeave = isSelf && m.role === 'owner' && !!onTransferOwnership
@@ -545,8 +546,11 @@ export function OrganizationRoster({
                         </button>
                       </TableCell>
                       <TableCell>
-                        {m.role === 'owner' || !canEditRoles || m.userId === currentUserId ? (
-                          <RoleBadge role={m.role} />
+                        {m.role === 'owner' ||
+                        isExternal ||
+                        !canEditRoles ||
+                        m.userId === currentUserId ? (
+                          <RoleBadge memberRole={m.role} />
                         ) : (
                           <OrgRoleSelector
                             value={(m.role === 'admin' ? 'admin' : 'member') as OrgRole}
@@ -630,6 +634,7 @@ export function OrganizationRoster({
               {filteredInvitations.map((inv) => {
                 const rowKey = `invite-${inv.id}`
                 const expanded = expandedRows.has(rowKey)
+                const isExternal = inv.membershipIntent === 'external'
                 const isResending = resendingIds.has(inv.id)
                 const isCancelling = cancellingIds.has(inv.id)
                 const cooldown = resendCooldowns[inv.id] ?? 0
@@ -660,7 +665,9 @@ export function OrganizationRoster({
                         </button>
                       </TableCell>
                       <TableCell>
-                        {isAdminOrOwner ? (
+                        {isExternal ? (
+                          <RoleBadge memberRole='external' />
+                        ) : isAdminOrOwner ? (
                           <OrgRoleSelector
                             value={(inv.role === 'admin' ? 'admin' : 'member') as OrgRole}
                             onChange={(next) =>
@@ -677,7 +684,7 @@ export function OrganizationRoster({
                             disabled={updateInvitation.isPending}
                           />
                         ) : (
-                          <RoleBadge role={inv.role} />
+                          <RoleBadge memberRole={inv.role} />
                         )}
                       </TableCell>
                       <TableCell className='text-right'>
