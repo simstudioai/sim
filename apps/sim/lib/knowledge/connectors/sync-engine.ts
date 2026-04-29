@@ -178,6 +178,15 @@ export async function dispatchSync(
         knowledgeBaseId: row.knowledgeBaseId,
         requestId,
       })
+      await db
+        .update(knowledgeConnector)
+        .set({
+          status: 'error',
+          nextSyncAt: null,
+          lastSyncError: 'Knowledge base deleted',
+          updatedAt: new Date(),
+        })
+        .where(eq(knowledgeConnector.id, connectorId))
       return
     }
     if (row.connectorArchivedAt || row.connectorDeletedAt) {
