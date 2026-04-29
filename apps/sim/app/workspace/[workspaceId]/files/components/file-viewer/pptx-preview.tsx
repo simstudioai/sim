@@ -156,7 +156,6 @@ export const PptxPreview = memo(function PptxPreview({
       if (cancelled) return
       try {
         setRendering(true)
-        setRenderError(null)
 
         const response = await fetch(`/api/workspaces/${workspaceId}/pptx/preview`, {
           method: 'POST',

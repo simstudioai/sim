@@ -175,7 +175,6 @@ const IframePreview = memo(function IframePreview({
 
       try {
         setRendering(true)
-        setRenderError(null)
 
         const response = await fetch(`/api/workspaces/${workspaceId}/pdf/preview`, {
           method: 'POST',
