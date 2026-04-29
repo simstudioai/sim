@@ -63,6 +63,7 @@ interface PreviewPanelProps {
   mimeType: string | null
   filename: string
   isStreaming?: boolean
+  disableAutoScroll?: boolean
   onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
 }
 
@@ -71,6 +72,7 @@ export const PreviewPanel = memo(function PreviewPanel({
   mimeType,
   filename,
   isStreaming,
+  disableAutoScroll,
   onCheckboxToggle,
 }: PreviewPanelProps) {
   const previewType = resolvePreviewType(mimeType, filename)
@@ -80,6 +82,7 @@ export const PreviewPanel = memo(function PreviewPanel({
       <MarkdownPreview
         content={content}
         isStreaming={isStreaming}
+        disableAutoScroll={disableAutoScroll}
         onCheckboxToggle={onCheckboxToggle}
       />
     )
@@ -649,14 +652,16 @@ function FrontMatterCard({ data }: { data: Record<string, unknown> }) {
 const MarkdownPreview = memo(function MarkdownPreview({
   content,
   isStreaming = false,
+  disableAutoScroll = false,
   onCheckboxToggle,
 }: {
   content: string
   isStreaming?: boolean
+  disableAutoScroll?: boolean
   onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
 }) {
   const { push: navigate } = useRouter()
-  const { ref: autoScrollRef } = useAutoScroll(isStreaming)
+  const { ref: autoScrollRef } = useAutoScroll(isStreaming && !disableAutoScroll)
 
   const contentRef = useRef(content)
   contentRef.current = content

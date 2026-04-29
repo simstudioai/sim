@@ -678,6 +678,7 @@ export const TextEditor = memo(function TextEditor({
               mimeType={file.type}
               filename={file.name}
               isStreaming={isStreaming}
+              disableAutoScroll={disableStreamingAutoScroll}
               onCheckboxToggle={canEdit && !isStreaming ? handleCheckboxToggle : undefined}
             />
           </div>
