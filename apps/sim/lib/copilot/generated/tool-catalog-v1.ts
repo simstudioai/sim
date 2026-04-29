@@ -2869,7 +2869,7 @@ export const UserTable: ToolCatalogEntry = {
               'Pipe query_rows results directly to a NEW workspace file. The format is auto-inferred from the file extension: .csv → CSV, .json → JSON, .md → Markdown, etc. Use .csv for tabular exports. Use a flat path like "files/export.csv" — nested paths are not supported.',
           },
           position: {
-            type: 'number',
+            type: 'integer',
             description:
               'Zero-based index at which to insert the row (optional, insert_row only). Rows at and below that index shift down. Omit to append at the end.',
           },
@@ -2877,7 +2877,7 @@ export const UserTable: ToolCatalogEntry = {
             type: 'array',
             description:
               'Per-row insertion indices for batch_insert_rows (optional). Must be the same length as rows and contain no duplicates. Values are final positions in the resulting table — lower-index shifts are applied automatically. Omit to append all rows at the end.',
-            items: { type: 'number' },
+            items: { type: 'integer' },
           },
           rowId: {
             type: 'string',
