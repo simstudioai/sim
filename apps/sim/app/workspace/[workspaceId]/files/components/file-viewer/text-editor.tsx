@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import type { OnMount } from '@monaco-editor/react'
+import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
 import { Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -652,7 +653,7 @@ export const TextEditor = memo(function TextEditor({
               hover: { enabled: false },
               codeLens: false,
               lightbulb: {
-                enabled: 'off' as import('monaco-editor').editor.ShowLightbulbIconMode,
+                enabled: 'off' as MonacoEditorTypes.ShowLightbulbIconMode,
               },
               inlayHints: { enabled: 'off' },
             }}

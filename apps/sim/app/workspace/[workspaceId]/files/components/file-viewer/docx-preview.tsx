@@ -15,9 +15,6 @@ import {
 
 const logger = createLogger('DocxPreview')
 
-/** Horizontal padding the docx-preview library applies inside `.docx-wrapper`. */
-const WRAPPER_HORIZONTAL_PADDING_PX = 60
-
 /**
  * Fit the rendered docx pages to the host container width using a CSS scale.
  * The library renders `<section class="docx">` at the document's natural page
@@ -38,7 +35,10 @@ function fitDocxToContainer(host: HTMLElement) {
   const naturalPageWidth = section.offsetWidth
   if (!naturalPageWidth) return
 
-  const naturalWrapperWidth = naturalPageWidth + WRAPPER_HORIZONTAL_PADDING_PX
+  const wrapperStyle = window.getComputedStyle(wrapper)
+  const horizontalPadding =
+    parseFloat(wrapperStyle.paddingLeft) + parseFloat(wrapperStyle.paddingRight)
+  const naturalWrapperWidth = naturalPageWidth + horizontalPadding
   const available = host.clientWidth
   const scale = Math.min(1, available / naturalWrapperWidth)
 
