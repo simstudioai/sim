@@ -24,13 +24,15 @@ import { vi } from 'vitest'
  * const response = await POST(req)
  * ```
  */
+type NextRequestInit = NonNullable<ConstructorParameters<typeof NextRequest>[1]>
+
 export function createMockRequest(
   method = 'GET',
   body?: unknown,
   headers: Record<string, string> = {},
   url = 'http://localhost:3000/api/test'
 ): NextRequest {
-  const init: RequestInit = {
+  const init: NextRequestInit = {
     method,
     headers: new Headers({
       'Content-Type': 'application/json',
