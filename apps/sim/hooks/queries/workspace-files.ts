@@ -108,7 +108,9 @@ async function fetchWorkspaceFileContent(
 }
 
 /**
- * Hook to fetch workspace file content as text
+ * Hook to fetch workspace file content as text.
+ * `key` (the storage object key) is included in the query key so that a new
+ * storage key (e.g. after a file is re-uploaded) correctly busts the cache.
  */
 export function useWorkspaceFileContent(
   workspaceId: string,
@@ -117,7 +119,7 @@ export function useWorkspaceFileContent(
   raw?: boolean
 ) {
   return useQuery({
-    queryKey: workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text'),
+    queryKey: [...workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text'), key],
     queryFn: ({ signal }) => fetchWorkspaceFileContent(key, signal, raw),
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: 30 * 1000,
@@ -134,12 +136,12 @@ async function fetchWorkspaceFileBinary(key: string, signal?: AbortSignal): Prom
 
 /**
  * Hook to fetch workspace file content as binary (ArrayBuffer).
- * Shares the same query key as useWorkspaceFileContent so cache
- * invalidation from file updates triggers a refetch automatically.
+ * `key` (the storage object key) is included in the query key so that a new
+ * storage key (e.g. after a file is re-uploaded) correctly busts the cache.
  */
 export function useWorkspaceFileBinary(workspaceId: string, fileId: string, key: string) {
   return useQuery({
-    queryKey: workspaceFilesKeys.content(workspaceId, fileId, 'binary'),
+    queryKey: [...workspaceFilesKeys.content(workspaceId, fileId, 'binary'), key],
     queryFn: ({ signal }) => fetchWorkspaceFileBinary(key, signal),
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: 30 * 1000,
@@ -214,10 +216,8 @@ export function useUploadWorkspaceFile() {
 
       return data
     },
-    onSuccess: (_data, variables) => {
-      // Invalidate files list to refetch
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
-      // Invalidate storage info to update usage
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
     onError: (error) => {
@@ -233,16 +233,17 @@ interface UpdateFileContentParams {
   workspaceId: string
   fileId: string
   content: string
+  encoding?: 'base64' | 'utf-8'
 }
 
 export function useUpdateWorkspaceFileContent() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, fileId, content }: UpdateFileContentParams) => {
+    mutationFn: async ({ workspaceId, fileId, content, encoding }: UpdateFileContentParams) => {
       return requestJson(updateWorkspaceFileContentContract, {
         params: { id: workspaceId, fileId },
-        body: { content },
+        body: encoding ? { content, encoding } : { content },
       })
     },
     onSettled: (_data, _error, variables) => {

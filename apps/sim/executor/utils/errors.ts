@@ -49,6 +49,8 @@ export function buildBlockExecutionError(details: BlockExecutionErrorDetails): E
 
   const error = new Error(`${blockName}: ${errorMessage}`)
 
+  const innerStatusCode = readStatusCode(details.error)
+
   Object.assign(error, {
     blockId: details.block.id,
     blockName,
@@ -56,6 +58,7 @@ export function buildBlockExecutionError(details: BlockExecutionErrorDetails): E
     workflowId: details.context?.workflowId,
     timestamp: new Date().toISOString(),
     ...details.additionalInfo,
+    ...(innerStatusCode !== undefined ? { statusCode: innerStatusCode } : {}),
   })
 
   return error
@@ -87,6 +90,25 @@ export function buildHTTPError(config: {
   })
 
   return error
+}
+
+function readStatusCode(value: unknown): number | undefined {
+  if (!(value instanceof Error)) return undefined
+  const status = (value as unknown as { statusCode?: unknown }).statusCode
+  return typeof status === 'number' ? status : undefined
+}
+
+/**
+ * Maps an execution error to an HTTP status code. Errors thrown from the
+ * executor that represent workflow-author mistakes (invalid field references,
+ * etc.) carry a 4xx `statusCode`; everything else is a 500.
+ */
+export function getExecutionErrorStatus(error: unknown): number {
+  const status = readStatusCode(error)
+  if (status !== undefined && status >= 400 && status < 500) {
+    return status
+  }
+  return 500
 }
 
 export function normalizeError(error: unknown): string {

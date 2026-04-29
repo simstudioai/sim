@@ -166,7 +166,7 @@ export function useDeleteWorkspace() {
         body: { deleteTemplates },
       })
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.workspaceId) })
     },
@@ -190,7 +190,7 @@ export function useUpdateWorkspace() {
       const body = updates.name !== undefined ? { ...updates, name: updates.name.trim() } : updates
       return requestJson(updateWorkspaceContract, { params: { id: workspaceId }, body })
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.workspaceId) })
     },
@@ -297,7 +297,7 @@ export function useUpdateWorkspaceSettings() {
     mutationFn: async ({ workspaceId, ...updates }: UpdateWorkspaceSettingsParams) => {
       return requestJson(updateWorkspaceContract, { params: { id: workspaceId }, body: updates })
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.settings(variables.workspaceId),
       })

@@ -108,7 +108,7 @@ export const getSupplierInvoiceTool: ToolConfig<GetSupplierInvoiceParams, SapPro
     body: (params) => ({
       ...baseProxyBody(params),
       service: 'API_SUPPLIERINVOICE_PROCESS_SRV',
-      path: `/A_SupplierInvoice(SupplierInvoice=${quoteOdataKey(params.supplierInvoice)},FiscalYear=${quoteOdataKey(params.fiscalYear)})`,
+      path: `/A_SupplierInvoice(FiscalYear=${quoteOdataKey(params.fiscalYear)},SupplierInvoice=${quoteOdataKey(params.supplierInvoice)})`,
       method: 'GET',
       query: buildEntityQuery(params),
     }),

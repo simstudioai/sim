@@ -110,7 +110,7 @@ export interface CreatePurchaseOrderParams extends SapBaseParams {
   purchasingOrganization: string
   purchasingGroup: string
   supplier: string
-  body?: Record<string, unknown> | string
+  body: Record<string, unknown> | string
 }
 
 export interface ListSupplierInvoicesParams extends SapBaseParams {
@@ -224,6 +224,13 @@ export interface ListInboundDeliveriesParams extends SapBaseParams {
 
 export interface GetInboundDeliveryParams extends SapBaseParams {
   deliveryDocument: string
+  select?: string
+  expand?: string
+}
+
+export interface GetMaterialDocumentParams extends SapBaseParams {
+  materialDocumentYear: string
+  materialDocument: string
   select?: string
   expand?: string
 }

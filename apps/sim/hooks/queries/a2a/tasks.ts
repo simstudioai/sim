@@ -132,10 +132,12 @@ export function useSendA2ATask() {
 
   return useMutation({
     mutationFn: sendA2ATask,
-    onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: a2aTaskKeys.detail(variables.agentUrl, data.taskId),
-      })
+    onSettled: (data, _error, variables) => {
+      if (data) {
+        queryClient.invalidateQueries({
+          queryKey: a2aTaskKeys.detail(variables.agentUrl, data.taskId),
+        })
+      }
     },
   })
 }
@@ -255,7 +257,7 @@ export function useCancelA2ATask() {
 
   return useMutation({
     mutationFn: cancelA2ATask,
-    onSuccess: (data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: a2aTaskKeys.detail(variables.agentUrl, variables.taskId),
       })

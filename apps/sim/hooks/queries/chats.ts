@@ -287,7 +287,7 @@ export function useCreateChat() {
         throwUserFriendlyIdentifierError(error)
       }
     },
-    onSuccess: (_, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.chatStatus(variables.workflowId),
       })
@@ -331,7 +331,7 @@ export function useUpdateChat() {
         throwUserFriendlyIdentifierError(error)
       }
     },
-    onSuccess: (_, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.chatStatus(variables.workflowId),
       })
@@ -357,7 +357,7 @@ export function useDeleteChat() {
       await requestJson(deleteChatContract, { params: { id: chatId } })
       logger.info('Chat deleted successfully')
     },
-    onSuccess: (_, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.chatStatus(variables.workflowId),
       })

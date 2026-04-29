@@ -62,7 +62,7 @@ import type {
   SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
-import { hasExecutionResult } from '@/executor/utils/errors'
+import { getExecutionErrorStatus, hasExecutionResult } from '@/executor/utils/errors'
 import { Serializer } from '@/serializer'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -781,6 +781,7 @@ async function handleExecutePost(
         reqLogger.error(`Non-SSE execution failed: ${errorMessage}`)
 
         const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
+        const status = getExecutionErrorStatus(error)
 
         return NextResponse.json(
           {
@@ -795,7 +796,7 @@ async function handleExecutePost(
                 }
               : undefined,
           },
-          { status: 500 }
+          { status }
         )
       } finally {
         timeoutController.cleanup()

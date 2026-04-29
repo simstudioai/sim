@@ -1,7 +1,13 @@
 import type { Edge } from 'reactflow'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import type { ParentIteration, SerializableExecutionState } from '@/executor/execution/types'
-import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
+import type {
+  BlockLog,
+  BlockTokens,
+  IterationToolCall,
+  NormalizedBlockOutput,
+  ProviderTimingSegment,
+} from '@/executor/types'
 import type { Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 
 export type { WorkflowState, Loop, Parallel }
@@ -149,6 +155,7 @@ export interface WorkflowExecutionLog {
     >
     executionState?: SerializableExecutionState
     finalOutput?: any
+    workflowInput?: unknown
     errorDetails?: {
       blockId: string
       blockName: string
@@ -179,25 +186,13 @@ export interface WorkflowExecutionLog {
 export type WorkflowExecutionLogInsert = Omit<WorkflowExecutionLog, 'id' | 'createdAt'>
 export type WorkflowExecutionLogSelect = WorkflowExecutionLog
 
-export interface TokenInfo {
-  input?: number
-  output?: number
-  total?: number
-  prompt?: number
-  completion?: number
-}
+export type TokenInfo = BlockTokens
 
 export interface ProviderTiming {
   duration: number
   startTime: string
   endTime: string
-  segments: Array<{
-    type: string
-    name?: string
-    startTime: string | number
-    endTime: string | number
-    duration: number
-  }>
+  segments: ProviderTimingSegment[]
 }
 
 export interface TraceSpan {
@@ -208,11 +203,15 @@ export interface TraceSpan {
   startTime: string
   endTime: string
   children?: TraceSpan[]
+  /**
+   * @deprecated Tool invocations are emitted as `children` with `type: 'tool'`.
+   * This field only appears on legacy trace spans persisted before the unification.
+   */
   toolCalls?: ToolCall[]
   status?: 'success' | 'error'
   /** Whether this block's error was handled by an error handler path */
   errorHandled?: boolean
-  tokens?: number | TokenInfo
+  tokens?: TokenInfo
   relativeStartMs?: number
   blockId?: string
   input?: Record<string, unknown>
@@ -230,6 +229,43 @@ export interface TraceSpan {
   parallelId?: string
   iterationIndex?: number
   parentIterations?: ParentIteration[]
+  /**
+   * For model child spans: the assistant's thinking/reasoning blocks from this
+   * iteration, stringified. Surfaces Anthropic extended thinking and equivalents.
+   */
+  thinking?: string
+  /**
+   * For model child spans: the tool calls the assistant requested in this
+   * iteration. `id` is the provider-assigned `tool_call.id`, used to correlate
+   * the following tool child span via its `toolCallId` field.
+   */
+  modelToolCalls?: IterationToolCall[]
+  /**
+   * For model child spans: the provider-reported stop reason
+   * (`stop`, `tool_use`, `length`, …).
+   */
+  finishReason?: string
+  /**
+   * For tool child spans: the `tool_call.id` this tool invocation satisfies.
+   * Matches one of the preceding model child's `modelToolCalls[i].id`.
+   */
+  toolCallId?: string
+  /**
+   * For model child spans: time-to-first-token in ms (streaming runs only).
+   */
+  ttft?: number
+  /**
+   * For model child spans: the provider system identifier
+   * (`anthropic`, `openai`, `gemini`, …) — aligns with OTel `gen_ai.system`.
+   */
+  provider?: string
+  /**
+   * For failed child spans: structured error class
+   * (e.g. `rate_limit`, `context_length`).
+   */
+  errorType?: string
+  /** For failed child spans: human-readable error message. */
+  errorMessage?: string
 }
 
 export interface WorkflowExecutionSummary {

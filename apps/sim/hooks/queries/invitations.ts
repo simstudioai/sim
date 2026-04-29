@@ -165,7 +165,7 @@ export function useResendWorkspaceInvitation() {
         params: { id: invitationId },
       })
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: invitationKeys.list(variables.workspaceId),
       })
@@ -192,7 +192,7 @@ export function useRemoveWorkspaceMember() {
         body: { workspaceId },
       })
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.permissions(variables.workspaceId),
       })
@@ -229,7 +229,7 @@ export function useLeaveWorkspace() {
         body: { workspaceId },
       })
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.permissions(variables.workspaceId),
       })
@@ -255,7 +255,7 @@ export function useUpdateWorkspacePermissions() {
         body: { updates },
       })
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.permissions(variables.workspaceId),
       })

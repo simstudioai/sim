@@ -379,18 +379,19 @@ export function useUpdateDeploymentVersion() {
         body: { name, description },
       })
     },
-    onSuccess: (_, variables) => {
-      logger.info('Deployment version updated', {
-        workflowId: variables.workflowId,
-        version: variables.version,
-      })
+    onSettled: (_data, error, variables) => {
+      if (!error) {
+        logger.info('Deployment version updated', {
+          workflowId: variables.workflowId,
+          version: variables.version,
+        })
+      } else {
+        logger.error('Failed to update deployment version', { error })
+      }
 
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.versions(variables.workflowId),
       })
-    },
-    onError: (error) => {
-      logger.error('Failed to update deployment version', { error })
     },
   })
 }
@@ -589,18 +590,19 @@ export function useUpdatePublicApi() {
         body: { isPublicApi },
       })
     },
-    onSuccess: (_, variables) => {
-      logger.info('Public API setting updated', {
-        workflowId: variables.workflowId,
-        isPublicApi: variables.isPublicApi,
-      })
+    onSettled: (_data, error, variables) => {
+      if (!error) {
+        logger.info('Public API setting updated', {
+          workflowId: variables.workflowId,
+          isPublicApi: variables.isPublicApi,
+        })
+      } else {
+        logger.error('Failed to update public API setting', { error })
+      }
 
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.info(variables.workflowId),
       })
-    },
-    onError: (error) => {
-      logger.error('Failed to update public API setting', { error })
     },
   })
 }

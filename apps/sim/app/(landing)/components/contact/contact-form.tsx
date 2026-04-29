@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { toError } from '@sim/utils/errors'
 import { useMutation } from '@tanstack/react-query'
@@ -99,11 +99,7 @@ export function ContactForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [website, setWebsite] = useState('')
   const [widgetReady, setWidgetReady] = useState(false)
-  const [turnstileSiteKey, setTurnstileSiteKey] = useState<string | undefined>()
-
-  useEffect(() => {
-    setTurnstileSiteKey(getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'))
-  }, [])
+  const [turnstileSiteKey] = useState(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'))
 
   function updateField<TField extends keyof ContactFormState>(
     field: TField,

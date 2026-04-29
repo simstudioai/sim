@@ -7,6 +7,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import type { ModelsObject } from '@/providers/ollama/types'
 import { createReadableStreamFromOllamaStream } from '@/providers/ollama/utils'
+import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
   ProviderConfig,
   ProviderRequest,
@@ -230,7 +231,7 @@ export const ollamaProvider: ProviderConfig = {
                 timeSegments: [
                   {
                     type: 'model',
-                    name: 'Streaming response',
+                    name: request.model,
                     startTime: providerStartTime,
                     endTime: Date.now(),
                     duration: Date.now() - providerStartTime,
@@ -282,7 +283,7 @@ export const ollamaProvider: ProviderConfig = {
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
-          name: 'Initial response',
+          name: request.model,
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -295,6 +296,14 @@ export const ollamaProvider: ProviderConfig = {
         }
 
         const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          currentResponse,
+          toolCallsInResponse,
+          { model: request.model, provider: 'ollama' }
+        )
+
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
           break
         }
@@ -375,6 +384,7 @@ export const ollamaProvider: ProviderConfig = {
             startTime: startTime,
             endTime: endTime,
             duration: duration,
+            toolCallId: toolCall.id,
           })
 
           let resultContent: any
@@ -426,7 +436,7 @@ export const ollamaProvider: ProviderConfig = {
 
         timeSegments.push({
           type: 'model',
-          name: `Model response (iteration ${iterationCount + 1})`,
+          name: request.model,
           startTime: nextModelStartTime,
           endTime: nextModelEndTime,
           duration: thisModelTime,
@@ -447,6 +457,15 @@ export const ollamaProvider: ProviderConfig = {
         }
 
         iterationCount++
+      }
+
+      if (iterationCount === MAX_TOOL_ITERATIONS) {
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          currentResponse,
+          currentResponse.choices[0]?.message?.tool_calls,
+          { model: request.model, provider: 'ollama' }
+        )
       }
 
       if (request.stream) {
@@ -579,3 +598,8 @@ export const ollamaProvider: ProviderConfig = {
     }
   },
 }
+
+/**
+ * Enriches the last model segment with per-iteration content from a Chat
+ * Completions response: assistant text, tool calls, finish reason, token usage.
+ */

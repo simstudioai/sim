@@ -5,6 +5,7 @@ import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
   Message,
   ProviderConfig,
@@ -156,7 +157,7 @@ export const xAIProvider: ProviderConfig = {
               timeSegments: [
                 {
                   type: 'model',
-                  name: 'Streaming response',
+                  name: request.model,
                   startTime: providerStartTime,
                   endTime: Date.now(),
                   duration: Date.now() - providerStartTime,
@@ -227,7 +228,7 @@ export const xAIProvider: ProviderConfig = {
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
-          name: 'Initial response',
+          name: request.model,
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -251,6 +252,14 @@ export const xAIProvider: ProviderConfig = {
           }
 
           const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            currentResponse,
+            toolCallsInResponse,
+            { model: request.model, provider: 'xai' }
+          )
+
           if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
             break
           }
@@ -331,6 +340,7 @@ export const xAIProvider: ProviderConfig = {
               startTime: startTime,
               endTime: endTime,
               duration: duration,
+              toolCallId: toolCall.id,
             })
             let resultContent: any
             if (result.success && result.output) {
@@ -441,7 +451,7 @@ export const xAIProvider: ProviderConfig = {
           const thisModelTime = nextModelEndTime - nextModelStartTime
           timeSegments.push({
             type: 'model',
-            name: `Model response (iteration ${iterationCount + 1})`,
+            name: request.model,
             startTime: nextModelStartTime,
             endTime: nextModelEndTime,
             duration: thisModelTime,
@@ -460,6 +470,15 @@ export const xAIProvider: ProviderConfig = {
           }
 
           iterationCount++
+        }
+
+        if (iterationCount === MAX_TOOL_ITERATIONS) {
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            currentResponse,
+            currentResponse.choices[0]?.message?.tool_calls,
+            { model: request.model, provider: 'xai' }
+          )
         }
       } catch (error) {
         logger.error('XAI Provider - Error in tool processing loop:', {
@@ -614,3 +633,8 @@ export const xAIProvider: ProviderConfig = {
     }
   },
 }
+
+/**
+ * Enriches the last model segment with per-iteration content from a Chat
+ * Completions response: assistant text, tool calls, finish reason, token usage.
+ */

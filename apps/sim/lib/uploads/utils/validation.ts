@@ -77,6 +77,7 @@ export const SUPPORTED_CODE_EXTENSIONS = [
   'editorconfig',
   'prettierrc',
   'eslintrc',
+  'mmd',
 ] as const
 
 export type SupportedCodeExtension = (typeof SUPPORTED_CODE_EXTENSIONS)[number]

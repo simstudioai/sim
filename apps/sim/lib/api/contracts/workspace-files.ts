@@ -37,11 +37,10 @@ export const renameWorkspaceFileBodySchema = z.object({
     .refine((name) => name.trim().length > 0, { message: 'Name is required' }),
 })
 
-export const updateWorkspaceFileContentBodySchema = z
-  .object({
-    content: z.string(),
-  })
-  .passthrough()
+export const updateWorkspaceFileContentBodySchema = z.object({
+  content: z.string(),
+  encoding: z.enum(['base64', 'utf-8']).optional(),
+})
 
 export const workspaceFileRecordSchema = z.object({
   id: z.string(),

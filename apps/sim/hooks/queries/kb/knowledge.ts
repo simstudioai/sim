@@ -404,7 +404,7 @@ export function useUpdateChunk() {
 
   return useMutation({
     mutationFn: updateChunk,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -436,7 +436,7 @@ export function useDeleteChunk() {
 
   return useMutation({
     mutationFn: deleteChunk,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -473,7 +473,7 @@ export function useCreateChunk() {
 
   return useMutation({
     mutationFn: createChunk,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -513,7 +513,7 @@ export function useUpdateDocument() {
 
   return useMutation({
     mutationFn: updateDocument,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -543,7 +543,7 @@ export function useDeleteDocument() {
 
   return useMutation({
     mutationFn: deleteDocument,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -581,7 +581,7 @@ export function useBulkDocumentOperation() {
 
   return useMutation({
     mutationFn: bulkDocumentOperation,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -617,7 +617,7 @@ export function useCreateKnowledgeBase(workspaceId?: string) {
 
   return useMutation({
     mutationFn: createKnowledgeBase,
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.lists(),
       })
@@ -654,7 +654,7 @@ export function useUpdateKnowledgeBase(workspaceId?: string) {
     onError: (error) => {
       toast.error(error.message, { duration: 5000 })
     },
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.lists(),
       })
@@ -682,7 +682,7 @@ export function useDeleteKnowledgeBase(workspaceId?: string) {
 
   return useMutation({
     mutationFn: deleteKnowledgeBase,
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.lists(),
       })
@@ -719,7 +719,7 @@ export function useBulkChunkOperation() {
 
   return useMutation({
     mutationFn: bulkChunkOperation,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -754,7 +754,7 @@ export function useUpdateDocumentTags() {
 
   return useMutation({
     mutationFn: updateDocumentTags,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -843,7 +843,7 @@ export function useCreateTagDefinition() {
 
   return useMutation({
     mutationFn: createTagDefinition,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.tagDefinitions(knowledgeBaseId),
       })
@@ -870,7 +870,7 @@ export function useDeleteTagDefinition() {
 
   return useMutation({
     mutationFn: deleteTagDefinition,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.tagDefinitions(knowledgeBaseId),
       })
@@ -938,7 +938,7 @@ export function useSaveDocumentTagDefinitions() {
 
   return useMutation({
     mutationFn: saveDocumentTagDefinitions,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.documentTagDefinitions(knowledgeBaseId, documentId),
       })
@@ -983,7 +983,7 @@ export function useDeleteDocumentTagDefinitions() {
 
   return useMutation({
     mutationFn: deleteDocumentTagDefinitions,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.documentTagDefinitions(knowledgeBaseId, documentId),
       })

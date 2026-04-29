@@ -1135,12 +1135,15 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
   const [selectedTier, setSelectedTier] = useState<number>(PRO_TIER.credits)
   const [selectedSeats, setSelectedSeats] = useState(1)
 
-  useEffect(() => {
+  // Reset selections each time the modal opens.
+  const prevOpenRef = useRef(open)
+  if (prevOpenRef.current !== open) {
+    prevOpenRef.current = open
     if (open) {
       setSelectedTier(PRO_TIER.credits)
       setSelectedSeats(1)
     }
-  }, [open])
+  }
 
   const tier = CREDIT_TIERS.find((t) => t.credits === selectedTier) ?? PRO_TIER
   const monthlyCostPerSeat = tier.dollars
@@ -1293,9 +1296,12 @@ function ManagePlanModal({
   const [isSwitching, setIsSwitching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Clear the error each time the modal opens.
+  const prevOpenRef = useRef(open)
+  if (prevOpenRef.current !== open) {
+    prevOpenRef.current = open
     if (open) setError(null)
-  }, [open])
+  }
 
   const isOnMax = currentPlanCredits === MAX_TIER.credits || (isLegacyPlan && isTeamPlan)
   const currentTier = isOnMax ? MAX_TIER : PRO_TIER

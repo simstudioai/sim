@@ -285,6 +285,46 @@ export class LoggingSession {
     blockType: string,
     output: any
   ): Promise<void> {
+    // Accumulate cost synchronously before any await so that fire-and-forget
+    // callers still capture the full cost even if DB writes are not awaited.
+    const blockOutput = output?.output
+    if (
+      blockOutput?.cost &&
+      typeof blockOutput.cost.total === 'number' &&
+      blockOutput.cost.total > 0
+    ) {
+      const { cost, tokens, model } = blockOutput
+
+      this.accumulatedCost.total += cost.total || 0
+      this.accumulatedCost.input += cost.input || 0
+      this.accumulatedCost.output += cost.output || 0
+
+      if (tokens) {
+        this.accumulatedCost.tokens.input += tokens.input || 0
+        this.accumulatedCost.tokens.output += tokens.output || 0
+        this.accumulatedCost.tokens.total += tokens.total || 0
+      }
+
+      if (model) {
+        if (!this.accumulatedCost.models[model]) {
+          this.accumulatedCost.models[model] = {
+            input: 0,
+            output: 0,
+            total: 0,
+            tokens: { input: 0, output: 0, total: 0 },
+          }
+        }
+        this.accumulatedCost.models[model].input += cost.input || 0
+        this.accumulatedCost.models[model].output += cost.output || 0
+        this.accumulatedCost.models[model].total += cost.total || 0
+        if (tokens) {
+          this.accumulatedCost.models[model].tokens.input += tokens.input || 0
+          this.accumulatedCost.models[model].tokens.output += tokens.output || 0
+          this.accumulatedCost.models[model].tokens.total += tokens.total || 0
+        }
+      }
+    }
+
     await this.trackProgressWrite(
       this.persistLastCompletedBlock({
         blockId,
@@ -295,47 +335,13 @@ export class LoggingSession {
       })
     )
 
-    const blockOutput = output?.output
     if (
-      !blockOutput?.cost ||
-      typeof blockOutput.cost.total !== 'number' ||
-      blockOutput.cost.total <= 0
+      blockOutput?.cost &&
+      typeof blockOutput.cost.total === 'number' &&
+      blockOutput.cost.total > 0
     ) {
-      return
+      void this.trackProgressWrite(this.flushAccumulatedCost())
     }
-
-    const { cost, tokens, model } = blockOutput
-
-    this.accumulatedCost.total += cost.total || 0
-    this.accumulatedCost.input += cost.input || 0
-    this.accumulatedCost.output += cost.output || 0
-
-    if (tokens) {
-      this.accumulatedCost.tokens.input += tokens.input || 0
-      this.accumulatedCost.tokens.output += tokens.output || 0
-      this.accumulatedCost.tokens.total += tokens.total || 0
-    }
-
-    if (model) {
-      if (!this.accumulatedCost.models[model]) {
-        this.accumulatedCost.models[model] = {
-          input: 0,
-          output: 0,
-          total: 0,
-          tokens: { input: 0, output: 0, total: 0 },
-        }
-      }
-      this.accumulatedCost.models[model].input += cost.input || 0
-      this.accumulatedCost.models[model].output += cost.output || 0
-      this.accumulatedCost.models[model].total += cost.total || 0
-      if (tokens) {
-        this.accumulatedCost.models[model].tokens.input += tokens.input || 0
-        this.accumulatedCost.models[model].tokens.output += tokens.output || 0
-        this.accumulatedCost.models[model].tokens.total += tokens.total || 0
-      }
-    }
-
-    void this.trackProgressWrite(this.flushAccumulatedCost())
   }
 
   private async flushAccumulatedCost(): Promise<void> {

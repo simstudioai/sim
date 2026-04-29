@@ -7,13 +7,15 @@ const BASE = '/api/admin/mothership'
 async function mothershipPost(
   endpoint: string,
   environment: MothershipEnv,
-  body?: Record<string, unknown>
+  body?: Record<string, unknown>,
+  signal?: AbortSignal
 ) {
   const qs = new URLSearchParams({ env: environment, endpoint })
   const res = await fetch(`${BASE}?${qs.toString()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {}),
+    signal,
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
@@ -25,10 +27,11 @@ async function mothershipPost(
 async function mothershipGet(
   endpoint: string,
   environment: MothershipEnv,
-  params?: Record<string, string>
+  params?: Record<string, string>,
+  signal?: AbortSignal
 ) {
   const qs = new URLSearchParams({ env: environment, endpoint, ...params })
-  const res = await fetch(`${BASE}?${qs.toString()}`, { method: 'GET' })
+  const res = await fetch(`${BASE}?${qs.toString()}`, { method: 'GET', signal })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(err.message || err.error || `Request failed (${res.status})`)
@@ -59,13 +62,19 @@ export function useMothershipRequests(
 ) {
   return useQuery({
     queryKey: mothershipKeys.requests(environment, start, end, userId),
-    queryFn: () =>
-      mothershipPost('requests', environment, {
-        start,
-        end,
-        ...(userId ? { userId } : {}),
-      }),
+    queryFn: ({ signal }) =>
+      mothershipPost(
+        'requests',
+        environment,
+        {
+          start,
+          end,
+          ...(userId ? { userId } : {}),
+        },
+        signal
+      ),
     enabled: !!start && !!end,
+    staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   })
 }
@@ -73,8 +82,9 @@ export function useMothershipRequests(
 export function useMothershipUserBreakdown(environment: MothershipEnv, start: string, end: string) {
   return useQuery({
     queryKey: mothershipKeys.userBreakdown(environment, start, end),
-    queryFn: () => mothershipPost('user-breakdown', environment, { start, end }),
+    queryFn: ({ signal }) => mothershipPost('user-breakdown', environment, { start, end }, signal),
     enabled: !!start && !!end,
+    staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   })
 }
@@ -82,7 +92,8 @@ export function useMothershipUserBreakdown(environment: MothershipEnv, start: st
 export function useMothershipLicenses(environment: MothershipEnv) {
   return useQuery({
     queryKey: mothershipKeys.licenses(environment),
-    queryFn: () => mothershipGet('licenses', environment),
+    queryFn: ({ signal }) => mothershipGet('licenses', environment, undefined, signal),
+    staleTime: 60 * 1000,
   })
 }
 
@@ -93,12 +104,18 @@ export function useMothershipLicenseDetails(
 ) {
   return useQuery({
     queryKey: mothershipKeys.licenseDetails(environment, id, name),
-    queryFn: () =>
-      mothershipPost('licenses/details', environment, {
-        ...(id ? { id } : {}),
-        ...(name ? { name } : {}),
-      }),
+    queryFn: ({ signal }) =>
+      mothershipPost(
+        'licenses/details',
+        environment,
+        {
+          ...(id ? { id } : {}),
+          ...(name ? { name } : {}),
+        },
+        signal
+      ),
     enabled: !!(id || name),
+    staleTime: 60 * 1000,
   })
 }
 
@@ -117,8 +134,10 @@ export function useMothershipEnterpriseStats(
 ) {
   return useQuery({
     queryKey: mothershipKeys.enterpriseStats(environment, customerType, start, end),
-    queryFn: () => mothershipPost('enterprise-stats', environment, { customerType, start, end }),
+    queryFn: ({ signal }) =>
+      mothershipPost('enterprise-stats', environment, { customerType, start, end }, signal),
     enabled: !!customerType && !!start && !!end,
+    staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   })
 }
@@ -126,7 +145,8 @@ export function useMothershipEnterpriseStats(
 export function useMothershipTrace(environment: MothershipEnv, requestId: string) {
   return useQuery({
     queryKey: mothershipKeys.trace(environment, requestId),
-    queryFn: () => mothershipGet('traces', environment, { requestId }),
+    queryFn: ({ signal }) => mothershipGet('traces', environment, { requestId }, signal),
     enabled: !!requestId,
+    staleTime: 60 * 1000,
   })
 }

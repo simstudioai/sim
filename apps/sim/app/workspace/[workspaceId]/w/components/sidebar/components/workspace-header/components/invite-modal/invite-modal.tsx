@@ -79,7 +79,9 @@ export function InviteModal({
   const { data: pendingInvitations = [], isLoading: isPendingInvitationsLoading } =
     usePendingInvitations(open ? workspaceId : undefined)
 
-  const { data: organizationBillingData } = useOrganizationBilling(organizationId ?? '')
+  const { data: organizationBillingData } = useOrganizationBilling(organizationId ?? '', {
+    enabled: open,
+  })
 
   const batchSendInvitations = useBatchSendWorkspaceInvitations()
   const cancelInvitation = useCancelWorkspaceInvitation()

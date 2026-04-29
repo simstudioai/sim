@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -69,39 +69,34 @@ function SingleFileSelector({
   isDeleting,
 }: SingleFileSelectorProps) {
   const displayLabel = `${truncateMiddle(file.name, 20, 12)} (${formatFileSize(file.size)})`
-  const [localInputValue, setLocalInputValue] = useState(displayLabel)
+  const [searchQuery, setSearchQuery] = useState('')
   const [isEditing, setIsEditing] = useState(false)
-
-  // Sync display label when file changes
-  useEffect(() => {
-    if (!isEditing) {
-      setLocalInputValue(displayLabel)
-    }
-  }, [displayLabel, isEditing])
+  // When not editing, always show the file's display label. When editing, show the user's query.
+  const comboboxValue = isEditing ? searchQuery : displayLabel
 
   return (
     <div className='relative w-full'>
       <Combobox
         options={options}
-        value={localInputValue}
+        value={comboboxValue}
         selectedValue={selectedValue}
         onChange={(newValue) => {
           // Check if user selected an option
           const matched = options.find((opt) => opt.value === newValue || opt.label === newValue)
           if (matched) {
             setIsEditing(false)
-            setLocalInputValue(displayLabel)
+            setSearchQuery('')
             onInputChange(matched.value)
             return
           }
           // User is typing to search
           setIsEditing(true)
-          setLocalInputValue(newValue)
+          setSearchQuery(newValue)
         }}
         onOpenChange={(open) => {
           if (!open) {
             setIsEditing(false)
-            setLocalInputValue(displayLabel)
+            setSearchQuery('')
           }
           onOpenChange(open)
         }}

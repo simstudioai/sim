@@ -9,13 +9,13 @@ import {
   Button,
   Combobox,
   type ComboboxOption,
+  DatePicker,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   Loader,
 } from '@/components/emcn'
-import { DatePicker } from '@/components/emcn/components/date-picker/date-picker'
 import { cn } from '@/lib/core/utils/cn'
 import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
@@ -397,28 +397,25 @@ export const LogsToolbar = memo(function LogsToolbar({
   /**
    * Handles date range selection from DatePicker.
    */
-  const handleDateRangeApply = useCallback(
-    (start: string, end: string) => {
-      dateRangeAppliedRef.current = true
-      setDateRange(start, end)
-      setDatePickerOpen(false)
-      captureEvent(posthogRef.current, 'logs_filter_applied', {
-        filter_type: 'time',
-        workspace_id: workspaceId,
-      })
-    },
-    [setDateRange, workspaceId]
-  )
+  function handleDateRangeApply(start: string, end: string) {
+    dateRangeAppliedRef.current = true
+    setDateRange(start, end)
+    setDatePickerOpen(false)
+    captureEvent(posthogRef.current, 'logs_filter_applied', {
+      filter_type: 'time',
+      workspace_id: workspaceId,
+    })
+  }
 
   /**
    * Handles date picker cancel.
    */
-  const handleDatePickerCancel = useCallback(() => {
+  function handleDatePickerCancel() {
     if (timeRange === 'Custom range' && !startDate) {
       setTimeRange(previousTimeRange)
     }
     setDatePickerOpen(false)
-  }, [timeRange, startDate, previousTimeRange, setTimeRange])
+  }
 
   const filtersActive = useMemo(
     () =>
@@ -433,10 +430,10 @@ export const LogsToolbar = memo(function LogsToolbar({
     [timeRange, level, workflowIds, folderIds, triggers, searchQuery]
   )
 
-  const handleClearFilters = useCallback(() => {
+  function handleClearFilters() {
     resetFilters()
     onSearchQueryChange('')
-  }, [resetFilters, onSearchQueryChange])
+  }
 
   return (
     <div className='flex flex-col gap-[19px]'>
