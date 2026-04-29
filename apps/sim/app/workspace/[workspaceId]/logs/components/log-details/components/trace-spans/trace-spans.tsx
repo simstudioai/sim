@@ -19,6 +19,7 @@ import {
   Search as SearchIcon,
   Tooltip,
 } from '@/components/emcn'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
@@ -59,8 +60,9 @@ function useSetToggle() {
 
 function formatCostAmount(value: number | undefined): string | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
-  if (value < 0.0001) return '<$0.0001'
-  return `$${value.toFixed(4)}`
+  const credits = dollarsToCredits(value)
+  if (credits <= 0) return '<1 credit'
+  return `${credits.toLocaleString('en-US')} ${credits === 1 ? 'credit' : 'credits'}`
 }
 
 function formatCostSummary(cost: TraceSpan['cost']): string | undefined {
