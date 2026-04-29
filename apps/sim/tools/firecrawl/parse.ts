@@ -87,6 +87,24 @@ export const parseTool: ToolConfig<ParseParams, ParseResponse> = {
     envKeyPrefix: 'FIRECRAWL_API_KEY',
     apiKeyParam: 'apiKey',
     byokProviderId: 'firecrawl',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        const creditsUsed = (output.metadata as { creditsUsed?: number })?.creditsUsed
+        if (creditsUsed == null) {
+          throw new Error('Firecrawl response missing creditsUsed field')
+        }
+
+        if (Number.isNaN(creditsUsed)) {
+          throw new Error('Firecrawl response returned a non-numeric creditsUsed field')
+        }
+
+        return {
+          cost: creditsUsed * 0.001,
+          metadata: { creditsUsed },
+        }
+      },
+    },
     rateLimit: {
       mode: 'per_request',
       requestsPerMinute: 100,
