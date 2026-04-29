@@ -111,7 +111,7 @@ export const functionExecuteContract = defineRouteContract({
   body: z.object({
     code: z.string().min(1, 'Code is required'),
     params: unknownRecordSchema.optional().default({}),
-    timeout: z.coerce.number().int().positive().max(210_000).optional(),
+    timeout: z.coerce.number().int().positive().optional(),
     language: z.nativeEnum(CodeLanguage).optional().default(DEFAULT_CODE_LANGUAGE),
     outputPath: z.string().optional(),
     outputFormat: z.string().optional(),
