@@ -305,6 +305,15 @@ export async function executeSync(
     logger.warn(
       `Skipping sync: knowledge base ${connector.knowledgeBaseId} is deleted (connector ${connectorId})`
     )
+    await db
+      .update(knowledgeConnector)
+      .set({
+        status: 'error',
+        nextSyncAt: null,
+        lastSyncError: 'Knowledge base deleted',
+        updatedAt: new Date(),
+      })
+      .where(eq(knowledgeConnector.id, connectorId))
     return { ...result, error: 'knowledge_base_deleted' }
   }
 

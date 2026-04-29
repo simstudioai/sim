@@ -389,6 +389,16 @@ export async function processDocumentAsync(
       logger.warn(
         `[${documentId}] Skipping document processing: knowledge base ${knowledgeBaseId} is deleted`
       )
+      await db
+        .update(document)
+        .set({
+          processingStatus: 'failed',
+          processingError: 'Knowledge base deleted',
+          processingCompletedAt: new Date(),
+        })
+        .where(
+          and(eq(document.id, documentId), isNull(document.archivedAt), isNull(document.deletedAt))
+        )
       return
     }
 
