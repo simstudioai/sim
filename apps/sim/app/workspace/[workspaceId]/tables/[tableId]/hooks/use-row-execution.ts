@@ -11,7 +11,6 @@ export interface RunWorkflowColumnParams {
   rowId: string
   workspaceId: string
   columnName: string
-  workflowName?: string
 }
 
 interface UseRowExecutionReturn {
@@ -48,11 +47,7 @@ export function useRowExecution(): UseRowExecutionReturn {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error'
         logger.error('Run workflow column failed:', err)
-        toast.error(
-          params.workflowName
-            ? `Failed to run "${params.workflowName}": ${message}`
-            : `Failed to run workflow: ${message}`
-        )
+        toast.error(`Failed to run workflow: ${message}`)
       } finally {
         queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(params.tableId) })
       }

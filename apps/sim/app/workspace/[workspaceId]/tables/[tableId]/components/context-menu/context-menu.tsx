@@ -3,13 +3,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { ArrowDown, ArrowUp, Duplicate, Pencil, Play, Trash } from '@/components/emcn/icons'
-import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { ArrowDown, ArrowUp, Duplicate, Eye, Pencil, Trash } from '@/components/emcn/icons'
 import type { ContextMenuState } from '../../types'
 
 interface ContextMenuProps {
@@ -20,12 +16,13 @@ interface ContextMenuProps {
   onInsertAbove: () => void
   onInsertBelow: () => void
   onDuplicate: () => void
+  onViewExecution?: () => void
+  canViewExecution?: boolean
+  canEditCell?: boolean
   selectedRowCount?: number
   disableEdit?: boolean
   disableInsert?: boolean
   disableDelete?: boolean
-  workflows?: WorkflowMetadata[]
-  onRunWorkflow?: (workflowId: string) => void
 }
 
 export function ContextMenu({
@@ -36,16 +33,15 @@ export function ContextMenu({
   onInsertAbove,
   onInsertBelow,
   onDuplicate,
+  onViewExecution,
+  canViewExecution = false,
+  canEditCell = true,
   selectedRowCount = 1,
   disableEdit = false,
   disableInsert = false,
   disableDelete = false,
-  workflows,
-  onRunWorkflow,
 }: ContextMenuProps) {
   const deleteLabel = selectedRowCount > 1 ? `Delete ${selectedRowCount} rows` : 'Delete row'
-  const hasWorkflows = workflows && workflows.length > 0
-  const hasRow = contextMenu.row !== null
 
   return (
     <DropdownMenu
@@ -73,10 +69,16 @@ export function ContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        {contextMenu.columnName && (
+        {contextMenu.columnName && canEditCell && (
           <DropdownMenuItem disabled={disableEdit} onSelect={onEditCell}>
             <Pencil />
             Edit cell
+          </DropdownMenuItem>
+        )}
+        {canViewExecution && onViewExecution && (
+          <DropdownMenuItem onSelect={onViewExecution}>
+            <Eye />
+            View execution
           </DropdownMenuItem>
         )}
         <DropdownMenuItem disabled={disableInsert} onSelect={onInsertAbove}>
@@ -91,28 +93,6 @@ export function ContextMenu({
           <Duplicate />
           Duplicate row
         </DropdownMenuItem>
-        {onRunWorkflow && hasRow && hasWorkflows && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <Play />
-                Run Workflow
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {workflows.map((wf) => (
-                  <DropdownMenuItem key={wf.id} onSelect={() => onRunWorkflow(wf.id)}>
-                    <span
-                      className='h-2 w-2 shrink-0 rounded-full'
-                      style={{ backgroundColor: wf.color }}
-                    />
-                    {wf.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          </>
-        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
           <Trash />

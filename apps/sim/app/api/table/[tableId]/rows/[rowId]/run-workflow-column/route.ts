@@ -4,8 +4,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getRowById } from '@/lib/table'
-import { runWorkflowColumn } from '@/lib/table/workflow-columns'
+import { getRowById, updateRow } from '@/lib/table'
+import type { RowData, WorkflowCellValue } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRunWorkflowColumnAPI')
@@ -62,15 +62,27 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const executionId = generateId()
     const workflowId = column.workflowConfig.workflowId
 
-    void runWorkflowColumn({
-      tableId,
-      tableName: table.name,
-      rowId,
-      columnName: validated.columnName,
-      workflowId,
-      workspaceId: validated.workspaceId,
+    // Force the cell back to a non-terminal state so the scheduler's
+    // eligibility check picks it up. Calling `updateRow` here also fires
+    // `scheduleWorkflowColumnRuns(table, [row])` from inside the service,
+    // which enqueues a `workflow-column-execution` job for this cell.
+    const pendingCell: WorkflowCellValue = {
       executionId,
-    })
+      jobId: null,
+      workflowId,
+      status: 'pending',
+      output: null,
+      error: null,
+    }
+    const nextData: RowData = {
+      ...row.data,
+      [validated.columnName]: pendingCell as unknown as RowData[string],
+    }
+    await updateRow(
+      { tableId, rowId, data: nextData, workspaceId: validated.workspaceId },
+      table,
+      requestId
+    )
 
     return NextResponse.json({ success: true, data: { executionId } })
   } catch (error) {

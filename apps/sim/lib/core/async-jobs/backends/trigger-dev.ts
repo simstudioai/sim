@@ -72,7 +72,10 @@ export class TriggerDevJobQueue implements JobQueueBackend {
         : payload
 
     const tags = buildTags(options)
-    const handle = await tasks.trigger(taskId, enrichedPayload, tags.length > 0 ? { tags } : {})
+    const triggerOptions: Parameters<typeof tasks.trigger>[2] = {}
+    if (tags.length > 0) triggerOptions.tags = tags
+    if (options?.concurrencyKey) triggerOptions.concurrencyKey = options.concurrencyKey
+    const handle = await tasks.trigger(taskId, enrichedPayload, triggerOptions)
 
     logger.debug('Enqueued job via trigger.dev', { jobId: handle.id, type, taskId, tags })
     return handle.id

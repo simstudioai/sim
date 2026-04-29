@@ -178,7 +178,7 @@ export const CreateColumnSchema = z.object({
               path: z.string().min(1),
             })
           )
-          .optional(),
+          .min(1, 'Workflow column requires at least one output'),
       })
       .optional(),
   }),
@@ -203,7 +203,7 @@ export const UpdateColumnSchema = z.object({
               path: z.string().min(1),
             })
           )
-          .optional(),
+          .min(1, 'Workflow column requires at least one output'),
       })
       .optional(),
   }),

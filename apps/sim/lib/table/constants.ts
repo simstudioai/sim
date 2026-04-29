@@ -21,8 +21,6 @@ export const TABLE_LIMITS = {
   MAX_BATCH_INSERT_SIZE: 1000,
   /** Maximum rows per bulk update/delete operation */
   MAX_BULK_OPERATION_SIZE: 1000,
-  /** Default concurrency for async workflow-column executions kicked off by the scheduler */
-  WORKFLOW_COLUMN_BATCH_SIZE: 10,
 } as const
 
 /**

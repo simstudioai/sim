@@ -8,7 +8,11 @@
  */
 
 import { db } from '@sim/db'
-import { userTableDefinitions, userTableRows } from '@sim/db/schema'
+import {
+  userTableDefinitions,
+  userTableRows,
+  workflowExecutionLogs,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -46,6 +50,7 @@ import type {
   UpdateRowData,
   UpsertResult,
   UpsertRowData,
+  WorkflowCellValue,
 } from './types'
 import {
   checkBatchUniqueConstraintsDb,
@@ -395,7 +400,7 @@ export async function addTableColumn(
     workflowConfig?: {
       workflowId: string
       dependencies?: string[]
-      outputs?: Array<{ blockId: string; path: string }>
+      outputs: Array<{ blockId: string; path: string }>
     }
   },
   requestId: string
@@ -423,8 +428,13 @@ export async function addTableColumn(
     )
   }
 
-  if (column.type === 'workflow' && !column.workflowConfig?.workflowId) {
-    throw new Error('workflowConfig.workflowId is required when creating a workflow column')
+  if (column.type === 'workflow') {
+    if (!column.workflowConfig?.workflowId) {
+      throw new Error('workflowConfig.workflowId is required when creating a workflow column')
+    }
+    if (!column.workflowConfig.outputs?.length) {
+      throw new Error('workflowConfig.outputs must contain at least one entry')
+    }
   }
 
   const schema = table.schema
@@ -582,6 +592,87 @@ export async function deleteTable(tableId: string, requestId: string): Promise<v
 
   logger.info(`[${requestId}] Archived table ${tableId}`)
   notifyTableDeleted(tableId)
+}
+
+/**
+ * Drops references to deleted blocks from every table workflow column that
+ * targets the just-deployed workflow. Called from the workflow deploy
+ * orchestrator immediately after the new deployment is committed, so the table
+ * UI never holds stale `{blockId, path}` entries for blocks the user removed.
+ *
+ * - Filters `workflowConfig.outputs` per column. If every entry would be
+ *   filtered out, the column is left untouched and a warning is logged — the
+ *   user must reconfigure it. Workflow columns must always have at least one
+ *   valid output.
+ * - Scoped to the workflow's workspace. Workflow columns can only reference
+ *   workflows in the same workspace, so cross-workspace scan isn't needed.
+ * - Idempotent: running twice with the same `validBlockIds` is a no-op on the
+ *   second pass. Existing row data (`blockOutputs`, `runningBlockIds`) is left
+ *   alone — it's already irrelevant once the column no longer surfaces it.
+ */
+export async function pruneStaleWorkflowColumnOutputs({
+  workflowId,
+  workspaceId,
+  validBlockIds,
+  requestId,
+}: {
+  workflowId: string
+  workspaceId: string
+  validBlockIds: Set<string>
+  requestId: string
+}): Promise<void> {
+  const tables = await db
+    .select({
+      id: userTableDefinitions.id,
+      schema: userTableDefinitions.schema,
+    })
+    .from(userTableDefinitions)
+    .where(
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
+
+  for (const t of tables) {
+    const schema = t.schema as TableSchema
+    if (!schema?.columns?.length) continue
+
+    let mutated = false
+    const nextColumns = schema.columns.map((col) => {
+      if (col.type !== 'workflow') return col
+      if (col.workflowConfig?.workflowId !== workflowId) return col
+      const outputs = col.workflowConfig.outputs
+      if (!outputs?.length) return col
+      const filtered = outputs.filter((o) => validBlockIds.has(o.blockId))
+      if (filtered.length === outputs.length) return col
+      if (filtered.length === 0) {
+        logger.warn(
+          `[${requestId}] All outputs for workflow column "${col.name}" in table ${t.id} reference deleted blocks; leaving column intact for user reconfiguration.`
+        )
+        return col
+      }
+      mutated = true
+      return {
+        ...col,
+        workflowConfig: { ...col.workflowConfig, outputs: filtered },
+      }
+    })
+
+    if (!mutated) continue
+
+    await db
+      .update(userTableDefinitions)
+      .set({
+        schema: { ...schema, columns: nextColumns },
+        updatedAt: new Date(),
+      })
+      .where(eq(userTableDefinitions.id, t.id))
+
+    logger.info(
+      `[${requestId}] Pruned stale workflow=${workflowId} block refs from table ${t.id}`
+    )
+  }
 }
 
 /**
@@ -1420,7 +1511,11 @@ export async function updateRow(
     table.schema,
     requestId
   )
-  void scheduleWorkflowColumnRuns(table, [updatedRow])
+  // Awaited so callers running inside a trigger.dev cell task (which finishes
+  // immediately after writeCell) have their downstream cell jobs enqueued
+  // before the worker tears down. Floating this with `void` works for API
+  // callers but loses cascading writes from background tasks.
+  await scheduleWorkflowColumnRuns(table, [updatedRow])
   notifyTableRowUpdated(data.tableId, updatedRow)
 
   return updatedRow
@@ -2263,6 +2358,12 @@ export async function updateColumnWorkflowConfig(
   if (column.type !== 'workflow') {
     throw new Error(`Column "${data.columnName}" is not a workflow column`)
   }
+  if (!data.workflowConfig.outputs?.length) {
+    throw new Error('workflowConfig.outputs must contain at least one entry')
+  }
+
+  const oldOutputs = column.workflowConfig?.outputs ?? []
+  const newOutputs = data.workflowConfig.outputs
 
   const updatedColumns = schema.columns.map((c, i) =>
     i === columnIndex ? { ...c, workflowConfig: data.workflowConfig } : c
@@ -2280,6 +2381,26 @@ export async function updateColumnWorkflowConfig(
   )
 
   const updatedTable: TableDefinition = { ...table, schema: updatedSchema, updatedAt: now }
+
+  // Backfill newly-added outputs from each row's execution log instead of
+  // forcing a re-run. The orchestrator only persists user-picked paths today,
+  // so a new entry in `outputs[]` would otherwise render empty for every
+  // already-completed cell. The block's full output is still in
+  // `workflow_execution_logs.executionData.traceSpans`, keyed by `executionId`
+  // (which we kept on the cell). Walk that trace and write the missing values.
+  const newColumnDef = updatedColumns[columnIndex]
+  void backfillAddedOutputs({
+    table: updatedTable,
+    columnName: newColumnDef.name,
+    oldOutputs,
+    newOutputs,
+    requestId,
+  }).catch((err) => {
+    logger.warn(
+      `[${requestId}] Backfill from execution logs failed for ${data.tableId}/${column.name}:`,
+      err
+    )
+  })
 
   // Kick the scheduler across existing rows. This covers the common case of a user
   // converting a previously-populated plain column into a workflow column — rows are
@@ -2309,6 +2430,126 @@ export async function updateColumnWorkflowConfig(
   })()
 
   return updatedTable
+}
+
+/** Minimal shape of a trace span we care about for backfill. */
+interface BackfillTraceSpan {
+  blockId?: string
+  output?: Record<string, unknown>
+  children?: BackfillTraceSpan[]
+}
+
+/** DFS the trace tree for the first span matching `blockId`. */
+function findSpanByBlockId(
+  spans: BackfillTraceSpan[] | undefined,
+  blockId: string
+): BackfillTraceSpan | undefined {
+  if (!spans) return undefined
+  for (const span of spans) {
+    if (span.blockId === blockId) return span
+    const child = findSpanByBlockId(span.children, blockId)
+    if (child) return child
+  }
+  return undefined
+}
+
+async function backfillAddedOutputs(opts: {
+  table: TableDefinition
+  columnName: string
+  oldOutputs: Array<{ blockId: string; path: string }>
+  newOutputs: Array<{ blockId: string; path: string }>
+  requestId: string
+}): Promise<void> {
+  const { table, columnName, oldOutputs, newOutputs, requestId } = opts
+
+  const oldKeys = new Set(oldOutputs.map((o) => `${o.blockId}::${o.path}`))
+  const added = newOutputs.filter((o) => !oldKeys.has(`${o.blockId}::${o.path}`))
+  if (added.length === 0) return
+
+  const { pluckByPath } = await import('./pluck')
+
+  const rowRecords = await db
+    .select()
+    .from(userTableRows)
+    .where(eq(userTableRows.tableId, table.id))
+
+  // Collect unique executionIds across completed cells; one batched fetch beats
+  // N round-trips when the table has many rows.
+  const executionIdsByRow = new Map<string, string>()
+  for (const r of rowRecords) {
+    const cell = (r.data as RowData)[columnName] as WorkflowCellValue | null | undefined
+    if (!cell || cell.status !== 'completed' || !cell.executionId) continue
+    executionIdsByRow.set(r.id, cell.executionId)
+  }
+  if (executionIdsByRow.size === 0) return
+
+  const executionIds = Array.from(new Set(executionIdsByRow.values()))
+  const logs = await db
+    .select({
+      executionId: workflowExecutionLogs.executionId,
+      executionData: workflowExecutionLogs.executionData,
+    })
+    .from(workflowExecutionLogs)
+    .where(inArray(workflowExecutionLogs.executionId, executionIds))
+
+  const logByExecutionId = new Map<string, { traceSpans?: BackfillTraceSpan[] }>()
+  for (const log of logs) {
+    logByExecutionId.set(
+      log.executionId,
+      (log.executionData as { traceSpans?: BackfillTraceSpan[] }) ?? {}
+    )
+  }
+
+  const updates: Array<{ rowId: string; data: RowData }> = []
+  for (const r of rowRecords) {
+    const cell = (r.data as RowData)[columnName] as WorkflowCellValue | null | undefined
+    if (!cell || cell.status !== 'completed' || !cell.executionId) continue
+    const log = logByExecutionId.get(cell.executionId)
+    if (!log) continue
+
+    const nextBlockOutputs: Record<string, Record<string, unknown>> = {}
+    for (const [k, v] of Object.entries(cell.blockOutputs ?? {})) {
+      nextBlockOutputs[k] =
+        v && typeof v === 'object' && !Array.isArray(v) ? { ...(v as Record<string, unknown>) } : {}
+    }
+
+    let mutated = false
+    for (const out of added) {
+      if (nextBlockOutputs[out.blockId]?.[out.path] !== undefined) continue
+      const span = findSpanByBlockId(log.traceSpans, out.blockId)
+      if (!span?.output) continue
+      const picked = pluckByPath(span.output, out.path)
+      if (picked === undefined) continue
+      nextBlockOutputs[out.blockId] = {
+        ...(nextBlockOutputs[out.blockId] ?? {}),
+        [out.path]: picked,
+      }
+      mutated = true
+    }
+    if (!mutated) continue
+
+    const updatedCell: WorkflowCellValue = { ...cell, blockOutputs: nextBlockOutputs }
+    updates.push({
+      rowId: r.id,
+      data: { [columnName]: updatedCell as unknown as RowData[string] } as RowData,
+    })
+  }
+
+  if (updates.length === 0) return
+
+  await batchUpdateRows(
+    {
+      tableId: table.id,
+      updates,
+      workspaceId: table.workspaceId,
+    },
+    table,
+    requestId
+  )
+
+  logger.info(
+    `[${requestId}] Backfilled ${updates.length} cell(s) for column "${columnName}" in table ${table.id}`
+  )
 }
 
 /**

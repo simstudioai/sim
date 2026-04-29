@@ -1,10 +1,11 @@
 'use client'
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Square } from 'lucide-react'
+import { Circle, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
+  Badge,
   Button,
   Checkbox,
   DatePicker,
@@ -23,6 +24,7 @@ import {
   ModalFooter,
   ModalHeader,
   Skeleton,
+  Tooltip,
   Upload,
 } from '@/components/emcn'
 import {
@@ -30,7 +32,6 @@ import {
   ArrowRight,
   Calendar as CalendarIcon,
   ChevronDown,
-  Fingerprint,
   Pencil,
   PlayOutline,
   Plus,
@@ -52,13 +53,15 @@ import type {
   TableRow as TableRowType,
   WorkflowCellValue,
 } from '@/lib/table'
-import { pluckByPath } from '@/lib/table/pluck'
+import type { FlattenOutputsBlockInput } from '@/lib/workflows/blocks/flatten-outputs'
+import { getBlock } from '@/blocks'
 import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
 import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import {
   useAddTableColumn,
+  useRunColumn,
   useBatchCreateTableRows,
   useBatchUpdateTableRows,
   useCancelTableRuns,
@@ -70,7 +73,8 @@ import {
   useUpdateTableMetadata,
   useUpdateTableRow,
 } from '@/hooks/queries/tables'
-import { useWorkflows } from '@/hooks/queries/workflows'
+import { useDeploymentInfo } from '@/hooks/queries/deployments'
+import { useWorkflows, useWorkflowState } from '@/hooks/queries/workflows'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
@@ -106,18 +110,17 @@ interface NormalizedSelection {
 /**
  * One visual column in the rendered grid. Extends `ColumnDefinition` so existing
  * accessors (`name`, `type`, `workflowConfig`) keep meaning the **logical** column.
- * Workflow columns with multi-output config fan out into multiple `DisplayColumn`s
- * sharing the same logical column.
+ * Workflow columns always fan out — one `DisplayColumn` per configured output —
+ * and share a logical column. Non-workflow columns produce a single `DisplayColumn`.
  */
 interface DisplayColumn extends ColumnDefinition {
-  /** Stable per-visual-column identifier. Equals `name` when not fanned out. */
+  /** Stable per-visual-column identifier. */
   key: string
-  /** Pluck path for fanned-out workflow visual columns. */
+  /** Pluck path for workflow visual columns; undefined for non-workflow columns. */
   outputPath?: string
-  /** Source block id for fanned-out columns; used to read `cell.blockOutputs[blockId]`. */
+  /** Source block id for workflow visual columns; undefined for non-workflow columns. */
   outputBlockId?: string
-  isFannedOut: boolean
-  /** Sibling count (1 if not fanned). */
+  /** Sibling count within the workflow group (1 for non-workflow columns). */
   groupSize: number
   /** colIndex of the first sibling within `displayColumns`. */
   groupStartColIndex: number
@@ -130,8 +133,13 @@ interface DisplayColumn extends ColumnDefinition {
 function expandToDisplayColumns(columns: ColumnDefinition[]): DisplayColumn[] {
   const out: DisplayColumn[] = []
   for (const column of columns) {
-    const outputs = column.type === 'workflow' ? column.workflowConfig?.outputs : undefined
-    if (outputs && outputs.length > 0) {
+    if (column.type === 'workflow') {
+      const outputs = column.workflowConfig?.outputs
+      if (!outputs || outputs.length === 0) {
+        throw new Error(
+          `Workflow column "${column.name}" has no outputs configured — every workflow column must declare at least one output.`
+        )
+      }
       const startIdx = out.length
       for (let i = 0; i < outputs.length; i++) {
         const { blockId, path } = outputs[i]
@@ -140,7 +148,6 @@ function expandToDisplayColumns(columns: ColumnDefinition[]): DisplayColumn[] {
           key: `${column.name}::${blockId}::${path}`,
           outputPath: path,
           outputBlockId: blockId,
-          isFannedOut: true,
           groupSize: outputs.length,
           groupStartColIndex: startIdx,
           headerLabel: path,
@@ -153,7 +160,6 @@ function expandToDisplayColumns(columns: ColumnDefinition[]): DisplayColumn[] {
         key: column.name,
         outputPath: undefined,
         outputBlockId: undefined,
-        isFannedOut: false,
         groupSize: 1,
         groupStartColIndex: out.length,
         headerLabel: column.name,
@@ -164,17 +170,38 @@ function expandToDisplayColumns(columns: ColumnDefinition[]): DisplayColumn[] {
   return out
 }
 
-function snapSelectionToGroups(
-  rect: NormalizedSelection,
-  cols: DisplayColumn[]
-): NormalizedSelection {
-  let { startCol, endCol } = rect
-  const startGroup = cols[startCol]
-  if (startGroup?.isFannedOut) startCol = startGroup.groupStartColIndex
-  const endGroup = cols[endCol]
-  if (endGroup?.isFannedOut) endCol = endGroup.groupStartColIndex + endGroup.groupSize - 1
-  if (startCol === rect.startCol && endCol === rect.endCol) return rect
-  return { ...rect, startCol, endCol }
+/** A run of consecutive `displayColumns` rendered together in the meta header row. */
+type HeaderGroup =
+  | { kind: 'plain'; size: 1; startColIndex: number }
+  | { kind: 'workflow'; size: number; startColIndex: number; workflowId: string }
+
+function buildHeaderGroups(displayColumns: DisplayColumn[]): HeaderGroup[] {
+  const groups: HeaderGroup[] = []
+  for (let i = 0; i < displayColumns.length; ) {
+    const col = displayColumns[i]
+    if (col.type === 'workflow' && col.isGroupStart && col.workflowConfig) {
+      groups.push({
+        kind: 'workflow',
+        size: col.groupSize,
+        startColIndex: i,
+        workflowId: col.workflowConfig.workflowId,
+      })
+      i += col.groupSize
+    } else {
+      groups.push({ kind: 'plain', size: 1, startColIndex: i })
+      i += 1
+    }
+  }
+  return groups
+}
+
+/** Read a workflow cell's picked value for `(blockId, path)` — direct lookup. */
+function readPickedValue(
+  cell: WorkflowCellValue | null | undefined,
+  blockId: string,
+  path: string
+): unknown {
+  return (cell?.blockOutputs?.[blockId] as Record<string, unknown> | undefined)?.[path]
 }
 
 const EMPTY_COLUMNS: DisplayColumn[] = []
@@ -347,6 +374,16 @@ export function Table({
   const deleteColumnMutation = useDeleteColumn({ workspaceId, tableId })
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
   const cancelRunsMutation = useCancelTableRuns({ workspaceId, tableId })
+  const runColumnMutation = useRunColumn({ workspaceId, tableId })
+
+  const handleRunColumn = useCallback(
+    (columnName: string) => {
+      runColumnMutation.mutate({ columnName })
+    },
+    // mutate is stable; intentionally excluded from deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  )
 
   const handleColumnOrderChange = useCallback((order: string[]) => {
     setColumnOrder(order)
@@ -428,6 +465,9 @@ export function Table({
     return expandToDisplayColumns(ordered)
   }, [columns, columnOrder])
 
+  const headerGroups = useMemo(() => buildHeaderGroups(displayColumns), [displayColumns])
+  const hasWorkflowGroup = headerGroups.some((g) => g.kind === 'workflow')
+
   const maxPosition = useMemo(() => (rows.length > 0 ? rows[rows.length - 1].position : -1), [rows])
   const maxPositionRef = useRef(maxPosition)
   maxPositionRef.current = maxPosition
@@ -442,11 +482,10 @@ export function Table({
   const positionMapRef = useRef(positionMap)
   positionMapRef.current = positionMap
 
-  const normalizedSelection = useMemo(() => {
-    const raw = computeNormalizedSelection(selectionAnchor, selectionFocus)
-    if (!raw) return null
-    return snapSelectionToGroups(raw, displayColumns)
-  }, [selectionAnchor, selectionFocus, displayColumns])
+  const normalizedSelection = useMemo(
+    () => computeNormalizedSelection(selectionAnchor, selectionFocus),
+    [selectionAnchor, selectionFocus]
+  )
 
   const displayColCount = isLoadingTable ? SKELETON_COL_COUNT : displayColumns.length
   const tableWidth = useMemo(() => {
@@ -676,6 +715,34 @@ export function Table({
   const handleInsertRowAbove = useCallback(() => handleInsertRow(0), [handleInsertRow])
   const handleInsertRowBelow = useCallback(() => handleInsertRow(1), [handleInsertRow])
 
+  const contextMenuColumnInfo = useMemo<{
+    isWorkflowColumn: boolean
+    executionId: string | null
+  }>(() => {
+    if (!contextMenu.row || !contextMenu.columnName) {
+      return { isWorkflowColumn: false, executionId: null }
+    }
+    const column = columnsRef.current.find((c) => c.name === contextMenu.columnName)
+    if (!column || column.type !== 'workflow') {
+      return { isWorkflowColumn: false, executionId: null }
+    }
+    const cell = contextMenu.row.data[contextMenu.columnName] as
+      | WorkflowCellValue
+      | null
+      | undefined
+    return { isWorkflowColumn: true, executionId: cell?.executionId ?? null }
+  }, [contextMenu.row, contextMenu.columnName])
+  const contextMenuExecutionId = contextMenuColumnInfo.executionId
+  const contextMenuIsWorkflowColumn = contextMenuColumnInfo.isWorkflowColumn
+
+  const handleViewExecution = useCallback(() => {
+    if (!contextMenuExecutionId) return
+    router.push(
+      `/workspace/${workspaceId}/logs?executionId=${encodeURIComponent(contextMenuExecutionId)}`
+    )
+    closeContextMenu()
+  }, [contextMenuExecutionId, router, workspaceId, closeContextMenu])
+
   const handleDuplicateRow = useCallback(() => {
     if (!contextMenu.row) return
     const rowData = { ...contextMenu.row.data }
@@ -753,28 +820,6 @@ export function Table({
       baseHandleRowContextMenu(e, row, columnName)
     },
     [baseHandleRowContextMenu]
-  )
-
-  const handleRunWorkflow = useCallback(
-    (workflowId: string, columnName?: string) => {
-      const row = contextMenu.row
-      if (!row) return
-      const wf = workflows?.find((w) => w.id === workflowId)
-      const targetColumn =
-        columnName ??
-        columns.find((c) => c.type === 'workflow' && c.workflowConfig?.workflowId === workflowId)
-          ?.name
-      if (!targetColumn) return
-      void runWorkflowColumn({
-        tableId,
-        rowId: row.id,
-        workspaceId,
-        columnName: targetColumn,
-        workflowName: wf?.name,
-      })
-      closeContextMenu()
-    },
-    [contextMenu.row, workflows, columns, tableId, workspaceId, runWorkflowColumn, closeContextMenu]
   )
 
   const handleCellMouseDown = useCallback(
@@ -858,6 +903,21 @@ export function Table({
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
+  const handleGroupSelect = useCallback((startColIndex: number, size: number) => {
+    const lastRow = maxPositionRef.current
+    if (lastRow < 0) return
+
+    setEditingCell(null)
+    setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    lastCheckboxRowRef.current = null
+
+    setSelectionAnchor({ rowIndex: 0, colIndex: startColIndex })
+    setSelectionFocus({ rowIndex: lastRow, colIndex: startColIndex + size - 1 })
+    setIsColumnSelection(true)
+
+    scrollRef.current?.focus({ preventScroll: true })
+  }, [])
+
   const handleSelectAllRows = useCallback(() => {
     const rws = rowsRef.current
     const currentCols = columnsRef.current
@@ -921,15 +981,10 @@ export function Table({
         let val: unknown = rawVal
         if (column.type === 'workflow') {
           const cell = rawVal as WorkflowCellValue | null | undefined
-          // Fanned-out columns can measure live per-block outputs even mid-run.
-          if (column.isFannedOut && column.outputBlockId && column.outputPath) {
-            const blockResult = cell?.blockOutputs?.[column.outputBlockId]
-            if (blockResult === undefined) continue
-            val = pluckByPath(blockResult, column.outputPath)
-          } else {
-            if (cell?.status !== 'completed' || cell.output == null) continue
-            val = column.outputPath ? pluckByPath(cell.output, column.outputPath) : cell.output
-          }
+          if (!column.outputBlockId || !column.outputPath) continue
+          const picked = readPickedValue(cell, column.outputBlockId, column.outputPath)
+          if (picked === undefined) continue
+          val = picked
         }
         if (val == null) continue
         let text: string
@@ -1128,45 +1183,48 @@ export function Table({
   // `user-select` on the inner element until the next click. Workflow cells nest
   // their text inside a span with its own `overflow-clip`, so we measure the leaf
   // element's scroll dimensions, not just the wrapper div's.
-  const handleCellDoubleClick = useCallback((rowId: string, columnName: string) => {
-    setSelectionFocus(null)
-    setIsColumnSelection(false)
+  const handleCellDoubleClick = useCallback(
+    (rowId: string, columnName: string, columnKey: string) => {
+      setSelectionFocus(null)
+      setIsColumnSelection(false)
 
-    const row = rowsRef.current.find((r) => r.id === rowId)
-    const colIndex = columnsRef.current.findIndex((c) => c.name === columnName)
-    let overflows = true
-    if (row && colIndex !== -1) {
-      const td = document.querySelector<HTMLElement>(
-        `[data-table-scroll] [data-row="${row.position}"][data-col="${colIndex}"]`
-      )
-      const inner = td?.querySelector<HTMLElement>(':scope > div:last-child')
-      if (inner) {
-        const candidates: HTMLElement[] = [inner]
-        const descendants = inner.querySelectorAll<HTMLElement>('*')
-        for (const el of descendants) candidates.push(el)
-        overflows = candidates.some(
-          (el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1
+      const row = rowsRef.current.find((r) => r.id === rowId)
+      const colIndex = columnsRef.current.findIndex((c) => c.key === columnKey)
+      let overflows = true
+      if (row && colIndex !== -1) {
+        const td = document.querySelector<HTMLElement>(
+          `[data-table-scroll] [data-row="${row.position}"][data-col="${colIndex}"]`
         )
+        const inner = td?.querySelector<HTMLElement>(':scope > div:last-child')
+        if (inner) {
+          const candidates: HTMLElement[] = [inner]
+          const descendants = inner.querySelectorAll<HTMLElement>('*')
+          for (const el of descendants) candidates.push(el)
+          overflows = candidates.some(
+            (el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1
+          )
 
-        inner.style.userSelect = 'text'
-        const clear = () => {
-          inner.style.userSelect = ''
-          window.removeEventListener('mousedown', clear, true)
-        }
-        window.addEventListener('mousedown', clear, true)
+          inner.style.userSelect = 'text'
+          const clear = () => {
+            inner.style.userSelect = ''
+            window.removeEventListener('mousedown', clear, true)
+          }
+          window.addEventListener('mousedown', clear, true)
 
-        const selection = window.getSelection()
-        if (selection) {
-          const range = document.createRange()
-          range.selectNodeContents(inner)
-          selection.removeAllRanges()
-          selection.addRange(range)
+          const selection = window.getSelection()
+          if (selection) {
+            const range = document.createRange()
+            range.selectNodeContents(inner)
+            selection.removeAllRanges()
+            selection.addRange(range)
+          }
         }
       }
-    }
 
-    if (overflows) setExpandedCell({ rowId, columnName })
-  }, [])
+      if (overflows) setExpandedCell({ rowId, columnName, columnKey })
+    },
+    []
+  )
 
   const mutateRef = useRef(updateRowMutation.mutate)
   mutateRef.current = updateRowMutation.mutate
@@ -1885,26 +1943,6 @@ export function Table({
     [generateColumnName]
   )
 
-  const handleChangeType = useCallback((columnName: string, newType: string) => {
-    const column = columnsRef.current.find((c) => c.name === columnName)
-    const previousType = column?.type
-    updateColumnMutation.mutate(
-      { columnName, updates: { type: newType } },
-      {
-        onSuccess: () => {
-          if (previousType) {
-            pushUndoRef.current({
-              type: 'update-column-type',
-              columnName,
-              previousType,
-              newType,
-            })
-          }
-        },
-      }
-    )
-  }, [])
-
   const insertColumnInOrder = useCallback(
     (anchorColumn: string, newColumn: string, side: 'left' | 'right') => {
       const order = columnOrderRef.current ?? schemaColumnsRef.current.map((c) => c.name)
@@ -1962,20 +2000,6 @@ export function Table({
     [generateColumnName, insertColumnInOrder]
   )
 
-  const handleToggleUnique = useCallback((columnName: string) => {
-    const column = columnsRef.current.find((c) => c.name === columnName)
-    if (!column) return
-    const previousValue = !!column.unique
-    pushUndoRef.current({
-      type: 'toggle-column-constraint',
-      columnName,
-      constraint: 'unique',
-      previousValue,
-      newValue: !previousValue,
-    })
-    updateColumnMutation.mutate({ columnName, updates: { unique: !previousValue } })
-  }, [])
-
   const sanitizeWorkflowNameAsColumn = useCallback(
     (workflowName: string, currentColumnName: string) => {
       const base = workflowName
@@ -2012,22 +2036,6 @@ export function Table({
   const handleConfigureColumn = useCallback((columnName: string) => {
     setConfigState({ mode: 'edit', columnName })
   }, [])
-
-  const handleChangeToWorkflow = useCallback(
-    (columnName: string, workflowId: string) => {
-      // Don't persist anything yet — open the sidebar with the pending workflow pick.
-      // The Save button in the sidebar is what actually writes type/name/config.
-      const wf = workflowsRef.current?.find((w) => w.id === workflowId)
-      const proposedName = wf ? sanitizeWorkflowNameAsColumn(wf.name, columnName) : columnName
-      setConfigState({ mode: 'new', columnName, workflowId, proposedName })
-    },
-    [sanitizeWorkflowNameAsColumn]
-  )
-
-  const handleRenameColumn = useCallback(
-    (name: string) => columnRename.startRename(name, name),
-    [columnRename.startRename]
-  )
 
   const handleDeleteColumn = useCallback((columnName: string) => {
     const cols = columnsRef.current
@@ -2453,13 +2461,65 @@ export function Table({
                     </th>
                   </tr>
                 ) : (
-                  <tr>
-                    <SelectAllCheckbox
-                      checked={isAllRowsSelected}
-                      onCheckedChange={handleSelectAllToggle}
-                    />
-                    {displayColumns.map((column, idx) => (
-                      <ColumnHeaderMenu
+                  <>
+                    {hasWorkflowGroup && (
+                      <tr>
+                        <th
+                          className='border-[var(--border)] border-b bg-[var(--bg)] px-1 py-[5px]'
+                          aria-hidden='true'
+                        />
+                        {headerGroups.map((g) =>
+                          g.kind === 'workflow' ? (
+                            <WorkflowGroupMetaCell
+                              key={`meta-${g.startColIndex}`}
+                              workflowId={g.workflowId}
+                              size={g.size}
+                              startColIndex={g.startColIndex}
+                              columnName={displayColumns[g.startColIndex]?.name ?? ''}
+                              column={displayColumns[g.startColIndex]}
+                              workflows={workflows}
+                              isGroupSelected={
+                                isColumnSelection &&
+                                normalizedSelection !== null &&
+                                normalizedSelection.startCol <= g.startColIndex &&
+                                normalizedSelection.endCol >= g.startColIndex + g.size - 1
+                              }
+                              onSelectGroup={handleGroupSelect}
+                              onOpenConfig={handleConfigureColumn}
+                              onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
+                              onInsertLeft={
+                                userPermissions.canEdit ? handleInsertColumnLeft : undefined
+                              }
+                              onInsertRight={
+                                userPermissions.canEdit ? handleInsertColumnRight : undefined
+                              }
+                              onDeleteColumn={
+                                userPermissions.canEdit ? handleDeleteColumn : undefined
+                              }
+                            />
+                          ) : (
+                            <th
+                              key={`meta-${g.startColIndex}`}
+                              className='border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]'
+                              aria-hidden='true'
+                            />
+                          )
+                        )}
+                        {userPermissions.canEdit && (
+                          <th
+                            className='border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]'
+                            aria-hidden='true'
+                          />
+                        )}
+                      </tr>
+                    )}
+                    <tr>
+                      <SelectAllCheckbox
+                        checked={isAllRowsSelected}
+                        onCheckedChange={handleSelectAllToggle}
+                      />
+                      {displayColumns.map((column, idx) => (
+                        <ColumnHeaderMenu
                         key={column.key}
                         column={column}
                         colIndex={idx}
@@ -2477,12 +2537,9 @@ export function Table({
                         onRenameValueChange={columnRename.setEditValue}
                         onRenameSubmit={columnRename.submitRename}
                         onRenameCancel={columnRename.cancelRename}
-                        onRenameColumn={handleRenameColumn}
                         onColumnSelect={handleColumnSelect}
-                        onChangeType={handleChangeType}
                         onInsertLeft={handleInsertColumnLeft}
                         onInsertRight={handleInsertColumnRight}
-                        onToggleUnique={handleToggleUnique}
                         onDeleteColumn={handleDeleteColumn}
                         onResizeStart={handleColumnResizeStart}
                         onResize={handleColumnResize}
@@ -2493,18 +2550,18 @@ export function Table({
                         onDragEnd={handleColumnDragEnd}
                         onDragLeave={handleColumnDragLeave}
                         workflows={workflows}
-                        onChangeToWorkflow={handleChangeToWorkflow}
                         onOpenConfig={handleConfigureColumn}
                       />
                     ))}
-                    {userPermissions.canEdit && (
-                      <AddColumnButton
-                        onSelect={handleAddColumn}
-                        disabled={addColumnMutation.isPending}
-                        workflows={workflows}
-                      />
-                    )}
-                  </tr>
+                      {userPermissions.canEdit && (
+                        <AddColumnButton
+                          onSelect={handleAddColumn}
+                          disabled={addColumnMutation.isPending}
+                          workflows={workflows}
+                        />
+                      )}
+                    </tr>
+                  </>
                 )}
               </thead>
               <tbody>
@@ -2605,7 +2662,6 @@ export function Table({
           workflows={workflows}
           workspaceId={workspaceId}
           tableId={tableId}
-          workflowColumnBatchSize={tableData?.metadata?.workflowColumnBatchSize}
         />
       </div>
 
@@ -2643,12 +2699,13 @@ export function Table({
         onInsertAbove={handleInsertRowAbove}
         onInsertBelow={handleInsertRowBelow}
         onDuplicate={handleDuplicateRow}
+        onViewExecution={handleViewExecution}
+        canViewExecution={Boolean(contextMenuExecutionId)}
+        canEditCell={!contextMenuIsWorkflowColumn}
         selectedRowCount={selectedRowCount}
         disableEdit={!userPermissions.canEdit}
         disableInsert={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit}
-        workflows={workflows}
-        onRunWorkflow={handleRunWorkflow}
       />
 
       <ExpandedCellPopover
@@ -2930,7 +2987,7 @@ interface DataRowProps {
   pendingCellValue: Record<string, unknown> | null
   normalizedSelection: NormalizedSelection | null
   onClick: (rowId: string, columnName: string) => void
-  onDoubleClick: (rowId: string, columnName: string) => void
+  onDoubleClick: (rowId: string, columnName: string, columnKey: string) => void
   onSave: (rowId: string, columnName: string, value: unknown, reason: SaveReason) => void
   onCancel: () => void
   onContextMenu: (e: React.MouseEvent, row: TableRowType) => void
@@ -3132,7 +3189,7 @@ const DataRow = React.memo(function DataRow({
             }}
             onMouseEnter={() => onCellMouseEnter(rowIndex, colIndex)}
             onClick={() => onClick(row.id, column.name)}
-            onDoubleClick={() => onDoubleClick(row.id, column.name)}
+            onDoubleClick={() => onDoubleClick(row.id, column.name, column.key)}
           >
             {isHighlighted && (isMultiCell || isRowChecked) && (
               <div
@@ -3191,15 +3248,17 @@ function CellContent({
   let displayContent: React.ReactNode = null
   if (column.type === 'workflow') {
     const cell = value as WorkflowCellValue | null
+    const blockId = column.outputBlockId
+    const outputPath = column.outputPath
 
-    // Fanned-out columns: prefer the per-block output (live-streamed during the run).
-    // If the source block has completed, render its plucked value regardless of the
-    // overall workflow status — completed blocks stay visible during run, error, cancel.
+    // Per-block output is live-streamed during the run. If the source block has
+    // completed, render its plucked value regardless of overall workflow status —
+    // completed blocks stay visible during run, error, cancel. `readPickedValue`
+    // handles current and legacy cell shapes plus the cell.output fallback.
     let perBlockText: string | null = null
-    if (column.isFannedOut && column.outputBlockId && column.outputPath) {
-      const blockResult = cell?.blockOutputs?.[column.outputBlockId]
-      if (blockResult !== undefined) {
-        const picked = pluckByPath(blockResult, column.outputPath)
+    if (blockId && outputPath) {
+      const picked = readPickedValue(cell, blockId, outputPath)
+      if (picked !== undefined) {
         perBlockText =
           picked == null ? '' : typeof picked === 'string' ? picked : JSON.stringify(picked)
       }
@@ -3211,30 +3270,30 @@ function CellContent({
           {perBlockText}
         </span>
       )
-    } else if (cell?.status === 'running') {
-      const workflowName =
-        (cell.workflowId ? workflowNameById?.[cell.workflowId] : undefined) ?? 'workflow'
-      displayContent = (
-        <div className='flex min-h-[20px] min-w-0 items-center gap-1.5'>
-          <Loader animate className='h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]' />
-          <span className='min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-tertiary)]'>
-            Running {workflowName}
-          </span>
-        </div>
-      )
-    } else if (cell?.status === 'completed' && cell.output != null) {
-      const picked = column.outputPath ? pluckByPath(cell.output, column.outputPath) : cell.output
-      const text =
-        picked == null
-          ? ''
-          : typeof picked === 'string'
-            ? picked
-            : JSON.stringify(picked)
-      displayContent = (
-        <span className='block overflow-clip text-ellipsis text-[var(--text-primary)]'>
-          {text}
-        </span>
-      )
+    } else if (cell?.status === 'running' && blockId) {
+      // Split the overall `running` state into per-block tiers: animated spinner
+      // if THIS block is currently executing, static dot if it's queued behind
+      // upstream blocks.
+      const isInProgress = cell.runningBlockIds?.includes(blockId) ?? false
+      if (isInProgress) {
+        displayContent = (
+          <div className='flex min-h-[20px] min-w-0 items-center gap-1.5'>
+            <Loader animate className='h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]' />
+            <span className='min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-tertiary)]'>
+              Running
+            </span>
+          </div>
+        )
+      } else {
+        displayContent = (
+          <div className='flex min-h-[20px] min-w-0 items-center gap-1.5'>
+            <Circle className='h-[10px] w-[10px] shrink-0 text-[var(--text-tertiary)]' />
+            <span className='min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-tertiary)]'>
+              Waiting
+            </span>
+          </div>
+        )
+      }
     } else if (cell?.status === 'error') {
       displayContent = (
         <span
@@ -3554,6 +3613,237 @@ const TableBodySkeleton = React.memo(function TableBodySkeleton({
   )
 })
 
+const WORKFLOW_META_BG_ALPHA = 12 // 0–255
+
+/**
+ * Shared column-options dropdown rendered next to the column header chevron
+ * AND on right-click of the workflow group meta cell. Anchors to a fixed
+ * position passed in (so callers can place it under the chevron, or at the
+ * cursor for context-menu use). Rename / change type / unique live in the
+ * column sidebar (opened by Edit column).
+ */
+function ColumnOptionsMenu({
+  open,
+  onOpenChange,
+  position,
+  column,
+  onOpenConfig,
+  onInsertLeft,
+  onInsertRight,
+  onDeleteColumn,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  position: { x: number; y: number }
+  column: DisplayColumn
+  onOpenConfig: (columnName: string) => void
+  onInsertLeft: (columnName: string) => void
+  onInsertRight: (columnName: string) => void
+  onDeleteColumn: (columnName: string) => void
+}) {
+  return (
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
+      <DropdownMenuTrigger asChild>
+        <div
+          style={{
+            position: 'fixed',
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            width: '1px',
+            height: '1px',
+            pointerEvents: 'none',
+          }}
+          tabIndex={-1}
+          aria-hidden='true'
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align='start'
+        side='bottom'
+        sideOffset={4}
+        className='max-h-none'
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <DropdownMenuItem onSelect={() => onOpenConfig(column.name)}>
+          <Pencil />
+          Edit column
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => onInsertLeft(column.name)}>
+          <ArrowLeft />
+          Insert column left
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onInsertRight(column.name)}>
+          <ArrowRight />
+          Insert column right
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => onDeleteColumn(column.name)}>
+          <Trash />
+          Delete column
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/**
+ * Spans a fanned-out workflow column group in the table's meta header row.
+ * Renders the workflow's color chip + name and a deploy badge so the grouping
+ * across N sibling columns reads as one unit.
+ */
+function WorkflowGroupMetaCell({
+  workflowId,
+  size,
+  startColIndex,
+  columnName,
+  column,
+  workflows,
+  isGroupSelected,
+  onSelectGroup,
+  onOpenConfig,
+  onRunColumn,
+  onInsertLeft,
+  onInsertRight,
+  onDeleteColumn,
+}: {
+  workflowId: string
+  size: number
+  startColIndex: number
+  columnName: string
+  /** Underlying logical column — needed for the right-click options menu. */
+  column?: DisplayColumn
+  workflows?: WorkflowMetadata[]
+  isGroupSelected: boolean
+  onSelectGroup: (startColIndex: number, size: number) => void
+  onOpenConfig: (columnName: string) => void
+  onRunColumn?: (columnName: string) => void
+  onInsertLeft?: (columnName: string) => void
+  onInsertRight?: (columnName: string) => void
+  onDeleteColumn?: (columnName: string) => void
+}) {
+  const wf = workflows?.find((w) => w.id === workflowId)
+  const color = wf?.color ?? 'var(--text-muted)'
+  const name = wf?.name ?? 'Workflow'
+  const deploymentInfo = useDeploymentInfo(workflowId, { refetchOnMount: 'always' })
+  const deployState: 'undeployed' | 'redeploy' | null = deploymentInfo.data
+    ? !deploymentInfo.data.isDeployed
+      ? 'undeployed'
+      : deploymentInfo.data.needsRedeployment
+        ? 'redeploy'
+        : null
+    : null
+
+  const [optionsMenuOpen, setOptionsMenuOpen] = useState(false)
+  const [optionsMenuPosition, setOptionsMenuPosition] = useState({ x: 0, y: 0 })
+
+  const handlePlayClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (columnName) onRunColumn?.(columnName)
+    },
+    [columnName, onRunColumn]
+  )
+
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (!column) return
+      e.preventDefault()
+      e.stopPropagation()
+      setOptionsMenuPosition({ x: e.clientX, y: e.clientY })
+      setOptionsMenuOpen(true)
+    },
+    [column]
+  )
+
+  const handleClick = useCallback(() => {
+    onSelectGroup(startColIndex, size)
+    if (columnName) onOpenConfig(columnName)
+  }, [columnName, onOpenConfig, onSelectGroup, size, startColIndex])
+
+  return (
+    <th
+      colSpan={size}
+      onClick={handleClick}
+      onContextMenu={handleContextMenu}
+      className={cn(
+        'group relative cursor-pointer border-[var(--border)] border-r border-b border-l bg-[var(--bg)] px-2 py-[5px] text-left align-middle',
+        isGroupSelected && 'bg-[rgba(37,99,235,0.06)]'
+      )}
+    >
+      <div
+        className='-z-[1] pointer-events-none absolute inset-0'
+        style={{ background: `${color}${WORKFLOW_META_BG_ALPHA.toString(16).padStart(2, '0')}` }}
+      />
+      <div
+        className='pointer-events-none absolute inset-x-0 top-0 h-[2px]'
+        style={{ background: color }}
+      />
+      <div className='flex h-[18px] min-w-0 items-center gap-1.5'>
+        <span
+          className='h-[10px] w-[10px] shrink-0 rounded-sm border-[2px]'
+          style={{
+            backgroundColor: color,
+            borderColor: `${color}60`,
+            backgroundClip: 'padding-box',
+          }}
+        />
+        <span className='min-w-0 truncate font-medium text-[11px] text-[var(--text-secondary)]'>
+          {name}
+        </span>
+        {deployState && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Badge
+                variant={deployState === 'undeployed' ? 'red' : 'amber'}
+                size='sm'
+                dot
+                className='ml-auto shrink-0 cursor-default'
+                onClick={(e) => e.stopPropagation()}
+              >
+                {deployState}
+              </Badge>
+            </Tooltip.Trigger>
+            <Tooltip.Content>
+              <span className='text-sm'>
+                {deployState === 'undeployed'
+                  ? 'Deploy this workflow before runs can populate this column.'
+                  : 'This workflow has unpublished changes — redeploy to use them in this column.'}
+              </span>
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
+        {onRunColumn && (
+          <button
+            type='button'
+            className={cn(
+              'flex h-[16px] w-[16px] shrink-0 cursor-pointer items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]',
+              !deployState && 'ml-auto'
+            )}
+            onClick={handlePlayClick}
+            aria-label='Run column'
+            title='Run column'
+          >
+            <PlayOutline className='h-[10px] w-[10px]' />
+          </button>
+        )}
+      </div>
+      {column && onInsertLeft && onInsertRight && onDeleteColumn && (
+        <ColumnOptionsMenu
+          open={optionsMenuOpen}
+          onOpenChange={setOptionsMenuOpen}
+          position={optionsMenuPosition}
+          column={column}
+          onOpenConfig={onOpenConfig}
+          onInsertLeft={onInsertLeft}
+          onInsertRight={onInsertRight}
+          onDeleteColumn={onDeleteColumn}
+        />
+      )}
+    </th>
+  )
+}
+
 const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   column,
   colIndex,
@@ -3564,12 +3854,9 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onRenameValueChange,
   onRenameSubmit,
   onRenameCancel,
-  onRenameColumn,
   onColumnSelect,
-  onChangeType,
   onInsertLeft,
   onInsertRight,
-  onToggleUnique,
   onDeleteColumn,
   onResizeStart,
   onResize,
@@ -3580,7 +3867,6 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onDragEnd,
   onDragLeave,
   workflows,
-  onChangeToWorkflow,
   onOpenConfig,
 }: {
   column: DisplayColumn
@@ -3592,12 +3878,9 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onRenameValueChange: (value: string) => void
   onRenameSubmit: () => void
   onRenameCancel: () => void
-  onRenameColumn: (columnName: string) => void
   onColumnSelect: (colIndex: number, shiftKey: boolean) => void
-  onChangeType: (columnName: string, newType: string) => void
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
-  onToggleUnique: (columnName: string) => void
   onDeleteColumn: (columnName: string) => void
   onResizeStart: (columnKey: string) => void
   onResize: (columnKey: string, width: number) => void
@@ -3608,7 +3891,6 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onDragEnd?: () => void
   onDragLeave?: () => void
   workflows?: WorkflowMetadata[]
-  onChangeToWorkflow?: (columnName: string, workflowId: string) => void
   onOpenConfig: (columnName: string) => void
 }) {
   const renameInputRef = useRef<HTMLInputElement>(null)
@@ -3620,6 +3902,28 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       ? workflows?.find((w) => w.id === column.workflowConfig!.workflowId)
       : undefined
   const workflowColor = configuredWorkflow?.color
+  const workflowId =
+    column.type === 'workflow' && column.workflowConfig
+      ? column.workflowConfig.workflowId
+      : undefined
+  const workflowState = useWorkflowState(workflowId)
+  const sourceBlock = useMemo(() => {
+    if (!column.outputBlockId) return undefined
+    const blocks = (
+      workflowState.data as
+        | { blocks?: Record<string, FlattenOutputsBlockInput> }
+        | null
+        | undefined
+    )?.blocks
+    return blocks?.[column.outputBlockId]
+  }, [column.outputBlockId, workflowState.data])
+  const blockIconInfo = useMemo<BlockIconInfo | undefined>(() => {
+    if (!sourceBlock?.type) return undefined
+    const blockConfig = getBlock(sourceBlock.type)
+    if (!blockConfig?.icon) return undefined
+    return { icon: blockConfig.icon, color: blockConfig.bgColor || '#2F55FF' }
+  }, [sourceBlock])
+  const blockName = sourceBlock?.name?.trim() || undefined
 
   useEffect(() => {
     if (isRenaming && renameInputRef.current) {
@@ -3763,7 +4067,11 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     >
       {isRenaming ? (
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
-          <ColumnTypeIcon type={column.type} workflowColor={workflowColor} />
+          <ColumnTypeIcon
+            type={column.type}
+            workflowColor={workflowColor}
+            blockIconInfo={blockIconInfo}
+          />
           <input
             ref={renameInputRef}
             type='text'
@@ -3779,12 +4087,16 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         </div>
       ) : readOnly ? (
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
-          <ColumnTypeIcon type={column.type} workflowColor={workflowColor} />
-          {column.isFannedOut ? (
+          <ColumnTypeIcon
+            type={column.type}
+            workflowColor={workflowColor}
+            blockIconInfo={blockIconInfo}
+          />
+          {column.type === 'workflow' ? (
             <div className='ml-1.5 flex min-w-0 flex-col'>
-              {column.isGroupStart && (
+              {blockName && (
                 <span className='truncate text-[var(--text-tertiary)] text-caption leading-tight'>
-                  {column.name}
+                  {blockName}
                 </span>
               )}
               <span className='truncate font-medium text-[13px] text-[var(--text-primary)] leading-tight'>
@@ -3805,12 +4117,16 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             onClick={handleHeaderClick}
             draggable={false}
           >
-            <ColumnTypeIcon type={column.type} workflowColor={workflowColor} />
-            {column.isFannedOut ? (
+            <ColumnTypeIcon
+              type={column.type}
+              workflowColor={workflowColor}
+              blockIconInfo={blockIconInfo}
+            />
+            {column.type === 'workflow' ? (
               <div className='ml-1.5 flex min-w-0 flex-col items-start'>
-                {column.isGroupStart && (
+                {blockName && (
                   <span className='truncate text-[10px] text-[var(--text-tertiary)] leading-tight'>
-                    {column.name}
+                    {blockName}
                   </span>
                 )}
                 <span className='truncate font-medium text-[var(--text-primary)] text-small leading-tight'>
@@ -3832,96 +4148,16 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           >
             <ChevronDown className='h-[7px] w-[9px]' />
           </button>
-          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-            <DropdownMenuTrigger asChild>
-              <div
-                style={{
-                  position: 'fixed',
-                  left: `${menuPosition.x}px`,
-                  top: `${menuPosition.y}px`,
-                  width: '1px',
-                  height: '1px',
-                  pointerEvents: 'none',
-                }}
-                tabIndex={-1}
-                aria-hidden='true'
-              />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align='start'
-              side='bottom'
-              sideOffset={4}
-              onCloseAutoFocus={(e) => e.preventDefault()}
-            >
-              {column.type === 'workflow' && (
-                <>
-                  <DropdownMenuItem onSelect={() => onOpenConfig(column.name)}>
-                    <Pencil />
-                    Configure workflow
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              <DropdownMenuItem onSelect={() => onRenameColumn(column.name)}>
-                <Pencil />
-                Rename column
-              </DropdownMenuItem>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <ColumnTypeIcon type={column.type} workflowColor={workflowColor} />
-                  Change type
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  {COLUMN_TYPE_OPTIONS.map((option) => {
-                    if (option.type === 'workflow') {
-                      return (
-                        <DropdownMenuSub key={option.type}>
-                          <DropdownMenuSubTrigger>
-                            <ColumnTypeIcon type='workflow' />
-                            {option.label}
-                          </DropdownMenuSubTrigger>
-                          <WorkflowPickerSubContent
-                            workflows={workflows}
-                            onPick={(workflowId) => onChangeToWorkflow?.(column.name, workflowId)}
-                            disabledWorkflowId={column.workflowConfig?.workflowId}
-                          />
-                        </DropdownMenuSub>
-                      )
-                    }
-                    return (
-                      <DropdownMenuItem
-                        key={option.type}
-                        disabled={column.type === option.type}
-                        onSelect={() => onChangeType(column.name, option.type)}
-                      >
-                        <option.icon />
-                        {option.label}
-                      </DropdownMenuItem>
-                    )
-                  })}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => onInsertLeft(column.name)}>
-                <ArrowLeft />
-                Insert column left
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onInsertRight(column.name)}>
-                <ArrowRight />
-                Insert column right
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => onToggleUnique(column.name)}>
-                <Fingerprint />
-                {column.unique ? 'Remove unique' : 'Set unique'}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => onDeleteColumn(column.name)}>
-                <Trash />
-                Delete column
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <ColumnOptionsMenu
+            open={menuOpen}
+            onOpenChange={setMenuOpen}
+            position={menuPosition}
+            column={column}
+            onOpenConfig={onOpenConfig}
+            onInsertLeft={onInsertLeft}
+            onInsertRight={onInsertRight}
+            onDeleteColumn={onDeleteColumn}
+          />
         </div>
       )}
       <div
@@ -3978,9 +4214,14 @@ function ExpandedCellPopover({
   const target = useMemo(() => {
     if (!expandedCell) return null
     const row = rows.find((r) => r.id === expandedCell.rowId)
-    const column = columns.find((c) => c.name === expandedCell.columnName)
+    // Match the specific visual column the user double-clicked on. Fanned-out
+    // workflow columns share `name` across siblings, so prefer `key` when set.
+    const matchByKey = expandedCell.columnKey
+      ? (c: DisplayColumn) => c.key === expandedCell.columnKey
+      : (c: DisplayColumn) => c.name === expandedCell.columnName
+    const column = columns.find(matchByKey)
     if (!row || !column) return null
-    const colIndex = columns.findIndex((c) => c.name === expandedCell.columnName)
+    const colIndex = columns.findIndex(matchByKey)
     return { row, column, colIndex, value: row.data[column.name] }
   }, [expandedCell, rows, columns])
 
@@ -3995,6 +4236,17 @@ function ExpandedCellPopover({
       const cell = value as WorkflowCellValue | null | undefined
       if (!cell) return ''
       if (cell.status === 'error') return cell.error ?? 'Error'
+      // For fanned-out visual columns, surface the specific block's plucked value
+      // (live-streamed during the run, then preserved on terminal completion).
+      // Fall back to the workflow's full output if blockOutputs is missing.
+      const blockId = column.outputBlockId
+      const path = column.outputPath
+      if (blockId && path) {
+        const picked = readPickedValue(cell, blockId, path)
+        if (picked === undefined) return ''
+        if (picked === null) return ''
+        return typeof picked === 'string' ? picked : JSON.stringify(picked, null, 2)
+      }
       if (cell.status !== 'completed') return ''
       const output = cell.output
       if (output == null) return ''
@@ -4353,8 +4605,32 @@ const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: ()
   )
 })
 
-function ColumnTypeIcon({ type, workflowColor }: { type: string; workflowColor?: string }) {
+interface BlockIconInfo {
+  icon: React.ComponentType<{ className?: string }>
+  color: string
+}
+
+function ColumnTypeIcon({
+  type,
+  workflowColor,
+  blockIconInfo,
+}: {
+  type: string
+  workflowColor?: string
+  blockIconInfo?: BlockIconInfo
+}) {
   if (type === 'workflow') {
+    if (blockIconInfo) {
+      const BlockIcon = blockIconInfo.icon
+      return (
+        <span
+          className='flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[4px]'
+          style={{ background: blockIconInfo.color }}
+        >
+          <BlockIcon className='!text-white h-[12px] w-[12px]' />
+        </span>
+      )
+    }
     const color = workflowColor ?? 'var(--text-muted)'
     return (
       <span

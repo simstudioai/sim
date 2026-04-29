@@ -857,6 +857,10 @@ interface CancelRunsParams {
 /**
  * Cancel in-flight and queued workflow-column runs for a table.
  * Scope is either `all` (table-wide) or `row` (a single row).
+ *
+ * Optimistically writes `cancelled` to every running/pending workflow cell in
+ * scope so the UI shows the stop immediately. The server-side write is the
+ * source of truth — the invalidation in `onSettled` reconciles any drift.
  */
 export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
@@ -873,6 +877,53 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
         throw new Error((data as { error?: string }).error || 'Failed to cancel runs')
       }
       return res.json() as Promise<{ success: true; data: { cancelled: number } }>
+    },
+    onMutate: async ({ scope, rowId }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      const matching = queryClient.getQueriesData<TableRowsResponse>({
+        queryKey: tableKeys.rowsRoot(tableId),
+      })
+      const snapshots: RowsCacheSnapshots = []
+      for (const [key, data] of matching) {
+        if (!data) continue
+        snapshots.push([key, data])
+        let touched = false
+        const nextRows = data.rows.map((r) => {
+          if (scope === 'row' && r.id !== rowId) return r
+          let rowTouched = false
+          const nextData = { ...(r.data as RowData) }
+          for (const col in nextData) {
+            const cell = nextData[col] as WorkflowCellValue | null | undefined
+            if (
+              !cell ||
+              typeof cell !== 'object' ||
+              !('status' in cell) ||
+              (cell.status !== 'running' && cell.status !== 'pending')
+            ) {
+              continue
+            }
+            const cancelledCell: WorkflowCellValue = {
+              executionId: cell.executionId ?? null,
+              jobId: null,
+              workflowId: cell.workflowId,
+              status: 'cancelled',
+              output: null,
+              error: 'Cancelled',
+            }
+            nextData[col] = cancelledCell as unknown as RowData[string]
+            rowTouched = true
+          }
+          if (!rowTouched) return r
+          touched = true
+          return { ...r, data: nextData }
+        })
+        if (!touched) continue
+        queryClient.setQueryData<TableRowsResponse>(key, { ...data, rows: nextRows })
+      }
+      return { snapshots }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
@@ -1029,6 +1080,94 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, workspaceId, tableId)
+    },
+  })
+}
+
+interface RunColumnVariables {
+  columnName: string
+}
+
+/**
+ * Snapshot type captured during optimistic cell mutations so the rollback path
+ * has the original `TableRowsResponse` for every cache key it touched.
+ */
+type RowsCacheSnapshots = Array<[ReadonlyArray<unknown>, TableRowsResponse]>
+
+function restoreCachedWorkflowCells(
+  queryClient: ReturnType<typeof useQueryClient>,
+  snapshots: RowsCacheSnapshots
+) {
+  for (const [key, data] of snapshots) {
+    queryClient.setQueryData(key, data)
+  }
+}
+
+/**
+ * Trigger a workflow-column run for every eligible row in the table. The
+ * server filters by deps; this hook optimistically flips matching cells to
+ * `pending` immediately so the UI doesn't lag the network round-trip.
+ */
+export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ columnName }: RunColumnVariables) => {
+      const res = await fetch(
+        `/api/table/${tableId}/columns/${encodeURIComponent(columnName)}/run`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspaceId }),
+        }
+      )
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error.error || 'Failed to run column')
+      }
+
+      return res.json() as Promise<{ success: boolean; data: { triggered: number } }>
+    },
+    onMutate: async ({ columnName }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      const matching = queryClient.getQueriesData<TableRowsResponse>({
+        queryKey: tableKeys.rowsRoot(tableId),
+      })
+      const snapshots: RowsCacheSnapshots = []
+      for (const [key, data] of matching) {
+        if (!data) continue
+        snapshots.push([key, data])
+        let touched = false
+        const nextRows = data.rows.map((r) => {
+          const cell = (r.data as RowData)[columnName] as WorkflowCellValue | null | undefined
+          // Already in flight — leave it. The cache will reconcile via socket
+          // updates as the run progresses.
+          if (cell?.status === 'running') return r
+          touched = true
+          const pendingCell: WorkflowCellValue = {
+            executionId: cell?.executionId ?? null,
+            jobId: null,
+            workflowId: cell?.workflowId ?? '',
+            status: 'pending',
+            output: null,
+            error: null,
+          }
+          return {
+            ...r,
+            data: { ...(r.data as RowData), [columnName]: pendingCell as unknown as RowData[string] },
+          }
+        })
+        if (!touched) continue
+        queryClient.setQueryData<TableRowsResponse>(key, { ...data, rows: nextRows })
+      }
+      return { snapshots }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
     },
   })
 }

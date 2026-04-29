@@ -32,6 +32,50 @@ const logger = createLogger('WorkflowColumnScheduler')
 export { pluckByPath } from './pluck'
 
 /**
+ * Returns true when every dependency this workflow column needs is filled.
+ * Plain columns are filled when their value is non-empty; upstream workflow
+ * columns are filled when their cell status is `completed`. Used both by the
+ * scheduler's eligibility check and by the manual "Run column" route, which
+ * needs the same gate WITHOUT the in-flight / terminal-state check.
+ */
+export function areWorkflowColumnDepsSatisfied(
+  column: ColumnDefinition,
+  columnIndex: number,
+  row: TableRow,
+  schema: { columns: ColumnDefinition[] }
+): boolean {
+  if (column.type !== 'workflow') return false
+  if (!column.workflowConfig?.workflowId) return false
+
+  const isFilled = (colToCheck: ColumnDefinition, value: unknown): boolean => {
+    if (colToCheck.type === 'workflow') {
+      const cellVal = value as WorkflowCellValue | null | undefined
+      return cellVal?.status === 'completed'
+    }
+    return value !== null && value !== undefined && value !== ''
+  }
+
+  const explicitDeps = column.workflowConfig?.dependencies
+  if (explicitDeps && explicitDeps.length > 0) {
+    for (const depName of explicitDeps) {
+      const depCol = schema.columns.find((c) => c.name === depName)
+      if (!depCol) {
+        throw new Error(`Workflow column "${column.name}" has unknown dependency "${depName}"`)
+      }
+      if (!isFilled(depCol, row.data[depName])) return false
+    }
+    return true
+  }
+
+  for (let i = 0; i < columnIndex; i++) {
+    const leftCol = schema.columns[i]
+    if (!isFilled(leftCol, row.data[leftCol.name])) return false
+  }
+
+  return true
+}
+
+/**
  * Per-cell eligibility: returns true if the workflow should run for this row × column now.
  *
  * Pluggable: future conditional rules (specific-column watches, expression-based gates,
@@ -43,9 +87,6 @@ export function isWorkflowColumnEligible(
   row: TableRow,
   schema: { columns: ColumnDefinition[] }
 ): boolean {
-  if (column.type !== 'workflow') return false
-  if (!column.workflowConfig?.workflowId) return false
-
   const cell = row.data[column.name] as WorkflowCellValue | null | undefined
   const status = cell?.status
   // `cancelled` must skip too — `cancelWorkflowColumnRuns` writes the cancelled
@@ -60,69 +101,28 @@ export function isWorkflowColumnEligible(
     return false
   }
 
-  const isFilled = (colToCheck: ColumnDefinition, value: unknown): boolean => {
-    if (colToCheck.type === 'workflow') {
-      const cellVal = value as WorkflowCellValue | null | undefined
-      return cellVal?.status === 'completed'
-    }
-    return value !== null && value !== undefined && value !== ''
-  }
-
-  const explicitDeps = column.workflowConfig?.dependencies
-  if (explicitDeps && explicitDeps.length > 0) {
-    // Explicit dependency list: check only the named columns. Fail fast on unknown
-    // names — malformed config is a bug, not a silent skip.
-    for (const depName of explicitDeps) {
-      const depCol = schema.columns.find((c) => c.name === depName)
-      if (!depCol) {
-        throw new Error(`Workflow column "${column.name}" has unknown dependency "${depName}"`)
-      }
-      if (!isFilled(depCol, row.data[depName])) return false
-    }
-    return true
-  }
-
-  // Default predicate: every column to the left must be filled. Plain columns need a
-  // non-null/non-empty value; upstream workflow columns need status === 'completed'
-  // (this is what makes cascading work).
-  for (let i = 0; i < columnIndex; i++) {
-    const leftCol = schema.columns[i]
-    if (!isFilled(leftCol, row.data[leftCol.name])) return false
-  }
-
-  return true
-}
-
-/** Upper bound on workflow-column run concurrency exposed to the user. */
-const WORKFLOW_COLUMN_BATCH_SIZE_MAX = 100
-
-interface ScheduleWorkflowColumnRunsOptions {
-  /**
-   * Maximum number of workflow-column runs to execute concurrently. When unset, the
-   * per-table value at `table.metadata.workflowColumnBatchSize` is used, falling back
-   * to `TABLE_LIMITS.WORKFLOW_COLUMN_BATCH_SIZE`. Clamped to 1..100.
-   */
-  batchSize?: number
+  return areWorkflowColumnDepsSatisfied(column, columnIndex, row, schema)
 }
 
 /**
- * Scheduler. Iterates workflow columns × rows and kicks off eligible executions in
- * bounded-concurrency batches. Safe to call after any row-write operation; errors are
- * logged. Callers typically invoke this with `void` — the function awaits internally to
- * limit concurrency, but resolves once all scheduled runs complete.
+ * Scheduler. Iterates workflow columns × rows and kicks off eligible cell jobs.
+ * Safe to call after any row-write operation; errors are logged.
  *
- * Actor identity for the downstream workflow is derived from the workflow record itself
- * (same convention as webhook/polling-fired triggers), so the service call site doesn't
- * need to provide a user id.
+ * Concurrency is enforced at the trigger.dev queue layer (see
+ * `apps/sim/background/workflow-column-execution.ts` — `concurrencyLimit: 10`
+ * combined with `concurrencyKey: tableId`), so this function just enqueues
+ * everything eligible and returns.
+ *
+ * Actor identity for the downstream workflow is derived from the workflow
+ * record itself (same convention as webhook/polling-fired triggers), so the
+ * service call site doesn't need to provide a user id.
  *
  * @param table - The table definition with schema.
  * @param rows - Rows that were just written (post-commit state).
- * @param options - Optional batching/concurrency controls.
  */
 export async function scheduleWorkflowColumnRuns(
   table: TableDefinition,
-  rows: TableRow[],
-  options?: ScheduleWorkflowColumnRunsOptions
+  rows: TableRow[]
 ): Promise<void> {
   try {
     const workflowColumns = table.schema.columns
@@ -132,17 +132,7 @@ export async function scheduleWorkflowColumnRuns(
     if (workflowColumns.length === 0) return
     if (rows.length === 0) return
 
-    const requestedBatchSize =
-      options?.batchSize ??
-      table.metadata?.workflowColumnBatchSize ??
-      TABLE_LIMITS.WORKFLOW_COLUMN_BATCH_SIZE
-    const batchSize = Math.min(
-      WORKFLOW_COLUMN_BATCH_SIZE_MAX,
-      Math.max(1, Math.floor(requestedBatchSize))
-    )
-
-    // Preserve position order so batches fire in the order the user sees them in the UI.
-    // Skip the sort on single-row calls (the common row-write path).
+    // Preserve position order so enqueues fire in the order the user sees them.
     const orderedRows = rows.length <= 1 ? rows : [...rows].sort((a, b) => a.position - b.position)
 
     const pendingRuns: RunWorkflowColumnOptions[] = []
@@ -153,8 +143,6 @@ export async function scheduleWorkflowColumnRuns(
         try {
           eligible = isWorkflowColumnEligible(col, idx, row, table.schema)
         } catch (predicateErr) {
-          // Malformed dependency config — surface it on the specific cell so the user
-          // can see why their column is stuck, then move on to the next row/column.
           const message =
             predicateErr instanceof Error ? predicateErr.message : String(predicateErr)
           logger.error(
@@ -180,13 +168,10 @@ export async function scheduleWorkflowColumnRuns(
     if (pendingRuns.length === 0) return
 
     logger.info(
-      `Scheduling ${pendingRuns.length} workflow column run(s) for table=${table.id} in batches of ${batchSize}`
+      `Scheduling ${pendingRuns.length} workflow column run(s) for table=${table.id}`
     )
 
-    for (let i = 0; i < pendingRuns.length; i += batchSize) {
-      const batch = pendingRuns.slice(i, i + batchSize)
-      await Promise.allSettled(batch.map((opts) => runWorkflowColumn(opts)))
-    }
+    await Promise.allSettled(pendingRuns.map((opts) => runWorkflowColumn(opts)))
   } catch (err) {
     logger.error('scheduleWorkflowColumnRuns failed:', err)
   }
@@ -258,16 +243,34 @@ export async function runWorkflowColumn(opts: RunWorkflowColumnOptions): Promise
   const { getTableById, getRowById, updateRow } = await import('@/lib/table/service')
   const { getJobQueue, shouldExecuteInline } = await import('@/lib/core/async-jobs/config')
 
-  const writeCell = async (value: WorkflowCellValue) => {
+  /**
+   * Writes the cell unless `cancelWorkflowColumnRuns` already wrote `cancelled`
+   * for this run. Without this check, a cancel that lands while the scheduler
+   * is mid-enqueue (e.g. between `writeCell({running, no jobId})` and the
+   * post-enqueue `writeCell({running, jobId})`) gets clobbered back to running.
+   * That manifests as "stop didn't stick".
+   */
+  const writeCell = async (value: WorkflowCellValue): Promise<'wrote' | 'cancelled'> => {
     const table = await getTableById(tableId)
     if (!table) {
       logger.warn(`Table ${tableId} vanished before cell write`)
-      return
+      return 'wrote'
     }
     const row = await getRowById(tableId, rowId, workspaceId)
     if (!row) {
       logger.warn(`Row ${rowId} vanished before cell write`)
-      return
+      return 'wrote'
+    }
+    const currentCell = row.data[columnName] as WorkflowCellValue | null | undefined
+    if (
+      currentCell?.status === 'cancelled' &&
+      currentCell.executionId === executionId &&
+      value.status !== 'cancelled'
+    ) {
+      logger.info(
+        `Skipping cell write — cancelled (table=${tableId} row=${rowId} col=${columnName} executionId=${executionId})`
+      )
+      return 'cancelled'
     }
     const mergedData: RowData = { ...row.data, [columnName]: value as unknown as RowData[string] }
     await updateRow(
@@ -275,12 +278,14 @@ export async function runWorkflowColumn(opts: RunWorkflowColumnOptions): Promise
       table,
       `wfcol-${executionId}`
     )
+    return 'wrote'
   }
 
   // 1) Flip the cell to `running` immediately so the UI reflects state regardless
   //    of how long the queue takes to dispatch.
+  let writeResult: 'wrote' | 'cancelled' = 'wrote'
   try {
-    await writeCell({
+    writeResult = await writeCell({
       executionId,
       jobId: null,
       workflowId,
@@ -295,6 +300,9 @@ export async function runWorkflowColumn(opts: RunWorkflowColumnOptions): Promise
     )
     return
   }
+  // If cancel landed first, abort the dispatch entirely — no enqueue, no
+  // jobId stamp. The cancelled state stays sticky.
+  if (writeResult === 'cancelled') return
 
   // 2) Enqueue and capture the async-job id. The task body fetches workflow +
   //    webhook + row, runs `executeWorkflow`, and writes the terminal state.
@@ -323,6 +331,10 @@ export async function runWorkflowColumn(opts: RunWorkflowColumnOptions): Promise
           triggerType: 'table',
         },
       },
+      // Per-table sub-queue: combined with the task's `queue.concurrencyLimit`
+      // this throttles parallelism within a table while letting different
+      // tables run independently.
+      concurrencyKey: tableId,
       tags: [`tableId:${tableId}`, `rowId:${rowId}`, `column:${columnName}`],
     })
   } catch (err) {
@@ -342,9 +354,13 @@ export async function runWorkflowColumn(opts: RunWorkflowColumnOptions): Promise
     return
   }
 
-  // 3) Stamp the jobId onto the cell so cancel can find it.
+  // 3) Stamp the jobId onto the cell so cancel can find it. If cancel landed
+  //    between enqueue and now, the writeCell guard will skip the write AND
+  //    return 'cancelled' — at which point we abort the trigger.dev job too,
+  //    since the cell-task wouldn't have a jobId to read on its own otherwise.
+  let stampResult: 'wrote' | 'cancelled' = 'wrote'
   try {
-    await writeCell({
+    stampResult = await writeCell({
       executionId,
       jobId,
       workflowId,
@@ -357,8 +373,17 @@ export async function runWorkflowColumn(opts: RunWorkflowColumnOptions): Promise
       `Failed to persist jobId on cell (table=${tableId} row=${rowId} col=${columnName}):`,
       err
     )
-    // Don't fail the run — the task will still complete; cancel just won't be able
-    // to abort this specific cell until the task writes the terminal state.
+  }
+  if (stampResult === 'cancelled') {
+    try {
+      await queue.cancelJob(jobId)
+    } catch (cancelErr) {
+      logger.error(
+        `Failed to cancel orphaned workflow-column-execution job (jobId=${jobId}):`,
+        cancelErr
+      )
+    }
+    return
   }
 
   // 4) When trigger.dev is disabled the DB queue just records the row — nothing
@@ -437,7 +462,11 @@ export async function cancelWorkflowColumnRuns(tableId: string, rowId?: string):
     const nextData: RowData = { ...data }
     for (const name of workflowColumnNames) {
       const cell = data[name] as WorkflowCellValue | null | undefined
-      if (!cell || cell.status !== 'running') continue
+      // Cancel both `running` (in-flight task) and `pending` (post-reset,
+      // pre-dispatch) cells. Without the pending case, a stop click landing
+      // between the run-column reset and the scheduler picking up the cell
+      // would leave it pending → eventually executed.
+      if (!cell || (cell.status !== 'running' && cell.status !== 'pending')) continue
 
       if (cell.jobId) {
         try {

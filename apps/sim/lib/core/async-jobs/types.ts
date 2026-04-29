@@ -76,6 +76,11 @@ export interface EnqueueOptions {
   name?: string
   delayMs?: number
   tags?: string[]
+  /**
+   * Trigger.dev concurrency key. Combined with the task's `queue.concurrencyLimit`,
+   * limits parallel runs sharing this key. The database backend ignores it.
+   */
+  concurrencyKey?: string
 }
 
 /**

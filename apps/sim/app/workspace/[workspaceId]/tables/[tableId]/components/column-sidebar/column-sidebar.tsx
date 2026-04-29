@@ -7,14 +7,14 @@ import { RepeatIcon, SplitIcon, X } from 'lucide-react'
 import { Button, Checkbox, Combobox, Input, Label, Switch, toast } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition } from '@/lib/table'
-import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   type FlattenOutputsBlockInput,
   type FlattenOutputsEdgeInput,
   flattenWorkflowOutputs,
+  getBlockExecutionOrder,
 } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
-import { useAddTableColumn, useUpdateColumn, useUpdateTableMetadata } from '@/hooks/queries/tables'
+import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
 import { useWorkflowState } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { COLUMN_TYPE_OPTIONS } from './column-types'
@@ -34,16 +34,9 @@ interface ColumnSidebarProps {
   workflows: WorkflowMetadata[] | undefined
   workspaceId: string
   tableId: string
-  /**
-   * Table-wide max concurrent workflow-column runs. Read from `table.metadata`.
-   * Undefined means "not set" — the scheduler falls back to its default.
-   */
-  workflowColumnBatchSize: number | undefined
 }
 
 const OUTPUT_VALUE_SEPARATOR = '::'
-const BATCH_SIZE_MIN = 1
-const BATCH_SIZE_MAX = 100
 
 /** Shared dashed-divider style — mirrors the workflow editor's subblock divider. */
 const DASHED_DIVIDER_STYLE = {
@@ -123,11 +116,9 @@ export function ColumnSidebar({
   workflows,
   workspaceId,
   tableId,
-  workflowColumnBatchSize,
 }: ColumnSidebarProps) {
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
   const addColumn = useAddTableColumn({ workspaceId, tableId })
-  const updateMetadata = useUpdateTableMetadata({ workspaceId, tableId })
   const open = configState !== null
 
   const columnName = configState ? configState.columnName : ''
@@ -144,14 +135,11 @@ export function ColumnSidebar({
   const [deps, setDeps] = useState<string[]>([])
   /** Encoded `${blockId}::${path}` values — disambiguates duplicate paths in the picker. */
   const [selectedOutputs, setSelectedOutputs] = useState<string[]>([])
-  const [batchSizeInput, setBatchSizeInput] = useState<string>('')
 
   const existingColumnRef = useRef(existingColumn)
   existingColumnRef.current = existingColumn
   const allColumnsRef = useRef(allColumns)
   allColumnsRef.current = allColumns
-  const workflowColumnBatchSizeRef = useRef(workflowColumnBatchSize)
-  workflowColumnBatchSizeRef.current = workflowColumnBatchSize
 
   useEffect(() => {
     if (!open || !configState) return
@@ -182,9 +170,6 @@ export function ColumnSidebar({
       setDeps(cols.filter((c) => c.name !== configState.columnName).map((c) => c.name))
       setSelectedOutputs([])
     }
-    setBatchSizeInput(
-      String(workflowColumnBatchSizeRef.current ?? TABLE_LIMITS.WORKFLOW_COLUMN_BATCH_SIZE)
-    )
   }, [open, configState])
 
   const workflowState = useWorkflowState(
@@ -202,7 +187,8 @@ export function ColumnSidebar({
     if (!state?.blocks) return []
 
     const blocks = Object.values(state.blocks)
-    const flat = flattenWorkflowOutputs(blocks, state.edges ?? [])
+    const edges = state.edges ?? []
+    const flat = flattenWorkflowOutputs(blocks, edges)
     if (flat.length === 0) return []
 
     const groupsByBlockId = new Map<string, BlockOutputGroup>()
@@ -229,7 +215,16 @@ export function ColumnSidebar({
       }
       group.paths.push(f.path)
     }
-    return Array.from(groupsByBlockId.values())
+    // Sort the picker by execution order (start block first) so it matches the
+    // saved-column ordering. Unreachable blocks sink to the end.
+    const distances = getBlockExecutionOrder(blocks, edges)
+    return Array.from(groupsByBlockId.values()).sort((a, b) => {
+      const da = distances[a.blockId]
+      const db = distances[b.blockId]
+      const sa = da === undefined || da < 0 ? Number.POSITIVE_INFINITY : da
+      const sb = db === undefined || db < 0 ? Number.POSITIVE_INFINITY : db
+      return sa - sb
+    })
   }, [workflowState.data])
 
   /**
@@ -262,14 +257,6 @@ export function ColumnSidebar({
     )
   }
 
-  const parsedBatchSize = Number.parseInt(batchSizeInput, 10)
-  const batchSizeValid =
-    Number.isFinite(parsedBatchSize) &&
-    parsedBatchSize >= BATCH_SIZE_MIN &&
-    parsedBatchSize <= BATCH_SIZE_MAX
-  const previousBatchSize = workflowColumnBatchSize ?? TABLE_LIMITS.WORKFLOW_COLUMN_BATCH_SIZE
-  const batchSizeChanged = batchSizeValid && parsedBatchSize !== previousBatchSize
-
   const isWorkflow = typeInput === 'workflow'
 
   const typeOptions = useMemo(
@@ -291,38 +278,59 @@ export function ColumnSidebar({
         toast.error('Pick a workflow')
         return
       }
-      if (!batchSizeValid) {
-        toast.error(`Run concurrency must be between ${BATCH_SIZE_MIN} and ${BATCH_SIZE_MAX}`)
+      if (selectedOutputs.length === 0) {
+        toast.error('Pick at least one output field')
         return
       }
-      const outputs =
-        selectedOutputs.length === 0
-          ? undefined
-          : (() => {
-              const seen = new Set<string>()
-              const list: Array<{ blockId: string; path: string }> = []
-              for (const encoded of selectedOutputs) {
-                if (seen.has(encoded)) continue
-                seen.add(encoded)
-                list.push(decodeOutputValue(encoded))
-              }
-              return list
-            })()
+      const seen = new Set<string>()
+      const outputs: Array<{ blockId: string; path: string }> = []
+      for (const encoded of selectedOutputs) {
+        if (seen.has(encoded)) continue
+        seen.add(encoded)
+        outputs.push(decodeOutputValue(encoded))
+      }
+      // Sort by execution order so fanned-out columns appear left-to-right
+      // in the order their source blocks run. BFS distance from the start
+      // block gives a clean linear order; same-distance ties fall back to
+      // discovery order in `flattenWorkflowOutputs`.
+      const wfState = workflowState.data as
+        | {
+            blocks?: Record<string, FlattenOutputsBlockInput>
+            edges?: FlattenOutputsEdgeInput[]
+          }
+        | null
+        | undefined
+      if (wfState?.blocks) {
+        const blocks = Object.values(wfState.blocks)
+        const edges = wfState.edges ?? []
+        const distances = getBlockExecutionOrder(blocks, edges)
+        const flat = flattenWorkflowOutputs(blocks, edges)
+        const indexInFlat = new Map(
+          flat.map((f, i) => [`${f.blockId}${OUTPUT_VALUE_SEPARATOR}${f.path}`, i])
+        )
+        outputs.sort((a, b) => {
+          const da = distances[a.blockId]
+          const db = distances[b.blockId]
+          const sa = da === undefined || da < 0 ? Number.POSITIVE_INFINITY : da
+          const sb = db === undefined || db < 0 ? Number.POSITIVE_INFINITY : db
+          if (sa !== sb) return sa - sb
+          const ia =
+            indexInFlat.get(`${a.blockId}${OUTPUT_VALUE_SEPARATOR}${a.path}`) ??
+            Number.POSITIVE_INFINITY
+          const ib =
+            indexInFlat.get(`${b.blockId}${OUTPUT_VALUE_SEPARATOR}${b.path}`) ??
+            Number.POSITIVE_INFINITY
+          return ia - ib
+        })
+      }
       workflowConfig = {
         workflowId: selectedWorkflowId,
         dependencies: deps,
-        ...(outputs ? { outputs } : {}),
+        outputs,
       }
     }
 
     try {
-      // Metadata must land before the column mutation runs. Both invalidate
-      // tableKeys.detail(tableId) on settle — racing the metadata PUT with
-      // the column refetch can clobber the cache with the old metadata.
-      if (isWorkflow && batchSizeChanged) {
-        await updateMetadata.mutateAsync({ workflowColumnBatchSize: parsedBatchSize })
-      }
-
       if (configState.mode === 'create') {
         await addColumn.mutateAsync({
           name: trimmedName,
@@ -370,7 +378,7 @@ export function ColumnSidebar({
     updateColumn.isPending ||
     addColumn.isPending ||
     !nameInput.trim() ||
-    (isWorkflow && (!selectedWorkflowId || !batchSizeValid))
+    (isWorkflow && (!selectedWorkflowId || selectedOutputs.length === 0))
 
   return (
     <aside
@@ -421,21 +429,25 @@ export function ColumnSidebar({
             />
           </div>
 
-          <FieldDivider />
+          {!isWorkflow && (
+            <>
+              <FieldDivider />
 
-          <div className='flex flex-col gap-[9.5px]'>
-            <div className='flex items-center justify-between pl-0.5'>
-              <Label htmlFor='column-sidebar-unique'>Unique</Label>
-              <Switch
-                id='column-sidebar-unique'
-                checked={uniqueInput}
-                onCheckedChange={(v) => setUniqueInput(!!v)}
-              />
-            </div>
-            <p className='pl-0.5 text-[var(--text-tertiary)] text-caption'>
-              Reject duplicate values across rows.
-            </p>
-          </div>
+              <div className='flex flex-col gap-[9.5px]'>
+                <div className='flex items-center justify-between pl-0.5'>
+                  <Label htmlFor='column-sidebar-unique'>Unique</Label>
+                  <Switch
+                    id='column-sidebar-unique'
+                    checked={uniqueInput}
+                    onCheckedChange={(v) => setUniqueInput(!!v)}
+                  />
+                </div>
+                <p className='pl-0.5 text-[var(--text-tertiary)] text-caption'>
+                  Reject duplicate values across rows.
+                </p>
+              </div>
+            </>
+          )}
 
           {isWorkflow && (
             <>
@@ -498,7 +510,7 @@ export function ColumnSidebar({
                                   toggleOutput(encoded)
                                 }
                               }}
-                              className='flex h-[36px] flex-shrink-0 cursor-pointer items-center gap-2.5 px-2.5 hover:bg-[var(--surface-2)]'
+                              className='flex h-[28px] flex-shrink-0 cursor-pointer items-center gap-2 px-2.5 hover:bg-[var(--surface-2)]'
                             >
                               <Checkbox
                                 size='sm'
@@ -516,8 +528,8 @@ export function ColumnSidebar({
                   )}
                 </div>
                 <p className='pl-0.5 text-[var(--text-tertiary)] text-caption'>
-                  Pick fields to fan out as separate columns. Leave empty to store the full
-                  workflow output in a single JSON column.
+                  Each picked field becomes its own column. Cells in the group select and delete
+                  together — they share one workflow run.
                 </p>
               </div>
 
@@ -565,29 +577,6 @@ export function ColumnSidebar({
                 </div>
               </div>
 
-              <FieldDivider />
-
-              <div className='flex flex-col gap-[9.5px]'>
-                <Label htmlFor='column-sidebar-batch-size' className='pl-0.5'>
-                  Run concurrency
-                </Label>
-                <Input
-                  id='column-sidebar-batch-size'
-                  type='number'
-                  inputMode='numeric'
-                  min={BATCH_SIZE_MIN}
-                  max={BATCH_SIZE_MAX}
-                  step={1}
-                  value={batchSizeInput}
-                  onChange={(e) => setBatchSizeInput(e.target.value)}
-                  aria-invalid={!batchSizeValid}
-                />
-                <p className='pl-0.5 text-[var(--text-tertiary)] text-caption'>
-                  Max workflow runs executed in parallel across all workflow columns in this table (
-                  {BATCH_SIZE_MIN}–{BATCH_SIZE_MAX}). Default{' '}
-                  {TABLE_LIMITS.WORKFLOW_COLUMN_BATCH_SIZE}.
-                </p>
-              </div>
             </>
           )}
         </div>

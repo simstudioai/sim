@@ -41,10 +41,9 @@ export interface WorkflowColumnConfig {
    * sharing one underlying execution per row. As each block completes the row's
    * `WorkflowCellValue.blockOutputs[blockId]` is populated, and the visual column
    * plucks `path` from there — so columns light up live as their source block
-   * finishes. Empty/undefined → render the workflow's full final output as a
-   * single JSON column.
+   * finishes. Must contain at least one entry.
    */
-  outputs?: WorkflowColumnOutput[]
+  outputs: WorkflowColumnOutput[]
 }
 
 export interface ColumnDefinition {
@@ -68,12 +67,23 @@ export interface WorkflowCellValue {
   output: unknown
   error: string | null
   /**
-   * Per-block outputs accumulated as the workflow runs. The background executor's
-   * `onBlockComplete` callback writes `blockOutputs[blockId] = blockResult` after
-   * each block finishes, so visual columns sourced from completed blocks light up
-   * before the whole workflow terminates. Undefined for legacy cells.
+   * Per-block outputs accumulated as the workflow runs. Shape is
+   * `{ [blockId]: { [path]: pluckedValue } }` — only the user's picked paths
+   * from `column.workflowConfig.outputs` are persisted. The background
+   * executor's `onBlockComplete` callback plucks each picked path from the
+   * raw block result and writes it here, so visual columns sourced from
+   * completed blocks light up before the whole workflow terminates.
+   * Storing only the picked paths keeps cells small enough for the row-size
+   * cap when multiple workflow columns share a row.
    */
-  blockOutputs?: Record<string, unknown>
+  blockOutputs?: Record<string, Record<string, unknown>>
+  /**
+   * Block ids currently mid-execution. Maintained by the background executor via
+   * `onBlockStart`/`onBlockComplete` partial writes. Lets fanned-out visual
+   * columns distinguish "actively running" from "waiting upstream". Empty array
+   * (or absent) on terminal states.
+   */
+  runningBlockIds?: string[]
 }
 
 export interface TableSchema {
@@ -81,19 +91,13 @@ export interface TableSchema {
 }
 
 /**
- * Table-level metadata stored alongside the table definition. Holds both UI state
- * (column widths, column order) and behavioral settings (e.g. scheduler concurrency)
- * — treat it as first-class backend state, not UI-only.
+ * Table-level metadata stored alongside the table definition. UI state only
+ * (column widths, column order) — workflow-column concurrency is enforced at
+ * the trigger.dev queue layer, not via metadata.
  */
 export interface TableMetadata {
   columnWidths?: Record<string, number>
   columnOrder?: string[]
-  /**
-   * Maximum number of workflow-column runs to execute concurrently per scheduler
-   * pass. Clamped to 1..100. When unset, the scheduler uses
-   * `TABLE_LIMITS.WORKFLOW_COLUMN_BATCH_SIZE`.
-   */
-  workflowColumnBatchSize?: number
 }
 
 export interface TableDefinition {

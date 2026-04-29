@@ -138,3 +138,41 @@ export function flattenWorkflowOutputs(
     })
     .map(({ r }) => r)
 }
+
+/**
+ * BFS distance from the workflow's start/trigger block to every reachable block,
+ * keyed by blockId. Blocks unreachable from start get `-1`. Pure function over
+ * the same `blocks`/`edges` shape `flattenWorkflowOutputs` accepts; callers that
+ * want a *start-first* (execution-order ASC) sort use this map directly instead
+ * of `flattenWorkflowOutputs` (which sorts terminal-blocks-first for picker UX).
+ */
+export function getBlockExecutionOrder(
+  blocks: Iterable<FlattenOutputsBlockInput>,
+  edges: Iterable<FlattenOutputsEdgeInput>
+): Record<string, number> {
+  const blockList = Array.from(blocks)
+  const startBlock = blockList.find(
+    (b) => b.type === 'starter' || b.type === 'start_trigger' || !!b.triggerMode
+  )
+  const distances: Record<string, number> = {}
+  for (const b of blockList) {
+    if (b?.id) distances[b.id] = -1
+  }
+  if (!startBlock) return distances
+
+  const adj: Record<string, string[]> = {}
+  for (const e of edges) {
+    if (!adj[e.source]) adj[e.source] = []
+    adj[e.source].push(e.target)
+  }
+  const visited = new Set<string>()
+  const queue: Array<[string, number]> = [[startBlock.id, 0]]
+  while (queue.length > 0) {
+    const [id, d] = queue.shift()!
+    if (visited.has(id)) continue
+    visited.add(id)
+    distances[id] = d
+    for (const t of adj[id] ?? []) queue.push([t, d + 1])
+  }
+  return distances
+}

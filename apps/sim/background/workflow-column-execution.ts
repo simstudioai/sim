@@ -64,9 +64,13 @@ export async function executeWorkflowColumnJob(
         return
       }
       const currentCell = row.data[columnName] as WorkflowCellValue | null | undefined
+      // Only short-circuit when the cancel API has authoritatively written
+      // `cancelled` for THIS run. Don't skip on `signal.aborted` alone — that
+      // conflates user-cancel with infra timeout / worker death and would
+      // leave cells stuck in `running` forever after a SIGTERM kill.
       if (
-        (signal?.aborted ||
-          (currentCell?.status === 'cancelled' && currentCell.executionId === executionId)) &&
+        currentCell?.status === 'cancelled' &&
+        currentCell.executionId === executionId &&
         value.status !== 'cancelled'
       ) {
         logger.info(
@@ -153,13 +157,29 @@ export async function executeWorkflowColumnJob(
         timestamp: new Date().toISOString(),
       }
 
-      // Per-block live updates: as each block completes, accumulate its output
-      // and push a partial cell write so the row's visual columns light up live.
-      // Writes are serialized through a Promise chain to prevent lost-update
-      // races when blocks complete in parallel (loops, parallels).
-      const blockOutputs: Record<string, unknown> = {}
+      // Per-block live updates. Storage is keyed `{[blockId]: {[path]: pluckedValue}}`
+      // — only the user's picked outputs are persisted, so cells stay small
+      // enough for the 100KB row cap even when multiple workflow columns share
+      // a row. Plus per-block `runningBlockIds` so fanned-out visual columns
+      // can show waiting / in-progress / done independently.
+      const { pluckByPath } = await import('@/lib/table/pluck')
+      const columnDef = table.schema.columns.find((c) => c.name === columnName)
+      const pickedPathsByBlock = new Map<string, string[]>()
+      for (const out of columnDef?.workflowConfig?.outputs ?? []) {
+        const list = pickedPathsByBlock.get(out.blockId) ?? []
+        list.push(out.path)
+        pickedPathsByBlock.set(out.blockId, list)
+      }
+
+      const blockOutputs: Record<string, Record<string, unknown>> = {}
+      const runningBlockIds = new Set<string>()
       let writeChain: Promise<void> = Promise.resolve()
-      const writePartialBlockOutputs = (snapshot: Record<string, unknown>) => {
+      const schedulePartialWrite = () => {
+        const blockOutputsSnapshot: Record<string, Record<string, unknown>> = {}
+        for (const [k, v] of Object.entries(blockOutputs)) {
+          blockOutputsSnapshot[k] = { ...v }
+        }
+        const runningSnapshot = Array.from(runningBlockIds)
         writeChain = writeChain
           .then(async () => {
             if (signal?.aborted) return
@@ -168,9 +188,12 @@ export async function executeWorkflowColumnJob(
             const r = await getRowById(tableId, rowId, workspaceId)
             if (!r) return
             const cell = r.data[columnName] as WorkflowCellValue | null | undefined
-            // Bail if this run was cancelled, replaced, or already terminal.
             if (!cell || cell.executionId !== executionId || cell.status !== 'running') return
-            const updatedCell: WorkflowCellValue = { ...cell, blockOutputs: snapshot }
+            const updatedCell: WorkflowCellValue = {
+              ...cell,
+              blockOutputs: blockOutputsSnapshot,
+              runningBlockIds: runningSnapshot,
+            }
             const mergedData: RowData = {
               ...r.data,
               [columnName]: updatedCell as unknown as RowData[string],
@@ -185,16 +208,27 @@ export async function executeWorkflowColumnJob(
           })
       }
 
+      const onBlockStart = async (blockId: string): Promise<void> => {
+        if (!pickedPathsByBlock.has(blockId)) return
+        runningBlockIds.add(blockId)
+        schedulePartialWrite()
+      }
+
       const onBlockComplete = async (blockId: string, output: unknown): Promise<void> => {
-        // executor hands us `{ input?, output: NormalizedBlockOutput, executionTime, ... }`.
-        // Persist just the inner `output` so saved column paths pluck against the same
-        // shape `flattenWorkflowOutputs` introspected from the block definitions.
+        const paths = pickedPathsByBlock.get(blockId)
+        if (!paths) return
+        // executor hands us `{ input?, output: NormalizedBlockOutput, executionTime, ... }`
         const blockResult =
           output && typeof output === 'object' && 'output' in (output as object)
             ? (output as { output: unknown }).output
             : output
-        blockOutputs[blockId] = blockResult
-        writePartialBlockOutputs({ ...blockOutputs })
+        const slot: Record<string, unknown> = blockOutputs[blockId] ?? {}
+        for (const path of paths) {
+          slot[path] = pluckByPath(blockResult, path)
+        }
+        blockOutputs[blockId] = slot
+        runningBlockIds.delete(blockId)
+        schedulePartialWrite()
       }
 
       const result = await executeWorkflow(
@@ -213,6 +247,7 @@ export async function executeWorkflowColumnJob(
           workflowTriggerType: 'table',
           triggerBlockId: startBlock.id,
           abortSignal: signal,
+          onBlockStart,
           onBlockComplete,
         },
         executionId
@@ -223,15 +258,18 @@ export async function executeWorkflowColumnJob(
       await writeChain.catch(() => {})
 
       if (result.success) {
-        const rawOutput = (result.output as unknown) ?? null
+        // `cell.output` is intentionally null — the renderer reads from
+        // `blockOutputs[blockId][path]`. Storing the full output too would
+        // double the row size with no benefit.
         await writeCell({
           executionId,
           jobId: null,
           workflowId,
           status: 'completed',
-          output: rawOutput,
+          output: null,
           error: null,
           blockOutputs,
+          runningBlockIds: [],
         })
       } else {
         await writeCell({
@@ -242,6 +280,7 @@ export async function executeWorkflowColumnJob(
           output: null,
           error: result.error ?? 'Workflow execution failed',
           blockOutputs,
+          runningBlockIds: [],
         })
       }
     } catch (err) {
@@ -270,6 +309,15 @@ export const workflowColumnExecutionTask = task({
   id: 'workflow-column-execution',
   machine: 'medium-1x',
   retry: { maxAttempts: 1 },
+  // With `concurrencyKey: tableId` set at enqueue time, this caps each table's
+  // sub-queue to 10 cell jobs in flight at once. Different tables run in
+  // parallel (different sub-queues). Cascade across columns happens via
+  // `updateRow` → `scheduleWorkflowColumnRuns` after each cell completes.
+  // The 10 is an invariant for now; future work could expose this per-table.
+  queue: {
+    name: 'workflow-column-execution',
+    concurrencyLimit: 10,
+  },
   run: (payload: WorkflowColumnExecutionPayload, { signal }) =>
     executeWorkflowColumnJob(payload, signal),
 })
