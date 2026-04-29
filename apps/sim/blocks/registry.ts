@@ -88,6 +88,7 @@ import { GranolaBlock } from '@/blocks/blocks/granola'
 import { GreenhouseBlock } from '@/blocks/blocks/greenhouse'
 import { GreptileBlock } from '@/blocks/blocks/greptile'
 import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
+import { GustoBlock } from '@/blocks/blocks/gusto'
 import { HexBlock } from '@/blocks/blocks/hex'
 import { HubSpotBlock } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock } from '@/blocks/blocks/huggingface'
@@ -333,6 +334,7 @@ export const registry: Record<string, BlockConfig> = {
   greenhouse: GreenhouseBlock,
   greptile: GreptileBlock,
   guardrails: GuardrailsBlock,
+  gusto: GustoBlock,
   hex: HexBlock,
   hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,

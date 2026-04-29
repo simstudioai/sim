@@ -6057,6 +6057,153 @@
     "tags": ["version-control", "knowledge-base"]
   },
   {
+    "type": "gusto",
+    "slug": "gusto",
+    "name": "Gusto",
+    "description": "Manage employees, contractors, and payroll in Gusto",
+    "longDescription": "Run payroll end-to-end, manage employees and contractors (create, update, terminate, rehire), pay contractors, view time off activities and benefits, and access pay stubs, forms, and onboarding status.",
+    "bgColor": "#F45D48",
+    "iconName": "GustoIcon",
+    "docsUrl": "https://docs.sim.ai/tools/gusto",
+    "operations": [
+      {
+        "name": "Get Company",
+        "description": "Retrieve a Gusto company by ID"
+      },
+      {
+        "name": "List Employees",
+        "description": "List employees for a Gusto company"
+      },
+      {
+        "name": "Get Employee",
+        "description": "Retrieve a Gusto employee by ID"
+      },
+      {
+        "name": "Create Employee",
+        "description": "Create a new employee in a Gusto company"
+      },
+      {
+        "name": "Update Employee",
+        "description": "Update an existing Gusto employee"
+      },
+      {
+        "name": "Terminate Employee",
+        "description": "Create a termination for a Gusto employee"
+      },
+      {
+        "name": "Rehire Employee",
+        "description": "Schedule a rehire for a Gusto employee"
+      },
+      {
+        "name": "List Employee Jobs",
+        "description": "List jobs (compensations and titles) for a Gusto employee"
+      },
+      {
+        "name": "List Pay Stubs",
+        "description": "List pay stubs for a Gusto employee"
+      },
+      {
+        "name": "Get Employee Onboarding Status",
+        "description": "Get the onboarding status for a Gusto employee"
+      },
+      {
+        "name": "List Contractors",
+        "description": "List contractors for a Gusto company"
+      },
+      {
+        "name": "Get Contractor",
+        "description": "Retrieve a Gusto contractor by ID"
+      },
+      {
+        "name": "Create Contractor",
+        "description": "Create a new contractor in a Gusto company"
+      },
+      {
+        "name": "Update Contractor",
+        "description": "Update an existing Gusto contractor"
+      },
+      {
+        "name": "List Payrolls",
+        "description": "List payrolls for a Gusto company"
+      },
+      {
+        "name": "Get Payroll",
+        "description": "Retrieve a single payroll by ID"
+      },
+      {
+        "name": "Create Off-Cycle Payroll",
+        "description": "Create an off-cycle payroll for a Gusto company"
+      },
+      {
+        "name": "Calculate Payroll",
+        "description": "Calculate a Gusto payroll (preview totals before submission)"
+      },
+      {
+        "name": "Submit Payroll",
+        "description": "Submit a calculated Gusto payroll for processing"
+      },
+      {
+        "name": "Cancel Payroll",
+        "description": "Cancel a submitted Gusto payroll"
+      },
+      {
+        "name": "List Contractor Payments",
+        "description": "List contractor payments for a Gusto company"
+      },
+      {
+        "name": "Get Contractor Payment",
+        "description": "Retrieve a single Gusto contractor payment by ID"
+      },
+      {
+        "name": "Create Contractor Payment",
+        "description": "Pay a Gusto contractor (one-off payment)"
+      },
+      {
+        "name": "List Employee Time Off Activities",
+        "description": "List time off activities for a Gusto employee by time off type"
+      },
+      {
+        "name": "List Pay Schedules",
+        "description": "List pay schedules for a Gusto company"
+      },
+      {
+        "name": "List Locations",
+        "description": "List locations for a Gusto company"
+      },
+      {
+        "name": "List Departments",
+        "description": "List all departments for a Gusto company"
+      },
+      {
+        "name": "Create Department",
+        "description": "Create a department in a Gusto company"
+      },
+      {
+        "name": "List Company Benefits",
+        "description": "List all benefits configured for a Gusto company"
+      },
+      {
+        "name": "List Employee Benefits",
+        "description": "List all benefits enrolled for a Gusto employee"
+      },
+      {
+        "name": "List Employee Forms",
+        "description": "List forms for a Gusto employee (W-2, I-9, etc.)"
+      },
+      {
+        "name": "List Contractor Forms",
+        "description": "List forms for a Gusto contractor (1099, etc.)"
+      }
+    ],
+    "operationCount": 32,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "oauth",
+    "category": "tools",
+    "integrationTypes": ["hr"],
+    "tags": ["hiring"]
+  },
+  {
     "type": "hex",
     "slug": "hex",
     "name": "Hex",

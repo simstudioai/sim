@@ -50,6 +50,7 @@ export type OAuthProvider =
   | 'spotify'
   | 'calcom'
   | 'docusign'
+  | 'gusto'
 
 export type OAuthService =
   | 'google'
@@ -101,6 +102,7 @@ export type OAuthService =
   | 'calcom'
   | 'docusign'
   | 'github'
+  | 'gusto'
   | 'monday'
 
 export interface OAuthProviderConfig {

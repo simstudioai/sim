@@ -652,6 +652,7 @@ export const auth = betterAuth({
         'zoom',
         'wordpress',
         'linear',
+        'gusto',
         'monday',
         'attio',
         'shopify',
@@ -2229,6 +2230,57 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error in getUserInfo:', error)
+              throw error
+            }
+          },
+        },
+
+        {
+          providerId: 'gusto',
+          clientId: env.GUSTO_CLIENT_ID as string,
+          clientSecret: env.GUSTO_CLIENT_SECRET as string,
+          authorizationUrl: 'https://api.gusto.com/oauth/authorize',
+          tokenUrl: 'https://api.gusto.com/oauth/token',
+          scopes: getCanonicalScopesForProvider('gusto'),
+          responseType: 'code',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/gusto`,
+          accessType: 'offline',
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.gusto.com/v1/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                  Accept: 'application/json',
+                  'X-Gusto-API-Version': '2026-02-01',
+                },
+              })
+
+              if (!response.ok) {
+                const errorText = await response.text()
+                logger.error('Gusto API error:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                  body: errorText,
+                })
+                throw new Error(`Gusto API error: ${response.status} ${response.statusText}`)
+              }
+
+              const data = await response.json()
+              const email = data.email || data.user?.email || ''
+              const firstName = data.first_name || data.user?.first_name || ''
+              const lastName = data.last_name || data.user?.last_name || ''
+              const userId = data.uuid || data.user?.uuid || data.id?.toString() || email
+
+              return {
+                id: `${userId}-${generateId()}`,
+                email,
+                name: [firstName, lastName].filter(Boolean).join(' ') || email,
+                emailVerified: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in Gusto getUserInfo:', error)
               throw error
             }
           },

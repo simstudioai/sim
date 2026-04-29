@@ -1,0 +1,1029 @@
+---
+title: Gusto
+description: Manage employees, contractors, and payroll in Gusto
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="gusto"
+  color="#F45D48"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Gusto](https://gusto.com) is a payroll, benefits, and HR platform that helps small and medium-sized businesses run payroll, manage employees and contractors, and stay compliant with tax filings.
+
+With the Gusto integration in Sim, you can:
+
+- **Read company data**: Retrieve company details, locations, and pay schedules
+- **Manage employees**: List, get, and create employees, including self-onboarding invites
+- **Manage contractors**: List contractors with filters for onboarding status and search
+- **Access payroll**: List payrolls and retrieve a specific payroll with calculation details, taxes, benefits, and deductions
+- **Track time off**: List time off requests across the company within a date range
+
+In Sim, the Gusto integration enables your agents to read and act on payroll and HR data as part of automated workflows. Agents can sync employee records, monitor payroll runs, surface time off activity, and trigger downstream actions in other systems—bringing payroll operations into your agent automations.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Run payroll end-to-end, manage employees and contractors (create, update, terminate, rehire), pay contractors, view time off activities and benefits, and access pay stubs, forms, and onboarding status.
+
+
+
+## Tools
+
+### `gusto_get_company`
+
+Retrieve a Gusto company by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `company` | object | Gusto company |
+|   ↳ `uuid` | string | Company UUID |
+|   ↳ `name` | string | Legal entity name |
+|   ↳ `trade_name` | string | Trade name |
+|   ↳ `ein` | string | Federal Employer Identification Number |
+|   ↳ `entity_type` | string | Entity type \(LLC, Corporation, etc.\) |
+|   ↳ `company_status` | string | Company status \(Approved, Not Approved, Suspended\) |
+|   ↳ `locations` | array | Company locations |
+|   ↳ `compensations` | object | Compensation classifications |
+|   ↳ `primary_signatory` | object | Primary signatory |
+|   ↳ `primary_payroll_admin` | object | Primary payroll admin |
+|   ↳ `tier` | string | Company tier |
+
+### `gusto_list_employees`
+
+List employees for a Gusto company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+| `terminated` | boolean | No | Include only terminated employees when true |
+| `page` | number | No | Page number |
+| `per` | number | No | Items per page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `employees` | array | List of employees |
+|   ↳ `uuid` | string | Employee UUID |
+|   ↳ `first_name` | string | First name |
+|   ↳ `middle_initial` | string | Middle initial |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `preferred_first_name` | string | Preferred first name |
+|   ↳ `email` | string | Personal email |
+|   ↳ `company_uuid` | string | Company UUID |
+|   ↳ `manager_uuid` | string | Manager UUID |
+|   ↳ `department` | string | Department name |
+|   ↳ `department_uuid` | string | Department UUID |
+|   ↳ `date_of_birth` | string | Date of birth |
+|   ↳ `has_ssn` | boolean | Whether SSN is on file |
+|   ↳ `ssn` | string | Social security number \(masked\) |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `terminated` | boolean | Whether the employee is terminated |
+|   ↳ `terminations` | array | Termination records |
+|   ↳ `onboarded` | boolean | Whether the employee is onboarded |
+|   ↳ `onboarding_status` | string | Onboarding status |
+|   ↳ `jobs` | array | Employee jobs |
+|   ↳ `version` | string | Record version |
+
+### `gusto_get_employee`
+
+Retrieve a Gusto employee by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `employeeId` | string | Yes | Gusto employee UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `employee` | object | Gusto employee |
+|   ↳ `uuid` | string | Employee UUID |
+|   ↳ `first_name` | string | First name |
+|   ↳ `middle_initial` | string | Middle initial |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `preferred_first_name` | string | Preferred first name |
+|   ↳ `email` | string | Personal email |
+|   ↳ `company_uuid` | string | Company UUID |
+|   ↳ `manager_uuid` | string | Manager UUID |
+|   ↳ `department` | string | Department name |
+|   ↳ `department_uuid` | string | Department UUID |
+|   ↳ `date_of_birth` | string | Date of birth |
+|   ↳ `has_ssn` | boolean | Whether SSN is on file |
+|   ↳ `ssn` | string | Social security number \(masked\) |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `terminated` | boolean | Whether the employee is terminated |
+|   ↳ `terminations` | array | Termination records |
+|   ↳ `onboarded` | boolean | Whether the employee is onboarded |
+|   ↳ `onboarding_status` | string | Onboarding status |
+|   ↳ `jobs` | array | Employee jobs |
+|   ↳ `version` | string | Record version |
+
+### `gusto_create_employee`
+
+Create a new employee in a Gusto company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+| `firstName` | string | Yes | Employee first name |
+| `lastName` | string | Yes | Employee last name |
+| `email` | string | No | Employee personal email address |
+| `middleInitial` | string | No | Middle initial |
+| `dateOfBirth` | string | No | Date of birth \(YYYY-MM-DD\) |
+| `ssn` | string | No | Social security number \(digits only\) |
+| `selfOnboarding` | boolean | No | Send self-onboarding invite to employee |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `employee` | object | Created Gusto employee |
+|   ↳ `uuid` | string | Employee UUID |
+|   ↳ `first_name` | string | First name |
+|   ↳ `middle_initial` | string | Middle initial |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `preferred_first_name` | string | Preferred first name |
+|   ↳ `email` | string | Personal email |
+|   ↳ `company_uuid` | string | Company UUID |
+|   ↳ `manager_uuid` | string | Manager UUID |
+|   ↳ `department` | string | Department name |
+|   ↳ `department_uuid` | string | Department UUID |
+|   ↳ `date_of_birth` | string | Date of birth |
+|   ↳ `has_ssn` | boolean | Whether SSN is on file |
+|   ↳ `ssn` | string | Social security number \(masked\) |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `terminated` | boolean | Whether the employee is terminated |
+|   ↳ `terminations` | array | Termination records |
+|   ↳ `onboarded` | boolean | Whether the employee is onboarded |
+|   ↳ `onboarding_status` | string | Onboarding status |
+|   ↳ `jobs` | array | Employee jobs |
+|   ↳ `version` | string | Record version |
+
+### `gusto_update_employee`
+
+Update an existing Gusto employee
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `employeeId` | string | Yes | Gusto employee UUID |
+| `version` | string | Yes | Current version of the employee record \(required for updates\) |
+| `firstName` | string | No | Employee first name |
+| `lastName` | string | No | Employee last name |
+| `middleInitial` | string | No | Middle initial |
+| `email` | string | No | Work email |
+| `dateOfBirth` | string | No | Date of birth \(YYYY-MM-DD\) |
+| `ssn` | string | No | Social security number \(digits only\) |
+| `preferredFirstName` | string | No | Preferred first name |
+| `twoPercentShareholder` | boolean | No | Whether the employee is a 2% shareholder |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `employee` | object | Updated Gusto employee |
+|   ↳ `uuid` | string | Employee UUID |
+|   ↳ `first_name` | string | First name |
+|   ↳ `middle_initial` | string | Middle initial |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `preferred_first_name` | string | Preferred first name |
+|   ↳ `email` | string | Personal email |
+|   ↳ `company_uuid` | string | Company UUID |
+|   ↳ `manager_uuid` | string | Manager UUID |
+|   ↳ `department` | string | Department name |
+|   ↳ `department_uuid` | string | Department UUID |
+|   ↳ `date_of_birth` | string | Date of birth |
+|   ↳ `has_ssn` | boolean | Whether SSN is on file |
+|   ↳ `ssn` | string | Social security number \(masked\) |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `terminated` | boolean | Whether the employee is terminated |
+|   ↳ `terminations` | array | Termination records |
+|   ↳ `onboarded` | boolean | Whether the employee is onboarded |
+|   ↳ `onboarding_status` | string | Onboarding status |
+|   ↳ `jobs` | array | Employee jobs |
+|   ↳ `version` | string | Record version |
+
+### `gusto_terminate_employee`
+
+Create a termination for a Gusto employee
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `employeeId` | string | Yes | Gusto employee UUID |
+| `effectiveDate` | string | Yes | Termination effective date \(YYYY-MM-DD\) |
+| `runTerminationPayroll` | boolean | No | If true, the employee receives final wages via off-cycle payroll. If false, on their current pay schedule. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `termination` | object | Employee termination record |
+|   ↳ `uuid` | string | Termination UUID |
+|   ↳ `employee_uuid` | string | Employee UUID |
+|   ↳ `active` | boolean | Whether the termination is active |
+|   ↳ `effective_date` | string | Effective date \(YYYY-MM-DD\) |
+|   ↳ `run_termination_payroll` | boolean | Whether to run a termination payroll |
+
+### `gusto_rehire_employee`
+
+Schedule a rehire for a Gusto employee
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `employeeId` | string | Yes | Gusto employee UUID |
+| `effectiveDate` | string | Yes | The day when the employee returns to work \(YYYY-MM-DD\) |
+| `fileNewHireReport` | boolean | Yes | Whether Gusto will file a new hire report for the employee |
+| `workLocationUuid` | string | Yes | UUID of the employee's work location |
+| `employmentStatus` | string | No | Employment status \(part_time, full_time, part_time_eligible, variable, seasonal, not_set\) |
+| `twoPercentShareholder` | boolean | No | Whether the employee is a 2% shareholder \(S-Corp companies only\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rehire` | object | Employee rehire record |
+|   ↳ `employee_uuid` | string | Employee UUID |
+|   ↳ `effective_date` | string | Effective date \(YYYY-MM-DD\) |
+|   ↳ `work_location_uuid` | string | Work location UUID |
+|   ↳ `file_new_hire_report` | boolean | Whether to file a new hire report |
+|   ↳ `employment_status` | string | Employment status |
+|   ↳ `two_percent_shareholder` | boolean | Whether the employee is a 2% shareholder |
+
+### `gusto_list_employee_jobs`
+
+List jobs (compensations and titles) for a Gusto employee
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `employeeId` | string | Yes | Gusto employee UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobs` | array | Employee jobs |
+|   ↳ `uuid` | string | Job UUID |
+|   ↳ `employee_uuid` | string | Employee UUID |
+|   ↳ `title` | string | Job title |
+|   ↳ `hire_date` | string | Hire date \(YYYY-MM-DD\) |
+|   ↳ `primary` | boolean | Whether this is the primary job |
+|   ↳ `current_compensation_uuid` | string | Current compensation UUID |
+|   ↳ `rate` | string | Pay rate |
+|   ↳ `payment_unit` | string | Payment unit |
+|   ↳ `compensations` | array | Job compensation history |
+|   ↳ `state_wc_covered` | boolean | Whether the job is covered by state workers' comp |
+|   ↳ `state_wc_class_code` | string | State workers' comp class code |
+|   ↳ `two_percent_shareholder` | boolean | Whether this job is for a 2% shareholder |
+|   ↳ `version` | string | Record version |
+
+### `gusto_list_pay_stubs`
+
+List pay stubs for a Gusto employee
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `employeeId` | string | Yes | Gusto employee UUID |
+| `page` | number | No | Page number |
+| `per` | number | No | Items per page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payStubs` | array | Pay stubs |
+|   ↳ `uuid` | string | Pay stub identifier |
+|   ↳ `payroll_uuid` | string | Payroll UUID |
+|   ↳ `check_date` | string | Check date |
+|   ↳ `gross_pay` | string | Gross pay amount |
+|   ↳ `net_pay` | string | Net pay amount |
+|   ↳ `check_amount` | string | Check amount |
+
+### `gusto_get_employee_onboarding_status`
+
+Get the onboarding status for a Gusto employee
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `employeeId` | string | Yes | Gusto employee UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `onboardingStatus` | object | Employee onboarding status |
+|   ↳ `uuid` | string | Employee UUID |
+|   ↳ `onboarding_status` | string | Onboarding status |
+|   ↳ `onboarding_steps` | array | Onboarding step details |
+
+### `gusto_list_contractors`
+
+List contractors for a Gusto company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+| `searchTerm` | string | No | Search term to filter contractors by name |
+| `page` | number | No | Page number |
+| `per` | number | No | Items per page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contractors` | array | List of contractors |
+|   ↳ `uuid` | string | Contractor UUID |
+|   ↳ `type` | string | Contractor type \(Individual or Business\) |
+|   ↳ `wage_type` | string | Wage type \(Fixed or Hourly\) |
+|   ↳ `is_active` | boolean | Whether the contractor is active |
+|   ↳ `first_name` | string | First name |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `business_name` | string | Business name |
+|   ↳ `email` | string | Email address |
+|   ↳ `start_date` | string | Start date \(YYYY-MM-DD\) |
+|   ↳ `hourly_rate` | string | Hourly rate |
+|   ↳ `company_uuid` | string | Company UUID |
+
+### `gusto_get_contractor`
+
+Retrieve a Gusto contractor by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contractorId` | string | Yes | Gusto contractor UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contractor` | object | Gusto contractor |
+|   ↳ `uuid` | string | Contractor UUID |
+|   ↳ `type` | string | Contractor type \(Individual or Business\) |
+|   ↳ `wage_type` | string | Wage type \(Fixed or Hourly\) |
+|   ↳ `is_active` | boolean | Whether the contractor is active |
+|   ↳ `first_name` | string | First name |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `business_name` | string | Business name |
+|   ↳ `email` | string | Email address |
+|   ↳ `start_date` | string | Start date \(YYYY-MM-DD\) |
+|   ↳ `hourly_rate` | string | Hourly rate |
+|   ↳ `company_uuid` | string | Company UUID |
+
+### `gusto_create_contractor`
+
+Create a new contractor in a Gusto company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+| `type` | string | Yes | Contractor type \(Individual or Business\) |
+| `wageType` | string | Yes | Wage type \(Fixed or Hourly\) |
+| `startDate` | string | Yes | Contractor start date \(YYYY-MM-DD\) |
+| `firstName` | string | No | First name \(required for Individual contractors\) |
+| `lastName` | string | No | Last name \(required for Individual contractors\) |
+| `middleInitial` | string | No | Middle initial |
+| `businessName` | string | No | Business name \(required for Business contractors\) |
+| `email` | string | No | Contractor email |
+| `selfOnboarding` | boolean | No | Send self-onboarding invite to the contractor |
+| `ein` | string | No | Employer Identification Number \(Business contractors\) |
+| `hourlyRate` | string | No | Hourly rate \(when wage type is Hourly\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contractor` | object | Created contractor |
+|   ↳ `uuid` | string | Contractor UUID |
+|   ↳ `type` | string | Contractor type \(Individual or Business\) |
+|   ↳ `wage_type` | string | Wage type \(Fixed or Hourly\) |
+|   ↳ `is_active` | boolean | Whether the contractor is active |
+|   ↳ `first_name` | string | First name |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `business_name` | string | Business name |
+|   ↳ `email` | string | Email address |
+|   ↳ `start_date` | string | Start date \(YYYY-MM-DD\) |
+|   ↳ `hourly_rate` | string | Hourly rate |
+|   ↳ `company_uuid` | string | Company UUID |
+
+### `gusto_update_contractor`
+
+Update an existing Gusto contractor
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contractorId` | string | Yes | Gusto contractor UUID |
+| `version` | string | Yes | Current version of the contractor record \(required for updates\) |
+| `firstName` | string | No | First name |
+| `lastName` | string | No | Last name |
+| `middleInitial` | string | No | Middle initial |
+| `businessName` | string | No | Business name |
+| `email` | string | No | Contractor email |
+| `startDate` | string | No | Start date \(YYYY-MM-DD\) |
+| `hourlyRate` | string | No | Hourly rate |
+| `wageType` | string | No | Wage type \(Fixed or Hourly\) |
+| `ein` | string | No | Employer Identification Number |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contractor` | object | Updated contractor |
+|   ↳ `uuid` | string | Contractor UUID |
+|   ↳ `type` | string | Contractor type \(Individual or Business\) |
+|   ↳ `wage_type` | string | Wage type \(Fixed or Hourly\) |
+|   ↳ `is_active` | boolean | Whether the contractor is active |
+|   ↳ `first_name` | string | First name |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `business_name` | string | Business name |
+|   ↳ `email` | string | Email address |
+|   ↳ `start_date` | string | Start date \(YYYY-MM-DD\) |
+|   ↳ `hourly_rate` | string | Hourly rate |
+|   ↳ `company_uuid` | string | Company UUID |
+
+### `gusto_list_payrolls`
+
+List payrolls for a Gusto company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+| `startDate` | string | No | Start date filter \(YYYY-MM-DD\) |
+| `endDate` | string | No | End date filter \(YYYY-MM-DD\) |
+| `processingStatuses` | string | No | Comma-separated statuses \(processed, unprocessed\). Defaults to "processed" if omitted |
+| `payrollTypes` | string | No | Comma-separated payroll types \(regular, off_cycle, external\). Defaults to "regular" if omitted |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payrolls` | array | List of payrolls |
+|   ↳ `uuid` | string | Payroll UUID |
+|   ↳ `payroll_uuid` | string | Payroll UUID \(legacy alias\) |
+|   ↳ `company_uuid` | string | Company UUID |
+|   ↳ `payroll_deadline` | string | Payroll submission deadline |
+|   ↳ `check_date` | string | Check date |
+|   ↳ `processed` | boolean | Whether the payroll has been processed |
+|   ↳ `processed_date` | string | Date the payroll was processed |
+|   ↳ `calculated_at` | string | When the payroll was calculated |
+|   ↳ `off_cycle` | boolean | Whether this is an off-cycle payroll |
+|   ↳ `off_cycle_reason` | string | Off-cycle payroll reason |
+|   ↳ `external` | boolean | Whether this is an external payroll |
+|   ↳ `auto_pilot` | boolean | Whether autopilot is enabled |
+|   ↳ `pay_period` | object | Pay period details |
+|   ↳ `totals` | object | Payroll totals |
+|   ↳ `payroll_status_meta` | object | Status metadata \(cancellable, expected_check_date, etc.\) |
+|   ↳ `employee_compensations` | array | Per-employee compensation breakdown |
+
+### `gusto_get_payroll`
+
+Retrieve a single payroll by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+| `payrollId` | string | Yes | Gusto payroll UUID |
+| `include` | string | No | Comma-separated extra fields to include \(e.g. "taxes,benefits,deductions"\). Required to retrieve calculated payroll details. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payroll` | object | Gusto payroll |
+|   ↳ `uuid` | string | Payroll UUID |
+|   ↳ `payroll_uuid` | string | Payroll UUID \(legacy alias\) |
+|   ↳ `company_uuid` | string | Company UUID |
+|   ↳ `payroll_deadline` | string | Payroll submission deadline |
+|   ↳ `check_date` | string | Check date |
+|   ↳ `processed` | boolean | Whether the payroll has been processed |
+|   ↳ `processed_date` | string | Date the payroll was processed |
+|   ↳ `calculated_at` | string | When the payroll was calculated |
+|   ↳ `off_cycle` | boolean | Whether this is an off-cycle payroll |
+|   ↳ `off_cycle_reason` | string | Off-cycle payroll reason |
+|   ↳ `external` | boolean | Whether this is an external payroll |
+|   ↳ `auto_pilot` | boolean | Whether autopilot is enabled |
+|   ↳ `pay_period` | object | Pay period details |
+|   ↳ `totals` | object | Payroll totals |
+|   ↳ `payroll_status_meta` | object | Status metadata \(cancellable, expected_check_date, etc.\) |
+|   ↳ `employee_compensations` | array | Per-employee compensation breakdown |
+
+### `gusto_create_off_cycle_payroll`
+
+Create an off-cycle payroll for a Gusto company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+| `startDate` | string | Yes | Pay period start date \(YYYY-MM-DD\) |
+| `endDate` | string | Yes | Pay period end date \(YYYY-MM-DD\) |
+| `checkDate` | string | No | Check date \(YYYY-MM-DD\). Defaults to the next available payday |
+| `payScheduleUuid` | string | No | Pay schedule UUID to associate with this off-cycle payroll |
+| `fixedWithholdingRate` | boolean | No | Use fixed supplemental withholding rate \(e.g. for bonuses\) |
+| `offCycleReason` | string | Yes | Off-cycle reason. One of: Benefit reversal, Bonus, Correction, Dismissed employee, Hired employee, Wage correction, Tax reconciliation, Reversal, Disability insurance distribution, Transition from old pay schedule |
+| `employeeUuids` | string | No | Comma-separated employee UUIDs to include |
+| `withholdingPayPeriod` | string | No | Withholding pay period override |
+| `skipRegularDeductions` | boolean | No | Skip regular deductions |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payroll` | object | Created off-cycle payroll |
+|   ↳ `uuid` | string | Payroll UUID |
+|   ↳ `payroll_uuid` | string | Payroll UUID \(legacy alias\) |
+|   ↳ `company_uuid` | string | Company UUID |
+|   ↳ `payroll_deadline` | string | Payroll submission deadline |
+|   ↳ `check_date` | string | Check date |
+|   ↳ `processed` | boolean | Whether the payroll has been processed |
+|   ↳ `processed_date` | string | Date the payroll was processed |
+|   ↳ `calculated_at` | string | When the payroll was calculated |
+|   ↳ `off_cycle` | boolean | Whether this is an off-cycle payroll |
+|   ↳ `off_cycle_reason` | string | Off-cycle payroll reason |
+|   ↳ `external` | boolean | Whether this is an external payroll |
+|   ↳ `auto_pilot` | boolean | Whether autopilot is enabled |
+|   ↳ `pay_period` | object | Pay period details |
+|   ↳ `totals` | object | Payroll totals |
+|   ↳ `payroll_status_meta` | object | Status metadata \(cancellable, expected_check_date, etc.\) |
+|   ↳ `employee_compensations` | array | Per-employee compensation breakdown |
+
+### `gusto_calculate_payroll`
+
+Calculate a Gusto payroll (preview totals before submission)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+| `payrollId` | string | Yes | Gusto payroll UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payroll` | object | Calculated payroll |
+|   ↳ `uuid` | string | Payroll UUID |
+|   ↳ `payroll_uuid` | string | Payroll UUID \(legacy alias\) |
+|   ↳ `company_uuid` | string | Company UUID |
+|   ↳ `payroll_deadline` | string | Payroll submission deadline |
+|   ↳ `check_date` | string | Check date |
+|   ↳ `processed` | boolean | Whether the payroll has been processed |
+|   ↳ `processed_date` | string | Date the payroll was processed |
+|   ↳ `calculated_at` | string | When the payroll was calculated |
+|   ↳ `off_cycle` | boolean | Whether this is an off-cycle payroll |
+|   ↳ `off_cycle_reason` | string | Off-cycle payroll reason |
+|   ↳ `external` | boolean | Whether this is an external payroll |
+|   ↳ `auto_pilot` | boolean | Whether autopilot is enabled |
+|   ↳ `pay_period` | object | Pay period details |
+|   ↳ `totals` | object | Payroll totals |
+|   ↳ `payroll_status_meta` | object | Status metadata \(cancellable, expected_check_date, etc.\) |
+|   ↳ `employee_compensations` | array | Per-employee compensation breakdown |
+
+### `gusto_submit_payroll`
+
+Submit a calculated Gusto payroll for processing
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+| `payrollId` | string | Yes | Gusto payroll UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payroll` | object | Submitted payroll |
+|   ↳ `uuid` | string | Payroll UUID |
+|   ↳ `payroll_uuid` | string | Payroll UUID \(legacy alias\) |
+|   ↳ `company_uuid` | string | Company UUID |
+|   ↳ `payroll_deadline` | string | Payroll submission deadline |
+|   ↳ `check_date` | string | Check date |
+|   ↳ `processed` | boolean | Whether the payroll has been processed |
+|   ↳ `processed_date` | string | Date the payroll was processed |
+|   ↳ `calculated_at` | string | When the payroll was calculated |
+|   ↳ `off_cycle` | boolean | Whether this is an off-cycle payroll |
+|   ↳ `off_cycle_reason` | string | Off-cycle payroll reason |
+|   ↳ `external` | boolean | Whether this is an external payroll |
+|   ↳ `auto_pilot` | boolean | Whether autopilot is enabled |
+|   ↳ `pay_period` | object | Pay period details |
+|   ↳ `totals` | object | Payroll totals |
+|   ↳ `payroll_status_meta` | object | Status metadata \(cancellable, expected_check_date, etc.\) |
+|   ↳ `employee_compensations` | array | Per-employee compensation breakdown |
+
+### `gusto_cancel_payroll`
+
+Cancel a submitted Gusto payroll
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+| `payrollId` | string | Yes | Gusto payroll UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payroll` | object | Cancelled payroll |
+|   ↳ `uuid` | string | Payroll UUID |
+|   ↳ `payroll_uuid` | string | Payroll UUID \(legacy alias\) |
+|   ↳ `company_uuid` | string | Company UUID |
+|   ↳ `payroll_deadline` | string | Payroll submission deadline |
+|   ↳ `check_date` | string | Check date |
+|   ↳ `processed` | boolean | Whether the payroll has been processed |
+|   ↳ `processed_date` | string | Date the payroll was processed |
+|   ↳ `calculated_at` | string | When the payroll was calculated |
+|   ↳ `off_cycle` | boolean | Whether this is an off-cycle payroll |
+|   ↳ `off_cycle_reason` | string | Off-cycle payroll reason |
+|   ↳ `external` | boolean | Whether this is an external payroll |
+|   ↳ `auto_pilot` | boolean | Whether autopilot is enabled |
+|   ↳ `pay_period` | object | Pay period details |
+|   ↳ `totals` | object | Payroll totals |
+|   ↳ `payroll_status_meta` | object | Status metadata \(cancellable, expected_check_date, etc.\) |
+|   ↳ `employee_compensations` | array | Per-employee compensation breakdown |
+
+### `gusto_list_contractor_payments`
+
+List contractor payments for a Gusto company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+| `startDate` | string | Yes | Start date filter \(YYYY-MM-DD\) |
+| `endDate` | string | Yes | End date filter \(YYYY-MM-DD\) |
+| `page` | number | No | Page number |
+| `per` | number | No | Items per page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contractorPayments` | array | Contractor payments |
+|   ↳ `uuid` | string | Contractor payment UUID |
+|   ↳ `contractor_uuid` | string | Contractor UUID |
+|   ↳ `bonus` | string | Bonus amount |
+|   ↳ `date` | string | Payment date \(YYYY-MM-DD\) |
+|   ↳ `hours` | string | Hours worked |
+|   ↳ `reimbursement` | string | Reimbursement amount |
+|   ↳ `wage` | string | Fixed wage amount |
+|   ↳ `wage_type` | string | Wage type \(Fixed or Hourly\) |
+|   ↳ `wage_total` | string | Total wage amount |
+|   ↳ `payment_method` | string | Payment method |
+|   ↳ `status` | string | Payment status |
+|   ↳ `may_cancel` | boolean | Whether the payment may be canceled |
+|   ↳ `check_number` | string | Check number |
+|   ↳ `debit_date` | string | Date funds will be debited |
+
+### `gusto_get_contractor_payment`
+
+Retrieve a single Gusto contractor payment by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+| `contractorPaymentId` | string | Yes | Gusto contractor payment UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contractorPayment` | object | Contractor payment |
+|   ↳ `uuid` | string | Contractor payment UUID |
+|   ↳ `contractor_uuid` | string | Contractor UUID |
+|   ↳ `bonus` | string | Bonus amount |
+|   ↳ `date` | string | Payment date \(YYYY-MM-DD\) |
+|   ↳ `hours` | string | Hours worked |
+|   ↳ `reimbursement` | string | Reimbursement amount |
+|   ↳ `wage` | string | Fixed wage amount |
+|   ↳ `wage_type` | string | Wage type \(Fixed or Hourly\) |
+|   ↳ `wage_total` | string | Total wage amount |
+|   ↳ `payment_method` | string | Payment method |
+|   ↳ `status` | string | Payment status |
+|   ↳ `may_cancel` | boolean | Whether the payment may be canceled |
+|   ↳ `check_number` | string | Check number |
+|   ↳ `debit_date` | string | Date funds will be debited |
+
+### `gusto_create_contractor_payment`
+
+Pay a Gusto contractor (one-off payment)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+| `contractorUuid` | string | Yes | Gusto contractor UUID |
+| `date` | string | Yes | Payment date \(YYYY-MM-DD\) |
+| `wage` | number | No | Fixed wage amount \(for Fixed contractors\) |
+| `hours` | number | No | Hours worked \(for Hourly contractors\) |
+| `bonus` | number | No | Bonus amount |
+| `reimbursement` | number | No | Reimbursement amount |
+| `paymentMethod` | string | No | Payment method \(Direct Deposit or Check\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contractorPayment` | object | Created contractor payment |
+|   ↳ `uuid` | string | Contractor payment UUID |
+|   ↳ `contractor_uuid` | string | Contractor UUID |
+|   ↳ `bonus` | string | Bonus amount |
+|   ↳ `date` | string | Payment date \(YYYY-MM-DD\) |
+|   ↳ `hours` | string | Hours worked |
+|   ↳ `reimbursement` | string | Reimbursement amount |
+|   ↳ `wage` | string | Fixed wage amount |
+|   ↳ `wage_type` | string | Wage type \(Fixed or Hourly\) |
+|   ↳ `wage_total` | string | Total wage amount |
+|   ↳ `payment_method` | string | Payment method |
+|   ↳ `status` | string | Payment status |
+|   ↳ `may_cancel` | boolean | Whether the payment may be canceled |
+|   ↳ `check_number` | string | Check number |
+|   ↳ `debit_date` | string | Date funds will be debited |
+
+### `gusto_list_employee_time_off_activities`
+
+List time off activities for a Gusto employee by time off type
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `employeeId` | string | Yes | Gusto employee UUID |
+| `timeOffType` | string | Yes | Time off type to query \(e.g. 'sick' or 'vacation'\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeOffActivities` | array | Time off activities |
+|   ↳ `policy_uuid` | string | Time off policy UUID |
+|   ↳ `time_off_type` | string | Time off type \(vacation or sick\) |
+|   ↳ `policy_name` | string | Time off policy name |
+|   ↳ `event_type` | string | Type of the time off event |
+|   ↳ `event_description` | string | Event description |
+|   ↳ `effective_time` | string | Datetime of the activity |
+|   ↳ `balance` | string | Balance at the time of the activity |
+|   ↳ `balance_change` | string | Balance change amount |
+
+### `gusto_list_pay_schedules`
+
+List pay schedules for a Gusto company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `paySchedules` | array | List of pay schedules |
+|   ↳ `uuid` | string | Pay schedule UUID |
+|   ↳ `frequency` | string | Pay frequency |
+|   ↳ `anchor_pay_date` | string | Anchor pay date |
+|   ↳ `anchor_end_of_pay_period` | string | Anchor end of pay period |
+|   ↳ `day_1` | number | First pay day of period \(semimonthly\) |
+|   ↳ `day_2` | number | Second pay day of period \(semimonthly\) |
+|   ↳ `name` | string | Pay schedule name |
+|   ↳ `auto_pilot` | boolean | Whether autopilot is enabled |
+|   ↳ `active` | boolean | Whether the schedule is active |
+|   ↳ `custom_name` | string | Custom name |
+|   ↳ `version` | string | Record version |
+
+### `gusto_list_locations`
+
+List locations for a Gusto company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `locations` | array | List of locations |
+|   ↳ `uuid` | string | Location UUID |
+|   ↳ `street_1` | string | Street address line 1 |
+|   ↳ `street_2` | string | Street address line 2 |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State |
+|   ↳ `zip` | string | ZIP code |
+|   ↳ `country` | string | Country |
+|   ↳ `phone_number` | string | Phone number |
+|   ↳ `mailing_address` | boolean | Whether this is the mailing address |
+|   ↳ `filing_address` | boolean | Whether this is the filing address |
+|   ↳ `active` | boolean | Whether the location is active |
+
+### `gusto_list_departments`
+
+List all departments for a Gusto company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `departments` | array | Company departments |
+|   ↳ `uuid` | string | Department UUID |
+|   ↳ `title` | string | Department title |
+|   ↳ `company_uuid` | string | Company UUID |
+|   ↳ `version` | string | Record version |
+|   ↳ `employees` | array | Employees in the department |
+|   ↳ `contractors` | array | Contractors in the department |
+
+### `gusto_create_department`
+
+Create a department in a Gusto company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+| `title` | string | Yes | Department title |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `department` | object | Created department |
+|   ↳ `uuid` | string | Department UUID |
+|   ↳ `title` | string | Department title |
+|   ↳ `company_uuid` | string | Company UUID |
+|   ↳ `version` | string | Record version |
+|   ↳ `employees` | array | Employees in the department |
+|   ↳ `contractors` | array | Contractors in the department |
+
+### `gusto_list_company_benefits`
+
+List all benefits configured for a Gusto company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Gusto company UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companyBenefits` | array | Company benefits |
+|   ↳ `uuid` | string | Company benefit UUID |
+|   ↳ `company_uuid` | string | Company UUID |
+|   ↳ `benefit_type` | number | Benefit type ID |
+|   ↳ `active` | boolean | Whether active |
+|   ↳ `description` | string | Benefit description |
+|   ↳ `source` | string | Benefit source \(Gusto, partner, etc.\) |
+|   ↳ `partner_name` | string | Partner name \(if external\) |
+|   ↳ `enrollment_count` | number | Number of employees enrolled |
+|   ↳ `deletable` | boolean | Whether the benefit can be deleted |
+|   ↳ `responsible_for_employer_taxes` | boolean | Whether company is responsible for employer taxes |
+|   ↳ `responsible_for_employee_w2` | boolean | Whether benefit appears on employee W2 |
+|   ↳ `supports_percentage_amounts` | boolean | Whether the benefit supports percentage-based amounts |
+|   ↳ `version` | string | Record version |
+
+### `gusto_list_employee_benefits`
+
+List all benefits enrolled for a Gusto employee
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `employeeId` | string | Yes | Gusto employee UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `employeeBenefits` | array | Employee benefits |
+|   ↳ `uuid` | string | Employee benefit UUID |
+|   ↳ `employee_uuid` | string | Employee UUID |
+|   ↳ `company_benefit_uuid` | string | Company benefit UUID |
+|   ↳ `active` | boolean | Whether active |
+|   ↳ `employee_deduction` | string | Employee deduction |
+|   ↳ `company_contribution` | string | Company contribution |
+|   ↳ `employee_deduction_annual_maximum` | string | Annual maximum employee deduction |
+|   ↳ `company_contribution_annual_maximum` | string | Annual maximum company contribution |
+|   ↳ `deduct_as_percentage` | boolean | Whether deduction is calculated as a percentage |
+|   ↳ `contribute_as_percentage` | boolean | Whether contribution is calculated as a percentage |
+|   ↳ `contribution` | object | Contribution config |
+|   ↳ `elective` | boolean | Whether the benefit is elective |
+|   ↳ `catch_up` | boolean | Whether catch-up contributions apply |
+|   ↳ `coverage_amount` | string | Coverage amount |
+|   ↳ `coverage_salary_multiplier` | string | Coverage as a multiplier of salary |
+|   ↳ `deduction_reduces_taxable_income` | string | Whether deduction reduces taxable income \(unset, true, false\) |
+|   ↳ `deduction_type` | string | Deduction type |
+|   ↳ `version` | string | Record version |
+
+### `gusto_list_employee_forms`
+
+List forms for a Gusto employee (W-2, I-9, etc.)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `employeeId` | string | Yes | Gusto employee UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `forms` | array | Employee forms |
+|   ↳ `uuid` | string | Form UUID |
+|   ↳ `name` | string | Form name |
+|   ↳ `title` | string | Form title |
+|   ↳ `description` | string | Form description |
+|   ↳ `year` | number | Tax year |
+|   ↳ `quarter` | number | Quarter |
+|   ↳ `requires_signing` | boolean | Whether the form requires signing |
+|   ↳ `draft` | boolean | Whether the form is a draft |
+|   ↳ `document_content_type` | string | Form document MIME type |
+
+### `gusto_list_contractor_forms`
+
+List forms for a Gusto contractor (1099, etc.)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contractorId` | string | Yes | Gusto contractor UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `forms` | array | Contractor forms |
+|   ↳ `uuid` | string | Form UUID |
+|   ↳ `name` | string | Form name |
+|   ↳ `title` | string | Form title |
+|   ↳ `description` | string | Form description |
+|   ↳ `year` | number | Tax year |
+|   ↳ `quarter` | number | Quarter |
+|   ↳ `requires_signing` | boolean | Whether the form requires signing |
+|   ↳ `draft` | boolean | Whether the form is a draft |
+|   ↳ `document_content_type` | string | Form document MIME type |
+
+

@@ -23,6 +23,7 @@ import {
   GoogleMeetIcon,
   GoogleSheetsIcon,
   GoogleTasksIcon,
+  GustoIcon,
   HubspotIcon,
   JiraIcon,
   LinearIcon,
@@ -900,6 +901,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'pipedrive',
   },
+  gusto: {
+    name: 'Gusto',
+    icon: GustoIcon,
+    services: {
+      gusto: {
+        name: 'Gusto',
+        description: 'Manage employees, contractors, and payroll in Gusto.',
+        providerId: 'gusto',
+        icon: GustoIcon,
+        baseProviderIcon: GustoIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'gusto',
+  },
   hubspot: {
     name: 'HubSpot',
     icon: HubspotIcon,
@@ -1190,6 +1206,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'gusto': {
+      const { clientId, clientSecret } = getCredentials(
+        env.GUSTO_CLIENT_ID,
+        env.GUSTO_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.gusto.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
         supportsRefreshTokenRotation: true,
       }
     }
