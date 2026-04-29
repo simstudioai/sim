@@ -338,6 +338,14 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
+          const positions = args.positions as number[] | undefined
+          if (positions !== undefined && positions.length !== args.rows.length) {
+            return {
+              success: false,
+              message: `positions length (${positions.length}) must match rows length (${args.rows.length})`,
+            }
+          }
+
           const table = await getTableById(args.tableId)
           if (!table) {
             return { success: false, message: `Table not found: ${args.tableId}` }
@@ -351,7 +359,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               rows: args.rows,
               workspaceId,
               userId: context.userId,
-              positions: args.positions as number[] | undefined,
+              positions,
             },
             table,
             requestId
