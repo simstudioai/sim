@@ -14,7 +14,7 @@ export const runtime = 'nodejs'
 
 const logger = createLogger('WorkspaceFileCompiledCheckAPI')
 
-const EXT_TO_TASK: Record<string, SandboxTaskId> = {
+const BINARY_DOC_TASKS: Record<string, SandboxTaskId> = {
   docx: 'docx-generate',
   pptx: 'pptx-generate',
   pdf: 'pdf-generate',
@@ -53,7 +53,7 @@ export const GET = withRouteHandler(
     }
 
     const ext = fileRecord.name.split('.').pop()?.toLowerCase() ?? ''
-    const taskId = EXT_TO_TASK[ext]
+    const taskId = BINARY_DOC_TASKS[ext]
     if (!taskId) {
       return NextResponse.json(
         { error: `Compiled check only supports .docx, .pptx, and .pdf files` },

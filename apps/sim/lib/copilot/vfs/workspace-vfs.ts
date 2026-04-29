@@ -87,6 +87,12 @@ import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 const logger = createLogger('WorkspaceVFS')
 
+const BINARY_DOC_TASKS: Record<string, SandboxTaskId> = {
+  docx: 'docx-generate',
+  pptx: 'pptx-generate',
+  pdf: 'pdf-generate',
+}
+
 /** Static component files, computed once and shared across all VFS instances */
 let staticComponentFiles: Map<string, string> | null = null
 
@@ -469,12 +475,7 @@ export class WorkspaceVFS {
         const record = await getWorkspaceFile(this._workspaceId, fileId)
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const EXT_TASK: Record<string, SandboxTaskId> = {
-          docx: 'docx-generate',
-          pptx: 'pptx-generate',
-          pdf: 'pdf-generate',
-        }
-        const taskId = EXT_TASK[ext]
+        const taskId = BINARY_DOC_TASKS[ext]
         if (!taskId) return null
         const buffer = await downloadWorkspaceFile(record)
         const code = buffer.toString('utf-8')
