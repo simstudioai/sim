@@ -201,11 +201,11 @@ async function fetchOrganizationBilling(orgId: string, signal?: AbortSignal) {
 /**
  * Hook to fetch organization billing data
  */
-export function useOrganizationBilling(orgId: string) {
+export function useOrganizationBilling(orgId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: organizationKeys.billing(orgId),
     queryFn: ({ signal }) => fetchOrganizationBilling(orgId, signal),
-    enabled: !!orgId,
+    enabled: !!orgId && (options?.enabled ?? true),
     retry: false,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
