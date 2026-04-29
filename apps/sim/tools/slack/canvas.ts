@@ -103,7 +103,7 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
     return {
       success: true,
       output: {
-        canvas_id: data.canvas_id ?? '',
+        canvas_id: data.canvas_id ?? data.id ?? '',
       },
     }
   },
