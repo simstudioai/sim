@@ -162,7 +162,6 @@ const IframePreview = memo(function IframePreview({
   const streamingBufferSeqRef = useRef(0)
   const [streamingBufferSeq, setStreamingBufferSeq] = useState(0)
   const [rendering, setRendering] = useState(false)
-  const [renderError, setRenderError] = useState<string | null>(null)
 
   useEffect(() => {
     if (streamingContent === undefined) return
@@ -223,9 +222,6 @@ const IframePreview = memo(function IframePreview({
     () => (streamingBuffer ? { kind: 'buffer', buffer: streamingBuffer } : null),
     [streamingBuffer]
   )
-
-  if (streamingContent === undefined && renderError)
-    return <PreviewError label='PDF' error={renderError} />
 
   if (streamingContent !== undefined) {
     if (!streamingSource) {
