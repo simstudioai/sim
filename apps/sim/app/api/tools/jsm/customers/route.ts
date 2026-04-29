@@ -45,6 +45,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Service Desk ID is required' }, { status: 400 })
     }
 
+    if (body.emails !== undefined) {
+      return NextResponse.json(
+        {
+          error:
+            'The `emails` parameter is no longer supported. Use `accountIds` (Atlassian account IDs) instead.',
+        },
+        { status: 400 }
+      )
+    }
+
     const cloudId = cloudIdParam || (await getJiraCloudId(domain, accessToken))
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
