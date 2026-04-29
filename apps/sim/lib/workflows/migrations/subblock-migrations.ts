@@ -34,7 +34,6 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
   ashby: {
     emailType: '_removed_emailType',
     phoneType: '_removed_phoneType',
-    filterCandidateId: '_removed_filterCandidateId',
     expandApplicationFormDefinition: '_removed_expandApplicationFormDefinition',
     expandSurveyFormDefinitions: '_removed_expandSurveyFormDefinitions',
   },
