@@ -249,8 +249,8 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   const { usageExceeded } = useUsageLimits()
 
   useEffect(() => {
-    setActiveWorkflow(workflowId)
-  }, [setActiveWorkflow, workflowId])
+    void setActiveWorkflow(workflowId)
+  }, [workflowId, setActiveWorkflow])
 
   const isRunButtonDisabled =
     !isExecuting && !effectivePermissions.canRead && !effectivePermissions.isLoading

@@ -313,7 +313,10 @@ export const ResourceTable = memo(function ResourceTable({
           </thead>
         </table>
       </div>
-      <div className='min-h-0 flex-1 overflow-auto' onScroll={handleBodyScroll}>
+      <div
+        className='min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]'
+        onScroll={handleBodyScroll}
+      >
         <table className='w-full table-fixed text-small'>
           <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
           <tbody>
@@ -562,7 +565,7 @@ const ResourceColGroup = memo(function ResourceColGroup({
           key={col.id}
           style={
             colIdx === 0
-              ? { minWidth: 200 * (col.widthMultiplier ?? 1) }
+              ? { width: 400 * (col.widthMultiplier ?? 1) }
               : { width: 160 * (col.widthMultiplier ?? 1) }
           }
         />

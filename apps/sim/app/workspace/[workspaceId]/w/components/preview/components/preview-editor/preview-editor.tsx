@@ -217,11 +217,9 @@ function CollapsibleSection({
         </span>
         <ChevronDown
           className={cn(
-            'h-[10px] w-[10px] text-[var(--text-tertiary)] transition-colors transition-transform group-hover:text-[var(--text-primary)]'
+            'h-[10px] w-[10px] text-[var(--text-tertiary)] transition-colors transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+            isExpanded && 'rotate-180'
           )}
-          style={{
-            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-          }}
         />
       </div>
 
@@ -663,7 +661,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
               disabled
               className='mb-1'
             />
-            <div className='text-micro text-muted-foreground'>
+            <div className='text-[var(--text-tertiary)] text-micro'>
               Enter a number between 1 and {config.maxIterations}
             </div>
           </div>
@@ -1091,7 +1089,7 @@ function PreviewEditorContent({
     const subflowName = block.name || (isLoop ? 'Loop' : 'Parallel')
 
     return (
-      <div className='relative flex h-full w-80 flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+      <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         {/* Header - styled like subflow header */}
         <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <div
@@ -1125,7 +1123,7 @@ function PreviewEditorContent({
 
   if (!blockConfig) {
     return (
-      <div className='flex h-full w-80 flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+      <div className='flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         <div className='mx-[-1px] flex items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex h-[18px] w-[18px] items-center justify-center rounded-sm bg-[var(--surface-3)]' />
           <span className='font-medium text-[var(--text-primary)] text-sm'>
@@ -1180,7 +1178,7 @@ function PreviewEditorContent({
         : 'gray'
 
   return (
-    <div className='relative flex h-full w-80 flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+    <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
       {/* Header - styled like editor */}
       <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
         {block.type !== 'note' && (
@@ -1188,10 +1186,7 @@ function PreviewEditorContent({
             className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ backgroundColor: blockConfig.bgColor }}
           >
-            <IconComponent
-              icon={blockConfig.icon}
-              className='h-[12px] w-[12px] text-[var(--white)]'
-            />
+            <IconComponent icon={blockConfig.icon} className='h-[12px] w-[12px] text-white' />
           </div>
         )}
         <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-sm'>
@@ -1394,7 +1389,7 @@ function PreviewEditorContent({
                           className='h-[18px] w-[18px] animate-spin rounded-full'
                           style={{
                             background:
-                              'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
+                              'conic-gradient(from 0deg, var(--text-tertiary) 0deg 120deg, transparent 120deg 180deg, var(--text-tertiary) 180deg 300deg, transparent 300deg 360deg)',
                             mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
                             WebkitMask:
                               'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Loader2, X } from 'lucide-react'
 import Image from 'next/image'
@@ -88,24 +88,21 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
     }
   }, [open, providerStatus, hasModalContent, defaultView, router, view])
 
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      if (nextOpen && providerStatus && !hasModalContent) {
-        router.push(defaultView === 'login' ? '/login' : '/signup')
-        return
-      }
-      setOpen(nextOpen)
-      if (nextOpen) {
-        const initialView =
-          defaultView === 'signup' && providerStatus?.registrationDisabled ? 'login' : defaultView
-        setView(initialView)
-        captureClientEvent('auth_modal_opened', { view: initialView, source })
-      }
-    },
-    [defaultView, hasModalContent, providerStatus, router, source]
-  )
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen && providerStatus && !hasModalContent) {
+      router.push(defaultView === 'login' ? '/login' : '/signup')
+      return
+    }
+    setOpen(nextOpen)
+    if (nextOpen) {
+      const initialView =
+        defaultView === 'signup' && providerStatus?.registrationDisabled ? 'login' : defaultView
+      setView(initialView)
+      captureClientEvent('auth_modal_opened', { view: initialView, source })
+    }
+  }
 
-  const handleSocialLogin = useCallback(async (provider: 'github' | 'google') => {
+  async function handleSocialLogin(provider: 'github' | 'google') {
     setSocialLoading(provider)
     try {
       await client.signIn.social({ provider, callbackURL: '/workspace' })
@@ -114,17 +111,17 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
     } finally {
       setSocialLoading(null)
     }
-  }, [])
+  }
 
-  const handleSSOLogin = useCallback(() => {
+  function handleSSOLogin() {
     setOpen(false)
     router.push('/sso')
-  }, [router])
+  }
 
-  const handleEmailContinue = useCallback(() => {
+  function handleEmailContinue() {
     setOpen(false)
     router.push(view === 'login' ? '/login' : '/signup')
-  }, [router, view])
+  }
 
   return (
     <Modal open={open} onOpenChange={handleOpenChange}>

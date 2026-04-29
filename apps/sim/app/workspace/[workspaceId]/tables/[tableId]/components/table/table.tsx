@@ -251,11 +251,11 @@ export function Table({
   const deleteColumnMutation = useDeleteColumn({ workspaceId, tableId })
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
 
-  const handleColumnOrderChange = useCallback((order: string[]) => {
+  function handleColumnOrderChange(order: string[]) {
     setColumnOrder(order)
-  }, [])
+  }
 
-  const handleColumnRename = useCallback((oldName: string, newName: string) => {
+  function handleColumnRename(oldName: string, newName: string) {
     let updatedWidths = columnWidthsRef.current
     if (oldName in updatedWidths) {
       const { [oldName]: width, ...rest } = updatedWidths
@@ -268,13 +268,15 @@ export function Table({
       columnWidths: updatedWidths,
       ...(updatedOrder ? { columnOrder: updatedOrder } : {}),
     })
-  }, [])
+  }
 
-  const getColumnWidths = useCallback(() => columnWidthsRef.current, [])
+  function getColumnWidths() {
+    return columnWidthsRef.current
+  }
 
-  const handleColumnWidthsChange = useCallback((widths: Record<string, number>) => {
+  function handleColumnWidthsChange(widths: Record<string, number>) {
     setColumnWidths(widths)
-  }, [])
+  }
 
   const { pushUndo, undo, redo } = useTableUndo({
     workspaceId,
@@ -856,7 +858,7 @@ export function Table({
     setDropTargetColumnName(null)
   }, [])
 
-  const handleScrollDragOver = useCallback((e: React.DragEvent) => {
+  function handleScrollDragOver(e: React.DragEvent) {
     if (!dragColumnNameRef.current) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
@@ -881,11 +883,11 @@ export function Table({
       }
       left += w
     }
-  }, [])
+  }
 
-  const handleScrollDrop = useCallback((e: React.DragEvent) => {
+  function handleScrollDrop(e: React.DragEvent) {
     e.preventDefault()
-  }, [])
+  }
 
   useEffect(() => {
     if (!tableData?.metadata || metadataSeededRef.current) return
@@ -3211,36 +3213,30 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     [onDragLeave]
   )
 
-  const handleHeaderClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (didDragRef.current) {
-        didDragRef.current = false
-        return
-      }
-      if (isRenaming) return
-      onColumnSelect(colIndex, e.shiftKey)
-    },
-    [colIndex, isRenaming, onColumnSelect]
-  )
+  function handleHeaderClick(e: React.MouseEvent) {
+    if (didDragRef.current) {
+      didDragRef.current = false
+      return
+    }
+    if (isRenaming) return
+    onColumnSelect(colIndex, e.shiftKey)
+  }
 
-  const handleChevronClick = useCallback((e: React.MouseEvent) => {
+  function handleChevronClick(e: React.MouseEvent) {
     e.stopPropagation()
     const rect = (e.currentTarget as HTMLElement).closest('th')?.getBoundingClientRect()
     if (rect) {
       setMenuPosition({ x: rect.left, y: rect.bottom })
     }
     setMenuOpen(true)
-  }, [])
+  }
 
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      if (readOnly || isRenaming) return
-      e.preventDefault()
-      setMenuPosition({ x: e.clientX, y: e.clientY })
-      setMenuOpen(true)
-    },
-    [readOnly, isRenaming]
-  )
+  function handleContextMenu(e: React.MouseEvent) {
+    if (readOnly || isRenaming) return
+    e.preventDefault()
+    setMenuPosition({ x: e.clientX, y: e.clientY })
+    setMenuOpen(true)
+  }
 
   return (
     <th
