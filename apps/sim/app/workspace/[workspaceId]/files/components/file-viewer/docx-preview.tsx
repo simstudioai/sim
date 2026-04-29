@@ -37,7 +37,7 @@ function fitDocxToContainer(host: HTMLElement) {
 
   const wrapperStyle = window.getComputedStyle(wrapper)
   const horizontalPadding =
-    parseFloat(wrapperStyle.paddingLeft) + parseFloat(wrapperStyle.paddingRight)
+    Number.parseFloat(wrapperStyle.paddingLeft) + Number.parseFloat(wrapperStyle.paddingRight)
   const naturalWrapperWidth = naturalPageWidth + horizontalPadding
   const available = host.clientWidth
   const scale = Math.min(1, available / naturalWrapperWidth)
