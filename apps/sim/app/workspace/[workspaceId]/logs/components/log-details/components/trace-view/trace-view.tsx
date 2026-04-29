@@ -195,8 +195,8 @@ function formatTokenCount(value: number | undefined): string | undefined {
 function formatCostAmount(value: number | undefined): string | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
   const credits = dollarsToCredits(value)
-  if (credits <= 0) return undefined
-  return `${credits.toLocaleString()} credits`
+  if (credits <= 0) return '<1 credit'
+  return `${credits.toLocaleString('en-US')} ${credits === 1 ? 'credit' : 'credits'}`
 }
 
 function formatTtft(ms: number | undefined): string | undefined {
