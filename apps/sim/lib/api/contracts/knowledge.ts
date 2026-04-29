@@ -79,10 +79,10 @@ export const updateKnowledgeBaseBodySchema = createKnowledgeBaseBodySchema
   .pick({
     name: true,
     description: true,
-    chunkingConfig: true,
   })
   .partial()
   .extend({
+    chunkingConfig: chunkingConfigSchema.optional(),
     workspaceId: z.string().nullable().optional(),
     embeddingModel: z.literal('text-embedding-3-small').optional(),
     embeddingDimension: z.literal(1536).optional(),

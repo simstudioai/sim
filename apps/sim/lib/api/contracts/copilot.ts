@@ -48,7 +48,7 @@ export const v1CopilotChatBodySchema = z.object({
 
 export type V1CopilotChatBody = z.output<typeof v1CopilotChatBodySchema>
 
-export const copilotCredentialsQuerySchema = z.object({}).passthrough()
+export const copilotCredentialsQuerySchema = z.object({})
 
 export const copilotConfirmBodySchema = z.object({
   toolCallId: z.string().min(1, 'Tool call ID is required'),
@@ -56,7 +56,8 @@ export const copilotConfirmBodySchema = z.object({
     Object.values(ASYNC_TOOL_CONFIRMATION_STATUS) as [
       AsyncConfirmationStatus,
       ...AsyncConfirmationStatus[],
-    ]
+    ],
+    { error: 'Invalid notification status' }
   ),
   message: z.string().optional(),
   data: z.unknown().optional(),
@@ -172,7 +173,7 @@ export const copilotChatGetQuerySchema = z
   })
   .passthrough()
 
-export const copilotModelsQuerySchema = z.object({}).passthrough()
+export const copilotModelsQuerySchema = z.object({})
 
 export const createCopilotCheckpointBodySchema = z.object({
   workflowId: z.string(),

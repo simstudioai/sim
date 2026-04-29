@@ -15,6 +15,9 @@ import {
 } from '@/lib/a2a/utils'
 import {
   type A2AJsonRpcId,
+  type A2AMessageSendParams,
+  type A2APushNotificationSetParams,
+  type A2ATaskIdParams,
   a2aJsonRpcRequestSchema,
   a2aMessageSendParamsSchema,
   a2aPushNotificationSetParamsSchema,
@@ -41,9 +44,6 @@ import {
   extractAgentContent,
   formatTaskResponse,
   generateTaskId,
-  type MessageSendParams,
-  type PushNotificationSetParams,
-  type TaskIdParams,
 } from '@/app/api/a2a/serve/[agentId]/utils'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
@@ -329,7 +329,7 @@ export const POST = withRouteHandler(
           return handleMessageSend(
             id,
             agent,
-            paramsValidation.data as MessageSendParams,
+            paramsValidation.data,
             apiKey,
             executionUserId,
             callerFingerprint
@@ -349,7 +349,7 @@ export const POST = withRouteHandler(
             request,
             id,
             agent,
-            paramsValidation.data as MessageSendParams,
+            paramsValidation.data,
             apiKey,
             executionUserId,
             callerFingerprint
@@ -405,12 +405,7 @@ export const POST = withRouteHandler(
             )
           }
 
-          return handlePushNotificationSet(
-            id,
-            agent.id,
-            paramsValidation.data as PushNotificationSetParams,
-            callerFingerprint
-          )
+          return handlePushNotificationSet(id, agent.id, paramsValidation.data, callerFingerprint)
         }
 
         case A2A_METHODS.PUSH_NOTIFICATION_GET: {
@@ -481,20 +476,11 @@ async function handleMessageSend(
     workflowId: string
     workspaceId: string
   },
-  rawParams: unknown,
+  params: A2AMessageSendParams,
   apiKey?: string | null,
   executionUserId?: string,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  const paramsResult = a2aMessageSendParamsSchema.safeParse(rawParams)
-  if (!paramsResult.success) {
-    return NextResponse.json(
-      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Message is required'),
-      { status: 400 }
-    )
-  }
-  const params = paramsResult.data as MessageSendParams
-
   const message = params.message
   const taskId = message.taskId || generateTaskId()
   const contextId = message.contextId || generateId()
@@ -712,20 +698,11 @@ async function handleMessageStream(
     workflowId: string
     workspaceId: string
   },
-  rawParams: unknown,
+  params: A2AMessageSendParams,
   apiKey?: string | null,
   executionUserId?: string,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  const paramsResult = a2aMessageSendParamsSchema.safeParse(rawParams)
-  if (!paramsResult.success) {
-    return NextResponse.json(
-      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Message is required'),
-      { status: 400 }
-    )
-  }
-  const params = paramsResult.data as MessageSendParams
-
   const message = params.message
   const contextId = message.contextId || generateId()
   const taskId = message.taskId || generateTaskId()
@@ -1145,18 +1122,9 @@ async function handleMessageStream(
 async function handleTaskGet(
   id: A2AJsonRpcId,
   agentId: string,
-  rawParams: unknown,
+  params: A2ATaskIdParams,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  const paramsResult = a2aTaskIdParamsSchema.safeParse(rawParams)
-  if (!paramsResult.success) {
-    return NextResponse.json(
-      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
-      { status: 400 }
-    )
-  }
-  const params = paramsResult.data as TaskIdParams
-
   const historyLength =
     params.historyLength !== undefined && params.historyLength >= 0
       ? params.historyLength
@@ -1189,18 +1157,9 @@ async function handleTaskGet(
 async function handleTaskCancel(
   id: A2AJsonRpcId,
   agentId: string,
-  rawParams: unknown,
+  params: A2ATaskIdParams,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  const paramsResult = a2aTaskIdParamsSchema.safeParse(rawParams)
-  if (!paramsResult.success) {
-    return NextResponse.json(
-      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
-      { status: 400 }
-    )
-  }
-  const params = paramsResult.data as TaskIdParams
-
   const task = await getTaskForAgent(params.id, agentId, callerFingerprint)
 
   if (!task) {
@@ -1266,18 +1225,9 @@ async function handleTaskResubscribe(
   request: NextRequest,
   id: A2AJsonRpcId,
   agentId: string,
-  rawParams: unknown,
+  params: A2ATaskIdParams,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  const paramsResult = a2aTaskIdParamsSchema.safeParse(rawParams)
-  if (!paramsResult.success) {
-    return NextResponse.json(
-      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
-      { status: 400 }
-    )
-  }
-  const params = paramsResult.data as TaskIdParams
-
   const task = await getTaskForAgent(params.id, agentId, callerFingerprint)
 
   if (!task) {
@@ -1476,26 +1426,9 @@ async function handleTaskResubscribe(
 async function handlePushNotificationSet(
   id: A2AJsonRpcId,
   agentId: string,
-  rawParams: unknown,
+  params: A2APushNotificationSetParams,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  const idResult = a2aTaskIdParamsSchema.safeParse(rawParams)
-  if (!idResult.success) {
-    return NextResponse.json(
-      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
-      { status: 400 }
-    )
-  }
-
-  const paramsResult = a2aPushNotificationSetParamsSchema.safeParse(rawParams)
-  if (!paramsResult.success) {
-    return NextResponse.json(
-      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Push notification URL is required'),
-      { status: 400 }
-    )
-  }
-  const params = paramsResult.data as PushNotificationSetParams
-
   const urlValidation = await validateUrlWithDNS(
     params.pushNotificationConfig.url,
     'Push notification URL'
@@ -1559,18 +1492,9 @@ async function handlePushNotificationSet(
 async function handlePushNotificationGet(
   id: A2AJsonRpcId,
   agentId: string,
-  rawParams: unknown,
+  params: A2ATaskIdParams,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  const paramsResult = a2aTaskIdParamsSchema.safeParse(rawParams)
-  if (!paramsResult.success) {
-    return NextResponse.json(
-      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
-      { status: 400 }
-    )
-  }
-  const params = paramsResult.data as TaskIdParams
-
   const task = await getTaskForAgent(params.id, agentId, callerFingerprint)
 
   if (!task) {
@@ -1606,18 +1530,9 @@ async function handlePushNotificationGet(
 async function handlePushNotificationDelete(
   id: A2AJsonRpcId,
   agentId: string,
-  rawParams: unknown,
+  params: A2ATaskIdParams,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  const paramsResult = a2aTaskIdParamsSchema.safeParse(rawParams)
-  if (!paramsResult.success) {
-    return NextResponse.json(
-      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
-      { status: 400 }
-    )
-  }
-  const params = paramsResult.data as TaskIdParams
-
   const task = await getTaskForAgent(params.id, agentId, callerFingerprint)
 
   if (!task) {

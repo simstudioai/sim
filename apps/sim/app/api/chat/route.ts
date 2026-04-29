@@ -63,9 +63,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         allowedEmails = [],
         outputConfigs = [],
       } = validatedData
-      const deployOutputConfigs = outputConfigs.filter(
-        (config): config is { blockId: string; path: string } => typeof config.path === 'string'
-      )
 
       // Perform additional validation specific to auth types
       if (authType === 'password' && !password) {
@@ -113,7 +110,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         authType,
         password,
         allowedEmails,
-        outputConfigs: deployOutputConfigs,
+        outputConfigs,
         workspaceId: workflowRecord.workspaceId,
       })
 

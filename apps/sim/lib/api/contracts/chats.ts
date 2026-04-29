@@ -13,6 +13,11 @@ export const chatIdentifierParamsSchema = z.object({
 })
 
 export const chatOutputConfigSchema = z.object({
+  blockId: z.string().min(1),
+  path: z.string().min(1),
+})
+
+export const deployedChatOutputConfigSchema = z.object({
   blockId: z.string(),
   path: z.string().optional(),
 })
@@ -94,7 +99,7 @@ export const deployedChatConfigSchema = z.object({
   authType: z.preprocess((value) => value ?? 'public', chatAuthTypeSchema),
   outputConfigs: z.preprocess(
     (value) => value ?? undefined,
-    z.array(chatOutputConfigSchema).optional()
+    z.array(deployedChatOutputConfigSchema).optional()
   ),
 })
 export type DeployedChatConfig = z.output<typeof deployedChatConfigSchema>
