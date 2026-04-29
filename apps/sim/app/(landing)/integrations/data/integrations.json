@@ -4020,9 +4020,13 @@
       {
         "name": "Agent",
         "description": "Autonomous web data extraction agent. Searches and gathers information based on natural language prompts without requiring specific URLs."
+      },
+      {
+        "name": "Parse Document",
+        "description": "Parse uploaded documents (PDF, DOCX, HTML, etc.) into clean markdown using Firecrawl. Supports .html, .htm, .pdf, .docx, .doc, .odt, .rtf, .xlsx, .xls."
       }
     ],
-    "operationCount": 6,
+    "operationCount": 7,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
