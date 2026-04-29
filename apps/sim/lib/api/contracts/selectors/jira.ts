@@ -63,6 +63,12 @@ export const jiraIssuesBodySchema = z.object({
   issueKeys: z.array(z.string().min(1)).default([]),
 })
 
+export const jiraParentReferenceSchema = z.union([
+  z.object({ key: z.string().min(1) }).passthrough(),
+  z.object({ id: z.string().min(1) }).passthrough(),
+])
+export type JiraParentReference = z.input<typeof jiraParentReferenceSchema>
+
 export const jiraWriteBodySchema = z.object({
   domain: z.string({ error: 'Domain is required' }).min(1, 'Domain is required'),
   accessToken: z.string({ error: 'Access token is required' }).min(1, 'Access token is required'),
@@ -73,7 +79,7 @@ export const jiraWriteBodySchema = z.object({
   assignee: z.string().optional(),
   cloudId: z.string().optional(),
   issueType: z.string().optional(),
-  parent: z.string().optional(),
+  parent: jiraParentReferenceSchema.optional(),
   labels: z.array(z.string()).optional(),
   duedate: z.string().optional(),
   reporter: z.string().optional(),
