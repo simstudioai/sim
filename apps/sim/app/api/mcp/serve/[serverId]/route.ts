@@ -20,6 +20,12 @@ import { workflow, workflowMcpServer, workflowMcpTool, workspace } from '@sim/db
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  mcpJsonRpcNotificationSchema,
+  mcpJsonRpcRequestSchema,
+  mcpServeRouteParamsSchema,
+  mcpToolCallParamsSchema,
+} from '@/lib/api/contracts/mcp'
 import { type AuthResult, AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
@@ -84,7 +90,7 @@ async function getServer(serverId: string) {
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
     try {
-      const { serverId } = routeParamsSchema.parse(await params)
+      const { serverId } = mcpServeRouteParamsSchema.parse(await params)
       const server = await getServer(serverId)
       if (!server) {
         return NextResponse.json({ error: 'Server not found' }, { status: 404 })
@@ -126,7 +132,7 @@ export const GET = withRouteHandler(
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
     try {
-      const { serverId } = routeParamsSchema.parse(await params)
+      const { serverId } = mcpServeRouteParamsSchema.parse(await params)
       const server = await getServer(serverId)
       if (!server) {
         return NextResponse.json({ error: 'Server not found' }, { status: 404 })
@@ -170,7 +176,7 @@ export const POST = withRouteHandler(
       const message = body as JSONRPCMessage
 
       if (isJSONRPCNotification(message)) {
-        const notificationValidation = jsonRpcNotificationSchema.safeParse(message)
+        const notificationValidation = mcpJsonRpcNotificationSchema.safeParse(message)
         if (!notificationValidation.success) {
           return NextResponse.json(
             createError(0, ErrorCode.InvalidRequest, 'Invalid JSON-RPC message'),
@@ -193,7 +199,7 @@ export const POST = withRouteHandler(
         )
       }
 
-      const requestValidation = jsonRpcRequestSchema.safeParse(message)
+      const requestValidation = mcpJsonRpcRequestSchema.safeParse(message)
       if (!requestValidation.success) {
         return NextResponse.json(
           createError(0, ErrorCode.InvalidRequest, 'Invalid JSON-RPC message'),
@@ -222,7 +228,7 @@ export const POST = withRouteHandler(
           return handleToolsList(id, serverId)
 
         case 'tools/call': {
-          const paramsValidation = toolCallParamsSchema.safeParse(rpcParams)
+          const paramsValidation = mcpToolCallParamsSchema.safeParse(rpcParams)
           if (!paramsValidation.success) {
             return NextResponse.json(
               createError(id, ErrorCode.InvalidParams, 'Invalid tool call parameters'),
@@ -407,7 +413,7 @@ async function handleToolsCall(
 export const DELETE = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
     try {
-      const { serverId } = routeParamsSchema.parse(await params)
+      const { serverId } = mcpServeRouteParamsSchema.parse(await params)
       const server = await getServer(serverId)
       if (!server) {
         return NextResponse.json({ error: 'Server not found' }, { status: 404 })

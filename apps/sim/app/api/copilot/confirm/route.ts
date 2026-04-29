@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { copilotConfirmBodySchema } from '@/lib/api/contracts/copilot'
 import { validateSchema } from '@/lib/api/server'
 import {
+  ASYNC_TOOL_CONFIRMATION_STATUS,
   ASYNC_TOOL_STATUS,
   type AsyncCompletionData,
   type AsyncConfirmationStatus,

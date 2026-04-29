@@ -117,7 +117,10 @@ export const POST = withRouteHandler(
       const validatedData = validation.data
 
       for (const def of validatedData.definitions) {
-        if (!SUPPORTED_FIELD_TYPES.includes(def.fieldType)) {
+        // Defense-in-depth runtime check: contract leaves `fieldType` as `z.string()`
+        // because tightening to the enum cascades into UI form state types. Cast here
+        // to allow `includes` to accept the wider input.
+        if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(def.fieldType)) {
           return NextResponse.json(
             { error: 'Invalid request data', details: `Unsupported field type: ${def.fieldType}` },
             { status: 400 }
