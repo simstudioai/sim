@@ -589,7 +589,6 @@ export const TextEditor = memo(function TextEditor({
   )
 
   const isStreaming = isStreamInteractionLocked
-  const isPreviewFollowingStream = isStreaming && !disableStreamingAutoScroll
   const isEditorReadOnly = isStreamInteractionLocked || !canEdit
 
   const previewType = resolvePreviewType(file.type, file.name)
@@ -678,7 +677,8 @@ export const TextEditor = memo(function TextEditor({
               content={content}
               mimeType={file.type}
               filename={file.name}
-              isStreaming={isPreviewFollowingStream}
+              isStreaming={isStreaming}
+              disableAutoScroll={disableStreamingAutoScroll}
               onCheckboxToggle={canEdit && !isStreaming ? handleCheckboxToggle : undefined}
             />
           </div>
