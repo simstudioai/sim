@@ -33,12 +33,18 @@ import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
+import {
+  formatTokenCount,
+  formatTps,
+  formatTtft,
+  parseTime,
+} from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getBlock, getBlockByToolName } from '@/blocks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
-import { normalizeToolId } from '@/tools'
+import { normalizeToolId } from '@/tools/normalize'
 
 const DEFAULT_BLOCK_COLOR = '#6b7280'
 const DEFAULT_TREE_PANE_WIDTH = 360
@@ -62,15 +68,6 @@ interface FlatSpanEntry {
 interface BlockAppearance {
   icon: React.ComponentType<{ className?: string }> | null
   bgColor: string
-}
-
-/**
- * Parses a timestamp or numeric ms into milliseconds since epoch.
- */
-function parseTime(value?: string | number | null): number {
-  if (!value) return 0
-  const ms = typeof value === 'number' ? value : new Date(value).getTime()
-  return Number.isFinite(ms) ? ms : 0
 }
 
 /**
@@ -187,29 +184,11 @@ function iconColorClass(bgColor: string): string {
   return r * 299 + g * 587 + b * 114 > 160_000 ? 'text-[#111111]' : 'text-white'
 }
 
-function formatTokenCount(value: number | undefined): string | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
-  return value.toLocaleString('en-US')
-}
-
 function formatCostAmount(value: number | undefined): string | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
   const credits = dollarsToCredits(value)
   if (credits <= 0) return '<1 credit'
   return `${credits.toLocaleString('en-US')} ${credits === 1 ? 'credit' : 'credits'}`
-}
-
-function formatTtft(ms: number | undefined): string | undefined {
-  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return undefined
-  if (ms < 1000) return `${Math.round(ms)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
-}
-
-function formatTps(outputTokens: number | undefined, durationMs: number): string | undefined {
-  if (typeof outputTokens !== 'number' || !(outputTokens > 0)) return undefined
-  if (!(durationMs > 0)) return undefined
-  const tps = Math.round(outputTokens / (durationMs / 1000))
-  return tps > 0 ? `${tps.toLocaleString('en-US')} tok/s` : undefined
 }
 
 function getDisplayName(span: TraceSpan): string {

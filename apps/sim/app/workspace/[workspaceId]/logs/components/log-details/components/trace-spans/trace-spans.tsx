@@ -22,6 +22,12 @@ import {
 import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
+import {
+  formatTokensSummary,
+  formatTps,
+  formatTtft,
+  parseTime,
+} from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getBlock, getBlockByToolName } from '@/blocks'
@@ -59,53 +65,12 @@ function useSetToggle() {
   )
 }
 
-/**
- * Formats a token count with locale-aware thousands separators.
- * Returns `undefined` for missing or non-positive counts so callers can
- * filter them out before rendering.
- */
-function formatTokenCount(value: number | undefined): string | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
-  return value.toLocaleString('en-US')
-}
-
-/**
- * Builds a compact, dot-separated token summary for a span:
- * `"1,234 in · 567 out · 1,801 total"` with cache/reasoning appended when
- * present. Returns `undefined` when the span has no meaningful token data.
- */
-function formatTokensSummary(tokens: TraceSpan['tokens']): string | undefined {
-  if (!tokens) return undefined
-  const parts: string[] = []
-  const input = formatTokenCount(tokens.input)
-  const output = formatTokenCount(tokens.output)
-  const total = formatTokenCount(tokens.total)
-  const cacheRead = formatTokenCount(tokens.cacheRead)
-  const cacheWrite = formatTokenCount(tokens.cacheWrite)
-  const reasoning = formatTokenCount(tokens.reasoning)
-  if (input) parts.push(`${input} in`)
-  if (cacheRead) parts.push(`${cacheRead} cached`)
-  if (cacheWrite) parts.push(`${cacheWrite} cache write`)
-  if (output) parts.push(`${output} out`)
-  if (reasoning) parts.push(`${reasoning} reasoning`)
-  if (total) parts.push(`${total} total`)
-  return parts.length > 0 ? parts.join(' · ') : undefined
-}
-
-/**
- * Formats a USD cost value for display. Shows `<$0.0001` for non-zero sub-cent
- * amounts so the user sees it was counted.
- */
 function formatCostAmount(value: number | undefined): string | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
   if (value < 0.0001) return '<$0.0001'
   return `$${value.toFixed(4)}`
 }
 
-/**
- * Builds a compact cost summary: `"$0.0023 · $0.0001 in · $0.0022 out"`.
- * Falls back to whichever parts are present.
- */
 function formatCostSummary(cost: TraceSpan['cost']): string | undefined {
   if (!cost) return undefined
   const parts: string[] = []
@@ -116,36 +81,6 @@ function formatCostSummary(cost: TraceSpan['cost']): string | undefined {
   if (input) parts.push(`${input} in`)
   if (output) parts.push(`${output} out`)
   return parts.length > 0 ? parts.join(' · ') : undefined
-}
-
-/**
- * Derives tokens-per-second from output tokens over segment duration.
- * Returns `undefined` when inputs are missing or non-positive.
- */
-function formatTps(outputTokens: number | undefined, durationMs: number): string | undefined {
-  if (typeof outputTokens !== 'number' || !(outputTokens > 0)) return undefined
-  if (!(durationMs > 0)) return undefined
-  const tps = Math.round(outputTokens / (durationMs / 1000))
-  if (!(tps > 0)) return undefined
-  return `${tps.toLocaleString('en-US')} tok/s`
-}
-
-/**
- * Formats time-to-first-token. Uses `ms` below 1000, `s` above.
- */
-function formatTtft(ms: number | undefined): string | undefined {
-  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return undefined
-  if (ms < 1000) return `${Math.round(ms)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
-}
-
-/**
- * Parses a time value to milliseconds
- */
-function parseTime(value?: string | number | null): number {
-  if (!value) return 0
-  const ms = typeof value === 'number' ? value : new Date(value).getTime()
-  return Number.isFinite(ms) ? ms : 0
 }
 
 /**
