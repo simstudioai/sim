@@ -29,21 +29,21 @@ import {
   Search as SearchIcon,
   Tooltip,
 } from '@/components/emcn'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
+  formatCostAmount,
   formatTokenCount,
   formatTps,
   formatTtft,
   getBlockIconAndColor,
+  getDisplayName,
   hasErrorInTree,
   hasUnhandledErrorInTree,
   isIterationType,
   parseTime,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
-import { normalizeToolId } from '@/tools/normalize'
 
 const DEFAULT_TREE_PANE_WIDTH = 360
 const MIN_TREE_PANE_WIDTH = 200
@@ -118,18 +118,6 @@ function iconColorClass(bgColor: string): string {
   const g = Number.parseInt(hex.slice(2, 4), 16)
   const b = Number.parseInt(hex.slice(4, 6), 16)
   return r * 299 + g * 587 + b * 114 > 160_000 ? 'text-[#111111]' : 'text-white'
-}
-
-function formatCostAmount(value: number | undefined): string | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
-  const credits = dollarsToCredits(value)
-  if (credits <= 0) return '<1 credit'
-  return `${credits.toLocaleString('en-US')} ${credits === 1 ? 'credit' : 'credits'}`
-}
-
-function getDisplayName(span: TraceSpan): string {
-  if (span.type?.toLowerCase() === 'tool') return normalizeToolId(span.name)
-  return span.name
 }
 
 /**

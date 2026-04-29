@@ -19,14 +19,15 @@ import {
   Search as SearchIcon,
   Tooltip,
 } from '@/components/emcn'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
+  formatCostAmount,
   formatTokensSummary,
   formatTps,
   formatTtft,
   getBlockIconAndColor,
+  getDisplayName,
   hasErrorInTree,
   hasUnhandledErrorInTree,
   isIterationType,
@@ -56,13 +57,6 @@ function useSetToggle() {
     },
     []
   )
-}
-
-function formatCostAmount(value: number | undefined): string | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
-  const credits = dollarsToCredits(value)
-  if (credits <= 0) return '<1 credit'
-  return `${credits.toLocaleString('en-US')} ${credits === 1 ? 'credit' : 'credits'}`
 }
 
 function formatCostSummary(cost: TraceSpan['cost']): string | undefined {
@@ -535,7 +529,7 @@ const TraceSpanNode = memo(function TraceSpanNode({
             className='min-w-0 max-w-[180px] truncate font-medium text-caption'
             style={{ color: showErrorStyle ? 'var(--text-error)' : 'var(--text-secondary)' }}
           >
-            {span.name}
+            {getDisplayName(span)}
           </span>
           {isToggleable && (
             <ChevronDown
