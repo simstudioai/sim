@@ -58,6 +58,7 @@ import {
   getAccessibleOAuthCredentials,
 } from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { listTables } from '@/lib/table/service'
@@ -80,18 +81,11 @@ import {
 } from '@/lib/workspaces/permissions/utils'
 import { getAllBlocks } from '@/blocks/registry'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
-import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import { tools as toolRegistry } from '@/tools/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 const logger = createLogger('WorkspaceVFS')
-
-const BINARY_DOC_TASKS: Record<string, SandboxTaskId> = {
-  docx: 'docx-generate',
-  pptx: 'pptx-generate',
-  pdf: 'pdf-generate',
-}
 
 /** Static component files, computed once and shared across all VFS instances */
 let staticComponentFiles: Map<string, string> | null = null
@@ -479,6 +473,12 @@ export class WorkspaceVFS {
         if (!taskId) return null
         const buffer = await downloadWorkspaceFile(record)
         const code = buffer.toString('utf-8')
+        if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
+          return {
+            content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
+            totalLines: 1,
+          }
+        }
         let result: { ok: boolean; error?: string; errorName?: string }
         try {
           await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })

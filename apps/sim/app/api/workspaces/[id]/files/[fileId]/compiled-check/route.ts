@@ -3,22 +3,15 @@ import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
+import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { downloadWorkspaceFile, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
-import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const logger = createLogger('WorkspaceFileCompiledCheckAPI')
-
-const BINARY_DOC_TASKS: Record<string, SandboxTaskId> = {
-  docx: 'docx-generate',
-  pptx: 'pptx-generate',
-  pdf: 'pdf-generate',
-}
 
 /**
  * GET /api/workspaces/[id]/files/[fileId]/compiled-check
