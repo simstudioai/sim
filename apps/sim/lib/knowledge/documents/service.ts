@@ -386,7 +386,10 @@ export async function processDocumentAsync(
       .limit(1)
 
     if (kb.length === 0) {
-      throw new Error(`Knowledge base not found: ${knowledgeBaseId}`)
+      logger.warn(
+        `[${documentId}] Skipping document processing: knowledge base ${knowledgeBaseId} is deleted`
+      )
+      return
     }
 
     await db
