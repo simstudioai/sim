@@ -133,9 +133,19 @@ export class PauseResumeManager {
         parallelScope: point.parallelScope,
         loopScope: point.loopScope,
         resumeLinks: point.resumeLinks,
+        pauseKind: point.pauseKind,
+        resumeAt: point.resumeAt,
       }
       return acc
     }, {})
+
+    const nextResumeAt = pausePoints.reduce<Date | null>((earliest, point) => {
+      if (point.pauseKind !== 'time' || !point.resumeAt) return earliest
+      const candidate = new Date(point.resumeAt)
+      if (Number.isNaN(candidate.getTime())) return earliest
+      if (!earliest || candidate < earliest) return candidate
+      return earliest
+    }, null)
 
     const now = new Date()
 
@@ -157,6 +167,7 @@ export class PauseResumeManager {
         },
         pausedAt: now,
         updatedAt: now,
+        nextResumeAt,
       })
       .onConflictDoUpdate({
         target: pausedExecutions.executionId,
@@ -172,6 +183,7 @@ export class PauseResumeManager {
             executorUserId: executorUserId ?? null,
           },
           updatedAt: now,
+          nextResumeAt,
         },
       })
 
@@ -1563,6 +1575,8 @@ export class PauseResumeManager {
         parallelScope: point.parallelScope,
         loopScope: point.loopScope,
         resumeLinks,
+        pauseKind: point.pauseKind ?? 'human',
+        resumeAt: point.resumeAt,
         queuePosition,
         latestResumeEntry: latestEntry ?? null,
       }

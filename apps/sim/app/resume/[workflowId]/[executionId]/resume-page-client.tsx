@@ -86,6 +86,8 @@ interface PausePointWithQueue {
   latestResumeEntry?: ResumeQueueEntrySummary | null
   parallelScope?: any
   loopScope?: any
+  pauseKind?: 'human' | 'time'
+  resumeAt?: string
 }
 
 interface PausedExecutionSummary {
@@ -220,7 +222,9 @@ export default function ResumeExecutionPage({
   const [executionDetail, setExecutionDetail] = useState<PausedExecutionDetail | null>(
     initialExecutionDetail
   )
-  const pausePoints = executionDetail?.pausePoints ?? []
+  const pausePoints = (executionDetail?.pausePoints ?? []).filter(
+    (point) => point.pauseKind !== 'time'
+  )
 
   const defaultContextId = useMemo(() => {
     if (initialContextId) return initialContextId
