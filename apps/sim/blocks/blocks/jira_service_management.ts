@@ -1237,7 +1237,8 @@ Return ONLY the comment text - no explanations.`,
     status: { type: 'string', description: 'Form status (open, submitted, locked)' },
     answers: {
       type: 'json',
-      description: 'Form answers as key-value pairs (question ID to answer)',
+      description:
+        'Array of simplified form answers, each with label, answer, fieldKey, and choice',
     },
     deleted: { type: 'boolean', description: 'Whether the form was successfully deleted' },
     visibility: {

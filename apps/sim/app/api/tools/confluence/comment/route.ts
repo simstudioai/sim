@@ -73,14 +73,25 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    // Get current comment version
-    const getUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/footer-comments/${commentId}`
-    const getResponse = await fetch(getUrl, {
+    // Detect comment type — try footer-comments first, fall back to inline-comments
+    const apiBase = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2`
+    let commentEndpoint = 'footer-comments'
+    let getResponse = await fetch(`${apiBase}/footer-comments/${commentId}`, {
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${accessToken}`,
       },
     })
+
+    if (getResponse.status === 404) {
+      commentEndpoint = 'inline-comments'
+      getResponse = await fetch(`${apiBase}/inline-comments/${commentId}`, {
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+    }
 
     if (!getResponse.ok) {
       const errorText = await getResponse.text()
@@ -92,7 +103,7 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
     const currentComment = await getResponse.json()
     const currentVersion = currentComment.version?.number || 1
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/footer-comments/${commentId}`
+    const url = `${apiBase}/${commentEndpoint}/${commentId}`
 
     const updateBody = {
       body: {
@@ -164,15 +175,25 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/footer-comments/${commentId}`
+    const apiBase = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2`
 
-    const response = await fetch(url, {
+    let response = await fetch(`${apiBase}/footer-comments/${commentId}`, {
       method: 'DELETE',
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${accessToken}`,
       },
     })
+
+    if (response.status === 404) {
+      response = await fetch(`${apiBase}/inline-comments/${commentId}`, {
+        method: 'DELETE',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+    }
 
     if (!response.ok) {
       const errorText = await response.text()

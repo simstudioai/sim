@@ -1014,12 +1014,19 @@ export interface JsmGetFormAnswersParams extends JsmBaseParams {
   formId: string
 }
 
+export interface JsmFormSimplifiedAnswer {
+  label?: string
+  answer?: string
+  fieldKey?: string
+  choice?: string
+}
+
 export interface JsmGetFormAnswersResponse extends ToolResponse {
   output: {
     ts: string
     issueIdOrKey: string
     formId: string
-    answers: Record<string, unknown> | null
+    answers: JsmFormSimplifiedAnswer[] | null
   }
 }
 

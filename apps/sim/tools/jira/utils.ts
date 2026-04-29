@@ -72,11 +72,11 @@ export function extractAdfText(content: any): string | null {
 export function transformUser(user: any): {
   accountId: string
   displayName: string
-  active?: boolean
-  emailAddress?: string
-  avatarUrl?: string
-  accountType?: string
-  timeZone?: string
+  active: boolean | null
+  emailAddress: string | null
+  avatarUrl: string | null
+  accountType: string | null
+  timeZone: string | null
 } | null {
   if (!user) return null
   return {

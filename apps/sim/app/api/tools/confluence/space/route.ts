@@ -360,7 +360,26 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    return NextResponse.json({ spaceId, deleted: true })
+    let longTask: { id?: string; statusLink?: string } = {}
+    try {
+      const text = await response.text()
+      if (text) {
+        const data = JSON.parse(text)
+        longTask = {
+          id: data?.id,
+          statusLink: data?.links?.status,
+        }
+      }
+    } catch {
+      // 204 No Content or non-JSON body — ignore
+    }
+
+    return NextResponse.json({
+      spaceId,
+      deleted: true,
+      longTaskId: longTask.id,
+      longTaskStatusLink: longTask.statusLink,
+    })
   } catch (error) {
     logger.error('Error deleting Confluence space:', error)
     return NextResponse.json(
