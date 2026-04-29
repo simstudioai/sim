@@ -5,7 +5,9 @@ import { Skeleton } from '@/components/emcn'
 export function PreviewError({ label, error }: { label: string; error: string }) {
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
-      <p className='font-medium text-[14px] text-[var(--text-body)]'>Failed to preview {label}</p>
+      <p className='font-medium text-[14px] text-[var(--text-primary)]'>
+        Failed to preview {label}
+      </p>
       <p className='text-[13px] text-[var(--text-muted)]'>{error}</p>
     </div>
   )
@@ -17,20 +19,6 @@ export function resolvePreviewError(
 ): string | null {
   if (fetchError) return fetchError.message
   return renderError
-}
-
-export function shouldSuppressStreamingDocumentError(message: string): boolean {
-  const lower = message.toLowerCase()
-  return (
-    lower.includes('preview failed') ||
-    lower.includes('aborterror') ||
-    lower.includes('unexpected end') ||
-    lower.includes('unexpected eof') ||
-    lower.includes('invalid or unexpected token') ||
-    lower.includes('end of central directory') ||
-    lower.includes('corrupted zip') ||
-    lower.includes('end of data reached')
-  )
 }
 
 export const PDF_PAGE_SKELETON = (

@@ -18,12 +18,7 @@ import { ImagePreview } from './image-preview'
 import type { PdfDocumentSource } from './pdf-viewer'
 import { PptxPreview } from './pptx-preview'
 import { resolvePreviewType } from './preview-panel'
-import {
-  PDF_PAGE_SKELETON,
-  PreviewError,
-  resolvePreviewError,
-  shouldSuppressStreamingDocumentError,
-} from './preview-shared'
+import { PDF_PAGE_SKELETON, PreviewError, resolvePreviewError } from './preview-shared'
 import { TextEditor } from './text-editor'
 import { XlsxPreview } from './xlsx-preview'
 
@@ -128,7 +123,14 @@ export function FileViewer({
   }
 
   if (category === 'pptx-previewable') {
-    return <PptxPreview file={file} workspaceId={workspaceId} streamingContent={streamingContent} />
+    return (
+      <PptxPreview
+        key={file.id}
+        file={file}
+        workspaceId={workspaceId}
+        streamingContent={streamingContent}
+      />
+    )
   }
 
   if (category === 'xlsx-previewable') {
@@ -160,7 +162,6 @@ const IframePreview = memo(function IframePreview({
   const streamingBufferSeqRef = useRef(0)
   const [streamingBufferSeq, setStreamingBufferSeq] = useState(0)
   const [rendering, setRendering] = useState(false)
-  const [renderError, setRenderError] = useState<string | null>(null)
 
   useEffect(() => {
     if (streamingContent === undefined) return
@@ -173,7 +174,6 @@ const IframePreview = memo(function IframePreview({
 
       try {
         setRendering(true)
-        setRenderError(null)
 
         const response = await fetch(`/api/workspaces/${workspaceId}/pdf/preview`, {
           method: 'POST',
@@ -196,12 +196,7 @@ const IframePreview = memo(function IframePreview({
       } catch (err) {
         if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
           const msg = toError(err).message || 'Failed to render PDF'
-          if (streamingBufferRef.current || shouldSuppressStreamingDocumentError(msg)) {
-            logger.info('Suppressing transient PDF streaming preview error', { error: msg })
-          } else {
-            logger.error('PDF render failed', { error: msg })
-            setRenderError(msg)
-          }
+          logger.info('Transient PDF streaming preview error (suppressed)', { error: msg })
         }
       } finally {
         if (!cancelled) setRendering(false)
@@ -227,8 +222,6 @@ const IframePreview = memo(function IframePreview({
     () => (streamingBuffer ? { kind: 'buffer', buffer: streamingBuffer } : null),
     [streamingBuffer]
   )
-
-  if (renderError) return <PreviewError label='PDF' error={renderError} />
 
   if (streamingContent !== undefined) {
     if (!streamingSource) {
@@ -361,7 +354,7 @@ const UnsupportedPreview = memo(function UnsupportedPreview({
 
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
-      <p className='font-medium text-[14px] text-[var(--text-body)]'>
+      <p className='font-medium text-[14px] text-[var(--text-primary)]'>
         Preview not available{ext ? ` for .${ext} files` : ' for this file'}
       </p>
       <p className='text-[13px] text-[var(--text-muted)]'>
