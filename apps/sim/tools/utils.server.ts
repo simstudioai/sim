@@ -10,7 +10,12 @@ import { extractErrorMessage } from '@/tools/error-extractors'
 import { tools } from '@/tools/registry'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 import type { RequestParams } from '@/tools/utils'
-import { createCustomToolRequestBody, createParamSchema, createToolConfig } from '@/tools/utils'
+import {
+  createCustomToolRequestBody,
+  createParamSchema,
+  createToolConfig,
+  resolveToolId,
+} from '@/tools/utils'
 
 const logger = createLogger('ToolsUtils')
 
@@ -92,7 +97,7 @@ export async function getToolAsync(
   toolId: string,
   context: GetToolAsyncContext = {}
 ): Promise<ToolConfig | undefined> {
-  const builtInTool = tools[toolId]
+  const builtInTool = tools[resolveToolId(toolId)]
   if (builtInTool) return builtInTool
 
   if (isCustomTool(toolId)) {

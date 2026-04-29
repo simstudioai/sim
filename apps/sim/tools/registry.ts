@@ -1788,6 +1788,7 @@ import {
 } from '@/tools/neo4j'
 import {
   notionAddDatabaseRowTool,
+  notionAddDatabaseRowV2Tool,
   notionCreateDatabaseTool,
   notionCreateDatabaseV2Tool,
   notionCreatePageTool,
@@ -1800,6 +1801,7 @@ import {
   notionReadV2Tool,
   notionSearchTool,
   notionSearchV2Tool,
+  notionUpdatePageTool,
   notionUpdatePageV2Tool,
   notionWriteTool,
   notionWriteV2Tool,
@@ -3527,6 +3529,8 @@ export const tools: Record<string, ToolConfig> = {
   notion_query_database: notionQueryDatabaseTool,
   notion_search: notionSearchTool,
   notion_create_database: notionCreateDatabaseTool,
+  notion_add_database_row: notionAddDatabaseRowTool,
+  notion_update_page: notionUpdatePageTool,
   // Notion V2 tools
   notion_read_v2: notionReadV2Tool,
   notion_read_database_v2: notionReadDatabaseV2Tool,
@@ -3536,7 +3540,7 @@ export const tools: Record<string, ToolConfig> = {
   notion_search_v2: notionSearchV2Tool,
   notion_create_database_v2: notionCreateDatabaseV2Tool,
   notion_update_page_v2: notionUpdatePageV2Tool,
-  notion_add_database_row_v2: notionAddDatabaseRowTool,
+  notion_add_database_row_v2: notionAddDatabaseRowV2Tool,
   obsidian_append_active: obsidianAppendActiveTool,
   obsidian_append_note: obsidianAppendNoteTool,
   obsidian_append_periodic_note: obsidianAppendPeriodicNoteTool,
