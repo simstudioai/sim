@@ -158,7 +158,6 @@ function invalidateRowData(queryClient: ReturnType<typeof useQueryClient>, table
 
 function invalidateRowCount(
   queryClient: ReturnType<typeof useQueryClient>,
-  workspaceId: string,
   tableId: string
 ) {
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
@@ -168,7 +167,6 @@ function invalidateRowCount(
 
 function invalidateTableSchema(
   queryClient: ReturnType<typeof useQueryClient>,
-  workspaceId: string,
   tableId: string
 ) {
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
@@ -403,7 +401,7 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
       return res.json()
     },
     onSettled: () => {
-      invalidateTableSchema(queryClient, workspaceId, tableId)
+      invalidateTableSchema(queryClient, tableId)
     },
   })
 }
@@ -510,7 +508,7 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       )
     },
     onSettled: () => {
-      invalidateRowCount(queryClient, workspaceId, tableId)
+      invalidateRowCount(queryClient, tableId)
     },
   })
 }
@@ -557,7 +555,7 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
       return res.json()
     },
     onSettled: () => {
-      invalidateRowCount(queryClient, workspaceId, tableId)
+      invalidateRowCount(queryClient, tableId)
     },
   })
 }
@@ -705,7 +703,7 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
       return res.json()
     },
     onSettled: () => {
-      invalidateRowCount(queryClient, workspaceId, tableId)
+      invalidateRowCount(queryClient, tableId)
     },
   })
 }
@@ -752,7 +750,7 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
       return { deletedRowIds }
     },
     onSettled: () => {
-      invalidateRowCount(queryClient, workspaceId, tableId)
+      invalidateRowCount(queryClient, tableId)
     },
   })
 }
@@ -797,7 +795,7 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
-      invalidateTableSchema(queryClient, workspaceId, tableId)
+      invalidateTableSchema(queryClient, tableId)
     },
   })
 }
@@ -879,47 +877,32 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
       return res.json() as Promise<{ success: true; data: { cancelled: number } }>
     },
     onMutate: async ({ scope, rowId }) => {
-      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-      const matching = queryClient.getQueriesData<TableRowsResponse>({
-        queryKey: tableKeys.rowsRoot(tableId),
-      })
-      const snapshots: RowsCacheSnapshots = []
-      for (const [key, data] of matching) {
-        if (!data) continue
-        snapshots.push([key, data])
-        let touched = false
-        const nextRows = data.rows.map((r) => {
-          if (scope === 'row' && r.id !== rowId) return r
-          let rowTouched = false
-          const nextData = { ...(r.data as RowData) }
-          for (const col in nextData) {
-            const cell = nextData[col] as WorkflowCellValue | null | undefined
-            if (
-              !cell ||
-              typeof cell !== 'object' ||
-              !('status' in cell) ||
-              (cell.status !== 'running' && cell.status !== 'pending')
-            ) {
-              continue
-            }
-            const cancelledCell: WorkflowCellValue = {
-              executionId: cell.executionId ?? null,
-              jobId: null,
-              workflowId: cell.workflowId,
-              status: 'cancelled',
-              output: null,
-              error: 'Cancelled',
-            }
-            nextData[col] = cancelledCell as unknown as RowData[string]
-            rowTouched = true
+      const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
+        if (scope === 'row' && r.id !== rowId) return null
+        let rowTouched = false
+        const nextData = { ...(r.data as RowData) }
+        for (const col in nextData) {
+          const cell = nextData[col] as WorkflowCellValue | null | undefined
+          if (
+            !cell ||
+            typeof cell !== 'object' ||
+            !('status' in cell) ||
+            (cell.status !== 'running' && cell.status !== 'pending')
+          ) {
+            continue
           }
-          if (!rowTouched) return r
-          touched = true
-          return { ...r, data: nextData }
-        })
-        if (!touched) continue
-        queryClient.setQueryData<TableRowsResponse>(key, { ...data, rows: nextRows })
-      }
+          nextData[col] = {
+            executionId: cell.executionId ?? null,
+            jobId: null,
+            workflowId: cell.workflowId,
+            status: 'cancelled',
+            output: null,
+            error: 'Cancelled',
+          } as unknown as RowData[string]
+          rowTouched = true
+        }
+        return rowTouched ? { ...r, data: nextData } : null
+      })
       return { snapshots }
     },
     onError: (_err, _variables, context) => {
@@ -1052,7 +1035,7 @@ export function useImportCsvIntoTable() {
     },
     onSettled: (_data, _error, variables) => {
       if (!variables) return
-      invalidateRowCount(queryClient, variables.workspaceId, variables.tableId)
+      invalidateRowCount(queryClient, variables.tableId)
     },
     onError: (error) => {
       logger.error('Failed to import CSV into table:', error)
@@ -1079,7 +1062,7 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
       return res.json()
     },
     onSettled: () => {
-      invalidateTableSchema(queryClient, workspaceId, tableId)
+      invalidateTableSchema(queryClient, tableId)
     },
   })
 }
@@ -1088,11 +1071,41 @@ interface RunColumnVariables {
   columnName: string
 }
 
-/**
- * Snapshot type captured during optimistic cell mutations so the rollback path
- * has the original `TableRowsResponse` for every cache key it touched.
- */
 type RowsCacheSnapshots = Array<[ReadonlyArray<unknown>, TableRowsResponse]>
+
+/**
+ * Walks every cached row-list under `tableId`, applies `transform` to each row,
+ * and snapshots the originals for rollback. Returns `null` if no row was touched
+ * — callers can use that to skip a useless invalidation cycle.
+ *
+ * `transform(row)` returns the next row to write, or `null` to leave it. The
+ * common pattern is "matching cells flip state, others are skipped".
+ */
+async function snapshotAndMutateRows(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string,
+  transform: (row: TableRow) => TableRow | null
+): Promise<RowsCacheSnapshots> {
+  await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+  const matching = queryClient.getQueriesData<TableRowsResponse>({
+    queryKey: tableKeys.rowsRoot(tableId),
+  })
+  const snapshots: RowsCacheSnapshots = []
+  for (const [key, data] of matching) {
+    if (!data) continue
+    let touched = false
+    const nextRows = data.rows.map((r) => {
+      const next = transform(r)
+      if (!next) return r
+      touched = true
+      return next
+    })
+    if (!touched) continue
+    snapshots.push([key, data])
+    queryClient.setQueryData<TableRowsResponse>(key, { ...data, rows: nextRows })
+  }
+  return snapshots
+}
 
 function restoreCachedWorkflowCells(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -1130,37 +1143,22 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
       return res.json() as Promise<{ success: boolean; data: { triggered: number } }>
     },
     onMutate: async ({ columnName }) => {
-      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-      const matching = queryClient.getQueriesData<TableRowsResponse>({
-        queryKey: tableKeys.rowsRoot(tableId),
+      const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
+        const cell = (r.data as RowData)[columnName] as WorkflowCellValue | null | undefined
+        if (cell?.status === 'running') return null
+        const pendingCell: WorkflowCellValue = {
+          executionId: cell?.executionId ?? null,
+          jobId: null,
+          workflowId: cell?.workflowId ?? '',
+          status: 'pending',
+          output: null,
+          error: null,
+        }
+        return {
+          ...r,
+          data: { ...(r.data as RowData), [columnName]: pendingCell as unknown as RowData[string] },
+        }
       })
-      const snapshots: RowsCacheSnapshots = []
-      for (const [key, data] of matching) {
-        if (!data) continue
-        snapshots.push([key, data])
-        let touched = false
-        const nextRows = data.rows.map((r) => {
-          const cell = (r.data as RowData)[columnName] as WorkflowCellValue | null | undefined
-          // Already in flight — leave it. The cache will reconcile via socket
-          // updates as the run progresses.
-          if (cell?.status === 'running') return r
-          touched = true
-          const pendingCell: WorkflowCellValue = {
-            executionId: cell?.executionId ?? null,
-            jobId: null,
-            workflowId: cell?.workflowId ?? '',
-            status: 'pending',
-            output: null,
-            error: null,
-          }
-          return {
-            ...r,
-            data: { ...(r.data as RowData), [columnName]: pendingCell as unknown as RowData[string] },
-          }
-        })
-        if (!touched) continue
-        queryClient.setQueryData<TableRowsResponse>(key, { ...data, rows: nextRows })
-      }
       return { snapshots }
     },
     onError: (_err, _variables, context) => {

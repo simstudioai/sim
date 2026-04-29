@@ -1511,10 +1511,8 @@ export async function updateRow(
     table.schema,
     requestId
   )
-  // Awaited so callers running inside a trigger.dev cell task (which finishes
-  // immediately after writeCell) have their downstream cell jobs enqueued
-  // before the worker tears down. Floating this with `void` works for API
-  // callers but loses cascading writes from background tasks.
+  // Awaited (not `void`) so cell tasks dispatch their cascade before the
+  // trigger.dev worker tears down on `run()` resolve.
   await scheduleWorkflowColumnRuns(table, [updatedRow])
   notifyTableRowUpdated(data.tableId, updatedRow)
 

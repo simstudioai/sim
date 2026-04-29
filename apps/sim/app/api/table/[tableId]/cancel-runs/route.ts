@@ -22,15 +22,8 @@ interface RouteParams {
 /**
  * POST /api/table/[tableId]/cancel-runs
  *
- * Cancels in-flight and queued workflow-column runs for this table.
- *
- * Scopes:
- * - `all`: every running/queued cell in the table
- * - `row`: every running/queued cell for the given `rowId`
- *
- * Current implementation is a stub: it authorizes the request and returns success.
- * Real cancellation requires a Redis pubsub signal plus a DB-backed "cancel requested"
- * flag so multi-replica deploys can abort AbortControllers held on any instance.
+ * Cancels in-flight and pending workflow-column runs for this table. Scopes:
+ * `all` (every cell) or `row` (every cell for `rowId`).
  */
 export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()

@@ -73,7 +73,8 @@ import {
   useUpdateTableMetadata,
   useUpdateTableRow,
 } from '@/hooks/queries/tables'
-import { useDeploymentInfo } from '@/hooks/queries/deployments'
+import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
+import { useLogByExecutionId } from '@/hooks/queries/logs'
 import { useWorkflows, useWorkflowState } from '@/hooks/queries/workflows'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
@@ -87,6 +88,7 @@ import {
   formatValueForInput,
   storageToDisplay,
 } from '../../utils'
+import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { type ColumnConfigState, ColumnSidebar } from '../column-sidebar/column-sidebar'
 import { COLUMN_TYPE_OPTIONS } from '../column-sidebar/column-types'
 import { ContextMenu } from '../context-menu'
@@ -737,11 +739,10 @@ export function Table({
 
   const handleViewExecution = useCallback(() => {
     if (!contextMenuExecutionId) return
-    router.push(
-      `/workspace/${workspaceId}/logs?executionId=${encodeURIComponent(contextMenuExecutionId)}`
-    )
+    setConfigState(null)
+    setExecutionDetailsId(contextMenuExecutionId)
     closeContextMenu()
-  }, [contextMenuExecutionId, router, workspaceId, closeContextMenu])
+  }, [contextMenuExecutionId, closeContextMenu])
 
   const handleDuplicateRow = useCallback(() => {
     if (!contextMenu.row) return
@@ -1927,6 +1928,7 @@ export function Table({
       if (type === 'workflow' && workflowId) {
         const wf = workflowsRef.current?.find((w) => w.id === workflowId)
         const proposedName = wf ? sanitizeWorkflowNameAsColumnRef.current(wf.name, name) : name
+        setExecutionDetailsId(null)
         setConfigState({ mode: 'create', columnName: name, workflowId, proposedName })
         return
       }
@@ -2032,8 +2034,11 @@ export function Table({
    *   created on Save in a single POST.
    */
   const [configState, setConfigState] = useState<ColumnConfigState>(null)
+  /** Execution id whose run details are open in the slideout. */
+  const [executionDetailsId, setExecutionDetailsId] = useState<string | null>(null)
 
   const handleConfigureColumn = useCallback((columnName: string) => {
+    setExecutionDetailsId(null)
     setConfigState({ mode: 'edit', columnName })
   }, [])
 
@@ -2662,6 +2667,12 @@ export function Table({
           workflows={workflows}
           workspaceId={workspaceId}
           tableId={tableId}
+        />
+
+        <ExecutionDetailsSidebar
+          workspaceId={workspaceId}
+          executionId={executionDetailsId}
+          onClose={() => setExecutionDetailsId(null)}
         />
       </div>
 
@@ -3312,7 +3323,7 @@ function CellContent({
     } else {
       displayContent = <span className='text-[var(--text-tertiary)]'>—</span>
     }
-    return <>{displayContent}</>
+    return displayContent
   }
   if (column.type === 'boolean') {
     displayContent = (
@@ -3733,6 +3744,8 @@ function WorkflowGroupMetaCell({
         ? 'redeploy'
         : null
     : null
+  const { mutate: deployWorkflow, isPending: isDeploying } = useDeployWorkflow()
+  const userPermissions = useUserPermissionsContext()
 
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false)
   const [optionsMenuPosition, setOptionsMenuPosition] = useState({ x: 0, y: 0 })
@@ -3797,18 +3810,28 @@ function WorkflowGroupMetaCell({
               <Badge
                 variant={deployState === 'undeployed' ? 'red' : 'amber'}
                 size='sm'
+                className={cn(
+                  'ml-auto shrink-0 py-0 text-[10px] leading-[14px]',
+                  userPermissions.canAdmin ? 'cursor-pointer' : 'cursor-not-allowed'
+                )}
                 dot
-                className='ml-auto shrink-0 cursor-default'
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (workflowId && !isDeploying && userPermissions.canAdmin) {
+                    deployWorkflow({ workflowId })
+                  }
+                }}
               >
-                {deployState}
+                {isDeploying ? 'Deploying...' : deployState}
               </Badge>
             </Tooltip.Trigger>
             <Tooltip.Content>
               <span className='text-sm'>
-                {deployState === 'undeployed'
-                  ? 'Deploy this workflow before runs can populate this column.'
-                  : 'This workflow has unpublished changes — redeploy to use them in this column.'}
+                {!userPermissions.canAdmin
+                  ? 'Admin permission required to deploy'
+                  : deployState === 'undeployed'
+                    ? 'Click to deploy'
+                    : 'Click to redeploy'}
               </span>
             </Tooltip.Content>
           </Tooltip.Root>
@@ -4645,4 +4668,22 @@ function ColumnTypeIcon({
   }
   const Icon = COLUMN_TYPE_ICONS[type] ?? TypeText
   return <Icon className='h-3 w-3 shrink-0 text-[var(--text-icon)]' />
+}
+
+/**
+ * Reuses the logs page's `LogDetails` slideout inside the tables view so a user
+ * can inspect a workflow run for a cell without leaving the table. The query is
+ * keyed on `executionId` because that's what's stored on the cell.
+ */
+function ExecutionDetailsSidebar({
+  workspaceId,
+  executionId,
+  onClose,
+}: {
+  workspaceId: string
+  executionId: string | null
+  onClose: () => void
+}) {
+  const { data: log } = useLogByExecutionId(workspaceId, executionId)
+  return <LogDetails log={log ?? null} isOpen={Boolean(executionId)} onClose={onClose} />
 }

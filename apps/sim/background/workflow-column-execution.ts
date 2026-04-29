@@ -20,16 +20,10 @@ export type WorkflowColumnExecutionPayload = {
 }
 
 /**
- * Background workflow-column execution. Runs in a trigger.dev worker so the
- * cancel API can call `runs.cancel(jobId)` from any Next.js pod and have it
- * reach the worker holding the run.
- *
- * The Sim caller (`runWorkflowColumn` in `lib/table/workflow-columns.ts`) writes
- * `status: 'running'` and stores this run's `jobId` on the cell *before* enqueue.
- * This task is responsible for the terminal write (`completed` or `error`).
- * Cancellation is handled out-of-band: the cancel API authoritatively writes
- * `status: 'cancelled'` so the UI is deterministic regardless of whether the
- * task gets a chance to observe the abort.
+ * Background workflow-column execution. Runs in a trigger.dev worker; writes
+ * the terminal cell state (`completed`/`error`). Cancellation is authoritative
+ * via `cancelWorkflowColumnRuns` — this task can't be the source of truth for
+ * `cancelled` because trigger.dev may kill it before its own write lands.
  */
 export async function executeWorkflowColumnJob(
   payload: WorkflowColumnExecutionPayload,
@@ -42,48 +36,10 @@ export async function executeWorkflowColumnJob(
     const { getTableById, getRowById, updateRow } = await import('@/lib/table/service')
     const { executeWorkflow } = await import('@/lib/workflows/executor/execute-workflow')
     const { loadWorkflowFromNormalizedTables } = await import('@/lib/workflows/persistence/utils')
+    const { writeWorkflowCell } = await import('@/lib/table/cell-write')
 
-    /**
-     * Skip the terminal write if the cancel API has already authoritatively
-     * written `cancelled` for this run. Two ways we detect that:
-     * - The local AbortSignal we were handed was aborted.
-     * - The current cell on disk is `cancelled` for this `executionId`
-     *   (covers trigger.dev cancels where there is no in-process signal).
-     * Without this guard, a workflow that finishes after the user clicks stop
-     * overwrites `cancelled` with `completed`/`error`.
-     */
-    const writeCell = async (value: WorkflowCellValue) => {
-      const table = await getTableById(tableId)
-      if (!table) {
-        logger.warn(`Table ${tableId} vanished before cell write`)
-        return
-      }
-      const row = await getRowById(tableId, rowId, workspaceId)
-      if (!row) {
-        logger.warn(`Row ${rowId} vanished before cell write`)
-        return
-      }
-      const currentCell = row.data[columnName] as WorkflowCellValue | null | undefined
-      // Only short-circuit when the cancel API has authoritatively written
-      // `cancelled` for THIS run. Don't skip on `signal.aborted` alone — that
-      // conflates user-cancel with infra timeout / worker death and would
-      // leave cells stuck in `running` forever after a SIGTERM kill.
-      if (
-        currentCell?.status === 'cancelled' &&
-        currentCell.executionId === executionId &&
-        value.status !== 'cancelled'
-      ) {
-        logger.info(
-          `Skipping terminal cell write — run was cancelled (table=${tableId} row=${rowId} col=${columnName} executionId=${executionId})`
-        )
-        return
-      }
-      const mergedData: RowData = {
-        ...row.data,
-        [columnName]: value as unknown as RowData[string],
-      }
-      await updateRow({ tableId, rowId, data: mergedData, workspaceId }, table, requestId)
-    }
+    const cellCtx = { tableId, rowId, columnName, workspaceId, executionId, requestId }
+    const writeCell = (value: WorkflowCellValue) => writeWorkflowCell(cellCtx, value)
 
     try {
       const [workflowRecord] = await db
@@ -139,10 +95,8 @@ export async function executeWorkflowColumnJob(
 
       const headers = table.schema.columns.filter((c) => c.name !== columnName).map((c) => c.name)
 
-      // Spread the row's columns as top-level inputs so a Start block input
-      // named `email` resolves directly from the row's `email` column. Reserved
-      // metadata keys (row, rowId, headers, etc.) win on collision — a user
-      // column named `row` is still reachable via the `row` JSON below.
+      // Spread row columns as top-level inputs so Start block fields resolve
+      // directly by column name; reserved metadata keys win on collision.
       const input = {
         ...inputRow,
         row: inputRow,
@@ -157,11 +111,8 @@ export async function executeWorkflowColumnJob(
         timestamp: new Date().toISOString(),
       }
 
-      // Per-block live updates. Storage is keyed `{[blockId]: {[path]: pluckedValue}}`
-      // — only the user's picked outputs are persisted, so cells stay small
-      // enough for the 100KB row cap even when multiple workflow columns share
-      // a row. Plus per-block `runningBlockIds` so fanned-out visual columns
-      // can show waiting / in-progress / done independently.
+      // Picked outputs only (keyed `[blockId][path]`) so cells fit within the
+      // 100KB row cap when several workflow columns share a row.
       const { pluckByPath } = await import('@/lib/table/pluck')
       const columnDef = table.schema.columns.find((c) => c.name === columnName)
       const pickedPathsByBlock = new Map<string, string[]>()
@@ -253,14 +204,12 @@ export async function executeWorkflowColumnJob(
         executionId
       )
 
-      // Drain pending partial writes so the terminal write isn't clobbered by a
-      // late `running` partial that followed it on the chain.
+      // Drain queued partial writes before the terminal write so a late
+      // `running` partial doesn't clobber it.
       await writeChain.catch(() => {})
 
       if (result.success) {
-        // `cell.output` is intentionally null — the renderer reads from
-        // `blockOutputs[blockId][path]`. Storing the full output too would
-        // double the row size with no benefit.
+        // `output: null` — fanned-out columns render from `blockOutputs`.
         await writeCell({
           executionId,
           jobId: null,
@@ -309,11 +258,8 @@ export const workflowColumnExecutionTask = task({
   id: 'workflow-column-execution',
   machine: 'medium-1x',
   retry: { maxAttempts: 1 },
-  // With `concurrencyKey: tableId` set at enqueue time, this caps each table's
-  // sub-queue to 10 cell jobs in flight at once. Different tables run in
-  // parallel (different sub-queues). Cascade across columns happens via
-  // `updateRow` → `scheduleWorkflowColumnRuns` after each cell completes.
-  // The 10 is an invariant for now; future work could expose this per-table.
+  // Combined with `concurrencyKey: tableId`, caps each table's sub-queue to
+  // 10 in-flight cell jobs while letting different tables run in parallel.
   queue: {
     name: 'workflow-column-execution',
     concurrencyLimit: 10,

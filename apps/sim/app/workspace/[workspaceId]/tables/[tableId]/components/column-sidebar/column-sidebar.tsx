@@ -3,8 +3,8 @@
 import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toError } from '@sim/utils/errors'
-import { RepeatIcon, SplitIcon, X } from 'lucide-react'
-import { Button, Checkbox, Combobox, Input, Label, Switch, toast } from '@/components/emcn'
+import { ExternalLink, Loader2, RepeatIcon, SplitIcon, X } from 'lucide-react'
+import { Button, Checkbox, Combobox, Input, Label, Switch, toast, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition } from '@/lib/table'
 import {
@@ -14,6 +14,7 @@ import {
   getBlockExecutionOrder,
 } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
+import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
 import { useWorkflowState } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -91,6 +92,29 @@ function FieldDivider() {
   )
 }
 
+/** Mirrors the workflow editor's required-field label: title + asterisk. */
+function FieldLabel({
+  htmlFor,
+  required,
+  children,
+}: {
+  htmlFor?: string
+  required?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <Label htmlFor={htmlFor} className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>
+      {children}
+      {required && <span className='ml-0.5'>*</span>}
+    </Label>
+  )
+}
+
+/** Inline validation message styled like the workflow editor's destructive text. */
+function FieldError({ message }: { message: string }) {
+  return <p className='pl-0.5 text-destructive text-caption'>{message}</p>
+}
+
 /**
  * Right-edge configuration panel for any column.
  *
@@ -123,10 +147,19 @@ export function ColumnSidebar({
 
   const columnName = configState ? configState.columnName : ''
 
-  const otherColumns = useMemo(
-    () => (columnName ? allColumns.filter((c) => c.name !== columnName) : []),
-    [columnName, allColumns]
-  )
+  /**
+   * Columns to the left of the current column — these are the only valid trigger
+   * dependencies, since a workflow column can't depend on values that haven't been
+   * filled yet. For 'create' mode the column doesn't exist yet, so every existing
+   * column counts as left of it.
+   */
+  const otherColumns = useMemo(() => {
+    if (!configState) return []
+    if (configState.mode === 'create') return allColumns
+    const idx = allColumns.findIndex((c) => c.name === configState.columnName)
+    if (idx === -1) return allColumns.filter((c) => c.name !== configState.columnName)
+    return allColumns.slice(0, idx)
+  }, [configState, allColumns])
 
   const [nameInput, setNameInput] = useState<string>('')
   const [typeInput, setTypeInput] = useState<ColumnDefinition['type']>('string')
@@ -135,6 +168,8 @@ export function ColumnSidebar({
   const [deps, setDeps] = useState<string[]>([])
   /** Encoded `${blockId}::${path}` values — disambiguates duplicate paths in the picker. */
   const [selectedOutputs, setSelectedOutputs] = useState<string[]>([])
+  /** Surfaces required-field errors only after a save attempt, matching the workflow editor's deploy flow. */
+  const [showValidation, setShowValidation] = useState(false)
 
   const existingColumnRef = useRef(existingColumn)
   existingColumnRef.current = existingColumn
@@ -143,8 +178,15 @@ export function ColumnSidebar({
 
   useEffect(() => {
     if (!open || !configState) return
+    setShowValidation(false)
     const existing = existingColumnRef.current
     const cols = allColumnsRef.current
+    const leftOfCurrent = (() => {
+      if (configState.mode === 'create') return cols
+      const idx = cols.findIndex((c) => c.name === configState.columnName)
+      if (idx === -1) return cols.filter((c) => c.name !== configState.columnName)
+      return cols.slice(0, idx)
+    })()
     if (configState.mode === 'edit') {
       const type = existing?.type ?? 'string'
       setTypeInput(type)
@@ -152,10 +194,7 @@ export function ColumnSidebar({
       setNameInput(existing?.name ?? configState.columnName)
       if (existing?.workflowConfig) {
         setSelectedWorkflowId(existing.workflowConfig.workflowId)
-        setDeps(
-          existing.workflowConfig.dependencies ??
-            cols.filter((c) => c.name !== existing.name).map((c) => c.name)
-        )
+        setDeps(existing.workflowConfig.dependencies ?? leftOfCurrent.map((c) => c.name))
         setSelectedOutputs([]) // re-encoded against current workflow blocks below
       } else {
         setSelectedWorkflowId('')
@@ -167,7 +206,7 @@ export function ColumnSidebar({
       setUniqueInput(false)
       setNameInput(configState.proposedName)
       setSelectedWorkflowId(configState.workflowId)
-      setDeps(cols.filter((c) => c.name !== configState.columnName).map((c) => c.name))
+      setDeps(leftOfCurrent.map((c) => c.name))
       setSelectedOutputs([])
     }
   }, [open, configState])
@@ -267,21 +306,13 @@ export function ColumnSidebar({
   const handleSave = async () => {
     if (!configState) return
     const trimmedName = nameInput.trim()
-    if (!trimmedName) {
-      toast.error('Column name is required')
+    if (!trimmedName || (isWorkflow && (!selectedWorkflowId || selectedOutputs.length === 0))) {
+      setShowValidation(true)
       return
     }
 
     let workflowConfig: ColumnDefinition['workflowConfig'] | undefined
     if (isWorkflow) {
-      if (!selectedWorkflowId) {
-        toast.error('Pick a workflow')
-        return
-      }
-      if (selectedOutputs.length === 0) {
-        toast.error('Pick at least one output field')
-        return
-      }
       const seen = new Set<string>()
       const outputs: Array<{ blockId: string; path: string }> = []
       for (const encoded of selectedOutputs) {
@@ -405,22 +436,26 @@ export function ColumnSidebar({
 
         <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
           <div className='flex flex-col gap-[9.5px]'>
-            <Label htmlFor='column-sidebar-name' className='pl-0.5'>
-              Name
-            </Label>
+            <FieldLabel htmlFor='column-sidebar-name' required>
+              Column name
+            </FieldLabel>
             <Input
               id='column-sidebar-name'
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}
               spellCheck={false}
               autoComplete='off'
+              aria-invalid={showValidation && !nameInput.trim() ? true : undefined}
             />
+            {showValidation && !nameInput.trim() && (
+              <FieldError message='Column name is required' />
+            )}
           </div>
 
           <FieldDivider />
 
           <div className='flex flex-col gap-[9.5px]'>
-            <Label className='pl-0.5'>Type</Label>
+            <FieldLabel required>Type</FieldLabel>
             <Combobox
               options={typeOptions}
               value={typeInput}
@@ -451,10 +486,67 @@ export function ColumnSidebar({
 
           {isWorkflow && (
             <>
+              {selectedWorkflowId && (
+                <>
+                  <FieldDivider />
+
+                  <div className='flex flex-col gap-[9.5px]'>
+                    <Label className='pl-0.5'>Workflow preview</Label>
+                    <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
+                      {workflowState.isLoading ? (
+                        <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
+                          <Loader2 className='h-5 w-5 animate-spin text-[var(--text-tertiary)]' />
+                        </div>
+                      ) : workflowState.data ? (
+                        <>
+                          <div className='[&_*:active]:!cursor-grabbing [&_*]:!cursor-grab [&_.react-flow__handle]:!hidden h-full w-full'>
+                            <PreviewWorkflow
+                              workflowState={workflowState.data}
+                              height={160}
+                              width='100%'
+                              isPannable={true}
+                              defaultZoom={0.6}
+                              fitPadding={0.15}
+                              cursorStyle='grab'
+                              lightweight
+                            />
+                          </div>
+                          <Tooltip.Root>
+                            <Tooltip.Trigger asChild>
+                              <Button
+                                type='button'
+                                variant='ghost'
+                                onClick={() =>
+                                  window.open(
+                                    `/workspace/${workspaceId}/w/${selectedWorkflowId}`,
+                                    '_blank',
+                                    'noopener,noreferrer'
+                                  )
+                                }
+                                className='absolute right-[6px] bottom-1.5 z-10 h-[24px] w-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
+                              >
+                                <ExternalLink className='h-[12px] w-[12px]' />
+                              </Button>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content side='top'>Open workflow</Tooltip.Content>
+                          </Tooltip.Root>
+                        </>
+                      ) : (
+                        <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
+                          <span className='text-[var(--text-tertiary)] text-small'>
+                            Unable to load preview
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+
               <FieldDivider />
 
               <div className='flex flex-col gap-[9.5px]'>
-                <Label className='pl-0.5'>Workflow</Label>
+                <FieldLabel required>Workflow</FieldLabel>
                 <Combobox
                   options={workflows?.map((wf) => ({ label: wf.name, value: wf.id })) ?? []}
                   value={selectedWorkflowId}
@@ -463,13 +555,61 @@ export function ColumnSidebar({
                   disabled={!workflows || workflows.length === 0}
                   emptyMessage='No manual triggers configured'
                   maxHeight={260}
+                  error={showValidation && !selectedWorkflowId ? 'Select a workflow' : null}
                 />
+                {showValidation && !selectedWorkflowId && (
+                  <FieldError message='Select a workflow' />
+                )}
               </div>
 
               <FieldDivider />
 
               <div className='flex flex-col gap-[9.5px]'>
-                <Label className='pl-0.5'>Output fields</Label>
+                <Label className='pl-0.5'>Trigger when these columns are filled</Label>
+                <div className='flex max-h-[240px] min-w-0 flex-col overflow-y-auto rounded-md border border-[var(--border)]'>
+                  {otherColumns.length === 0 ? (
+                    <div className='px-2 py-3 text-[var(--text-tertiary)] text-small'>
+                      No other columns.
+                    </div>
+                  ) : (
+                    otherColumns.map((c, idx) => {
+                      const checked = deps.includes(c.name)
+                      return (
+                        <div
+                          key={c.name}
+                          role='checkbox'
+                          aria-checked={checked}
+                          tabIndex={0}
+                          onClick={() => toggleDep(c.name)}
+                          onKeyDown={(e) => {
+                            if (e.key === ' ' || e.key === 'Enter') {
+                              e.preventDefault()
+                              toggleDep(c.name)
+                            }
+                          }}
+                          className={cn(
+                            'flex h-[36px] flex-shrink-0 cursor-pointer items-center gap-2.5 px-2.5 hover:bg-[var(--surface-2)]',
+                            idx < otherColumns.length - 1 && 'border-[var(--border)] border-b'
+                          )}
+                        >
+                          <Checkbox size='sm' checked={checked} className='pointer-events-none' />
+                          <span className='font-medium text-[var(--text-secondary)] text-small'>
+                            {c.name}
+                          </span>
+                          <span className='ml-auto text-[var(--text-tertiary)] text-caption'>
+                            {c.type}
+                          </span>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+
+              <FieldDivider />
+
+              <div className='flex flex-col gap-[9.5px]'>
+                <FieldLabel required>Output columns</FieldLabel>
                 <div className='flex max-h-[280px] min-w-0 flex-col overflow-y-auto rounded-md border border-[var(--border)]'>
                   {workflowState.isLoading ? (
                     <div className='px-2 py-3 text-[var(--text-tertiary)] text-small'>
@@ -527,54 +667,13 @@ export function ColumnSidebar({
                     ))
                   )}
                 </div>
+                {showValidation && selectedWorkflowId && selectedOutputs.length === 0 && (
+                  <FieldError message='Pick at least one output column' />
+                )}
                 <p className='pl-0.5 text-[var(--text-tertiary)] text-caption'>
                   Each picked field becomes its own column. Cells in the group select and delete
                   together — they share one workflow run.
                 </p>
-              </div>
-
-              <FieldDivider />
-
-              <div className='flex flex-col gap-[9.5px]'>
-                <Label className='pl-0.5'>Trigger when these columns are filled</Label>
-                <div className='flex max-h-[240px] min-w-0 flex-col overflow-y-auto rounded-md border border-[var(--border)]'>
-                  {otherColumns.length === 0 ? (
-                    <div className='px-2 py-3 text-[var(--text-tertiary)] text-small'>
-                      No other columns.
-                    </div>
-                  ) : (
-                    otherColumns.map((c, idx) => {
-                      const checked = deps.includes(c.name)
-                      return (
-                        <div
-                          key={c.name}
-                          role='checkbox'
-                          aria-checked={checked}
-                          tabIndex={0}
-                          onClick={() => toggleDep(c.name)}
-                          onKeyDown={(e) => {
-                            if (e.key === ' ' || e.key === 'Enter') {
-                              e.preventDefault()
-                              toggleDep(c.name)
-                            }
-                          }}
-                          className={cn(
-                            'flex h-[36px] flex-shrink-0 cursor-pointer items-center gap-2.5 px-2.5 hover:bg-[var(--surface-2)]',
-                            idx < otherColumns.length - 1 && 'border-[var(--border)] border-b'
-                          )}
-                        >
-                          <Checkbox size='sm' checked={checked} className='pointer-events-none' />
-                          <span className='font-medium text-[var(--text-secondary)] text-small'>
-                            {c.name}
-                          </span>
-                          <span className='ml-auto text-[var(--text-tertiary)] text-caption'>
-                            {c.type}
-                          </span>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
               </div>
 
             </>

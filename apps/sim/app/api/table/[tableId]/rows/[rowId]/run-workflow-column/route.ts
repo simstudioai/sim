@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getRowById, updateRow } from '@/lib/table'
 import type { RowData, WorkflowCellValue } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
@@ -21,11 +22,11 @@ interface RouteParams {
 
 /**
  * POST /api/table/[tableId]/rows/[rowId]/run-workflow-column
- * Manually (re-)runs a workflow column for a specific row. Bypasses the scheduler's
- * eligibility predicate — `runWorkflowColumn` writes the cell to `running` as its first
- * step, clearing any prior output/error state.
+ * Manually (re-)runs a workflow column for a specific row by force-resetting
+ * the cell to `pending`. The `updateRow` call fires the scheduler which
+ * enqueues the cell job.
  */
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
   const { tableId, rowId } = await params
 
@@ -60,16 +61,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const executionId = generateId()
-    const workflowId = column.workflowConfig.workflowId
-
-    // Force the cell back to a non-terminal state so the scheduler's
-    // eligibility check picks it up. Calling `updateRow` here also fires
-    // `scheduleWorkflowColumnRuns(table, [row])` from inside the service,
-    // which enqueues a `workflow-column-execution` job for this cell.
     const pendingCell: WorkflowCellValue = {
       executionId,
       jobId: null,
-      workflowId,
+      workflowId: column.workflowConfig.workflowId,
       status: 'pending',
       output: null,
       error: null,
@@ -92,7 +87,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         { status: 400 }
       )
     }
-    logger.error(`[${requestId}] run-workflow-column failed for ${tableId}/${rowId}:`, error)
+    logger.error(`run-workflow-column failed for ${tableId}/${rowId}:`, error)
     return NextResponse.json({ error: 'Failed to run workflow column' }, { status: 500 })
   }
-}
+})
