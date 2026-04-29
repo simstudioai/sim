@@ -1250,7 +1250,7 @@ function PreviewEditorContent({
                   <Code.Viewer
                     code={formatValueAsJson(executionData.input)}
                     language='json'
-                    className='!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-md border-0 [word-break:break-all]'
+                    className='!bg-[var(--surface-4)] dark:!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-md border-0 [word-break:break-all]'
                     wrapText={wrapText}
                     searchQuery={isSearchActive ? searchQuery : undefined}
                     currentMatchIndex={currentMatchIndex}
@@ -1320,7 +1320,7 @@ function PreviewEditorContent({
                     code={formatValueAsJson(executionData.output)}
                     language='json'
                     className={cn(
-                      '!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-md border-0 [word-break:break-all]',
+                      '!bg-[var(--surface-4)] dark:!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-md border-0 [word-break:break-all]',
                       executionData.status === 'error' && 'text-[var(--text-error)]'
                     )}
                     wrapText={wrapText}
