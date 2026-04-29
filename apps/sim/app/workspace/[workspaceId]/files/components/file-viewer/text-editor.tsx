@@ -645,6 +645,16 @@ export const TextEditor = memo(function TextEditor({
                 verticalScrollbarSize: 6,
                 horizontalScrollbarSize: 6,
               },
+              quickSuggestions: false,
+              suggestOnTriggerCharacters: false,
+              wordBasedSuggestions: 'off',
+              parameterHints: { enabled: false },
+              hover: { enabled: false },
+              codeLens: false,
+              lightbulb: {
+                enabled: 'off' as import('monaco-editor').editor.ShowLightbulbIconMode,
+              },
+              inlayHints: { enabled: 'off' },
             }}
             onChange={handleEditorChange}
             onMount={handleEditorMount}
