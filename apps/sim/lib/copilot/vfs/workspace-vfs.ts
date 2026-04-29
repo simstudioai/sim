@@ -20,6 +20,7 @@ import { toError } from '@sim/utils/errors'
 import { and, desc, eq, isNotNull, isNull, ne } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import { buildWorkspaceMd, type WorkspaceMdData } from '@/lib/copilot/chat/workspace-context'
+import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import type { DirEntry, GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
@@ -60,7 +61,9 @@ import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { listTables } from '@/lib/table/service'
 import {
+  downloadWorkspaceFile,
   findWorkspaceFileRecord,
+  getWorkspaceFile,
   listWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
@@ -448,9 +451,34 @@ export class WorkspaceVFS {
   /**
    * Attempt to read dynamic workspace file content from storage.
    * Handles images (base64), parseable documents (PDF, etc.), and text files.
+   * Also handles `files/by-id/{id}/style` for OOXML theme/style extraction.
    * Returns null if the path doesn't match `files/{name}` / `files/by-id/{id}` or the file isn't found.
    */
   async readFileContent(path: string): Promise<FileReadResult | null> {
+    // Handle style extraction path: files/by-id/{id}/style
+    const styleMatch = path.match(/^files\/by-id\/([^/]+)\/style$/)
+    if (styleMatch) {
+      const fileId = styleMatch[1]
+      try {
+        const record = await getWorkspaceFile(this._workspaceId, fileId)
+        if (!record) return null
+        const ext = record.name.split('.').pop()?.toLowerCase()
+        if (ext !== 'docx' && ext !== 'pptx') return null
+        const buffer = await downloadWorkspaceFile(record)
+        const summary = await extractDocumentStyle(buffer, ext)
+        if (!summary) return null
+        const json = JSON.stringify(summary, null, 2)
+        return { content: json, totalLines: json.split('\n').length }
+      } catch (err) {
+        logger.warn('Failed to extract document style via VFS', {
+          workspaceId: this._workspaceId,
+          fileId,
+          error: toError(err).message,
+        })
+        return null
+      }
+    }
+
     const deletedMatch = path.match(/^recently-deleted\/files\/(.+?)(?:\/content)?$/)
     const activeMatch = path.match(/^files\/(.+?)(?:\/content)?$/)
     const match = deletedMatch || activeMatch
