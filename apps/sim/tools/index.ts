@@ -550,6 +550,8 @@ async function applyHostedKeyCostToResult(
   }
 }
 
+import { normalizeToolId } from '@/tools/normalize'
+
 export { normalizeToolId } from '@/tools/normalize'
 
 /**
