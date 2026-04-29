@@ -2,15 +2,11 @@ import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
+  type ContractBodyInput,
   createNotificationContract,
   deleteNotificationContract,
   listNotificationsContract,
-  type NotificationAlertConfig,
-  type NotificationLogLevel,
-  type NotificationSlackConfig,
   type NotificationSubscription,
-  type NotificationType,
-  type NotificationWebhookConfig,
   testNotificationContract,
   updateNotificationContract,
 } from '@/lib/api/contracts'
@@ -31,8 +27,6 @@ export const notificationKeys = {
   detail: (workspaceId: string, notificationId: string) =>
     [...notificationKeys.details(), workspaceId, notificationId] as const,
 }
-
-type TriggerType = string
 
 /**
  * Fetch notifications for a workspace
@@ -63,21 +57,7 @@ export function useNotifications(workspaceId?: string) {
 
 interface CreateNotificationParams {
   workspaceId: string
-  data: {
-    notificationType: NotificationType
-    workflowIds: string[]
-    allWorkflows: boolean
-    levelFilter: NotificationLogLevel[]
-    triggerFilter: TriggerType[]
-    includeFinalOutput: boolean
-    includeTraceSpans: boolean
-    includeRateLimits: boolean
-    includeUsageData: boolean
-    alertConfig?: NotificationAlertConfig | null
-    webhookConfig?: NotificationWebhookConfig
-    emailRecipients?: string[]
-    slackConfig?: NotificationSlackConfig
-  }
+  data: ContractBodyInput<typeof createNotificationContract>
 }
 
 /**
@@ -105,7 +85,7 @@ export function useCreateNotification() {
 interface UpdateNotificationParams {
   workspaceId: string
   notificationId: string
-  data: Partial<CreateNotificationParams['data']> & { active?: boolean }
+  data: ContractBodyInput<typeof updateNotificationContract>
 }
 
 /**

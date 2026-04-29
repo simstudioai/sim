@@ -129,7 +129,7 @@ export function useCreateWorkspace() {
   return useMutation({
     mutationFn: async ({ name }: CreateWorkspaceParams) => {
       const data = await requestJson(createWorkspaceContract, { body: { name } })
-      return data.workspace as Workspace
+      return data.workspace
     },
     onSuccess: (newWorkspace) => {
       queryClient.setQueryData<WorkspacesResponse>(workspaceKeys.list('active'), (previous) => {
