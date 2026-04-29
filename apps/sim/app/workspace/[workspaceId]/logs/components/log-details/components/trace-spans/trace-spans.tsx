@@ -252,10 +252,10 @@ function InputOutputSection({
           {label}
         </span>
         <ChevronDown
-          className='h-[8px] w-[8px] text-[var(--text-tertiary)] transition-colors transition-transform group-hover:text-[var(--text-primary)]'
-          style={{
-            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-          }}
+          className={cn(
+            'h-[8px] w-[8px] text-[var(--text-tertiary)] transition-colors transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+            isExpanded && 'rotate-180'
+          )}
         />
       </div>
       {isExpanded && (
