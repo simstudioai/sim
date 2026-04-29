@@ -442,11 +442,25 @@ export const TextEditor = memo(function TextEditor({
           textareaStuckRef.current = true
         }
       }
-      const viewState =
-        isStreamInteractionLocked && !textareaStuckRef.current ? editor.saveViewState() : null
       suppressScrollListenerRef.current = true
-      model.setValue(content)
-      if (viewState) editor.restoreViewState(viewState)
+      const prev = lastSyncedContentRef.current
+      if (content.startsWith(prev) && prev.length < content.length) {
+        const lastLine = model.getLineCount()
+        const lastCol = model.getLineMaxColumn(lastLine)
+        model.applyEdits([
+          {
+            range: {
+              startLineNumber: lastLine,
+              startColumn: lastCol,
+              endLineNumber: lastLine,
+              endColumn: lastCol,
+            },
+            text: content.slice(prev.length),
+          },
+        ])
+      } else {
+        model.applyEdits([{ range: model.getFullModelRange(), text: content }])
+      }
       suppressScrollListenerRef.current = false
       lastSyncedContentRef.current = content
     }
