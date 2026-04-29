@@ -166,7 +166,7 @@ export function useCreateConnector() {
 
   return useMutation({
     mutationFn: createConnector,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -213,7 +213,7 @@ export function useUpdateConnector() {
 
   return useMutation({
     mutationFn: updateConnector,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: connectorKeys.all(knowledgeBaseId),
       })
@@ -253,7 +253,7 @@ export function useDeleteConnector() {
 
   return useMutation({
     mutationFn: deleteConnector,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -282,7 +282,7 @@ export function useTriggerSync() {
 
   return useMutation({
     mutationFn: triggerSync,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -393,7 +393,7 @@ export function useExcludeConnectorDocument() {
 
   return useMutation({
     mutationFn: excludeConnectorDocuments,
-    onSuccess: (_, { knowledgeBaseId, connectorId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, connectorId }) => {
       queryClient.invalidateQueries({
         queryKey: connectorDocumentKeys.list(knowledgeBaseId, connectorId),
       })
@@ -432,7 +432,7 @@ export function useRestoreConnectorDocument() {
 
   return useMutation({
     mutationFn: restoreConnectorDocuments,
-    onSuccess: (_, { knowledgeBaseId, connectorId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, connectorId }) => {
       queryClient.invalidateQueries({
         queryKey: connectorDocumentKeys.list(knowledgeBaseId, connectorId),
       })

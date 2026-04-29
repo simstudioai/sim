@@ -9,15 +9,16 @@ import {
   Button,
   ChevronDown,
   Code,
+  Copy as CopyIcon,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Input,
+  Search as SearchIcon,
   Tooltip,
 } from '@/components/emcn'
-import { Copy as CopyIcon, Search as SearchIcon } from '@/components/emcn/icons'
 import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
@@ -352,28 +353,28 @@ function InputOutputSection({
     return JSON.stringify(data, null, 2)
   }, [data])
 
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+  function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
     setContextMenuPosition({ x: e.clientX, y: e.clientY })
     setIsContextMenuOpen(true)
-  }, [])
+  }
 
-  const closeContextMenu = useCallback(() => {
+  function closeContextMenu() {
     setIsContextMenuOpen(false)
-  }, [])
+  }
 
-  const handleCopy = useCallback(() => {
+  function handleCopy() {
     navigator.clipboard.writeText(jsonString)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
     closeContextMenu()
-  }, [jsonString, closeContextMenu])
+  }
 
-  const handleSearch = useCallback(() => {
+  function handleSearch() {
     activateSearch()
     closeContextMenu()
-  }, [activateSearch, closeContextMenu])
+  }
 
   return (
     <div className='relative flex min-w-0 flex-col gap-1.5 overflow-hidden'>
@@ -617,7 +618,7 @@ const TraceSpanNode = memo(function TraceSpanNode({
       return kids.filter((c) => c.type?.toLowerCase() !== 'model')
     }
     return kids
-  }, [span, spanId])
+  }, [span])
 
   const hasChildren = displayChildren.length > 0
   const isExpanded = isRootWorkflow || expandedNodes.has(spanId)

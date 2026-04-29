@@ -919,12 +919,16 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
     const sorted = normalizeAndSort(traceSpans ?? [])
     let earliest = Number.POSITIVE_INFINITY
     let latest = 0
-    for (const span of sorted) {
-      const s = parseTime(span.startTime)
-      const e = parseTime(span.endTime)
-      if (s < earliest) earliest = s
-      if (e > latest) latest = e
+    const walkTimeBounds = (spans: TraceSpan[]) => {
+      for (const span of spans) {
+        const s = parseTime(span.startTime)
+        const e = parseTime(span.endTime)
+        if (s < earliest) earliest = s
+        if (e > latest) latest = e
+        if (span.children?.length) walkTimeBounds(span.children)
+      }
     }
+    walkTimeBounds(sorted)
     const ids = collectAllIds(sorted)
     const count = ids.length
     const runStart = earliest !== Number.POSITIVE_INFINITY ? earliest : 0

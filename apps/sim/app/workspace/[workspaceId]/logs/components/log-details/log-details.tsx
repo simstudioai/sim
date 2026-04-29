@@ -337,9 +337,15 @@ export const LogDetails = memo(function LogDetails({
 
   const resolvedTab: LogDetailsTab = activeTab === 'trace' && !showTraceTab ? 'overview' : activeTab
 
-  useEffect(() => {
-    onActiveTabChange?.(resolvedTab)
-  }, [resolvedTab, onActiveTabChange])
+  // When the trace tab disappears while it is active (e.g. data not yet loaded), resolvedTab
+  // falls back to 'overview'. Notify the parent inline so it sees the corrected value without
+  // waiting for an extra render cycle. The user-click path calls onActiveTabChange directly in
+  // onValueChange below.
+  const prevResolvedTabRef = useRef<LogDetailsTab>(resolvedTab)
+  if (prevResolvedTabRef.current !== resolvedTab) {
+    prevResolvedTabRef.current = resolvedTab
+    if (resolvedTab !== activeTab) onActiveTabChange?.(resolvedTab)
+  }
 
   const workflowOutput = useMemo(() => {
     const executionData = log?.executionData as
@@ -463,7 +469,11 @@ export const LogDetails = memo(function LogDetails({
             {/* Tabs */}
             <SModalTabs
               value={resolvedTab}
-              onValueChange={(v) => setActiveTab(v as LogDetailsTab)}
+              onValueChange={(v) => {
+                const tab = v as LogDetailsTab
+                setActiveTab(tab)
+                onActiveTabChange?.(tab)
+              }}
               className='mt-4 flex min-h-0 flex-1 flex-col'
             >
               <SModalTabsList

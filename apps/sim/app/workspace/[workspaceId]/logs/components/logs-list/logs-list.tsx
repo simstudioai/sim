@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
 import { ArrowUpRight, Loader2 } from 'lucide-react'
 import Link from 'next/link'
@@ -44,7 +44,7 @@ const LogRow = memo(
     onContextMenu,
     selectedRowRef,
   }: LogRowProps) {
-    const formattedDate = useMemo(() => formatDate(log.createdAt), [log.createdAt])
+    const formattedDate = formatDate(log.createdAt)
     const isMothershipJob = log.trigger === 'mothership'
     const isDeletedWorkflow = !isMothershipJob && !log.workflow?.id && !log.workflowId
     const workflowName = isMothershipJob
@@ -288,28 +288,16 @@ export function LogsList({
 
   const itemCount = hasNextPage ? logs.length + 1 : logs.length
 
-  const rowProps = useMemo<RowProps>(
-    () => ({
-      logs,
-      selectedLogId,
-      onLogClick,
-      onLogHover,
-      onLogContextMenu,
-      selectedRowRef,
-      isFetchingNextPage,
-      loaderRef,
-    }),
-    [
-      logs,
-      selectedLogId,
-      onLogClick,
-      onLogHover,
-      onLogContextMenu,
-      selectedRowRef,
-      isFetchingNextPage,
-      loaderRef,
-    ]
-  )
+  const rowProps: RowProps = {
+    logs,
+    selectedLogId,
+    onLogClick,
+    onLogHover,
+    onLogContextMenu,
+    selectedRowRef,
+    isFetchingNextPage,
+    loaderRef,
+  }
 
   return (
     <div ref={containerRef} className='h-full w-full'>

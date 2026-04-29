@@ -396,7 +396,7 @@ export function useRemoveMember() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.memberUsage(variables.orgId) })
@@ -433,7 +433,7 @@ export function useUpdateOrganizationMemberRole() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
     },
@@ -468,7 +468,7 @@ export function useTransferOwnership() {
         details?: Record<string, unknown>
       }>
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
@@ -503,7 +503,7 @@ export function useUpdateInvitation() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
     },
@@ -534,7 +534,7 @@ export function useCancelInvitation() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
@@ -569,7 +569,7 @@ export function useResendInvitation() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
     },
@@ -602,7 +602,7 @@ export function useUpdateSeats() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.subscription(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
@@ -640,7 +640,7 @@ export function useUpdateOrganization() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
     },
@@ -682,7 +682,7 @@ export function useCreateOrganization() {
 
       return data
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
     },

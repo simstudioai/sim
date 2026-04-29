@@ -65,6 +65,7 @@ export function useMothershipRequests(
         ...(userId ? { userId } : {}),
       }),
     enabled: !!start && !!end,
+    staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   })
 }
@@ -74,6 +75,7 @@ export function useMothershipUserBreakdown(environment: MothershipEnv, start: st
     queryKey: mothershipKeys.userBreakdown(environment, start, end),
     queryFn: () => mothershipPost('user-breakdown', environment, { start, end }),
     enabled: !!start && !!end,
+    staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   })
 }
@@ -82,6 +84,7 @@ export function useMothershipLicenses(environment: MothershipEnv) {
   return useQuery({
     queryKey: mothershipKeys.licenses(environment),
     queryFn: () => mothershipGet('licenses', environment),
+    staleTime: 60 * 1000,
   })
 }
 
@@ -98,6 +101,7 @@ export function useMothershipLicenseDetails(
         ...(name ? { name } : {}),
       }),
     enabled: !!(id || name),
+    staleTime: 60 * 1000,
   })
 }
 
@@ -118,6 +122,7 @@ export function useMothershipEnterpriseStats(
     queryKey: mothershipKeys.enterpriseStats(environment, customerType, start, end),
     queryFn: () => mothershipPost('enterprise-stats', environment, { customerType, start, end }),
     enabled: !!customerType && !!start && !!end,
+    staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   })
 }
@@ -127,5 +132,6 @@ export function useMothershipTrace(environment: MothershipEnv, requestId: string
     queryKey: mothershipKeys.trace(environment, requestId),
     queryFn: () => mothershipGet('traces', environment, { requestId }),
     enabled: !!requestId,
+    staleTime: 60 * 1000,
   })
 }

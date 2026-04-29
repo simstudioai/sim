@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, memo, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, memo, Suspense, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatDuration } from '@sim/utils/formatting'
 import { Square } from 'lucide-react'
@@ -248,9 +248,14 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   )
   const { usageExceeded } = useUsageLimits()
 
-  useEffect(() => {
+  // Keep the active workflow in the registry up-to-date whenever the embedded
+  // workflow changes. This is safe during render because the store setter does
+  // not trigger a synchronous re-render of this component.
+  const prevWorkflowIdRef = useRef<string | undefined>(undefined)
+  if (prevWorkflowIdRef.current !== workflowId) {
+    prevWorkflowIdRef.current = workflowId
     setActiveWorkflow(workflowId)
-  }, [setActiveWorkflow, workflowId])
+  }
 
   const isRunButtonDisabled =
     !isExecuting && !effectivePermissions.canRead && !effectivePermissions.isLoading
