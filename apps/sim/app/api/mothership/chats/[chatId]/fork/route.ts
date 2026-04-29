@@ -52,7 +52,7 @@ export const POST = withRouteHandler(
         .where(eq(copilotChats.id, chatId))
         .limit(1)
 
-      if (!parent || parent.userId !== userId) {
+      if (!parent || parent.userId !== userId || parent.type !== 'mothership') {
         return createNotFoundResponse('Chat not found')
       }
 
@@ -74,7 +74,8 @@ export const POST = withRouteHandler(
         : []
 
       const newId = generateId()
-      const title = `${parent.title ?? 'New task'} | Fork`
+      const baseTitle = (parent.title ?? 'New task').replace(/ \| Fork$/, '')
+      const title = `${baseTitle} | Fork`
       const now = new Date()
 
       const [newChat] = await db
