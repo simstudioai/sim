@@ -109,7 +109,7 @@ export const updateSalesOrderTool: ToolConfig<UpdateSalesOrderParams, SapProxyRe
         ...baseProxyBody(params),
         service: 'API_SALES_ORDER_SRV',
         path: `/A_SalesOrder(${quoteOdataKey(params.salesOrder)})`,
-        method: 'PATCH',
+        method: 'MERGE',
         query: { $format: 'json' },
         body: payload,
         ifMatch: params.ifMatch || '*',

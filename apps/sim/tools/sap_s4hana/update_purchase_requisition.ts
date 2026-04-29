@@ -112,7 +112,7 @@ export const updatePurchaseRequisitionTool: ToolConfig<
         ...baseProxyBody(params),
         service: 'API_PURCHASEREQ_PROCESS_SRV',
         path: `/A_PurchaseRequisitionHeader(${quoteOdataKey(params.purchaseRequisition)})`,
-        method: 'PATCH',
+        method: 'MERGE',
         query: { $format: 'json' },
         body: payload,
         ifMatch: params.ifMatch || '*',
