@@ -3,33 +3,18 @@ import { memory } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  agentMemoryDataSchemaContract,
+  memoryPutBodySchema,
+  memoryWorkspaceQuerySchema,
+} from '@/lib/api/contracts/primitives'
+import { validateSchema } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MemoryByIdAPI')
-
-const memoryQuerySchema = z.object({
-  workspaceId: z.string().uuid('Invalid workspace ID format'),
-})
-
-const agentMemoryDataSchema = z.object({
-  role: z.enum(['user', 'assistant', 'system'], {
-    errorMap: () => ({ message: 'Role must be user, assistant, or system' }),
-  }),
-  content: z.string().min(1, 'Content is required'),
-})
-
-const genericMemoryDataSchema = z.record(z.unknown())
-
-const memoryPutBodySchema = z.object({
-  data: z.union([agentMemoryDataSchema, genericMemoryDataSchema], {
-    errorMap: () => ({ message: 'Invalid memory data structure' }),
-  }),
-  workspaceId: z.string().uuid('Invalid workspace ID format'),
-})
 
 async function validateMemoryAccess(
   request: NextRequest,
@@ -82,9 +67,9 @@ export const GET = withRouteHandler(
       const url = new URL(request.url)
       const workspaceId = url.searchParams.get('workspaceId')
 
-      const validation = memoryQuerySchema.safeParse({ workspaceId })
+      const validation = validateSchema(memoryWorkspaceQuerySchema, { workspaceId })
       if (!validation.success) {
-        const errorMessage = validation.error.errors
+        const errorMessage = validation.error.issues
           .map((err) => `${err.path.join('.')}: ${err.message}`)
           .join(', ')
         return NextResponse.json(
@@ -145,9 +130,9 @@ export const DELETE = withRouteHandler(
       const url = new URL(request.url)
       const workspaceId = url.searchParams.get('workspaceId')
 
-      const validation = memoryQuerySchema.safeParse({ workspaceId })
+      const validation = validateSchema(memoryWorkspaceQuerySchema, { workspaceId })
       if (!validation.success) {
-        const errorMessage = validation.error.errors
+        const errorMessage = validation.error.issues
           .map((err) => `${err.path.join('.')}: ${err.message}`)
           .join(', ')
         return NextResponse.json(
@@ -210,10 +195,10 @@ export const PUT = withRouteHandler(
       let validatedWorkspaceId
       try {
         const body = await request.json()
-        const validation = memoryPutBodySchema.safeParse(body)
+        const validation = validateSchema(memoryPutBodySchema, body)
 
         if (!validation.success) {
-          const errorMessage = validation.error.errors
+          const errorMessage = validation.error.issues
             .map((err) => `${err.path.join('.')}: ${err.message}`)
             .join(', ')
           return NextResponse.json(
@@ -254,9 +239,9 @@ export const PUT = withRouteHandler(
         )
       }
 
-      const agentValidation = agentMemoryDataSchema.safeParse(validatedData)
+      const agentValidation = validateSchema(agentMemoryDataSchemaContract, validatedData)
       if (!agentValidation.success) {
-        const errorMessage = agentValidation.error.errors
+        const errorMessage = agentValidation.error.issues
           .map((err) => `${err.path.join('.')}: ${err.message}`)
           .join(', ')
         return NextResponse.json(

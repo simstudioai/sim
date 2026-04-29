@@ -2,6 +2,7 @@ import { db, member, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { ssoProvidersQuerySchema } from '@/lib/api/contracts/auth'
 import { getSession } from '@/lib/auth'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -12,7 +13,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     const { searchParams } = new URL(request.url)
-    const organizationId = searchParams.get('organizationId')
+    const query = ssoProvidersQuerySchema.parse({
+      organizationId: searchParams.get('organizationId') || undefined,
+    })
+    const { organizationId } = query
 
     let providers
     if (session?.user?.id) {

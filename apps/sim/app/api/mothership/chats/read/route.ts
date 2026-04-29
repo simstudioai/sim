@@ -3,20 +3,16 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { markMothershipChatReadBodySchema } from '@/lib/api/contracts/mothership-tasks'
+import { validateJsonBody } from '@/lib/api/server'
 import {
   authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('MarkTaskReadAPI')
-
-const MarkReadSchema = z.object({
-  chatId: z.string().min(1),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -25,8 +21,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const body = await request.json()
-    const { chatId } = MarkReadSchema.parse(body)
+    const validation = await validateJsonBody(request, markMothershipChatReadBodySchema)
+    if (!validation.success) return validation.response
+    const { chatId } = validation.data
 
     await db
       .update(copilotChats)
@@ -35,9 +32,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return createBadRequestResponse('chatId is required')
-    }
     logger.error('Error marking task as read:', error)
     return createInternalServerErrorResponse('Failed to mark task as read')
   }

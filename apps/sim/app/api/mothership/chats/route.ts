@@ -3,7 +3,11 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  createMothershipChatBodySchema,
+  listMothershipChatsQuerySchema,
+} from '@/lib/api/contracts/mothership-tasks'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -28,10 +32,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const workspaceId = request.nextUrl.searchParams.get('workspaceId')
-    if (!workspaceId) {
-      return createBadRequestResponse('workspaceId is required')
+    const queryResult = validateSchema(listMothershipChatsQuerySchema, {
+      workspaceId: request.nextUrl.searchParams.get('workspaceId'),
+    })
+    if (!queryResult.success) {
+      return createBadRequestResponse(getValidationErrorMessage(queryResult.error))
     }
+    const { workspaceId } = queryResult.data
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
 
@@ -60,10 +67,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }
 })
 
-const CreateChatSchema = z.object({
-  workspaceId: z.string().min(1),
-})
-
 /**
  * POST /api/mothership/chats
  * Creates an empty mothership chat and returns its ID.
@@ -76,7 +79,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const body = await request.json()
-    const { workspaceId } = CreateChatSchema.parse(body)
+    const validation = validateSchema(createMothershipChatBodySchema, body)
+    if (!validation.success) {
+      return createBadRequestResponse(getValidationErrorMessage(validation.error))
+    }
+    const { workspaceId } = validation.data
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
 
@@ -108,9 +115,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ success: true, id: chat.id })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return createBadRequestResponse('workspaceId is required')
-    }
     logger.error('Error creating mothership chat:', error)
     return createInternalServerErrorResponse('Failed to create chat')
   }

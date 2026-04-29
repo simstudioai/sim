@@ -4,6 +4,13 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, like } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  memoryDeleteQuerySchema,
+  memoryListQuerySchema,
+  memoryMessageSchema,
+  memoryPostBodySchema,
+} from '@/lib/api/contracts/primitives'
+import { validateSchema } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -28,9 +35,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const url = new URL(request.url)
-    const workspaceId = url.searchParams.get('workspaceId')
-    const searchQuery = url.searchParams.get('query')
-    const limit = Number.parseInt(url.searchParams.get('limit') || '50')
+    const queryValidation = validateSchema(
+      memoryListQuerySchema,
+      Object.fromEntries(url.searchParams.entries())
+    )
+    if (!queryValidation.success) return queryValidation.response
+    const { workspaceId, query: searchQuery, limit } = queryValidation.data
 
     if (!workspaceId) {
       return NextResponse.json(
@@ -100,7 +110,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const body = await request.json()
+    const bodyResult = validateSchema(memoryPostBodySchema, await request.json())
+    const body = bodyResult.success
+      ? bodyResult.data
+      : { key: undefined, data: undefined, workspaceId: undefined }
     const { key, data, workspaceId } = body
 
     if (!key) {
@@ -148,16 +161,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const dataToValidate = Array.isArray(data) ? data : [data]
 
     for (const msg of dataToValidate) {
-      if (!msg || typeof msg !== 'object' || !msg.role || !msg.content) {
+      const parsedMessage = validateSchema(memoryMessageSchema, msg)
+      if (!parsedMessage.success) {
+        const role =
+          msg && typeof msg === 'object' && 'role' in msg
+            ? (msg as { role?: unknown }).role
+            : undefined
+        const invalidRole = Boolean(role) && !['user', 'assistant', 'system'].includes(String(role))
         return NextResponse.json(
-          { success: false, error: { message: 'Memory requires messages with role and content' } },
-          { status: 400 }
-        )
-      }
-
-      if (!['user', 'assistant', 'system'].includes(msg.role)) {
-        return NextResponse.json(
-          { success: false, error: { message: 'Message role must be user, assistant, or system' } },
+          {
+            success: false,
+            error: {
+              message: invalidRole
+                ? 'Message role must be user, assistant, or system'
+                : 'Memory requires messages with role and content',
+            },
+          },
           { status: 400 }
         )
       }
@@ -240,8 +259,12 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
     }
 
     const url = new URL(request.url)
-    const workspaceId = url.searchParams.get('workspaceId')
-    const conversationId = url.searchParams.get('conversationId')
+    const queryValidation = validateSchema(
+      memoryDeleteQuerySchema,
+      Object.fromEntries(url.searchParams.entries())
+    )
+    if (!queryValidation.success) return queryValidation.response
+    const { workspaceId, conversationId } = queryValidation.data
 
     if (!workspaceId) {
       return NextResponse.json(

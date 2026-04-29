@@ -326,15 +326,16 @@ function buildNextConfig(
 /**
  * Creates streaming execution result template
  */
+type StreamingExecutionDraft = Omit<StreamingExecution, 'stream'>
+
 function createStreamingResult(
   providerStartTime: number,
   providerStartTimeISO: string,
   firstResponseTime: number,
   initialCallTime: number,
   state?: ExecutionState
-): StreamingExecution {
+): StreamingExecutionDraft {
   return {
-    stream: undefined as unknown as ReadableStream<Uint8Array>,
     execution: {
       success: true,
       output: {
@@ -709,8 +710,7 @@ export async function executeDeepResearchRequest(
       )
       const firstResponseTime = Date.now() - providerStartTime
 
-      const streamingResult: StreamingExecution = {
-        stream: undefined as unknown as ReadableStream<Uint8Array>,
+      const streamingResult: StreamingExecutionDraft = {
         execution: {
           success: true,
           output: {
@@ -752,7 +752,7 @@ export async function executeDeepResearchRequest(
         },
       }
 
-      streamingResult.stream = createDeepResearchStream(
+      const stream = createDeepResearchStream(
         streamResponse,
         (content, usage, streamInteractionId) => {
           streamingResult.execution.output.content = content
@@ -782,7 +782,7 @@ export async function executeDeepResearchRequest(
         }
       )
 
-      return streamingResult
+      return { ...streamingResult, stream }
     }
 
     // Non-streaming mode: create and poll
@@ -1019,7 +1019,7 @@ export async function executeGeminiRequest(
       )
       streamingResult.execution.output.model = model
 
-      streamingResult.stream = createReadableStreamFromGeminiStream(
+      const stream = createReadableStreamFromGeminiStream(
         streamGenerator,
         (content: string, usage: GeminiUsage) => {
           streamingResult.execution.output.content = content
@@ -1052,7 +1052,7 @@ export async function executeGeminiRequest(
         }
       )
 
-      return streamingResult
+      return { ...streamingResult, stream }
     }
 
     // Non-streaming request
@@ -1164,7 +1164,7 @@ export async function executeGeminiRequest(
           )
           streamingResult.execution.output.model = model
 
-          streamingResult.stream = createReadableStreamFromGeminiStream(
+          const stream = createReadableStreamFromGeminiStream(
             streamGenerator,
             (streamContent: string, usage: GeminiUsage) => {
               streamingResult.execution.output.content = streamContent
@@ -1196,7 +1196,7 @@ export async function executeGeminiRequest(
             }
           )
 
-          return streamingResult
+          return { ...streamingResult, stream }
         }
 
         // Non-streaming: get next response

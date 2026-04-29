@@ -62,7 +62,7 @@ function generateParameterSchema(
     ...field,
     description: descriptions[field.name]?.trim() || undefined,
   }))
-  return generateToolInputSchema(fieldsWithDescriptions) as unknown as Record<string, unknown>
+  return { ...generateToolInputSchema(fieldsWithDescriptions) }
 }
 
 /**

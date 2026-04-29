@@ -1,6 +1,11 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  renameWorkspaceFileBodySchema,
+  workspaceFileParamsSchema,
+} from '@/lib/api/contracts/workspace-files'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -22,7 +27,14 @@ const logger = createLogger('WorkspaceFileAPI')
 export const PATCH = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) => {
     const requestId = generateRequestId()
-    const { id: workspaceId, fileId } = await params
+    const paramsResult = workspaceFileParamsSchema.safeParse(await params)
+    if (!paramsResult.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
+        { status: 400 }
+      )
+    }
+    const { id: workspaceId, fileId } = paramsResult.data
 
     try {
       const session = await getSession()
@@ -42,12 +54,16 @@ export const PATCH = withRouteHandler(
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
-      const body = await request.json()
-      const { name } = body
-
-      if (!name || typeof name !== 'string' || !name.trim()) {
-        return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+      const bodyResult = renameWorkspaceFileBodySchema.safeParse(
+        await request.json().catch(() => ({}))
+      )
+      if (!bodyResult.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(bodyResult.error, 'Name is required') },
+          { status: 400 }
+        )
       }
+      const { name } = bodyResult.data
 
       const updatedFile = await renameWorkspaceFile(workspaceId, fileId, name)
 
@@ -90,7 +106,14 @@ export const PATCH = withRouteHandler(
 export const DELETE = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) => {
     const requestId = generateRequestId()
-    const { id: workspaceId, fileId } = await params
+    const paramsResult = workspaceFileParamsSchema.safeParse(await params)
+    if (!paramsResult.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
+        { status: 400 }
+      )
+    }
+    const { id: workspaceId, fileId } = paramsResult.data
 
     try {
       const session = await getSession()

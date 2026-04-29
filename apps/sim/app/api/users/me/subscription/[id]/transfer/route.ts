@@ -4,7 +4,11 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  subscriptionTransferBodySchema,
+  subscriptionTransferParamsSchema,
+} from '@/lib/api/contracts/user'
+import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import {
@@ -15,10 +19,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SubscriptionTransferAPI')
 
-const transferSubscriptionSchema = z.object({
-  organizationId: z.string().min(1),
-})
-
 type TransferOutcome =
   | { kind: 'error'; status: number; error: string }
   | { kind: 'noop'; message: string }
@@ -27,7 +27,14 @@ type TransferOutcome =
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     try {
-      const subscriptionId = (await params).id
+      const parsedParams = subscriptionTransferParamsSchema.safeParse(await params)
+      if (!parsedParams.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(parsedParams.error) },
+          { status: 400 }
+        )
+      }
+      const subscriptionId = parsedParams.data.id
       const session = await getSession()
 
       if (!session?.user?.id) {
@@ -35,27 +42,9 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      let body
-      try {
-        body = await request.json()
-      } catch (_parseError) {
-        return NextResponse.json(
-          {
-            error: 'Invalid JSON in request body',
-          },
-          { status: 400 }
-        )
-      }
-
-      const validationResult = transferSubscriptionSchema.safeParse(body)
+      const validationResult = await validateJsonBody(request, subscriptionTransferBodySchema)
       if (!validationResult.success) {
-        return NextResponse.json(
-          {
-            error: 'Invalid request parameters',
-            details: validationResult.error.format(),
-          },
-          { status: 400 }
-        )
+        return validationResult.response
       }
 
       const { organizationId } = validationResult.data

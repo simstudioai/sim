@@ -5,7 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, count, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { createPermissionGroupBodySchema } from '@/lib/api/contracts/permission-groups'
+import { getValidationErrorMessage, isZodError } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -13,18 +14,10 @@ import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
-  permissionGroupConfigSchema,
 } from '@/lib/permission-groups/types'
 import { checkWorkspaceAccess, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspacePermissionGroups')
-
-const createSchema = z.object({
-  name: z.string().trim().min(1).max(100),
-  description: z.string().max(500).optional(),
-  config: permissionGroupConfigSchema.optional(),
-  autoAddNewMembers: z.boolean().optional(),
-})
 
 export const GET = withRouteHandler(
   async (_req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -112,7 +105,8 @@ export const POST = withRouteHandler(
       }
 
       const body = await req.json()
-      const { name, description, config, autoAddNewMembers } = createSchema.parse(body)
+      const { name, description, config, autoAddNewMembers } =
+        createPermissionGroupBodySchema.parse(body)
 
       const existingGroup = await db
         .select({ id: permissionGroup.id })
@@ -182,8 +176,8 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ permissionGroup: newGroup }, { status: 201 })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
+      if (isZodError(error)) {
+        return NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 })
       }
       logger.error('Error creating permission group', error)
       return NextResponse.json({ error: 'Failed to create permission group' }, { status: 500 })

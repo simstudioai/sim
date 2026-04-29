@@ -3,22 +3,14 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { createInboxSenderBodySchema, deleteInboxSenderBodySchema } from '@/lib/api/contracts/inbox'
+import { validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasInboxAccess } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InboxSendersAPI')
-
-const addSenderSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  label: z.string().max(100).optional(),
-})
-
-const deleteSenderSchema = z.object({
-  senderId: z.string().min(1),
-})
 
 export const GET = withRouteHandler(
   async (_req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -96,7 +88,13 @@ export const POST = withRouteHandler(
     }
 
     try {
-      const { email, label } = addSenderSchema.parse(await req.json())
+      const validation = validateSchema(
+        createInboxSenderBodySchema,
+        await req.json(),
+        'Invalid request'
+      )
+      if (!validation.success) return validation.response
+      const { email, label } = validation.data
       const normalizedEmail = email.toLowerCase()
 
       const [existing] = await db
@@ -127,12 +125,6 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ sender })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Invalid request', details: error.errors },
-          { status: 400 }
-        )
-      }
       logger.error('Failed to add sender', { workspaceId, error })
       return NextResponse.json({ error: 'Failed to add sender' }, { status: 500 })
     }
@@ -159,7 +151,13 @@ export const DELETE = withRouteHandler(
     }
 
     try {
-      const { senderId } = deleteSenderSchema.parse(await req.json())
+      const validation = validateSchema(
+        deleteInboxSenderBodySchema,
+        await req.json(),
+        'Invalid request'
+      )
+      if (!validation.success) return validation.response
+      const { senderId } = validation.data
 
       await db
         .delete(mothershipInboxAllowedSender)
@@ -172,12 +170,6 @@ export const DELETE = withRouteHandler(
 
       return NextResponse.json({ ok: true })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Invalid request', details: error.errors },
-          { status: 400 }
-        )
-      }
       logger.error('Failed to delete sender', { workspaceId, error })
       return NextResponse.json({ error: 'Failed to delete sender' }, { status: 500 })
     }

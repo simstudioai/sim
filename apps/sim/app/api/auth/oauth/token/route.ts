@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  oauthTokenGetQuerySchema,
+  oauthTokenPostQuerySchema,
+  oauthTokenRequestBodySchema,
+} from '@/lib/api/contracts/oauth-connections'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -19,29 +24,6 @@ const logger = createLogger('OAuthTokenAPI')
 
 const SALESFORCE_INSTANCE_URL_REGEX = /__sf_instance__:([^\s]+)/
 
-const tokenRequestSchema = z
-  .object({
-    credentialId: z.string().min(1).optional(),
-    credentialAccountUserId: z.string().min(1).optional(),
-    providerId: z.string().min(1).optional(),
-    workflowId: z.string().min(1).nullish(),
-    scopes: z.array(z.string()).optional(),
-    impersonateEmail: z.string().email().optional(),
-  })
-  .refine(
-    (data) => data.credentialId || (data.credentialAccountUserId && data.providerId),
-    'Either credentialId or (credentialAccountUserId + providerId) is required'
-  )
-
-const tokenQuerySchema = z.object({
-  credentialId: z
-    .string({
-      required_error: 'Credential ID is required',
-      invalid_type_error: 'Credential ID is required',
-    })
-    .min(1, 'Credential ID is required'),
-})
-
 /**
  * Get an access token for a specific credential
  * Supports both session-based authentication (for client-side requests)
@@ -54,20 +36,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   try {
     const rawBody = await request.json()
-    const parseResult = tokenRequestSchema.safeParse(rawBody)
+    const parseResult = oauthTokenRequestBodySchema.safeParse(rawBody)
 
     if (!parseResult.success) {
-      const firstError = parseResult.error.errors[0]
-      const errorMessage = firstError?.message || 'Validation failed'
-
       logger.warn(`[${requestId}] Invalid token request`, {
-        errors: parseResult.error.errors,
+        errors: parseResult.error.issues,
       })
 
       return NextResponse.json(
-        {
-          error: errorMessage,
-        },
+        { error: getValidationErrorMessage(parseResult.error, 'Validation failed') },
         { status: 400 }
       )
     }
@@ -126,7 +103,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
-    const callerUserId = new URL(request.url).searchParams.get('userId') || undefined
+    const callerUserId = oauthTokenPostQuerySchema.parse({
+      userId: new URL(request.url).searchParams.get('userId') || undefined,
+    }).userId
 
     const resolved = await resolveOAuthAccountId(credentialId)
     if (resolved?.credentialType === 'service_account' && resolved.credentialId) {
@@ -219,20 +198,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       credentialId: searchParams.get('credentialId'),
     }
 
-    const parseResult = tokenQuerySchema.safeParse(rawQuery)
+    const parseResult = oauthTokenGetQuerySchema.safeParse(rawQuery)
 
     if (!parseResult.success) {
-      const firstError = parseResult.error.errors[0]
-      const errorMessage = firstError?.message || 'Validation failed'
-
       logger.warn(`[${requestId}] Invalid query parameters`, {
-        errors: parseResult.error.errors,
+        errors: parseResult.error.issues,
       })
 
       return NextResponse.json(
-        {
-          error: errorMessage,
-        },
+        { error: getValidationErrorMessage(parseResult.error, 'Validation failed') },
         { status: 400 }
       )
     }

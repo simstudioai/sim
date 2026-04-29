@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getActiveWorkflowRecord } from '@sim/workflow-authz'
+import { adminV1DeployWorkflowContract, adminV1UndeployWorkflowContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performFullDeploy, performFullUndeploy } from '@/lib/workflows/orchestration'
@@ -29,7 +31,10 @@ interface RouteParams {
  */
 export const POST = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: workflowId } = await context.params
+    const parsed = await parseRequest(adminV1DeployWorkflowContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id: workflowId } = parsed.data.params
     const requestId = generateRequestId()
 
     try {
@@ -72,8 +77,11 @@ export const POST = withRouteHandler(
 )
 
 export const DELETE = withRouteHandler(
-  withAdminAuthParams<RouteParams>(async (_request, context) => {
-    const { id: workflowId } = await context.params
+  withAdminAuthParams<RouteParams>(async (request, context) => {
+    const parsed = await parseRequest(adminV1UndeployWorkflowContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id: workflowId } = parsed.data.params
     const requestId = generateRequestId()
 
     try {

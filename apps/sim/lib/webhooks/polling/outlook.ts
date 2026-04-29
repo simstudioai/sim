@@ -1,7 +1,11 @@
 import { htmlToText } from 'html-to-text'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
-import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
+import {
+  getProviderConfig,
+  type PollingProviderHandler,
+  type PollWebhookContext,
+} from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
@@ -112,7 +116,7 @@ export const outlookPollingHandler: PollingProviderHandler = {
       logger.info(`[${requestId}] Processing Outlook webhook: ${webhookId}`)
 
       const accessToken = await resolveOAuthCredential(webhookData, 'outlook', requestId, logger)
-      const config = webhookData.providerConfig as unknown as OutlookWebhookConfig
+      const config = getProviderConfig<OutlookWebhookConfig>(webhookData.providerConfig)
       const now = new Date()
 
       const { emails } = await fetchNewOutlookEmails(accessToken, config, requestId, logger)

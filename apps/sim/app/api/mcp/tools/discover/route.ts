@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { mcpToolDiscoveryQuerySchema, refreshMcpToolsBodySchema } from '@/lib/api/contracts/mcp'
+import { validateSchema } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
@@ -14,8 +16,14 @@ export const GET = withRouteHandler(
   withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       const { searchParams } = new URL(request.url)
-      const serverId = searchParams.get('serverId')
-      const forceRefresh = searchParams.get('refresh') === 'true'
+      const queryValidation = validateSchema(
+        mcpToolDiscoveryQuerySchema,
+        Object.fromEntries(searchParams)
+      )
+      if (!queryValidation.success) return queryValidation.response
+      const query = queryValidation.data
+      const serverId = query.serverId
+      const forceRefresh = query.refresh === 'true'
 
       logger.info(`[${requestId}] Discovering MCP tools`, { serverId, workspaceId, forceRefresh })
 
@@ -49,16 +57,18 @@ export const GET = withRouteHandler(
 export const POST = withRouteHandler(
   withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
-      const body = getParsedBody(request) || (await request.json())
-      const { serverIds } = body
+      const rawBody = getParsedBody(request) ?? (await request.json())
+      const parsedBody = validateSchema(
+        refreshMcpToolsBodySchema,
+        rawBody,
+        'Invalid request format'
+      )
 
-      if (!Array.isArray(serverIds)) {
-        return createMcpErrorResponse(
-          new Error('serverIds must be an array'),
-          'Invalid request format',
-          400
-        )
+      if (!parsedBody.success) {
+        return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
       }
+
+      const { serverIds } = parsedBody.data
 
       logger.info(`[${requestId}] Refreshing tools for ${serverIds.length} servers`)
 

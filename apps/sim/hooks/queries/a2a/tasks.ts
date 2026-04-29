@@ -54,9 +54,9 @@ export interface SendA2ATaskParams {
 }
 
 /**
- * Send task response
+ * Result of sending a message to an A2A agent.
  */
-export interface SendA2ATaskResponse {
+export interface SendA2ATaskOutcome {
   content: string
   taskId: string
   contextId?: string
@@ -68,7 +68,7 @@ export interface SendA2ATaskResponse {
 /**
  * Send a message to an A2A agent (v0.3)
  */
-async function sendA2ATask(params: SendA2ATaskParams): Promise<SendA2ATaskResponse> {
+async function sendA2ATask(params: SendA2ATaskParams): Promise<SendA2ATaskOutcome> {
   const userMessage: Message = {
     kind: 'message',
     messageId: generateId(),

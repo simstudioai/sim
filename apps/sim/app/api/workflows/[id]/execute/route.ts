@@ -6,7 +6,8 @@ import { generateId, isValidUuid } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { executeWorkflowBodySchema } from '@/lib/api/contracts/workflows'
+import { validateSchema } from '@/lib/api/server'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
@@ -66,49 +67,6 @@ import { Serializer } from '@/serializer'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('WorkflowExecuteAPI')
-
-const ExecuteWorkflowSchema = z.object({
-  selectedOutputs: z.array(z.string()).optional().default([]),
-  triggerType: z.enum(CORE_TRIGGER_TYPES).optional(),
-  stream: z.boolean().optional(),
-  useDraftState: z.boolean().optional(),
-  input: z.any().optional(),
-  isClientSession: z.boolean().optional(),
-  includeFileBase64: z.boolean().optional().default(true),
-  base64MaxBytes: z.number().int().positive().optional(),
-  workflowStateOverride: z
-    .object({
-      blocks: z.record(z.any()),
-      edges: z.array(z.any()),
-      loops: z.record(z.any()).optional(),
-      parallels: z.record(z.any()).optional(),
-    })
-    .optional(),
-  triggerBlockId: z.string().optional(),
-  stopAfterBlockId: z.string().optional(),
-  runFromBlock: z
-    .object({
-      startBlockId: z.string().min(1, 'Start block ID is required'),
-      sourceSnapshot: z
-        .object({
-          blockStates: z.record(z.any()),
-          executedBlocks: z.array(z.string()),
-          blockLogs: z.array(z.any()),
-          decisions: z.object({
-            router: z.record(z.string()),
-            condition: z.record(z.string()),
-          }),
-          completedLoops: z.array(z.string()),
-          loopExecutions: z.record(z.any()).optional(),
-          parallelExecutions: z.record(z.any()).optional(),
-          parallelBlockMapping: z.record(z.any()).optional(),
-          activeExecutionPath: z.array(z.string()),
-        })
-        .optional(),
-      executionId: z.string().optional(),
-    })
-    .optional(),
-})
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -356,13 +314,13 @@ async function handleExecutePost(
       reqLogger.warn('Failed to parse request body, using defaults')
     }
 
-    const validation = ExecuteWorkflowSchema.safeParse(body)
+    const validation = validateSchema(executeWorkflowBodySchema, body, 'Invalid request body')
     if (!validation.success) {
-      reqLogger.warn('Invalid request body:', validation.error.errors)
+      reqLogger.warn('Invalid request body:', validation.error.issues)
       return NextResponse.json(
         {
           error: 'Invalid request body',
-          details: validation.error.errors.map((e) => ({
+          details: validation.error.issues.map((e) => ({
             path: e.path.join('.'),
             message: e.message,
           })),
@@ -384,10 +342,12 @@ async function handleExecutePost(
       includeFileBase64,
       base64MaxBytes,
       workflowStateOverride,
-      triggerBlockId,
+      triggerBlockId: parsedTriggerBlockId,
+      startBlockId,
       stopAfterBlockId,
       runFromBlock: rawRunFromBlock,
     } = validation.data
+    const triggerBlockId = parsedTriggerBlockId ?? startBlockId
 
     if (isPublicApiAccess && isClientSession) {
       return NextResponse.json(

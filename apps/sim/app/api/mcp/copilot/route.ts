@@ -18,6 +18,8 @@ import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { mcpRequestBodySchema, mcpToolCallParamsSchema } from '@/lib/api/contracts/mcp'
+import { validateSchema } from '@/lib/api/server'
 import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
@@ -476,12 +478,11 @@ function buildMcpServer(abortSignal?: AbortSignal): Server {
       }
     }
 
-    const params = request.params as
-      | { name?: string; arguments?: Record<string, unknown> }
-      | undefined
-    if (!params?.name) {
+    const paramsValidation = validateSchema(mcpToolCallParamsSchema, request.params)
+    if (!paramsValidation.success) {
       throw new McpError(ErrorCode.InvalidParams, 'Tool name required')
     }
+    const params = paramsValidation.data
 
     const result = await handleToolsCall(
       {
@@ -565,7 +566,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    return await handleMcpRequestWithSdk(request, parsedBody)
+    const bodyValidation = validateSchema(mcpRequestBodySchema, parsedBody)
+    if (!bodyValidation.success) {
+      return NextResponse.json(
+        createError(0, ErrorCode.InvalidRequest, 'Invalid JSON-RPC message'),
+        {
+          status: 400,
+        }
+      )
+    }
+
+    return await handleMcpRequestWithSdk(request, bodyValidation.data)
   } catch (error) {
     logger.error('Error handling MCP request', { error })
     return NextResponse.json(createError(0, ErrorCode.InternalError, 'Internal error'), {

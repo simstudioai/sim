@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { copilotStatsBodySchema } from '@/lib/api/contracts/copilot'
+import { validateSchema } from '@/lib/api/server'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
@@ -12,12 +13,6 @@ import {
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
-const BodySchema = z.object({
-  messageId: z.string(),
-  diffCreated: z.boolean(),
-  diffAccepted: z.boolean(),
-})
-
 export const POST = withRouteHandler(async (req: NextRequest) => {
   const tracker = createRequestTracker()
   try {
@@ -27,12 +22,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     const json = await req.json().catch(() => ({}))
-    const parsed = BodySchema.safeParse(json)
+    const parsed = validateSchema(copilotStatsBodySchema, json)
     if (!parsed.success) {
       return createBadRequestResponse('Invalid request body for copilot stats')
     }
 
-    const { messageId, diffCreated, diffAccepted } = parsed.data as any
+    const { messageId, diffCreated, diffAccepted } = parsed.data
 
     // Build outgoing payload for Sim Agent with only required fields
     const payload: Record<string, any> = {

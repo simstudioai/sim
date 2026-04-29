@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { customToolSchemaSchema } from '@/lib/api/contracts/custom-tools'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -18,6 +19,29 @@ export interface GetToolAsyncContext {
   workflowId?: string
   userId?: string
   workspaceId?: string
+}
+
+type CustomToolRow = NonNullable<Awaited<ReturnType<typeof getCustomToolByIdOrTitle>>>
+
+function toCustomToolDefinition(customTool: CustomToolRow): CustomToolDefinition | null {
+  const parsedSchema = customToolSchemaSchema.safeParse(customTool.schema)
+  if (!parsedSchema.success) {
+    logger.error(`Invalid custom tool schema: ${customTool.id}`, {
+      issues: parsedSchema.error.issues,
+    })
+    return null
+  }
+
+  return {
+    id: customTool.id,
+    workspaceId: customTool.workspaceId,
+    userId: customTool.userId,
+    title: customTool.title,
+    schema: parsedSchema.data,
+    code: customTool.code,
+    createdAt: customTool.createdAt.toISOString(),
+    updatedAt: customTool.updatedAt?.toISOString(),
+  }
 }
 
 /**
@@ -128,7 +152,12 @@ async function fetchCustomToolFromDB(
       return undefined
     }
 
-    const toolConfig = createToolConfig(customTool as unknown as CustomToolDefinition, customToolId)
+    const customToolDefinition = toCustomToolDefinition(customTool)
+    if (!customToolDefinition) {
+      return undefined
+    }
+
+    const toolConfig = createToolConfig(customToolDefinition, customToolId)
 
     return {
       ...toolConfig,

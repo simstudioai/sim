@@ -1,6 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { imageProxyQuerySchema } from '@/lib/api/contracts/media-tools'
+import {
+  getValidationErrorMessage,
+  searchParamsToObject,
+  validateSchema,
+} from '@/lib/api/server/validation'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -16,8 +22,6 @@ const logger = createLogger('ImageProxyAPI')
  * This allows client-side requests to fetch images from various sources while avoiding CORS issues
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const url = new URL(request.url)
-  const imageUrl = url.searchParams.get('url')
   const requestId = generateRequestId()
 
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
@@ -26,10 +30,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return new NextResponse('Unauthorized', { status: 401 })
   }
 
-  if (!imageUrl) {
-    logger.error(`[${requestId}] Missing 'url' parameter`)
-    return new NextResponse('Missing URL parameter', { status: 400 })
+  const queryResult = validateSchema(
+    imageProxyQuerySchema,
+    searchParamsToObject(request.nextUrl.searchParams)
+  )
+  if (!queryResult.success) {
+    const error = getValidationErrorMessage(queryResult.error, 'Missing URL parameter')
+    logger.error(`[${requestId}] ${error}`)
+    return new NextResponse(error, { status: 400 })
   }
+  const { url: imageUrl } = queryResult.data
 
   const urlValidation = await validateUrlWithDNS(imageUrl, 'imageUrl')
   if (!urlValidation.isValid) {

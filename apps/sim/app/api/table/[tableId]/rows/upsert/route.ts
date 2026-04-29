@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { upsertTableRowBodySchema } from '@/lib/api/contracts/tables'
+import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -10,12 +11,6 @@ import { upsertRow } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableUpsertAPI')
-
-const UpsertRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  data: z.record(z.unknown(), { required_error: 'Row data is required' }),
-  conflictTarget: z.string().optional(),
-})
 
 interface UpsertRouteParams {
   params: Promise<{ tableId: string }>
@@ -40,7 +35,7 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
       }
 
-      const validated = UpsertRowSchema.parse(body)
+      const validated = upsertTableRowBodySchema.parse(body)
 
       const result = await checkAccess(tableId, authResult.userId, 'write')
       if (!result.ok) return accessError(result, requestId, tableId)
@@ -83,11 +78,8 @@ export const POST = withRouteHandler(
         },
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Validation error', details: error.errors },
-          { status: 400 }
-        )
+      if (isZodError(error)) {
+        return validationErrorResponse(error)
       }
 
       const errorMessage = toError(error).message

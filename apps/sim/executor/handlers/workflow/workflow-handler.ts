@@ -579,7 +579,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       })
     }
 
-    return {
+    const output: BlockOutput = {
       success: true,
       childWorkflowName,
       childWorkflowId,
@@ -587,6 +587,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       result,
       childTraceSpans: childTraceSpans || [],
       _childWorkflowInstanceId: instanceId,
-    } as unknown as BlockOutput
+    }
+    return output
   }
 }

@@ -2,6 +2,8 @@ import { context as otelContext, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { type NextRequest, NextResponse } from 'next/server'
+import { copilotChatStreamQuerySchema } from '@/lib/api/contracts/copilot'
+import { validateSchema } from '@/lib/api/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import {
   MothershipStreamV1CompletionStatus,
@@ -119,10 +121,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const url = new URL(request.url)
-  const streamId = url.searchParams.get('streamId') || ''
-  const afterCursor = url.searchParams.get('after') || ''
-  const batchMode = url.searchParams.get('batch') === 'true'
+  const queryValidation = validateSchema(
+    copilotChatStreamQuerySchema,
+    Object.fromEntries(new URL(request.url).searchParams)
+  )
+  if (!queryValidation.success) return queryValidation.response
+  const { streamId, after: afterCursor, batch: batchMode } = queryValidation.data
 
   if (!streamId) {
     return NextResponse.json({ error: 'streamId is required' }, { status: 400 })

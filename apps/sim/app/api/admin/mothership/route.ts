@@ -2,6 +2,8 @@ import { db } from '@sim/db'
 import { user } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { adminMothershipQuerySchema } from '@/lib/api/contracts/mothership-tasks'
+import { searchParamsToObject, validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -58,8 +60,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   }
 
   const { searchParams } = new URL(req.url)
-  const environment = searchParams.get('env') || 'dev'
-  const endpoint = searchParams.get('endpoint')
+  const queryValidation = validateSchema(
+    adminMothershipQuerySchema,
+    searchParamsToObject(searchParams)
+  )
+  if (!queryValidation.success) return queryValidation.response
+  const { env: environment, endpoint } = queryValidation.data
 
   if (!endpoint) {
     return NextResponse.json({ error: 'endpoint query param required' }, { status: 400 })
@@ -113,8 +119,12 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
   }
 
   const { searchParams } = new URL(req.url)
-  const environment = searchParams.get('env') || 'dev'
-  const endpoint = searchParams.get('endpoint')
+  const queryValidation = validateSchema(
+    adminMothershipQuerySchema,
+    searchParamsToObject(searchParams)
+  )
+  if (!queryValidation.success) return queryValidation.response
+  const { env: environment, endpoint } = queryValidation.data
 
   if (!endpoint) {
     return NextResponse.json({ error: 'endpoint query param required' }, { status: 400 })

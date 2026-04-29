@@ -4,12 +4,17 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { adminV1RequeueOutboxEventContract } from '@/lib/api/contracts'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 
 const logger = createLogger('AdminOutboxRequeueAPI')
 
 export const dynamic = 'force-dynamic'
+
+const invalidOutboxEventResponse = (message: string) =>
+  NextResponse.json({ success: false, error: message }, { status: 400 })
 
 /**
  * POST /api/v1/admin/outbox/[id]/requeue
@@ -21,8 +26,14 @@ export const dynamic = 'force-dynamic'
  * operator errors.
  */
 export const POST = withRouteHandler(
-  withAdminAuthParams<{ id: string }>(async (_request, { params }) => {
-    const { id } = await params
+  withAdminAuthParams<{ id: string }>(async (request, context) => {
+    const parsed = await parseRequest(adminV1RequeueOutboxEventContract, request, context, {
+      validationErrorResponse: (error) =>
+        invalidOutboxEventResponse(getValidationErrorMessage(error, 'Invalid event ID')),
+    })
+    if (!parsed.success) return parsed.response
+
+    const { id } = parsed.data.params
 
     try {
       const result = await db

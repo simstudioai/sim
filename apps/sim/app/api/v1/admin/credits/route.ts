@@ -28,6 +28,8 @@ import { organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
+import { adminV1IssueCreditsContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { addCredits } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
@@ -40,6 +42,8 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
+  adminInvalidJsonResponse,
+  adminValidationErrorResponse,
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
@@ -50,25 +54,19 @@ const logger = createLogger('AdminCreditsAPI')
 
 export const POST = withRouteHandler(
   withAdminAuth(async (request) => {
+    const parsed = await parseRequest(
+      adminV1IssueCreditsContract,
+      request,
+      {},
+      {
+        validationErrorResponse: adminValidationErrorResponse,
+        invalidJsonResponse: adminInvalidJsonResponse,
+      }
+    )
+    if (!parsed.success) return parsed.response
+
     try {
-      const body = await request.json()
-      const { userId, email, amount, reason } = body
-
-      if (!userId && !email) {
-        return badRequestResponse('Either userId or email is required')
-      }
-
-      if (userId && typeof userId !== 'string') {
-        return badRequestResponse('userId must be a string')
-      }
-
-      if (email && typeof email !== 'string') {
-        return badRequestResponse('email must be a string')
-      }
-
-      if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
-        return badRequestResponse('amount must be a positive number')
-      }
+      const { userId, email, amount, reason } = parsed.data.body
 
       let resolvedUserId: string
       let userEmail: string | null = null
@@ -86,6 +84,10 @@ export const POST = withRouteHandler(
         resolvedUserId = userData.id
         userEmail = userData.email
       } else {
+        if (!email) {
+          return badRequestResponse('Either userId or email is required')
+        }
+
         const normalizedEmail = email.toLowerCase().trim()
         const [userData] = await db
           .select({ id: user.id, email: user.email })

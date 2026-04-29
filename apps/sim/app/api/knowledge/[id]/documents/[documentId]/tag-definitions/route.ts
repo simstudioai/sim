@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { saveDocumentTagDefinitionsBodySchema } from '@/lib/api/contracts/knowledge'
+import { parseJsonBody, validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
@@ -17,18 +18,6 @@ import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowled
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('DocumentTagDefinitionsAPI')
-
-const TagDefinitionSchema = z.object({
-  tagSlot: z.string(), // Will be validated against field type slots
-  displayName: z.string().min(1, 'Display name is required').max(100, 'Display name too long'),
-  fieldType: z.enum(SUPPORTED_FIELD_TYPES as [string, ...string[]]).default('text'),
-  // Optional: for editing existing definitions
-  _originalDisplayName: z.string().optional(),
-})
-
-const BulkTagDefinitionsSchema = z.object({
-  definitions: z.array(TagDefinitionSchema),
-})
 
 // GET /api/knowledge/[id]/documents/[documentId]/tag-definitions - Get tag definitions for a document
 export const GET = withRouteHandler(
@@ -107,23 +96,34 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      let body
-      try {
-        body = await req.json()
-      } catch (error) {
-        logger.error(`[${requestId}] Failed to parse JSON body:`, error)
-        return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
-      }
+      const parsedBody = await parseJsonBody(req)
+      if (!parsedBody.success) return parsedBody.response
 
-      if (!body || typeof body !== 'object') {
-        logger.error(`[${requestId}] Invalid request body:`, body)
+      if (!parsedBody.data || typeof parsedBody.data !== 'object') {
+        logger.error(`[${requestId}] Invalid request body:`, parsedBody.data)
         return NextResponse.json(
           { error: 'Request body must be a valid JSON object' },
           { status: 400 }
         )
       }
 
-      const validatedData = BulkTagDefinitionsSchema.parse(body)
+      const validation = validateSchema(
+        saveDocumentTagDefinitionsBodySchema,
+        parsedBody.data,
+        'Invalid request data'
+      )
+      if (!validation.success) return validation.response
+
+      const validatedData = validation.data
+
+      for (const def of validatedData.definitions) {
+        if (!SUPPORTED_FIELD_TYPES.includes(def.fieldType)) {
+          return NextResponse.json(
+            { error: 'Invalid request data', details: `Unsupported field type: ${def.fieldType}` },
+            { status: 400 }
+          )
+        }
+      }
 
       const bulkData: BulkTagDefinitionsData = {
         definitions: validatedData.definitions.map((def) => ({
@@ -145,13 +145,6 @@ export const POST = withRouteHandler(
         },
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Invalid request data', details: error.errors },
-          { status: 400 }
-        )
-      }
-
       logger.error(`[${requestId}] Error creating/updating tag definitions`, error)
       return NextResponse.json(
         { error: 'Failed to create/update tag definitions' },

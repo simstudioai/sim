@@ -3,7 +3,13 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  bulkCreateDocumentsBodySchema,
+  bulkDocumentOperationBodySchema,
+  createDocumentBodySchema,
+  listKnowledgeDocumentsQuerySchema,
+} from '@/lib/api/contracts/knowledge'
+import { isZodError } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -17,54 +23,10 @@ import {
   processDocumentsWithQueue,
   type TagFilterCondition,
 } from '@/lib/knowledge/documents/service'
-import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('DocumentsAPI')
-
-const CreateDocumentSchema = z.object({
-  filename: z.string().min(1, 'Filename is required'),
-  fileUrl: z.string().url('File URL must be valid'),
-  fileSize: z.number().min(1, 'File size must be greater than 0'),
-  mimeType: z.string().min(1, 'MIME type is required'),
-  // Document tags for filtering (legacy format)
-  tag1: z.string().optional(),
-  tag2: z.string().optional(),
-  tag3: z.string().optional(),
-  tag4: z.string().optional(),
-  tag5: z.string().optional(),
-  tag6: z.string().optional(),
-  tag7: z.string().optional(),
-  // Structured tag data (new format)
-  documentTagsData: z.string().optional(),
-})
-
-const BulkCreateDocumentsSchema = z.object({
-  documents: z.array(CreateDocumentSchema),
-  processingOptions: z
-    .object({
-      recipe: z.string().optional(),
-      lang: z.string().optional(),
-    })
-    .optional(),
-  bulk: z.literal(true),
-})
-
-const BulkUpdateDocumentsSchema = z
-  .object({
-    operation: z.enum(['enable', 'disable', 'delete']),
-    documentIds: z
-      .array(z.string())
-      .min(1, 'At least one document ID is required')
-      .max(100, 'Cannot operate on more than 100 documents at once')
-      .optional(),
-    selectAll: z.boolean().optional(),
-    enabledFilter: z.enum(['all', 'enabled', 'disabled']).optional(),
-  })
-  .refine((data) => data.selectAll || (data.documentIds && data.documentIds.length > 0), {
-    message: 'Either selectAll must be true or documentIds must be provided',
-  })
 
 export const GET = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -91,52 +53,17 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const url = new URL(req.url)
-      const enabledFilter = url.searchParams.get('enabledFilter') as
-        | 'all'
-        | 'enabled'
-        | 'disabled'
-        | null
-      const search = url.searchParams.get('search') || undefined
-      const limit = Number.parseInt(url.searchParams.get('limit') || '50')
-      const offset = Number.parseInt(url.searchParams.get('offset') || '0')
-      const sortByParam = url.searchParams.get('sortBy')
-      const sortOrderParam = url.searchParams.get('sortOrder')
-
-      const validSortFields: DocumentSortField[] = [
-        'filename',
-        'fileSize',
-        'tokenCount',
-        'chunkCount',
-        'uploadedAt',
-        'processingStatus',
-        'enabled',
-      ]
-      const validSortOrders: SortOrder[] = ['asc', 'desc']
-
-      const sortBy =
-        sortByParam && validSortFields.includes(sortByParam as DocumentSortField)
-          ? (sortByParam as DocumentSortField)
-          : undefined
-      const sortOrder =
-        sortOrderParam && validSortOrders.includes(sortOrderParam as SortOrder)
-          ? (sortOrderParam as SortOrder)
-          : undefined
-
-      let tagFilters: TagFilterCondition[] | undefined
-      const tagFiltersParam = url.searchParams.get('tagFilters')
-      if (tagFiltersParam) {
-        try {
-          const parsed = JSON.parse(tagFiltersParam)
-          if (Array.isArray(parsed)) {
-            tagFilters = parsed.filter(
-              (f: TagFilterCondition) => f.tagSlot && f.operator && f.value !== undefined
-            )
-          }
-        } catch {
-          logger.warn(`[${requestId}] Invalid tagFilters param`)
-        }
+      const queryResult = listKnowledgeDocumentsQuerySchema.safeParse(
+        Object.fromEntries(new URL(req.url).searchParams.entries())
+      )
+      if (!queryResult.success) {
+        return NextResponse.json(
+          { error: 'Invalid query parameters', details: queryResult.error.issues },
+          { status: 400 }
+        )
       }
+      const { enabledFilter, search, limit, offset, sortBy, sortOrder, tagFilters } =
+        queryResult.data
 
       const result = await getDocuments(
         knowledgeBaseId,
@@ -147,7 +74,7 @@ export const GET = withRouteHandler(
           offset,
           ...(sortBy && { sortBy }),
           ...(sortOrder && { sortOrder }),
-          tagFilters,
+          tagFilters: tagFilters as TagFilterCondition[] | undefined,
         },
         requestId
       )
@@ -223,7 +150,7 @@ export const POST = withRouteHandler(
 
       if (body.bulk === true) {
         try {
-          const validatedData = BulkCreateDocumentsSchema.parse(body)
+          const validatedData = bulkCreateDocumentsBodySchema.parse(body)
 
           const createdDocuments = await createDocumentRecords(
             validatedData.documents,
@@ -306,12 +233,12 @@ export const POST = withRouteHandler(
             },
           })
         } catch (validationError) {
-          if (validationError instanceof z.ZodError) {
+          if (isZodError(validationError)) {
             logger.warn(`[${requestId}] Invalid bulk processing request data`, {
-              errors: validationError.errors,
+              errors: validationError.issues,
             })
             return NextResponse.json(
-              { error: 'Invalid request data', details: validationError.errors },
+              { error: 'Invalid request data', details: validationError.issues },
               { status: 400 }
             )
           }
@@ -319,7 +246,7 @@ export const POST = withRouteHandler(
         }
       } else {
         try {
-          const validatedData = CreateDocumentSchema.parse(body)
+          const validatedData = createDocumentBodySchema.parse(body)
 
           const newDocument = await createSingleDocument(validatedData, knowledgeBaseId, requestId)
 
@@ -375,12 +302,12 @@ export const POST = withRouteHandler(
             data: newDocument,
           })
         } catch (validationError) {
-          if (validationError instanceof z.ZodError) {
+          if (isZodError(validationError)) {
             logger.warn(`[${requestId}] Invalid document data`, {
-              errors: validationError.errors,
+              errors: validationError.issues,
             })
             return NextResponse.json(
-              { error: 'Invalid request data', details: validationError.errors },
+              { error: 'Invalid request data', details: validationError.issues },
               { status: 400 }
             )
           }
@@ -431,7 +358,7 @@ export const PATCH = withRouteHandler(
       const body = await req.json()
 
       try {
-        const validatedData = BulkUpdateDocumentsSchema.parse(body)
+        const validatedData = bulkDocumentOperationBodySchema.parse(body)
         const { operation, documentIds, selectAll, enabledFilter } = validatedData
 
         try {
@@ -467,12 +394,12 @@ export const PATCH = withRouteHandler(
           throw error
         }
       } catch (validationError) {
-        if (validationError instanceof z.ZodError) {
+        if (isZodError(validationError)) {
           logger.warn(`[${requestId}] Invalid bulk operation data`, {
-            errors: validationError.errors,
+            errors: validationError.issues,
           })
           return NextResponse.json(
-            { error: 'Invalid request data', details: validationError.errors },
+            { error: 'Invalid request data', details: validationError.issues },
             { status: 400 }
           )
         }

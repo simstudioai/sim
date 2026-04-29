@@ -3,7 +3,7 @@ import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { deleteWorkspaceBodySchema, updateWorkspaceBodySchema } from '@/lib/api/contracts'
 import { getSession } from '@/lib/auth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
@@ -14,27 +14,6 @@ import { db } from '@sim/db'
 import { permissions, templates, workspace } from '@sim/db/schema'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-
-const patchWorkspaceSchema = z.object({
-  name: z.string().trim().min(1).optional(),
-  color: z
-    .string()
-    .regex(/^#[0-9a-fA-F]{6}$/)
-    .optional(),
-  logoUrl: z
-    .string()
-    .refine((val) => val.startsWith('/') || val.startsWith('https://'), {
-      message: 'Logo URL must be an absolute path or HTTPS URL',
-    })
-    .nullable()
-    .optional(),
-  billedAccountUserId: z.string().optional(),
-  allowPersonalApiKeys: z.boolean().optional(),
-})
-
-const deleteWorkspaceSchema = z.object({
-  deleteTemplates: z.boolean().default(false),
-})
 
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -129,7 +108,7 @@ export const PATCH = withRouteHandler(
     }
 
     try {
-      const body = patchWorkspaceSchema.parse(await request.json())
+      const body = updateWorkspaceBodySchema.parse(await request.json())
       const { name, color, logoUrl, billedAccountUserId, allowPersonalApiKeys } = body
 
       if (
@@ -298,7 +277,7 @@ export const DELETE = withRouteHandler(
     }
 
     const workspaceId = id
-    const body = deleteWorkspaceSchema.parse(await request.json().catch(() => ({})))
+    const body = deleteWorkspaceBodySchema.parse(await request.json().catch(() => ({})))
     const { deleteTemplates } = body // User's choice: false = keep templates (recommended), true = delete templates
 
     // Check if user has admin permissions to delete workspace

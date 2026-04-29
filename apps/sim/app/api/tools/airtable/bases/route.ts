@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { selectorContractsByPath } from '@/lib/api/contracts/selectors'
+import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -12,13 +14,21 @@ export const dynamic = 'force-dynamic'
 export const POST = withRouteHandler(async (request: Request) => {
   const requestId = generateRequestId()
   try {
-    const body = await request.json()
-    const { credential, workflowId } = body
-
-    if (!credential) {
+    const validation = await validateJsonBody(
+      request,
+      selectorContractsByPath['/api/tools/airtable/bases'].body!
+    )
+    if (!validation.success) {
       logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
+      if (validation.error) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(validation.error, 'Invalid request') },
+          { status: 400 }
+        )
+      }
+      return validation.response
     }
+    const { credential, workflowId } = validation.data
 
     const authz = await authorizeCredentialUse(request as any, {
       credentialId: credential,

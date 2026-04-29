@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { importWorkflowAsSuperuserPermissiveBodySchema } from '@/lib/api/contracts/workflows'
+import { validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
@@ -51,7 +53,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Forbidden: Superuser access required' }, { status: 403 })
     }
 
-    const body: ImportWorkflowRequest = await request.json()
+    const bodyResult = validateSchema(
+      importWorkflowAsSuperuserPermissiveBodySchema,
+      await request.json()
+    )
+    const body = (
+      bodyResult.success ? bodyResult.data : { workflowId: undefined, targetWorkspaceId: undefined }
+    ) as ImportWorkflowRequest
     const { workflowId, targetWorkspaceId } = body
 
     if (!workflowId) {

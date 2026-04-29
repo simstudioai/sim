@@ -4,33 +4,13 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateUserSettingsBodySchema } from '@/lib/api/contracts'
+import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UserSettingsAPI')
-
-const SettingsSchema = z.object({
-  theme: z.enum(['system', 'light', 'dark']).optional(),
-  autoConnect: z.boolean().optional(),
-  telemetryEnabled: z.boolean().optional(),
-  emailPreferences: z
-    .object({
-      unsubscribeAll: z.boolean().optional(),
-      unsubscribeMarketing: z.boolean().optional(),
-      unsubscribeUpdates: z.boolean().optional(),
-      unsubscribeNotifications: z.boolean().optional(),
-    })
-    .optional(),
-  billingUsageNotificationsEnabled: z.boolean().optional(),
-  showTrainingControls: z.boolean().optional(),
-  superUserModeEnabled: z.boolean().optional(),
-  errorNotificationsEnabled: z.boolean().optional(),
-  snapToGridSize: z.number().min(0).max(50).optional(),
-  showActionBar: z.boolean().optional(),
-  lastActiveWorkspaceId: z.string().optional(),
-})
 
 const defaultSettings = {
   theme: 'system',
@@ -107,7 +87,7 @@ export const PATCH = withRouteHandler(async (request: Request) => {
     const body = await request.json()
 
     try {
-      const validatedData = SettingsSchema.parse(body)
+      const validatedData = updateUserSettingsBodySchema.parse(body)
 
       await db
         .insert(settings)
@@ -127,14 +107,11 @@ export const PATCH = withRouteHandler(async (request: Request) => {
 
       return NextResponse.json({ success: true }, { status: 200 })
     } catch (validationError) {
-      if (validationError instanceof z.ZodError) {
+      if (isZodError(validationError)) {
         logger.warn(`[${requestId}] Invalid settings data`, {
-          errors: validationError.errors,
+          errors: validationError.issues,
         })
-        return NextResponse.json(
-          { error: 'Invalid settings data', details: validationError.errors },
-          { status: 400 }
-        )
+        return validationErrorResponse(validationError, 'Invalid settings data')
       }
       throw validationError
     }

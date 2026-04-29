@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  knowledgeBaseParamsSchema,
+  nextAvailableSlotQuerySchema,
+} from '@/lib/api/contracts/knowledge'
+import { validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getNextAvailableSlot, getTagDefinitions } from '@/lib/knowledge/tags/service'
@@ -12,13 +17,24 @@ const logger = createLogger('NextAvailableSlotAPI')
 export const GET = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateId().slice(0, 8)
-    const { id: knowledgeBaseId } = await params
-    const { searchParams } = new URL(req.url)
-    const fieldType = searchParams.get('fieldType')
+    const paramsValidation = validateSchema(
+      knowledgeBaseParamsSchema,
+      await params,
+      'Invalid request parameters'
+    )
+    if (!paramsValidation.success) return paramsValidation.response
+    const { id: knowledgeBaseId } = paramsValidation.data
 
-    if (!fieldType) {
+    const { searchParams } = new URL(req.url)
+    const queryValidation = validateSchema(
+      nextAvailableSlotQuerySchema,
+      { fieldType: searchParams.get('fieldType') ?? undefined },
+      'fieldType parameter is required'
+    )
+    if (!queryValidation.success) {
       return NextResponse.json({ error: 'fieldType parameter is required' }, { status: 400 })
     }
+    const { fieldType } = queryValidation.data
 
     try {
       logger.info(

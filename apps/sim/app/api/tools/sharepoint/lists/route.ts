@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { selectorContractsByPath } from '@/lib/api/contracts/selectors'
+import { validateJsonBody } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateSharePointSiteId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -24,13 +26,20 @@ export const POST = withRouteHandler(async (request: Request) => {
   const requestId = generateRequestId()
 
   try {
-    const body = await request.json()
-    const { credential, workflowId, siteId } = body
-
-    if (!credential) {
-      logger.error(`[${requestId}] Missing credential in request`)
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
+    const validation = await validateJsonBody(
+      request,
+      selectorContractsByPath['/api/tools/sharepoint/lists'].body!
+    )
+    if (!validation.success) {
+      logger.warn(`[${requestId}] Invalid lists request data`, {
+        errors: validation.error?.issues ?? [],
+      })
+      return NextResponse.json(
+        { error: validation.error?.issues[0]?.message ?? 'Invalid request' },
+        { status: 400 }
+      )
     }
+    const { credential, workflowId, siteId } = validation.data
 
     const siteIdValidation = validateSharePointSiteId(siteId)
     if (!siteIdValidation.isValid) {

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { teamsDeleteChatMessageBodySchema } from '@/lib/api/contracts/tools/microsoft'
+import { validateJsonBody } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -8,12 +9,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('TeamsDeleteChatMessageAPI')
-
-const TeamsDeleteChatMessageSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  chatId: z.string().min(1, 'Chat ID is required'),
-  messageId: z.string().min(1, 'Message ID is required'),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -39,8 +34,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
-    const body = await request.json()
-    const validatedData = TeamsDeleteChatMessageSchema.parse(body)
+    const validation = await validateJsonBody(request, teamsDeleteChatMessageBodySchema)
+    if (!validation.success) {
+      return NextResponse.json(
+        { success: false, error: validation.error?.issues[0]?.message ?? 'Invalid request' },
+        { status: 400 }
+      )
+    }
+    const validatedData = validation.data
 
     logger.info(`[${requestId}] Deleting Teams chat message`, {
       chatId: validatedData.chatId,

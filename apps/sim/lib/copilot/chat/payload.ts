@@ -151,7 +151,7 @@ export async function buildIntegrationToolSchemas(
               fallbackName: strippedName,
               appendEmailTagline: shouldAppendEmailTagline,
             }),
-            input_schema: userSchema as unknown as Record<string, unknown>,
+            input_schema: { ...userSchema },
             defer_loading: true,
             executeLocally:
               catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
@@ -294,7 +294,7 @@ export async function buildCopilotRequestPayload(
           integrationTools.push({
             name: createMcpToolId(mcpTool.serverId, mcpTool.name),
             description: mcpTool.description || `MCP tool: ${mcpTool.name} (${mcpTool.serverName})`,
-            input_schema: mcpTool.inputSchema as unknown as Record<string, unknown>,
+            input_schema: { ...mcpTool.inputSchema },
             executeLocally: false,
           })
         }

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -60,11 +60,8 @@ export const POST = withRouteHandler(
         },
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Invalid request data', details: error.errors },
-          { status: 400 }
-        )
+      if (isZodError(error)) {
+        return validationErrorResponse(error, 'Invalid request data')
       }
 
       if (error instanceof Error) {
@@ -147,11 +144,8 @@ export const PATCH = withRouteHandler(
         },
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Invalid request data', details: error.errors },
-          { status: 400 }
-        )
+      if (isZodError(error)) {
+        return validationErrorResponse(error, 'Invalid request data')
       }
 
       if (error instanceof Error) {
@@ -215,11 +209,8 @@ export const DELETE = withRouteHandler(
         },
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Invalid request data', details: error.errors },
-          { status: 400 }
-        )
+      if (isZodError(error)) {
+        return validationErrorResponse(error, 'Invalid request data')
       }
 
       if (error instanceof Error) {

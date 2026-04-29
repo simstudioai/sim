@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import type { z } from 'zod'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
@@ -23,6 +25,10 @@ export interface DocumentPreviewRouteConfig {
   contentType: string
   /** Short label used for the logger name + 500 log message. */
   label: 'PDF' | 'PPTX' | 'DOCX'
+  /** Route params schema owned by the concrete route.ts boundary. */
+  routeParamsSchema: z.ZodType<{ id: string }>
+  /** JSON body schema owned by the concrete route.ts boundary. */
+  previewBodySchema: z.ZodType<{ code: string }>
 }
 
 /**
@@ -38,7 +44,14 @@ export function createDocumentPreviewRoute(config: DocumentPreviewRouteConfig) {
   const logger = createLogger(`${config.label}PreviewAPI`)
 
   return async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const { id: workspaceId } = await params
+    const paramsResult = config.routeParamsSchema.safeParse(await params)
+    if (!paramsResult.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
+        { status: 400 }
+      )
+    }
+    const { id: workspaceId } = paramsResult.data
 
     try {
       const session = await getSession()
@@ -57,11 +70,14 @@ export function createDocumentPreviewRoute(config: DocumentPreviewRouteConfig) {
       } catch {
         return NextResponse.json({ error: 'Invalid or missing JSON body' }, { status: 400 })
       }
-      const { code } = body as { code?: string }
-
-      if (typeof code !== 'string' || code.trim().length === 0) {
-        return NextResponse.json({ error: 'code is required' }, { status: 400 })
+      const bodyResult = config.previewBodySchema.safeParse(body)
+      if (!bodyResult.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(bodyResult.error, 'code is required') },
+          { status: 400 }
+        )
       }
+      const { code } = bodyResult.data
 
       if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
         return NextResponse.json({ error: 'code exceeds maximum size' }, { status: 413 })

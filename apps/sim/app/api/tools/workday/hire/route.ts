@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { workdayHireContract } from '@/lib/api/contracts/tools/workday'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -9,17 +10,6 @@ import { createWorkdaySoapClient, extractRefId, wdRef } from '@/tools/workday/so
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WorkdayHireAPI')
-
-const RequestSchema = z.object({
-  tenantUrl: z.string().min(1),
-  tenant: z.string().min(1),
-  username: z.string().min(1),
-  password: z.string().min(1),
-  preHireId: z.string().min(1),
-  positionId: z.string().min(1),
-  hireDate: z.string().min(1),
-  employeeType: z.string().optional(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -30,8 +20,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const data = RequestSchema.parse(body)
+    const parsed = await parseRequest(workdayHireContract, request, {})
+    if (!parsed.success) return parsed.response
+    const data = parsed.data.body
 
     const client = await createWorkdaySoapClient(
       data.tenantUrl,

@@ -4,7 +4,8 @@ import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateOrganizationDataRetentionBodySchema } from '@/lib/api/contracts/organization'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import {
   CLEANUP_CONFIG,
@@ -15,15 +16,6 @@ import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('DataRetentionAPI')
-
-const MIN_HOURS = 24
-const MAX_HOURS = 43800
-
-const updateRetentionSchema = z.object({
-  logRetentionHours: z.number().int().min(MIN_HOURS).max(MAX_HOURS).nullable().optional(),
-  softDeleteRetentionHours: z.number().int().min(MIN_HOURS).max(MAX_HOURS).nullable().optional(),
-  taskCleanupHours: z.number().int().min(MIN_HOURS).max(MAX_HOURS).nullable().optional(),
-})
 
 function enterpriseDefaults(): OrganizationRetentionSettings {
   return {
@@ -111,10 +103,10 @@ export const PUT = withRouteHandler(
     const { id: organizationId } = await params
 
     const body = await request.json()
-    const parsed = updateRetentionSchema.safeParse(body)
+    const parsed = updateOrganizationDataRetentionBodySchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.errors[0]?.message ?? 'Invalid request body' },
+        { error: getValidationErrorMessage(parsed.error, 'Invalid request body') },
         { status: 400 }
       )
     }

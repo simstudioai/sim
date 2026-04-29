@@ -1,16 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { slackReactionBodySchema } from '@/lib/api/contracts'
+import { validateJsonBody } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
-
-const SlackAddReactionSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  channel: z.string().min(1, 'Channel is required'),
-  timestamp: z.string().min(1, 'Message timestamp is required'),
-  name: z.string().min(1, 'Emoji name is required'),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -26,8 +20,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const body = await request.json()
-    const validatedData = SlackAddReactionSchema.parse(body)
+    const validation = await validateJsonBody(request, slackReactionBodySchema)
+    if (!validation.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Invalid request data',
+          details: validation.error?.issues ?? [],
+        },
+        { status: 400 }
+      )
+    }
+    const validatedData = validation.data
 
     const slackResponse = await fetch('https://slack.com/api/reactions.add', {
       method: 'POST',
@@ -66,17 +70,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     return NextResponse.json(
       {
         success: false,

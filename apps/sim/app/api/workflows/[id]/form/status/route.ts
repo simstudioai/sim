@@ -4,11 +4,17 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { formStatusParamsSchema } from '@/lib/api/contracts/forms'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('FormStatusAPI')
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
 
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -18,7 +24,14 @@ export const GET = withRouteHandler(
         return createErrorResponse('Unauthorized', 401)
       }
 
-      const { id: workflowId } = await params
+      const paramsValidation = validateSchema(formStatusParamsSchema, await params)
+      if (!paramsValidation.success) {
+        return createErrorResponse(
+          getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
+          400
+        )
+      }
+      const { id: workflowId } = paramsValidation.data
       const authorization = await authorizeWorkflowByWorkspacePermission({
         workflowId,
         userId: auth.userId,
@@ -53,9 +66,9 @@ export const GET = withRouteHandler(
         isDeployed: true,
         form: formResult[0],
       })
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error fetching form status:', error)
-      return createErrorResponse(error.message || 'Failed to fetch form status', 500)
+      return createErrorResponse(getErrorMessage(error, 'Failed to fetch form status'), 500)
     }
   }
 )

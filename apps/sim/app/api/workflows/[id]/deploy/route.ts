@@ -2,6 +2,9 @@ import { db, workflow } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { updatePublicApiBodySchema } from '@/lib/api/contracts/deployments'
+import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -25,7 +28,14 @@ export const runtime = 'nodejs'
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const paramsValidation = validateSchema(workflowIdParamsSchema, await params)
+    if (!paramsValidation.success) {
+      return createErrorResponse(
+        getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
+        400
+      )
+    }
+    const { id } = paramsValidation.data
 
     try {
       const { error, workflow: workflowData } = await validateWorkflowPermissions(
@@ -73,7 +83,14 @@ export const GET = withRouteHandler(
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const paramsValidation = validateSchema(workflowIdParamsSchema, await params)
+    if (!paramsValidation.success) {
+      return createErrorResponse(
+        getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
+        400
+      )
+    }
+    const { id } = paramsValidation.data
 
     try {
       const {
@@ -138,7 +155,14 @@ export const POST = withRouteHandler(
 export const PATCH = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const paramsValidation = validateSchema(workflowIdParamsSchema, await params)
+    if (!paramsValidation.success) {
+      return createErrorResponse(
+        getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
+        400
+      )
+    }
+    const { id } = paramsValidation.data
 
     try {
       const {
@@ -151,11 +175,11 @@ export const PATCH = withRouteHandler(
       }
 
       const body = await request.json()
-      const { isPublicApi } = body
-
-      if (typeof isPublicApi !== 'boolean') {
+      const bodyValidation = updatePublicApiBodySchema.safeParse(body)
+      if (!bodyValidation.success) {
         return createErrorResponse('Invalid request body: isPublicApi must be a boolean', 400)
       }
+      const { isPublicApi } = bodyValidation.data
 
       if (isPublicApi) {
         try {
@@ -193,7 +217,14 @@ export const PATCH = withRouteHandler(
 export const DELETE = withRouteHandler(
   async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const paramsValidation = validateSchema(workflowIdParamsSchema, await params)
+    if (!paramsValidation.success) {
+      return createErrorResponse(
+        getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
+        400
+      )
+    }
+    const { id } = paramsValidation.data
 
     try {
       const {

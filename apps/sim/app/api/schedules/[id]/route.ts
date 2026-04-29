@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { scheduleUpdateSchema } from '@/lib/api/contracts/schedules'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -16,20 +16,6 @@ import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 const logger = createLogger('ScheduleAPI')
 
 export const dynamic = 'force-dynamic'
-
-const scheduleUpdateSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('reactivate') }),
-  z.object({ action: z.literal('disable') }),
-  z.object({
-    action: z.literal('update'),
-    title: z.string().min(1).optional(),
-    prompt: z.string().min(1).optional(),
-    cronExpression: z.string().optional(),
-    timezone: z.string().optional(),
-    lifecycle: z.enum(['persistent', 'until_complete']).optional(),
-    maxRuns: z.number().nullable().optional(),
-  }),
-])
 
 type ScheduleRow = {
   id: string

@@ -1,7 +1,12 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  deleteSkillQuerySchema,
+  listSkillsQuerySchema,
+  upsertSkillsBodySchema,
+} from '@/lib/api/contracts'
+import { isZodError } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -11,28 +16,9 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('SkillsAPI')
 
-const SkillSchema = z.object({
-  skills: z.array(
-    z.object({
-      id: z.string().optional(),
-      name: z
-        .string()
-        .min(1, 'Skill name is required')
-        .max(64)
-        .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Name must be kebab-case (e.g. my-skill)'),
-      description: z.string().min(1, 'Description is required').max(1024),
-      content: z.string().min(1, 'Content is required').max(50000, 'Content is too large'),
-    })
-  ),
-  workspaceId: z.string().optional(),
-  source: z.enum(['settings', 'tool_input']).optional(),
-})
-
 /** GET - Fetch all skills for a workspace */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
-  const searchParams = request.nextUrl.searchParams
-  const workspaceId = searchParams.get('workspaceId')
 
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -42,11 +28,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = authResult.userId
-
-    if (!workspaceId) {
-      logger.warn(`[${requestId}] Missing workspaceId`)
-      return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 })
+    const query = listSkillsQuerySchema.safeParse(
+      Object.fromEntries(request.nextUrl.searchParams.entries())
+    )
+    if (!query.success) {
+      logger.warn(`[${requestId}] Invalid skills query`, { errors: query.error.issues })
+      return NextResponse.json(
+        { error: 'Invalid request data', details: query.error.issues },
+        { status: 400 }
+      )
     }
+    const { workspaceId } = query.data
 
     const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (!userPermission) {
@@ -78,12 +70,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const body = await req.json()
 
     try {
-      const { skills, workspaceId, source } = SkillSchema.parse(body)
-
-      if (!workspaceId) {
-        logger.warn(`[${requestId}] Missing workspaceId in request body`)
-        return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 })
-      }
+      const { skills, workspaceId, source } = upsertSkillsBodySchema.parse(body)
 
       const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
       if (!userPermission || (userPermission !== 'admin' && userPermission !== 'write')) {
@@ -123,12 +110,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       return NextResponse.json({ success: true, data: resultSkills })
     } catch (validationError) {
-      if (validationError instanceof z.ZodError) {
+      if (isZodError(validationError)) {
         logger.warn(`[${requestId}] Invalid skills data`, {
-          errors: validationError.errors,
+          errors: validationError.issues,
         })
         return NextResponse.json(
-          { error: 'Invalid request data', details: validationError.errors },
+          { error: 'Invalid request data', details: validationError.issues },
           { status: 400 }
         )
       }
@@ -146,12 +133,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 /** DELETE - Delete a skill by ID */
 export const DELETE = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
-  const searchParams = request.nextUrl.searchParams
-  const skillId = searchParams.get('id')
-  const workspaceId = searchParams.get('workspaceId')
-  const sourceParam = searchParams.get('source')
-  const source =
-    sourceParam === 'settings' || sourceParam === 'tool_input' ? sourceParam : undefined
 
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -161,16 +142,17 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = authResult.userId
-
-    if (!skillId) {
-      logger.warn(`[${requestId}] Missing skill ID for deletion`)
-      return NextResponse.json({ error: 'Skill ID is required' }, { status: 400 })
+    const query = deleteSkillQuerySchema.safeParse(
+      Object.fromEntries(request.nextUrl.searchParams.entries())
+    )
+    if (!query.success) {
+      logger.warn(`[${requestId}] Invalid skill deletion query`, { errors: query.error.issues })
+      return NextResponse.json(
+        { error: 'Invalid request data', details: query.error.issues },
+        { status: 400 }
+      )
     }
-
-    if (!workspaceId) {
-      logger.warn(`[${requestId}] Missing workspaceId for deletion`)
-      return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 })
-    }
+    const { id: skillId, workspaceId, source } = query.data
 
     const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (!userPermission || (userPermission !== 'admin' && userPermission !== 'write')) {

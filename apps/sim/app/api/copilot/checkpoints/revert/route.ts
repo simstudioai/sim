@@ -4,7 +4,8 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { revertCopilotCheckpointBodySchema } from '@/lib/api/contracts/copilot'
+import { validateSchema } from '@/lib/api/server'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -18,10 +19,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isUuidV4 } from '@/executor/constants'
 
 const logger = createLogger('CheckpointRevertAPI')
-
-const RevertCheckpointSchema = z.object({
-  checkpointId: z.string().min(1),
-})
 
 /**
  * POST /api/copilot/checkpoints/revert
@@ -37,7 +34,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const body = await request.json()
-    const { checkpointId } = RevertCheckpointSchema.parse(body)
+    const validation = validateSchema(revertCopilotCheckpointBodySchema, body)
+    if (!validation.success) return validation.response
+    const { checkpointId } = validation.data
 
     logger.info(`[${tracker.requestId}] Reverting to checkpoint ${checkpointId}`)
 

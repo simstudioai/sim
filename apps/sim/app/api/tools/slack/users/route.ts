@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { slackUsersBodySchema } from '@/lib/api/contracts/selectors/slack'
+import { validateJsonBody } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -21,13 +23,15 @@ interface SlackUser {
 export const POST = withRouteHandler(async (request: Request) => {
   try {
     const requestId = generateRequestId()
-    const body = await request.json()
-    const { credential, workflowId, userId } = body
-
-    if (!credential) {
+    const validation = await validateJsonBody(request, slackUsersBodySchema)
+    if (!validation.success) {
       logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
+      return NextResponse.json(
+        { error: validation.error?.issues[0]?.message ?? 'Invalid request data' },
+        { status: 400 }
+      )
     }
+    const { credential, workflowId, userId } = validation.data
 
     if (userId !== undefined && userId !== null) {
       const validation = validateAlphanumericId(userId, 'userId', 100)

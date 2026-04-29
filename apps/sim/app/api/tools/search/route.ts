@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { searchToolContract } from '@/lib/api/contracts/tools/search'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { SEARCH_TOOL_COST } from '@/lib/billing/constants'
 import { env } from '@/lib/core/config/env'
@@ -9,10 +10,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('search')
-
-const SearchRequestSchema = z.object({
-  query: z.string().min(1),
-})
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -38,8 +35,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId,
     })
 
-    const body = await request.json()
-    const validated = SearchRequestSchema.parse(body)
+    const parsed = await parseRequest(searchToolContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validated = parsed.data.body
 
     const exaApiKey = env.EXA_API_KEY
 

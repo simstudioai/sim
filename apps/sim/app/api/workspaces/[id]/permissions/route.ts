@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateWorkspacePermissionsBodySchema } from '@/lib/api/contracts/workspaces'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
@@ -20,15 +20,6 @@ import {
 } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspacesPermissionsAPI')
-
-const updatePermissionsSchema = z.object({
-  updates: z.array(
-    z.object({
-      userId: z.string(),
-      permissions: z.enum(['admin', 'write', 'read']),
-    })
-  ),
-})
 
 /**
  * GET /api/workspaces/[id]/permissions
@@ -116,7 +107,7 @@ export const PATCH = withRouteHandler(
         )
       }
 
-      const body = updatePermissionsSchema.parse(await request.json())
+      const body = updateWorkspacePermissionsBodySchema.parse(await request.json())
 
       const workspaceRow = await db
         .select({ billedAccountUserId: workspace.billedAccountUserId })

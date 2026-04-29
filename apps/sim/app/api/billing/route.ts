@@ -3,6 +3,7 @@ import { member } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { billingQuerySchema } from '@/lib/api/contracts/subscription'
 import { getSession } from '@/lib/auth'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { getSimplifiedBillingSummary } from '@/lib/billing/core/billing'
@@ -23,17 +24,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const { searchParams } = new URL(request.url)
-    const context = searchParams.get('context') || 'user'
-    const contextId = searchParams.get('id')
-    const includeOrg = searchParams.get('includeOrg') === 'true'
+    const parsedQuery = billingQuerySchema.safeParse({
+      context: searchParams.get('context') || undefined,
+      id: searchParams.get('id') || undefined,
+      includeOrg: searchParams.get('includeOrg') === 'true',
+    })
 
-    // Validate context parameter
-    if (!['user', 'organization'].includes(context)) {
+    if (!parsedQuery.success) {
       return NextResponse.json(
         { error: 'Invalid context. Must be "user" or "organization"' },
         { status: 400 }
       )
     }
+
+    const { context, id: contextId, includeOrg } = parsedQuery.data
 
     // For organization context, require contextId
     if (context === 'organization' && !contextId) {

@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { createScheduleBodySchema, scheduleQuerySchema } from '@/lib/api/contracts/schedules'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -25,9 +26,9 @@ const logger = createLogger('ScheduledAPI')
 export const GET = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   const url = new URL(req.url)
-  const workflowId = url.searchParams.get('workflowId')
-  const workspaceId = url.searchParams.get('workspaceId')
-  const blockId = url.searchParams.get('blockId')
+  const { workflowId, workspaceId, blockId } = scheduleQuerySchema.parse(
+    Object.fromEntries(url.searchParams.entries())
+  )
 
   try {
     const session = await getSession()
@@ -202,33 +203,18 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
-    const {
-      workspaceId,
-      title,
-      prompt,
-      cronExpression,
-      timezone = 'UTC',
-      lifecycle = 'persistent',
-      maxRuns,
-      startDate,
-    } = body as {
-      workspaceId: string
-      title: string
-      prompt: string
-      cronExpression: string
-      timezone?: string
-      lifecycle?: 'persistent' | 'until_complete'
-      maxRuns?: number
-      startDate?: string
-    }
-
-    if (!workspaceId || !title?.trim() || !prompt?.trim() || !cronExpression?.trim()) {
+    const bodyResult = createScheduleBodySchema.safeParse(await req.json())
+    if (!bodyResult.success) {
       return NextResponse.json(
-        { error: 'Missing required fields: workspaceId, title, prompt, cronExpression' },
+        {
+          error: 'Invalid request body',
+          details: bodyResult.error.issues,
+        },
         { status: 400 }
       )
     }
+    const { workspaceId, title, prompt, cronExpression, timezone, lifecycle, maxRuns, startDate } =
+      bodyResult.data
 
     const hasPermission = await verifyWorkspaceMembership(session.user.id, workspaceId)
     if (!hasPermission) {

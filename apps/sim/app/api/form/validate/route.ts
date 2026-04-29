@@ -3,20 +3,13 @@ import { form } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { z } from 'zod'
+import { formIdentifierValidationQuerySchema } from '@/lib/api/contracts/forms'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('FormValidateAPI')
-
-const validateQuerySchema = z.object({
-  identifier: z
-    .string()
-    .min(1, 'Identifier is required')
-    .regex(/^[a-z0-9-]+$/, 'Identifier can only contain lowercase letters, numbers, and hyphens')
-    .max(100, 'Identifier must be 100 characters or less'),
-})
 
 /**
  * GET endpoint to validate form identifier availability
@@ -30,10 +23,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const { searchParams } = new URL(request.url)
     const identifier = searchParams.get('identifier')
 
-    const validation = validateQuerySchema.safeParse({ identifier })
+    const validation = formIdentifierValidationQuerySchema.safeParse({ identifier })
 
     if (!validation.success) {
-      const errorMessage = validation.error.errors[0]?.message || 'Invalid identifier'
+      const errorMessage = getValidationErrorMessage(validation.error, 'Invalid identifier')
       logger.warn(`Validation error: ${errorMessage}`)
 
       if (identifier && !/^[a-z0-9-]+$/.test(identifier)) {

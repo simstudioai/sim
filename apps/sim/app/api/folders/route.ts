@@ -5,22 +5,14 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, isNotNull, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { createFolderBodySchema, listFoldersQuerySchema } from '@/lib/api/contracts'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersAPI')
-
-const CreateFolderSchema = z.object({
-  id: z.string().uuid().optional(),
-  name: z.string().min(1, 'Name is required'),
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  parentId: z.string().optional(),
-  color: z.string().optional(),
-  sortOrder: z.number().int().optional(),
-})
 
 // GET - Fetch folders for a workspace
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -31,11 +23,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const { searchParams } = new URL(request.url)
-    const workspaceId = searchParams.get('workspaceId')
+    const validation = listFoldersQuerySchema.safeParse(Object.fromEntries(searchParams.entries()))
 
-    if (!workspaceId) {
-      return NextResponse.json({ error: 'Workspace ID is required' }, { status: 400 })
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(validation.error) },
+        { status: 400 }
+      )
     }
+
+    const { workspaceId, scope } = validation.data
 
     // Check if user has workspace permissions
     const workspacePermission = await getUserEntityPermissions(
@@ -48,7 +45,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Access denied to this workspace' }, { status: 403 })
     }
 
-    const scope = searchParams.get('scope') ?? 'active'
     const archivedFilter =
       scope === 'archived'
         ? isNotNull(workflowFolder.archivedAt)
@@ -76,6 +72,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const body = await request.json()
+    const validation = validateSchema(createFolderBodySchema, body, 'Invalid request data')
+    if (!validation.success) {
+      logger.warn('Invalid folder creation data', { errors: validation.error.issues })
+      return validation.response
+    }
     const {
       id: clientId,
       name,
@@ -83,7 +84,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       parentId,
       color,
       sortOrder: providedSortOrder,
-    } = CreateFolderSchema.parse(body)
+    } = validation.data
 
     const workspacePermission = await getUserEntityPermissions(
       session.user.id,
@@ -181,14 +182,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ folder: newFolder })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn('Invalid folder creation data', { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     logger.error('Error creating folder:', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

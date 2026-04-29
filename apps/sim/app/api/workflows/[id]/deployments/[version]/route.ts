@@ -2,7 +2,11 @@ import { db, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { z } from 'zod'
+import {
+  deploymentVersionPatchBodySchema,
+  deploymentVersionRouteParamsSchema,
+} from '@/lib/api/contracts/deployments'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -11,29 +15,6 @@ import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowDeploymentVersionAPI')
-
-const patchBodySchema = z
-  .object({
-    name: z
-      .string()
-      .trim()
-      .min(1, 'Name cannot be empty')
-      .max(100, 'Name must be 100 characters or less')
-      .optional(),
-    description: z
-      .string()
-      .trim()
-      .max(2000, 'Description must be 2000 characters or less')
-      .nullable()
-      .optional(),
-    isActive: z.literal(true).optional(), // Set to true to activate this version
-  })
-  .refine(
-    (data) => data.name !== undefined || data.description !== undefined || data.isActive === true,
-    {
-      message: 'At least one of name, description, or isActive must be provided',
-    }
-  )
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -44,7 +25,14 @@ export const GET = withRouteHandler(
     { params }: { params: Promise<{ id: string; version: string }> }
   ) => {
     const requestId = generateRequestId()
-    const { id, version } = await params
+    const paramsValidation = validateSchema(deploymentVersionRouteParamsSchema, await params)
+    if (!paramsValidation.success) {
+      return createErrorResponse(
+        getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
+        400
+      )
+    }
+    const { id, version } = paramsValidation.data
 
     try {
       const { error } = await validateWorkflowPermissions(id, requestId, 'read')
@@ -89,15 +77,22 @@ export const PATCH = withRouteHandler(
     { params }: { params: Promise<{ id: string; version: string }> }
   ) => {
     const requestId = generateRequestId()
-    const { id, version } = await params
+    const paramsValidation = validateSchema(deploymentVersionRouteParamsSchema, await params)
+    if (!paramsValidation.success) {
+      return createErrorResponse(
+        getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
+        400
+      )
+    }
+    const { id, version } = paramsValidation.data
 
     try {
       const body = await request.json()
-      const validation = patchBodySchema.safeParse(body)
+      const validation = validateSchema(deploymentVersionPatchBodySchema, body)
 
       if (!validation.success) {
         return createErrorResponse(
-          validation.error.errors[0]?.message || 'Invalid request body',
+          getValidationErrorMessage(validation.error, 'Invalid request body'),
           400
         )
       }

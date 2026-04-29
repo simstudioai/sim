@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { githubLatestCommitContract } from '@/lib/api/contracts/tools/github'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -40,13 +41,6 @@ interface GitHubCommitResponse {
   }>
 }
 
-const GitHubLatestCommitSchema = z.object({
-  owner: z.string().min(1, 'Owner is required'),
-  repo: z.string().min(1, 'Repo is required'),
-  branch: z.string().optional().nullable(),
-  apiKey: z.string().min(1, 'API key is required'),
-})
-
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
@@ -64,10 +58,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const body = await request.json()
-    const validatedData = GitHubLatestCommitSchema.parse(body)
+    const parsed = await parseRequest(githubLatestCommitContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const { owner, repo, branch, apiKey } = validatedData
+    const { owner, repo, branch, apiKey } = parsed.data.body
 
     const baseUrl = `https://api.github.com/repos/${owner}/${repo}`
     const commitUrl = branch ? `${baseUrl}/commits/${branch}` : `${baseUrl}/commits/HEAD`

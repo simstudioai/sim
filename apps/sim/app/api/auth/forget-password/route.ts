@@ -4,46 +4,31 @@ import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { forgetPasswordBodySchema } from '@/lib/api/contracts'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { auth } from '@/lib/auth'
-import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ForgetPasswordAPI')
 
-const forgetPasswordSchema = z.object({
-  email: z
-    .string({ required_error: 'Email is required' })
-    .email('Please provide a valid email address'),
-  redirectTo: z
-    .string()
-    .optional()
-    .or(z.literal(''))
-    .transform((val) => (val === '' || val === undefined ? undefined : val))
-    .refine(
-      (val) => val === undefined || (z.string().url().safeParse(val).success && isSameOrigin(val)),
-      {
-        message: 'Redirect URL must be a valid same-origin URL',
-      }
-    ),
-})
-
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const body = await request.json()
 
-    const validationResult = forgetPasswordSchema.safeParse(body)
+    const validationResult = forgetPasswordBodySchema.safeParse(body)
 
     if (!validationResult.success) {
-      const firstError = validationResult.error.errors[0]
-      const errorMessage = firstError?.message || 'Invalid request data'
-
       logger.warn('Invalid forget password request data', {
-        errors: validationResult.error.format(),
+        errors: validationResult.error.issues,
       })
-      return NextResponse.json({ message: errorMessage }, { status: 400 })
+      return NextResponse.json(
+        {
+          message: getValidationErrorMessage(validationResult.error, 'Invalid request data'),
+        },
+        { status: 400 }
+      )
     }
 
     const { email, redirectTo } = validationResult.data

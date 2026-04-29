@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { credentialWorkflowBodySchema } from '@/lib/api/contracts/selectors/shared'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -13,12 +15,15 @@ export const POST = withRouteHandler(async (request: Request) => {
   const requestId = generateRequestId()
   try {
     const body = await request.json()
-    const { credential, workflowId } = body
-
-    if (!credential) {
+    const validation = validateSchema(credentialWorkflowBodySchema, body)
+    if (!validation.success) {
       logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
+      return NextResponse.json(
+        { error: getValidationErrorMessage(validation.error, 'Invalid request') },
+        { status: 400 }
+      )
     }
+    const { credential, workflowId } = validation.data
 
     const authz = await authorizeCredentialUse(request as any, {
       credentialId: credential,

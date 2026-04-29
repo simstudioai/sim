@@ -1,50 +1,22 @@
 import { createLogger } from '@sim/logger'
+import { type ApiClientRequest, requestJson } from '@/lib/api/client/request'
+import { oauthTokenContract } from '@/lib/api/contracts/selectors'
+import type { AnyApiRouteContract, ContractJsonResponse } from '@/lib/api/contracts/types'
 
 const logger = createLogger('SelectorHelpers')
 
-interface FetchJsonOptions extends RequestInit {
-  searchParams?: Record<string, string | number | undefined | null>
-}
-
-export async function fetchJson<T>(url: string, options: FetchJsonOptions = {}): Promise<T> {
-  const { searchParams, headers, ...rest } = options
-  let finalUrl = url
-  if (searchParams) {
-    const params = new URLSearchParams()
-    Object.entries(searchParams).forEach(([key, value]) => {
-      if (value === undefined || value === null || value === '') return
-      params.set(key, String(value))
+export async function requestSelectorContract<C extends AnyApiRouteContract>(
+  contract: C,
+  input: ApiClientRequest<C>
+): Promise<ContractJsonResponse<C>> {
+  if (contract.response.mode !== 'json') {
+    logger.error('Selector contract does not declare JSON response', {
+      method: contract.method,
+      path: contract.path,
     })
-    const qs = params.toString()
-    if (qs) {
-      finalUrl = `${url}${url.includes('?') ? '&' : '?'}${qs}`
-    }
   }
 
-  const response = await fetch(finalUrl, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers,
-    },
-    ...rest,
-  })
-
-  if (!response.ok) {
-    let message = `Failed request ${response.status}`
-    try {
-      const err = await response.json()
-      message = err.error || err.message || message
-    } catch (error) {
-      logger.warn('Failed to parse error response', { error })
-    }
-    throw new Error(message)
-  }
-
-  return response.json()
-}
-
-interface TokenResponse {
-  accessToken?: string
+  return requestJson(contract, input)
 }
 
 export async function fetchOAuthToken(
@@ -52,10 +24,8 @@ export async function fetchOAuthToken(
   workflowId?: string
 ): Promise<string | null> {
   if (!credentialId) return null
-  const body = JSON.stringify({ credentialId, workflowId })
-  const token = await fetchJson<TokenResponse>('/api/auth/oauth/token', {
-    method: 'POST',
-    body,
+  const token = await requestJson(oauthTokenContract, {
+    body: { credentialId, workflowId },
   })
   return token.accessToken ?? null
 }

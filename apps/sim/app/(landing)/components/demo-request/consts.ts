@@ -56,7 +56,7 @@ export const demoRequestSchema = z.object({
     .optional()
     .transform((value) => (value && value.length > 0 ? value : undefined)),
   companySize: z.enum(DEMO_REQUEST_COMPANY_SIZE_VALUES, {
-    errorMap: () => ({ message: 'Please select company size' }),
+    error: 'Please select company size',
   }),
   details: z.string().trim().min(1, 'Details are required').max(2000),
 })

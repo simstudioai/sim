@@ -2,6 +2,8 @@
  * Type definitions for table undo/redo actions.
  */
 
+import type { ColumnDefinition } from '@/lib/table'
+
 export interface DeletedRowSnapshot {
   rowId: string
   data: Record<string, unknown>
@@ -35,7 +37,7 @@ export type TableUndoAction =
   | {
       type: 'delete-column'
       columnName: string
-      columnType: string
+      columnType: ColumnDefinition['type']
       columnPosition: number
       columnUnique: boolean
       columnRequired: boolean
@@ -44,7 +46,12 @@ export type TableUndoAction =
       previousWidth: number | null
     }
   | { type: 'rename-column'; oldName: string; newName: string }
-  | { type: 'update-column-type'; columnName: string; previousType: string; newType: string }
+  | {
+      type: 'update-column-type'
+      columnName: string
+      previousType: ColumnDefinition['type']
+      newType: ColumnDefinition['type']
+    }
   | {
       type: 'toggle-column-constraint'
       columnName: string

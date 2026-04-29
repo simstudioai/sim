@@ -13,6 +13,14 @@ import {
   isTerminalState,
   parseWorkflowSSEChunk,
 } from '@/lib/a2a/utils'
+import {
+  type A2AJsonRpcId,
+  a2aJsonRpcRequestSchema,
+  a2aMessageSendParamsSchema,
+  a2aPushNotificationSetParamsSchema,
+  a2aServeAgentParamsSchema,
+  a2aTaskIdParamsSchema,
+} from '@/lib/api/contracts/a2a-agents'
 import { type AuthResult, AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
@@ -33,7 +41,6 @@ import {
   extractAgentContent,
   formatTaskResponse,
   generateTaskId,
-  isJSONRPCRequest,
   type MessageSendParams,
   type PushNotificationSetParams,
   type TaskIdParams,
@@ -74,7 +81,7 @@ function hasCallerAccessToTask(
  */
 export const GET = withRouteHandler(
   async (_request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
-    const { agentId } = await params
+    const { agentId } = a2aServeAgentParamsSchema.parse(await params)
 
     const redis = getRedisClient()
     const cacheKey = `a2a:agent:${agentId}:card`
@@ -185,7 +192,7 @@ export const GET = withRouteHandler(
  */
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
-    const { agentId } = await params
+    const { agentId } = a2aServeAgentParamsSchema.parse(await params)
 
     try {
       const [agent] = await db
@@ -263,15 +270,26 @@ export const POST = withRouteHandler(
         )
       }
 
-      const body = await request.json()
+      let rawBody: unknown
+      try {
+        rawBody = await request.json()
+      } catch {
+        return NextResponse.json(
+          createError(null, A2A_ERROR_CODES.PARSE_ERROR, 'Invalid JSON body'),
+          { status: 400 }
+        )
+      }
 
-      if (!isJSONRPCRequest(body)) {
+      const bodyResult = a2aJsonRpcRequestSchema.safeParse(rawBody)
+
+      if (!bodyResult.success) {
         return NextResponse.json(
           createError(null, A2A_ERROR_CODES.INVALID_REQUEST, 'Invalid JSON-RPC request'),
           { status: 400 }
         )
       }
 
+      const body = bodyResult.data
       const { id, method, params: rpcParams } = body
       const requestApiKey = request.headers.get('X-API-Key')
       const apiKey = authenticatedAuthType === AuthType.API_KEY ? requestApiKey : null
@@ -299,65 +317,129 @@ export const POST = withRouteHandler(
       logger.info(`A2A request: ${method} for agent ${agentId}`)
 
       switch (method) {
-        case A2A_METHODS.MESSAGE_SEND:
+        case A2A_METHODS.MESSAGE_SEND: {
+          const paramsValidation = a2aMessageSendParamsSchema.safeParse(rpcParams)
+          if (!paramsValidation.success) {
+            return NextResponse.json(
+              createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Message is required'),
+              { status: 400 }
+            )
+          }
+
           return handleMessageSend(
             id,
             agent,
-            rpcParams as MessageSendParams,
+            paramsValidation.data as MessageSendParams,
             apiKey,
             executionUserId,
             callerFingerprint
           )
+        }
 
-        case A2A_METHODS.MESSAGE_STREAM:
+        case A2A_METHODS.MESSAGE_STREAM: {
+          const paramsValidation = a2aMessageSendParamsSchema.safeParse(rpcParams)
+          if (!paramsValidation.success) {
+            return NextResponse.json(
+              createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Message is required'),
+              { status: 400 }
+            )
+          }
+
           return handleMessageStream(
             request,
             id,
             agent,
-            rpcParams as MessageSendParams,
+            paramsValidation.data as MessageSendParams,
             apiKey,
             executionUserId,
             callerFingerprint
           )
+        }
 
-        case A2A_METHODS.TASKS_GET:
-          return handleTaskGet(id, agent.id, rpcParams as TaskIdParams, callerFingerprint)
+        case A2A_METHODS.TASKS_GET: {
+          const paramsValidation = a2aTaskIdParamsSchema.safeParse(rpcParams)
+          if (!paramsValidation.success) {
+            return NextResponse.json(
+              createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
+              { status: 400 }
+            )
+          }
+          return handleTaskGet(id, agent.id, paramsValidation.data, callerFingerprint)
+        }
 
-        case A2A_METHODS.TASKS_CANCEL:
-          return handleTaskCancel(id, agent.id, rpcParams as TaskIdParams, callerFingerprint)
+        case A2A_METHODS.TASKS_CANCEL: {
+          const paramsValidation = a2aTaskIdParamsSchema.safeParse(rpcParams)
+          if (!paramsValidation.success) {
+            return NextResponse.json(
+              createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
+              { status: 400 }
+            )
+          }
+          return handleTaskCancel(id, agent.id, paramsValidation.data, callerFingerprint)
+        }
 
-        case A2A_METHODS.TASKS_RESUBSCRIBE:
+        case A2A_METHODS.TASKS_RESUBSCRIBE: {
+          const paramsValidation = a2aTaskIdParamsSchema.safeParse(rpcParams)
+          if (!paramsValidation.success) {
+            return NextResponse.json(
+              createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
+              { status: 400 }
+            )
+          }
+
           return handleTaskResubscribe(
             request,
             id,
             agent.id,
-            rpcParams as TaskIdParams,
+            paramsValidation.data,
             callerFingerprint
           )
+        }
 
-        case A2A_METHODS.PUSH_NOTIFICATION_SET:
+        case A2A_METHODS.PUSH_NOTIFICATION_SET: {
+          const paramsValidation = a2aPushNotificationSetParamsSchema.safeParse(rpcParams)
+          if (!paramsValidation.success) {
+            return NextResponse.json(
+              createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Invalid push notification params'),
+              { status: 400 }
+            )
+          }
+
           return handlePushNotificationSet(
             id,
             agent.id,
-            rpcParams as PushNotificationSetParams,
+            paramsValidation.data as PushNotificationSetParams,
             callerFingerprint
           )
+        }
 
-        case A2A_METHODS.PUSH_NOTIFICATION_GET:
-          return handlePushNotificationGet(
-            id,
-            agent.id,
-            rpcParams as TaskIdParams,
-            callerFingerprint
-          )
+        case A2A_METHODS.PUSH_NOTIFICATION_GET: {
+          const paramsValidation = a2aTaskIdParamsSchema.safeParse(rpcParams)
+          if (!paramsValidation.success) {
+            return NextResponse.json(
+              createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
+              { status: 400 }
+            )
+          }
+          return handlePushNotificationGet(id, agent.id, paramsValidation.data, callerFingerprint)
+        }
 
-        case A2A_METHODS.PUSH_NOTIFICATION_DELETE:
+        case A2A_METHODS.PUSH_NOTIFICATION_DELETE: {
+          const paramsValidation = a2aTaskIdParamsSchema.safeParse(rpcParams)
+          if (!paramsValidation.success) {
+            return NextResponse.json(
+              createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
+              { status: 400 }
+            )
+          }
+
           return handlePushNotificationDelete(
             id,
             agent.id,
-            rpcParams as TaskIdParams,
+            paramsValidation.data,
             callerFingerprint
           )
+        }
 
         default:
           return NextResponse.json(
@@ -392,24 +474,26 @@ async function getTaskForAgent(taskId: string, agentId: string, callerFingerprin
  * Handle message/send - Send a message (v0.3)
  */
 async function handleMessageSend(
-  id: string | number,
+  id: A2AJsonRpcId,
   agent: {
     id: string
     name: string
     workflowId: string
     workspaceId: string
   },
-  params: MessageSendParams,
+  rawParams: unknown,
   apiKey?: string | null,
   executionUserId?: string,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  if (!params?.message) {
+  const paramsResult = a2aMessageSendParamsSchema.safeParse(rawParams)
+  if (!paramsResult.success) {
     return NextResponse.json(
       createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Message is required'),
       { status: 400 }
     )
   }
+  const params = paramsResult.data as MessageSendParams
 
   const message = params.message
   const taskId = message.taskId || generateTaskId()
@@ -621,24 +705,26 @@ async function handleMessageSend(
  */
 async function handleMessageStream(
   _request: NextRequest,
-  id: string | number,
+  id: A2AJsonRpcId,
   agent: {
     id: string
     name: string
     workflowId: string
     workspaceId: string
   },
-  params: MessageSendParams,
+  rawParams: unknown,
   apiKey?: string | null,
   executionUserId?: string,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  if (!params?.message) {
+  const paramsResult = a2aMessageSendParamsSchema.safeParse(rawParams)
+  if (!paramsResult.success) {
     return NextResponse.json(
       createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Message is required'),
       { status: 400 }
     )
   }
+  const params = paramsResult.data as MessageSendParams
 
   const message = params.message
   const contextId = message.contextId || generateId()
@@ -1057,17 +1143,19 @@ async function handleMessageStream(
  * Handle tasks/get - Query task status
  */
 async function handleTaskGet(
-  id: string | number,
+  id: A2AJsonRpcId,
   agentId: string,
-  params: TaskIdParams,
+  rawParams: unknown,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  if (!params?.id) {
+  const paramsResult = a2aTaskIdParamsSchema.safeParse(rawParams)
+  if (!paramsResult.success) {
     return NextResponse.json(
       createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
       { status: 400 }
     )
   }
+  const params = paramsResult.data as TaskIdParams
 
   const historyLength =
     params.historyLength !== undefined && params.historyLength >= 0
@@ -1099,17 +1187,19 @@ async function handleTaskGet(
  * Handle tasks/cancel - Cancel a running task
  */
 async function handleTaskCancel(
-  id: string | number,
+  id: A2AJsonRpcId,
   agentId: string,
-  params: TaskIdParams,
+  rawParams: unknown,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  if (!params?.id) {
+  const paramsResult = a2aTaskIdParamsSchema.safeParse(rawParams)
+  if (!paramsResult.success) {
     return NextResponse.json(
       createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
       { status: 400 }
     )
   }
+  const params = paramsResult.data as TaskIdParams
 
   const task = await getTaskForAgent(params.id, agentId, callerFingerprint)
 
@@ -1174,17 +1264,19 @@ async function handleTaskCancel(
  */
 async function handleTaskResubscribe(
   request: NextRequest,
-  id: string | number,
+  id: A2AJsonRpcId,
   agentId: string,
-  params: TaskIdParams,
+  rawParams: unknown,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  if (!params?.id) {
+  const paramsResult = a2aTaskIdParamsSchema.safeParse(rawParams)
+  if (!paramsResult.success) {
     return NextResponse.json(
       createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
       { status: 400 }
     )
   }
+  const params = paramsResult.data as TaskIdParams
 
   const task = await getTaskForAgent(params.id, agentId, callerFingerprint)
 
@@ -1382,24 +1474,27 @@ async function handleTaskResubscribe(
  * Handle tasks/pushNotificationConfig/set - Set webhook for task updates
  */
 async function handlePushNotificationSet(
-  id: string | number,
+  id: A2AJsonRpcId,
   agentId: string,
-  params: PushNotificationSetParams,
+  rawParams: unknown,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  if (!params?.id) {
+  const idResult = a2aTaskIdParamsSchema.safeParse(rawParams)
+  if (!idResult.success) {
     return NextResponse.json(
       createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
       { status: 400 }
     )
   }
 
-  if (!params?.pushNotificationConfig?.url) {
+  const paramsResult = a2aPushNotificationSetParamsSchema.safeParse(rawParams)
+  if (!paramsResult.success) {
     return NextResponse.json(
       createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Push notification URL is required'),
       { status: 400 }
     )
   }
+  const params = paramsResult.data as PushNotificationSetParams
 
   const urlValidation = await validateUrlWithDNS(
     params.pushNotificationConfig.url,
@@ -1462,17 +1557,19 @@ async function handlePushNotificationSet(
  * Handle tasks/pushNotificationConfig/get - Get webhook config for a task
  */
 async function handlePushNotificationGet(
-  id: string | number,
+  id: A2AJsonRpcId,
   agentId: string,
-  params: TaskIdParams,
+  rawParams: unknown,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  if (!params?.id) {
+  const paramsResult = a2aTaskIdParamsSchema.safeParse(rawParams)
+  if (!paramsResult.success) {
     return NextResponse.json(
       createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
       { status: 400 }
     )
   }
+  const params = paramsResult.data as TaskIdParams
 
   const task = await getTaskForAgent(params.id, agentId, callerFingerprint)
 
@@ -1507,17 +1604,19 @@ async function handlePushNotificationGet(
  * Handle tasks/pushNotificationConfig/delete - Delete webhook config for a task
  */
 async function handlePushNotificationDelete(
-  id: string | number,
+  id: A2AJsonRpcId,
   agentId: string,
-  params: TaskIdParams,
+  rawParams: unknown,
   callerFingerprint?: string
 ): Promise<NextResponse> {
-  if (!params?.id) {
+  const paramsResult = a2aTaskIdParamsSchema.safeParse(rawParams)
+  if (!paramsResult.success) {
     return NextResponse.json(
       createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Task ID is required'),
       { status: 400 }
     )
   }
+  const params = paramsResult.data as TaskIdParams
 
   const task = await getTaskForAgent(params.id, agentId, callerFingerprint)
 

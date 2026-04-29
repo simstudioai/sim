@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { onedriveDownloadBodySchema } from '@/lib/api/contracts/tools/microsoft'
+import { validateJsonBody } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -31,12 +32,6 @@ interface DriveItemMetadata {
 
 const logger = createLogger('OneDriveDownloadAPI')
 
-const OneDriveDownloadSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  fileId: z.string().min(1, 'File ID is required'),
-  fileName: z.string().optional().nullable(),
-})
-
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
@@ -54,8 +49,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const body = await request.json()
-    const validatedData = OneDriveDownloadSchema.parse(body)
+    const validation = await validateJsonBody(request, onedriveDownloadBodySchema)
+    if (!validation.success) {
+      return NextResponse.json(
+        { success: false, error: validation.error?.issues[0]?.message ?? 'Invalid request' },
+        { status: 400 }
+      )
+    }
+    const validatedData = validation.data
 
     const { accessToken, fileId, fileName } = validatedData
     const authHeader = `Bearer ${accessToken}`
@@ -166,12 +167,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: error.errors[0]?.message ?? 'Invalid request' },
-        { status: 400 }
-      )
-    }
     logger.error(`[${requestId}] Error downloading OneDrive file:`, error)
     return NextResponse.json(
       {

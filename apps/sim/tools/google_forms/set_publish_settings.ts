@@ -3,7 +3,7 @@ import type {
   GoogleFormsSetPublishSettingsParams,
   GoogleFormsSetPublishSettingsResponse,
 } from '@/tools/google_forms/types'
-import { buildSetPublishSettingsUrl } from '@/tools/google_forms/utils'
+import { buildSetPublishSettingsUrl, getGoogleFormsErrorMessage } from '@/tools/google_forms/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface SetPublishSettingsApiResponse {
@@ -76,14 +76,13 @@ export const setPublishSettingsTool: ToolConfig<
     const data = (await response.json()) as SetPublishSettingsApiResponse
 
     if (!response.ok) {
-      const errorData = data as unknown as { error?: { message?: string } }
       return {
         success: false,
         output: {
           formId: '',
           publishSettings: {},
         },
-        error: errorData.error?.message ?? 'Failed to set publish settings',
+        error: getGoogleFormsErrorMessage(data, 'Failed to set publish settings'),
       }
     }
 

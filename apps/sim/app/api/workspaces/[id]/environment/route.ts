@@ -5,7 +5,10 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  removeWorkspaceEnvironmentBodySchema,
+  savePersonalEnvironmentBodySchema,
+} from '@/lib/api/contracts/environment'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -18,14 +21,6 @@ import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceEnvironmentAPI')
-
-const UpsertSchema = z.object({
-  variables: z.record(z.string()),
-})
-
-const DeleteSchema = z.object({
-  keys: z.array(z.string()).min(1),
-})
 
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -97,7 +92,7 @@ export const PUT = withRouteHandler(
       }
 
       const body = await request.json()
-      const { variables } = UpsertSchema.parse(body)
+      const { variables } = savePersonalEnvironmentBodySchema.parse(body)
 
       // Read existing encrypted ws vars
       const existingRows = await db
@@ -183,7 +178,7 @@ export const DELETE = withRouteHandler(
       }
 
       const body = await request.json()
-      const { keys } = DeleteSchema.parse(body)
+      const { keys } = removeWorkspaceEnvironmentBodySchema.parse(body)
 
       const wsRows = await db
         .select()

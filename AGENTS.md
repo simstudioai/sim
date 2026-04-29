@@ -4,6 +4,7 @@ You are a professional software engineer. All code must follow best practices: a
 
 ## Global Standards
 
+- **Linting / Audit**: `bun run check:api-validation` must pass on PRs. Do not introduce route-local boundary Zod schemas, direct route Zod imports, or ad-hoc client wire types — see "API Contracts" and "API Route Pattern" below
 - **Logging**: Import `createLogger` from `@sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`
 - **Comments**: Use TSDoc for documentation. No `====` separators. No non-TSDoc comments
 - **Styling**: Never update global styles. Keep all styling local to components
@@ -115,6 +116,78 @@ export function Component({ requiredProp, optionalProp = false }: ComponentProps
 
 Extract when: 50+ lines, used in 2+ files, or has own state/logic. Keep inline when: < 10 lines, single use, purely presentational.
 
+## API Contracts
+
+Boundary HTTP request and response shapes for all routes under `apps/sim/app/api/**` live in `apps/sim/lib/api/contracts/**` (one file per resource family — `folders.ts`, `chats.ts`, `knowledge.ts`, etc.). Routes never define route-local boundary Zod schemas, and clients never define ad-hoc wire types — both sides consume the same contract.
+
+- Each contract is built with `defineRouteContract({ method, path, params?, query?, body?, headers?, response: { mode: 'json', schema } })` from `@/lib/api/contracts`
+- Contracts export named schemas (e.g., `createFolderBodySchema`) AND named TypeScript type aliases (e.g., `export type CreateFolderBody = z.input<typeof createFolderBodySchema>`)
+- Clients (hooks, utilities, components) import the named type aliases from the contract file. They must never write `z.input<...>` / `z.output<...>` themselves
+- Shared identifier schemas live in `apps/sim/lib/api/contracts/primitives.ts` (e.g., `workspaceIdSchema`, `workflowIdSchema`). Reuse these instead of redefining string-based ID schemas
+- Audit script: `bun run check:api-validation` enforces boundary policy and prints ratchet metrics for route Zod imports, route-local schema constructors, route `ZodError` references, client hook Zod imports, and related counters. It must pass on PRs
+
+Domain validators that are not HTTP boundaries — tools, blocks, triggers, connectors, realtime handlers, and internal helpers — may still use Zod directly. The contract rule is boundary-only.
+
+## API Route Pattern
+
+Routes never `import { z } from 'zod'` and never define route-local boundary schemas. They consume the contract from `@/lib/api/contracts/**` and validate with canonical helpers from `@/lib/api/server`:
+
+- `parseRequest(contract, request, context)` — fully contract-bound routes; parses params, query, body, and headers in one call
+- `validateJsonBody(request, schema)` — when the body schema comes from a contract but you need to assemble query/headers manually
+- `validateSchema(schema, data)` — for ad-hoc validation against a contract schema or primitive
+- `validationErrorResponse(error)` and `getValidationErrorMessage(error, fallback)` — produce 400 responses from a `ZodError`
+- `validationErrorResponseFromError(error)` — when handling unknown caught errors that may or may not be a `ZodError`
+- `isZodError(error)` — type guard. Routes never use `instanceof z.ZodError`
+
+### Fully contract-bound route (`parseRequest`)
+
+```typescript
+import { createLogger } from '@sim/logger'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
+import { createFolderContract } from '@/lib/api/contracts/folders'
+import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+
+const logger = createLogger('FoldersAPI')
+
+export const POST = withRouteHandler(async (request: NextRequest) => {
+  try {
+    const { body } = await parseRequest(createFolderContract, request)
+    logger.info('Creating folder', { workspaceId: body.workspaceId })
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    return validationErrorResponseFromError(error)
+  }
+})
+```
+
+### Partial validation (`validateJsonBody`)
+
+```typescript
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
+import { updateFolderBodySchema } from '@/lib/api/contracts/folders'
+import { isZodError, validateJsonBody, validationErrorResponse } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+
+export const PATCH = withRouteHandler(async (
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params
+  try {
+    const body = await validateJsonBody(request, updateFolderBodySchema)
+    return NextResponse.json({ id, ...body })
+  } catch (error) {
+    if (isZodError(error)) return validationErrorResponse(error)
+    throw error
+  }
+})
+```
+
+Routes under `apps/sim/app/api/v1/**` use the shared middleware in `apps/sim/app/api/v1/middleware.ts` for auth, rate-limit, and workspace access. Compose contract validation inside that middleware — never reimplement auth/rate-limit per-route.
+
 ## Hooks
 
 ```typescript
@@ -159,6 +232,38 @@ Use `devtools` middleware. Use `persist` only when data should survive reload wi
 ## React Query
 
 All React Query hooks live in `hooks/queries/`. All server state must go through React Query — never use `useState` + `fetch` in components for data fetching or mutations.
+
+### Client Boundary
+
+Hooks consume contracts the same way routes do. Every same-origin JSON call must go through `requestJson(contract, ...)` from `@/lib/api/client/request` instead of raw `fetch`:
+
+- Hooks import named type aliases from `@/lib/api/contracts/**`. Never write `z.input<...>` / `z.output<...>` in hooks, and never `import { z } from 'zod'` in client code
+- `requestJson` parses params, query, body, and headers against the contract on the way out and validates the JSON response on the way back. Hooks always forward `signal` for cancellation
+- Documented exceptions for raw `fetch`: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests. Mark each raw `fetch` with a TSDoc comment explaining which exception applies
+
+```typescript
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'
+
+async function fetchEntities(workspaceId: string, signal?: AbortSignal): Promise<EntityList> {
+  const data = await requestJson(listEntitiesContract, {
+    query: { workspaceId },
+    signal,
+  })
+  return data.entities
+}
+
+export function useEntityList(workspaceId?: string) {
+  return useQuery({
+    queryKey: entityKeys.list(workspaceId),
+    queryFn: ({ signal }) => fetchEntities(workspaceId as string, signal),
+    enabled: Boolean(workspaceId),
+    staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
+  })
+}
+```
 
 ### Query Key Factory
 

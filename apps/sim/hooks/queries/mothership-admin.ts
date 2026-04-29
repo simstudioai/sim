@@ -9,7 +9,8 @@ async function mothershipPost(
   environment: MothershipEnv,
   body?: Record<string, unknown>
 ) {
-  const res = await fetch(`${BASE}?env=${environment}&endpoint=${endpoint}`, {
+  const qs = new URLSearchParams({ env: environment, endpoint })
+  const res = await fetch(`${BASE}?${qs.toString()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {}),

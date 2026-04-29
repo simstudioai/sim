@@ -4,7 +4,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { deployedChatPostBodySchema } from '@/lib/api/contracts/chats'
+import { validateSchema } from '@/lib/api/server'
 import { addCorsHeaders, validateAuthToken } from '@/lib/core/security/deployment'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -36,22 +37,6 @@ function toChatConfigResponse(deployment: ChatConfigSource) {
   }
 }
 
-const chatFileSchema = z.object({
-  name: z.string().min(1, 'File name is required'),
-  type: z.string().min(1, 'File type is required'),
-  size: z.number().positive('File size must be positive'),
-  data: z.string().min(1, 'File data is required'),
-  lastModified: z.number().optional(),
-})
-
-const chatPostBodySchema = z.object({
-  input: z.string().optional(),
-  password: z.string().optional(),
-  email: z.string().email('Invalid email format').optional().or(z.literal('')),
-  conversationId: z.string().optional(),
-  files: z.array(chatFileSchema).optional().default([]),
-})
-
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
@@ -64,10 +49,10 @@ export const POST = withRouteHandler(
       let parsedBody
       try {
         const rawBody = await request.json()
-        const validation = chatPostBodySchema.safeParse(rawBody)
+        const validation = validateSchema(deployedChatPostBodySchema, rawBody)
 
         if (!validation.success) {
-          const errorMessage = validation.error.errors
+          const errorMessage = validation.error.issues
             .map((err) => `${err.path.join('.')}: ${err.message}`)
             .join(', ')
           logger.warn(`[${requestId}] Validation error: ${errorMessage}`)

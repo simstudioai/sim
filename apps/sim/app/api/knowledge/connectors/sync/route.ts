@@ -3,6 +3,8 @@ import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, lte } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { noInputSchema } from '@/lib/api/contracts/primitives'
+import { validateSchema } from '@/lib/api/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -19,6 +21,9 @@ const logger = createLogger('ConnectorSyncSchedulerAPI')
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Connector sync scheduler triggered`)
+
+  const validation = validateSchema(noInputSchema, {})
+  if (!validation.success) return validation.response
 
   const authError = verifyCronAuth(request, 'Connector sync scheduler')
   if (authError) {

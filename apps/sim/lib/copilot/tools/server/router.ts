@@ -43,7 +43,7 @@ import { getExecutionSummaryServerTool } from '@/lib/copilot/tools/server/workfl
 import { getWorkflowLogsServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-logs'
 
 export { ExecuteResponseSuccessSchema }
-export type ExecuteResponseSuccess = (typeof ExecuteResponseSuccessSchema)['_type']
+export type ExecuteResponseSuccess = z.output<typeof ExecuteResponseSuccessSchema>
 
 const ExecuteResponseSuccessSchema = z.object({
   success: z.literal(true),
@@ -76,7 +76,9 @@ const WRITE_ACTIONS: Record<string, string[]> = {
     'insert_row',
     'batch_insert_rows',
     'update_row',
+    'batch_update_rows',
     'delete_row',
+    'batch_delete_rows',
     'update_rows_by_filter',
     'delete_rows_by_filter',
     'add_column',

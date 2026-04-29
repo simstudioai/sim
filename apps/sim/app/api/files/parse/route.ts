@@ -5,6 +5,8 @@ import path from 'path'
 import { createLogger } from '@sim/logger'
 import binaryExtensionsList from 'binary-extensions'
 import { type NextRequest, NextResponse } from 'next/server'
+import { fileParseBodySchema } from '@/lib/api/contracts/storage-transfer'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -84,7 +86,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = authResult.userId
-    const requestData = await request.json()
+    const validationResult = fileParseBodySchema.safeParse(await request.json())
+    if (!validationResult.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: getValidationErrorMessage(validationResult.error, 'Invalid request data'),
+          filePath: '',
+        },
+        { status: 400 }
+      )
+    }
+
+    const requestData = validationResult.data
     const { filePath, fileType, workspaceId, workflowId, executionId } = requestData
 
     if (!filePath || (typeof filePath === 'string' && filePath.trim() === '')) {

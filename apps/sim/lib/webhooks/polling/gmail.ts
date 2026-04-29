@@ -1,5 +1,9 @@
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
-import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
+import {
+  getProviderConfig,
+  type PollingProviderHandler,
+  type PollWebhookContext,
+} from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
@@ -69,7 +73,7 @@ export const gmailPollingHandler: PollingProviderHandler = {
         logger
       )
 
-      const config = webhookData.providerConfig as unknown as GmailWebhookConfig
+      const config = getProviderConfig<GmailWebhookConfig>(webhookData.providerConfig)
       const now = new Date()
 
       const { emails, latestHistoryId } = await fetchNewEmails(

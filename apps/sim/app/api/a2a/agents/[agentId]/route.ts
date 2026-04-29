@@ -5,6 +5,12 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { generateAgentCard, generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
 import type { AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
+import {
+  a2aAgentParamsSchema,
+  publishA2AAgentBodySchema,
+  updateA2AAgentBodySchema,
+} from '@/lib/api/contracts/a2a-agents'
+import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -25,7 +31,7 @@ interface RouteParams {
  */
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
-    const { agentId } = await params
+    const { agentId } = a2aAgentParamsSchema.parse(await params)
 
     try {
       const [agent] = await db
@@ -88,7 +94,7 @@ export const GET = withRouteHandler(
  */
 export const PUT = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
-    const { agentId } = await params
+    const { agentId } = a2aAgentParamsSchema.parse(await params)
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -111,18 +117,18 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      const body = await request.json()
-
-      if (
-        body.skillTags !== undefined &&
-        (!Array.isArray(body.skillTags) ||
-          !body.skillTags.every((tag: unknown): tag is string => typeof tag === 'string'))
-      ) {
+      const parseResult = await validateJsonBody(request, updateA2AAgentBodySchema)
+      if (!parseResult.success) {
         return NextResponse.json(
-          { error: 'skillTags must be an array of strings' },
+          {
+            error: parseResult.error
+              ? getValidationErrorMessage(parseResult.error)
+              : 'Invalid request body',
+          },
           { status: 400 }
         )
       }
+      const body = parseResult.data
 
       let skills = body.skills ?? existingAgent.skills
       if (body.skillTags !== undefined) {
@@ -163,7 +169,7 @@ export const PUT = withRouteHandler(
  */
 export const DELETE = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
-    const { agentId } = await params
+    const { agentId } = a2aAgentParamsSchema.parse(await params)
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -214,7 +220,7 @@ export const DELETE = withRouteHandler(
  */
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
-    const { agentId } = await params
+    const { agentId } = a2aAgentParamsSchema.parse(await params)
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -241,8 +247,18 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      const body = await request.json()
-      const action = body.action as 'publish' | 'unpublish' | 'refresh'
+      const actionResult = await validateJsonBody(request, publishA2AAgentBodySchema)
+      if (!actionResult.success) {
+        return NextResponse.json(
+          {
+            error: actionResult.error
+              ? getValidationErrorMessage(actionResult.error)
+              : 'Invalid action',
+          },
+          { status: 400 }
+        )
+      }
+      const { action } = actionResult.data
 
       if (action === 'publish') {
         const [wf] = await db

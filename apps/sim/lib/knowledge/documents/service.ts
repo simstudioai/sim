@@ -834,8 +834,8 @@ export interface TagFilterCondition {
   tagSlot: string
   fieldType: 'text' | 'number' | 'date' | 'boolean'
   operator: string
-  value: string
-  valueTo?: string
+  value: unknown
+  valueTo?: unknown
 }
 
 const ALLOWED_TAG_SLOTS = new Set([
@@ -868,7 +868,7 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   const col = document[filter.tagSlot as keyof typeof document]
 
   if (filter.fieldType === 'text') {
-    const v = filter.value
+    const v = String(filter.value ?? '')
     switch (filter.operator) {
       case 'eq':
         return eq(col as typeof document.tag1, v)
@@ -925,7 +925,7 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   }
 
   if (filter.fieldType === 'date') {
-    const v = filter.value
+    const v = String(filter.value ?? '')
     switch (filter.operator) {
       case 'eq':
         return eq(col as typeof document.date1, new Date(v))
@@ -941,9 +941,10 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
         return lte(col as typeof document.date1, new Date(v))
       case 'between': {
         if (!filter.valueTo) return undefined
+        const valueTo = String(filter.valueTo)
         return and(
           gte(col as typeof document.date1, new Date(v)),
-          lte(col as typeof document.date1, new Date(filter.valueTo))
+          lte(col as typeof document.date1, new Date(valueTo))
         )
       }
       default:
@@ -952,7 +953,9 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   }
 
   if (filter.fieldType === 'boolean') {
-    const boolVal = filter.value === 'true'
+    const boolVal =
+      typeof filter.value === 'boolean' ? filter.value : parseBooleanValue(String(filter.value))
+    if (boolVal === null) return undefined
     switch (filter.operator) {
       case 'eq':
         return eq(col as typeof document.boolean1, boolVal)

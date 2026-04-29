@@ -54,3 +54,14 @@ feature/
 - **Create `utils.ts` when** 2+ files need the same helper
 - **Check existing sources** before duplicating (`lib/` has many utilities)
 - **Location**: `lib/` (app-wide) → `feature/utils/` (feature-scoped) → inline (single-use)
+
+## API Contracts
+
+Boundary HTTP request and response shapes for all routes under `apps/sim/app/api/**` live in `apps/sim/lib/api/contracts/` (one file per resource family). Routes and clients consume the same contract — routes never define route-local boundary Zod schemas, and clients never define ad-hoc wire types. Domain validators that are not HTTP boundaries (tools, blocks, triggers, connectors, realtime handlers, internal helpers) may still use Zod directly; the contract rule is boundary-only.
+
+- Each contract is built with `defineRouteContract({ method, path, params?, query?, body?, headers?, response: { mode: 'json', schema } })` and exports both schemas and named TypeScript type aliases (e.g., `export type CreateFolderBody = z.input<typeof createFolderBodySchema>`).
+- Shared identifier schemas live in `apps/sim/lib/api/contracts/primitives.ts`.
+- Routes validate via canonical helpers in `apps/sim/lib/api/server/validation.ts` (`parseRequest`, `validateJsonBody`, `validateSchema`, `validationErrorResponse`, `getValidationErrorMessage`, `isZodError`). Routes never `import { z } from 'zod'` and never use `instanceof z.ZodError`.
+- Clients call `requestJson(contract, ...)` from `apps/sim/lib/api/client/request.ts`; hooks import named type aliases from contracts, never `z.input/z.output`.
+- Routes under `apps/sim/app/api/v1/**` use `apps/sim/app/api/v1/middleware.ts` for shared auth, rate-limit, and workspace access. Compose contract validation inside that middleware.
+- `bun run check:api-validation` enforces this policy and must pass on PRs.

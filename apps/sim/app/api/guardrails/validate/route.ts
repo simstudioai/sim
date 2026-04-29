@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
+import { guardrailsValidateContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -25,7 +27,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
+    const parsed = await parseRequest(guardrailsValidateContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { body } = parsed.data
     const {
       validationType,
       input,
@@ -270,7 +274,7 @@ async function executeValidation(
   knowledgeBaseId: string | undefined,
   threshold: string | undefined,
   topK: string | undefined,
-  model: string,
+  model: string | undefined,
   apiKey: string | undefined,
   providerCredentials: {
     azureEndpoint?: string
@@ -315,6 +319,12 @@ async function executeValidation(
       return {
         passed: false,
         error: 'Knowledge base ID is required for hallucination check',
+      }
+    }
+    if (!model) {
+      return {
+        passed: false,
+        error: 'Model is required for hallucination validation',
       }
     }
 

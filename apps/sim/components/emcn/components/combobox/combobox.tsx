@@ -664,7 +664,7 @@ const Combobox = memo(
                         e.key === 'Enter' ||
                         e.key === 'Escape'
                       ) {
-                        handleKeyDown(e as unknown as KeyboardEvent<HTMLDivElement>)
+                        handleKeyDown(e)
                       }
                     }}
                   />

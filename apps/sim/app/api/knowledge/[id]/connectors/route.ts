@@ -5,7 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { createConnectorBodySchema } from '@/lib/api/contracts/knowledge'
+import { parseJsonBody, validateSchema } from '@/lib/api/server'
 import { encryptApiKey } from '@/lib/api-key/crypto'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { hasLiveSyncAccess } from '@/lib/billing/core/subscription'
@@ -20,14 +21,6 @@ import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/a
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 
 const logger = createLogger('KnowledgeConnectorsAPI')
-
-const CreateConnectorSchema = z.object({
-  connectorType: z.string().min(1),
-  credentialId: z.string().min(1).optional(),
-  apiKey: z.string().min(1).optional(),
-  sourceConfig: z.record(z.unknown()),
-  syncIntervalMinutes: z.number().int().min(0).default(1440),
-})
 
 /**
  * GET /api/knowledge/[id]/connectors - List connectors for a knowledge base
@@ -98,16 +91,18 @@ export const POST = withRouteHandler(
         )
       }
 
-      const body = await request.json()
-      const parsed = CreateConnectorSchema.safeParse(body)
-      if (!parsed.success) {
-        return NextResponse.json(
-          { error: 'Invalid request', details: parsed.error.flatten() },
-          { status: 400 }
-        )
-      }
+      const parsedBody = await parseJsonBody(request)
+      if (!parsedBody.success) return parsedBody.response
 
-      const { connectorType, credentialId, apiKey, sourceConfig, syncIntervalMinutes } = parsed.data
+      const validation = validateSchema(
+        createConnectorBodySchema,
+        parsedBody.data,
+        'Invalid request'
+      )
+      if (!validation.success) return validation.response
+
+      const { connectorType, credentialId, apiKey, sourceConfig, syncIntervalMinutes } =
+        validation.data
 
       if (syncIntervalMinutes > 0 && syncIntervalMinutes < 60) {
         const canUseLiveSync = await hasLiveSyncAccess(auth.userId)
@@ -157,10 +152,10 @@ export const POST = withRouteHandler(
         resolvedCredentialId = credentialId
       }
 
-      const validation = await connectorConfig.validateConfig(accessToken, sourceConfig)
-      if (!validation.valid) {
+      const configValidation = await connectorConfig.validateConfig(accessToken, sourceConfig)
+      if (!configValidation.valid) {
         return NextResponse.json(
-          { error: validation.error || 'Invalid source configuration' },
+          { error: configValidation.error || 'Invalid source configuration' },
           { status: 400 }
         )
       }

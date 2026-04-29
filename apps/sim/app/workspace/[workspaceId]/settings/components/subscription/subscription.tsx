@@ -610,7 +610,7 @@ export function Subscription() {
           }
           limit={
             subscription.isOrgScoped
-              ? organizationBillingData?.data?.totalUsageLimit
+              ? (organizationBillingData?.data?.totalUsageLimit ?? usage.limit)
               : !subscription.isFree &&
                   (permissions.canEditUsageLimit || permissions.showTeamMemberView)
                 ? usage.current

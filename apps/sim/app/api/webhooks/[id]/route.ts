@@ -5,8 +5,9 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { webhookIdParamsSchema, webhookPatchBodySchema } from '@/lib/api/contracts/webhooks'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { validateInteger } from '@/lib/core/security/input-validation'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -23,7 +24,9 @@ export const GET = withRouteHandler(
     const requestId = generateRequestId()
 
     try {
-      const { id } = await params
+      const paramsValidation = validateSchema(webhookIdParamsSchema, await params)
+      if (!paramsValidation.success) return paramsValidation.response
+      const { id } = paramsValidation.data
 
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
@@ -80,7 +83,9 @@ export const PATCH = withRouteHandler(
     const requestId = generateRequestId()
 
     try {
-      const { id } = await params
+      const paramsValidation = validateSchema(webhookIdParamsSchema, await params)
+      if (!paramsValidation.success) return paramsValidation.response
+      const { id } = paramsValidation.data
 
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
@@ -89,16 +94,15 @@ export const PATCH = withRouteHandler(
       }
       const userId = auth.userId
 
-      const body = await request.json()
-      const { isActive, failedCount } = body
-
-      if (failedCount !== undefined) {
-        const validation = validateInteger(failedCount, 'failedCount', { min: 0 })
-        if (!validation.isValid) {
-          logger.warn(`[${requestId}] ${validation.error}`)
-          return NextResponse.json({ error: validation.error }, { status: 400 })
-        }
+      const bodyResult = validateSchema(webhookPatchBodySchema, await request.json())
+      if (!bodyResult.success) {
+        const message = getValidationErrorMessage(bodyResult.error)
+        logger.warn(`[${requestId}] ${message}`)
+        return NextResponse.json({ error: message }, { status: 400 })
       }
+
+      const body = bodyResult.data
+      const { isActive, failedCount } = body
 
       const webhooks = await db
         .select({
@@ -157,7 +161,9 @@ export const DELETE = withRouteHandler(
     const requestId = generateRequestId()
 
     try {
-      const { id } = await params
+      const paramsValidation = validateSchema(webhookIdParamsSchema, await params)
+      if (!paramsValidation.success) return paramsValidation.response
+      const { id } = paramsValidation.data
 
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {

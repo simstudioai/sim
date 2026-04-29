@@ -22,10 +22,12 @@ import { db } from '@sim/db'
 import { auditLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, desc } from 'drizzle-orm'
+import { v1AdminAuditLogsQuerySchema } from '@/lib/api/contracts/audit-logs'
+import { searchParamsToObject, validateSchema } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
-  badRequestResponse,
+  adminValidationErrorResponse,
   internalErrorResponse,
   listResponse,
 } from '@/app/api/v1/admin/responses'
@@ -44,26 +46,26 @@ export const GET = withRouteHandler(
     const url = new URL(request.url)
     const { limit, offset } = parsePaginationParams(url)
 
-    const startDate = url.searchParams.get('startDate') || undefined
-    const endDate = url.searchParams.get('endDate') || undefined
+    const validation = validateSchema(
+      v1AdminAuditLogsQuerySchema,
+      searchParamsToObject(url.searchParams)
+    )
 
-    if (startDate && Number.isNaN(Date.parse(startDate))) {
-      return badRequestResponse('Invalid startDate format. Use ISO 8601.')
-    }
-    if (endDate && Number.isNaN(Date.parse(endDate))) {
-      return badRequestResponse('Invalid endDate format. Use ISO 8601.')
+    if (!validation.success) {
+      return adminValidationErrorResponse(validation.error)
     }
 
     try {
+      const query = validation.data
       const conditions = buildFilterConditions({
-        action: url.searchParams.get('action') || undefined,
-        resourceType: url.searchParams.get('resourceType') || undefined,
-        resourceId: url.searchParams.get('resourceId') || undefined,
-        workspaceId: url.searchParams.get('workspaceId') || undefined,
-        actorId: url.searchParams.get('actorId') || undefined,
-        actorEmail: url.searchParams.get('actorEmail') || undefined,
-        startDate,
-        endDate,
+        action: query.action,
+        resourceType: query.resourceType,
+        resourceId: query.resourceId,
+        workspaceId: query.workspaceId,
+        actorId: query.actorId,
+        actorEmail: query.actorEmail,
+        startDate: query.startDate,
+        endDate: query.endDate,
       })
 
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined

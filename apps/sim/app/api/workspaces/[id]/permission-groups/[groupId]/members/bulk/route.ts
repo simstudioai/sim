@@ -6,7 +6,8 @@ import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/erro
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { bulkAddPermissionGroupMembersBodySchema } from '@/lib/api/contracts/permission-groups'
+import { getValidationErrorMessage, isZodError } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -28,11 +29,6 @@ async function loadGroupInWorkspace(groupId: string, workspaceId: string) {
 
   return group ?? null
 }
-
-const bulkAddSchema = z.object({
-  userIds: z.array(z.string()).optional(),
-  addAllWorkspaceMembers: z.boolean().optional(),
-})
 
 export const POST = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ id: string; groupId: string }> }) => {
@@ -63,7 +59,8 @@ export const POST = withRouteHandler(
       }
 
       const body = await req.json()
-      const { userIds, addAllWorkspaceMembers } = bulkAddSchema.parse(body)
+      const { userIds, addAllWorkspaceMembers } =
+        bulkAddPermissionGroupMembersBodySchema.parse(body)
 
       let targetUserIds: string[] = []
 
@@ -183,8 +180,8 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ added: addedUserIds.length, moved: movedCount })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
+      if (isZodError(error)) {
+        return NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 })
       }
       if (getPostgresErrorCode(error) === '23505') {
         const constraint = getPostgresConstraintName(error)

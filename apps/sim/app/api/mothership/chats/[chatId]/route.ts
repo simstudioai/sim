@@ -4,7 +4,11 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  mothershipChatParamsSchema,
+  updateMothershipChatBodySchema,
+} from '@/lib/api/contracts/mothership-tasks'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { buildEffectiveChatTranscript } from '@/lib/copilot/chat/effective-transcript'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
@@ -25,15 +29,6 @@ import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('MothershipChatAPI')
 
-const UpdateChatSchema = z
-  .object({
-    title: z.string().trim().min(1).max(200).optional(),
-    isUnread: z.boolean().optional(),
-  })
-  .refine((data) => data.title !== undefined || data.isUnread !== undefined, {
-    message: 'At least one field must be provided',
-  })
-
 export const GET = withRouteHandler(
   async (_request: NextRequest, { params }: { params: Promise<{ chatId: string }> }) => {
     try {
@@ -42,10 +37,11 @@ export const GET = withRouteHandler(
         return createUnauthorizedResponse()
       }
 
-      const { chatId } = await params
-      if (!chatId) {
-        return createBadRequestResponse('chatId is required')
+      const paramsResult = validateSchema(mothershipChatParamsSchema, await params)
+      if (!paramsResult.success) {
+        return createBadRequestResponse(getValidationErrorMessage(paramsResult.error))
       }
+      const { chatId } = paramsResult.data
 
       const chat = await getAccessibleCopilotChat(chatId, userId)
       if (!chat || chat.type !== 'mothership') {
@@ -138,13 +134,18 @@ export const PATCH = withRouteHandler(
         return createUnauthorizedResponse()
       }
 
-      const { chatId } = await params
-      if (!chatId) {
-        return createBadRequestResponse('chatId is required')
+      const paramsResult = validateSchema(mothershipChatParamsSchema, await params)
+      if (!paramsResult.success) {
+        return createBadRequestResponse(getValidationErrorMessage(paramsResult.error))
       }
+      const { chatId } = paramsResult.data
 
       const body = await request.json()
-      const { title, isUnread } = UpdateChatSchema.parse(body)
+      const bodyResult = validateSchema(updateMothershipChatBodySchema, body)
+      if (!bodyResult.success) {
+        return createBadRequestResponse(getValidationErrorMessage(bodyResult.error))
+      }
+      const { title, isUnread } = bodyResult.data
 
       const updates: Record<string, unknown> = {}
 
@@ -209,9 +210,6 @@ export const PATCH = withRouteHandler(
 
       return NextResponse.json({ success: true })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return createBadRequestResponse('Invalid request data')
-      }
       logger.error('Error updating mothership chat:', error)
       return createInternalServerErrorResponse('Failed to update chat')
     }
@@ -226,10 +224,11 @@ export const DELETE = withRouteHandler(
         return createUnauthorizedResponse()
       }
 
-      const { chatId } = await params
-      if (!chatId) {
-        return createBadRequestResponse('chatId is required')
+      const paramsResult = validateSchema(mothershipChatParamsSchema, await params)
+      if (!paramsResult.success) {
+        return createBadRequestResponse(getValidationErrorMessage(paramsResult.error))
       }
+      const { chatId } = paramsResult.data
 
       const chat = await getAccessibleCopilotChat(chatId, userId)
       if (!chat || chat.type !== 'mothership') {

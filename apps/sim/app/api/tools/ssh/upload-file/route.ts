@@ -2,26 +2,13 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { Client, SFTPWrapper } from 'ssh2'
-import { z } from 'zod'
+import { sshUploadFileContract } from '@/lib/api/contracts/storage-transfer'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createSSHConnection, sanitizePath } from '@/app/api/tools/ssh/utils'
 
 const logger = createLogger('SSHUploadFileAPI')
-
-const UploadFileSchema = z.object({
-  host: z.string().min(1, 'Host is required'),
-  port: z.coerce.number().int().positive().default(22),
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().nullish(),
-  privateKey: z.string().nullish(),
-  passphrase: z.string().nullish(),
-  fileContent: z.string().min(1, 'File content is required'),
-  fileName: z.string().min(1, 'File name is required'),
-  remotePath: z.string().min(1, 'Remote path is required'),
-  permissions: z.string().nullish(),
-  overwrite: z.boolean().default(true),
-})
 
 function getSFTP(client: Client): Promise<SFTPWrapper> {
   return new Promise((resolve, reject) => {
@@ -45,15 +32,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const params = UploadFileSchema.parse(body)
-
-    if (!params.password && !params.privateKey) {
-      return NextResponse.json(
-        { error: 'Either password or privateKey must be provided' },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(sshUploadFileContract, request, {})
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
 
     logger.info(
       `[${requestId}] Uploading file to ${params.host}:${params.port}${params.remotePath}`
@@ -121,14 +102,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       client.end()
     }
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     logger.error(`[${requestId}] SSH file upload failed:`, error)
 

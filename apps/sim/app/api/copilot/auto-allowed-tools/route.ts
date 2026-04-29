@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  copilotToolPreferenceBodySchema,
+  copilotToolPreferenceQuerySchema,
+} from '@/lib/api/contracts/copilot'
+import { validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -69,19 +74,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = session.user.id
-    const body = await request.json()
+    const bodyResult = validateSchema(
+      copilotToolPreferenceBodySchema,
+      await request.json().catch(() => null)
+    )
 
-    if (!body.toolId || typeof body.toolId !== 'string') {
+    if (!bodyResult.success) {
       return NextResponse.json({ error: 'toolId must be a string' }, { status: 400 })
     }
+    const { toolId } = bodyResult.data
 
     const res = await fetchGo(`${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed`, {
       method: 'POST',
       headers: copilotHeaders(),
-      body: JSON.stringify({ userId, toolId: body.toolId }),
+      body: JSON.stringify({ userId, toolId }),
       spanName: 'sim → go /api/tool-preferences/auto-allowed',
       operation: 'add_auto_allowed_tool',
-      attributes: { [TraceAttr.UserId]: userId, [TraceAttr.ToolId]: body.toolId },
+      attributes: { [TraceAttr.UserId]: userId, [TraceAttr.ToolId]: toolId },
     })
 
     if (!res.ok) {
@@ -112,12 +121,15 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = session.user.id
-    const { searchParams } = new URL(request.url)
-    const toolId = searchParams.get('toolId')
+    const queryResult = validateSchema(
+      copilotToolPreferenceQuerySchema,
+      Object.fromEntries(new URL(request.url).searchParams)
+    )
 
-    if (!toolId) {
+    if (!queryResult.success) {
       return NextResponse.json({ error: 'toolId query parameter is required' }, { status: 400 })
     }
+    const { toolId } = queryResult.data
 
     const res = await fetchGo(
       `${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed?userId=${encodeURIComponent(userId)}&toolId=${encodeURIComponent(toolId)}`,

@@ -1,5 +1,9 @@
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
-import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
+import {
+  getProviderConfig,
+  type PollingProviderHandler,
+  type PollWebhookContext,
+} from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
@@ -99,7 +103,7 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
         logger
       )
 
-      const config = webhookData.providerConfig as unknown as GoogleCalendarWebhookConfig
+      const config = getProviderConfig<GoogleCalendarWebhookConfig>(webhookData.providerConfig)
       const calendarId = config.calendarId || config.manualCalendarId || 'primary'
 
       // First poll: seed timestamp, emit nothing

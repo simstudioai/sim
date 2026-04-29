@@ -7,10 +7,13 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { adminV1GetOrganizationSeatsContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getOrganizationSeatAnalytics } from '@/lib/billing/validation/seat-management'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminValidationErrorResponse,
   internalErrorResponse,
   notFoundResponse,
   singleResponse,
@@ -24,8 +27,13 @@ interface RouteParams {
 }
 
 export const GET = withRouteHandler(
-  withAdminAuthParams<RouteParams>(async (_, context) => {
-    const { id: organizationId } = await context.params
+  withAdminAuthParams<RouteParams>(async (request, context) => {
+    const parsed = await parseRequest(adminV1GetOrganizationSeatsContract, request, context, {
+      validationErrorResponse: adminValidationErrorResponse,
+    })
+    if (!parsed.success) return parsed.response
+
+    const { id: organizationId } = parsed.data.params
 
     try {
       const analytics = await getOrganizationSeatAnalytics(organizationId)

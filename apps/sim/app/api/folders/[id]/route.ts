@@ -3,7 +3,7 @@ import { workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateFolderBodySchema } from '@/lib/api/contracts'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -12,14 +12,6 @@ import { checkForCircularReference } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersIDAPI')
-
-const updateFolderSchema = z.object({
-  name: z.string().optional(),
-  color: z.string().optional(),
-  isExpanded: z.boolean().optional(),
-  parentId: z.string().nullable().optional(),
-  sortOrder: z.number().int().min(0).optional(),
-})
 
 // PUT - Update a folder
 export const PUT = withRouteHandler(
@@ -33,12 +25,12 @@ export const PUT = withRouteHandler(
       const { id } = await params
       const body = await request.json()
 
-      const validationResult = updateFolderSchema.safeParse(body)
+      const validationResult = updateFolderBodySchema.safeParse(body)
       if (!validationResult.success) {
         logger.error('Folder update validation failed:', {
-          errors: validationResult.error.errors,
+          errors: validationResult.error.issues,
         })
-        const errorMessages = validationResult.error.errors
+        const errorMessages = validationResult.error.issues
           .map((err) => `${err.path.join('.')}: ${err.message}`)
           .join(', ')
         return NextResponse.json({ error: `Validation failed: ${errorMessages}` }, { status: 400 })

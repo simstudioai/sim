@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { discordServersBodySchema } from '@/lib/api/contracts'
+import { validateJsonBody } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateNumericId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -21,12 +23,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const { botToken, serverId } = await request.json()
-
-    if (!botToken) {
-      logger.error('Missing bot token in request')
-      return NextResponse.json({ error: 'Bot token is required' }, { status: 400 })
+    const validation = await validateJsonBody(request, discordServersBodySchema)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: validation.error?.issues[0]?.message ?? 'Invalid request data' },
+        { status: 400 }
+      )
     }
+    const { botToken, serverId } = validation.data
 
     if (serverId) {
       const serverIdValidation = validateNumericId(serverId, 'serverId')

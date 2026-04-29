@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { fileDownloadBodySchema } from '@/lib/api/contracts/storage-transfer'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { StorageContext } from '@/lib/uploads/config'
@@ -23,7 +25,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = authResult.userId
-    const body = await request.json()
+    const validationResult = fileDownloadBodySchema.safeParse(await request.json())
+    if (!validationResult.success) {
+      return createErrorResponse(
+        new Error(getValidationErrorMessage(validationResult.error, 'Invalid request data')),
+        400
+      )
+    }
+
+    const body = validationResult.data
     const { key, name, isExecutionFile, context, url } = body
 
     if (!key) {
@@ -42,7 +52,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    let storageContext: StorageContext = context || 'general'
+    let storageContext: StorageContext | 'general' | undefined = context
 
     if (isExecutionFile && !context) {
       storageContext = 'execution'
@@ -63,9 +73,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const { getBaseUrl } = await import('@/lib/core/utils/urls')
-    const downloadUrl = `${getBaseUrl()}/api/files/serve/${encodeURIComponent(key)}?context=${storageContext}`
+    const contextQuery = storageContext ? `?context=${storageContext}` : ''
+    const downloadUrl = `${getBaseUrl()}/api/files/serve/${encodeURIComponent(key)}${contextQuery}`
 
-    logger.info(`Generated download URL for ${storageContext} file: ${key}`)
+    logger.info(`Generated download URL for ${storageContext ?? 'inferred'} file: ${key}`)
 
     return NextResponse.json({
       downloadUrl,

@@ -3,7 +3,8 @@ import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { validateCopilotApiKeyBodySchema } from '@/lib/api/contracts/copilot'
+import { validateSchema } from '@/lib/api/server'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { CopilotValidateOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -13,10 +14,6 @@ import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotApiKeysValidate')
-
-const ValidateApiKeySchema = z.object({
-  userId: z.string().min(1, 'userId is required'),
-})
 
 // Incoming-from-Go: extracts traceparent so this handler's work shows
 // up as a child of the Go-side `sim.validate_api_key` span in the same
@@ -43,15 +40,15 @@ export const POST = withRouteHandler((req: NextRequest) =>
         }
 
         const body = await req.json().catch(() => null)
-        const validationResult = ValidateApiKeySchema.safeParse(body)
+        const validationResult = validateSchema(validateCopilotApiKeyBodySchema, body)
         if (!validationResult.success) {
-          logger.warn('Invalid validation request', { errors: validationResult.error.errors })
+          logger.warn('Invalid validation request', { errors: validationResult.error.issues })
           span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.InvalidBody)
           span.setAttribute(TraceAttr.HttpStatusCode, 400)
           return NextResponse.json(
             {
               error: 'userId is required',
-              details: validationResult.error.errors,
+              details: validationResult.error.issues,
             },
             { status: 400 }
           )

@@ -4,25 +4,18 @@ import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updatePermissionGroupBodySchema } from '@/lib/api/contracts/permission-groups'
+import { getValidationErrorMessage, isZodError } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
-  permissionGroupConfigSchema,
 } from '@/lib/permission-groups/types'
 import { checkWorkspaceAccess, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspacePermissionGroup')
-
-const updateSchema = z.object({
-  name: z.string().trim().min(1).max(100).optional(),
-  description: z.string().max(500).nullable().optional(),
-  config: permissionGroupConfigSchema.optional(),
-  autoAddNewMembers: z.boolean().optional(),
-})
 
 async function loadGroupInWorkspace(groupId: string, workspaceId: string) {
   const [group] = await db
@@ -113,7 +106,7 @@ export const PUT = withRouteHandler(
       }
 
       const body = await req.json()
-      const updates = updateSchema.parse(body)
+      const updates = updatePermissionGroupBodySchema.parse(body)
 
       if (updates.name) {
         const existingGroup = await db
@@ -201,8 +194,8 @@ export const PUT = withRouteHandler(
         },
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
+      if (isZodError(error)) {
+        return NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 })
       }
       logger.error('Error updating permission group', error)
       return NextResponse.json({ error: 'Failed to update permission group' }, { status: 500 })

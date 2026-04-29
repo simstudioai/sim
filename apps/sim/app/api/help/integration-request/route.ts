@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { integrationRequestBodySchema } from '@/lib/api/contracts/common'
+import { validateSchema } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -8,10 +9,7 @@ import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
-import {
-  getFromEmailAddress,
-  NO_EMAIL_HEADER_CONTROL_CHARS_REGEX,
-} from '@/lib/messaging/email/utils'
+import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 
 const logger = createLogger('IntegrationRequestAPI')
 
@@ -22,17 +20,6 @@ const PUBLIC_ENDPOINT_RATE_LIMIT: TokenBucketConfig = {
   refillRate: 5,
   refillIntervalMs: 60_000,
 }
-
-const integrationRequestSchema = z.object({
-  integrationName: z
-    .string()
-    .trim()
-    .min(1, 'Integration name is required')
-    .max(200)
-    .regex(NO_EMAIL_HEADER_CONTROL_CHARS_REGEX, 'Invalid characters'),
-  email: z.string().email('A valid email is required'),
-  useCase: z.string().max(2000).optional(),
-})
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
@@ -59,15 +46,16 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const body = await req.json()
 
-    const validationResult = integrationRequestSchema.safeParse(body)
+    const validationResult = validateSchema(
+      integrationRequestBodySchema,
+      body,
+      'Invalid request data'
+    )
     if (!validationResult.success) {
       logger.warn(`[${requestId}] Invalid integration request data`, {
-        errors: validationResult.error.format(),
+        issues: validationResult.error.issues,
       })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: validationResult.error.format() },
-        { status: 400 }
-      )
+      return validationResult.response
     }
 
     const { integrationName, email, useCase } = validationResult.data

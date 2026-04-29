@@ -5,7 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { z } from 'zod'
+import { createFormBodySchema } from '@/lib/api/contracts/forms'
+import { getValidationErrorMessage, isZodError } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
@@ -21,51 +22,9 @@ import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/
 
 const logger = createLogger('FormAPI')
 
-const fieldConfigSchema = z.object({
-  name: z.string(),
-  type: z.string(),
-  label: z.string(),
-  description: z.string().optional(),
-  required: z.boolean().optional(),
-})
-
-const formSchema = z.object({
-  workflowId: z.string().min(1, 'Workflow ID is required'),
-  identifier: z
-    .string()
-    .min(1, 'Identifier is required')
-    .max(100, 'Identifier must be 100 characters or less')
-    .regex(/^[a-z0-9-]+$/, 'Identifier can only contain lowercase letters, numbers, and hyphens'),
-  title: z.string().min(1, 'Title is required').max(200, 'Title must be 200 characters or less'),
-  description: z.string().max(1000, 'Description must be 1000 characters or less').optional(),
-  customizations: z
-    .object({
-      primaryColor: z.string().optional(),
-      welcomeMessage: z
-        .string()
-        .max(500, 'Welcome message must be 500 characters or less')
-        .optional(),
-      thankYouTitle: z
-        .string()
-        .max(100, 'Thank you title must be 100 characters or less')
-        .optional(),
-      thankYouMessage: z
-        .string()
-        .max(500, 'Thank you message must be 500 characters or less')
-        .optional(),
-      logoUrl: z.string().url('Logo URL must be a valid URL').optional().or(z.literal('')),
-      fieldConfigs: z.array(fieldConfigSchema).optional(),
-    })
-    .optional(),
-  authType: z.enum(['public', 'password', 'email']).default('public'),
-  password: z
-    .string()
-    .min(6, 'Password must be at least 6 characters')
-    .optional()
-    .or(z.literal('')),
-  allowedEmails: z.array(z.string()).optional().default([]),
-  showBranding: z.boolean().optional().default(true),
-})
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -81,9 +40,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .where(and(eq(form.userId, session.user.id), isNull(form.archivedAt)))
 
     return createSuccessResponse({ deployments })
-  } catch (error: any) {
+  } catch (error) {
     logger.error('Error fetching form deployments:', error)
-    return createErrorResponse(error.message || 'Failed to fetch form deployments', 500)
+    return createErrorResponse(getErrorMessage(error, 'Failed to fetch form deployments'), 500)
   }
 })
 
@@ -98,7 +57,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const body = await request.json()
 
     try {
-      const validatedData = formSchema.parse(body)
+      const validatedData = createFormBodySchema.parse(body)
 
       const {
         workflowId,
@@ -222,14 +181,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         message: 'Form deployment created successfully',
       })
     } catch (validationError) {
-      if (validationError instanceof z.ZodError) {
-        const errorMessage = validationError.errors[0]?.message || 'Invalid request data'
-        return createErrorResponse(errorMessage, 400, 'VALIDATION_ERROR')
+      if (isZodError(validationError)) {
+        return createErrorResponse(
+          getValidationErrorMessage(validationError),
+          400,
+          'VALIDATION_ERROR'
+        )
       }
       throw validationError
     }
-  } catch (error: any) {
+  } catch (error) {
     logger.error('Error creating form deployment:', error)
-    return createErrorResponse(error.message || 'Failed to create form deployment', 500)
+    return createErrorResponse(getErrorMessage(error, 'Failed to create form deployment'), 500)
   }
 })

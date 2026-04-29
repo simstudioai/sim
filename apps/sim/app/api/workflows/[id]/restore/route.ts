@@ -1,6 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -14,7 +16,16 @@ const logger = createLogger('RestoreWorkflowAPI')
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id: workflowId } = await params
+    const paramsValidation = validateSchema(workflowIdParamsSchema, await params)
+    if (!paramsValidation.success) {
+      return NextResponse.json(
+        {
+          error: getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
+        },
+        { status: 400 }
+      )
+    }
+    const { id: workflowId } = paramsValidation.data
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })

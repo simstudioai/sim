@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { resumeExecutionParamsSchema } from '@/lib/api/contracts/workflows'
+import { validateSchema } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
@@ -18,7 +20,9 @@ export const GET = withRouteHandler(
       params: Promise<{ workflowId: string; executionId: string }>
     }
   ) => {
-    const { workflowId, executionId } = await params
+    const paramsValidation = validateSchema(resumeExecutionParamsSchema, await params)
+    if (!paramsValidation.success) return paramsValidation.response
+    const { workflowId, executionId } = paramsValidation.data
 
     const access = await validateWorkflowAccess(request, workflowId, false)
     if (access.error) {

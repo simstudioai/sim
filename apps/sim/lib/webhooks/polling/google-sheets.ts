@@ -1,5 +1,9 @@
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
-import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
+import {
+  getProviderConfig,
+  type PollingProviderHandler,
+  type PollWebhookContext,
+} from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
@@ -56,7 +60,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
         logger
       )
 
-      const config = webhookData.providerConfig as unknown as GoogleSheetsWebhookConfig
+      const config = getProviderConfig<GoogleSheetsWebhookConfig>(webhookData.providerConfig)
       const spreadsheetId = config.spreadsheetId || config.manualSpreadsheetId
       const sheetName = config.sheetName || config.manualSheetName
       const now = new Date()

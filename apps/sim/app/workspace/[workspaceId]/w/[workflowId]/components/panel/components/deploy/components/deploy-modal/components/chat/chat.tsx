@@ -33,6 +33,7 @@ import {
   useDeleteChat,
   useUpdateChat,
 } from '@/hooks/queries/chats'
+import type { ChatDetail } from '@/hooks/queries/deployments'
 import { useIdentifierValidation } from './hooks'
 import {
   getPasswordHelperText,
@@ -63,21 +64,7 @@ interface ChatDeployProps {
   onVersionActivated?: () => void
 }
 
-export interface ExistingChat {
-  id: string
-  identifier: string
-  title: string
-  description: string
-  authType: 'public' | 'password' | 'email' | 'sso'
-  allowedEmails: string[]
-  outputConfigs: Array<{ blockId: string; path: string }>
-  customizations?: {
-    welcomeMessage?: string
-    imageUrl?: string
-  }
-  hasPassword: boolean
-  isActive: boolean
-}
+export type ExistingChat = ChatDetail
 
 interface FormErrors {
   identifier?: string
@@ -261,7 +248,6 @@ export function ChatDeploy({
         const result = await createChatMutation.mutateAsync({
           workflowId,
           formData,
-          apiKey: deploymentInfo?.apiKey,
           imageUrl,
         })
         chatUrl = result.chatUrl

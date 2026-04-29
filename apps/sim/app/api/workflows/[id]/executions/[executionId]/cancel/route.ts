@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { workflowExecutionParamsSchema } from '@/lib/api/contracts/workflows'
+import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
@@ -22,7 +24,20 @@ export const POST = withRouteHandler(
     req: NextRequest,
     { params }: { params: Promise<{ id: string; executionId: string }> }
   ) => {
-    const { id: workflowId, executionId } = await params
+    const paramsValidation = validateSchema(
+      workflowExecutionParamsSchema,
+      await params,
+      'Invalid route parameters'
+    )
+    if (!paramsValidation.success) {
+      return NextResponse.json(
+        {
+          error: getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
+        },
+        { status: 400 }
+      )
+    }
+    const { id: workflowId, executionId } = paramsValidation.data
 
     try {
       const auth = await checkHybridAuth(req, { requireWorkflowId: false })

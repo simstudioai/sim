@@ -89,9 +89,7 @@ describe('tasks query boundary parsing', () => {
       })
     )
 
-    await expect(fetchTasks('ws-1')).rejects.toThrow(
-      'Invalid tasks response: data[0].id must be a string'
-    )
+    await expect(fetchTasks('ws-1')).rejects.toThrow('Response failed contract validation')
   })
 
   it('parses valid mothership chat history responses', async () => {

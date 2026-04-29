@@ -3,7 +3,8 @@ import { invitation, member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, gt, inArray, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateSeatsBodySchema } from '@/lib/api/contracts/organization'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getPlanPricing } from '@/lib/billing/core/billing'
@@ -19,10 +20,6 @@ import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationSeatsAPI')
-
-const updateSeatsSchema = z.object({
-  seats: z.number().int().min(1, 'Minimum 1 seat required').max(50, 'Maximum 50 seats allowed'),
-})
 
 /**
  * PUT /api/organizations/[id]/seats
@@ -45,10 +42,12 @@ export const PUT = withRouteHandler(
       const { id: organizationId } = await params
       const body = await request.json()
 
-      const validation = updateSeatsSchema.safeParse(body)
+      const validation = updateSeatsBodySchema.safeParse(body)
       if (!validation.success) {
-        const firstError = validation.error.errors[0]
-        return NextResponse.json({ error: firstError.message }, { status: 400 })
+        return NextResponse.json(
+          { error: getValidationErrorMessage(validation.error) },
+          { status: 400 }
+        )
       }
 
       const { seats: newSeatCount } = validation.data
@@ -264,7 +263,7 @@ export const PUT = withRouteHandler(
 
       // Handle Stripe-specific errors
       if (error instanceof Error && 'type' in error) {
-        const stripeError = error as any
+        const stripeError = error as Error & { type?: unknown; code?: unknown }
         logger.error('Stripe error updating seats', {
           organizationId,
           type: stripeError.type,
@@ -275,7 +274,7 @@ export const PUT = withRouteHandler(
         return NextResponse.json(
           {
             error: stripeError.message || 'Failed to update seats in Stripe',
-            code: stripeError.code,
+            code: typeof stripeError.code === 'string' ? stripeError.code : undefined,
           },
           { status: 400 }
         )

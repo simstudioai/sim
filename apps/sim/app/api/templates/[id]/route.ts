@@ -4,7 +4,7 @@ import { templateCreators, templates, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { templateIdParamsSchema, updateTemplateBodySchema } from '@/lib/api/contracts/templates'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -22,7 +22,7 @@ export const revalidate = 0
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const { id } = templateIdParamsSchema.parse(await params)
 
     try {
       const session = await getSession()
@@ -89,32 +89,18 @@ export const GET = withRouteHandler(
           isStarred,
         },
       })
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`[${requestId}] Error fetching template: ${id}`, error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
   }
 )
 
-const updateTemplateSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  details: z
-    .object({
-      tagline: z.string().max(500, 'Tagline must be less than 500 characters').optional(),
-      about: z.string().optional(), // Markdown long description
-    })
-    .optional(),
-  creatorId: z.string().optional(), // Creator profile ID
-  tags: z.array(z.string()).max(10, 'Maximum 10 tags allowed').optional(),
-  updateState: z.boolean().optional(), // Explicitly request state update from current workflow
-  status: z.enum(['approved', 'rejected', 'pending']).optional(), // Status change (super users only)
-})
-
 // PUT /api/templates/[id] - Update a template
 export const PUT = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const { id } = templateIdParamsSchema.parse(await params)
 
     try {
       const session = await getSession()
@@ -124,7 +110,7 @@ export const PUT = withRouteHandler(
       }
 
       const body = await request.json()
-      const validationResult = updateTemplateSchema.safeParse(body)
+      const validationResult = updateTemplateBodySchema.safeParse(body)
 
       if (!validationResult.success) {
         logger.warn(
@@ -132,7 +118,7 @@ export const PUT = withRouteHandler(
           validationResult.error
         )
         return NextResponse.json(
-          { error: 'Invalid template data', details: validationResult.error.errors },
+          { error: 'Invalid template data', details: validationResult.error.issues },
           { status: 400 }
         )
       }
@@ -192,7 +178,7 @@ export const PUT = withRouteHandler(
         }
       }
 
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         updatedAt: new Date(),
       }
 
@@ -284,7 +270,7 @@ export const PUT = withRouteHandler(
         data: updatedTemplate[0],
         message: 'Template updated successfully',
       })
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`[${requestId}] Error updating template: ${id}`, error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
@@ -295,7 +281,7 @@ export const PUT = withRouteHandler(
 export const DELETE = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const { id } = templateIdParamsSchema.parse(await params)
 
     try {
       const session = await getSession()
@@ -353,7 +339,7 @@ export const DELETE = withRouteHandler(
       })
 
       return NextResponse.json({ success: true })
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`[${requestId}] Error deleting template: ${id}`, error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }

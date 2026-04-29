@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { workflowAutoLayoutBodySchema } from '@/lib/api/contracts/workflows'
+import { parseJsonBody, validateSchema } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -19,29 +20,6 @@ import {
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('AutoLayoutAPI')
-
-const AutoLayoutRequestSchema = z.object({
-  spacing: z
-    .object({
-      horizontal: z.number().min(100).max(1000).optional(),
-      vertical: z.number().min(50).max(500).optional(),
-    })
-    .optional()
-    .default({}),
-  alignment: z.enum(['start', 'center', 'end']).optional().default('center'),
-  padding: z
-    .object({
-      x: z.number().min(50).max(500).optional(),
-      y: z.number().min(50).max(500).optional(),
-    })
-    .optional()
-    .default({}),
-  gridSize: z.number().min(0).max(50).optional(),
-  blocks: z.record(z.any()).optional(),
-  edges: z.array(z.any()).optional(),
-  loops: z.record(z.any()).optional(),
-  parallels: z.record(z.any()).optional(),
-})
 
 /**
  * POST /api/workflows/[id]/autolayout
@@ -62,8 +40,21 @@ export const POST = withRouteHandler(
 
       const userId = auth.userId
 
-      const body = await request.json()
-      const layoutOptions = AutoLayoutRequestSchema.parse(body)
+      const parsedBody = await parseJsonBody(request)
+      if (!parsedBody.success) return parsedBody.response
+
+      const validation = validateSchema(
+        workflowAutoLayoutBodySchema,
+        parsedBody.data,
+        'Invalid request data'
+      )
+      if (!validation.success) {
+        logger.warn(`[${requestId}] Invalid autolayout request data`, {
+          errors: validation.error.issues,
+        })
+        return validation.response
+      }
+      const layoutOptions = validation.data
 
       logger.info(`[${requestId}] Processing autolayout request for workflow ${workflowId}`, {
         userId,
@@ -163,14 +154,6 @@ export const POST = withRouteHandler(
       })
     } catch (error) {
       const elapsed = Date.now() - startTime
-
-      if (error instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid autolayout request data`, { errors: error.errors })
-        return NextResponse.json(
-          { error: 'Invalid request data', details: error.errors },
-          { status: 400 }
-        )
-      }
 
       logger.error(`[${requestId}] Autolayout failed after ${elapsed}ms:`, error)
       return NextResponse.json(

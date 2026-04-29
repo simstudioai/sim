@@ -1,18 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateChunkBodySchema } from '@/lib/api/contracts/knowledge'
+import { parseJsonBody, validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteChunk, updateChunk } from '@/lib/knowledge/chunks/service'
 import { checkChunkAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('ChunkByIdAPI')
-
-const UpdateChunkSchema = z.object({
-  content: z.string().min(1, 'Content is required').optional(),
-  enabled: z.boolean().optional(),
-})
 
 export const GET = withRouteHandler(
   async (
@@ -109,38 +105,38 @@ export const PUT = withRouteHandler(
         )
       }
 
-      const body = await req.json()
+      const parsedBody = await parseJsonBody(req)
+      if (!parsedBody.success) return parsedBody.response
 
-      try {
-        const validatedData = UpdateChunkSchema.parse(body)
-
-        const updatedChunk = await updateChunk(
-          chunkId,
-          validatedData,
-          requestId,
-          accessCheck.knowledgeBase?.workspaceId
-        )
-
-        logger.info(
-          `[${requestId}] Chunk updated: ${chunkId} in document ${documentId} in knowledge base ${knowledgeBaseId}`
-        )
-
-        return NextResponse.json({
-          success: true,
-          data: updatedChunk,
+      const validation = validateSchema(
+        updateChunkBodySchema,
+        parsedBody.data,
+        'Invalid request data'
+      )
+      if (!validation.success) {
+        logger.warn(`[${requestId}] Invalid chunk update data`, {
+          errors: validation.error.issues,
         })
-      } catch (validationError) {
-        if (validationError instanceof z.ZodError) {
-          logger.warn(`[${requestId}] Invalid chunk update data`, {
-            errors: validationError.errors,
-          })
-          return NextResponse.json(
-            { error: 'Invalid request data', details: validationError.errors },
-            { status: 400 }
-          )
-        }
-        throw validationError
+        return validation.response
       }
+
+      const validatedData = validation.data
+
+      const updatedChunk = await updateChunk(
+        chunkId,
+        validatedData,
+        requestId,
+        accessCheck.knowledgeBase?.workspaceId
+      )
+
+      logger.info(
+        `[${requestId}] Chunk updated: ${chunkId} in document ${documentId} in knowledge base ${knowledgeBaseId}`
+      )
+
+      return NextResponse.json({
+        success: true,
+        data: updatedChunk,
+      })
     } catch (error) {
       logger.error(`[${requestId}] Error updating chunk`, error)
       return NextResponse.json({ error: 'Failed to update chunk' }, { status: 500 })

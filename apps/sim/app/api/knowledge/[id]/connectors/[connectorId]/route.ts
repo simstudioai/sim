@@ -10,7 +10,8 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateConnectorBodySchema } from '@/lib/api/contracts/knowledge'
+import { parseJsonBody, validateSchema } from '@/lib/api/server'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { hasLiveSyncAccess } from '@/lib/billing/core/subscription'
@@ -26,12 +27,6 @@ import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 const logger = createLogger('KnowledgeConnectorByIdAPI')
 
 type RouteParams = { params: Promise<{ id: string; connectorId: string }> }
-
-const UpdateConnectorSchema = z.object({
-  sourceConfig: z.record(z.unknown()).optional(),
-  syncIntervalMinutes: z.number().int().min(0).optional(),
-  status: z.enum(['active', 'paused']).optional(),
-})
 
 /**
  * GET /api/knowledge/[id]/connectors/[connectorId] - Get connector details with recent sync logs
@@ -109,14 +104,11 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       return NextResponse.json({ error: status === 404 ? 'Not found' : 'Unauthorized' }, { status })
     }
 
-    const body = await request.json()
-    const parsed = UpdateConnectorSchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid request', details: parsed.error.flatten() },
-        { status: 400 }
-      )
-    }
+    const parsedBody = await parseJsonBody(request)
+    if (!parsedBody.success) return parsedBody.response
+
+    const parsed = validateSchema(updateConnectorBodySchema, parsedBody.data, 'Invalid request')
+    if (!parsed.success) return parsed.response
 
     if (
       parsed.data.syncIntervalMinutes !== undefined &&

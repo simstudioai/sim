@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { docusignToolContract } from '@/lib/api/contracts/internal-tools'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
@@ -56,16 +58,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await request.json()
-  const { accessToken, operation, ...params } = body
+  const parsed = await parseRequest(
+    docusignToolContract,
+    request,
+    {},
+    {
+      validationErrorResponse: (error) =>
+        NextResponse.json(
+          { success: false, error: getValidationErrorMessage(error, 'Invalid request data') },
+          { status: 400 }
+        ),
+    }
+  )
+  if (!parsed.success) return parsed.response
 
-  if (!accessToken) {
-    return NextResponse.json({ success: false, error: 'Access token is required' }, { status: 400 })
-  }
-
-  if (!operation) {
-    return NextResponse.json({ success: false, error: 'Operation is required' }, { status: 400 })
-  }
+  const { accessToken, operation, ...params } = parsed.data.body
 
   try {
     const account = await resolveAccount(accessToken)

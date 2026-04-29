@@ -4,7 +4,12 @@ import { invitation, invitationWorkspaceGrant } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  invitationParamsSchema,
+  invitationQuerySchema,
+  updateInvitationBodySchema,
+} from '@/lib/api/contracts/invitations'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -15,7 +20,14 @@ const logger = createLogger('InvitationsAPI')
 
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id } = await params
+    const parsedParams = invitationParamsSchema.safeParse(await params)
+    if (!parsedParams.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(parsedParams.error) },
+        { status: 400 }
+      )
+    }
+    const { id } = parsedParams.data
     const session = await getSession()
 
     if (!session?.user?.id) {
@@ -28,7 +40,9 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
       }
 
-      const token = request.nextUrl.searchParams.get('token')
+      const { token } = invitationQuerySchema.parse({
+        token: request.nextUrl.searchParams.get('token') || undefined,
+      })
       const isInvitee = normalizeEmail(session.user.email || '') === normalizeEmail(inv.email)
       const tokenMatches = !!token && token === inv.token
 
@@ -75,25 +89,16 @@ export const GET = withRouteHandler(
   }
 )
 
-const patchSchema = z
-  .object({
-    role: z.enum(['admin', 'member']).optional(),
-    grants: z
-      .array(
-        z.object({
-          workspaceId: z.string().min(1),
-          permission: z.enum(['read', 'write', 'admin']),
-        })
-      )
-      .optional(),
-  })
-  .refine((data) => data.role !== undefined || (data.grants && data.grants.length > 0), {
-    message: 'Provide a role or at least one grant update',
-  })
-
 export const PATCH = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id } = await params
+    const parsedParams = invitationParamsSchema.safeParse(await params)
+    if (!parsedParams.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(parsedParams.error) },
+        { status: 400 }
+      )
+    }
+    const { id } = parsedParams.data
     const session = await getSession()
 
     if (!session?.user?.id) {
@@ -111,10 +116,10 @@ export const PATCH = withRouteHandler(
       }
 
       const body = await request.json().catch(() => ({}))
-      const parsed = patchSchema.safeParse(body)
+      const parsed = updateInvitationBodySchema.safeParse(body)
       if (!parsed.success) {
         return NextResponse.json(
-          { error: parsed.error.errors[0]?.message || 'Invalid request body' },
+          { error: getValidationErrorMessage(parsed.error, 'Invalid request body') },
           { status: 400 }
         )
       }
@@ -211,7 +216,14 @@ export const PATCH = withRouteHandler(
 
 export const DELETE = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id } = await params
+    const parsedParams = invitationParamsSchema.safeParse(await params)
+    if (!parsedParams.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(parsedParams.error) },
+        { status: 400 }
+      )
+    }
+    const { id } = parsedParams.data
     const session = await getSession()
 
     if (!session?.user?.id) {

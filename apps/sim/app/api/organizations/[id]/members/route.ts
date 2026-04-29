@@ -10,6 +10,12 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  inviteOrganizationMemberBodySchema,
+  organizationMemberQuerySchema,
+  organizationParamsSchema,
+} from '@/lib/api/contracts/organization'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
@@ -40,9 +46,25 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { id: organizationId } = await params
-      const url = new URL(request.url)
-      const includeUsage = url.searchParams.get('include') === 'usage'
+      const paramsResult = organizationParamsSchema.safeParse(await params)
+      if (!paramsResult.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
+          { status: 400 }
+        )
+      }
+
+      const { id: organizationId } = paramsResult.data
+      const queryResult = organizationMemberQuerySchema.safeParse(
+        Object.fromEntries(request.nextUrl.searchParams.entries())
+      )
+      if (!queryResult.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(queryResult.error, 'Invalid query parameters') },
+          { status: 400 }
+        )
+      }
+      const includeUsage = queryResult.data.include === 'usage'
 
       // Verify user has access to this organization
       const memberEntry = await db
@@ -165,19 +187,29 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { id: organizationId } = await params
+      const paramsResult = organizationParamsSchema.safeParse(await params)
+      if (!paramsResult.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
+          { status: 400 }
+        )
+      }
+
+      const { id: organizationId } = paramsResult.data
 
       await validateInvitationsAllowed(session.user.id, { organizationId })
 
-      const { email, role = 'member' } = await request.json()
-
-      if (!email) {
-        return NextResponse.json({ error: 'Email is required' }, { status: 400 })
+      const bodyResult = inviteOrganizationMemberBodySchema.safeParse(
+        await request.json().catch(() => ({}))
+      )
+      if (!bodyResult.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(bodyResult.error) },
+          { status: 400 }
+        )
       }
 
-      if (!['admin', 'member'].includes(role)) {
-        return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
-      }
+      const { email, role = 'member' } = bodyResult.data
 
       // Validate and normalize email
       const normalizedEmail = email.trim().toLowerCase()
@@ -268,7 +300,7 @@ export const POST = withRouteHandler(
         email: normalizedEmail,
         inviterId: session.user.id,
         organizationId,
-        role: role as 'admin' | 'member',
+        role,
         grants: [],
       })
 
@@ -286,7 +318,7 @@ export const POST = withRouteHandler(
         email: normalizedEmail,
         inviterName,
         organizationId,
-        organizationRole: role as 'admin' | 'member',
+        organizationRole: role,
         grants: [],
       })
 
