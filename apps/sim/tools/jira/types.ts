@@ -806,30 +806,30 @@ export interface JiraRetrieveResponse extends ToolResponse {
     assignee: {
       accountId: string
       displayName: string
-      active?: boolean
-      emailAddress?: string
-      avatarUrl?: string
-      accountType?: string
-      timeZone?: string
+      active: boolean | null
+      emailAddress: string | null
+      avatarUrl: string | null
+      accountType: string | null
+      timeZone: string | null
     } | null
     assigneeName: string | null
     reporter: {
       accountId: string
       displayName: string
-      active?: boolean
-      emailAddress?: string
-      avatarUrl?: string
-      accountType?: string
-      timeZone?: string
+      active: boolean | null
+      emailAddress: string | null
+      avatarUrl: string | null
+      accountType: string | null
+      timeZone: string | null
     } | null
     creator: {
       accountId: string
       displayName: string
-      active?: boolean
-      emailAddress?: string
-      avatarUrl?: string
-      accountType?: string
-      timeZone?: string
+      active: boolean | null
+      emailAddress: string | null
+      avatarUrl: string | null
+      accountType: string | null
+      timeZone: string | null
     } | null
     labels: string[]
     components: Array<{ id: string; name: string; description?: string }>
@@ -869,21 +869,21 @@ export interface JiraRetrieveResponse extends ToolResponse {
       author: {
         accountId: string
         displayName: string
-        active?: boolean
-        emailAddress?: string
-        avatarUrl?: string
-        accountType?: string
-        timeZone?: string
+        active: boolean | null
+        emailAddress: string | null
+        avatarUrl: string | null
+        accountType: string | null
+        timeZone: string | null
       } | null
       authorName: string
       updateAuthor?: {
         accountId: string
         displayName: string
-        active?: boolean
-        emailAddress?: string
-        avatarUrl?: string
-        accountType?: string
-        timeZone?: string
+        active: boolean | null
+        emailAddress: string | null
+        avatarUrl: string | null
+        accountType: string | null
+        timeZone: string | null
       } | null
       created: string
       updated: string
@@ -894,21 +894,21 @@ export interface JiraRetrieveResponse extends ToolResponse {
       author: {
         accountId: string
         displayName: string
-        active?: boolean
-        emailAddress?: string
-        avatarUrl?: string
-        accountType?: string
-        timeZone?: string
+        active: boolean | null
+        emailAddress: string | null
+        avatarUrl: string | null
+        accountType: string | null
+        timeZone: string | null
       } | null
       authorName: string
       updateAuthor?: {
         accountId: string
         displayName: string
-        active?: boolean
-        emailAddress?: string
-        avatarUrl?: string
-        accountType?: string
-        timeZone?: string
+        active: boolean | null
+        emailAddress: string | null
+        avatarUrl: string | null
+        accountType: string | null
+        timeZone: string | null
       } | null
       comment?: string | null
       started: string
@@ -927,11 +927,11 @@ export interface JiraRetrieveResponse extends ToolResponse {
       author: {
         accountId: string
         displayName: string
-        active?: boolean
-        emailAddress?: string
-        avatarUrl?: string
-        accountType?: string
-        timeZone?: string
+        active: boolean | null
+        emailAddress: string | null
+        avatarUrl: string | null
+        accountType: string | null
+        timeZone: string | null
       } | null
       authorName: string
       created: string
@@ -1149,21 +1149,21 @@ export interface JiraSearchIssuesResponse extends ToolResponse {
       assignee: {
         accountId: string
         displayName: string
-        active?: boolean
-        emailAddress?: string
-        avatarUrl?: string
-        accountType?: string
-        timeZone?: string
+        active: boolean | null
+        emailAddress: string | null
+        avatarUrl: string | null
+        accountType: string | null
+        timeZone: string | null
       } | null
       assigneeName: string | null
       reporter: {
         accountId: string
         displayName: string
-        active?: boolean
-        emailAddress?: string
-        avatarUrl?: string
-        accountType?: string
-        timeZone?: string
+        active: boolean | null
+        emailAddress: string | null
+        avatarUrl: string | null
+        accountType: string | null
+        timeZone: string | null
       } | null
       labels: string[]
       components: Array<{ id: string; name: string; description?: string }>
@@ -1223,21 +1223,21 @@ export interface JiraGetCommentsResponse extends ToolResponse {
       author: {
         accountId: string
         displayName: string
-        active?: boolean
-        emailAddress?: string
-        avatarUrl?: string
-        accountType?: string
-        timeZone?: string
+        active: boolean | null
+        emailAddress: string | null
+        avatarUrl: string | null
+        accountType: string | null
+        timeZone: string | null
       } | null
       authorName: string
       updateAuthor: {
         accountId: string
         displayName: string
-        active?: boolean
-        emailAddress?: string
-        avatarUrl?: string
-        accountType?: string
-        timeZone?: string
+        active: boolean | null
+        emailAddress: string | null
+        avatarUrl: string | null
+        accountType: string | null
+        timeZone: string | null
       } | null
       created: string
       updated: string
@@ -1431,20 +1431,20 @@ export interface JiraUpdateWorklogResponse extends ToolResponse {
     author: {
       accountId: string
       displayName: string
-      active?: boolean
-      emailAddress?: string
-      avatarUrl?: string
-      accountType?: string
-      timeZone?: string
+      active: boolean | null
+      emailAddress: string | null
+      avatarUrl: string | null
+      accountType: string | null
+      timeZone: string | null
     } | null
     updateAuthor: {
       accountId: string
       displayName: string
-      active?: boolean
-      emailAddress?: string
-      avatarUrl?: string
-      accountType?: string
-      timeZone?: string
+      active: boolean | null
+      emailAddress: string | null
+      avatarUrl: string | null
+      accountType: string | null
+      timeZone: string | null
     } | null
     started: string | null
     created: string | null
