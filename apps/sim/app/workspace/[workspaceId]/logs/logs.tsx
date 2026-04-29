@@ -706,7 +706,6 @@ export default function Logs() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
-      // When the trace tab is active, arrow keys belong to TraceView's span navigator.
       if (activeLogTabRef.current === 'trace') return
       const currentLogs = logsRef.current
       const currentIndex = selectedLogIndexRef.current

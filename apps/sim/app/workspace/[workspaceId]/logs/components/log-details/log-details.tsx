@@ -302,8 +302,6 @@ export const LogDetails = memo(function LogDetails({
   const [prevLogId, setPrevLogId] = useState(log?.id)
   const [copiedRunId, setCopiedRunId] = useState(false)
 
-  // Reset tab to overview when the selected log changes so the user never gets
-  // trapped on the Trace tab (which would suppress arrow-key log navigation).
   if (prevLogId !== log?.id) {
     setPrevLogId(log?.id)
     setActiveTab('overview')
@@ -345,10 +343,6 @@ export const LogDetails = memo(function LogDetails({
 
   const resolvedTab: LogDetailsTab = activeTab === 'trace' && !showTraceTab ? 'overview' : activeTab
 
-  // When the trace tab disappears while it is active (e.g. data not yet loaded), resolvedTab
-  // falls back to 'overview'. Notify the parent inline so it sees the corrected value without
-  // waiting for an extra render cycle. The user-click path calls onActiveTabChange directly in
-  // onValueChange below.
   const prevResolvedTabRef = useRef<LogDetailsTab>(resolvedTab)
   if (prevResolvedTabRef.current !== resolvedTab) {
     prevResolvedTabRef.current = resolvedTab
