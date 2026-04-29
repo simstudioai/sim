@@ -754,7 +754,6 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
       id: 'getContentExportMimeType',
       title: 'Export Format',
       type: 'dropdown',
-      canonicalParamId: 'mimeType',
       options: [
         { label: 'Auto (best format for file type)', id: 'auto' },
         { label: 'Plain Text (text/plain)', id: 'text/plain' },
@@ -860,7 +859,6 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
       id: 'searchQuery',
       title: 'Search Query',
       type: 'long-input',
-      canonicalParamId: 'query',
       placeholder:
         "Drive query syntax (e.g., fullText contains 'budget' and mimeType = 'application/pdf')",
       condition: { field: 'operation', value: 'search' },
@@ -890,7 +888,6 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       id: 'searchPageSize',
       title: 'Results Per Page',
       type: 'short-input',
-      canonicalParamId: 'pageSize',
       placeholder: 'Number of results (default: 100, max: 100)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'search' },
@@ -1016,6 +1013,10 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
           removeFromCurrent,
           includeRevisions,
           pageSize,
+          query,
+          searchQuery,
+          searchPageSize,
+          getContentExportMimeType,
           ...rest
         } = params
 
@@ -1101,14 +1102,22 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
         const includeRevisionsValue =
           includeRevisions === 'true' ? true : includeRevisions === 'false' ? false : undefined
 
+        const effectivePageSize = params.operation === 'search' ? searchPageSize : pageSize
+        const effectiveQuery = params.operation === 'search' ? searchQuery : query
+        const effectiveMimeType =
+          params.operation === 'get_content' ? getContentExportMimeType : mimeType
+
         return {
           oauthCredential,
           folderId: effectiveFolderId,
           fileId: effectiveFileId,
           destinationFolderId: effectiveDestinationFolderId,
           file: normalizedFile,
-          pageSize: pageSize ? Number.parseInt(pageSize as string, 10) : undefined,
-          mimeType: mimeType === 'auto' ? undefined : mimeType,
+          pageSize: effectivePageSize
+            ? Number.parseInt(effectivePageSize as string, 10)
+            : undefined,
+          query: effectiveQuery,
+          mimeType: effectiveMimeType === 'auto' ? undefined : effectiveMimeType,
           type: shareType, // Map shareType to type for share tool
           starred: starredValue,
           sendNotification: sendNotificationValue,
