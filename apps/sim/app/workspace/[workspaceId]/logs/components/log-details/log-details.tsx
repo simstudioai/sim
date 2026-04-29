@@ -299,7 +299,15 @@ export const LogDetails = memo(function LogDetails({
 }: LogDetailsProps) {
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<LogDetailsTab>('overview')
+  const [prevLogId, setPrevLogId] = useState(log?.id)
   const [copiedRunId, setCopiedRunId] = useState(false)
+
+  // Reset tab to overview when the selected log changes so the user never gets
+  // trapped on the Trace tab (which would suppress arrow-key log navigation).
+  if (prevLogId !== log?.id) {
+    setPrevLogId(log?.id)
+    setActiveTab('overview')
+  }
   const copiedRunIdTimerRef = useRef<number | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
