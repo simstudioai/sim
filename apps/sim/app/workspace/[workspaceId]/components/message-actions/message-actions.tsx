@@ -16,7 +16,9 @@ import {
   ThumbsDown,
   ThumbsUp,
   Tooltip,
+  toast,
 } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkTask } from '@/hooks/queries/tasks'
 
@@ -154,7 +156,7 @@ export const MessageActions = memo(function MessageActions({
       const result = await forkTask.mutateAsync({ chatId, upToMessageId: messageId })
       router.push(`/workspace/${params.workspaceId}/task/${result.id}`)
     } catch {
-      /* fork failed — button resets, user can retry */
+      toast.error('Failed to fork chat')
     }
   }
 
@@ -221,7 +223,7 @@ export const MessageActions = memo(function MessageActions({
                 aria-label='Fork from here'
                 onClick={handleFork}
                 disabled={forkTask.isPending}
-                className={BUTTON_CLASS}
+                className={cn(BUTTON_CLASS, forkTask.isPending && 'cursor-not-allowed opacity-50')}
               >
                 <GitBranch className={ICON_CLASS} />
               </button>
