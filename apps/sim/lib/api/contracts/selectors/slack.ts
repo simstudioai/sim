@@ -32,6 +32,12 @@ export const slackUserSelectorContract = definePostSelector(
   z.object({ user: slackUserSchema })
 )
 
+export const slackUsersListOrDetailContract = definePostSelector(
+  '/api/tools/slack/users',
+  slackUsersBodySchema,
+  z.union([z.object({ user: slackUserSchema }), z.object({ users: z.array(slackUserSchema) })])
+)
+
 export type SlackChannelsSelectorResponse = ContractJsonResponse<
   typeof slackChannelsSelectorContract
 >

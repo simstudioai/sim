@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { twilioGetRecordingBodySchema } from '@/lib/api/contracts'
-import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
+import { twilioGetRecordingContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -62,21 +62,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const validation = await validateJsonBody(request, twilioGetRecordingBodySchema)
-    if (!validation.success) {
-      if (!validation.error) return validation.response
-      return NextResponse.json(
-        {
-          success: false,
-          error: getValidationErrorMessage(validation.error, 'Invalid request data'),
-          details: validation.error.issues,
-        },
-        { status: 400 }
-      )
-    }
-    const validatedData = validation.data
-
-    const { accountSid, authToken, recordingSid } = validatedData
+    const parsed = await parseRequest(twilioGetRecordingContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { accountSid, authToken, recordingSid } = parsed.data.body
 
     if (!accountSid.startsWith('AC')) {
       return NextResponse.json(

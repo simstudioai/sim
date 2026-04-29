@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { slackSendMessageBodySchema } from '@/lib/api/contracts'
-import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
+import { slackSendMessageContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -32,19 +32,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const validation = await validateJsonBody(request, slackSendMessageBodySchema)
-    if (!validation.success) {
-      if (!validation.error) return validation.response
-      return NextResponse.json(
-        {
-          success: false,
-          error: getValidationErrorMessage(validation.error, 'Invalid request'),
-          details: validation.error.issues,
-        },
-        { status: 400 }
-      )
-    }
-    const validatedData = validation.data
+    const parsed = await parseRequest(slackSendMessageContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const isDM = !!validatedData.userId
     logger.info(`[${requestId}] Sending Slack message`, {

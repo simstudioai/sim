@@ -198,11 +198,6 @@ export const leaveCredentialQuerySchema = z.object({
   credentialId: z.string().min(1),
 })
 
-export const addCredentialMemberBodySchema = z.object({
-  userId: z.string().min(1),
-  role: z.enum(['admin', 'member']).default('member'),
-})
-
 export const workspaceCredentialMemberSchema = z.object({
   id: z.string(),
   userId: z.string(),

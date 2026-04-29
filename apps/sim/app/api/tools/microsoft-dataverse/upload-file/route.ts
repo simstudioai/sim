@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { dataverseUploadFileBodySchema } from '@/lib/api/contracts/tools/microsoft'
-import { validateJsonBody } from '@/lib/api/server'
+import { dataverseUploadFileContract } from '@/lib/api/contracts/tools/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -33,19 +33,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
-    const validation = await validateJsonBody(request, dataverseUploadFileBodySchema)
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: validation.error?.issues ?? [] })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: validation.error?.issues ?? [],
-        },
-        { status: 400 }
-      )
-    }
-    const validatedData = validation.data
+    const parsed = await parseRequest(dataverseUploadFileContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Uploading file to Dataverse`, {
       entitySetName: validatedData.entitySetName,

@@ -2,8 +2,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import { smtpSendBodySchema } from '@/lib/api/contracts'
-import { validateJsonBody } from '@/lib/api/server'
+import { smtpSendContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -36,19 +36,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const validation = await validateJsonBody(request, smtpSendBodySchema)
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: validation.error?.issues ?? [] })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: validation.error?.issues ?? [],
-        },
-        { status: 400 }
-      )
-    }
-    const validatedData = validation.data
+    const parsed = await parseRequest(smtpSendContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const hostValidation = await validateDatabaseHost(validatedData.smtpHost, 'smtpHost')
     if (!hostValidation.isValid) {

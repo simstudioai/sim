@@ -186,3 +186,17 @@ export const subscriptionTransferBodySchema = z.object({
     .string({ error: 'organizationId is required' })
     .min(1, 'organizationId is required'),
 })
+
+export const subscriptionTransferContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/users/me/subscription/[id]/transfer',
+  params: subscriptionTransferParamsSchema,
+  body: subscriptionTransferBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      message: z.string(),
+    }),
+  },
+})

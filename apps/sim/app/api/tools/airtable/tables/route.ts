@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
-import { selectorContractsByPath } from '@/lib/api/contracts/selectors'
-import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { airtableTablesSelectorContract } from '@/lib/api/contracts/selectors'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateAirtableId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -12,27 +12,12 @@ const logger = createLogger('AirtableTablesAPI')
 
 export const dynamic = 'force-dynamic'
 
-export const POST = withRouteHandler(async (request: Request) => {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   try {
-    const validation = await validateJsonBody(
-      request,
-      selectorContractsByPath['/api/tools/airtable/tables'].body!
-    )
-    if (!validation.success) {
-      if (validation.error) {
-        const firstPath = validation.error.issues.at(0)?.path[0]
-        logger.error(
-          firstPath === 'baseId' ? 'Missing baseId in request' : 'Missing credential in request'
-        )
-        return NextResponse.json(
-          { error: getValidationErrorMessage(validation.error, 'Invalid request') },
-          { status: 400 }
-        )
-      }
-      return validation.response
-    }
-    const { credential, workflowId, baseId } = validation.data
+    const parsed = await parseRequest(airtableTablesSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, workflowId, baseId } = parsed.data.body
 
     const baseIdValidation = validateAirtableId(baseId, 'app', 'baseId')
     if (!baseIdValidation.isValid) {
@@ -40,7 +25,7 @@ export const POST = withRouteHandler(async (request: Request) => {
       return NextResponse.json({ error: baseIdValidation.error }, { status: 400 })
     }
 
-    const authz = await authorizeCredentialUse(request as any, {
+    const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
       workflowId,
     })

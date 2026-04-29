@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { slackReactionBodySchema } from '@/lib/api/contracts'
-import { validateJsonBody } from '@/lib/api/server'
+import { slackAddReactionContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -20,18 +20,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const validation = await validateJsonBody(request, slackReactionBodySchema)
-    if (!validation.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: validation.error?.issues ?? [],
-        },
-        { status: 400 }
-      )
-    }
-    const validatedData = validation.data
+    const parsed = await parseRequest(slackAddReactionContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const slackResponse = await fetch('https://slack.com/api/reactions.add', {
       method: 'POST',

@@ -18,14 +18,6 @@ export type ValidationResult<S extends ApiSchema> =
   | { success: true; data: z.output<S> }
   | { success: false; response: NextResponse<unknown>; error: z.ZodError }
 
-export type JsonBodyValidationResult<S extends ApiSchema> =
-  | { success: true; data: z.output<S> }
-  | {
-      success: false
-      response: NextResponse<unknown>
-      error?: z.ZodError
-    }
-
 export interface ParsedRequest<C extends AnyApiRouteContract> {
   params: ContractParams<C>
   query: ContractQuery<C>
@@ -110,18 +102,6 @@ export async function parseJsonBody(
       response: NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 }),
     }
   }
-}
-
-export async function validateJsonBody<S extends ApiSchema>(
-  request: Request,
-  schema: S
-): Promise<JsonBodyValidationResult<S>> {
-  const parsedBody = await parseJsonBody(request)
-  if (!parsedBody.success) {
-    return { success: false, response: parsedBody.response }
-  }
-
-  return validateSchema(schema, parsedBody.data)
 }
 
 export function searchParamsToObject(

@@ -107,7 +107,6 @@ const provider = config as unknown as LegacyProvider
 Routes never `import { z } from 'zod'` and never define route-local boundary schemas. They consume the contract from `@/lib/api/contracts/**` and validate with canonical helpers from `@/lib/api/server`:
 
 - `parseRequest(contract, request, context)` — fully contract-bound routes; parses params, query, body, and headers in one call.
-- `validateJsonBody(request, schema)` — when the body schema comes from a contract but you need to assemble query/headers manually.
 - `validateSchema(schema, data)` — for ad-hoc validation against a contract schema or primitive.
 - `validationErrorResponse(error)` and `getValidationErrorMessage(error, fallback)` — produce 400 responses from a `ZodError`.
 - `validationErrorResponseFromError(error)` — when handling unknown caught errors that may or may not be a `ZodError`.
@@ -132,30 +131,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ ok: true })
   } catch (error) {
     return validationErrorResponseFromError(error)
-  }
-})
-```
-
-### Partial validation (`validateJsonBody`)
-
-```typescript
-import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
-import { updateFolderBodySchema } from '@/lib/api/contracts/folders'
-import { isZodError, validateJsonBody, validationErrorResponse } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-
-export const PATCH = withRouteHandler(async (
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) => {
-  const { id } = await params
-  try {
-    const body = await validateJsonBody(request, updateFolderBodySchema)
-    return NextResponse.json({ id, ...body })
-  } catch (error) {
-    if (isZodError(error)) return validationErrorResponse(error)
-    throw error
   }
 })
 ```

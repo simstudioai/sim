@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
-import { selectorContractsByPath } from '@/lib/api/contracts/selectors'
-import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { slackChannelsSelectorContract } from '@/lib/api/contracts/selectors'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -20,25 +20,15 @@ interface SlackChannel {
   is_member: boolean
 }
 
-export const POST = withRouteHandler(async (request: Request) => {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const requestId = generateRequestId()
-    const validation = await validateJsonBody(
-      request,
-      selectorContractsByPath['/api/tools/slack/channels'].body!
-    )
-    if (!validation.success) {
+    const parsed = await parseRequest(slackChannelsSelectorContract, request, {})
+    if (!parsed.success) {
       logger.error('Missing credential in request')
-      if (!validation.error) return validation.response
-      return NextResponse.json(
-        {
-          error: getValidationErrorMessage(validation.error, 'Invalid request data'),
-          details: validation.error.issues,
-        },
-        { status: 400 }
-      )
+      return parsed.response
     }
-    const { credential, workflowId } = validation.data
+    const { credential, workflowId } = parsed.data.body
 
     let accessToken: string
     let isBotToken = false
@@ -48,7 +38,7 @@ export const POST = withRouteHandler(async (request: Request) => {
       isBotToken = true
       logger.info('Using direct bot token for Slack API')
     } else {
-      const authz = await authorizeCredentialUse(request as any, {
+      const authz = await authorizeCredentialUse(request, {
         credentialId: credential,
         workflowId: workflowId ?? undefined,
       })

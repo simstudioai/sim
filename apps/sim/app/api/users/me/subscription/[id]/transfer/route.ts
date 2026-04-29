@@ -4,11 +4,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import {
-  subscriptionTransferBodySchema,
-  subscriptionTransferParamsSchema,
-} from '@/lib/api/contracts/user'
-import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
+import { subscriptionTransferContract } from '@/lib/api/contracts/user'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import {
@@ -25,16 +22,8 @@ type TransferOutcome =
   | { kind: 'success'; message: string }
 
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
-      const parsedParams = subscriptionTransferParamsSchema.safeParse(await params)
-      if (!parsedParams.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(parsedParams.error) },
-          { status: 400 }
-        )
-      }
-      const subscriptionId = parsedParams.data.id
       const session = await getSession()
 
       if (!session?.user?.id) {
@@ -42,12 +31,11 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const validationResult = await validateJsonBody(request, subscriptionTransferBodySchema)
-      if (!validationResult.success) {
-        return validationResult.response
-      }
+      const parsed = await parseRequest(subscriptionTransferContract, request, context)
+      if (!parsed.success) return parsed.response
 
-      const { organizationId } = validationResult.data
+      const subscriptionId = parsed.data.params.id
+      const { organizationId } = parsed.data.body
       const userId = session.user.id
       logger.info('Processing subscription transfer', { subscriptionId, organizationId })
 

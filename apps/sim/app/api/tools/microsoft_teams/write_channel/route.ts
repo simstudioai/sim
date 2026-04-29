@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { teamsWriteChannelBodySchema } from '@/lib/api/contracts/tools/microsoft'
-import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
+import { teamsWriteChannelContract } from '@/lib/api/contracts/tools/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -38,19 +38,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
-    const validation = await validateJsonBody(request, teamsWriteChannelBodySchema)
-    if (!validation.success) {
-      if (!validation.error) return validation.response
-      return NextResponse.json(
-        {
-          success: false,
-          error: getValidationErrorMessage(validation.error, 'Invalid request'),
-          details: validation.error.issues,
-        },
-        { status: 400 }
-      )
-    }
-    const validatedData = validation.data
+    const parsed = await parseRequest(teamsWriteChannelContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Sending Teams channel message`, {
       teamId: validatedData.teamId,

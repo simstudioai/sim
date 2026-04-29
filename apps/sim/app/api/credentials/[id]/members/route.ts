@@ -4,8 +4,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { addCredentialMemberBodySchema } from '@/lib/api/contracts/credentials'
-import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
+import { upsertWorkspaceCredentialMemberContract } from '@/lib/api/contracts/credentials'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -105,19 +105,10 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
-    const parsed = await validateJsonBody(request, addCredentialMemberBodySchema)
-    if (!parsed.success) {
-      return NextResponse.json(
-        {
-          error: parsed.error
-            ? getValidationErrorMessage(parsed.error, 'Invalid request body')
-            : 'Invalid request body',
-        },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(upsertWorkspaceCredentialMemberContract, request, context)
+    if (!parsed.success) return parsed.response
 
-    const { userId, role } = parsed.data
+    const { userId, role } = parsed.data.body
     const now = new Date()
 
     const [existing] = await db

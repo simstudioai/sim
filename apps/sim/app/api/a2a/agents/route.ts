@@ -13,8 +13,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
 import { A2A_DEFAULT_CAPABILITIES } from '@/lib/a2a/constants'
 import { sanitizeAgentName } from '@/lib/a2a/utils'
-import { createA2AAgentBodySchema, listA2AAgentsQuerySchema } from '@/lib/api/contracts/a2a-agents'
-import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
+import { createA2AAgentContract, listA2AAgentsQuerySchema } from '@/lib/api/contracts/a2a-agents'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -104,20 +104,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const parseResult = await validateJsonBody(request, createA2AAgentBodySchema)
-    if (!parseResult.success) {
-      return NextResponse.json(
-        {
-          error: parseResult.error
-            ? getValidationErrorMessage(parseResult.error)
-            : 'Invalid request body',
-        },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(createA2AAgentContract, request, {})
+    if (!parsed.success) return parsed.response
 
     const { workspaceId, workflowId, name, description, capabilities, authentication, skillTags } =
-      parseResult.data
+      parsed.data.body
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, auth.userId)
     if (!workspaceAccess.exists) {

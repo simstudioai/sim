@@ -61,8 +61,7 @@ const CONTRACT_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/contracts(?:\/[^'"]*)
 const SERVER_VALIDATION_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/server(?:\/validation)?['"]/
 const SCHEMA_PARSE_PATTERN = /\b\w+Schema\.(?:safeParse|parse)\(/
 const VALIDATE_SCHEMA_CALL_PATTERN = /\bvalidateSchema\(\s*\w+Schema\b/
-const CONTRACT_SERVER_HELPER_PATTERN =
-  /\b(?:parseAwsToolRequest|parseDatabaseToolRequest|validateJsonBody)\(/
+const CONTRACT_SERVER_HELPER_PATTERN = /\b(?:parseAwsToolRequest|parseDatabaseToolRequest)\(/
 const CANONICAL_HELPER_USAGE_PATTERN =
   /\b(?:isZodError|validationErrorResponse|validationErrorResponseFromError|getValidationErrorMessage)\s*\(/
 const CONTRACT_MAP_PARSE_PATTERN =

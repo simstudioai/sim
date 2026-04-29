@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { slackDownloadBodySchema } from '@/lib/api/contracts'
-import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
+import { slackDownloadContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -35,21 +35,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const validation = await validateJsonBody(request, slackDownloadBodySchema)
-    if (!validation.success) {
-      if (!validation.error) return validation.response
-      return NextResponse.json(
-        {
-          success: false,
-          error: getValidationErrorMessage(validation.error, 'Invalid request'),
-          details: validation.error.issues,
-        },
-        { status: 400 }
-      )
-    }
-    const validatedData = validation.data
-
-    const { accessToken, fileId, fileName } = validatedData
+    const parsed = await parseRequest(slackDownloadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { accessToken, fileId, fileName } = parsed.data.body
 
     logger.info(`[${requestId}] Getting file info from Slack`, { fileId })
 

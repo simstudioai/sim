@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
-import { onedriveUploadBodySchema } from '@/lib/api/contracts/tools/microsoft'
-import { validateJsonBody } from '@/lib/api/server'
+import { onedriveUploadContract } from '@/lib/api/contracts/tools/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
@@ -62,19 +62,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const validation = await validateJsonBody(request, onedriveUploadBodySchema)
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: validation.error?.issues ?? [] })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: validation.error?.issues ?? [],
-        },
-        { status: 400 }
-      )
-    }
-    const validatedData = validation.data
+    const parsed = await parseRequest(onedriveUploadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
     const excelValues = normalizeExcelValues(validatedData.values)
 
     let fileBuffer: Buffer

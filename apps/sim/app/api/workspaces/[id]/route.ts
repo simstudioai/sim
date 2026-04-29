@@ -3,8 +3,8 @@ import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { deleteWorkspaceBodySchema, updateWorkspaceBodySchema } from '@/lib/api/contracts'
-import { validateJsonBody, validateSchema } from '@/lib/api/server'
+import { deleteWorkspaceBodySchema, updateWorkspaceContract } from '@/lib/api/contracts'
+import { parseRequest, validateSchema } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
@@ -96,15 +96,17 @@ export const GET = withRouteHandler(
 )
 
 export const PATCH = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id } = await params
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const session = await getSession()
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const workspaceId = id
+    const parsed = await parseRequest(updateWorkspaceContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const workspaceId = parsed.data.params.id
 
     // Check if user has admin permissions to update workspace
     const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
@@ -112,11 +114,8 @@ export const PATCH = withRouteHandler(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const bodyValidation = await validateJsonBody(request, updateWorkspaceBodySchema)
-    if (!bodyValidation.success) return bodyValidation.response
-
     try {
-      const body = bodyValidation.data
+      const body = parsed.data.body
       const { name, color, logoUrl, billedAccountUserId, allowPersonalApiKeys } = body
 
       if (

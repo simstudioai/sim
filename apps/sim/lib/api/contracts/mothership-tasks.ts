@@ -32,6 +32,18 @@ export const markMothershipChatReadBodySchema = z.object({
 })
 export type MarkMothershipChatReadBody = z.input<typeof markMothershipChatReadBodySchema>
 
+export const markMothershipChatReadContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/mothership/chats/read',
+  body: markMothershipChatReadBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+    }),
+  },
+})
+
 const mothershipExecuteMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant']),
   content: z.string(),

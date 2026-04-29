@@ -24,13 +24,11 @@ export const outlookSendBodySchema = z.object({
   cc: z.string().optional().nullable(),
   bcc: z.string().optional().nullable(),
   replyToMessageId: z.string().optional().nullable(),
-  conversationId: z.string().optional().nullable(),
   attachments: RawFileInputArraySchema.optional().nullable(),
 })
 
 export const outlookDraftBodySchema = outlookSendBodySchema.omit({
   replyToMessageId: true,
-  conversationId: true,
 })
 
 export const outlookDeleteBodySchema = z.object({
@@ -189,6 +187,13 @@ export const sharepointUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/sharepoint/upload',
   body: sharepointUploadBodySchema,
+  response: { mode: 'json', schema: toolJsonResponseSchema },
+})
+
+export const dataverseUploadFileContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/microsoft-dataverse/upload-file',
+  body: dataverseUploadFileBodySchema,
   response: { mode: 'json', schema: toolJsonResponseSchema },
 })
 

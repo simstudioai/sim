@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { smsSendBodySchema } from '@/lib/api/contracts'
-import { validateJsonBody } from '@/lib/api/server'
+import { smsSendContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -33,19 +33,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const validation = await validateJsonBody(request, smsSendBodySchema)
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: validation.error?.issues ?? [] })
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Invalid request data',
-          errors: validation.error?.issues ?? [],
-        },
-        { status: 400 }
-      )
-    }
-    const validatedData = validation.data
+    const parsed = await parseRequest(smsSendContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const fromNumber = env.TWILIO_PHONE_NUMBER
 

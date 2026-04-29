@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { discordServersBodySchema } from '@/lib/api/contracts'
-import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
+import { discordServersContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateNumericId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -23,18 +23,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const validation = await validateJsonBody(request, discordServersBodySchema)
-    if (!validation.success) {
-      if (!validation.error) return validation.response
-      return NextResponse.json(
-        {
-          error: getValidationErrorMessage(validation.error, 'Invalid request data'),
-          details: validation.error.issues,
-        },
-        { status: 400 }
-      )
-    }
-    const { botToken, serverId } = validation.data
+    const parsed = await parseRequest(discordServersContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { botToken, serverId } = parsed.data.body
 
     if (serverId) {
       const serverIdValidation = validateNumericId(serverId, 'serverId')

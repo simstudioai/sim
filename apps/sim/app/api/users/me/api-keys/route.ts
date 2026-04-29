@@ -5,8 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createPersonalApiKeyBodySchema } from '@/lib/api/contracts'
-import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
+import { createPersonalApiKeyContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { getSession } from '@/lib/auth'
@@ -64,19 +64,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = session.user.id
-    const parsedBody = await validateJsonBody(request, createPersonalApiKeyBodySchema)
-    if (!parsedBody.success) {
-      return NextResponse.json(
-        {
-          error: parsedBody.error
-            ? getValidationErrorMessage(parsedBody.error)
-            : 'Invalid request body',
-        },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(createPersonalApiKeyContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const { name } = parsedBody.data
+    const { name } = parsed.data.body
 
     const existingKey = await db
       .select()

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
-import { selectorContractsByPath } from '@/lib/api/contracts/selectors'
-import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { airtableBasesSelectorContract } from '@/lib/api/contracts/selectors'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -11,26 +11,17 @@ const logger = createLogger('AirtableBasesAPI')
 
 export const dynamic = 'force-dynamic'
 
-export const POST = withRouteHandler(async (request: Request) => {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   try {
-    const validation = await validateJsonBody(
-      request,
-      selectorContractsByPath['/api/tools/airtable/bases'].body!
-    )
-    if (!validation.success) {
+    const parsed = await parseRequest(airtableBasesSelectorContract, request, {})
+    if (!parsed.success) {
       logger.error('Missing credential in request')
-      if (validation.error) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(validation.error, 'Invalid request') },
-          { status: 400 }
-        )
-      }
-      return validation.response
+      return parsed.response
     }
-    const { credential, workflowId } = validation.data
+    const { credential, workflowId } = parsed.data.body
 
-    const authz = await authorizeCredentialUse(request as any, {
+    const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
       workflowId,
     })

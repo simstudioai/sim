@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const ALLOWED_TELEMETRY_CATEGORIES = [
   'page_view',
@@ -32,3 +33,16 @@ export const telemetryEventSchema = z
     { message: 'Telemetry data contains sensitive information' }
   )
 export type TelemetryEvent = z.output<typeof telemetryEventSchema>
+
+export const telemetryContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/telemetry',
+  body: telemetryEventSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      forwarded: z.boolean(),
+    }),
+  },
+})

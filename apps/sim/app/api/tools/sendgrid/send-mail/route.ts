@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { sendGridSendMailBodySchema } from '@/lib/api/contracts'
-import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
+import { sendGridSendMailContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -28,20 +28,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     logger.info(`[${requestId}] Authenticated SendGrid send request via ${authResult.authType}`)
 
-    const validation = await validateJsonBody(request, sendGridSendMailBodySchema)
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Validation error:`, validation.error?.issues ?? [])
-      if (!validation.error) return validation.response
-      return NextResponse.json(
-        {
-          success: false,
-          error: getValidationErrorMessage(validation.error, 'Validation failed'),
-          details: validation.error.issues,
-        },
-        { status: 400 }
-      )
-    }
-    const validatedData = validation.data
+    const parsed = await parseRequest(sendGridSendMailContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Sending SendGrid email`, {
       to: validatedData.to,

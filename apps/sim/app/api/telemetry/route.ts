@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { telemetryEventSchema } from '@/lib/api/contracts/telemetry'
-import { validateJsonBody } from '@/lib/api/server'
+import { telemetryContract } from '@/lib/api/contracts/telemetry'
+import { parseRequest } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -149,18 +149,10 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
  */
 export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
-    const validation = await validateJsonBody(req, telemetryEventSchema)
-    if (!validation.success) {
-      if (!validation.error) {
-        return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
-      }
-      return NextResponse.json(
-        { error: 'Invalid telemetry data format or contains sensitive information' },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(telemetryContract, req, {})
+    if (!parsed.success) return parsed.response
 
-    const forwarded = await forwardToCollector(validation.data as Record<string, unknown>)
+    const forwarded = await forwardToCollector(parsed.data.body)
 
     return NextResponse.json({
       success: true,

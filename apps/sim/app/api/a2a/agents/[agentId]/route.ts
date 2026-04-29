@@ -7,10 +7,10 @@ import { generateAgentCard, generateSkillsFromWorkflow } from '@/lib/a2a/agent-c
 import type { AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
 import {
   a2aAgentParamsSchema,
-  publishA2AAgentBodySchema,
-  updateA2AAgentBodySchema,
+  publishA2AAgentContract,
+  updateA2AAgentContract,
 } from '@/lib/api/contracts/a2a-agents'
-import { getValidationErrorMessage, validateJsonBody } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -117,18 +117,9 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      const parseResult = await validateJsonBody(request, updateA2AAgentBodySchema)
-      if (!parseResult.success) {
-        return NextResponse.json(
-          {
-            error: parseResult.error
-              ? getValidationErrorMessage(parseResult.error)
-              : 'Invalid request body',
-          },
-          { status: 400 }
-        )
-      }
-      const body = parseResult.data
+      const parsed = await parseRequest(updateA2AAgentContract, request, { params })
+      if (!parsed.success) return parsed.response
+      const body = parsed.data.body
 
       let skills = body.skills ?? existingAgent.skills
       if (body.skillTags !== undefined) {
@@ -247,18 +238,9 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      const actionResult = await validateJsonBody(request, publishA2AAgentBodySchema)
-      if (!actionResult.success) {
-        return NextResponse.json(
-          {
-            error: actionResult.error
-              ? getValidationErrorMessage(actionResult.error)
-              : 'Invalid action',
-          },
-          { status: 400 }
-        )
-      }
-      const { action } = actionResult.data
+      const parsed = await parseRequest(publishA2AAgentContract, request, { params })
+      if (!parsed.success) return parsed.response
+      const { action } = parsed.data.body
 
       if (action === 'publish') {
         const [wf] = await db

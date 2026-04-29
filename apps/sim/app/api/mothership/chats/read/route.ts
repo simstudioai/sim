@@ -3,8 +3,8 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { markMothershipChatReadBodySchema } from '@/lib/api/contracts/mothership-tasks'
-import { validateJsonBody } from '@/lib/api/server'
+import { markMothershipChatReadContract } from '@/lib/api/contracts/mothership-tasks'
+import { parseRequest } from '@/lib/api/server'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -21,9 +21,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const validation = await validateJsonBody(request, markMothershipChatReadBodySchema)
-    if (!validation.success) return validation.response
-    const { chatId } = validation.data
+    const parsed = await parseRequest(markMothershipChatReadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { chatId } = parsed.data.body
 
     await db
       .update(copilotChats)
