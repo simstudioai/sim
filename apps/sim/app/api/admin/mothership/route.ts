@@ -67,10 +67,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   if (!queryValidation.success) return queryValidation.response
   const { env: environment, endpoint } = queryValidation.data
 
-  if (!endpoint) {
-    return NextResponse.json({ error: 'endpoint query param required' }, { status: 400 })
-  }
-
   if (!isValidEndpoint(endpoint)) {
     return NextResponse.json({ error: 'invalid endpoint' }, { status: 400 })
   }
@@ -125,10 +121,6 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
   )
   if (!queryValidation.success) return queryValidation.response
   const { env: environment, endpoint } = queryValidation.data
-
-  if (!endpoint) {
-    return NextResponse.json({ error: 'endpoint query param required' }, { status: 400 })
-  }
 
   if (!isValidEndpoint(endpoint)) {
     return NextResponse.json({ error: 'invalid endpoint' }, { status: 400 })

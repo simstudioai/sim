@@ -108,7 +108,7 @@ export const adminMothershipQuerySchema = z
       (value) => (value === '' || value === undefined ? 'dev' : value),
       z.string().min(1).default('dev')
     ),
-    endpoint: z.preprocess((value) => (value === '' ? undefined : value), z.string().optional()),
+    endpoint: z.string().min(1, 'endpoint query param required'),
   })
   .passthrough()
 export type AdminMothershipQuery = z.output<typeof adminMothershipQuerySchema>

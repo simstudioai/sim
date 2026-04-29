@@ -13,14 +13,14 @@ const logger = createLogger('TrelloAuthorize')
 export const dynamic = 'force-dynamic'
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const parsed = await parseRequest(authorizeTrelloContract, request, {})
-  if (!parsed.success) return parsed.response
-
   try {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const parsed = await parseRequest(authorizeTrelloContract, request, {})
+    if (!parsed.success) return parsed.response
 
     const apiKey = env.TRELLO_API_KEY
 
