@@ -110,7 +110,10 @@ export const updateTool: ToolConfig<GoogleDriveUpdateParams, GoogleDriveUpdateRe
     const data = await response.json().catch(() => ({}) as any)
 
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to update Google Drive file')
+      throw new Error(
+        data.error?.message ||
+          `Failed to update Google Drive file (${response.status} ${response.statusText})`
+      )
     }
 
     return {
