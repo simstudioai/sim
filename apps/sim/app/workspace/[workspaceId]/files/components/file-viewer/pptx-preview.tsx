@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { Skeleton } from '@/components/emcn'
@@ -123,7 +123,7 @@ async function getPptxRenderSize(
   }
 }
 
-export function PptxPreview({
+export const PptxPreview = memo(function PptxPreview({
   file,
   workspaceId,
   streamingContent,
@@ -269,4 +269,4 @@ export function PptxPreview({
       </div>
     </div>
   )
-}
+})

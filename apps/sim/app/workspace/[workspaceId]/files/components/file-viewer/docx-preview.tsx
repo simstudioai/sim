@@ -89,7 +89,6 @@ export const DocxPreview = memo(function DocxPreview({
 
       try {
         setRendering(true)
-        setRenderError(null)
 
         const response = await fetch(`/api/workspaces/${workspaceId}/docx/preview`, {
           method: 'POST',

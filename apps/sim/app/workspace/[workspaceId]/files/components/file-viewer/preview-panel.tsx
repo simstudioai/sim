@@ -291,7 +291,7 @@ const MermaidDiagram = memo(function MermaidDiagram({ definition }: { definition
   if (error) {
     return (
       <div className='my-4 rounded-lg border border-[var(--border)] p-4 text-[13px] text-[var(--text-muted)]'>
-        <span className='font-medium text-[var(--text-body)]'>Diagram error: </span>
+        <span className='font-medium text-[var(--text-primary)]'>Diagram error: </span>
         {error}
       </div>
     )
