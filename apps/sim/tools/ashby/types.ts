@@ -43,6 +43,7 @@ export interface AshbyUserSummary {
   globalRole: string | null
   isEnabled: boolean
   updatedAt: string | null
+  managerId: string | null
 }
 
 export interface AshbySourceSummary {
@@ -227,6 +228,13 @@ export interface AshbyOpening {
   latestVersion: AshbyOpeningLatestVersion | null
 }
 
+export interface AshbyJobCompensationTier {
+  id: string | null
+  title: string | null
+  additionalInformation: string | null
+  tierSummary: string | null
+}
+
 export interface AshbyJob {
   id: string
   title: string
@@ -249,6 +257,9 @@ export interface AshbyJob {
   closedAt: string | null
   location: AshbyJobLocation | null
   openings: AshbyOpening[]
+  compensation: {
+    compensationTiers: AshbyJobCompensationTier[]
+  } | null
 }
 
 export interface AshbyListJobsResponse extends ToolResponse {

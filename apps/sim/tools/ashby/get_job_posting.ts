@@ -64,6 +64,7 @@ interface AshbyJobPosting {
     }>
     shouldDisplayCompensationOnJobBoard: boolean
   } | null
+  applicationLimitCalloutHtml: string | null
   updatedAt: string | null
   job: Record<string, unknown> | null
 }
@@ -218,6 +219,7 @@ export const getJobPostingTool: ToolConfig<AshbyGetJobPostingParams, AshbyGetJob
                 (comp.shouldDisplayCompensationOnJobBoard as boolean) ?? false,
             }
           : null,
+        applicationLimitCalloutHtml: (r.applicationLimitCalloutHtml as string) ?? null,
         updatedAt: (r.updatedAt as string) ?? null,
         job: (r.job as Record<string, unknown>) ?? null,
       },
@@ -399,6 +401,11 @@ export const getJobPostingTool: ToolConfig<AshbyGetJobPostingParams, AshbyGetJob
           description: 'Whether compensation is shown on the job board',
         },
       },
+    },
+    applicationLimitCalloutHtml: {
+      type: 'string',
+      description: 'HTML callout shown when the application limit is reached',
+      optional: true,
     },
     updatedAt: {
       type: 'string',

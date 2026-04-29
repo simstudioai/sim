@@ -99,6 +99,7 @@ export function mapUserSummary(raw: unknown): AshbyUserSummary | null {
     globalRole: (u.globalRole as string) ?? null,
     isEnabled: (u.isEnabled as boolean) ?? false,
     updatedAt: (u.updatedAt as string) ?? null,
+    managerId: (u.managerId as string) ?? null,
   }
 }
 
@@ -233,6 +234,7 @@ export function mapJob(raw: unknown): AshbyJob {
   const location = j.location as Unknown | undefined
   const address = location?.address as Unknown | undefined
   const postalAddress = address?.postalAddress as Unknown | undefined
+  const compensation = j.compensation as Unknown | undefined
   return {
     id: (j.id as string) ?? '',
     title: (j.title as string) ?? '',
@@ -275,6 +277,25 @@ export function mapJob(raw: unknown): AshbyJob {
         }
       : null,
     openings: mapOpenings(j.openings),
+    compensation: compensation
+      ? {
+          compensationTiers: Array.isArray(compensation.compensationTiers)
+            ? (
+                compensation.compensationTiers as Array<{
+                  id?: string
+                  title?: string
+                  additionalInformation?: string
+                  tierSummary?: string
+                }>
+              ).map((t) => ({
+                id: t.id ?? null,
+                title: t.title ?? null,
+                additionalInformation: t.additionalInformation ?? null,
+                tierSummary: t.tierSummary ?? null,
+              }))
+            : [],
+        }
+      : null,
   }
 }
 
@@ -403,6 +424,7 @@ export const USER_SUMMARY_OUTPUT = {
     globalRole: { type: 'string', description: 'Role', optional: true },
     isEnabled: { type: 'boolean', description: 'Whether enabled' },
     updatedAt: { type: 'string', description: 'Last update timestamp', optional: true },
+    managerId: { type: 'string', description: "User ID of the user's manager", optional: true },
   },
 } as const satisfies OutputProperty
 
@@ -859,4 +881,33 @@ export const JOB_OUTPUTS = {
     },
   },
   openings: OPENINGS_OUTPUT,
+  compensation: {
+    type: 'object',
+    description:
+      'Compensation tiers for the job. Only present when the request includes the `compensation` expand parameter.',
+    optional: true,
+    properties: {
+      compensationTiers: {
+        type: 'array',
+        description: 'List of compensation tiers',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'Tier ID', optional: true },
+            title: { type: 'string', description: 'Tier title', optional: true },
+            additionalInformation: {
+              type: 'string',
+              description: 'Additional information about the tier',
+              optional: true,
+            },
+            tierSummary: {
+              type: 'string',
+              description: 'Human-readable summary of the tier',
+              optional: true,
+            },
+          },
+        },
+      },
+    },
+  },
 } as const satisfies Record<string, OutputProperty>

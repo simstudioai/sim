@@ -29,7 +29,7 @@ export const getJobTool: ToolConfig<AshbyGetJobParams, AshbyGetJobResponse> = {
     headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => ({
       id: params.jobId.trim(),
-      expand: ['openings', 'location'],
+      expand: ['openings', 'location', 'compensation'],
     }),
   },
 
