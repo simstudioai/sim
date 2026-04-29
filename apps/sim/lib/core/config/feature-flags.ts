@@ -29,7 +29,7 @@ try {
 } catch {
   // invalid URL — isHosted stays false
 }
-export const isHosted = true //appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
+export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
 
 /**
  * Is billing enforcement enabled
@@ -128,12 +128,6 @@ export const isWhitelabelingEnabled = isTruthy(env.WHITELABELING_ENABLED)
  * This bypasses hosted requirements for self-hosted deployments
  */
 export const isAuditLogsEnabled = isTruthy(env.AUDIT_LOGS_ENABLED)
-
-/**
- * Is data retention enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
- */
-export const isDataRetentionEnabled = isTruthy(env.DATA_RETENTION_ENABLED)
 
 /**
  * Is E2B enabled for remote code execution
