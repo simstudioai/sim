@@ -2871,12 +2871,12 @@ export const UserTable: ToolCatalogEntry = {
           position: {
             type: 'number',
             description:
-              'Zero-based position at which to insert the row (optional for insert_row). Existing rows at that position and below are shifted down. Omit to append at the end.',
+              'Zero-based index at which to insert the row (optional, insert_row only). Rows at and below that index shift down. Omit to append at the end.',
           },
           positions: {
             type: 'array',
             description:
-              'Zero-based positions for each row in batch_insert_rows (optional). Must have the same length as rows and contain no duplicates. Existing rows are shifted down as needed. Omit to append all rows at the end.',
+              'Per-row insertion indices for batch_insert_rows (optional). Must be the same length as rows and contain no duplicates. Values are final positions in the resulting table — lower-index shifts are applied automatically. Omit to append all rows at the end.',
             items: { type: 'number' },
           },
           rowId: {
