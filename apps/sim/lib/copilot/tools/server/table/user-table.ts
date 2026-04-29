@@ -309,7 +309,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const row = await insertRow(
-            { tableId: args.tableId, data: args.data, workspaceId, userId: context.userId },
+            {
+              tableId: args.tableId,
+              data: args.data,
+              workspaceId,
+              userId: context.userId,
+              position: args.position as number | undefined,
+            },
             table,
             requestId
           )
@@ -340,7 +346,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const rows = await batchInsertRows(
-            { tableId: args.tableId, rows: args.rows, workspaceId, userId: context.userId },
+            {
+              tableId: args.tableId,
+              rows: args.rows,
+              workspaceId,
+              userId: context.userId,
+              positions: args.positions as number[] | undefined,
+            },
             table,
             requestId
           )
