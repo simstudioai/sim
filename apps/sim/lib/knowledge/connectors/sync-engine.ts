@@ -156,8 +156,11 @@ export async function dispatchSync(
     const connectorRows = await db
       .select({
         knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
+        connectorArchivedAt: knowledgeConnector.archivedAt,
+        connectorDeletedAt: knowledgeConnector.deletedAt,
         workspaceId: knowledgeBase.workspaceId,
         userId: knowledgeBase.userId,
+        kbDeletedAt: knowledgeBase.deletedAt,
       })
       .from(knowledgeConnector)
       .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
@@ -165,10 +168,39 @@ export async function dispatchSync(
       .limit(1)
 
     const row = connectorRows[0]
+    if (!row) {
+      logger.warn(`Skipping sync dispatch: connector not found`, { connectorId, requestId })
+      return
+    }
+    if (row.kbDeletedAt) {
+      logger.warn(`Skipping sync dispatch: knowledge base is deleted`, {
+        connectorId,
+        knowledgeBaseId: row.knowledgeBaseId,
+        requestId,
+      })
+      await db
+        .update(knowledgeConnector)
+        .set({
+          status: 'error',
+          nextSyncAt: null,
+          lastSyncError: 'Knowledge base deleted',
+          updatedAt: new Date(),
+        })
+        .where(eq(knowledgeConnector.id, connectorId))
+      return
+    }
+    if (row.connectorArchivedAt || row.connectorDeletedAt) {
+      logger.warn(`Skipping sync dispatch: connector is archived or deleted`, {
+        connectorId,
+        requestId,
+      })
+      return
+    }
+
     const tags = [`connectorId:${connectorId}`]
-    if (row?.knowledgeBaseId) tags.push(`knowledgeBaseId:${row.knowledgeBaseId}`)
-    if (row?.workspaceId) tags.push(`workspaceId:${row.workspaceId}`)
-    if (row?.userId) tags.push(`userId:${row.userId}`)
+    if (row.knowledgeBaseId) tags.push(`knowledgeBaseId:${row.knowledgeBaseId}`)
+    if (row.workspaceId) tags.push(`workspaceId:${row.workspaceId}`)
+    if (row.userId) tags.push(`userId:${row.userId}`)
 
     await knowledgeConnectorSync.trigger(
       {
@@ -261,7 +293,8 @@ export async function executeSync(
     .limit(1)
 
   if (connectorRows.length === 0) {
-    throw new Error(`Connector not found: ${connectorId}`)
+    logger.warn(`Skipping sync: connector ${connectorId} not found, archived, or deleted`)
+    return { ...result, error: 'connector_unavailable' }
   }
 
   const connector = connectorRows[0]
@@ -278,7 +311,19 @@ export async function executeSync(
     .limit(1)
 
   if (kbRows.length === 0) {
-    throw new Error(`Knowledge base not found: ${connector.knowledgeBaseId}`)
+    logger.warn(
+      `Skipping sync: knowledge base ${connector.knowledgeBaseId} is deleted (connector ${connectorId})`
+    )
+    await db
+      .update(knowledgeConnector)
+      .set({
+        status: 'error',
+        nextSyncAt: null,
+        lastSyncError: 'Knowledge base deleted',
+        updatedAt: new Date(),
+      })
+      .where(eq(knowledgeConnector.id, connectorId))
+    return { ...result, error: 'knowledge_base_deleted' }
   }
 
   const userId = kbRows[0].userId
