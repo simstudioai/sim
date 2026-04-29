@@ -74,7 +74,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json(
         {
           success: false,
-          error: `Firecrawl API error: ${firecrawlResponse.statusText}`,
+          error: `Firecrawl API error: ${errorText || firecrawlResponse.statusText}`,
         },
         { status: firecrawlResponse.status }
       )
