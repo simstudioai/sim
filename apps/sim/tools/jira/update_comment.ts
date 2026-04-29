@@ -1,6 +1,6 @@
 import type { JiraUpdateCommentParams, JiraUpdateCommentResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
-import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
+import { extractAdfText, getJiraCloudId, toAdf, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -81,7 +81,7 @@ export const jiraUpdateCommentTool: ToolConfig<JiraUpdateCommentParams, JiraUpda
     request: {
       url: (params: JiraUpdateCommentParams) => {
         if (params.cloudId) {
-          return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey}/comment/${params.commentId}`
+          return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/comment/${params.commentId?.trim() ?? ''}`
         }
         return 'https://api.atlassian.com/oauth/token/accessible-resources'
       },
@@ -95,40 +95,18 @@ export const jiraUpdateCommentTool: ToolConfig<JiraUpdateCommentParams, JiraUpda
       },
       body: (params: JiraUpdateCommentParams) => {
         if (!params.cloudId) return undefined as any
-        const payload: Record<string, any> = {
-          body: {
-            type: 'doc',
-            version: 1,
-            content: [
-              {
-                type: 'paragraph',
-                content: [{ type: 'text', text: params.body }],
-              },
-            ],
-          },
-        }
+        const payload: Record<string, any> = { body: toAdf(params.body ?? '') }
         if (params.visibility) payload.visibility = params.visibility
         return payload
       },
     },
 
     transformResponse: async (response: Response, params?: JiraUpdateCommentParams) => {
-      const payload: Record<string, any> = {
-        body: {
-          type: 'doc',
-          version: 1,
-          content: [
-            {
-              type: 'paragraph',
-              content: [{ type: 'text', text: params?.body ?? '' }],
-            },
-          ],
-        },
-      }
+      const payload: Record<string, any> = { body: toAdf(params?.body ?? '') }
       if (params?.visibility) payload.visibility = params.visibility
 
       const makeRequest = async (cloudId: string) => {
-        const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/comment/${params!.commentId}`
+        const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/comment/${params!.commentId?.trim() ?? ''}`
         const commentResponse = await fetch(commentUrl, {
           method: 'PUT',
           headers: {

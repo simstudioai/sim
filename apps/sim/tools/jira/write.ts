@@ -175,7 +175,14 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
       }
     }
 
-    const data = JSON.parse(responseText)
+    let data: any
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      throw new Error(
+        `Jira write failed (${response.status} ${response.statusText}): non-JSON response from /api/tools/jira/write`
+      )
+    }
 
     if (data.success && data.output) {
       return {

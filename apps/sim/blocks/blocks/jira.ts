@@ -27,6 +27,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Read Issue', id: 'read' },
+        { label: 'Read Bulk Issues', id: 'read-bulk' },
         { label: 'Update Issue', id: 'update' },
         { label: 'Write Issue', id: 'write' },
         { label: 'Delete Issue', id: 'delete' },
@@ -744,16 +745,8 @@ Return ONLY the comment text - no explanations.`,
     ],
     config: {
       tool: (params) => {
-        // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
-        const effectiveProjectId = params.projectId ? String(params.projectId).trim() : ''
-        const effectiveIssueKey = params.issueKey ? String(params.issueKey).trim() : ''
-
         switch (params.operation) {
           case 'read':
-            // If a project is selected but no issue is chosen, route to bulk read
-            if (effectiveProjectId && !effectiveIssueKey) {
-              return 'jira_bulk_read'
-            }
             return 'jira_retrieve'
           case 'update':
             return 'jira_update'
@@ -877,7 +870,12 @@ Return ONLY the comment text - no explanations.`,
               environment: params.environment || undefined,
               customFieldId: params.customFieldId || undefined,
               customFieldValue: params.customFieldValue || undefined,
-              notifyUsers: params.notifyUsers === 'false' ? false : undefined,
+              notifyUsers:
+                params.notifyUsers === 'false'
+                  ? false
+                  : params.notifyUsers === 'true'
+                    ? true
+                    : undefined,
             }
             return {
               ...baseParams,
@@ -989,12 +987,20 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'add_worklog': {
+            const rawTime = params.timeSpentSeconds
+            const parsedTime =
+              rawTime !== undefined && rawTime !== null && String(rawTime).trim() !== ''
+                ? Number(String(rawTime).trim())
+                : undefined
+            if (parsedTime !== undefined && (!Number.isFinite(parsedTime) || parsedTime <= 0)) {
+              throw new Error(
+                'Time Spent (seconds) must be a positive number of seconds (e.g., 3600 for 1 hour)'
+              )
+            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
-              timeSpentSeconds: params.timeSpentSeconds
-                ? Number.parseInt(params.timeSpentSeconds)
-                : undefined,
+              timeSpentSeconds: parsedTime,
               comment: params.worklogComment,
               started: params.started,
             }
@@ -1012,9 +1018,17 @@ Return ONLY the comment text - no explanations.`,
               ...baseParams,
               issueKey: effectiveIssueKey,
               worklogId: params.worklogId,
-              timeSpentSeconds: params.timeSpentSecondsUpdate
-                ? Number.parseInt(params.timeSpentSecondsUpdate)
-                : undefined,
+              timeSpentSeconds: (() => {
+                const raw = params.timeSpentSecondsUpdate
+                if (raw === undefined || raw === null || String(raw).trim() === '') return undefined
+                const n = Number(String(raw).trim())
+                if (!Number.isFinite(n) || n <= 0) {
+                  throw new Error(
+                    'Time Spent (seconds) must be a positive number of seconds (e.g., 3600 for 1 hour)'
+                  )
+                }
+                return n
+              })(),
               comment: params.worklogComment,
               started: params.started,
             }

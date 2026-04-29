@@ -170,7 +170,8 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const responseData = response.status === 204 ? {} : await response.json()
+    const responseData =
+      response.status === 204 ? {} : await response.json().catch(() => ({}) as Record<string, any>)
     logger.info('Successfully updated Jira issue:', issueKey)
 
     return NextResponse.json({
@@ -178,7 +179,7 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       output: {
         ts: new Date().toISOString(),
         issueKey: responseData.key || issueKey,
-        summary: responseData.fields?.summary || 'Issue updated',
+        summary: responseData.fields?.summary || summaryValue || 'Issue updated',
         success: true,
       },
     })

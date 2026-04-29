@@ -68,7 +68,7 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
 
       // Build the query conditions
       const conditions = ['trashed = false'] // Always exclude trashed files
-      const folderId = params.folderId || params.folderSelector
+      const folderId = (params.folderId || params.folderSelector)?.trim()
       if (folderId) {
         const escapedFolderId = escapeQueryValue(folderId)
         conditions.push(`'${escapedFolderId}' in parents`)
@@ -108,7 +108,7 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
     return {
       success: true,
       output: {
-        files: data.files,
+        files: data.files ?? [],
         nextPageToken: data.nextPageToken,
       },
     }

@@ -2,7 +2,12 @@ import type {
   AshbyListApplicationsParams,
   AshbyListApplicationsResponse,
 } from '@/tools/ashby/types'
-import { APPLICATION_OUTPUTS, mapApplication } from '@/tools/ashby/utils'
+import {
+  APPLICATION_OUTPUTS,
+  ashbyAuthHeaders,
+  ashbyErrorMessage,
+  mapApplication,
+} from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listApplicationsTool: ToolConfig<
@@ -46,6 +51,12 @@ export const listApplicationsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Filter applications by a specific job UUID',
     },
+    candidateId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter applications by a specific candidate UUID',
+    },
     createdAfter: {
       type: 'string',
       required: false,
@@ -58,16 +69,14 @@ export const listApplicationsTool: ToolConfig<
   request: {
     url: 'https://api.ashbyhq.com/application.list',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.cursor) body.cursor = params.cursor
       if (params.perPage) body.limit = params.perPage
       if (params.status) body.status = params.status
       if (params.jobId) body.jobId = params.jobId.trim()
+      if (params.candidateId) body.candidateId = params.candidateId.trim()
       if (params.createdAfter) {
         const ms = new Date(params.createdAfter).getTime()
         if (!Number.isNaN(ms)) body.createdAfter = ms
@@ -80,7 +89,7 @@ export const listApplicationsTool: ToolConfig<
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to list applications')
+      throw new Error(ashbyErrorMessage(data, 'Failed to list applications'))
     }
 
     return {

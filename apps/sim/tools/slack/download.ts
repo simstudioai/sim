@@ -6,7 +6,7 @@ export const slackDownloadTool: ToolConfig<SlackDownloadParams, SlackDownloadRes
   id: 'slack_download',
   name: 'Download File from Slack',
   description: 'Download a file from Slack',
-  version: '1.0',
+  version: '1.0.0',
 
   oauth: {
     required: true,

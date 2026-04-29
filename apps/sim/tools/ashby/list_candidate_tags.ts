@@ -1,3 +1,4 @@
+import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListCandidateTagsParams {
@@ -68,10 +69,7 @@ export const listCandidateTagsTool: ToolConfig<
   request: {
     url: 'https://api.ashbyhq.com/candidateTag.list',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.includeArchived !== undefined) body.includeArchived = params.includeArchived
@@ -86,7 +84,7 @@ export const listCandidateTagsTool: ToolConfig<
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to list candidate tags')
+      throw new Error(ashbyErrorMessage(data, 'Failed to list candidate tags'))
     }
 
     return {

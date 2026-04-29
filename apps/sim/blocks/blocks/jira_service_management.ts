@@ -798,14 +798,13 @@ Return ONLY the comment text - no explanations.`,
             if (!params.serviceDeskId) {
               throw new Error('Service Desk ID is required')
             }
-            if (!params.accountIds && !params.emails) {
-              throw new Error('Account IDs or emails are required')
+            if (!params.accountIds) {
+              throw new Error('Account IDs are required')
             }
             return {
               ...baseParams,
               serviceDeskId: params.serviceDeskId,
               accountIds: params.accountIds,
-              emails: params.emails,
             }
           }
           case 'get_organizations':

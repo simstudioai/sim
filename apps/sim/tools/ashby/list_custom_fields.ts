@@ -1,7 +1,12 @@
+import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListCustomFieldsParams {
   apiKey: string
+  cursor?: string
+  perPage?: number
+  syncToken?: string
+  includeArchived?: boolean
 }
 
 interface AshbyCustomFieldDefinition {
@@ -22,6 +27,9 @@ interface AshbyCustomFieldDefinition {
 interface AshbyListCustomFieldsResponse extends ToolResponse {
   output: {
     customFields: AshbyCustomFieldDefinition[]
+    moreDataAvailable: boolean
+    nextCursor: string | null
+    syncToken: string | null
   }
 }
 
@@ -41,28 +49,59 @@ export const listCustomFieldsTool: ToolConfig<
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Opaque pagination cursor from a previous response nextCursor value',
+    },
+    perPage: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of results per page (default and max 100)',
+    },
+    syncToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Opaque token from a prior sync to fetch only items changed since then',
+    },
+    includeArchived: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When true, includes archived custom fields in results (default false)',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/customField.list',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
-    body: () => ({}),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    body: (params) => {
+      const body: Record<string, unknown> = {}
+      if (params.cursor) body.cursor = params.cursor
+      if (params.perPage) body.limit = params.perPage
+      if (params.syncToken) body.syncToken = params.syncToken
+      if (params.includeArchived !== undefined) body.includeArchived = params.includeArchived
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to list custom fields')
+      throw new Error(ashbyErrorMessage(data, 'Failed to list custom fields'))
     }
 
     return {
       success: true,
       output: {
+        moreDataAvailable: data.moreDataAvailable ?? false,
+        nextCursor: data.nextCursor ?? null,
+        syncToken: data.syncToken ?? null,
         customFields: (data.results ?? []).map(
           (f: Record<string, unknown> & { selectableValues?: Array<Record<string, unknown>> }) => ({
             id: (f.id as string) ?? '',
@@ -125,6 +164,20 @@ export const listCustomFieldsTool: ToolConfig<
           },
         },
       },
+    },
+    moreDataAvailable: {
+      type: 'boolean',
+      description: 'Whether more pages of results exist',
+    },
+    nextCursor: {
+      type: 'string',
+      description: 'Opaque cursor for fetching the next page',
+      optional: true,
+    },
+    syncToken: {
+      type: 'string',
+      description: 'Opaque sync token returned after the last page; pass on next sync',
+      optional: true,
     },
   },
 }

@@ -1,4 +1,5 @@
 import type { AshbyCreateNoteParams, AshbyCreateNoteResponse } from '@/tools/ashby/types'
+import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createNoteTool: ToolConfig<AshbyCreateNoteParams, AshbyCreateNoteResponse> = {
@@ -40,15 +41,25 @@ export const createNoteTool: ToolConfig<AshbyCreateNoteParams, AshbyCreateNoteRe
       visibility: 'user-or-llm',
       description: 'Whether to send notifications to subscribed users (default false)',
     },
+    isPrivate: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether the note is private (only visible to the author)',
+    },
+    createdAt: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Backdated creation timestamp in ISO 8601 (e.g. 2024-01-01T00:00:00Z). Defaults to now.',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/candidate.createNote',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {
         candidateId: params.candidateId.trim(),
@@ -62,6 +73,8 @@ export const createNoteTool: ToolConfig<AshbyCreateNoteParams, AshbyCreateNoteRe
       } else {
         body.note = params.note
       }
+      if (params.isPrivate !== undefined) body.isPrivate = params.isPrivate
+      if (params.createdAt) body.createdAt = params.createdAt
       return body
     },
   },
@@ -70,7 +83,7 @@ export const createNoteTool: ToolConfig<AshbyCreateNoteParams, AshbyCreateNoteRe
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to create note')
+      throw new Error(ashbyErrorMessage(data, 'Failed to create note'))
     }
 
     const r = data.results

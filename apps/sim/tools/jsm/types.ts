@@ -486,8 +486,7 @@ export interface JsmGetCustomersParams extends JsmBaseParams {
 
 export interface JsmAddCustomerParams extends JsmBaseParams {
   serviceDeskId: string
-  accountIds?: string
-  emails?: string
+  accountIds: string
 }
 
 export interface JsmGetOrganizationsParams extends JsmBaseParams {

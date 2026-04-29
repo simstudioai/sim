@@ -142,7 +142,21 @@ export async function downloadJiraAttachments(
   return downloaded
 }
 
-function normalizeDomain(domain: string): string {
+/**
+ * Normalizes an ISO timestamp into the format Jira's worklog API requires:
+ * `YYYY-MM-DDTHH:mm:ss.sss±HHMM` (offset without colon). Accepts trailing `Z`
+ * and `±HH:MM` offsets and rewrites them to `±HHMM`. If milliseconds are
+ * missing, `.000` is inserted before the offset.
+ */
+export function normalizeJiraWorklogTimestamp(value: string): string {
+  let s = value.trim()
+  s = s.replace(/Z$/i, '+0000')
+  s = s.replace(/([+-]\d{2}):(\d{2})$/, '$1$2')
+  s = s.replace(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})([+-]\d{4})$/, '$1.000$2')
+  return s
+}
+
+export function normalizeDomain(domain: string): string {
   return `https://${domain
     .trim()
     .replace(/^https?:\/\//i, '')

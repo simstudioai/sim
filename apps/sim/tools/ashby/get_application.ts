@@ -1,5 +1,10 @@
 import type { AshbyApplication } from '@/tools/ashby/types'
-import { APPLICATION_OUTPUTS, mapApplication } from '@/tools/ashby/utils'
+import {
+  APPLICATION_OUTPUTS,
+  ashbyAuthHeaders,
+  ashbyErrorMessage,
+  mapApplication,
+} from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyGetApplicationParams {
@@ -38,10 +43,7 @@ export const getApplicationTool: ToolConfig<
   request: {
     url: 'https://api.ashbyhq.com/application.info',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => ({
       applicationId: params.applicationId.trim(),
     }),
@@ -51,7 +53,7 @@ export const getApplicationTool: ToolConfig<
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to get application')
+      throw new Error(ashbyErrorMessage(data, 'Failed to get application'))
     }
 
     return {
