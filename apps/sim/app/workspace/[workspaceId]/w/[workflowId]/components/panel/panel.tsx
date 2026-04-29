@@ -265,11 +265,9 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
     if (copilotChatId) return
     if (autoSelectAttemptedForRef.current.has(activeWorkflowId)) return
+    if (copilotChatList.length === 0) return
     autoSelectAttemptedForRef.current.add(activeWorkflowId)
-
-    if (copilotChatList.length > 0) {
-      setCopilotChatId(copilotChatList[0].id)
-    }
+    setCopilotChatId(copilotChatList[0].id)
   }, [copilotChatList, copilotChatId, activeWorkflowId, setCopilotChatId])
 
   useEffect(() => {
