@@ -61,14 +61,7 @@ function useSetToggle() {
 
 function formatCostSummary(cost: TraceSpan['cost']): string | undefined {
   if (!cost) return undefined
-  const parts: string[] = []
-  const total = formatCostAmount(cost.total)
-  const input = formatCostAmount(cost.input)
-  const output = formatCostAmount(cost.output)
-  if (total) parts.push(total)
-  if (input) parts.push(`${input} in`)
-  if (output) parts.push(`${output} out`)
-  return parts.length > 0 ? parts.join(' · ') : undefined
+  return formatCostAmount(cost.total)
 }
 
 /**
