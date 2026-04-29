@@ -6,11 +6,7 @@ import { toError } from '@sim/utils/errors'
 import { Skeleton } from '@/components/emcn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
-import {
-  PreviewError,
-  resolvePreviewError,
-  shouldSuppressStreamingDocumentError,
-} from './preview-shared'
+import { PreviewError, resolvePreviewError } from './preview-shared'
 
 const logger = createLogger('PptxPreview')
 
@@ -42,15 +38,6 @@ const pptxSlideCache = new Map<string, string[]>()
 
 function pptxCacheKey(fileId: string, dataUpdatedAt: number, byteLength: number): string {
   return `${fileId}:${dataUpdatedAt}:${byteLength}`
-}
-
-function shouldSuppressStreamingPptxError(message: string): boolean {
-  return (
-    shouldSuppressStreamingDocumentError(message) ||
-    message.includes('SyntaxError: Invalid or unexpected token') ||
-    message.includes('PPTX generation cancelled') ||
-    message.includes('SyntaxError: Unexpected end of input')
-  )
 }
 
 function pptxCacheSet(key: string, slides: string[]): void {
@@ -197,12 +184,7 @@ export function PptxPreview({
       } catch (err) {
         if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
           const msg = toError(err).message || 'Failed to render presentation'
-          if (shouldSuppressStreamingPptxError(msg)) {
-            logger.info('Suppressing transient PPTX streaming preview error', { error: msg })
-          } else {
-            logger.error('PPTX render failed', { error: msg })
-            setRenderError(msg)
-          }
+          logger.info('Transient PPTX streaming preview error (suppressed)', { error: msg })
         }
       } finally {
         if (!cancelled) setRendering(false)
@@ -264,12 +246,12 @@ export function PptxPreview({
     }
   }, [fileData, streamingContent, cacheKey])
 
-  const error = resolvePreviewError(fetchError, renderError)
+  const error = streamingContent !== undefined ? null : resolvePreviewError(fetchError, renderError)
   const loading = isFetching || rendering
 
   if (error) return <PreviewError label='presentation' error={error} />
 
-  if (loading && slides.length === 0) {
+  if ((loading || streamingContent !== undefined) && slides.length === 0) {
     return PPTX_SLIDE_SKELETON
   }
 

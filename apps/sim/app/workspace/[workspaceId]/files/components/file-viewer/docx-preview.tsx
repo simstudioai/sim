@@ -6,12 +6,7 @@ import { toError } from '@sim/utils/errors'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
-import {
-  PDF_PAGE_SKELETON,
-  PreviewError,
-  resolvePreviewError,
-  shouldSuppressStreamingDocumentError,
-} from './preview-shared'
+import { PDF_PAGE_SKELETON, PreviewError, resolvePreviewError } from './preview-shared'
 
 const logger = createLogger('DocxPreview')
 
@@ -136,12 +131,7 @@ export const DocxPreview = memo(function DocxPreview({
             setHasRenderedPreview(true)
           }
           const msg = toError(err).message || 'Failed to render document'
-          if (previousHtml || shouldSuppressStreamingDocumentError(msg)) {
-            logger.info('Suppressing transient DOCX streaming preview error', { error: msg })
-          } else {
-            logger.error('DOCX render failed', { error: msg })
-            setRenderError(msg)
-          }
+          logger.info('Transient DOCX streaming preview error (suppressed)', { error: msg })
         }
       } finally {
         if (!cancelled) {
@@ -157,17 +147,11 @@ export const DocxPreview = memo(function DocxPreview({
     }
   }, [streamingContent, workspaceId])
 
-  const error =
-    hasRenderedPreview && streamingContent !== undefined
-      ? null
-      : streamingContent !== undefined
-        ? renderError
-        : resolvePreviewError(fetchError, renderError)
+  const error = streamingContent !== undefined ? null : resolvePreviewError(fetchError, renderError)
   if (error) return <PreviewError label='document' error={error} />
 
   const showSkeleton =
-    !hasRenderedPreview &&
-    ((streamingContent !== undefined && rendering) || (streamingContent === undefined && isLoading))
+    !hasRenderedPreview && (streamingContent !== undefined || isLoading || rendering)
 
   return (
     <div className='relative h-full w-full overflow-auto bg-[var(--surface-1)]'>

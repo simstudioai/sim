@@ -19,20 +19,6 @@ export function resolvePreviewError(
   return renderError
 }
 
-export function shouldSuppressStreamingDocumentError(message: string): boolean {
-  const lower = message.toLowerCase()
-  return (
-    lower.includes('preview failed') ||
-    lower.includes('aborterror') ||
-    lower.includes('unexpected end') ||
-    lower.includes('unexpected eof') ||
-    lower.includes('invalid or unexpected token') ||
-    lower.includes('end of central directory') ||
-    lower.includes('corrupted zip') ||
-    lower.includes('end of data reached')
-  )
-}
-
 export const PDF_PAGE_SKELETON = (
   <div className='absolute inset-0 flex flex-col items-center gap-4 overflow-y-auto bg-[var(--surface-1)] p-6'>
     {[0, 1].map((i) => (
