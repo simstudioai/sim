@@ -109,7 +109,7 @@ export const updateCustomerTool: ToolConfig<UpdateCustomerParams, SapProxyRespon
         ...baseProxyBody(params),
         service: 'API_BUSINESS_PARTNER',
         path: `/A_Customer(${quoteOdataKey(params.customer)})`,
-        method: 'PATCH',
+        method: 'MERGE',
         query: { $format: 'json' },
         body: payload,
         ifMatch: params.ifMatch || '*',

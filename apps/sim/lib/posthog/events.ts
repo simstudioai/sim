@@ -406,6 +406,11 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  task_forked: {
+    workspace_id: string
+    source_chat_id: string
+  }
+
   task_marked_unread: {
     workspace_id: string
   }

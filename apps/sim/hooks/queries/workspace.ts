@@ -200,7 +200,7 @@ export function useDeleteWorkspace() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.workspaceId) })
     },
@@ -237,7 +237,7 @@ export function useUpdateWorkspace() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.workspaceId) })
     },
@@ -408,7 +408,7 @@ export function useUpdateWorkspaceSettings() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.settings(variables.workspaceId),
       })

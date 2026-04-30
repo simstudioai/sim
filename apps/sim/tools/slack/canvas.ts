@@ -95,8 +95,6 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
         success: false,
         output: {
           canvas_id: '',
-          channel: '',
-          title: '',
         },
         error: data.error || 'Unknown error',
       }
@@ -105,9 +103,7 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
     return {
       success: true,
       output: {
-        canvas_id: data.canvas_id || data.id,
-        channel: data.channel || '',
-        title: data.title || '',
+        canvas_id: data.canvas_id ?? data.id ?? '',
       },
     }
   },

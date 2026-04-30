@@ -28,7 +28,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       start,
       limit,
       accountIds,
-      emails,
     } = body
 
     if (!domain) {
@@ -46,6 +45,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Service Desk ID is required' }, { status: 400 })
     }
 
+    if (body.emails !== undefined) {
+      return NextResponse.json(
+        {
+          error:
+            'The `emails` parameter is no longer supported. Use `accountIds` (Atlassian account IDs) instead.',
+        },
+        { status: 400 }
+      )
+    }
+
     const cloudId = cloudIdParam || (await getJiraCloudId(domain, accessToken))
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
@@ -60,33 +69,31 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
-    const rawIds = accountIds || emails
-    const parsedAccountIds = rawIds
-      ? typeof rawIds === 'string'
-        ? rawIds
-            .split(',')
-            .map((id: string) => id.trim())
-            .filter((id: string) => id)
-        : Array.isArray(rawIds)
-          ? rawIds
-          : []
-      : []
+    const splitCsv = (value: unknown): string[] =>
+      value
+        ? typeof value === 'string'
+          ? value
+              .split(',')
+              .map((v: string) => v.trim())
+              .filter((v: string) => v)
+          : Array.isArray(value)
+            ? (value as string[])
+            : []
+        : []
 
-    const isAddOperation = parsedAccountIds.length > 0
+    const parsedAccountIds = splitCsv(accountIds)
 
-    if (isAddOperation) {
+    if (parsedAccountIds.length > 0) {
       const url = `${baseUrl}/servicedesk/${serviceDeskId}/customer`
 
-      logger.info('Adding customers to:', url, { accountIds: parsedAccountIds })
-
-      const requestBody: Record<string, unknown> = {
+      logger.info('Adding customers to:', url, {
         accountIds: parsedAccountIds,
-      }
+      })
 
       const response = await fetch(url, {
         method: 'POST',
         headers: getJsmHeaders(accessToken),
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({ accountIds: parsedAccountIds }),
       })
 
       if (!response.ok) {

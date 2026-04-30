@@ -25,9 +25,9 @@ export const logKeys = {
     [...logKeys.lists(), workspaceId ?? '', filters] as const,
   details: () => [...logKeys.all, 'detail'] as const,
   detail: (logId: string | undefined) => [...logKeys.details(), logId ?? ''] as const,
-  statsAll: () => [...logKeys.all, 'stats'] as const,
-  stats: (workspaceId: string | undefined, filters: object) =>
-    [...logKeys.statsAll(), workspaceId ?? '', filters] as const,
+  stats: () => [...logKeys.all, 'stats'] as const,
+  stat: (workspaceId: string | undefined, filters: object) =>
+    [...logKeys.stats(), workspaceId ?? '', filters] as const,
   executionSnapshots: () => [...logKeys.all, 'executionSnapshot'] as const,
   executionSnapshot: (executionId: string | undefined) =>
     [...logKeys.executionSnapshots(), executionId ?? ''] as const,
@@ -121,7 +121,7 @@ async function fetchLogsPage(
   }
 }
 
-async function fetchLogDetail(logId: string, signal?: AbortSignal): Promise<WorkflowLog> {
+export async function fetchLogDetail(logId: string, signal?: AbortSignal): Promise<WorkflowLog> {
   const response = await fetch(`/api/logs/${logId}`, { signal })
 
   if (!response.ok) {
@@ -170,7 +170,6 @@ export function useLogDetail(logId: string | undefined, options?: UseLogDetailOp
     enabled: Boolean(logId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
     staleTime: 30 * 1000,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -223,7 +222,7 @@ export function useDashboardStats(
   options?: UseDashboardStatsOptions
 ) {
   return useQuery({
-    queryKey: logKeys.stats(workspaceId, filters),
+    queryKey: logKeys.stat(workspaceId, filters),
     queryFn: ({ signal }) => fetchDashboardStats(workspaceId as string, filters, signal),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
@@ -328,7 +327,38 @@ export function useCancelExecution() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: logKeys.lists() })
       queryClient.invalidateQueries({ queryKey: logKeys.details() })
-      queryClient.invalidateQueries({ queryKey: logKeys.statsAll() })
+      queryClient.invalidateQueries({ queryKey: logKeys.stats() })
+    },
+  })
+}
+
+export function useRetryExecution() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ workflowId, input }: { workflowId: string; input?: unknown }) => {
+      const res = await fetch(`/api/workflows/${workflowId}/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input, triggerType: 'manual', stream: true }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to retry execution')
+      }
+      // The ReadableStream is lazy — start() only runs when read.
+      // Read one chunk to trigger execution, then cancel. Execution continues
+      // server-side after client disconnect.
+      const reader = res.body?.getReader()
+      if (reader) {
+        await reader.read()
+        reader.cancel()
+      }
+      return { started: true }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: logKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: logKeys.details() })
+      queryClient.invalidateQueries({ queryKey: logKeys.stats() })
     },
   })
 }

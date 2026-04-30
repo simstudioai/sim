@@ -10,11 +10,12 @@ import {
   Button,
   Combobox,
   type ComboboxOption,
+  DatePicker,
   Download,
   Library,
   RefreshCw,
+  toast,
 } from '@/components/emcn'
-import { DatePicker } from '@/components/emcn/components/date-picker/date-picker'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -50,11 +51,14 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import {
+  fetchLogDetail,
+  logKeys,
   prefetchLogDetail,
   useCancelExecution,
   useDashboardStats,
   useLogDetail,
   useLogsList,
+  useRetryExecution,
 } from '@/hooks/queries/logs'
 import { useWorkflowMap, useWorkflows } from '@/hooks/queries/workflows'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -71,6 +75,7 @@ import {
 import {
   DELETED_WORKFLOW_COLOR,
   DELETED_WORKFLOW_LABEL,
+  extractRetryInput,
   formatDate,
   getDisplayStatus,
   type LogStatus,
@@ -285,8 +290,10 @@ export default function Logs() {
   const logsRef = useRef<WorkflowLog[]>([])
   const selectedLogIndexRef = useRef(-1)
   const selectedLogIdRef = useRef<string | null>(null)
+  const shouldScrollIntoViewRef = useRef(false)
   const logsRefetchRef = useRef<() => void>(() => {})
   const activeLogRefetchRef = useRef<() => void>(() => {})
+  const activeLogTabRef = useRef<string>('overview')
   const logsQueryRef = useRef({ isFetching: false, hasNextPage: false, fetchNextPage: () => {} })
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
   const [activeSort, setActiveSort] = useState<{
@@ -299,23 +306,17 @@ export default function Logs() {
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
   const [contextMenuLog, setContextMenuLog] = useState<WorkflowLog | null>(null)
 
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [previewLogId, setPreviewLogId] = useState<string | null>(null)
 
-  const activeLogId = isPreviewOpen ? previewLogId : selectedLogId
+  const activeLogId = previewLogId ?? selectedLogId
   const queryClient = useQueryClient()
 
-  const detailRefetchInterval = useCallback(
-    (query: { state: { data?: WorkflowLog } }) => {
+  const activeLogQuery = useLogDetail(activeLogId ?? undefined, {
+    refetchInterval: (query: { state: { data?: WorkflowLog } }) => {
       if (!isLive) return false
       const status = query.state.data?.status
       return status === 'running' || status === 'pending' ? 3000 : false
     },
-    [isLive]
-  )
-
-  const activeLogQuery = useLogDetail(activeLogId ?? undefined, {
-    refetchInterval: detailRefetchInterval,
   })
 
   const logFilters = useMemo(
@@ -393,18 +394,14 @@ export default function Logs() {
     })
   }, [logs, activeSort])
 
-  const selectedLogIndex = useMemo(
-    () => (selectedLogId ? sortedLogs.findIndex((l) => l.id === selectedLogId) : -1),
-    [sortedLogs, selectedLogId]
-  )
+  const selectedLogIndex = selectedLogId ? sortedLogs.findIndex((l) => l.id === selectedLogId) : -1
   const selectedLogFromList = selectedLogIndex >= 0 ? sortedLogs[selectedLogIndex] : null
 
   const selectedLog = useMemo(() => {
     if (!selectedLogFromList) return null
-    if (!activeLogQuery.data || isPreviewOpen || activeLogQuery.isPlaceholderData)
-      return selectedLogFromList
+    if (!activeLogQuery.data || previewLogId !== null) return selectedLogFromList
     return { ...selectedLogFromList, ...activeLogQuery.data }
-  }, [selectedLogFromList, activeLogQuery.data, activeLogQuery.isPlaceholderData, isPreviewOpen])
+  }, [selectedLogFromList, activeLogQuery.data, previewLogId])
 
   const handleLogHover = useCallback(
     (rowId: string) => {
@@ -462,6 +459,7 @@ export default function Logs() {
     const idx = selectedLogIndexRef.current
     const currentLogs = logsRef.current
     if (idx < currentLogs.length - 1) {
+      shouldScrollIntoViewRef.current = true
       dispatch({ type: 'SELECT_LOG', logId: currentLogs[idx + 1].id })
     }
   }, [])
@@ -469,12 +467,18 @@ export default function Logs() {
   const handleNavigatePrev = useCallback(() => {
     const idx = selectedLogIndexRef.current
     if (idx > 0) {
+      shouldScrollIntoViewRef.current = true
       dispatch({ type: 'SELECT_LOG', logId: logsRef.current[idx - 1].id })
     }
   }, [])
 
   const handleCloseSidebar = useCallback(() => {
     dispatch({ type: 'CLOSE_SIDEBAR' })
+    activeLogTabRef.current = 'overview'
+  }, [])
+
+  const handleActiveTabChange = useCallback((tab: string) => {
+    activeLogTabRef.current = tab
   }, [])
 
   const handleLogContextMenu = useCallback(
@@ -527,11 +531,11 @@ export default function Logs() {
   const handleOpenPreview = useCallback(() => {
     if (contextMenuLog?.id) {
       setPreviewLogId(contextMenuLog.id)
-      setIsPreviewOpen(true)
     }
   }, [contextMenuLog])
 
   const cancelExecution = useCancelExecution()
+  const retryExecution = useRetryExecution()
 
   const handleCancelExecution = useCallback(() => {
     const workflowId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
@@ -541,6 +545,37 @@ export default function Logs() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextMenuLog])
+
+  const retryLog = useCallback(
+    async (log: WorkflowLog | null) => {
+      const workflowId = log?.workflow?.id || log?.workflowId
+      const logId = log?.id
+      if (!workflowId || !logId) return
+
+      try {
+        const detailLog = await queryClient.fetchQuery({
+          queryKey: logKeys.detail(logId),
+          queryFn: ({ signal }) => fetchLogDetail(logId, signal),
+          staleTime: 30 * 1000,
+        })
+        const input = extractRetryInput(detailLog)
+        await retryExecution.mutateAsync({ workflowId, input })
+        toast.success('Retry started')
+      } catch {
+        toast.error('Failed to retry execution')
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  )
+
+  const handleRetryExecution = useCallback(() => {
+    retryLog(contextMenuLog)
+  }, [contextMenuLog, retryLog])
+
+  const handleRetrySidebarExecution = useCallback(() => {
+    retryLog(selectedLog)
+  }, [selectedLog, retryLog])
 
   const contextMenuWorkflowId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
   const isFilteredByThisWorkflow = Boolean(
@@ -557,7 +592,8 @@ export default function Logs() {
   })
 
   useEffect(() => {
-    if (!selectedLogId) return
+    if (!selectedLogId || !shouldScrollIntoViewRef.current) return
+    shouldScrollIntoViewRef.current = false
     const row = document.querySelector(`[data-row-id="${selectedLogId}"]`) as HTMLElement | null
     if (row) {
       row.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -670,12 +706,14 @@ export default function Logs() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (activeLogTabRef.current === 'trace') return
       const currentLogs = logsRef.current
       const currentIndex = selectedLogIndexRef.current
       if (currentLogs.length === 0) return
 
       if (currentIndex === -1 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault()
+        shouldScrollIntoViewRef.current = true
         dispatch({ type: 'SELECT_LOG', logId: currentLogs[0].id })
         return
       }
@@ -707,10 +745,9 @@ export default function Logs() {
 
   const handleCloseContextMenu = useCallback(() => setContextMenuOpen(false), [])
   const handleOpenNotificationSettings = useCallback(() => setIsNotificationSettingsOpen(true), [])
-  const handleClosePreview = useCallback(() => {
-    setIsPreviewOpen(false)
+  function handleClosePreview() {
     setPreviewLogId(null)
-  }, [])
+  }
 
   const isDashboardView = viewMode === 'dashboard'
 
@@ -770,27 +807,19 @@ export default function Logs() {
     [sortedLogs]
   )
 
-  const sidebarOverlay = useMemo(
-    () => (
-      <LogDetails
-        log={selectedLog}
-        isOpen={effectiveSidebarOpen}
-        onClose={handleCloseSidebar}
-        onNavigateNext={handleNavigateNext}
-        onNavigatePrev={handleNavigatePrev}
-        hasNext={selectedLogIndex < sortedLogs.length - 1}
-        hasPrev={selectedLogIndex > 0}
-      />
-    ),
-    [
-      selectedLog,
-      effectiveSidebarOpen,
-      handleCloseSidebar,
-      handleNavigateNext,
-      handleNavigatePrev,
-      selectedLogIndex,
-      sortedLogs.length,
-    ]
+  const sidebarOverlay = (
+    <LogDetails
+      log={selectedLog}
+      isOpen={effectiveSidebarOpen}
+      onClose={handleCloseSidebar}
+      onNavigateNext={handleNavigateNext}
+      onNavigatePrev={handleNavigatePrev}
+      hasNext={selectedLogIndex < sortedLogs.length - 1}
+      hasPrev={selectedLogIndex > 0}
+      onRetryExecution={handleRetrySidebarExecution}
+      isRetryPending={retryExecution.isPending}
+      onActiveTabChange={handleActiveTabChange}
+    />
   )
 
   const { data: allWorkflows = {} } = useWorkflowMap(workspaceId)
@@ -923,22 +952,16 @@ export default function Logs() {
     getSuggestions,
   })
 
-  const lastExternalSearchValue = useRef(searchQuery)
+  const lastExternalSearchValue = useRef<string | undefined>(undefined)
   useEffect(() => {
-    if (searchQuery !== lastExternalSearchValue.current) {
-      lastExternalSearchValue.current = searchQuery
-      const parsed = parseQuery(searchQuery)
-      initializeFromQuery(parsed.textSearch, parsed.filters)
-    }
+    if (searchQuery === lastExternalSearchValue.current) return
+    const isMount = lastExternalSearchValue.current === undefined
+    lastExternalSearchValue.current = searchQuery
+    // On mount with no initial query, skip the no-op parse
+    if (isMount && !searchQuery) return
+    const parsed = parseQuery(searchQuery)
+    initializeFromQuery(parsed.textSearch, parsed.filters)
   }, [searchQuery, initializeFromQuery])
-
-  useEffect(() => {
-    if (searchQuery) {
-      const parsed = parseQuery(searchQuery)
-      initializeFromQuery(parsed.textSearch, parsed.filters)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   useEffect(() => {
     if (!isSuggestionsOpen || highlightedIndex < 0) return
@@ -1193,18 +1216,20 @@ export default function Logs() {
         onOpenWorkflow={handleOpenWorkflow}
         onOpenPreview={handleOpenPreview}
         onCancelExecution={handleCancelExecution}
+        onRetryExecution={handleRetryExecution}
+        isRetryPending={retryExecution.isPending}
         onToggleWorkflowFilter={handleToggleWorkflowFilter}
         onClearAllFilters={handleClearAllFilters}
         isFilteredByThisWorkflow={isFilteredByThisWorkflow}
         hasActiveFilters={filtersActive}
       />
 
-      {isPreviewOpen && !activeLogQuery.isPlaceholderData && activeLogQuery.data?.executionId && (
+      {previewLogId !== null && activeLogQuery.data?.executionId && (
         <ExecutionSnapshot
           executionId={activeLogQuery.data.executionId}
           traceSpans={activeLogQuery.data.executionData?.traceSpans}
           isModal
-          isOpen={isPreviewOpen}
+          isOpen={previewLogId !== null}
           onClose={handleClosePreview}
         />
       )}
@@ -1258,7 +1283,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
   )
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
-  const [previousTimeRange, setPreviousTimeRange] = useState(timeRange)
+  const previousTimeRangeRef = useRef(timeRange)
   const dateRangeAppliedRef = useRef(false)
   const { data: folders = {} } = useFolderMap(workspaceId)
   const { data: allWorkflowList = [] } = useWorkflows(workspaceId)
@@ -1349,7 +1374,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
 
   const handleTimeRangeChange = (val: string) => {
     if (val === 'Custom range') {
-      setPreviousTimeRange(timeRange)
+      previousTimeRangeRef.current = timeRange
       setDatePickerOpen(true)
     } else {
       clearDateRange()
@@ -1365,7 +1390,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
 
   const handleDatePickerCancel = () => {
     if (timeRange === 'Custom range' && !startDate) {
-      setTimeRange(previousTimeRange)
+      setTimeRange(previousTimeRangeRef.current)
     }
     setDatePickerOpen(false)
   }
@@ -1548,10 +1573,12 @@ function SuggestionButton({
   showCategory?: boolean
 }) {
   return (
-    <button
+    <Button
+      type='button'
+      variant='ghost'
       data-index={index}
       className={cn(
-        'w-full rounded-md px-3 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
+        'h-auto w-full justify-start rounded-md px-3 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
         highlighted && 'bg-[var(--surface-5)]'
       )}
       onMouseEnter={() => onHover(index)}
@@ -1560,7 +1587,7 @@ function SuggestionButton({
         onSelect(suggestion)
       }}
     >
-      <div className='flex items-center justify-between gap-3'>
+      <div className='flex w-full items-center justify-between gap-3'>
         <div className='min-w-0 flex-1 truncate text-small'>{suggestion.label}</div>
         {showCategory && suggestion.value !== suggestion.label && (
           <div className='shrink-0 font-mono text-[var(--text-muted)] text-xs'>
@@ -1573,6 +1600,6 @@ function SuggestionButton({
           <div className='shrink-0 text-[var(--text-muted)] text-xs'>{suggestion.value}</div>
         )}
       </div>
-    </button>
+    </Button>
   )
 }

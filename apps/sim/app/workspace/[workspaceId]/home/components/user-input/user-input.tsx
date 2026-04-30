@@ -197,16 +197,16 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   valueRef.current = value
   const sttPrefixRef = useRef('')
 
-  const handleTranscript = useCallback((text: string) => {
+  function handleTranscript(text: string) {
     const prefix = sttPrefixRef.current
     const newVal = prefix ? `${prefix} ${text}` : text
     setValue(newVal)
     valueRef.current = newVal
-  }, [])
+  }
 
-  const handleUsageLimitExceeded = useCallback(() => {
+  function handleUsageLimitExceeded() {
     navigateToSettings({ section: 'subscription' })
-  }, [navigateToSettings])
+  }
 
   const {
     isListening,

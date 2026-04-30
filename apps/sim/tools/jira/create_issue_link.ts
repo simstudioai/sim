@@ -1,6 +1,6 @@
 import type { JiraCreateIssueLinkParams, JiraCreateIssueLinkResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
-import { getJiraCloudId } from '@/tools/jira/utils'
+import { getJiraCloudId, toAdf } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jiraCreateIssueLinkTool: ToolConfig<
@@ -124,27 +124,9 @@ export const jiraCreateIssueLinkTool: ToolConfig<
       },
       body: JSON.stringify({
         type: resolvedType,
-        inwardIssue: { key: params!.inwardIssueKey },
-        outwardIssue: { key: params!.outwardIssueKey },
-        comment: params?.comment
-          ? {
-              body: {
-                type: 'doc',
-                version: 1,
-                content: [
-                  {
-                    type: 'paragraph',
-                    content: [
-                      {
-                        type: 'text',
-                        text: params!.comment,
-                      },
-                    ],
-                  },
-                ],
-              },
-            }
-          : undefined,
+        inwardIssue: { key: params!.inwardIssueKey?.trim() ?? '' },
+        outwardIssue: { key: params!.outwardIssueKey?.trim() ?? '' },
+        comment: params?.comment ? { body: toAdf(params.comment) } : undefined,
       }),
     })
     if (!linkResponse.ok) {

@@ -200,6 +200,29 @@ export function extractResponseText(output: OpenAI.Responses.ResponseOutputItem[
 }
 
 /**
+ * Extracts reasoning summary text from Responses API output items. Reasoning
+ * items (emitted by o1/o3/gpt-5) carry a `summary[]` of `{ type, text }` entries
+ * — we join the text for trace display. The raw `encrypted_content` is left
+ * alone; it's opaque plumbing for round-tripping across turns.
+ */
+export function extractResponseReasoning(output: OpenAI.Responses.ResponseOutputItem[]): string {
+  if (!Array.isArray(output)) return ''
+
+  const parts: string[] = []
+  for (const item of output) {
+    if (!item || item.type !== 'reasoning') continue
+    const summary = (item as unknown as { summary?: Array<{ text?: string | null } | null> })
+      .summary
+    if (!Array.isArray(summary)) continue
+    for (const entry of summary) {
+      const text = entry?.text
+      if (typeof text === 'string' && text.length > 0) parts.push(text)
+    }
+  }
+  return parts.join('\n\n')
+}
+
+/**
  * Converts Responses API output items into input items for subsequent calls.
  */
 export function convertResponseOutputToInputItems(

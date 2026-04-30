@@ -22,6 +22,7 @@ import {
   Textarea,
   Tooltip,
   Trash,
+  toast,
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
@@ -60,7 +61,6 @@ const logger = createLogger('SecretsManager')
 
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto_auto] items-center'
 const COL_SPAN_ALL = 'col-span-5'
-const CONFLICT_CLASS = 'border-[var(--text-error)] bg-[var(--error-muted)]'
 
 const ROLE_OPTIONS = [
   { value: 'member', label: 'Member' },
@@ -402,7 +402,6 @@ export function CredentialsManager() {
   const isWorkspaceAdmin = workspacePermissions?.viewer?.isAdmin ?? false
 
   const isLoading = isPersonalLoading || isWorkspaceLoading
-  const variables = useMemo(() => personalEnvData || {}, [personalEnvData])
 
   const [envVars, setEnvVars] = useState<UIEnvironmentVariable[]>([])
   const [newWorkspaceRows, setNewWorkspaceRows] = useState<UIEnvironmentVariable[]>([
@@ -414,8 +413,6 @@ export function CredentialsManager() {
   const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
   const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
-  const [changeToken, setChangeToken] = useState(0)
-
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
   const [prevSelectedCredentialId, setPrevSelectedCredentialId] = useState<
     string | null | undefined
@@ -432,7 +429,8 @@ export function CredentialsManager() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const initialVarsRef = useRef<UIEnvironmentVariable[]>([])
   const hasChangesRef = useRef(false)
-  const hasSavedRef = useRef(false)
+  const hasSavedPersonalRef = useRef(false)
+  const hasSavedWorkspaceRef = useRef(false)
   const shouldBlockNavRef = useRef(false)
   const pendingNavigationUrlRef = useRef<string | null>(null)
 
@@ -559,7 +557,7 @@ export function CredentialsManager() {
     if (newWorkspaceRows.some((row) => row.key && row.value)) return true
 
     return false
-  }, [envVars, workspaceVars, newWorkspaceRows, changeToken])
+  }, [envVars, workspaceVars, newWorkspaceRows])
 
   const hasConflicts = useMemo(() => {
     return envVars.some((envVar) => !!envVar.key && allWorkspaceKeys.has(envVar.key))
@@ -589,9 +587,12 @@ export function CredentialsManager() {
   useEffect(() => () => resetNavGuard(), [resetNavGuard])
 
   useEffect(() => {
-    if (hasSavedRef.current) return
+    if (hasSavedPersonalRef.current) {
+      hasSavedPersonalRef.current = false
+      return
+    }
 
-    const existingVars = Object.values(variables)
+    const existingVars = Object.values(personalEnvData || {})
     const initialVars = [
       ...existingVars.map((envVar) => ({
         ...envVar,
@@ -601,16 +602,16 @@ export function CredentialsManager() {
     ]
     initialVarsRef.current = JSON.parse(JSON.stringify(initialVars))
     setEnvVars(JSON.parse(JSON.stringify(initialVars)))
-  }, [variables])
+  }, [personalEnvData])
 
   useEffect(() => {
     if (!workspaceEnvData) return
-    if (hasSavedRef.current) {
-      hasSavedRef.current = false
-    } else {
-      setWorkspaceVars(workspaceEnvData.workspace || {})
-      initialWorkspaceVarsRef.current = workspaceEnvData.workspace || {}
+    if (hasSavedWorkspaceRef.current) {
+      hasSavedWorkspaceRef.current = false
+      return
     }
+    setWorkspaceVars(workspaceEnvData.workspace || {})
+    initialWorkspaceVarsRef.current = workspaceEnvData.workspace || {}
   }, [workspaceEnvData])
 
   const scrollToBottom = useCallback(() => {
@@ -968,84 +969,88 @@ export function CredentialsManager() {
   const handleSave = async () => {
     if (isListSaving) return
 
-    const prevInitialVars = [...initialVarsRef.current]
-    const prevInitialWorkspaceVars = { ...initialWorkspaceVarsRef.current }
     const mutations: Promise<unknown>[] = []
 
+    setShowUnsavedChanges(false)
+
+    const mergedWorkspaceVars = { ...workspaceVars }
+    for (const row of newWorkspaceRows) {
+      if (row.key && row.value) {
+        mergedWorkspaceVars[row.key] = row.value
+      }
+    }
+
+    const validVariables = envVars
+      .filter((v) => v.key && v.value)
+      .reduce<Record<string, string>>((acc, { key, value }) => ({ ...acc, [key]: value }), {})
+
+    const before = initialWorkspaceVarsRef.current
+    const after = mergedWorkspaceVars
+    const toUpsert: Record<string, string> = {}
+    const toDelete: string[] = []
+
+    for (const [k, v] of Object.entries(after)) {
+      if (!(k in before) || before[k] !== v) {
+        toUpsert[k] = v
+      }
+    }
+
+    for (const k of Object.keys(before)) {
+      if (!(k in after)) toDelete.push(k)
+    }
+
+    const personalChanged = (() => {
+      const initialMap = new Map(
+        initialVarsRef.current.filter((v) => v.key && v.value).map((v) => [v.key, v.value])
+      )
+      const currentKeys = Object.keys(validVariables)
+      if (initialMap.size !== currentKeys.length) return true
+      for (const [key, value] of Object.entries(validVariables)) {
+        if (initialMap.get(key) !== value) return true
+      }
+      return false
+    })()
+
+    const workspaceChanged =
+      workspaceId && (Object.keys(toUpsert).length > 0 || toDelete.length > 0)
+
+    if (personalChanged) {
+      mutations.push(savePersonalMutation.mutateAsync({ variables: validVariables }))
+    }
+    if (workspaceChanged) {
+      mutations.push(
+        (async () => {
+          if (Object.keys(toUpsert).length) {
+            await upsertWorkspaceMutation.mutateAsync({ workspaceId, variables: toUpsert })
+          }
+          if (toDelete.length) {
+            await removeWorkspaceMutation.mutateAsync({ workspaceId, keys: toDelete })
+          }
+        })()
+      )
+    }
+
+    hasSavedPersonalRef.current = personalChanged
+    hasSavedWorkspaceRef.current = Boolean(workspaceChanged)
+
     try {
-      setShowUnsavedChanges(false)
-      hasSavedRef.current = true
-
-      const mergedWorkspaceVars = { ...workspaceVars }
-      for (const row of newWorkspaceRows) {
-        if (row.key && row.value) {
-          mergedWorkspaceVars[row.key] = row.value
-        }
-      }
-
-      initialWorkspaceVarsRef.current = { ...mergedWorkspaceVars }
-      initialVarsRef.current = JSON.parse(JSON.stringify(envVars.filter((v) => v.key && v.value)))
-
-      setChangeToken((prev) => prev + 1)
-
-      const validVariables = envVars
-        .filter((v) => v.key && v.value)
-        .reduce<Record<string, string>>((acc, { key, value }) => ({ ...acc, [key]: value }), {})
-
-      const before = prevInitialWorkspaceVars
-      const after = mergedWorkspaceVars
-      const toUpsert: Record<string, string> = {}
-      const toDelete: string[] = []
-
-      for (const [k, v] of Object.entries(after)) {
-        if (!(k in before) || before[k] !== v) {
-          toUpsert[k] = v
-        }
-      }
-
-      for (const k of Object.keys(before)) {
-        if (!(k in after)) toDelete.push(k)
-      }
-
-      const personalChanged = (() => {
-        const initialMap = new Map(
-          prevInitialVars.filter((v) => v.key && v.value).map((v) => [v.key, v.value])
-        )
-        const currentKeys = Object.keys(validVariables)
-        if (initialMap.size !== currentKeys.length) return true
-        for (const [key, value] of Object.entries(validVariables)) {
-          if (initialMap.get(key) !== value) return true
-        }
-        return false
-      })()
-
-      if (personalChanged) {
-        mutations.push(savePersonalMutation.mutateAsync({ variables: validVariables }))
-      }
-      if (workspaceId && (Object.keys(toUpsert).length || toDelete.length)) {
-        mutations.push(
-          (async () => {
-            if (Object.keys(toUpsert).length) {
-              await upsertWorkspaceMutation.mutateAsync({ workspaceId, variables: toUpsert })
-            }
-            if (toDelete.length) {
-              await removeWorkspaceMutation.mutateAsync({ workspaceId, keys: toDelete })
-            }
-          })()
-        )
-      }
-
       const results = await Promise.allSettled(mutations)
       const firstFailure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
       if (firstFailure) throw firstFailure.reason
 
+      initialWorkspaceVarsRef.current = { ...mergedWorkspaceVars }
+      initialVarsRef.current = JSON.parse(JSON.stringify(envVars.filter((v) => v.key && v.value)))
+
       setWorkspaceVars(mergedWorkspaceVars)
       setNewWorkspaceRows([createEmptyEnvVar()])
+      if (mutations.length > 0) {
+        toast.success('Secrets saved')
+      }
     } catch (error) {
-      hasSavedRef.current = false
-      initialVarsRef.current = prevInitialVars
-      initialWorkspaceVarsRef.current = prevInitialWorkspaceVars
+      hasSavedPersonalRef.current = false
+      hasSavedWorkspaceRef.current = false
       logger.error('Failed to save environment variables:', error)
+      toast.error('Failed to save secrets')
     } finally {
       if (mutations.length > 0) {
         queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
@@ -1095,7 +1100,7 @@ export function CredentialsManager() {
           onFocus={(e) => e.target.removeAttribute('readOnly')}
           className={cn(
             'h-9',
-            isConflict && CONFLICT_CLASS,
+            isConflict && 'border-[var(--text-error)]',
             keyError && 'border-[var(--text-error)]'
           )}
         />
@@ -1115,8 +1120,6 @@ export function CredentialsManager() {
           onBlur={() => setFocusedValueIndex(null)}
           onPaste={(e) => handlePaste(e, originalIndex)}
           placeholder={isConflict ? 'Workspace override active' : 'Enter value'}
-          disabled={isConflict}
-          aria-disabled={isConflict}
           name={`env_variable_value_${envVar.id || originalIndex}_${Math.random()}`}
           autoComplete='off'
           autoCapitalize='off'
@@ -1125,12 +1128,11 @@ export function CredentialsManager() {
           style={maskedValueStyle}
           className={cn(
             'h-9',
-            !isComplete && 'col-span-2',
-            isConflict && 'cursor-not-allowed',
-            isConflict && CONFLICT_CLASS
+            (!isComplete || isConflict) && 'col-span-2',
+            isConflict && 'cursor-not-allowed opacity-50'
           )}
         />
-        {isComplete && (
+        {isComplete && !isConflict && (
           <Button
             variant='default'
             onClick={() => handleViewDetails(envVar.key, 'env_personal')}
@@ -1267,7 +1269,7 @@ export function CredentialsManager() {
               </div>
 
               {detailsError && (
-                <div className='rounded-lg border border-[color-mix(in_srgb,var(--status-red)_40%,transparent)] bg-[color-mix(in_srgb,var(--status-red)_10%,transparent)] px-2.5 py-2 text-[var(--status-red)] text-small'>
+                <div className='rounded-lg border border-[color-mix(in_srgb,var(--text-error)_40%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] px-2.5 py-2 text-[var(--text-error)] text-small'>
                   {detailsError}
                 </div>
               )}
@@ -1299,7 +1301,7 @@ export function CredentialsManager() {
                             </AvatarFallback>
                           </Avatar>
                           <div className='min-w-0'>
-                            <p className='truncate font-medium text-[var(--text-primary)] text-sm'>
+                            <p className='truncate font-medium text-[var(--text-primary)] text-small'>
                               {member.userName || member.userEmail || member.userId}
                             </p>
                             <p className='truncate text-[var(--text-tertiary)] text-caption'>

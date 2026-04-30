@@ -61,9 +61,9 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
       }
 
       // Add parent folder if specified (prefer folderSelector over folderId)
-      const parentFolderId = params.folderSelector || params.folderId
+      const parentFolderId = (params.folderSelector || params.folderId)?.trim()
       if (parentFolderId) {
-        metadata.parents = [parentFolderId]
+        metadata.parents = [parentFolderId.trim()]
       }
 
       return metadata

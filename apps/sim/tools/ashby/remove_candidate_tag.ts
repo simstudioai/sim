@@ -1,5 +1,10 @@
 import type { AshbyCandidate } from '@/tools/ashby/types'
-import { CANDIDATE_OUTPUTS, mapCandidate } from '@/tools/ashby/utils'
+import {
+  ashbyAuthHeaders,
+  ashbyErrorMessage,
+  CANDIDATE_OUTPUTS,
+  mapCandidate,
+} from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyRemoveCandidateTagParams {
@@ -45,10 +50,7 @@ export const removeCandidateTagTool: ToolConfig<
   request: {
     url: 'https://api.ashbyhq.com/candidate.removeTag',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => ({
       candidateId: params.candidateId.trim(),
       tagId: params.tagId.trim(),
@@ -59,7 +61,7 @@ export const removeCandidateTagTool: ToolConfig<
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to remove tag from candidate')
+      throw new Error(ashbyErrorMessage(data, 'Failed to remove tag from candidate'))
     }
 
     return {

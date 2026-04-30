@@ -573,6 +573,7 @@ export function MessagesInput({
                   <Popover
                     open={openPopoverIndex === index}
                     onOpenChange={(open) => setOpenPopoverIndex(open ? index : null)}
+                    colorScheme='inverted'
                   >
                     <PopoverTrigger asChild>
                       <button

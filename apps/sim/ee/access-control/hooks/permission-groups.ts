@@ -124,7 +124,7 @@ export function useCreatePermissionGroup() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: permissionGroupKeys.list(variables.workspaceId),
       })
@@ -157,7 +157,7 @@ export function useUpdatePermissionGroup() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: permissionGroupKeys.list(variables.workspaceId),
       })
@@ -191,7 +191,7 @@ export function useDeletePermissionGroup() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: permissionGroupKeys.list(variables.workspaceId),
       })
@@ -221,7 +221,7 @@ export function useRemovePermissionGroupMember() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: permissionGroupKeys.members(variables.workspaceId, variables.permissionGroupId),
       })
@@ -259,7 +259,7 @@ export function useBulkAddPermissionGroupMembers() {
       }
       return response.json() as Promise<{ added: number; moved: number }>
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: permissionGroupKeys.members(variables.workspaceId, variables.permissionGroupId),
       })

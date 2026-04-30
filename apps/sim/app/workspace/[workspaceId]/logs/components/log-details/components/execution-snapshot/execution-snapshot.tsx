@@ -1,9 +1,11 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import type React from 'react'
+import { useRef, useState } from 'react'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
+  Copy,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -13,7 +15,6 @@ import {
   ModalContent,
   ModalHeader,
 } from '@/components/emcn'
-import { Copy } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { Preview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useExecutionSnapshot } from '@/hooks/queries/logs'
@@ -64,21 +65,21 @@ export function ExecutionSnapshot({
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
   const menuRef = useRef<HTMLDivElement>(null)
 
-  const closeMenu = useCallback(() => {
+  function closeMenu() {
     setIsMenuOpen(false)
-  }, [])
+  }
 
-  const handleCanvasContextMenu = useCallback((e: React.MouseEvent) => {
+  function handleCanvasContextMenu(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
     setMenuPosition({ x: e.clientX, y: e.clientY })
     setIsMenuOpen(true)
-  }, [])
+  }
 
-  const handleCopyExecutionId = useCallback(() => {
+  function handleCopyExecutionId() {
     navigator.clipboard.writeText(executionId)
     closeMenu()
-  }, [executionId, closeMenu])
+  }
 
   const workflowState = data?.workflowState as WorkflowState | undefined
   const childWorkflowSnapshots = data?.childWorkflowSnapshots as
@@ -161,6 +162,7 @@ export function ExecutionSnapshot({
         onCanvasContextMenu={handleCanvasContextMenu}
         showBorder={!isModal}
         autoSelectLeftmost
+        showBlockCloseButton={!isModal}
       />
     )
   }

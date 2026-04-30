@@ -590,3 +590,27 @@ export function useMarkTaskUnread(workspaceId?: string) {
     },
   })
 }
+
+async function forkChat(params: {
+  chatId: string
+  upToMessageId: string
+}): Promise<{ id: string }> {
+  const response = await fetch(`/api/mothership/chats/${params.chatId}/fork`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ upToMessageId: params.upToMessageId }),
+  })
+  if (!response.ok) throw new Error('Failed to fork chat')
+  const data = await response.json()
+  return { id: data.id }
+}
+
+export function useForkTask() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: forkChat,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.lists() })
+    },
+  })
+}

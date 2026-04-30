@@ -1,5 +1,10 @@
 import type { AshbyApplication } from '@/tools/ashby/types'
-import { APPLICATION_OUTPUTS, mapApplication } from '@/tools/ashby/utils'
+import {
+  APPLICATION_OUTPUTS,
+  ashbyAuthHeaders,
+  ashbyErrorMessage,
+  mapApplication,
+} from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyCreateApplicationParams {
@@ -82,10 +87,7 @@ export const createApplicationTool: ToolConfig<
   request: {
     url: 'https://api.ashbyhq.com/application.create',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {
         candidateId: params.candidateId.trim(),
@@ -104,7 +106,7 @@ export const createApplicationTool: ToolConfig<
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to create application')
+      throw new Error(ashbyErrorMessage(data, 'Failed to create application'))
     }
 
     return {

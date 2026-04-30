@@ -3,7 +3,7 @@ import { workflowExecutionLogs, workflowExecutionSnapshots } from '@sim/db/schem
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
-import { and, eq, lt, notExists, sql } from 'drizzle-orm'
+import { and, eq, inArray, lt, notExists, sql } from 'drizzle-orm'
 import type {
   SnapshotService as ISnapshotService,
   SnapshotCreationResult,
@@ -92,24 +92,57 @@ export class SnapshotService implements ISnapshotService {
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - olderThanDays)
 
-    const deletedSnapshots = await db
-      .delete(workflowExecutionSnapshots)
-      .where(
-        and(
-          lt(workflowExecutionSnapshots.createdAt, cutoffDate),
-          notExists(
-            db
-              .select({ id: workflowExecutionLogs.id })
-              .from(workflowExecutionLogs)
-              .where(eq(workflowExecutionLogs.stateSnapshotId, workflowExecutionSnapshots.id))
+    const BATCH_SIZE = 1000
+    const MAX_BATCHES = 20
+
+    let totalDeleted = 0
+    let stoppedEarly = false
+
+    for (let batch = 0; batch < MAX_BATCHES; batch++) {
+      const candidates = await db
+        .select({ id: workflowExecutionSnapshots.id })
+        .from(workflowExecutionSnapshots)
+        .where(
+          and(
+            lt(workflowExecutionSnapshots.createdAt, cutoffDate),
+            notExists(
+              db
+                .select({ one: sql`1` })
+                .from(workflowExecutionLogs)
+                .where(eq(workflowExecutionLogs.stateSnapshotId, workflowExecutionSnapshots.id))
+            )
           )
         )
-      )
-      .returning({ id: workflowExecutionSnapshots.id })
+        .limit(BATCH_SIZE)
 
-    const deletedCount = deletedSnapshots.length
-    logger.info(`Cleaned up ${deletedCount} orphaned snapshots older than ${olderThanDays} days`)
-    return deletedCount
+      if (candidates.length === 0) break
+
+      const ids = candidates.map((c) => c.id)
+      const deleted = await db
+        .delete(workflowExecutionSnapshots)
+        .where(
+          and(
+            inArray(workflowExecutionSnapshots.id, ids),
+            notExists(
+              db
+                .select({ one: sql`1` })
+                .from(workflowExecutionLogs)
+                .where(eq(workflowExecutionLogs.stateSnapshotId, workflowExecutionSnapshots.id))
+            )
+          )
+        )
+        .returning({ id: workflowExecutionSnapshots.id })
+
+      totalDeleted += deleted.length
+
+      if (candidates.length < BATCH_SIZE) break
+      if (batch === MAX_BATCHES - 1) stoppedEarly = true
+    }
+
+    logger.info(
+      `Cleaned up ${totalDeleted} orphaned snapshots older than ${olderThanDays} days${stoppedEarly ? ' (batch cap reached, remainder deferred to next run)' : ''}`
+    )
+    return totalDeleted
   }
 }
 
