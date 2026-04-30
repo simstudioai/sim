@@ -3,8 +3,9 @@ import { credential, credentialMember, pendingCredentialDraft } from '@sim/db/sc
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, lt } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
-import { z } from 'zod'
+import { type NextRequest, NextResponse } from 'next/server'
+import { createCredentialDraftContract } from '@/lib/api/contracts/credentials'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -13,28 +14,17 @@ const logger = createLogger('CredentialDraftAPI')
 
 const DRAFT_TTL_MS = 15 * 60 * 1000
 
-const createDraftSchema = z.object({
-  workspaceId: z.string().min(1),
-  providerId: z.string().min(1),
-  displayName: z.string().min(1),
-  description: z.string().trim().max(500).optional(),
-  credentialId: z.string().min(1).optional(),
-})
-
-export const POST = withRouteHandler(async (request: Request) => {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const parsed = createDraftSchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
-    }
+    const parsed = await parseRequest(createCredentialDraftContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const { workspaceId, providerId, displayName, description, credentialId } = parsed.data
+    const { workspaceId, providerId, displayName, description, credentialId } = parsed.data.body
     const userId = session.user.id
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, userId)

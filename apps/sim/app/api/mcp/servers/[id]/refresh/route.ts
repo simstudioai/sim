@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { mcpServerIdParamsSchema } from '@/lib/api/contracts/mcp'
+import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
@@ -158,9 +160,10 @@ async function syncToolSchemasToWorkflows(
 export const POST = withRouteHandler(
   withMcpAuth<{ id: string }>('read')(
     async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
-      const { id: serverId } = await params
-
       try {
+        const paramsValidation = mcpServerIdParamsSchema.safeParse(await params)
+        if (!paramsValidation.success) return validationErrorResponse(paramsValidation.error)
+        const { id: serverId } = paramsValidation.data
         logger.info(`[${requestId}] Refreshing MCP server: ${serverId}`)
 
         const [server] = await db

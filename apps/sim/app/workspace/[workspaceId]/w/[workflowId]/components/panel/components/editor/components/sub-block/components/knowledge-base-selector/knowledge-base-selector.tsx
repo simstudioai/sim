@@ -194,6 +194,8 @@ export function KnowledgeBaseSelector({
         disabled={disabled || isPreview}
         isLoading={isKnowledgeBasesLoading}
         error={error}
+        searchable
+        searchPlaceholder='Search knowledge bases...'
       />
     </div>
   )

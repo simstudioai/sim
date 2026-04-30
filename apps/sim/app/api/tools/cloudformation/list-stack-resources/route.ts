@@ -5,18 +5,12 @@ import {
 } from '@aws-sdk/client-cloudformation'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { awsCloudformationListStackResourcesContract } from '@/lib/api/contracts/tools/aws/cloudformation-list-stack-resources'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CloudFormationListStackResources')
-
-const ListStackResourcesSchema = z.object({
-  region: z.string().min(1, 'AWS region is required'),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  stackName: z.string().min(1, 'Stack name is required'),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -25,8 +19,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validatedData = ListStackResourcesSchema.parse(body)
+    const parsed = await parseToolRequest(awsCloudformationListStackResourcesContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const client = new CloudFormationClient({
       region: validatedData.region,
@@ -68,12 +66,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       output: { resources },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.errors[0]?.message ?? 'Invalid request' },
-        { status: 400 }
-      )
-    }
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to list CloudFormation stack resources'
     logger.error('ListStackResources failed', { error: errorMessage })

@@ -44,7 +44,7 @@ const formSchema = z.object({
   subject: z.string().min(1, 'Subject is required'),
   message: z.string().min(1, 'Message is required'),
   type: z.enum(['bug', 'feedback', 'feature_request', 'other'], {
-    required_error: 'Please select a request type',
+    error: 'Please select a request type',
   }),
 })
 

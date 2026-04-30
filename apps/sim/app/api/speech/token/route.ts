@@ -3,6 +3,7 @@ import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { speechTokenBodySchema } from '@/lib/api/contracts/media-tools'
 import { getSession } from '@/lib/auth'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { recordUsage } from '@/lib/billing/core/usage-log'
@@ -73,8 +74,10 @@ async function validateChatAuth(
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    const body = await request.json().catch(() => ({}))
-    const chatId = body?.chatId as string | undefined
+    const rawBody = await request.json().catch(() => ({}))
+    const body = speechTokenBodySchema.safeParse(rawBody)
+    const chatId =
+      body.success && typeof body.data.chatId === 'string' ? body.data.chatId : undefined
 
     let billingUserId: string | undefined
 

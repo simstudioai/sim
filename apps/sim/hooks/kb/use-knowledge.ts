@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import type { ChunkData, DocumentData, KnowledgeBaseData } from '@/lib/knowledge/types'
 import {
   type DocumentTagFilter,
@@ -65,8 +66,8 @@ export function useKnowledgeBaseDocuments(
     search?: string
     limit?: number
     offset?: number
-    sortBy?: string
-    sortOrder?: string
+    sortBy?: DocumentSortField
+    sortOrder?: SortOrder
     enabled?: boolean
     refetchInterval?:
       | number

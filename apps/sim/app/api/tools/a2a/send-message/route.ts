@@ -3,8 +3,9 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { createA2AClient, extractTextContent, isTerminalState } from '@/lib/a2a/utils'
+import { a2aSendMessageContract } from '@/lib/api/contracts/internal-tools'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -13,23 +14,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('A2ASendMessageAPI')
-
-const FileInputSchema = z.object({
-  type: z.enum(['file', 'url']),
-  data: z.string(),
-  name: z.string(),
-  mime: z.string().optional(),
-})
-
-const A2ASendMessageSchema = z.object({
-  agentUrl: z.string().min(1, 'Agent URL is required'),
-  message: z.string().min(1, 'Message is required'),
-  taskId: z.string().optional(),
-  contextId: z.string().optional(),
-  data: z.string().optional(),
-  files: z.array(FileInputSchema).optional(),
-  apiKey: z.string().optional(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -55,8 +39,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
-    const body = await request.json()
-    const validatedData = A2ASendMessageSchema.parse(body)
+    const parsed = await parseRequest(
+      a2aSendMessageContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request data'),
+              details: error.issues,
+            },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Sending A2A message`, {
       agentUrl: validatedData.agentUrl,
@@ -204,18 +204,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error sending A2A message:`, error)
 
     return NextResponse.json(

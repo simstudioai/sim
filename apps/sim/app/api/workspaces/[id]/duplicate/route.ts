@@ -1,7 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { duplicateWorkspaceContract } from '@/lib/api/contracts/workspaces'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -9,14 +10,10 @@ import { duplicateWorkspace } from '@/lib/workspaces/duplicate'
 
 const logger = createLogger('WorkspaceDuplicateAPI')
 
-const DuplicateRequestSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-})
-
 // POST /api/workspaces/[id]/duplicate - Duplicate a workspace with all its workflows
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: sourceWorkspaceId } = await params
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const { id: sourceWorkspaceId } = await context.params
     const requestId = generateRequestId()
     const startTime = Date.now()
 
@@ -29,8 +26,9 @@ export const POST = withRouteHandler(
     }
 
     try {
-      const body = await req.json()
-      const { name } = DuplicateRequestSchema.parse(body)
+      const parsed = await parseRequest(duplicateWorkspaceContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { name } = parsed.data.body
 
       logger.info(
         `[${requestId}] Duplicating workspace ${sourceWorkspaceId} for user ${session.user.id}`
@@ -79,14 +77,6 @@ export const POST = withRouteHandler(
           )
           return NextResponse.json({ error: 'Access denied' }, { status: 403 })
         }
-      }
-
-      if (error instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid duplication request data`, { errors: error.errors })
-        return NextResponse.json(
-          { error: 'Invalid request data', details: error.errors },
-          { status: 400 }
-        )
       }
 
       const elapsed = Date.now() - startTime

@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Paperclip } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +11,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Plus, Sim } from '@/components/emcn/icons'
+import { Plus } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import {
   buildWorkflowFolderTree,
@@ -28,18 +27,20 @@ export type AvailableResourceGroup = ReturnType<typeof useAvailableResources>[nu
 interface PlusMenuDropdownProps {
   availableResources: AvailableResourceGroup[]
   onResourceSelect: (resource: MothershipResource) => void
-  onFileSelect: () => void
   onClose: () => void
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   pendingCursorRef: React.MutableRefObject<number | null>
+  /** When in mention mode the dropdown hides its search input and uses this query for filtering. */
+  mentionQuery?: string
 }
 
 export const PlusMenuDropdown = React.memo(
   React.forwardRef<PlusMenuHandle, PlusMenuDropdownProps>(function PlusMenuDropdown(
-    { availableResources, onResourceSelect, onFileSelect, onClose, textareaRef, pendingCursorRef },
+    { availableResources, onResourceSelect, onClose, textareaRef, pendingCursorRef, mentionQuery },
     ref
   ) {
     const [open, setOpen] = useState(false)
+    const [isMention, setIsMention] = useState(false)
     const [search, setSearch] = useState('')
     const [anchorPos, setAnchorPos] = useState<{ left: number; top: number } | null>(null)
     const [activeIndex, setActiveIndex] = useState(0)
@@ -47,20 +48,26 @@ export const PlusMenuDropdown = React.memo(
     const searchRef = useRef<HTMLInputElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
 
-    const doOpen = useCallback((anchor?: { left: number; top: number }) => {
-      if (anchor) {
-        setAnchorPos(anchor)
-      } else {
-        const rect = buttonRef.current?.getBoundingClientRect()
-        if (!rect) return
-        setAnchorPos({ left: rect.left, top: rect.top })
-      }
-      setOpen(true)
-      setSearch('')
-      setActiveIndex(0)
-    }, [])
+    const doOpen = useCallback(
+      (anchor?: { left: number; top: number }, options?: { mention?: boolean }) => {
+        if (anchor) {
+          setAnchorPos(anchor)
+        } else {
+          const rect = buttonRef.current?.getBoundingClientRect()
+          if (!rect) return
+          setAnchorPos({ left: rect.left, top: rect.top })
+        }
+        setIsMention(!!options?.mention)
+        setOpen(true)
+        setSearch('')
+        setActiveIndex(0)
+      },
+      []
+    )
 
-    React.useImperativeHandle(ref, () => ({ open: doOpen }), [doOpen])
+    const doClose = useCallback(() => {
+      setOpen(false)
+    }, [])
 
     const workflowTree = useMemo(() => {
       const workflowGroup = availableResources.find((g) => g.type === 'workflow')
@@ -69,12 +76,33 @@ export const PlusMenuDropdown = React.memo(
     }, [availableResources])
 
     const filteredItems = useMemo(() => {
-      const q = search.toLowerCase().trim()
-      if (!q) return null
-      return availableResources.flatMap(({ type, items }) =>
+      const rawQuery = isMention ? (mentionQuery ?? '') : search
+      const q = rawQuery.toLowerCase().trim()
+      // In mention mode always render a flat filtered list — empty query = show everything.
+      if (!isMention && !q) return null
+      // Folders organize resources but aren't a valid mention/insertable target — drop them
+      // from the flat list (matches the nested rendering, which also excludes them).
+      const flatGroups = availableResources.filter(({ type }) => type !== 'folder')
+      if (isMention && !q) {
+        return flatGroups.flatMap(({ type, items }) => items.map((item) => ({ type, item })))
+      }
+      return flatGroups.flatMap(({ type, items }) =>
         items.filter((item) => item.name.toLowerCase().includes(q)).map((item) => ({ type, item }))
       )
-    }, [search, availableResources])
+    }, [isMention, mentionQuery, search, availableResources])
+
+    const filteredItemsRef = useRef(filteredItems)
+    filteredItemsRef.current = filteredItems
+    const activeIndexRef = useRef(activeIndex)
+    activeIndexRef.current = activeIndex
+    const isMentionRef = useRef(isMention)
+    isMentionRef.current = isMention
+
+    // Reset highlight to the top whenever the mention query changes so the user always
+    // sees the best match selected as they type.
+    useEffect(() => {
+      if (isMention) setActiveIndex(0)
+    }, [isMention, mentionQuery])
 
     const handleSelect = (resource: MothershipResource) => {
       onResourceSelect(resource)
@@ -82,6 +110,40 @@ export const PlusMenuDropdown = React.memo(
       setSearch('')
       setActiveIndex(0)
     }
+
+    const handleSelectRef = useRef(handleSelect)
+    handleSelectRef.current = handleSelect
+
+    React.useImperativeHandle(
+      ref,
+      () => ({
+        open: doOpen,
+        close: doClose,
+        moveActive: (delta: number) => {
+          const items = filteredItemsRef.current
+          if (!items || items.length === 0) return
+          setActiveIndex((i) => {
+            const next = i + delta
+            if (next < 0) return items.length - 1
+            if (next >= items.length) return 0
+            return next
+          })
+        },
+        selectActive: () => {
+          const items = filteredItemsRef.current
+          if (!items || items.length === 0) return false
+          const target = items[activeIndexRef.current] ?? items[0]
+          if (!target) return false
+          handleSelectRef.current({
+            type: target.type,
+            id: target.item.id,
+            title: target.item.name,
+          })
+          return true
+        },
+      }),
+      [doOpen, doClose]
+    )
 
     // Sync DOM scroll to the keyboard-highlighted filtered row.
     useEffect(() => {
@@ -156,6 +218,13 @@ export const PlusMenuDropdown = React.memo(
       textarea.focus()
     }
 
+    // Radix's FocusScope normally focuses the content on open and traps focus inside.
+    // Preventing the mount auto-focus keeps the textarea focused AND, because the focus
+    // trap activates on focusin, the trap stays dormant — typing continues uninterrupted.
+    const handleOpenAutoFocus = (e: Event) => {
+      if (isMentionRef.current) e.preventDefault()
+    }
+
     return (
       <>
         <DropdownMenu open={open} onOpenChange={handleOpenChange}>
@@ -176,86 +245,79 @@ export const PlusMenuDropdown = React.memo(
             align='start'
             side='top'
             sideOffset={8}
-            className='flex w-[320px] flex-col overflow-hidden'
+            avoidCollisions={!isMention}
+            className={cn(
+              'flex flex-col overflow-hidden',
+              // Plus-click shows short fixed labels (Workflows, Tables, …) — let it size
+              // to its content via the emcn DropdownMenuContent default max-w.
+              // Mention mode renders resource names directly, so widen for breathing room.
+              isMention && 'w-[300px] max-w-[calc(100vw-32px)]'
+            )}
             onCloseAutoFocus={handleCloseAutoFocus}
+            onOpenAutoFocus={handleOpenAutoFocus}
             onKeyDown={handleContentKeyDown}
           >
-            <DropdownMenuSearchInput
-              ref={searchRef}
-              placeholder='Search resources...'
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value)
-                setActiveIndex(0)
-              }}
-              onKeyDown={handleSearchKeyDown}
-            />
+            {!isMention && (
+              <DropdownMenuSearchInput
+                ref={searchRef}
+                placeholder='Search resources...'
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value)
+                  setActiveIndex(0)
+                }}
+                onKeyDown={handleSearchKeyDown}
+              />
+            )}
             <div className='min-h-0 flex-1 overflow-y-auto'>
               {/* Always-mounted; swapping this subtree with filtered results makes Radix's
                   menu FocusScope steal focus from the search input back to the content root. */}
               <div hidden={filteredItems !== null}>
-                <DropdownMenuItem
-                  onClick={() => {
-                    setOpen(false)
-                    onFileSelect()
-                  }}
-                >
-                  <Paperclip className='h-[14px] w-[14px]' strokeWidth={2} />
-                  <span>Attachments</span>
-                </DropdownMenuItem>
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <Sim className='h-[14px] w-[14px]' fill='currentColor' />
-                    <span>Workspace</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    {workflowTree.length > 0 && (
-                      <DropdownMenuSub>
+                {workflowTree.length > 0 && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <div
+                        className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+                        style={{
+                          backgroundColor: '#808080',
+                          borderColor: '#80808060',
+                          backgroundClip: 'padding-box',
+                        }}
+                      />
+                      <span>Workflows</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className='w-[300px] max-w-[calc(100vw-32px)]'>
+                      <WorkflowFolderTreeItems nodes={workflowTree} onSelect={handleSelect} />
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
+                {availableResources
+                  .filter(({ type }) => type !== 'workflow' && type !== 'folder')
+                  .map(({ type, items }) => {
+                    if (items.length === 0) return null
+                    const config = getResourceConfig(type)
+                    const Icon = config.icon
+                    return (
+                      <DropdownMenuSub key={type}>
                         <DropdownMenuSubTrigger>
-                          <div
-                            className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
-                            style={{
-                              backgroundColor: '#808080',
-                              borderColor: '#80808060',
-                              backgroundClip: 'padding-box',
-                            }}
-                          />
-                          <span>Workflows</span>
+                          <Icon className='h-[14px] w-[14px]' />
+                          <span>{config.label}</span>
                         </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent>
-                          <WorkflowFolderTreeItems nodes={workflowTree} onSelect={handleSelect} />
+                        <DropdownMenuSubContent className='w-[300px] max-w-[calc(100vw-32px)]'>
+                          {items.map((item) => (
+                            <DropdownMenuItem
+                              key={item.id}
+                              onClick={() => {
+                                handleSelect({ type, id: item.id, title: item.name })
+                              }}
+                            >
+                              {config.renderDropdownItem({ item })}
+                            </DropdownMenuItem>
+                          ))}
                         </DropdownMenuSubContent>
                       </DropdownMenuSub>
-                    )}
-                    {availableResources
-                      .filter(({ type }) => type !== 'workflow' && type !== 'folder')
-                      .map(({ type, items }) => {
-                        if (items.length === 0) return null
-                        const config = getResourceConfig(type)
-                        const Icon = config.icon
-                        return (
-                          <DropdownMenuSub key={type}>
-                            <DropdownMenuSubTrigger>
-                              <Icon className='h-[14px] w-[14px]' />
-                              <span>{config.label}</span>
-                            </DropdownMenuSubTrigger>
-                            <DropdownMenuSubContent>
-                              {items.map((item) => (
-                                <DropdownMenuItem
-                                  key={item.id}
-                                  onClick={() => {
-                                    handleSelect({ type, id: item.id, title: item.name })
-                                  }}
-                                >
-                                  {config.renderDropdownItem({ item })}
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuSubContent>
-                          </DropdownMenuSub>
-                        )
-                      })}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
+                    )
+                  })}
               </div>
               {/* Plain buttons, not DropdownMenuItem: mount/unmount must not mutate Radix's
                   menu Collection, or FocusScope restores focus to the content root. */}

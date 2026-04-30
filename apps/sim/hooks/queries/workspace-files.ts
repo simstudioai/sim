@@ -1,6 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
+import { isApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import { getUsageLimitsContract } from '@/lib/api/contracts/usage-limits'
+import {
+  deleteWorkspaceFileContract,
+  listWorkspaceFilesContract,
+  renameWorkspaceFileContract,
+  restoreWorkspaceFileContract,
+  updateWorkspaceFileContentContract,
+} from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 
 const logger = createLogger('WorkspaceFilesQuery')
@@ -58,14 +68,11 @@ async function fetchWorkspaceFiles(
   scope: WorkspaceFileQueryScope = 'active',
   signal?: AbortSignal
 ): Promise<WorkspaceFileRecord[]> {
-  const response = await fetch(`/api/workspaces/${workspaceId}/files?scope=${scope}`, { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch workspace files')
-  }
-
-  const data = await response.json()
-
+  const data = await requestJson(listWorkspaceFilesContract, {
+    params: { id: workspaceId },
+    query: { scope },
+    signal,
+  })
   return data.success ? data.files : []
 }
 
@@ -91,6 +98,7 @@ async function fetchWorkspaceFileContent(
   raw?: boolean
 ): Promise<string> {
   const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&t=${Date.now()}${raw ? '&raw=1' : ''}`
+  // boundary-raw-fetch: binary/text download, response is not JSON
   const response = await fetch(serveUrl, { signal, cache: 'no-store' })
 
   if (!response.ok) {
@@ -122,6 +130,7 @@ export function useWorkspaceFileContent(
 
 async function fetchWorkspaceFileBinary(key: string, signal?: AbortSignal): Promise<ArrayBuffer> {
   const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&t=${Date.now()}`
+  // boundary-raw-fetch: binary download consumed as ArrayBuffer
   const response = await fetch(serveUrl, { signal, cache: 'no-store' })
   if (!response.ok) throw new Error('Failed to fetch file content')
   return response.arrayBuffer()
@@ -146,28 +155,25 @@ export function useWorkspaceFileBinary(workspaceId: string, fileId: string, key:
  * Fetch storage info from API
  */
 async function fetchStorageInfo(signal?: AbortSignal): Promise<StorageInfo | null> {
-  const response = await fetch('/api/users/me/usage-limits', { signal })
+  try {
+    const data = await requestJson(getUsageLimitsContract, { signal })
 
-  if (response.status === 404) {
-    return null
-  }
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch storage info')
-  }
-
-  const data = await response.json()
-
-  if (data.success && data.storage) {
-    return {
-      usedBytes: data.storage.usedBytes,
-      limitBytes: data.storage.limitBytes,
-      percentUsed: data.storage.percentUsed,
-      plan: data.usage?.plan || 'free',
+    if (data.success && data.storage) {
+      return {
+        usedBytes: data.storage.usedBytes,
+        limitBytes: data.storage.limitBytes,
+        percentUsed: data.storage.percentUsed,
+        plan: data.usage?.plan || 'free',
+      }
     }
-  }
 
-  return null
+    return null
+  } catch (error) {
+    if (isApiClientError(error) && error.status === 404) {
+      return null
+    }
+    throw error
+  }
 }
 
 /**
@@ -199,6 +205,7 @@ export function useUploadWorkspaceFile() {
       const formData = new FormData()
       formData.append('file', file)
 
+      // boundary-raw-fetch: multipart/form-data file upload, requestJson only supports JSON bodies
       const response = await fetch(`/api/workspaces/${workspaceId}/files`, {
         method: 'POST',
         body: formData,
@@ -237,19 +244,10 @@ export function useUpdateWorkspaceFileContent() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, fileId, content, encoding }: UpdateFileContentParams) => {
-      const response = await fetch(`/api/workspaces/${workspaceId}/files/${fileId}/content`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(encoding ? { content, encoding } : { content }),
+      return requestJson(updateWorkspaceFileContentContract, {
+        params: { id: workspaceId, fileId },
+        body: encoding ? { content, encoding } : { content },
       })
-
-      const data = await response.json()
-
-      if (!data.success) {
-        throw new Error(data.error || 'Update failed')
-      }
-
-      return data
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
@@ -277,26 +275,11 @@ export function useRenameWorkspaceFile() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, fileId, name }: RenameFileParams) => {
-      const response = await fetch(`/api/workspaces/${workspaceId}/files/${fileId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error((error as { error?: string }).error || 'Failed to rename file')
-      }
-
-      const data = await response.json()
-
-      if (!data.success) {
-        throw new Error(data.error || 'Rename failed')
-      }
-
-      return data
-    },
+    mutationFn: async ({ workspaceId, fileId, name }: RenameFileParams) =>
+      requestJson(renameWorkspaceFileContract, {
+        params: { id: workspaceId, fileId },
+        body: { name },
+      }),
     onError: (error) => {
       toast.error(error.message, { duration: 5000 })
     },
@@ -318,19 +301,10 @@ export function useDeleteWorkspaceFile() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, fileId }: DeleteFileParams) => {
-      const response = await fetch(`/api/workspaces/${workspaceId}/files/${fileId}`, {
-        method: 'DELETE',
-      })
-
-      const data = await response.json()
-
-      if (!data.success) {
-        throw new Error(data.error || 'Delete failed')
-      }
-
-      return data
-    },
+    mutationFn: async ({ workspaceId, fileId }: DeleteFileParams) =>
+      requestJson(deleteWorkspaceFileContract, {
+        params: { id: workspaceId, fileId },
+      }),
     onMutate: async ({ workspaceId, fileId }) => {
       await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.lists() })
 
@@ -370,16 +344,10 @@ export function useRestoreWorkspaceFile() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, fileId }: { workspaceId: string; fileId: string }) => {
-      const res = await fetch(`/api/workspaces/${workspaceId}/files/${fileId}/restore`, {
-        method: 'POST',
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to restore file')
-      }
-      return res.json()
-    },
+    mutationFn: async ({ workspaceId, fileId }: { workspaceId: string; fileId: string }) =>
+      requestJson(restoreWorkspaceFileContract, {
+        params: { id: workspaceId, fileId },
+      }),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })

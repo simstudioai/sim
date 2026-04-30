@@ -1,6 +1,6 @@
 import type { JiraRetrieveBulkParams, JiraRetrieveResponseBulk } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
-import { extractAdfText } from '@/tools/jira/utils'
+import { extractAdfText, normalizeDomain } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrieveResponseBulk> = {
@@ -71,19 +71,29 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
     const resolveCloudId = async () => {
       if (params?.cloudId) return params.cloudId
       const accessibleResources = await response.json()
-      const normalizedInput = `https://${params?.domain}`.toLowerCase()
+      if (!Array.isArray(accessibleResources) || accessibleResources.length === 0) {
+        throw new Error('No Jira resources found')
+      }
+      const normalizedInput = normalizeDomain(params?.domain ?? '')
       const matchedResource = accessibleResources.find(
-        (r: any) => r.url.toLowerCase() === normalizedInput
+        (r: { url: string }) => r.url.toLowerCase().replace(/\/+$/, '') === normalizedInput
       )
       if (matchedResource) return matchedResource.id
-      if (Array.isArray(accessibleResources) && accessibleResources.length > 0)
-        return accessibleResources[0].id
-      throw new Error('No Jira resources found')
+      if (accessibleResources.length === 1) return accessibleResources[0].id
+      throw new Error(
+        `Could not match Jira domain "${params?.domain}" to any accessible resource. ` +
+          `Available sites: ${accessibleResources.map((r: { url: string }) => r.url).join(', ')}`
+      )
     }
 
     const cloudId = await resolveCloudId()
     const projectKey = await resolveProjectKey(cloudId, params!.accessToken, params!.projectId)
-    const jql = `project = ${projectKey} ORDER BY updated DESC`
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(projectKey)) {
+      throw new Error(
+        `Invalid Jira project key "${projectKey}". Expected an alphanumeric project key (e.g., PROJ).`
+      )
+    }
+    const jql = `project = "${projectKey}" ORDER BY updated DESC`
 
     let collected: any[] = []
     let nextPageToken: string | undefined

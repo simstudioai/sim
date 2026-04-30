@@ -1,6 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import type { z } from 'zod'
+import { defineRouteContract } from '@/lib/api/contracts'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
@@ -23,6 +26,10 @@ export interface DocumentPreviewRouteConfig {
   contentType: string
   /** Short label used for the logger name + 500 log message. */
   label: 'PDF' | 'PPTX' | 'DOCX'
+  /** Route params schema owned by the concrete route.ts boundary. */
+  routeParamsSchema: z.ZodType<{ id: string }>
+  /** JSON body schema owned by the concrete route.ts boundary. */
+  previewBodySchema: z.ZodType<{ code: string }>
 }
 
 /**
@@ -37,8 +44,23 @@ export interface DocumentPreviewRouteConfig {
 export function createDocumentPreviewRoute(config: DocumentPreviewRouteConfig) {
   const logger = createLogger(`${config.label}PreviewAPI`)
 
-  return async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const { id: workspaceId } = await params
+  const previewContract = defineRouteContract({
+    method: 'POST',
+    path: '/api/workspaces/[id]/_preview',
+    params: config.routeParamsSchema,
+    body: config.previewBodySchema,
+    response: { mode: 'json', schema: config.previewBodySchema },
+  })
+
+  return async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+    const paramsResult = config.routeParamsSchema.safeParse(await context.params)
+    if (!paramsResult.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
+        { status: 400 }
+      )
+    }
+    const { id: workspaceId } = paramsResult.data
 
     try {
       const session = await getSession()
@@ -51,17 +73,17 @@ export function createDocumentPreviewRoute(config: DocumentPreviewRouteConfig) {
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
-      let body: unknown
-      try {
-        body = await req.json()
-      } catch {
-        return NextResponse.json({ error: 'Invalid or missing JSON body' }, { status: 400 })
-      }
-      const { code } = body as { code?: string }
-
-      if (typeof code !== 'string' || code.trim().length === 0) {
-        return NextResponse.json({ error: 'code is required' }, { status: 400 })
-      }
+      const parsed = await parseRequest(previewContract, req, context, {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { error: getValidationErrorMessage(error, 'code is required') },
+            { status: 400 }
+          ),
+        invalidJsonResponse: () =>
+          NextResponse.json({ error: 'Invalid or missing JSON body' }, { status: 400 }),
+      })
+      if (!parsed.success) return parsed.response
+      const { code } = parsed.data.body
 
       if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
         return NextResponse.json({ error: 'code exceeds maximum size' }, { status: 413 })

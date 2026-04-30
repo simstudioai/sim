@@ -3,10 +3,10 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateCopilotMessagesContract } from '@/lib/api/contracts/copilot'
+import { parseRequest } from '@/lib/api/server'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
-import { COPILOT_MODES } from '@/lib/copilot/constants'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -18,44 +18,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatUpdateAPI')
 
-const UpdateMessagesSchema = z.object({
-  chatId: z.string(),
-  messages: z.array(
-    z
-      .object({
-        id: z.string(),
-        role: z.enum(['user', 'assistant', 'system']),
-        content: z.string(),
-        timestamp: z.string(),
-        toolCalls: z.array(z.any()).optional(),
-        contentBlocks: z.array(z.any()).optional(),
-        fileAttachments: z
-          .array(
-            z.object({
-              id: z.string(),
-              key: z.string(),
-              filename: z.string(),
-              media_type: z.string(),
-              size: z.number(),
-            })
-          )
-          .optional(),
-        contexts: z.array(z.any()).optional(),
-        citations: z.array(z.any()).optional(),
-        errorType: z.string().optional(),
-      })
-      .passthrough() // Preserve any additional fields for future compatibility
-  ),
-  planArtifact: z.string().nullable().optional(),
-  config: z
-    .object({
-      mode: z.enum(COPILOT_MODES).optional(),
-      model: z.string().optional(),
-    })
-    .nullable()
-    .optional(),
-})
-
 export const POST = withRouteHandler(async (req: NextRequest) => {
   const tracker = createRequestTracker()
 
@@ -65,13 +27,21 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const body = await req.json()
+    const parsed = await parseRequest(
+      updateCopilotMessagesContract,
+      req,
+      {},
+      {
+        invalidJson: 'throw',
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const { chatId, messages, planArtifact, config } = parsed.data.body
 
-    // Debug: Log what we received
-    const lastMsg = body.messages?.[body.messages.length - 1]
+    const lastMsg = messages[messages.length - 1]
     if (lastMsg?.role === 'assistant') {
       logger.info(`[${tracker.requestId}] Received messages to save`, {
-        messageCount: body.messages?.length,
+        messageCount: messages.length,
         lastMsgId: lastMsg.id,
         lastMsgContentLength: lastMsg.content?.length || 0,
         lastMsgContentBlockCount: lastMsg.contentBlocks?.length || 0,
@@ -79,7 +49,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       })
     }
 
-    const { chatId, messages, planArtifact, config } = UpdateMessagesSchema.parse(body)
     const normalizedMessages: PersistedMessage[] = messages.map((message) =>
       normalizeMessage(message as Record<string, unknown>)
     )

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { workflowDeploymentVersionParamSchema } from '@/lib/api/contracts/workflows'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performRevertToVersion } from '@/lib/workflows/orchestration'
@@ -29,14 +30,14 @@ export const POST = withRouteHandler(
         return createErrorResponse(error.message, error.status)
       }
 
-      const versionSelector = version === 'active' ? null : Number(version)
-      if (version !== 'active' && !Number.isFinite(versionSelector)) {
+      const versionValidation = workflowDeploymentVersionParamSchema.safeParse(version)
+      if (!versionValidation.success) {
         return createErrorResponse('Invalid version', 400)
       }
 
       const result = await performRevertToVersion({
         workflowId: id,
-        version: version === 'active' ? 'active' : (versionSelector as number),
+        version: versionValidation.data,
         userId: session!.user.id,
         workflow: (workflowRecord ?? {}) as Record<string, unknown>,
         request,

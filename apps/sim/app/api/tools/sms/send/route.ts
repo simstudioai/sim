@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { smsSendContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -10,11 +11,6 @@ import { type SMSOptions, sendSMS } from '@/lib/messaging/sms/service'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SMSSendAPI')
-
-const SMSSendSchema = z.object({
-  to: z.string().min(1, 'To phone number is required'),
-  body: z.string().min(1, 'SMS body is required'),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -37,8 +33,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = SMSSendSchema.parse(body)
+    const parsed = await parseRequest(smsSendContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const fromNumber = env.TWILIO_PHONE_NUMBER
 
@@ -74,18 +71,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(result)
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Invalid request data',
-          errors: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error sending SMS via API:`, error)
 
     return NextResponse.json(

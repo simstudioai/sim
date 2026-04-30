@@ -18,6 +18,8 @@ import { createLogger } from '@sim/logger'
 import { getActiveWorkflowRecord } from '@sim/workflow-authz'
 import { count, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { adminV1DeleteWorkflowContract, adminV1GetWorkflowContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performDeleteWorkflow } from '@/lib/workflows/orchestration'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -36,7 +38,10 @@ interface RouteParams {
 
 export const GET = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: workflowId } = await context.params
+    const parsed = await parseRequest(adminV1GetWorkflowContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id: workflowId } = parsed.data.params
 
     try {
       const workflowData = await getActiveWorkflowRecord(workflowId)
@@ -73,8 +78,11 @@ export const GET = withRouteHandler(
 )
 
 export const DELETE = withRouteHandler(
-  withAdminAuthParams<RouteParams>(async (_request, context) => {
-    const { id: workflowId } = await context.params
+  withAdminAuthParams<RouteParams>(async (request, context) => {
+    const parsed = await parseRequest(adminV1DeleteWorkflowContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id: workflowId } = parsed.data.params
 
     try {
       const workflowData = await getActiveWorkflowRecord(workflowId)

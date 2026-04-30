@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { neo4jQueryContract } from '@/lib/api/contracts/database-tools'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -11,17 +12,6 @@ import {
 } from '@/app/api/tools/neo4j/utils'
 
 const logger = createLogger('Neo4jQueryAPI')
-
-const QuerySchema = z.object({
-  host: z.string().min(1, 'Host is required'),
-  port: z.coerce.number().int().positive('Port must be a positive integer'),
-  database: z.string().min(1, 'Database name is required'),
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().min(1, 'Password is required'),
-  encryption: z.enum(['enabled', 'disabled']).default('disabled'),
-  cypherQuery: z.string().min(1, 'Cypher query is required'),
-  parameters: z.record(z.unknown()).nullable().optional().default({}),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
@@ -35,8 +25,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-    const params = QuerySchema.parse(body)
+    const parsed = await parseToolRequest(neo4jQueryContract, request, { logger })
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
 
     logger.info(
       `[${requestId}] Executing Neo4j query on ${params.host}:${params.port}/${params.database}`
@@ -101,14 +92,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       summary,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     logger.error(`[${requestId}] Neo4j query failed:`, error)
 

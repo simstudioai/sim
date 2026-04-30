@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
-  Loader2,
   Pause,
   Play,
   RefreshCw,
@@ -20,6 +19,7 @@ import {
   Badge,
   Button,
   Checkbox,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
@@ -368,7 +368,7 @@ function ConnectorCard({
               <span className='flex items-center gap-1.5 font-medium text-[var(--text-primary)] text-small'>
                 {connectorDef?.name || connector.connectorType}
                 {(isSyncPending || connector.status === 'syncing') && (
-                  <Loader2 className='h-3 w-3 animate-spin text-[var(--text-muted)]' />
+                  <Loader className='h-3 w-3 text-[var(--text-muted)]' animate />
                 )}
               </span>
               <Badge variant={statusConfig.variant} className='text-micro'>
@@ -455,7 +455,7 @@ function ConnectorCard({
                     disabled={isUpdating}
                   >
                     {isUpdating ? (
-                      <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                      <Loader className='h-3.5 w-3.5' animate />
                     ) : connector.status === 'paused' || connector.status === 'disabled' ? (
                       <Play className='h-3.5 w-3.5' />
                     ) : (
@@ -620,7 +620,7 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
   if (isLoading) {
     return (
       <div className='flex items-center gap-2 py-1 text-[var(--text-muted)] text-xs'>
-        <Loader2 className='h-3 w-3 animate-spin' />
+        <Loader className='h-3 w-3' animate />
         Loading sync history...
       </div>
     )
@@ -642,7 +642,7 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
           <div key={log.id} className='flex items-start gap-2 text-xs'>
             <div className='mt-[1px] flex-shrink-0'>
               {isRunning ? (
-                <Loader2 className='h-3 w-3 animate-spin text-[var(--text-muted)]' />
+                <Loader className='h-3 w-3 text-[var(--text-muted)]' animate />
               ) : isError ? (
                 <XCircle className='h-3 w-3 text-[var(--text-error)]' />
               ) : (

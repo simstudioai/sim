@@ -1,6 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { CoreTriggerType } from '@/stores/logs/filters/types'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  type ContractBodyInput,
+  createNotificationContract,
+  deleteNotificationContract,
+  listNotificationsContract,
+  type NotificationSubscription,
+  testNotificationContract,
+  updateNotificationContract,
+} from '@/lib/api/contracts'
+
+export type { NotificationSubscription }
 
 const logger = createLogger('NotificationQueries')
 
@@ -17,62 +28,6 @@ export const notificationKeys = {
     [...notificationKeys.details(), workspaceId, notificationId] as const,
 }
 
-type NotificationType = 'webhook' | 'email' | 'slack'
-type LogLevel = 'info' | 'error'
-type TriggerType = CoreTriggerType
-
-type AlertRuleType =
-  | 'consecutive_failures'
-  | 'failure_rate'
-  | 'latency_threshold'
-  | 'latency_spike'
-  | 'cost_threshold'
-  | 'no_activity'
-  | 'error_count'
-
-interface AlertConfig {
-  rule: AlertRuleType
-  consecutiveFailures?: number
-  failureRatePercent?: number
-  windowHours?: number
-  durationThresholdMs?: number
-  latencySpikePercent?: number
-  costThresholdDollars?: number
-  inactivityHours?: number
-  errorCountThreshold?: number
-}
-
-interface WebhookConfig {
-  url: string
-  secret?: string
-}
-
-interface SlackConfig {
-  channelId: string
-  channelName: string
-  accountId: string
-}
-
-export interface NotificationSubscription {
-  id: string
-  notificationType: NotificationType
-  workflowIds: string[]
-  allWorkflows: boolean
-  levelFilter: LogLevel[]
-  triggerFilter: TriggerType[]
-  includeFinalOutput: boolean
-  includeTraceSpans: boolean
-  includeRateLimits: boolean
-  includeUsageData: boolean
-  webhookConfig?: WebhookConfig | null
-  emailRecipients?: string[] | null
-  slackConfig?: SlackConfig | null
-  alertConfig?: AlertConfig | null
-  active: boolean
-  createdAt: string
-  updatedAt: string
-}
-
 /**
  * Fetch notifications for a workspace
  */
@@ -80,12 +35,11 @@ async function fetchNotifications(
   workspaceId: string,
   signal?: AbortSignal
 ): Promise<NotificationSubscription[]> {
-  const response = await fetch(`/api/workspaces/${workspaceId}/notifications`, { signal })
-  if (!response.ok) {
-    throw new Error('Failed to fetch notifications')
-  }
-  const data = await response.json()
-  return data.data || []
+  const data = await requestJson(listNotificationsContract, {
+    params: { id: workspaceId },
+    signal,
+  })
+  return data.data
 }
 
 /**
@@ -103,21 +57,7 @@ export function useNotifications(workspaceId?: string) {
 
 interface CreateNotificationParams {
   workspaceId: string
-  data: {
-    notificationType: NotificationType
-    workflowIds: string[]
-    allWorkflows: boolean
-    levelFilter: LogLevel[]
-    triggerFilter: TriggerType[]
-    includeFinalOutput: boolean
-    includeTraceSpans: boolean
-    includeRateLimits: boolean
-    includeUsageData: boolean
-    alertConfig?: AlertConfig | null
-    webhookConfig?: WebhookConfig
-    emailRecipients?: string[]
-    slackConfig?: SlackConfig
-  }
+  data: ContractBodyInput<typeof createNotificationContract>
 }
 
 /**
@@ -128,16 +68,10 @@ export function useCreateNotification() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, data }: CreateNotificationParams) => {
-      const response = await fetch(`/api/workspaces/${workspaceId}/notifications`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+      return requestJson(createNotificationContract, {
+        params: { id: workspaceId },
+        body: data,
       })
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to create notification')
-      }
-      return response.json()
     },
     onSuccess: (_, { workspaceId }) => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.list(workspaceId) })
@@ -151,7 +85,7 @@ export function useCreateNotification() {
 interface UpdateNotificationParams {
   workspaceId: string
   notificationId: string
-  data: Partial<CreateNotificationParams['data']> & { active?: boolean }
+  data: ContractBodyInput<typeof updateNotificationContract>
 }
 
 /**
@@ -162,19 +96,10 @@ export function useUpdateNotification() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, notificationId, data }: UpdateNotificationParams) => {
-      const response = await fetch(
-        `/api/workspaces/${workspaceId}/notifications/${notificationId}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        }
-      )
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to update notification')
-      }
-      return response.json()
+      return requestJson(updateNotificationContract, {
+        params: { id: workspaceId, notificationId },
+        body: data,
+      })
     },
     onSuccess: (_, { workspaceId }) => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.list(workspaceId) })
@@ -198,16 +123,9 @@ export function useDeleteNotification() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, notificationId }: DeleteNotificationParams) => {
-      const response = await fetch(
-        `/api/workspaces/${workspaceId}/notifications/${notificationId}`,
-        {
-          method: 'DELETE',
-        }
-      )
-      if (!response.ok) {
-        throw new Error('Failed to delete notification')
-      }
-      return response.json()
+      return requestJson(deleteNotificationContract, {
+        params: { id: workspaceId, notificationId },
+      })
     },
     onSuccess: (_, { workspaceId }) => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.list(workspaceId) })
@@ -229,15 +147,9 @@ interface TestNotificationParams {
 export function useTestNotification() {
   return useMutation({
     mutationFn: async ({ workspaceId, notificationId }: TestNotificationParams) => {
-      const response = await fetch(
-        `/api/workspaces/${workspaceId}/notifications/${notificationId}/test`,
-        { method: 'POST' }
-      )
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to send test notification')
-      }
-      return response.json()
+      return requestJson(testNotificationContract, {
+        params: { id: workspaceId, notificationId },
+      })
     },
     onError: (error) => {
       logger.error('Failed to test notification', { error })

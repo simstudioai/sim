@@ -1,8 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  ollamaUpstreamResponseSchema,
+  providerModelsResponseSchema,
+} from '@/lib/api/contracts/providers'
 import { getOllamaUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { ModelsObject } from '@/providers/ollama/types'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
 
 const logger = createLogger('OllamaModelsAPI')
@@ -37,7 +40,7 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
       return NextResponse.json({ models: [] })
     }
 
-    const data = (await response.json()) as ModelsObject
+    const data = ollamaUpstreamResponseSchema.parse(await response.json())
     const allModels = data.models.map((model) => model.name)
     const models = filterBlacklistedModels(allModels)
 
@@ -47,7 +50,7 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
       models,
     })
 
-    return NextResponse.json({ models })
+    return NextResponse.json(providerModelsResponseSchema.parse({ models }))
   } catch (error) {
     logger.error('Failed to fetch Ollama models', {
       error: error instanceof Error ? error.message : 'Unknown error',

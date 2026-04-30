@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { slackSendEphemeralContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -8,15 +9,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SlackSendEphemeralAPI')
-
-const SlackSendEphemeralSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  channel: z.string().min(1, 'Channel ID is required'),
-  user: z.string().min(1, 'User ID is required'),
-  text: z.string().min(1, 'Message text is required'),
-  thread_ts: z.string().optional().nullable(),
-  blocks: z.array(z.record(z.unknown())).optional().nullable(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -40,8 +32,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       { userId: authResult.userId }
     )
 
-    const body = await request.json()
-    const validatedData = SlackSendEphemeralSchema.parse(body)
+    const parsed = await parseRequest(slackSendEphemeralContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Sending ephemeral message`, {
       channel: validatedData.channel,
@@ -85,12 +78,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: error.errors[0]?.message ?? 'Invalid request' },
-        { status: 400 }
-      )
-    }
     logger.error(`[${requestId}] Error sending ephemeral message:`, error)
     return NextResponse.json(
       {

@@ -9,6 +9,7 @@ import {
   createMockRequest,
   hybridAuthMockFns,
 } from '@sim/testing'
+import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAuthorizeCredentialUse } = vi.hoisted(() => ({
@@ -323,7 +324,7 @@ describe('OAuth Token API Routes', () => {
         refreshed: false,
       })
 
-      const req = new Request(
+      const req = new NextRequest(
         'http://localhost:3000/api/auth/oauth/token?credentialId=credential-id'
       )
 
@@ -339,7 +340,7 @@ describe('OAuth Token API Routes', () => {
     })
 
     it('should handle missing credentialId', async () => {
-      const req = new Request('http://localhost:3000/api/auth/oauth/token')
+      const req = new NextRequest('http://localhost:3000/api/auth/oauth/token')
 
       const response = await GET(req as any)
       const data = await response.json()
@@ -354,7 +355,7 @@ describe('OAuth Token API Routes', () => {
         error: 'Authentication required',
       })
 
-      const req = new Request(
+      const req = new NextRequest(
         'http://localhost:3000/api/auth/oauth/token?credentialId=credential-id'
       )
 
@@ -374,7 +375,7 @@ describe('OAuth Token API Routes', () => {
       })
       authOAuthUtilsMockFns.mockGetCredential.mockResolvedValueOnce(undefined)
 
-      const req = new Request(
+      const req = new NextRequest(
         'http://localhost:3000/api/auth/oauth/token?credentialId=nonexistent-credential-id'
       )
 
@@ -399,7 +400,7 @@ describe('OAuth Token API Routes', () => {
         providerId: 'google',
       })
 
-      const req = new Request(
+      const req = new NextRequest(
         'http://localhost:3000/api/auth/oauth/token?credentialId=credential-id'
       )
 
@@ -428,7 +429,7 @@ describe('OAuth Token API Routes', () => {
         new Error('Refresh failure')
       )
 
-      const req = new Request(
+      const req = new NextRequest(
         'http://localhost:3000/api/auth/oauth/token?credentialId=credential-id'
       )
 

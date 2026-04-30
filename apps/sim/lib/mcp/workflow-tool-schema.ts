@@ -9,6 +9,7 @@ import type { McpToolSchema } from './types'
  * More specific than the generic McpToolSchema properties.
  */
 export interface McpToolProperty {
+  [key: string]: unknown
   type: string
   description?: string
   items?: McpToolProperty
@@ -56,7 +57,7 @@ function fieldTypeToZod(fieldType: string | undefined, isRequired: boolean): z.Z
       zodType = z.boolean()
       break
     case 'object':
-      zodType = z.record(z.any())
+      zodType = z.record(z.string(), z.any())
       break
     case 'array':
       zodType = z.array(z.any())
@@ -80,7 +81,7 @@ export function generateToolZodSchema(inputFormat: InputFormatField[]): z.ZodRaw
     return undefined
   }
 
-  const shape: z.ZodRawShape = {}
+  const shape: Record<string, z.ZodTypeAny> = {}
 
   for (const field of inputFormat) {
     if (!field.name) continue

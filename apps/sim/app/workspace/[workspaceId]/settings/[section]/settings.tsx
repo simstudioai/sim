@@ -13,13 +13,13 @@ import { ApiKeysSkeleton } from '@/app/workspace/[workspaceId]/settings/componen
 import { BYOKSkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import { CopilotSkeleton } from '@/app/workspace/[workspaceId]/settings/components/copilot/copilot-skeleton'
 import { CredentialSetsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credential-sets/credential-sets-skeleton'
-import { CredentialsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credentials/credential-skeleton'
 import { CustomToolsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tool-skeleton'
 import { GeneralSkeleton } from '@/app/workspace/[workspaceId]/settings/components/general/general-skeleton'
 import { InboxSkeleton } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-skeleton'
 import { IntegrationsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/integrations/integrations-skeleton'
 import { McpSkeleton } from '@/app/workspace/[workspaceId]/settings/components/mcp/mcp-skeleton'
 import { RecentlyDeletedSkeleton } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted-skeleton'
+import { SecretsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/secrets/secrets-skeleton'
 import { SkillsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/skills/skill-skeleton'
 import { WorkflowMcpServersSkeleton } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/workflow-mcp-servers-skeleton'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -59,12 +59,12 @@ const Integrations = dynamic(
     ),
   { loading: () => <IntegrationsSkeleton /> }
 )
-const Credentials = dynamic(
+const Secrets = dynamic(
   () =>
-    import('@/app/workspace/[workspaceId]/settings/components/credentials/credentials').then(
-      (m) => m.Credentials
+    import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then(
+      (m) => m.Secrets
     ),
-  { loading: () => <CredentialsSkeleton /> }
+  { loading: () => <SecretsSkeleton /> }
 )
 // const TemplateProfile = dynamic(
 //   () =>
@@ -225,7 +225,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       <h2 className='mb-7 font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
       {effectiveSection === 'general' && <General />}
       {effectiveSection === 'integrations' && <Integrations />}
-      {effectiveSection === 'secrets' && <Credentials />}
+      {effectiveSection === 'secrets' && <Secrets />}
       {/* {effectiveSection === 'template-profile' && <TemplateProfile />} */}
       {effectiveSection === 'credential-sets' && <CredentialSets />}
       {effectiveSection === 'access-control' && <AccessControl />}

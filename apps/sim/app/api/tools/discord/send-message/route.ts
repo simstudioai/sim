@@ -1,24 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { discordSendMessageContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateNumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('DiscordSendMessageAPI')
-
-const DiscordSendMessageSchema = z.object({
-  botToken: z.string().min(1, 'Bot token is required'),
-  channelId: z.string().min(1, 'Channel ID is required'),
-  content: z.string().optional().nullable(),
-  files: RawFileInputArraySchema.optional().nullable(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -41,8 +34,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = DiscordSendMessageSchema.parse(body)
+    const parsed = await parseRequest(discordSendMessageContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const channelIdValidation = validateNumericId(validatedData.channelId, 'channelId')
     if (!channelIdValidation.isValid) {

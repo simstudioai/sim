@@ -4,7 +4,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { subscriptionTransferContract } from '@/lib/api/contracts/user'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import {
@@ -15,19 +16,14 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SubscriptionTransferAPI')
 
-const transferSubscriptionSchema = z.object({
-  organizationId: z.string().min(1),
-})
-
 type TransferOutcome =
   | { kind: 'error'; status: number; error: string }
   | { kind: 'noop'; message: string }
   | { kind: 'success'; message: string }
 
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
-      const subscriptionId = (await params).id
       const session = await getSession()
 
       if (!session?.user?.id) {
@@ -35,30 +31,11 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      let body
-      try {
-        body = await request.json()
-      } catch (_parseError) {
-        return NextResponse.json(
-          {
-            error: 'Invalid JSON in request body',
-          },
-          { status: 400 }
-        )
-      }
+      const parsed = await parseRequest(subscriptionTransferContract, request, context)
+      if (!parsed.success) return parsed.response
 
-      const validationResult = transferSubscriptionSchema.safeParse(body)
-      if (!validationResult.success) {
-        return NextResponse.json(
-          {
-            error: 'Invalid request parameters',
-            details: validationResult.error.format(),
-          },
-          { status: 400 }
-        )
-      }
-
-      const { organizationId } = validationResult.data
+      const subscriptionId = parsed.data.params.id
+      const { organizationId } = parsed.data.body
       const userId = session.user.id
       logger.info('Processing subscription transfer', { subscriptionId, organizationId })
 

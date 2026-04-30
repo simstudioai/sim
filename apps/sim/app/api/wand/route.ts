@@ -3,6 +3,8 @@ import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { wandGenerateContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getSession } from '@/lib/auth'
 import { recordUsage } from '@/lib/billing/core/usage-log'
@@ -41,16 +43,6 @@ if (!useWandAzure && !openaiApiKey) {
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
-}
-
-interface RequestBody {
-  prompt: string
-  systemPrompt?: string
-  stream?: boolean
-  history?: ChatMessage[]
-  workflowId?: string
-  generationType?: string
-  wandContext?: Record<string, unknown>
 }
 
 function safeStringify(value: unknown): string {
@@ -168,7 +160,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   }
 
   try {
-    const body = (await req.json()) as RequestBody
+    const parsed = await parseRequest(wandGenerateContract, req, {})
+    if (!parsed.success) return parsed.response
+    const { body } = parsed.data
 
     const {
       prompt,

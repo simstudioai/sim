@@ -1,16 +1,17 @@
 import { createLogger } from '@sim/logger'
+import type { PostHog } from 'posthog-node'
 import type { PostHogEventMap, PostHogEventName } from '@/lib/posthog/events'
 
 const logger = createLogger('PostHogServer')
 
-let _client: import('posthog-node').PostHog | null = null
+let _client: PostHog | null = null
 let _disabled = false
 
-export function getPostHogClient(): import('posthog-node').PostHog | null {
+export function getPostHogClient(): PostHog | null {
   return getClient()
 }
 
-function getClient(): import('posthog-node').PostHog | null {
+function getClient(): PostHog | null {
   if (_disabled) return null
   if (_client) return _client
 

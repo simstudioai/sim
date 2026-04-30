@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { workspaceFileCompiledCheckContract } from '@/lib/api/contracts/workspace-files'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
@@ -27,8 +29,10 @@ const logger = createLogger('WorkspaceFileCompiledCheckAPI')
  *   500 on system (sandbox infra) failure
  */
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) => {
-    const { id: workspaceId, fileId } = await params
+  async (request: NextRequest, context: { params: Promise<{ id: string; fileId: string }> }) => {
+    const parsed = await parseRequest(workspaceFileCompiledCheckContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { id: workspaceId, fileId } = parsed.data.params
 
     const session = await getSession()
     if (!session?.user?.id) {

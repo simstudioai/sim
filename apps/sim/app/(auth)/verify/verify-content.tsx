@@ -1,9 +1,8 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/emcn'
+import { InputOTP, InputOTPGroup, InputOTPSlot, Loader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { useVerification } from '@/app/(auth)/verify/use-verification'
@@ -118,7 +117,7 @@ function VerificationForm({
           >
             {isLoading ? (
               <span className='flex items-center gap-2'>
-                <Loader2 className='h-4 w-4 animate-spin' />
+                <Loader className='h-4 w-4' animate />
                 Verifying...
               </span>
             ) : (

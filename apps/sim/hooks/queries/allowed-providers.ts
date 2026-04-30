@@ -1,6 +1,9 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import type { ContractJsonResponse } from '@/lib/api/contracts'
+import { getAllowedProvidersContract } from '@/lib/api/contracts'
 
 /**
  * Query key factory for allowed providers queries
@@ -10,16 +13,16 @@ export const allowedProvidersKeys = {
   blacklisted: () => [...allowedProvidersKeys.all, 'blacklisted'] as const,
 }
 
-interface BlacklistedProvidersResponse {
-  blacklistedProviders: string[]
-}
+type BlacklistedProvidersResponse = ContractJsonResponse<typeof getAllowedProvidersContract>
 
 async function fetchBlacklistedProviders(
   signal: AbortSignal
 ): Promise<BlacklistedProvidersResponse> {
-  const res = await fetch('/api/settings/allowed-providers', { signal })
-  if (!res.ok) return { blacklistedProviders: [] }
-  return res.json()
+  try {
+    return await requestJson(getAllowedProvidersContract, { signal })
+  } catch {
+    return { blacklistedProviders: [] }
+  }
 }
 
 /**

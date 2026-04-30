@@ -27,6 +27,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Read Issue', id: 'read' },
+        { label: 'Read Bulk Issues', id: 'read-bulk' },
         { label: 'Update Issue', id: 'update' },
         { label: 'Write Issue', id: 'write' },
         { label: 'Delete Issue', id: 'delete' },
@@ -270,6 +271,7 @@ Return ONLY the description text - no explanations.`,
       placeholder: 'Parent issue key for subtasks (e.g., PROJ-123)',
       dependsOn: ['projectId'],
       condition: { field: 'operation', value: 'write' },
+      mode: 'advanced',
     },
     // Write/Update Issue additional fields
     {
@@ -320,6 +322,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'Reporter account ID',
       dependsOn: ['projectId'],
       condition: { field: 'operation', value: 'write' },
+      mode: 'advanced',
     },
     {
       id: 'environment',
@@ -327,6 +330,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'long-input',
       placeholder: 'Environment information (e.g., Production, Staging)',
       condition: { field: 'operation', value: ['write', 'update'] },
+      mode: 'advanced',
     },
     {
       id: 'customFieldId',
@@ -334,6 +338,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'short-input',
       placeholder: 'e.g., customfield_10001 or 10001',
       condition: { field: 'operation', value: ['write', 'update'] },
+      mode: 'advanced',
     },
     {
       id: 'customFieldValue',
@@ -341,6 +346,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'short-input',
       placeholder: 'Value for the custom field',
       condition: { field: 'operation', value: ['write', 'update'] },
+      mode: 'advanced',
     },
     {
       id: 'components',
@@ -348,6 +354,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'short-input',
       placeholder: 'Comma-separated component names',
       condition: { field: 'operation', value: ['write', 'update'] },
+      mode: 'advanced',
     },
     {
       id: 'fixVersions',
@@ -355,6 +362,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'short-input',
       placeholder: 'Comma-separated fix version names',
       condition: { field: 'operation', value: ['write', 'update'] },
+      mode: 'advanced',
     },
     {
       id: 'notifyUsers',
@@ -366,6 +374,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       ],
       value: () => 'true',
       condition: { field: 'operation', value: 'update' },
+      mode: 'advanced',
     },
     // Delete Issue fields
     {
@@ -378,6 +387,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       ],
       value: () => 'false',
       condition: { field: 'operation', value: 'delete' },
+      mode: 'advanced',
     },
     // Assign Issue fields
     {
@@ -421,6 +431,7 @@ Return ONLY the comment text - no explanations.`,
       type: 'short-input',
       placeholder: 'Resolution name (e.g., "Fixed", "Won\'t Fix")',
       condition: { field: 'operation', value: 'transition' },
+      mode: 'advanced',
     },
     // Search Issues fields
     {
@@ -453,6 +464,7 @@ Return ONLY the JQL query - no explanations or markdown formatting.`,
       type: 'short-input',
       placeholder: 'Cursor token for next page (omit for first page)',
       condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
     },
     {
       id: 'startAt',
@@ -460,6 +472,7 @@ Return ONLY the JQL query - no explanations or markdown formatting.`,
       type: 'short-input',
       placeholder: 'Pagination start index (default: 0)',
       condition: { field: 'operation', value: ['get_comments', 'get_worklogs'] },
+      mode: 'advanced',
     },
     {
       id: 'maxResults',
@@ -467,6 +480,7 @@ Return ONLY the JQL query - no explanations or markdown formatting.`,
       type: 'short-input',
       placeholder: 'Maximum results to return (default: 50)',
       condition: { field: 'operation', value: ['search', 'get_comments', 'get_worklogs'] },
+      mode: 'advanced',
     },
     {
       id: 'fields',
@@ -474,6 +488,7 @@ Return ONLY the JQL query - no explanations or markdown formatting.`,
       type: 'short-input',
       placeholder: 'Comma-separated fields to return (e.g., key,summary,status)',
       condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
     },
     // Comment fields
     {
@@ -629,6 +644,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'long-input',
       placeholder: 'Add optional comment for the link',
       condition: { field: 'operation', value: 'create_link' },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate a comment for a Jira issue link based on the user's description.
@@ -657,6 +673,7 @@ Return ONLY the comment text - no explanations.`,
       type: 'short-input',
       placeholder: 'Enter account ID for specific user',
       condition: { field: 'operation', value: 'get_users' },
+      mode: 'advanced',
     },
     {
       id: 'usersStartAt',
@@ -664,6 +681,7 @@ Return ONLY the comment text - no explanations.`,
       type: 'short-input',
       placeholder: 'Pagination start index (default: 0)',
       condition: { field: 'operation', value: 'get_users' },
+      mode: 'advanced',
     },
     {
       id: 'usersMaxResults',
@@ -671,6 +689,7 @@ Return ONLY the comment text - no explanations.`,
       type: 'short-input',
       placeholder: 'Maximum users to return (default: 50)',
       condition: { field: 'operation', value: 'get_users' },
+      mode: 'advanced',
     },
     // Search Users fields
     {
@@ -744,16 +763,8 @@ Return ONLY the comment text - no explanations.`,
     ],
     config: {
       tool: (params) => {
-        // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
-        const effectiveProjectId = params.projectId ? String(params.projectId).trim() : ''
-        const effectiveIssueKey = params.issueKey ? String(params.issueKey).trim() : ''
-
         switch (params.operation) {
           case 'read':
-            // If a project is selected but no issue is chosen, route to bulk read
-            if (effectiveProjectId && !effectiveIssueKey) {
-              return 'jira_bulk_read'
-            }
             return 'jira_retrieve'
           case 'update':
             return 'jira_update'
@@ -877,7 +888,12 @@ Return ONLY the comment text - no explanations.`,
               environment: params.environment || undefined,
               customFieldId: params.customFieldId || undefined,
               customFieldValue: params.customFieldValue || undefined,
-              notifyUsers: params.notifyUsers === 'false' ? false : undefined,
+              notifyUsers:
+                params.notifyUsers === 'false'
+                  ? false
+                  : params.notifyUsers === 'true'
+                    ? true
+                    : undefined,
             }
             return {
               ...baseParams,
@@ -989,12 +1005,20 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'add_worklog': {
+            const rawTime = params.timeSpentSeconds
+            const parsedTime =
+              rawTime !== undefined && rawTime !== null && String(rawTime).trim() !== ''
+                ? Number(String(rawTime).trim())
+                : undefined
+            if (parsedTime !== undefined && (!Number.isFinite(parsedTime) || parsedTime <= 0)) {
+              throw new Error(
+                'Time Spent (seconds) must be a positive number of seconds (e.g., 3600 for 1 hour)'
+              )
+            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
-              timeSpentSeconds: params.timeSpentSeconds
-                ? Number.parseInt(params.timeSpentSeconds)
-                : undefined,
+              timeSpentSeconds: parsedTime,
               comment: params.worklogComment,
               started: params.started,
             }
@@ -1012,9 +1036,17 @@ Return ONLY the comment text - no explanations.`,
               ...baseParams,
               issueKey: effectiveIssueKey,
               worklogId: params.worklogId,
-              timeSpentSeconds: params.timeSpentSecondsUpdate
-                ? Number.parseInt(params.timeSpentSecondsUpdate)
-                : undefined,
+              timeSpentSeconds: (() => {
+                const raw = params.timeSpentSecondsUpdate
+                if (raw === undefined || raw === null || String(raw).trim() === '') return undefined
+                const n = Number(String(raw).trim())
+                if (!Number.isFinite(n) || n <= 0) {
+                  throw new Error(
+                    'Time Spent (seconds) must be a positive number of seconds (e.g., 3600 for 1 hour)'
+                  )
+                }
+                return n
+              })(),
               comment: params.worklogComment,
               started: params.started,
             }

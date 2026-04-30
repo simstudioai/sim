@@ -5,6 +5,12 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { generateAgentCard, generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
 import type { AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
+import {
+  a2aAgentParamsSchema,
+  publishA2AAgentContract,
+  updateA2AAgentContract,
+} from '@/lib/api/contracts/a2a-agents'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -25,7 +31,7 @@ interface RouteParams {
  */
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
-    const { agentId } = await params
+    const { agentId } = a2aAgentParamsSchema.parse(await params)
 
     try {
       const [agent] = await db
@@ -88,7 +94,7 @@ export const GET = withRouteHandler(
  */
 export const PUT = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
-    const { agentId } = await params
+    const { agentId } = a2aAgentParamsSchema.parse(await params)
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -111,18 +117,9 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      const body = await request.json()
-
-      if (
-        body.skillTags !== undefined &&
-        (!Array.isArray(body.skillTags) ||
-          !body.skillTags.every((tag: unknown): tag is string => typeof tag === 'string'))
-      ) {
-        return NextResponse.json(
-          { error: 'skillTags must be an array of strings' },
-          { status: 400 }
-        )
-      }
+      const parsed = await parseRequest(updateA2AAgentContract, request, { params })
+      if (!parsed.success) return parsed.response
+      const body = parsed.data.body
 
       let skills = body.skills ?? existingAgent.skills
       if (body.skillTags !== undefined) {
@@ -163,7 +160,7 @@ export const PUT = withRouteHandler(
  */
 export const DELETE = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
-    const { agentId } = await params
+    const { agentId } = a2aAgentParamsSchema.parse(await params)
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -214,7 +211,7 @@ export const DELETE = withRouteHandler(
  */
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
-    const { agentId } = await params
+    const { agentId } = a2aAgentParamsSchema.parse(await params)
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -241,8 +238,9 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      const body = await request.json()
-      const action = body.action as 'publish' | 'unpublish' | 'refresh'
+      const parsed = await parseRequest(publishA2AAgentContract, request, { params })
+      if (!parsed.success) return parsed.response
+      const { action } = parsed.data.body
 
       if (action === 'publish') {
         const [wf] = await db

@@ -14,6 +14,8 @@ export interface ConfluenceDeleteSpaceResponse {
     ts: string
     spaceId: string
     deleted: boolean
+    longTaskId?: string
+    longTaskStatusLink?: string
   }
 }
 
@@ -83,6 +85,8 @@ export const confluenceDeleteSpaceTool: ToolConfig<
         ts: new Date().toISOString(),
         spaceId: data.spaceId ?? '',
         deleted: true,
+        longTaskId: data.longTaskId,
+        longTaskStatusLink: data.longTaskStatusLink,
       },
     }
   },
@@ -91,5 +95,14 @@ export const confluenceDeleteSpaceTool: ToolConfig<
     ts: TIMESTAMP_OUTPUT,
     spaceId: { type: 'string', description: 'Deleted space ID' },
     deleted: { type: 'boolean', description: 'Deletion status' },
+    longTaskId: {
+      type: 'string',
+      description:
+        'ID of the long-running deletion task; poll Confluence long-task API to track completion',
+    },
+    longTaskStatusLink: {
+      type: 'string',
+      description: 'Relative link to the long-task status endpoint',
+    },
   },
 }

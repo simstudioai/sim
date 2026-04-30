@@ -1,29 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { slackSendMessageContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { sendSlackMessage } from '../utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SlackSendMessageAPI')
-
-const SlackSendMessageSchema = z
-  .object({
-    accessToken: z.string().min(1, 'Access token is required'),
-    channel: z.string().optional().nullable(),
-    userId: z.string().optional().nullable(),
-    text: z.string().min(1, 'Message text is required'),
-    thread_ts: z.string().optional().nullable(),
-    blocks: z.array(z.record(z.unknown())).optional().nullable(),
-    files: RawFileInputArraySchema.optional().nullable(),
-  })
-  .refine((data) => data.channel || data.userId, {
-    message: 'Either channel or userId is required',
-  })
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -46,8 +32,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = SlackSendMessageSchema.parse(body)
+    const parsed = await parseRequest(slackSendMessageContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const isDM = !!validatedData.userId
     logger.info(`[${requestId}] Sending Slack message`, {
@@ -78,12 +65,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ success: true, output: result.output })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: error.errors[0]?.message ?? 'Invalid request' },
-        { status: 400 }
-      )
-    }
     logger.error(`[${requestId}] Error sending Slack message:`, error)
     return NextResponse.json(
       {

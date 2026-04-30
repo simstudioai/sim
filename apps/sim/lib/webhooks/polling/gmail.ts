@@ -1,5 +1,10 @@
+import type { Logger } from '@sim/logger'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
-import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
+import {
+  getProviderConfig,
+  type PollingProviderHandler,
+  type PollWebhookContext,
+} from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
@@ -69,7 +74,7 @@ export const gmailPollingHandler: PollingProviderHandler = {
         logger
       )
 
-      const config = webhookData.providerConfig as unknown as GmailWebhookConfig
+      const config = getProviderConfig<GmailWebhookConfig>(webhookData.providerConfig)
       const now = new Date()
 
       const { emails, latestHistoryId } = await fetchNewEmails(
@@ -143,7 +148,7 @@ async function fetchNewEmails(
   accessToken: string,
   config: GmailWebhookConfig,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ) {
   try {
     const useHistoryApi = !!config.historyId
@@ -290,7 +295,7 @@ async function searchEmails(
   accessToken: string,
   config: GmailWebhookConfig,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ) {
   try {
     const baseQuery = buildGmailSearchQuery(config)
@@ -379,7 +384,7 @@ async function searchEmails(
 async function getGmailProfileHistoryId(
   accessToken: string,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<string | null> {
   try {
     const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
@@ -437,7 +442,7 @@ async function processEmails(
   config: GmailWebhookConfig,
   accessToken: string,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ) {
   let processedCount = 0
   let failedCount = 0
@@ -568,11 +573,7 @@ async function processEmails(
   return { processedCount, failedCount }
 }
 
-async function markEmailAsRead(
-  accessToken: string,
-  messageId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
-) {
+async function markEmailAsRead(accessToken: string, messageId: string, logger: Logger) {
   const modifyUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`
 
   try {

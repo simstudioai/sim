@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { authorizeTrelloContract } from '@/lib/api/contracts/oauth-connections'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -10,12 +12,15 @@ const logger = createLogger('TrelloAuthorize')
 
 export const dynamic = 'force-dynamic'
 
-export const GET = withRouteHandler(async () => {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const parsed = await parseRequest(authorizeTrelloContract, request, {})
+    if (!parsed.success) return parsed.response
 
     const apiKey = env.TRELLO_API_KEY
 

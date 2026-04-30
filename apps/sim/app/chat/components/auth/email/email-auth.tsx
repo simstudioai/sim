@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { Loader2 } from 'lucide-react'
-import { Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@/components/emcn'
+import { Input, InputOTP, InputOTPGroup, InputOTPSlot, Label, Loader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import AuthBackground from '@/app/(auth)/components/auth-background'
@@ -180,7 +179,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                     >
                       {requestOtp.isPending ? (
                         <span className='flex items-center gap-2'>
-                          <Loader2 className='h-4 w-4 animate-spin' />
+                          <Loader className='h-4 w-4' animate />
                           Sending Code...
                         </span>
                       ) : (
@@ -233,7 +232,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                     >
                       {verifyOtp.isPending ? (
                         <span className='flex items-center gap-2'>
-                          <Loader2 className='h-4 w-4 animate-spin' />
+                          <Loader className='h-4 w-4' animate />
                           Verifying...
                         </span>
                       ) : (

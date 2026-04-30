@@ -1,27 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { copilotTrainingDataContract } from '@/lib/api/contracts/copilot'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalApiKey, createUnauthorizedResponse } from '@/lib/copilot/request/http'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotTrainingAPI')
-
-const WorkflowStateSchema = z.record(z.unknown())
-
-const OperationSchema = z.object({
-  operation_type: z.string(),
-  block_id: z.string(),
-  params: z.record(z.unknown()).optional(),
-})
-
-const TrainingDataSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  prompt: z.string().min(1, 'Prompt is required'),
-  input: WorkflowStateSchema,
-  output: WorkflowStateSchema,
-  operations: z.array(OperationSchema),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = checkInternalApiKey(request)
@@ -45,21 +30,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const body = await request.json()
-    const validationResult = TrainingDataSchema.safeParse(body)
-
-    if (!validationResult.success) {
-      logger.warn('Invalid training data format', { errors: validationResult.error.errors })
-      return NextResponse.json(
-        {
-          error: 'Invalid training data format',
-          details: validationResult.error.errors,
+    const parsed = await parseRequest(
+      copilotTrainingDataContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn('Invalid training data format', { errors: error.issues })
+          return validationErrorResponse(error, 'Invalid training data format')
         },
-        { status: 400 }
-      )
-    }
-
-    const { title, prompt, input, output, operations } = validationResult.data
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const { title, prompt, input, output, operations } = parsed.data.body
 
     logger.info('Sending training data to agent indexer', {
       title,

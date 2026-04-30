@@ -4,7 +4,8 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { createWorkflowCopilotChatContract } from '@/lib/api/contracts/copilot'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -17,11 +18,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotChatsListAPI')
-
-const CreateWorkflowCopilotChatSchema = z.object({
-  workspaceId: z.string().min(1),
-  workflowId: z.string().min(1),
-})
 
 const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
 
@@ -96,8 +92,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const body = await request.json()
-    const { workspaceId, workflowId } = CreateWorkflowCopilotChatSchema.parse(body)
+    const parsed = await parseRequest(
+      createWorkflowCopilotChatContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          validationErrorResponse(error, 'workspaceId and workflowId are required'),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const { workspaceId, workflowId } = parsed.data.body
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
 
@@ -133,9 +138,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ success: true, id: result.chatId })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return createBadRequestResponse('workspaceId and workflowId are required')
-    }
     logger.error('Error creating workflow copilot chat:', error)
     return createInternalServerErrorResponse('Failed to create chat')
   }

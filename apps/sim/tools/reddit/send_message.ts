@@ -71,7 +71,7 @@ export const sendMessageTool: ToolConfig<RedditSendMessageParams, RedditWriteRes
         formData.append('from_sr', params.from_sr.trim())
       }
 
-      return formData.toString() as unknown as Record<string, any>
+      return formData.toString()
     },
   },
 

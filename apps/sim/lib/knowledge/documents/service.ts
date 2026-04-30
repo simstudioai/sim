@@ -34,6 +34,7 @@ import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import {
   buildUndefinedTagsError,
@@ -43,6 +44,7 @@ import {
   validateTagValue,
 } from '@/lib/knowledge/tags/utils'
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
+import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
@@ -380,6 +382,7 @@ export async function processDocumentAsync(
         userId: knowledgeBase.userId,
         workspaceId: knowledgeBase.workspaceId,
         chunkingConfig: knowledgeBase.chunkingConfig,
+        embeddingModel: knowledgeBase.embeddingModel,
       })
       .from(knowledgeBase)
       .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
@@ -429,9 +432,11 @@ export async function processDocumentAsync(
       overlap: rawConfig?.overlap ?? 200,
     }
 
+    const kbEmbeddingModel = kb[0].embeddingModel
     let totalEmbeddingTokens = 0
     let embeddingIsBYOK = false
-    let embeddingModelName = 'text-embedding-3-small'
+    let embeddingModelName = kbEmbeddingModel
+    let embeddingPricingId = kbEmbeddingModel
 
     await withTimeout(
       (async () => {
@@ -480,7 +485,8 @@ export async function processDocumentAsync(
               totalTokens: batchTokens,
               isBYOK,
               modelName,
-            } = await generateEmbeddings(batch, undefined, kb[0].workspaceId)
+              pricingId,
+            } = await generateEmbeddings(batch, kbEmbeddingModel, kb[0].workspaceId)
             for (const emb of batchEmbeddings) {
               embeddings.push(emb)
             }
@@ -488,6 +494,7 @@ export async function processDocumentAsync(
             if (i === 0) {
               embeddingIsBYOK = isBYOK
               embeddingModelName = modelName
+              embeddingPricingId = pricingId
             }
           }
         }
@@ -528,6 +535,8 @@ export async function processDocumentAsync(
 
         logger.info(`[${documentId}] Creating embedding records with tags`)
 
+        const tokenizerProvider = getEmbeddingModelInfo(kbEmbeddingModel).tokenizerProvider
+
         const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
           id: generateId(),
           knowledgeBaseId,
@@ -536,9 +545,9 @@ export async function processDocumentAsync(
           chunkHash: sha256Hex(chunk.text),
           content: chunk.text,
           contentLength: chunk.text.length,
-          tokenCount: Math.ceil(chunk.text.length / 4),
+          tokenCount: estimateTokenCount(chunk.text, tokenizerProvider).count,
           embedding: embeddings[chunkIndex] || null,
-          embeddingModel: 'text-embedding-3-small',
+          embeddingModel: kbEmbeddingModel,
           startOffset: chunk.metadata.startIndex,
           endOffset: chunk.metadata.endIndex,
           tag1: documentTags.tag1,
@@ -620,7 +629,7 @@ export async function processDocumentAsync(
       try {
         const costMultiplier = getCostMultiplier()
         const { total: cost } = calculateCost(
-          embeddingModelName,
+          embeddingPricingId,
           totalEmbeddingTokens,
           0,
           false,
@@ -847,8 +856,8 @@ export interface TagFilterCondition {
   tagSlot: string
   fieldType: 'text' | 'number' | 'date' | 'boolean'
   operator: string
-  value: string
-  valueTo?: string
+  value: unknown
+  valueTo?: unknown
 }
 
 const ALLOWED_TAG_SLOTS = new Set([
@@ -881,7 +890,7 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   const col = document[filter.tagSlot as keyof typeof document]
 
   if (filter.fieldType === 'text') {
-    const v = filter.value
+    const v = String(filter.value ?? '')
     switch (filter.operator) {
       case 'eq':
         return eq(col as typeof document.tag1, v)
@@ -938,7 +947,7 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   }
 
   if (filter.fieldType === 'date') {
-    const v = filter.value
+    const v = String(filter.value ?? '')
     switch (filter.operator) {
       case 'eq':
         return eq(col as typeof document.date1, new Date(v))
@@ -954,9 +963,10 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
         return lte(col as typeof document.date1, new Date(v))
       case 'between': {
         if (!filter.valueTo) return undefined
+        const valueTo = String(filter.valueTo)
         return and(
           gte(col as typeof document.date1, new Date(v)),
-          lte(col as typeof document.date1, new Date(filter.valueTo))
+          lte(col as typeof document.date1, new Date(valueTo))
         )
       }
       default:
@@ -965,7 +975,9 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   }
 
   if (filter.fieldType === 'boolean') {
-    const boolVal = filter.value === 'true'
+    const boolVal =
+      typeof filter.value === 'boolean' ? filter.value : parseBooleanValue(String(filter.value))
+    if (boolVal === null) return undefined
     switch (filter.operator) {
       case 'eq':
         return eq(col as typeof document.boolean1, boolVal)
@@ -994,6 +1006,7 @@ export async function getDocuments(
 ): Promise<{
   documents: Array<{
     id: string
+    knowledgeBaseId: string
     filename: string
     fileUrl: string
     fileSize: number
@@ -1076,7 +1089,7 @@ export async function getDocuments(
     .from(document)
     .where(and(...whereConditions))
 
-  const total = totalResult[0]?.count || 0
+  const total = Number(totalResult[0]?.count ?? 0)
   const hasMore = offset + limit < total
 
   const getOrderByColumn = () => {
@@ -1107,6 +1120,7 @@ export async function getDocuments(
   const documents = await db
     .select({
       id: document.id,
+      knowledgeBaseId: document.knowledgeBaseId,
       filename: document.filename,
       fileUrl: document.fileUrl,
       fileSize: document.fileSize,
@@ -1155,6 +1169,7 @@ export async function getDocuments(
   return {
     documents: documents.map((doc) => ({
       id: doc.id,
+      knowledgeBaseId: doc.knowledgeBaseId,
       filename: doc.filename,
       fileUrl: doc.fileUrl,
       fileSize: doc.fileSize,

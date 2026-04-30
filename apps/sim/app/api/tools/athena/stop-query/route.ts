@@ -1,19 +1,13 @@
 import { StopQueryExecutionCommand } from '@aws-sdk/client-athena'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { awsAthenaStopQueryContract } from '@/lib/api/contracts/tools/aws/athena-stop-query'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createAthenaClient } from '@/app/api/tools/athena/utils'
 
 const logger = createLogger('AthenaStopQuery')
-
-const StopQuerySchema = z.object({
-  region: z.string().min(1, 'AWS region is required'),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  queryExecutionId: z.string().min(1, 'Query execution ID is required'),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -22,8 +16,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const data = StopQuerySchema.parse(body)
+    const parsed = await parseToolRequest(awsAthenaStopQueryContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const data = parsed.data.body
 
     const client = createAthenaClient({
       region: data.region,
@@ -44,12 +42,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.errors[0]?.message ?? 'Invalid request' },
-        { status: 400 }
-      )
-    }
     const errorMessage = error instanceof Error ? error.message : 'Failed to stop Athena query'
     logger.error('StopQuery failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })

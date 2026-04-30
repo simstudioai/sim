@@ -4,6 +4,8 @@ import { knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { triggerKnowledgeConnectorSyncContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -18,9 +20,11 @@ type RouteParams = { params: Promise<{ id: string; connectorId: string }> }
 /**
  * POST /api/knowledge/[id]/connectors/[connectorId]/sync - Trigger a manual sync
  */
-export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
+export const POST = withRouteHandler(async (request: NextRequest, context: RouteParams) => {
   const requestId = generateRequestId()
-  const { id: knowledgeBaseId, connectorId } = await params
+  const parsed = await parseRequest(triggerKnowledgeConnectorSyncContract, request, context)
+  if (!parsed.success) return parsed.response
+  const { id: knowledgeBaseId, connectorId } = parsed.data.params
 
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })

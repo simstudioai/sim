@@ -29,6 +29,11 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import {
+  adminV1ImportWorkspaceContract,
+  adminV1WorkspaceImportBodySchema,
+} from '@/lib/api/contracts'
+import { parseJsonBody, parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   extractWorkflowName,
@@ -66,10 +71,11 @@ interface ParsedWorkflow {
 
 export const POST = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: workspaceId } = await context.params
-    const url = new URL(request.url)
-    const createFolders = url.searchParams.get('createFolders') !== 'false'
-    const rootFolderName = url.searchParams.get('rootFolderName')
+    const parsed = await parseRequest(adminV1ImportWorkspaceContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id: workspaceId } = parsed.data.params
+    const { createFolders, rootFolderName } = parsed.data.query
 
     try {
       const workspaceData = await getWorkspaceWithOwner(workspaceId)
@@ -82,12 +88,18 @@ export const POST = withRouteHandler(
       let workflowsToImport: ParsedWorkflow[] = []
 
       if (contentType.includes('application/json')) {
-        const body = (await request.json()) as WorkspaceImportRequest
+        const rawBody = await parseJsonBody(request)
 
-        if (!body.workflows || !Array.isArray(body.workflows)) {
+        if (!rawBody.success) {
           return badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
         }
 
+        const validation = adminV1WorkspaceImportBodySchema.safeParse(rawBody.data)
+        if (!validation.success) {
+          return badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
+        }
+
+        const body = validation.data as WorkspaceImportRequest
         workflowsToImport = body.workflows.map((w) => ({
           content: typeof w.content === 'string' ? w.content : JSON.stringify(w.content),
           name: w.name || 'Imported Workflow',

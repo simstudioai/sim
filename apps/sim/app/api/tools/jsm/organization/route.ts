@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { jsmOrganizationContract } from '@/lib/api/contracts/selectors/jsm'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   validateAlphanumericId,
@@ -24,7 +26,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
+    const parsed = await parseRequest(jsmOrganizationContract, request, {})
+    if (!parsed.success) return parsed.response
+
     const {
       domain,
       accessToken,
@@ -33,7 +37,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       name,
       serviceDeskId,
       organizationId,
-    } = body
+    } = parsed.data.body
 
     if (!domain) {
       logger.error('Missing domain in request')
@@ -130,6 +134,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json({ error: organizationIdValidation.error }, { status: 400 })
       }
 
+      const orgIdNumeric = Number.parseInt(String(organizationId).trim(), 10)
+      if (!Number.isFinite(orgIdNumeric) || orgIdNumeric <= 0) {
+        return NextResponse.json(
+          { error: 'organizationId must be a positive integer' },
+          { status: 400 }
+        )
+      }
+
       const url = `${baseUrl}/servicedesk/${serviceDeskId}/organization`
 
       logger.info('Adding organization to service desk:', { serviceDeskId, organizationId })
@@ -137,7 +149,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const response = await fetch(url, {
         method: 'POST',
         headers: getJsmHeaders(accessToken),
-        body: JSON.stringify({ organizationId: Number.parseInt(organizationId, 10) }),
+        body: JSON.stringify({ organizationId: orgIdNumeric }),
       })
 
       if (response.status === 204 || response.ok) {

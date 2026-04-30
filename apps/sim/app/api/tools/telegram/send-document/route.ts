@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { telegramSendDocumentContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { convertMarkdownToHTML } from '@/tools/telegram/utils'
@@ -12,13 +12,6 @@ import { convertMarkdownToHTML } from '@/tools/telegram/utils'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('TelegramSendDocumentAPI')
-
-const TelegramSendDocumentSchema = z.object({
-  botToken: z.string().min(1, 'Bot token is required'),
-  chatId: z.string().min(1, 'Chat ID is required'),
-  files: RawFileInputArraySchema.optional().nullable(),
-  caption: z.string().optional().nullable(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -43,8 +36,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = TelegramSendDocumentSchema.parse(body)
+    const parsed = await parseRequest(telegramSendDocumentContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Sending Telegram document`, {
       chatId: validatedData.chatId,

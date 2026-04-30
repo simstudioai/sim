@@ -1,29 +1,25 @@
 import type { JiraAddWorklogParams, JiraAddWorklogResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
-import { getJiraCloudId, transformUser } from '@/tools/jira/utils'
+import {
+  getJiraCloudId,
+  normalizeJiraWorklogTimestamp,
+  toAdf,
+  transformUser,
+} from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /**
  * Builds the worklog request body per Jira API v3.
  */
 function buildWorklogBody(params: JiraAddWorklogParams) {
+  const t = Number(params.timeSpentSeconds)
+  if (!Number.isFinite(t) || t <= 0) {
+    throw new Error('timeSpentSeconds must be a positive finite number')
+  }
   const body: Record<string, any> = {
-    timeSpentSeconds: Number(params.timeSpentSeconds),
-    comment: params.comment
-      ? {
-          type: 'doc',
-          version: 1,
-          content: [
-            {
-              type: 'paragraph',
-              content: [{ type: 'text', text: params.comment }],
-            },
-          ],
-        }
-      : undefined,
-    started:
-      (params.started ? params.started.replace(/Z$/, '+0000') : undefined) ||
-      new Date().toISOString().replace(/Z$/, '+0000'),
+    timeSpentSeconds: t,
+    comment: params.comment ? toAdf(params.comment) : undefined,
+    started: normalizeJiraWorklogTimestamp(params.started || new Date().toISOString()),
   }
   if (params.visibility) body.visibility = params.visibility
   return body
@@ -113,7 +109,7 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
   request: {
     url: (params: JiraAddWorklogParams) => {
       if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey}/worklog`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/worklog`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -132,12 +128,13 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
   },
 
   transformResponse: async (response: Response, params?: JiraAddWorklogParams) => {
-    if (!params?.timeSpentSeconds || params.timeSpentSeconds <= 0) {
-      throw new Error('timeSpentSeconds is required and must be greater than 0')
+    const t = Number(params?.timeSpentSeconds)
+    if (!params?.timeSpentSeconds || !Number.isFinite(t) || t <= 0) {
+      throw new Error('timeSpentSeconds is required and must be a positive finite number')
     }
 
     const makeRequest = async (cloudId: string) => {
-      const worklogUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/worklog`
+      const worklogUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/worklog`
       const worklogResponse = await fetch(worklogUrl, {
         method: 'POST',
         headers: {

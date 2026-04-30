@@ -49,6 +49,8 @@ export function createMockSqlOperators() {
     isNotNull: vi.fn((column) => ({ type: 'isNotNull', column })),
     inArray: vi.fn((column, values) => ({ type: 'inArray', column, values })),
     notInArray: vi.fn((column, values) => ({ type: 'notInArray', column, values })),
+    exists: vi.fn((subquery) => ({ type: 'exists', subquery })),
+    notExists: vi.fn((subquery) => ({ type: 'notExists', subquery })),
     like: vi.fn((column, pattern) => ({ type: 'like', column, pattern })),
     ilike: vi.fn((column, pattern) => ({ type: 'ilike', column, pattern })),
     desc: vi.fn((column) => ({ type: 'desc', column })),

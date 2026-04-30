@@ -2002,7 +2002,7 @@ export function Table({
   }, [])
 
   const handleAddColumn = useCallback(
-    (type = 'string', workflowId?: string) => {
+    (type: ColumnDefinition['type'] = 'string', workflowId?: string) => {
       const name = generateColumnName()
       // Workflow group flow: don't persist columns until the user picks outputs.
       // The sidebar's Save calls `addWorkflowGroup` to create N columns + 1 group
@@ -2026,6 +2026,26 @@ export function Table({
     },
     [generateColumnName]
   )
+
+  const handleChangeType = useCallback((columnName: string, newType: ColumnDefinition['type']) => {
+    const column = columnsRef.current.find((c) => c.name === columnName)
+    const previousType = column?.type
+    updateColumnMutation.mutate(
+      { columnName, updates: { type: newType } },
+      {
+        onSuccess: () => {
+          if (previousType) {
+            pushUndoRef.current({
+              type: 'update-column-type',
+              columnName,
+              previousType,
+              newType,
+            })
+          }
+        },
+      }
+    )
+  }, [])
 
   const insertColumnInOrder = useCallback(
     (anchorColumn: string, newColumn: string, side: 'left' | 'right') => {
@@ -2641,6 +2661,7 @@ export function Table({
                         onRenameSubmit={columnRename.submitRename}
                         onRenameCancel={columnRename.cancelRename}
                         onColumnSelect={handleColumnSelect}
+                        onChangeType={handleChangeType}
                         onInsertLeft={handleInsertColumnLeft}
                         onInsertRight={handleInsertColumnRight}
                         onDeleteColumn={handleDeleteColumn}
@@ -4026,6 +4047,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onRenameSubmit: () => void
   onRenameCancel: () => void
   onColumnSelect: (colIndex: number, shiftKey: boolean) => void
+  onChangeType: (columnName: string, newType: ColumnDefinition['type']) => void
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
   onDeleteColumn: (columnName: string) => void
@@ -4607,7 +4629,7 @@ function AddColumnTypeMenuItems({
   onSelect,
   workflows,
 }: {
-  onSelect: (type: string, workflowId?: string) => void
+  onSelect: (type: ColumnDefinition['type'], workflowId?: string) => void
   workflows?: WorkflowMetadata[]
 }) {
   return (
@@ -4639,7 +4661,7 @@ const AddColumnButton = React.memo(function AddColumnButton({
   disabled,
   workflows,
 }: {
-  onSelect: (type: string, workflowId?: string) => void
+  onSelect: (type: ColumnDefinition['type'], workflowId?: string) => void
   disabled: boolean
   workflows?: WorkflowMetadata[]
 }) {
@@ -4671,7 +4693,7 @@ function HeaderAddColumnTrigger({
   disabled,
   workflows,
 }: {
-  onSelect: (type: string, workflowId?: string) => void
+  onSelect: (type: ColumnDefinition['type'], workflowId?: string) => void
   disabled: boolean
   workflows?: WorkflowMetadata[]
 }) {

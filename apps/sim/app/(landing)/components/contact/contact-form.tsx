@@ -5,15 +5,16 @@ import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { toError } from '@sim/utils/errors'
 import { useMutation } from '@tanstack/react-query'
 import Link from 'next/link'
-import { Combobox, type ComboboxOption, Input, Textarea } from '@/components/emcn'
+import { Combobox, Input, Textarea } from '@/components/emcn'
 import { Check } from '@/components/emcn/icons'
-import { getEnv } from '@/lib/core/config/env'
-import { captureClientEvent } from '@/lib/posthog/client'
 import {
   CONTACT_TOPIC_OPTIONS,
   type ContactRequestPayload,
   contactRequestSchema,
-} from '@/app/(landing)/components/contact/consts'
+} from '@/lib/api/contracts/contact'
+import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
+import { getEnv } from '@/lib/core/config/env'
+import { captureClientEvent } from '@/lib/posthog/client'
 import { LandingField } from '@/app/(landing)/components/forms/landing-field'
 
 type ContactField = keyof ContactRequestPayload
@@ -130,15 +131,7 @@ export function ContactForm() {
     })
 
     if (!parsed.success) {
-      const fieldErrors = parsed.error.flatten().fieldErrors
-      setErrors({
-        name: fieldErrors.name?.[0],
-        email: fieldErrors.email?.[0],
-        company: fieldErrors.company?.[0],
-        topic: fieldErrors.topic?.[0],
-        subject: fieldErrors.subject?.[0],
-        message: fieldErrors.message?.[0],
-      })
+      setErrors(flattenFieldErrors<ContactField>(parsed.error))
       setIsSubmitting(false)
       return
     }
@@ -271,7 +264,7 @@ export function ContactForm() {
           labelClassName={LANDING_LABEL}
         >
           <Combobox
-            options={CONTACT_TOPIC_OPTIONS as unknown as ComboboxOption[]}
+            options={[...CONTACT_TOPIC_OPTIONS]}
             value={form.topic}
             selectedValue={form.topic}
             onChange={(value) => updateField('topic', value as ContactRequestPayload['topic'])}

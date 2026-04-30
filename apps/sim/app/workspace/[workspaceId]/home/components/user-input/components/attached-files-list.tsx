@@ -1,8 +1,8 @@
 'use client'
 
 import React from 'react'
-import { Loader2, X } from 'lucide-react'
-import { Tooltip } from '@/components/emcn'
+import { X } from 'lucide-react'
+import { Loader, Tooltip } from '@/components/emcn'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 
@@ -49,7 +49,7 @@ export const AttachedFilesList = React.memo(function AttachedFilesList({
                 )}
                 {file.uploading && (
                   <div className='absolute inset-0 flex items-center justify-center bg-black/50'>
-                    <Loader2 className='h-[14px] w-[14px] animate-spin text-white' />
+                    <Loader className='h-[14px] w-[14px] text-white' animate />
                   </div>
                 )}
                 {!file.uploading && (

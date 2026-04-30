@@ -6,7 +6,8 @@ import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/erro
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { bulkAddPermissionGroupMembersContract } from '@/lib/api/contracts/permission-groups'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -29,19 +30,14 @@ async function loadGroupInWorkspace(groupId: string, workspaceId: string) {
   return group ?? null
 }
 
-const bulkAddSchema = z.object({
-  userIds: z.array(z.string()).optional(),
-  addAllWorkspaceMembers: z.boolean().optional(),
-})
-
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string; groupId: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string; groupId: string }> }) => {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id: workspaceId, groupId: id } = await params
+    const { id: workspaceId, groupId: id } = await context.params
 
     try {
       const isWorkspaceAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
@@ -62,8 +58,12 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
       }
 
-      const body = await req.json()
-      const { userIds, addAllWorkspaceMembers } = bulkAddSchema.parse(body)
+      const parsed = await parseRequest(bulkAddPermissionGroupMembersContract, req, context, {
+        validationErrorResponse: (error) =>
+          NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+      })
+      if (!parsed.success) return parsed.response
+      const { userIds, addAllWorkspaceMembers } = parsed.data.body
 
       let targetUserIds: string[] = []
 
@@ -183,9 +183,6 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ added: addedUserIds.length, moved: movedCount })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
-      }
       if (getPostgresErrorCode(error) === '23505') {
         const constraint = getPostgresConstraintName(error)
         if (

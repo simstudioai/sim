@@ -1,6 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { restoreWorkflowContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -12,9 +14,11 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 const logger = createLogger('RestoreWorkflowAPI')
 
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id: workflowId } = await params
+    const parsed = await parseRequest(restoreWorkflowContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { id: workflowId } = parsed.data.params
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })

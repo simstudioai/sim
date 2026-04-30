@@ -3,6 +3,8 @@ import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { storeTrelloTokenContract } from '@/lib/api/contracts/oauth-connections'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -22,12 +24,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = (await request.json().catch(() => null)) as { token?: string } | null
-    const token = typeof body?.token === 'string' ? body.token : ''
-
-    if (!token) {
-      return NextResponse.json({ success: false, error: 'Token required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(storeTrelloTokenContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { token } = parsed.data.body
 
     const apiKey = env.TRELLO_API_KEY
     if (!apiKey) {

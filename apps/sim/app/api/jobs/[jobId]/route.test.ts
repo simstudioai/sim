@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { hybridAuthMockFns, workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing'
-import type { NextRequest } from 'next/server'
+import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetJobQueue, mockAuthorizeWorkflow, mockGetJob } = vi.hoisted(() => ({
@@ -24,11 +24,7 @@ vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 import { GET } from './route'
 
 function createMockRequest(): NextRequest {
-  return {
-    headers: {
-      get: () => null,
-    },
-  } as NextRequest
+  return new NextRequest(new URL('http://localhost:3000/api/jobs/test'))
 }
 
 describe('GET /api/jobs/[jobId]', () => {

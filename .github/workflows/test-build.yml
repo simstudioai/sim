@@ -106,6 +106,9 @@ jobs:
       - name: Enforce monorepo boundaries
         run: bun run check:boundaries
 
+      - name: API contract boundary audit
+        run: bun run check:api-validation:strict
+
       - name: Verify realtime prune graph
         run: bun run check:realtime-prune
 

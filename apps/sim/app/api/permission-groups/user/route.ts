@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { and, asc, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { userPermissionConfigQuerySchema } from '@/lib/api/contracts/permission-groups'
 import { getSession } from '@/lib/auth'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -14,12 +15,13 @@ export const GET = withRouteHandler(async (req: Request) => {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { searchParams } = new URL(req.url)
-  const workspaceId = searchParams.get('workspaceId')
-
-  if (!workspaceId) {
+  const queryResult = userPermissionConfigQuerySchema.safeParse(
+    Object.fromEntries(new URL(req.url).searchParams.entries())
+  )
+  if (!queryResult.success) {
     return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 })
   }
+  const { workspaceId } = queryResult.data
 
   const access = await checkWorkspaceAccess(workspaceId, session.user.id)
   if (!access.exists) {

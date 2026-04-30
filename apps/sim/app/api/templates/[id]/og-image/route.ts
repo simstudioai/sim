@@ -3,6 +3,8 @@ import { templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { updateTemplateOgImageBodySchema } from '@/lib/api/contracts/templates'
+import { parseJsonBody } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -40,7 +42,13 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error }, { status: status || 403 })
       }
 
-      const body = await request.json()
+      const parsedBody = await parseJsonBody(request)
+      const bodyResult = parsedBody.success
+        ? updateTemplateOgImageBodySchema.safeParse(parsedBody.data)
+        : null
+      const body = bodyResult?.success
+        ? bodyResult.data
+        : ({ imageData: undefined } as { imageData?: string })
       const { imageData } = body
 
       if (!imageData || typeof imageData !== 'string') {

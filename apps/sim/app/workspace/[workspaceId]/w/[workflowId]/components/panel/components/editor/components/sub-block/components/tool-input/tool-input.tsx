@@ -1,13 +1,14 @@
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowLeft, ChevronRight, Loader2, ServerIcon, WrenchIcon, XIcon } from 'lucide-react'
+import { ArrowLeft, ChevronRight, ServerIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
   Combobox,
   type ComboboxOption,
   type ComboboxOptionGroup,
+  Loader,
   Popover,
   PopoverContent,
   PopoverItem,
@@ -168,7 +169,7 @@ function WorkflowInputMapperInput({
   if (isLoading) {
     return (
       <div className='flex items-center justify-center rounded-md border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] p-8'>
-        <Loader2 className='h-5 w-5 animate-spin text-[var(--text-muted)]' />
+        <Loader className='h-5 w-5 text-[var(--text-muted)]' animate />
       </div>
     )
   }

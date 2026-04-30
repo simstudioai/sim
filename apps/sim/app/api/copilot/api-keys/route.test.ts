@@ -14,6 +14,8 @@ const { mockFetch } = vi.hoisted(() => ({
 vi.mock('@/lib/copilot/constants', () => ({
   SIM_AGENT_API_URL_DEFAULT: 'https://agent.sim.example.com',
   SIM_AGENT_API_URL: 'https://agent.sim.example.com',
+  COPILOT_MODES: ['ask', 'build', 'plan'] as const,
+  COPILOT_REQUEST_MODES: ['ask', 'build', 'plan', 'agent'] as const,
 }))
 
 vi.mock('@/lib/core/config/env', () => createEnvMock({ COPILOT_API_KEY: 'test-api-key' }))
