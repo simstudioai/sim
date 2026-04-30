@@ -214,7 +214,7 @@ export function SettingsSidebar({
           break
         case 'secrets':
           prefetchWorkspaceCredentials(queryClient, workspaceId)
-          void import('@/app/workspace/[workspaceId]/settings/components/credentials/credentials')
+          void import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets')
           break
         case 'subscription':
           prefetchSubscriptionData(queryClient)

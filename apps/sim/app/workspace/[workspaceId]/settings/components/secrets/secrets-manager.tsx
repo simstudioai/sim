@@ -355,7 +355,7 @@ function NewWorkspaceVariableRow({
   )
 }
 
-export function CredentialsManager() {
+export function SecretsManager() {
   const params = useParams()
   const router = useRouter()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -474,10 +474,7 @@ export function CredentialsManager() {
     [members]
   )
 
-  const adminMemberCount = useMemo(
-    () => activeMembers.filter((member) => member.role === 'admin').length,
-    [activeMembers]
-  )
+  const adminMemberCount = activeMembers.filter((member) => member.role === 'admin').length
 
   const isSelectedAdmin = selectedCredential?.role === 'admin'
 
@@ -1232,7 +1229,7 @@ export function CredentialsManager() {
                         aria-label='Copy value'
                       >
                         {copyIdSuccess ? (
-                          <Check className='h-3 w-3 text-[var(--success)]' />
+                          <Check className='h-3 w-3 text-[var(--text-success)]' />
                         ) : (
                           <Clipboard className='h-3 w-3 text-[var(--text-icon)]' />
                         )}
@@ -1287,7 +1284,10 @@ export function CredentialsManager() {
                     {activeMembers.map((member) => (
                       <div
                         key={member.id}
-                        className='grid grid-cols-[1fr_120px_72px] items-center gap-2'
+                        className={cn(
+                          'grid items-center gap-2',
+                          isSelectedAdmin ? 'grid-cols-[1fr_120px_72px]' : 'grid-cols-[1fr_200px]'
+                        )}
                       >
                         <div className='flex min-w-0 items-center gap-2.5'>
                           <Avatar className='h-8 w-8 flex-shrink-0'>
@@ -1342,10 +1342,20 @@ export function CredentialsManager() {
                             </Button>
                           </>
                         ) : (
-                          <>
-                            <Badge variant='gray-secondary'>{member.role}</Badge>
-                            <div />
-                          </>
+                          <Combobox
+                            options={ROLE_OPTIONS.map((option) => ({
+                              value: option.value,
+                              label: option.label,
+                            }))}
+                            value={
+                              ROLE_OPTIONS.find((option) => option.value === member.role)?.label ||
+                              ''
+                            }
+                            selectedValue={member.role}
+                            placeholder='Role'
+                            disabled
+                            size='sm'
+                          />
                         )}
                       </div>
                     ))}
