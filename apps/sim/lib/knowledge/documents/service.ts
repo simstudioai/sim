@@ -997,6 +997,7 @@ export async function getDocuments(
 ): Promise<{
   documents: Array<{
     id: string
+    knowledgeBaseId: string
     filename: string
     fileUrl: string
     fileSize: number
@@ -1079,7 +1080,7 @@ export async function getDocuments(
     .from(document)
     .where(and(...whereConditions))
 
-  const total = totalResult[0]?.count || 0
+  const total = Number(totalResult[0]?.count ?? 0)
   const hasMore = offset + limit < total
 
   const getOrderByColumn = () => {
@@ -1110,6 +1111,7 @@ export async function getDocuments(
   const documents = await db
     .select({
       id: document.id,
+      knowledgeBaseId: document.knowledgeBaseId,
       filename: document.filename,
       fileUrl: document.fileUrl,
       fileSize: document.fileSize,
@@ -1158,6 +1160,7 @@ export async function getDocuments(
   return {
     documents: documents.map((doc) => ({
       id: doc.id,
+      knowledgeBaseId: doc.knowledgeBaseId,
       filename: doc.filename,
       fileUrl: doc.fileUrl,
       fileSize: doc.fileSize,
