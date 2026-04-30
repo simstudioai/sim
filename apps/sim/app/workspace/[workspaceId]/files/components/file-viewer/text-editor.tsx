@@ -443,8 +443,7 @@ export const TextEditor = memo(function TextEditor({
         }
       }
       suppressScrollListenerRef.current = true
-      const prev = lastSyncedContentRef.current
-      if (content.startsWith(prev) && prev.length < content.length) {
+      if (content.startsWith(monacoValue) && monacoValue.length < content.length) {
         const lastLine = model.getLineCount()
         const lastCol = model.getLineMaxColumn(lastLine)
         model.applyEdits([
@@ -455,7 +454,7 @@ export const TextEditor = memo(function TextEditor({
               endLineNumber: lastLine,
               endColumn: lastCol,
             },
-            text: content.slice(prev.length),
+            text: content.slice(monacoValue.length),
           },
         ])
       } else {
