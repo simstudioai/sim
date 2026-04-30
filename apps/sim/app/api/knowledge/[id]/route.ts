@@ -27,8 +27,6 @@ const logger = createLogger('KnowledgeBaseByIdAPI')
 const UpdateKnowledgeBaseSchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
   description: z.string().optional(),
-  embeddingModel: z.literal('text-embedding-3-small').optional(),
-  embeddingDimension: z.literal(1536).optional(),
   workspaceId: z.string().nullable().optional(),
   chunkingConfig: z
     .object({

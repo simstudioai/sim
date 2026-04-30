@@ -7,6 +7,8 @@ import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
+import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
+import { DEFAULT_RERANKER_MODEL, rerank, SUPPORTED_RERANKER_MODELS } from '@/lib/knowledge/reranker'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
@@ -20,7 +22,8 @@ import {
   handleVectorOnlySearch,
   type SearchResult,
 } from '@/app/api/knowledge/search/utils'
-import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
+import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
+import { getRerankModelPricing } from '@/providers/models'
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('VectorSearchAPI')
@@ -59,6 +62,11 @@ const VectorSearchSchema = z
       .optional()
       .nullable()
       .transform((val) => val || undefined),
+    rerankerEnabled: z.boolean().optional().default(false),
+    rerankerModel: z
+      .enum(SUPPORTED_RERANKER_MODELS as unknown as [string, ...string[]])
+      .optional()
+      .default(DEFAULT_RERANKER_MODEL),
   })
   .refine(
     (data) => {
@@ -235,12 +243,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
-      const workspaceId = accessChecks.find((ac) => ac?.hasAccess)?.knowledgeBase?.workspaceId
+      const accessibleKbs = accessChecks
+        .filter((ac): ac is KnowledgeBaseAccessResult => Boolean(ac?.hasAccess))
+        .map((ac) => ac.knowledgeBase)
+      const workspaceId = accessibleKbs[0]?.workspaceId
+
+      const useReranker = validatedData.rerankerEnabled && Boolean(validatedData.query?.trim())
+      const rerankerModel = useReranker ? validatedData.rerankerModel : null
 
       const hasQuery = validatedData.query && validatedData.query.trim().length > 0
-      const queryEmbeddingPromise = hasQuery
-        ? generateSearchEmbedding(validatedData.query!, undefined, workspaceId)
-        : Promise.resolve(null)
+      const embeddingModels = Array.from(new Set(accessibleKbs.map((kb) => kb.embeddingModel)))
+      if (hasQuery && embeddingModels.length > 1) {
+        return NextResponse.json(
+          {
+            error:
+              'Selected knowledge bases use different embedding models and cannot be searched together. Search them separately.',
+          },
+          { status: 400 }
+        )
+      }
+      const queryEmbeddingModel = embeddingModels[0]
 
       // Check if any requested knowledge bases were not accessible
       const inaccessibleKbIds = knowledgeBaseIds.filter((id) => !accessibleKbIds.includes(id))
@@ -251,6 +273,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           { status: 404 }
         )
       }
+
+      const queryEmbeddingPromise = hasQuery
+        ? generateSearchEmbedding(validatedData.query!, queryEmbeddingModel, workspaceId)
+        : Promise.resolve(null)
 
       if (workflowId) {
         const authorization = await authorizeWorkflowByWorkspacePermission({
@@ -278,6 +304,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       const hasFilters = structuredFilters && structuredFilters.length > 0
 
+      // Oversample candidates when reranking so the reranker has more to choose from.
+      // Cap at 100 to bound Cohere request cost (1 search unit = ≤100 docs).
+      const candidateTopK = useReranker ? Math.min(100, validatedData.topK * 4) : validatedData.topK
+
       if (!hasQuery && hasFilters) {
         // Tag-only search without vector similarity
         results = await handleTagOnlySearch({
@@ -291,24 +321,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           `[${requestId}] Executing tag + vector search with filters:`,
           structuredFilters
         )
-        const strategy = getQueryStrategy(accessibleKbIds.length, validatedData.topK)
+        const strategy = getQueryStrategy(accessibleKbIds.length, candidateTopK)
         const queryVector = JSON.stringify(await queryEmbeddingPromise)
 
         results = await handleTagAndVectorSearch({
           knowledgeBaseIds: accessibleKbIds,
-          topK: validatedData.topK,
+          topK: candidateTopK,
           structuredFilters,
           queryVector,
           distanceThreshold: strategy.distanceThreshold,
         })
       } else if (hasQuery && !hasFilters) {
         // Vector-only search
-        const strategy = getQueryStrategy(accessibleKbIds.length, validatedData.topK)
+        const strategy = getQueryStrategy(accessibleKbIds.length, candidateTopK)
         const queryVector = JSON.stringify(await queryEmbeddingPromise)
 
         results = await handleVectorOnlySearch({
           knowledgeBaseIds: accessibleKbIds,
-          topK: validatedData.topK,
+          topK: candidateTopK,
           queryVector,
           distanceThreshold: strategy.distanceThreshold,
         })
@@ -323,18 +353,91 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
+      // Optional Cohere rerank pass on top of vector results.
+      const rerankedScores = new Map<string, number>()
+      // `rerankBilled` = Cohere was successfully called (even with 0 results) and we owe the search unit.
+      let rerankBilled = false
+      let rerankIsBYOK = false
+      if (useReranker && rerankerModel && results.length > 0) {
+        const candidateCount = results.length
+        try {
+          const { results: ranked, isBYOK } = await rerank(
+            validatedData.query!,
+            results.map((r) => ({ id: r.id, text: r.content })),
+            { model: rerankerModel, topN: validatedData.topK, workspaceId }
+          )
+          rerankBilled = true
+          rerankIsBYOK = isBYOK
+          if (ranked.length === 0) {
+            logger.warn(
+              `[${requestId}] Reranker returned 0 results; falling back to vector ordering`,
+              { model: rerankerModel, candidateCount }
+            )
+            results = results.slice(0, validatedData.topK)
+          } else {
+            const idToResult = new Map(results.map((r) => [r.id, r]))
+            results = ranked
+              .map((r) => idToResult.get(r.item.id))
+              .filter((r): r is SearchResult => Boolean(r))
+            for (const r of ranked) rerankedScores.set(r.item.id, r.relevanceScore)
+            logger.info(`[${requestId}] Reranked ${candidateCount} → ${results.length} results`, {
+              model: rerankerModel,
+            })
+          }
+        } catch (error) {
+          logger.warn(`[${requestId}] Reranker failed; falling back to vector ordering`, {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            model: rerankerModel,
+            candidateCount,
+            workspaceId,
+          })
+          results = results.slice(0, validatedData.topK)
+        }
+      } else if (useReranker) {
+        results = results.slice(0, validatedData.topK)
+      }
+
       // Calculate cost for the embedding (with fallback if calculation fails)
       let cost = null
       let tokenCount = null
       if (hasQuery) {
         try {
-          tokenCount = estimateTokenCount(validatedData.query!, 'openai')
-          cost = calculateCost('text-embedding-3-small', tokenCount.count, 0, false)
+          tokenCount = estimateTokenCount(
+            validatedData.query!,
+            getEmbeddingModelInfo(queryEmbeddingModel).tokenizerProvider
+          )
+          cost = calculateCost(queryEmbeddingModel, tokenCount.count, 0, false)
         } catch (error) {
           logger.warn(`[${requestId}] Failed to calculate cost for search query`, {
             error: error instanceof Error ? error.message : 'Unknown error',
           })
           // Continue without cost information rather than failing the search
+        }
+      }
+
+      // Add Cohere rerank cost (1 search unit per successful call, since we cap candidates ≤100).
+      // Bill on every successful API response — Cohere charges even when 0 results are returned.
+      let rerankerCost = 0
+      if (rerankBilled && rerankerModel && !rerankIsBYOK) {
+        const pricing = getRerankModelPricing(rerankerModel)
+        if (pricing) {
+          rerankerCost = pricing.perSearchUnit
+          if (cost) {
+            cost = {
+              ...cost,
+              input: cost.input + rerankerCost,
+              total: cost.total + rerankerCost,
+            }
+          } else {
+            cost = {
+              input: rerankerCost,
+              output: 0,
+              total: rerankerCost,
+              pricing: { input: 0, output: 0, updatedAt: pricing.updatedAt },
+            }
+          }
+        } else {
+          logger.warn(`[${requestId}] No pricing entry for rerank model ${rerankerModel}`)
         }
       }
 
@@ -400,6 +503,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               }
             })
 
+            const rerankerScore = rerankedScores.get(result.id)
             return {
               documentId: result.documentId,
               documentName: documentNameMap[result.documentId] || undefined,
@@ -407,6 +511,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               chunkIndex: result.chunkIndex,
               metadata: tags, // Clean display name mapped tags
               similarity: hasQuery ? 1 - result.distance : 1, // Perfect similarity for tag-only searches
+              ...(rerankerScore !== undefined && { rerankerScore }),
             }
           }),
           query: validatedData.query || '',
@@ -414,19 +519,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           knowledgeBaseId: accessibleKbIds[0],
           topK: validatedData.topK,
           totalResults: results.length,
-          ...(cost && tokenCount
+          ...(cost
             ? {
                 cost: {
                   input: cost.input,
                   output: cost.output,
                   total: cost.total,
                   tokens: {
-                    prompt: tokenCount.count,
+                    prompt: tokenCount?.count ?? 0,
                     completion: 0,
-                    total: tokenCount.count,
+                    total: tokenCount?.count ?? 0,
                   },
-                  model: 'text-embedding-3-small',
+                  model: queryEmbeddingModel,
                   pricing: cost.pricing,
+                  ...(rerankBilled && !rerankIsBYOK
+                    ? { rerankerCost, rerankerModel, rerankerSearchUnits: 1 }
+                    : {}),
                 },
               }
             : {}),

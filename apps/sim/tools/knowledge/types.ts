@@ -40,6 +40,7 @@ export interface KnowledgeSearchResult {
   chunkIndex: number
   metadata: Record<string, any>
   similarity: number
+  rerankerScore?: number
 }
 
 export interface KnowledgeSearchResponse {
@@ -52,18 +53,16 @@ export interface KnowledgeSearchResponse {
       input: number
       output: number
       total: number
-      tokens: {
-        prompt: number
-        completion: number
-        total: number
-      }
-      model: string
-      pricing: {
-        input: number
-        output: number
-        updatedAt: string
-      }
+      rerankerCost?: number
+      rerankerModel?: string
+      rerankerSearchUnits?: number
     }
+    tokens?: {
+      prompt: number
+      completion: number
+      total: number
+    }
+    model?: string
   }
   error?: string
 }

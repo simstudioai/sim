@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
 import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
 import {
   authenticateRequest,
@@ -92,8 +93,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         description,
         workspaceId,
         userId,
-        embeddingModel: 'text-embedding-3-small',
-        embeddingDimension: 1536,
+        embeddingModel: getConfiguredEmbeddingModel(),
+        embeddingDimension: EMBEDDING_DIMENSIONS,
         chunkingConfig: chunkingConfig ?? { maxSize: 1024, minSize: 100, overlap: 200 },
       },
       requestId

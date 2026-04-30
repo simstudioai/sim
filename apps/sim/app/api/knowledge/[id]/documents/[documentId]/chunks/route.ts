@@ -215,7 +215,12 @@ export const POST = withRouteHandler(
 
         let cost = null
         try {
-          cost = calculateCost('text-embedding-3-small', newChunk.tokenCount, 0, false)
+          cost = calculateCost(
+            accessCheck.knowledgeBase.embeddingModel,
+            newChunk.tokenCount,
+            0,
+            false
+          )
         } catch (error) {
           logger.warn(`[${requestId}] Failed to calculate cost for chunk upload`, {
             error: error instanceof Error ? error.message : 'Unknown error',
@@ -240,7 +245,7 @@ export const POST = withRouteHandler(
                       completion: 0,
                       total: newChunk.tokenCount,
                     },
-                    model: 'text-embedding-3-small',
+                    model: accessCheck.knowledgeBase.embeddingModel,
                     pricing: cost.pricing,
                   },
                 }
