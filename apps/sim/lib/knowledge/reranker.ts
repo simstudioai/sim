@@ -40,6 +40,12 @@ export interface RerankedResult<T extends RerankItem> {
   relevanceScore: number
 }
 
+export interface RerankResponse<T extends RerankItem> {
+  results: RerankedResult<T>[]
+  /** True when a workspace-supplied (BYOK) Cohere key was used. Callers should skip platform billing in that case. */
+  isBYOK: boolean
+}
+
 class RerankAPIError extends Error {
   public status: number
   constructor(message: string, status: number) {
@@ -49,18 +55,20 @@ class RerankAPIError extends Error {
   }
 }
 
-async function resolveCohereKey(workspaceId?: string | null): Promise<string> {
+async function resolveCohereKey(
+  workspaceId?: string | null
+): Promise<{ apiKey: string; isBYOK: boolean }> {
   if (workspaceId) {
     const byokResult = await getBYOKKey(workspaceId, 'cohere')
     if (byokResult) {
       logger.info('Using workspace BYOK key for Cohere reranker')
-      return byokResult.apiKey
+      return { apiKey: byokResult.apiKey, isBYOK: true }
     }
   }
   try {
-    return getRotatingApiKey('cohere')
+    return { apiKey: getRotatingApiKey('cohere'), isBYOK: false }
   } catch {
-    if (env.COHERE_API_KEY) return env.COHERE_API_KEY
+    if (env.COHERE_API_KEY) return { apiKey: env.COHERE_API_KEY, isBYOK: false }
     throw new Error(
       'No Cohere API key configured. Set COHERE_API_KEY_1/2/3 (rotation) or COHERE_API_KEY.'
     )
@@ -83,14 +91,14 @@ export async function rerank<T extends RerankItem>(
     topN?: number
     workspaceId?: string | null
   }
-): Promise<RerankedResult<T>[]> {
-  if (items.length === 0) return []
+): Promise<RerankResponse<T>> {
+  if (items.length === 0) return { results: [], isBYOK: false }
 
   if (!isSupportedRerankerModel(options.model)) {
     throw new Error(`Unsupported reranker model: ${options.model}`)
   }
 
-  const apiKey = await resolveCohereKey(options.workspaceId)
+  const { apiKey, isBYOK } = await resolveCohereKey(options.workspaceId)
   const cappedItems =
     items.length > MAX_DOCUMENTS_PER_RERANK ? items.slice(0, MAX_DOCUMENTS_PER_RERANK) : items
   if (items.length > MAX_DOCUMENTS_PER_RERANK) {
@@ -141,8 +149,11 @@ export async function rerank<T extends RerankItem>(
     }
   )
 
-  return response.results.map((r) => ({
-    item: cappedItems[r.index],
-    relevanceScore: r.relevance_score,
-  }))
+  return {
+    results: response.results.map((r) => ({
+      item: cappedItems[r.index],
+      relevanceScore: r.relevance_score,
+    })),
+    isBYOK,
+  }
 }

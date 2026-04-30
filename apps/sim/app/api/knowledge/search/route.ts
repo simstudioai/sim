@@ -358,15 +358,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       // `rerankApplied` = result ordering was actually replaced by the reranker output.
       let rerankBilled = false
       let rerankApplied = false
+      let rerankIsBYOK = false
       if (useReranker && rerankerModel && results.length > 0) {
         const candidateCount = results.length
         try {
-          const ranked = await rerank(
+          const { results: ranked, isBYOK } = await rerank(
             validatedData.query!,
             results.map((r) => ({ id: r.id, text: r.content })),
             { model: rerankerModel, topN: validatedData.topK, workspaceId }
           )
           rerankBilled = true
+          rerankIsBYOK = isBYOK
           if (ranked.length === 0) {
             logger.warn(
               `[${requestId}] Reranker returned 0 results; falling back to vector ordering`,
@@ -415,7 +417,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       // Add Cohere rerank cost (1 search unit per successful call, since we cap candidates ≤100).
       // Bill on every successful API response — Cohere charges even when 0 results are returned.
       let rerankerCost = 0
-      if (rerankBilled && rerankerModel) {
+      if (rerankBilled && rerankerModel && !rerankIsBYOK) {
         const pricing = getRerankModelPricing(rerankerModel)
         if (pricing) {
           rerankerCost = pricing.perSearchUnit
@@ -529,7 +531,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
                   },
                   model: queryEmbeddingModel,
                   pricing: cost.pricing,
-                  ...(rerankBilled ? { rerankerCost, rerankerModel, rerankerSearchUnits: 1 } : {}),
+                  ...(rerankBilled && !rerankIsBYOK
+                    ? { rerankerCost, rerankerModel, rerankerSearchUnits: 1 }
+                    : {}),
                 },
               }
             : {}),
