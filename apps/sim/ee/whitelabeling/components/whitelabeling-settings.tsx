@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { Loader2, X } from 'lucide-react'
+import { Info, Loader2, X } from 'lucide-react'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
 import { Button, Input, Label, Skeleton, toast } from '@/components/emcn'
@@ -318,6 +318,10 @@ export function WhitelabelingSettings() {
 
   return (
     <div className='flex flex-col gap-8'>
+      <div className='flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5'>
+        <Info className='h-3.5 w-3.5 flex-shrink-0 text-[var(--text-muted)]' />
+        <p className='text-[12px] text-[var(--text-muted)]'>Applies organization-wide</p>
+      </div>
       <section>
         <SectionTitle>Brand Identity</SectionTitle>
         <div className='flex flex-col gap-5'>
