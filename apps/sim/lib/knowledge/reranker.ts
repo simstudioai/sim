@@ -3,20 +3,23 @@ import { getBYOKKey } from '@/lib/api-key/byok'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
+import {
+  DEFAULT_RERANKER_MODEL,
+  isSupportedRerankerModel,
+  type RerankerModelId,
+  SUPPORTED_RERANKER_MODELS,
+} from '@/lib/knowledge/reranker-models'
+
+export {
+  DEFAULT_RERANKER_MODEL,
+  isSupportedRerankerModel,
+  type RerankerModelId,
+  SUPPORTED_RERANKER_MODELS,
+}
 
 const logger = createLogger('Reranker')
 
 const RERANK_REQUEST_TIMEOUT_MS = 30_000
-
-/** Cohere rerank model identifiers we accept. Must match Cohere's model ids exactly. */
-export const SUPPORTED_RERANKER_MODELS = [
-  'rerank-v4.0-pro',
-  'rerank-v4.0-fast',
-  'rerank-v3.5',
-] as const
-export type RerankerModelId = (typeof SUPPORTED_RERANKER_MODELS)[number]
-
-export const DEFAULT_RERANKER_MODEL: RerankerModelId = 'rerank-v4.0-fast'
 
 /**
  * Cohere bills per "search unit" = one query with up to 100 documents.
@@ -25,10 +28,6 @@ export const DEFAULT_RERANKER_MODEL: RerankerModelId = 'rerank-v4.0-fast'
  * caps `candidateTopK` at 100, so this is a defensive ceiling.
  */
 const MAX_DOCUMENTS_PER_RERANK = 100
-
-export function isSupportedRerankerModel(model: string): model is RerankerModelId {
-  return (SUPPORTED_RERANKER_MODELS as readonly string[]).includes(model)
-}
 
 export interface RerankItem {
   /** Stable identifier so callers can correlate ranked results back to source rows. */

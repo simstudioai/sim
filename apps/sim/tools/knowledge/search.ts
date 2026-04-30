@@ -1,4 +1,4 @@
-import { DEFAULT_RERANKER_MODEL, SUPPORTED_RERANKER_MODELS } from '@/lib/knowledge/reranker'
+import { DEFAULT_RERANKER_MODEL, SUPPORTED_RERANKER_MODELS } from '@/lib/knowledge/reranker-models'
 import type { KnowledgeSearchResponse } from '@/tools/knowledge/types'
 import { enrichKBTagFiltersSchema } from '@/tools/schema-enrichers'
 import { parseTagFilters } from '@/tools/shared/tags'
