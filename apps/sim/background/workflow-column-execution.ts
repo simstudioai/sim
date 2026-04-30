@@ -46,6 +46,11 @@ export async function executeWorkflowGroupCellJob(
       dataPatch?: RowData
     ) => writeWorkflowGroupState(cellCtx, { executionState, dataPatch })
 
+    // Hoisted out of the try so the catch block can drain pending writes and
+    // surface partial errors in the terminal-error state.
+    const blockErrors: Record<string, string> = {}
+    let writeChain: Promise<void> = Promise.resolve()
+
     try {
       const table = await getTableById(tableId)
       if (!table) {
@@ -138,15 +143,16 @@ export async function executeWorkflowGroupCellJob(
 
       // Local accumulators for the run.
       const accumulatedData: RowData = {}
-      const blockErrors: Record<string, string> = {}
       const runningBlockIds = new Set<string>()
-      let writeChain: Promise<void> = Promise.resolve()
 
       /** Snapshot the current state and append a partial write to the chain. */
       const schedulePartialWrite = () => {
         const dataSnapshot: RowData = { ...accumulatedData }
         const blockErrorsSnapshot = { ...blockErrors }
         const runningSnapshot = Array.from(runningBlockIds)
+        logger.info(
+          `[FLASH-DEBUG] partial write scheduled row=${rowId} group=${groupId} dataKeys=${JSON.stringify(Object.keys(dataSnapshot))} running=${JSON.stringify(runningSnapshot)} errors=${JSON.stringify(Object.keys(blockErrorsSnapshot))}`
+        )
         writeChain = writeChain
           .then(async () => {
             if (signal?.aborted) return
@@ -208,6 +214,10 @@ export async function executeWorkflowGroupCellJob(
         } else {
           for (const out of outputs) {
             const plucked = pluckByPath(blockResult, out.path)
+            // Skip when pluck misses — assigning `undefined` would drop the
+            // key on JSON serialization, clearing any prior value already
+            // landed for this column.
+            if (plucked === undefined) continue
             accumulatedData[out.columnName] = plucked as RowData[string]
           }
         }
@@ -240,6 +250,9 @@ export async function executeWorkflowGroupCellJob(
       // Drain queued partial writes before the terminal write so a late
       // `running` partial doesn't clobber it.
       await writeChain.catch(() => {})
+      logger.info(
+        `[FLASH-DEBUG] terminal write row=${rowId} group=${groupId} status=${result.success ? 'completed' : 'error'} dataKeys=${JSON.stringify(Object.keys(accumulatedData))}`
+      )
 
       await writeState(
         {
@@ -259,6 +272,11 @@ export async function executeWorkflowGroupCellJob(
         `Workflow group cell execution failed (table=${tableId} row=${rowId} group=${groupId})`,
         { error: message, executionId }
       )
+      // Drain queued partial writes before the terminal error write so a late
+      // `running` partial doesn't clobber it — same reason as the success
+      // path above. Reset `runningBlockIds`/`blockErrors` explicitly so the
+      // renderer sees a clean terminal state (otherwise stale spinners stay).
+      await writeChain.catch(() => {})
       try {
         await writeState({
           status: 'error',
@@ -266,6 +284,8 @@ export async function executeWorkflowGroupCellJob(
           jobId: null,
           workflowId,
           error: message,
+          runningBlockIds: [],
+          blockErrors,
         })
       } catch (writeErr) {
         logger.error('Also failed to write error state', { error: toError(writeErr).message })

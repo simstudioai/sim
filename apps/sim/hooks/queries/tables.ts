@@ -67,7 +67,7 @@ interface TableRowsParams {
   includeTotal?: boolean
 }
 
-interface TableRowsResponse {
+export interface TableRowsResponse {
   rows: TableRow[]
   /** `null` when the request opted out of the count via `includeTotal: false`. */
   totalCount: number | null
@@ -162,10 +162,17 @@ async function fetchTableRows({
   } = await res.json()
 
   const data = json.data || json
-  return {
-    rows: (data.rows || []) as TableRow[],
-    totalCount: data.totalCount ?? null,
+  const rows = (data.rows || []) as TableRow[]
+  if (rows.length > 0 && rows.length <= 5) {
+    const summary = rows.map((r) => ({
+      id: r.id,
+      exec: Object.fromEntries(
+        Object.entries(r.executions ?? {}).map(([gid, e]) => [gid, e?.status ?? null])
+      ),
+    }))
+    logger.info(`[FLASH-DEBUG] fetch /rows returned ${JSON.stringify(summary)}`)
   }
+  return { rows, totalCount: data.totalCount ?? null }
 }
 
 function invalidateRowData(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
@@ -266,9 +273,17 @@ export function useTableRows({
 
     onTableRowUpdated((event) => {
       if (event.tableId !== tableId) return
+      const incomingExec = Object.fromEntries(
+        Object.entries(
+          (event.executions as Record<string, { status?: string }> | undefined) ?? {}
+        ).map(([gid, e]) => [gid, e?.status ?? null])
+      )
       // While an optimistic mutation is in flight, applying the socket delta
       // could clobber the optimistic state — defer to onSettled invalidate.
       if (queryClient.isMutating() > 0) {
+        logger.info(
+          `[FLASH-DEBUG] socket row=${event.rowId} (mutation in flight → invalidate) incomingExec=${JSON.stringify(incomingExec)}`
+        )
         queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
         return
       }
@@ -294,6 +309,15 @@ export function useTableRows({
               totalCount: current.totalCount === null ? null : current.totalCount + 1,
             }
           }
+          const prevExec = Object.fromEntries(
+            Object.entries(current.rows[idx].executions ?? {}).map(([gid, e]) => [
+              gid,
+              e?.status ?? null,
+            ])
+          )
+          logger.info(
+            `[FLASH-DEBUG] socket merge row=${event.rowId} prevExec=${JSON.stringify(prevExec)} incomingExec=${JSON.stringify(incomingExec)}`
+          )
           const merged = {
             ...current.rows[idx],
             data: incoming.data,
@@ -1089,6 +1113,12 @@ interface RunGroupVariables {
   /** Workflow id sourced from the group's config — used as a fallback for the
    *  optimistic execution `workflowId` field when the row hasn't run before. */
   workflowId: string
+  /**
+   * `all` — fire every dep-satisfied row (default).
+   * `incomplete` — only rows that have never run or whose last run ended in
+   * `failed`/`aborted`. Mirrored by the server-side filter.
+   */
+  mode?: 'all' | 'incomplete'
 }
 
 type RowsCacheSnapshots = Array<[ReadonlyArray<unknown>, TableRowsResponse]>
@@ -1101,7 +1131,7 @@ type RowsCacheSnapshots = Array<[ReadonlyArray<unknown>, TableRowsResponse]>
  * `transform(row)` returns the next row to write, or `null` to leave it. The
  * common pattern is "matching cells flip state, others are skipped".
  */
-async function snapshotAndMutateRows(
+export async function snapshotAndMutateRows(
   queryClient: ReturnType<typeof useQueryClient>,
   tableId: string,
   transform: (row: TableRow) => TableRow | null
@@ -1127,7 +1157,7 @@ async function snapshotAndMutateRows(
   return snapshots
 }
 
-function restoreCachedWorkflowCells(
+export function restoreCachedWorkflowCells(
   queryClient: ReturnType<typeof useQueryClient>,
   snapshots: RowsCacheSnapshots
 ) {
@@ -1146,13 +1176,13 @@ export function useRunGroup({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ groupId }: RunGroupVariables) => {
+    mutationFn: async ({ groupId, mode = 'all' }: RunGroupVariables) => {
       const res = await fetch(
         `/api/table/${tableId}/groups/${encodeURIComponent(groupId)}/run`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId }),
+          body: JSON.stringify({ workspaceId, mode }),
         }
       )
 
@@ -1163,10 +1193,13 @@ export function useRunGroup({ workspaceId, tableId }: RowMutationContext) {
 
       return res.json() as Promise<{ success: boolean; data: { triggered: number } }>
     },
-    onMutate: async ({ groupId, workflowId }) => {
+    onMutate: async ({ groupId, workflowId, mode = 'all' }) => {
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
         const exec = (r.executions ?? {})[groupId] as RowExecutionMetadata | undefined
         if (exec?.status === 'running' || exec?.status === 'pending') return null
+        // Mirror the server-side `incomplete` filter so the optimistic update
+        // doesn't flash `pending` on rows the server is going to skip.
+        if (mode === 'incomplete' && exec?.status === 'completed') return null
         const pending: RowExecutionMetadata = {
           status: 'pending',
           executionId: exec?.executionId ?? null,

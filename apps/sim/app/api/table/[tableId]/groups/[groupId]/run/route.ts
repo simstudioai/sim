@@ -17,6 +17,13 @@ const logger = createLogger('TableRunGroupAPI')
 
 const RunSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
+  /**
+   * `all` — every dep-satisfied row that isn't already running/pending.
+   * `incomplete` — same, but additionally restricted to rows whose group has
+   * never run, or whose last run ended in `failed`/`aborted`. Used by the
+   * "Run unrun & aborted rows" affordance in the group header.
+   */
+  mode: z.enum(['all', 'incomplete']).default('all'),
 })
 
 interface RouteParams {
@@ -95,6 +102,12 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       const exec = tableRow.executions[groupId]
       if (exec?.status === 'running') return false
       if (exec?.status === 'pending' && exec?.jobId) return false
+      if (validated.mode === 'incomplete') {
+        // Include rows that have never run (no exec record) or whose last run
+        // ended in `failed`/`aborted`. Skip `completed`.
+        const status = exec?.status
+        if (status === 'completed') return false
+      }
       try {
         return areGroupDepsSatisfied(group, tableRow)
       } catch {
@@ -106,6 +119,10 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       return NextResponse.json({ success: true, data: { triggered: 0 } })
     }
 
+    // Clear the group's output cells so the rerun starts visually fresh.
+    const clearedData = Object.fromEntries(
+      group.outputs.map((o) => [o.columnName, null])
+    ) as RowData
     const updates = eligibleRows.map((r) => {
       const pendingExec: RowExecutionMetadata = {
         status: 'pending',
@@ -116,7 +133,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       }
       return {
         rowId: r.id,
-        data: {} as RowData,
+        data: clearedData,
         executionsPatch: { [groupId]: pendingExec },
       }
     })

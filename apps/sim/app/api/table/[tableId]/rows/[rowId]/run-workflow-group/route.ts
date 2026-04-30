@@ -61,11 +61,17 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       workflowId: group.workflowId,
       error: null,
     }
+    // Clear the group's output cells so the rerun starts visually fresh —
+    // otherwise stale values from the previous run linger in the UI until the
+    // new run writes new ones (or doesn't, on error/router-skip).
+    const clearedData = Object.fromEntries(
+      group.outputs.map((o) => [o.columnName, null])
+    )
     await updateRow(
       {
         tableId,
         rowId,
-        data: {},
+        data: clearedData,
         workspaceId: validated.workspaceId,
         executionsPatch: { [validated.groupId]: pendingExec },
       },

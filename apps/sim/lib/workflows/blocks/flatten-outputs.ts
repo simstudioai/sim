@@ -22,6 +22,9 @@ export interface FlattenedBlockOutput {
   blockType: string
   /** Dot-path into the block's output (e.g. `content`, `content.text`). */
   path: string
+  /** Type from the block's output schema (e.g. `string`, `number`, `json`).
+   *  Used by the table column-sidebar to pick the right column type. */
+  leafType?: string
 }
 
 /**
@@ -86,14 +89,27 @@ export function flattenWorkflowOutputs(
     const blockName = block.name || `Block ${block.id}`
     const add = (path: string, outputObj: unknown, prefix = ''): void => {
       const fullPath = prefix ? `${prefix}.${path}` : path
+      const declaredType =
+        outputObj &&
+        typeof outputObj === 'object' &&
+        !Array.isArray(outputObj) &&
+        'type' in (outputObj as object) &&
+        typeof (outputObj as { type: unknown }).type === 'string'
+          ? (outputObj as { type: string }).type
+          : undefined
       const isLeaf =
         typeof outputObj !== 'object' ||
         outputObj === null ||
-        ('type' in (outputObj as object) &&
-          typeof (outputObj as { type: unknown }).type === 'string') ||
+        declaredType !== undefined ||
         Array.isArray(outputObj)
       if (isLeaf) {
-        results.push({ blockId: block.id, blockName, blockType: block.type, path: fullPath })
+        results.push({
+          blockId: block.id,
+          blockName,
+          blockType: block.type,
+          path: fullPath,
+          leafType: declaredType,
+        })
         return
       }
       for (const [key, value] of Object.entries(outputObj as Record<string, unknown>)) {

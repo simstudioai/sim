@@ -78,6 +78,12 @@ const logger = createLogger('TableService')
  * server can broadcast to subscribed clients in the table room.
  */
 function notifyTableRowUpdated(tableId: string, row: TableRow): void {
+  const execStates = Object.fromEntries(
+    Object.entries(row.executions ?? {}).map(([gid, e]) => [gid, e?.status ?? null])
+  )
+  logger.info(
+    `[FLASH-DEBUG] notify row=${row.id} table=${tableId} exec=${JSON.stringify(execStates)}`
+  )
   void fetch(`${getSocketServerUrl()}/api/table-row-updated`, {
     method: 'POST',
     headers: {
@@ -883,8 +889,8 @@ export async function insertRow(
     table.schema,
     requestId
   )
-  void scheduleWorkflowGroupRuns(table, [insertedRow])
   notifyTableRowUpdated(data.tableId, insertedRow)
+  void scheduleWorkflowGroupRuns(table, [insertedRow])
 
   return insertedRow
 }
@@ -991,8 +997,8 @@ export async function batchInsertRows(
   }))
 
   void fireTableTrigger(data.tableId, table.name, 'insert', result, null, table.schema, requestId)
-  void scheduleWorkflowGroupRuns(table, result)
   for (const row of result) notifyTableRowUpdated(data.tableId, row)
+  void scheduleWorkflowGroupRuns(table, result)
 
   return result
 }
@@ -1328,8 +1334,8 @@ export async function upsertRow(
       requestId
     )
   }
-  void scheduleWorkflowGroupRuns(table, [result.row])
   notifyTableRowUpdated(data.tableId, result.row)
+  void scheduleWorkflowGroupRuns(table, [result.row])
 
   return result
 }
@@ -1566,10 +1572,17 @@ export async function updateRow(
     table.schema,
     requestId
   )
+  // Notify BEFORE the scheduler so this event (carrying the user's data
+  // update with pre-scheduler executions) reaches the client first. The
+  // scheduler then fires its own per-write notifications with `pending`/
+  // `running` execution state — those land last, so the cached executions
+  // end on the live state instead of being clobbered by a stale envelope.
+  notifyTableRowUpdated(data.tableId, updatedRow)
+  logger.info(`[FLASH-DEBUG] updateRow → scheduler START row=${data.rowId}`)
   // Awaited (not `void`) so cell tasks dispatch their cascade before the
   // trigger.dev worker tears down on `run()` resolve.
   await scheduleWorkflowGroupRuns(table, [updatedRow])
-  notifyTableRowUpdated(data.tableId, updatedRow)
+  logger.info(`[FLASH-DEBUG] updateRow → scheduler END row=${data.rowId}`)
 
   return updatedRow
 }
@@ -1714,7 +1727,6 @@ export async function updateRowsByFilter(
 
   logger.info(`[${requestId}] Updated ${matchingRows.length} rows in table ${data.tableId}`)
 
-  // Fire update triggers with old and new row data
   const oldRows = new Map(matchingRows.map((r) => [r.id, r.data as RowData]))
   const updatedRows: TableRow[] = matchingRows.map((r) => ({
     id: r.id,
@@ -1733,8 +1745,8 @@ export async function updateRowsByFilter(
     table.schema,
     requestId
   )
-  void scheduleWorkflowGroupRuns(table, updatedRows)
   for (const row of updatedRows) notifyTableRowUpdated(data.tableId, row)
+  void scheduleWorkflowGroupRuns(table, updatedRows)
 
   return {
     affectedCount: matchingRows.length,
@@ -1840,7 +1852,6 @@ export async function batchUpdateRows(
 
   logger.info(`[${requestId}] Batch updated ${mergedUpdates.length} rows in table ${data.tableId}`)
 
-  // Fire update triggers with old and new row data
   const oldRowsForTrigger = new Map(
     data.updates.map((u) => [u.rowId, existingMap.get(u.rowId)!.data])
   )
@@ -1863,8 +1874,11 @@ export async function batchUpdateRows(
     table.schema,
     requestId
   )
-  void scheduleWorkflowGroupRuns(table, updatedRowsForTrigger)
+  // Same ordering as `updateRow`: notify with the user's data update first
+  // so the scheduler's later per-write notifications (pending/running) land
+  // last and stick in the client cache.
   for (const row of updatedRowsForTrigger) notifyTableRowUpdated(data.tableId, row)
+  void scheduleWorkflowGroupRuns(table, updatedRowsForTrigger)
 
   return {
     affectedCount: mergedUpdates.length,

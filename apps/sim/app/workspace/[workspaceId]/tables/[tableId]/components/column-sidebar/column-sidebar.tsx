@@ -92,6 +92,26 @@ function deriveOutputColumnName(
 
 const OUTPUT_VALUE_SEPARATOR = '::'
 
+type ColumnType = ColumnDefinition['type']
+
+/**
+ * Map a block-output leaf type onto a table column type. Block schemas use a
+ * superset (`array`, `object`, etc.); anything outside the column-type union
+ * falls back to `json`, the most permissive shape that still validates.
+ */
+function columnTypeForLeaf(leafType: string | undefined): ColumnType {
+  switch (leafType) {
+    case 'string':
+    case 'number':
+    case 'boolean':
+    case 'date':
+    case 'json':
+      return leafType
+    default:
+      return 'json'
+  }
+}
+
 /** Shared dashed-divider style — mirrors the workflow editor's subblock divider. */
 const DASHED_DIVIDER_STYLE = {
   backgroundImage:
@@ -509,9 +529,13 @@ export function ColumnSidebar({
    * state, sorted by execution order. Empty array if the user hasn't picked
    * anything.
    */
-  const buildOrderedPickedOutputs = (): Array<{ blockId: string; path: string }> => {
+  const buildOrderedPickedOutputs = (): Array<{
+    blockId: string
+    path: string
+    leafType?: string
+  }> => {
     const seen = new Set<string>()
-    const outputs: Array<{ blockId: string; path: string }> = []
+    const outputs: Array<{ blockId: string; path: string; leafType?: string }> = []
     for (const encoded of selectedOutputs) {
       if (seen.has(encoded)) continue
       seen.add(encoded)
@@ -532,6 +556,12 @@ export function ColumnSidebar({
       const indexInFlat = new Map(
         flat.map((f, i) => [`${f.blockId}${OUTPUT_VALUE_SEPARATOR}${f.path}`, i])
       )
+      const leafTypeByKey = new Map(
+        flat.map((f) => [`${f.blockId}${OUTPUT_VALUE_SEPARATOR}${f.path}`, f.leafType])
+      )
+      for (const o of outputs) {
+        o.leafType = leafTypeByKey.get(`${o.blockId}${OUTPUT_VALUE_SEPARATOR}${o.path}`)
+      }
       outputs.sort((a, b) => {
         const da = distances[a.blockId]
         const db = distances[b.blockId]
@@ -591,7 +621,7 @@ export function ColumnSidebar({
               fullOutputs.push({ blockId: o.blockId, path: o.path, columnName: colName })
               newOutputColumns.push({
                 name: colName,
-                type: 'string',
+                type: columnTypeForLeaf(o.leafType),
                 required: false,
                 unique: false,
                 workflowGroupId: existingGroup.id,
@@ -620,7 +650,7 @@ export function ColumnSidebar({
             taken.add(colName)
             newOutputColumns.push({
               name: colName,
-              type: 'string',
+              type: columnTypeForLeaf(o.leafType),
               required: false,
               unique: false,
               workflowGroupId: groupId,

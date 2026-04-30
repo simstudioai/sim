@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Circle, Square } from 'lucide-react'
+import { Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
@@ -78,7 +78,7 @@ import {
 } from '@/hooks/queries/tables'
 import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
 import { useLogByExecutionId } from '@/hooks/queries/logs'
-import { useWorkflows, useWorkflowState } from '@/hooks/queries/workflows'
+import { useWorkflows, useWorkflowStates } from '@/hooks/queries/workflows'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
@@ -117,6 +117,16 @@ interface NormalizedSelection {
  * one DisplayColumn per ColumnDefinition — no fan-out. Workflow grouping is
  * derived from `column.workflowGroupId` and rendered as a meta-header banner.
  */
+interface BlockIconInfo {
+  icon: React.ComponentType<{ className?: string }>
+  color: string
+}
+
+interface ColumnSourceInfo {
+  blockIconInfo?: BlockIconInfo
+  blockName?: string
+}
+
 interface DisplayColumn extends ColumnDefinition {
   /** Stable per-visual-column identifier (= column.name). */
   key: string
@@ -426,8 +436,8 @@ export function Table({
   const deleteWorkflowGroupMutation = useDeleteWorkflowGroup({ workspaceId, tableId })
 
   const handleRunGroup = useCallback(
-    (groupId: string, workflowId: string) => {
-      runGroupMutation.mutate({ groupId, workflowId })
+    (groupId: string, workflowId: string, mode: 'all' | 'incomplete' = 'all') => {
+      runGroupMutation.mutate({ groupId, workflowId, mode })
     },
     // mutate is stable; intentionally excluded from deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -499,6 +509,31 @@ export function Table({
     () => tableData?.schema?.workflowGroups ?? [],
     [tableData?.schema?.workflowGroups]
   )
+
+  // Single batched fetch + one observer per unique workflow id; column headers
+  // read pre-resolved icon/name info from the map below instead of each
+  // mounting their own `useWorkflowState` subscription.
+  const workflowStates = useWorkflowStates(
+    useMemo(() => tableWorkflowGroups.map((g) => g.workflowId), [tableWorkflowGroups])
+  )
+  const columnSourceInfo = useMemo<Map<string, ColumnSourceInfo>>(() => {
+    const map = new Map<string, ColumnSourceInfo>()
+    for (const group of tableWorkflowGroups) {
+      const state = workflowStates.get(group.workflowId)
+      const blocks = (state as { blocks?: Record<string, FlattenOutputsBlockInput> } | null)
+        ?.blocks
+      for (const out of group.outputs) {
+        const block = blocks?.[out.blockId]
+        const blockConfig = block?.type ? getBlock(block.type) : undefined
+        const blockIconInfo: BlockIconInfo | undefined = blockConfig?.icon
+          ? { icon: blockConfig.icon, color: blockConfig.bgColor || '#2F55FF' }
+          : undefined
+        const blockName = block?.name?.trim() || undefined
+        map.set(out.columnName, { blockIconInfo, blockName })
+      }
+    }
+    return map
+  }, [tableWorkflowGroups, workflowStates])
 
   const displayColumns = useMemo<DisplayColumn[]>(() => {
     let ordered: ColumnDefinition[]
@@ -2401,7 +2436,14 @@ export function Table({
       // newly-ready successors automatically.
       for (const group of tableWorkflowGroups) {
         if (!areRowDepsSatisfied(group, target)) continue
-        void runWorkflowGroup({ tableId, rowId, workspaceId, groupId: group.id })
+        void runWorkflowGroup({
+          tableId,
+          rowId,
+          workspaceId,
+          groupId: group.id,
+          workflowId: group.workflowId,
+          outputColumnNames: group.outputs.map((o) => o.columnName),
+        })
       }
     },
     [runWorkflowGroup, tableId, workspaceId, tableWorkflowGroups]
@@ -2612,6 +2654,7 @@ export function Table({
                         onDragLeave={handleColumnDragLeave}
                         workflows={workflows}
                         workflowGroups={tableWorkflowGroups}
+                        sourceInfo={columnSourceInfo.get(column.name)}
                         onOpenConfig={handleConfigureColumn}
                       />
                     ))}
@@ -3346,25 +3389,18 @@ function CellContent({
         </span>
       )
     } else if (exec?.status === 'running' || exec?.status === 'pending') {
-      if (blockRunning) {
-        displayContent = (
-          <div className='flex min-h-[20px] min-w-0 items-center gap-1.5'>
-            <Loader animate className='h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]' />
-            <span className='min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-tertiary)]'>
-              Running
-            </span>
-          </div>
-        )
-      } else {
-        displayContent = (
-          <div className='flex min-h-[20px] min-w-0 items-center gap-1.5'>
-            <Circle className='h-[10px] w-[10px] shrink-0 text-[var(--text-tertiary)]' />
-            <span className='min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-tertiary)]'>
-              Waiting
-            </span>
-          </div>
-        )
-      }
+      // Pending = scheduled, awaiting dispatch. Running = group is live; this
+      // block may be active (`blockRunning`) or queued behind upstream blocks.
+      // Both deserve a live spinner so users see motion the moment they click.
+      const label = exec.status === 'pending' ? 'Pending' : blockRunning ? 'Running' : 'Waiting'
+      displayContent = (
+        <div className='flex min-h-[20px] min-w-0 items-center gap-1.5'>
+          <Loader animate className='h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]' />
+          <span className='min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-tertiary)]'>
+            {label}
+          </span>
+        </div>
+      )
     } else if (exec?.status === 'cancelled') {
       displayContent = (
         <span className='block overflow-clip text-ellipsis text-[var(--text-tertiary)]'>
@@ -3372,6 +3408,10 @@ function CellContent({
         </span>
       )
     } else {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[FLASH-DEBUG] render dash col=${column.name} groupId=${column.workflowGroupId} status=${exec?.status ?? 'undefined'} value=${value === null ? 'null' : value === undefined ? 'undefined' : typeof value} runningBlockIds=${JSON.stringify(exec?.runningBlockIds ?? [])} blockErrors=${JSON.stringify(Object.keys(exec?.blockErrors ?? {}))}`
+      )
       displayContent = <span className='text-[var(--text-tertiary)]'>—</span>
     }
     return displayContent
@@ -3693,6 +3733,8 @@ function ColumnOptionsMenu({
   onInsertLeft,
   onInsertRight,
   onDeleteColumn,
+  onRunGroupAll,
+  onRunGroupIncomplete,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -3702,7 +3744,12 @@ function ColumnOptionsMenu({
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
   onDeleteColumn: (columnName: string) => void
+  /** When provided, the menu is being opened from a workflow-group header and
+   *  exposes group-level run actions above the column actions. */
+  onRunGroupAll?: () => void
+  onRunGroupIncomplete?: () => void
 }) {
+  const showRunActions = Boolean(onRunGroupAll && onRunGroupIncomplete)
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -3726,6 +3773,15 @@ function ColumnOptionsMenu({
         className='max-h-none'
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
+        {showRunActions && (
+          <>
+            <DropdownMenuItem onSelect={() => onRunGroupAll?.()}>Run all rows</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onRunGroupIncomplete?.()}>
+              Run empty rows
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem onSelect={() => onOpenConfig(column.name)}>
           <Pencil />
           Edit column
@@ -3781,7 +3837,7 @@ function WorkflowGroupMetaCell({
   isGroupSelected: boolean
   onSelectGroup: (startColIndex: number, size: number) => void
   onOpenConfig: (columnName: string) => void
-  onRunGroup?: (groupId: string, workflowId: string) => void
+  onRunGroup?: (groupId: string, workflowId: string, mode?: 'all' | 'incomplete') => void
   onInsertLeft?: (columnName: string) => void
   onInsertRight?: (columnName: string) => void
   onDeleteColumn?: (columnName: string) => void
@@ -3802,14 +3858,15 @@ function WorkflowGroupMetaCell({
 
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false)
   const [optionsMenuPosition, setOptionsMenuPosition] = useState({ x: 0, y: 0 })
+  const [runMenuOpen, setRunMenuOpen] = useState(false)
 
-  const handlePlayClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (groupId && workflowId) onRunGroup?.(groupId, workflowId)
-    },
-    [groupId, workflowId, onRunGroup]
-  )
+  const handleRunAll = useCallback(() => {
+    if (groupId && workflowId) onRunGroup?.(groupId, workflowId, 'all')
+  }, [groupId, workflowId, onRunGroup])
+
+  const handleRunIncomplete = useCallback(() => {
+    if (groupId && workflowId) onRunGroup?.(groupId, workflowId, 'incomplete')
+  }, [groupId, workflowId, onRunGroup])
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -3864,7 +3921,7 @@ function WorkflowGroupMetaCell({
                 variant={deployState === 'undeployed' ? 'red' : 'amber'}
                 size='sm'
                 className={cn(
-                  'ml-auto shrink-0 py-0 text-[10px] leading-[14px]',
+                  'shrink-0 py-0 text-[10px] leading-[14px]',
                   userPermissions.canAdmin ? 'cursor-pointer' : 'cursor-not-allowed'
                 )}
                 dot
@@ -3890,18 +3947,28 @@ function WorkflowGroupMetaCell({
           </Tooltip.Root>
         )}
         {onRunGroup && (
-          <button
-            type='button'
-            className={cn(
-              'flex h-[16px] w-[16px] shrink-0 cursor-pointer items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]',
-              !deployState && 'ml-auto'
-            )}
-            onClick={handlePlayClick}
-            aria-label='Run group'
-            title='Run group'
-          >
-            <PlayOutline className='h-[10px] w-[10px]' />
-          </button>
+          <DropdownMenu open={runMenuOpen} onOpenChange={setRunMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type='button'
+                className='flex h-[16px] w-[16px] shrink-0 cursor-pointer items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]'
+                onClick={(e) => e.stopPropagation()}
+                aria-label='Run group'
+                title='Run group'
+              >
+                <PlayOutline className='h-[10px] w-[10px]' />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align='start'
+              side='bottom'
+              sideOffset={4}
+              onCloseAutoFocus={(e) => e.preventDefault()}
+            >
+              <DropdownMenuItem onSelect={handleRunAll}>Run all rows</DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleRunIncomplete}>Run empty rows</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
       {column && onInsertLeft && onInsertRight && onDeleteColumn && (
@@ -3914,6 +3981,8 @@ function WorkflowGroupMetaCell({
           onInsertLeft={onInsertLeft}
           onInsertRight={onInsertRight}
           onDeleteColumn={onDeleteColumn}
+          onRunGroupAll={onRunGroup ? handleRunAll : undefined}
+          onRunGroupIncomplete={onRunGroup ? handleRunIncomplete : undefined}
         />
       )}
     </th>
@@ -3944,6 +4013,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onDragLeave,
   workflows,
   workflowGroups,
+  sourceInfo,
   onOpenConfig,
 }: {
   column: DisplayColumn
@@ -3969,6 +4039,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onDragLeave?: () => void
   workflows?: WorkflowMetadata[]
   workflowGroups?: WorkflowGroup[]
+  sourceInfo?: ColumnSourceInfo
   onOpenConfig: (columnName: string) => void
 }) {
   const renameInputRef = useRef<HTMLInputElement>(null)
@@ -3981,25 +4052,8 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       : undefined
   const configuredWorkflow = ownGroup ? workflows?.find((w) => w.id === ownGroup.workflowId) : undefined
   const workflowColor = configuredWorkflow?.color
-  const workflowId = ownGroup?.workflowId
-  const workflowState = useWorkflowState(workflowId)
-  const sourceBlock = useMemo(() => {
-    if (!column.outputBlockId) return undefined
-    const blocks = (
-      workflowState.data as
-        | { blocks?: Record<string, FlattenOutputsBlockInput> }
-        | null
-        | undefined
-    )?.blocks
-    return blocks?.[column.outputBlockId]
-  }, [column.outputBlockId, workflowState.data])
-  const blockIconInfo = useMemo<BlockIconInfo | undefined>(() => {
-    if (!sourceBlock?.type) return undefined
-    const blockConfig = getBlock(sourceBlock.type)
-    if (!blockConfig?.icon) return undefined
-    return { icon: blockConfig.icon, color: blockConfig.bgColor || '#2F55FF' }
-  }, [sourceBlock])
-  const blockName = sourceBlock?.name?.trim() || undefined
+  const blockIconInfo = sourceInfo?.blockIconInfo
+  const blockName = sourceInfo?.blockName
 
   useEffect(() => {
     if (isRenaming && renameInputRef.current) {
@@ -4651,10 +4705,6 @@ const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: ()
   )
 })
 
-interface BlockIconInfo {
-  icon: React.ComponentType<{ className?: string }>
-  color: string
-}
 
 function ColumnTypeIcon({
   type,
