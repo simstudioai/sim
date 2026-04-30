@@ -205,7 +205,14 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
 
+  // Skip the initial save — restore's setState calls haven't propagated yet, so
+  // files/contexts are still empty and would transiently wipe a file-only draft.
+  const isFirstSaveRef = useRef(true)
   useEffect(() => {
+    if (isFirstSaveRef.current) {
+      isFirstSaveRef.current = false
+      return
+    }
     if (!draftScopeKeyRef.current) return
     const fileAttachments = files.attachedFiles
       .filter((f) => !f.uploading && f.key)
