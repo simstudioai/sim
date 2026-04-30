@@ -72,7 +72,7 @@ export const MessageActions = memo(function MessageActions({
   const resetTimeoutRef = useRef<number | null>(null)
   const requestIdTimeoutRef = useRef<number | null>(null)
   const submitFeedback = useSubmitCopilotFeedback()
-  const forkTask = useForkTask()
+  const forkTask = useForkTask(params.workspaceId)
 
   useEffect(() => {
     return () => {
