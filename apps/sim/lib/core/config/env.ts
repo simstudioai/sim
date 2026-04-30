@@ -103,6 +103,10 @@ export const env = createEnv({
     VLLM_BASE_URL:                         z.string().url().optional(),            // vLLM self-hosted base URL (OpenAI-compatible)
     VLLM_API_KEY:                          z.string().optional(),                  // Optional bearer token for vLLM
     FIREWORKS_API_KEY:                     z.string().optional(),                  // Optional Fireworks AI API key for model listing
+    COHERE_API_KEY:                        z.string().min(1).optional(),           // Cohere API key for reranker (rerank-v4.0-pro, rerank-v4.0-fast, rerank-v3.5)
+    COHERE_API_KEY_1:                      z.string().min(1).optional(),           // Primary Cohere API key for rotation
+    COHERE_API_KEY_2:                      z.string().min(1).optional(),           // Additional Cohere API key for load balancing
+    COHERE_API_KEY_3:                      z.string().min(1).optional(),           // Additional Cohere API key for load balancing
     ELEVENLABS_API_KEY:                    z.string().min(1).optional(),           // ElevenLabs API key for text-to-speech in deployed chat
     SERPER_API_KEY:                        z.string().min(1).optional(),           // Serper API key for online search
     EXA_API_KEY:                           z.string().min(1).optional(),           // Exa AI API key for enhanced online search

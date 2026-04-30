@@ -7,6 +7,11 @@ import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  DEFAULT_EMBEDDING_MODEL,
+  EMBEDDING_DIMENSIONS,
+  SUPPORTED_EMBEDDING_MODEL_IDS,
+} from '@/lib/knowledge/embeddings'
+import {
   createKnowledgeBase,
   getKnowledgeBases,
   KnowledgeBaseConflictError,
@@ -20,8 +25,10 @@ const CreateKnowledgeBaseSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  embeddingModel: z.literal('text-embedding-3-small').default('text-embedding-3-small'),
-  embeddingDimension: z.literal(1536).default(1536),
+  embeddingModel: z
+    .enum(SUPPORTED_EMBEDDING_MODEL_IDS as [string, ...string[]])
+    .default(DEFAULT_EMBEDDING_MODEL),
+  embeddingDimension: z.literal(EMBEDDING_DIMENSIONS).default(EMBEDDING_DIMENSIONS),
   chunkingConfig: z
     .object({
       maxSize: z.number().min(100).max(4000).default(1024),

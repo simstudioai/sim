@@ -380,6 +380,7 @@ export async function processDocumentAsync(
         userId: knowledgeBase.userId,
         workspaceId: knowledgeBase.workspaceId,
         chunkingConfig: knowledgeBase.chunkingConfig,
+        embeddingModel: knowledgeBase.embeddingModel,
       })
       .from(knowledgeBase)
       .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
@@ -429,9 +430,11 @@ export async function processDocumentAsync(
       overlap: rawConfig?.overlap ?? 200,
     }
 
+    const kbEmbeddingModel = kb[0].embeddingModel
     let totalEmbeddingTokens = 0
     let embeddingIsBYOK = false
-    let embeddingModelName = 'text-embedding-3-small'
+    let embeddingModelName = kbEmbeddingModel
+    let embeddingPricingId = kbEmbeddingModel
 
     await withTimeout(
       (async () => {
@@ -480,7 +483,8 @@ export async function processDocumentAsync(
               totalTokens: batchTokens,
               isBYOK,
               modelName,
-            } = await generateEmbeddings(batch, undefined, kb[0].workspaceId)
+              pricingId,
+            } = await generateEmbeddings(batch, kbEmbeddingModel, kb[0].workspaceId)
             for (const emb of batchEmbeddings) {
               embeddings.push(emb)
             }
@@ -488,6 +492,7 @@ export async function processDocumentAsync(
             if (i === 0) {
               embeddingIsBYOK = isBYOK
               embeddingModelName = modelName
+              embeddingPricingId = pricingId
             }
           }
         }
@@ -538,7 +543,7 @@ export async function processDocumentAsync(
           contentLength: chunk.text.length,
           tokenCount: Math.ceil(chunk.text.length / 4),
           embedding: embeddings[chunkIndex] || null,
-          embeddingModel: 'text-embedding-3-small',
+          embeddingModel: kbEmbeddingModel,
           startOffset: chunk.metadata.startIndex,
           endOffset: chunk.metadata.endIndex,
           tag1: documentTags.tag1,
@@ -620,7 +625,7 @@ export async function processDocumentAsync(
       try {
         const costMultiplier = getCostMultiplier()
         const { total: cost } = calculateCost(
-          embeddingModelName,
+          embeddingPricingId,
           totalEmbeddingTokens,
           0,
           false,

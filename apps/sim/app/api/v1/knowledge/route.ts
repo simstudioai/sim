@@ -2,6 +2,11 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  DEFAULT_EMBEDDING_MODEL,
+  EMBEDDING_DIMENSIONS,
+  SUPPORTED_EMBEDDING_MODEL_IDS,
+} from '@/lib/knowledge/embeddings'
 import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
 import {
   authenticateRequest,
@@ -29,6 +34,9 @@ const CreateKBSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   name: z.string().min(1, 'Name is required').max(255, 'Name must be 255 characters or less'),
   description: z.string().max(1000, 'Description must be 1000 characters or less').optional(),
+  embeddingModel: z
+    .enum(SUPPORTED_EMBEDDING_MODEL_IDS as [string, ...string[]])
+    .default(DEFAULT_EMBEDDING_MODEL),
   chunkingConfig: ChunkingConfigSchema.optional().default({
     maxSize: 1024,
     minSize: 100,
@@ -81,7 +89,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const validation = validateSchema(CreateKBSchema, body.data)
     if (!validation.success) return validation.response
 
-    const { workspaceId, name, description, chunkingConfig } = validation.data
+    const { workspaceId, name, description, embeddingModel, chunkingConfig } = validation.data
 
     const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (accessError) return accessError
@@ -92,8 +100,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         description,
         workspaceId,
         userId,
-        embeddingModel: 'text-embedding-3-small',
-        embeddingDimension: 1536,
+        embeddingModel,
+        embeddingDimension: EMBEDDING_DIMENSIONS,
         chunkingConfig: chunkingConfig ?? { maxSize: 1024, minSize: 100, overlap: 200 },
       },
       requestId

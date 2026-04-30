@@ -697,6 +697,7 @@ export interface CreateKnowledgeBaseParams {
   name: string
   description?: string
   workspaceId: string
+  embeddingModel?: string
   chunkingConfig: {
     maxSize: number
     minSize: number

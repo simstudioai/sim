@@ -22,6 +22,11 @@ import {
 } from '@/components/emcn'
 import type { StrategyOptions } from '@/lib/chunkers/types'
 import { cn } from '@/lib/core/utils/cn'
+import {
+  DEFAULT_EMBEDDING_MODEL,
+  SUPPORTED_EMBEDDING_MODEL_IDS,
+  SUPPORTED_EMBEDDING_MODELS,
+} from '@/lib/knowledge/embedding-models'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
@@ -52,6 +57,13 @@ const STRATEGY_COMBOBOX_OPTIONS: ComboboxOption[] = STRATEGY_OPTIONS.map((o) => 
   value: o.value,
 }))
 
+const EMBEDDING_MODEL_OPTIONS: ComboboxOption[] = SUPPORTED_EMBEDDING_MODEL_IDS.map((id) => ({
+  label: SUPPORTED_EMBEDDING_MODELS[id].label,
+  value: id,
+}))
+
+const EMBEDDING_MODEL_VALUES = SUPPORTED_EMBEDDING_MODEL_IDS as [string, ...string[]]
+
 const FormSchema = z
   .object({
     name: z
@@ -75,6 +87,7 @@ const FormSchema = z
     strategy: z.enum(['auto', 'text', 'regex', 'recursive', 'sentence', 'token']).default('auto'),
     regexPattern: z.string().optional(),
     customSeparators: z.string().optional(),
+    embeddingModel: z.enum(EMBEDDING_MODEL_VALUES).default(DEFAULT_EMBEDDING_MODEL),
   })
   .refine(
     (data) => {
@@ -174,12 +187,14 @@ export const CreateBaseModal = memo(function CreateBaseModal({
       strategy: 'auto',
       regexPattern: '',
       customSeparators: '',
+      embeddingModel: DEFAULT_EMBEDDING_MODEL,
     },
     mode: 'onSubmit',
   })
 
   const nameValue = watch('name')
   const strategyValue = watch('strategy')
+  const embeddingModelValue = watch('embeddingModel')
 
   useEffect(() => {
     if (open) {
@@ -198,6 +213,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
         strategy: 'auto',
         regexPattern: '',
         customSeparators: '',
+        embeddingModel: DEFAULT_EMBEDDING_MODEL,
       })
     }
   }, [open, reset])
@@ -315,6 +331,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
         name: data.name,
         description: data.description || undefined,
         workspaceId: workspaceId,
+        embeddingModel: data.embeddingModel,
         chunkingConfig: {
           maxSize: data.maxChunkSize,
           minSize: data.minChunkSize,
@@ -457,6 +474,23 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                   />
                   <p className='text-[var(--text-muted)] text-xs'>
                     1 token ≈ 4 characters. Max chunk size and overlap are in tokens.
+                  </p>
+                </div>
+
+                <div className='flex flex-col gap-2'>
+                  <Label>Embedding Model</Label>
+                  <Combobox
+                    options={EMBEDDING_MODEL_OPTIONS}
+                    value={embeddingModelValue}
+                    onChange={(value) =>
+                      setValue('embeddingModel', value as FormValues['embeddingModel'])
+                    }
+                    dropdownWidth='trigger'
+                    align='start'
+                  />
+                  <p className='text-[var(--text-muted)] text-xs'>
+                    {SUPPORTED_EMBEDDING_MODELS[embeddingModelValue]?.description ??
+                      'Choose how documents are vectorized. Cannot be changed after creation.'}
                   </p>
                 </div>
 
