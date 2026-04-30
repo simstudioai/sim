@@ -300,7 +300,7 @@ export function Home({ chatId }: HomeProps = {}) {
     return () => ro.disconnect()
   }, [hasMessages])
 
-  if (!hasMessages && !chatId) {
+  if (!hasMessages && !showChatSkeleton) {
     return (
       <div className='h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable_both-edges]'>
         <div className='flex min-h-full flex-col items-center justify-center px-6 pb-[2vh]'>
