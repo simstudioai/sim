@@ -9,30 +9,31 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { batchUpdateRows } from '@/lib/table'
-import type { RowData, TableRow, WorkflowCellValue } from '@/lib/table'
-import { areWorkflowColumnDepsSatisfied } from '@/lib/table/workflow-columns'
+import type { RowData, RowExecutionMetadata, RowExecutions, TableRow } from '@/lib/table'
+import { areGroupDepsSatisfied } from '@/lib/table/workflow-columns'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
-const logger = createLogger('TableRunColumnAPI')
+const logger = createLogger('TableRunGroupAPI')
 
 const RunSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
 interface RouteParams {
-  params: Promise<{ tableId: string; columnName: string }>
+  params: Promise<{ tableId: string; groupId: string }>
 }
 
 /**
- * POST /api/table/[tableId]/columns/[columnName]/run
+ * POST /api/table/[tableId]/groups/[groupId]/run
  *
- * Manually triggers a workflow column run for every row in the table. Each
- * cell is force-reset to `pending`, which fires the scheduler and enqueues
- * a per-cell trigger.dev job.
+ * Manually triggers the workflow group for every eligible row in the table.
+ * Each eligible row's `executions[groupId]` is reset to `pending` so the
+ * scheduler picks it up and enqueues a per-cell trigger.dev job. Rows whose
+ * deps aren't satisfied or whose group is already running are skipped.
  */
 export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
-  const { tableId, columnName } = await params
+  const { tableId, groupId } = await params
 
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -51,22 +52,17 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const column = table.schema.columns.find((c) => c.name === columnName)
-    if (!column || column.type !== 'workflow' || !column.workflowConfig?.workflowId) {
-      return NextResponse.json(
-        { error: 'Column is not a configured workflow column' },
-        { status: 400 }
-      )
+    const group = (table.schema.workflowGroups ?? []).find((g) => g.id === groupId)
+    if (!group) {
+      return NextResponse.json({ error: 'Workflow group not found' }, { status: 404 })
     }
-
-    const workflowId = column.workflowConfig.workflowId
-    const columnIndex = table.schema.columns.findIndex((c) => c.name === columnName)
 
     const allRows = await db
       .select({
         id: userTableRows.id,
         position: userTableRows.position,
         data: userTableRows.data,
+        executions: userTableRows.executions,
         createdAt: userTableRows.createdAt,
         updatedAt: userTableRows.updatedAt,
       })
@@ -83,22 +79,24 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       return NextResponse.json({ success: true, data: { triggered: 0 } })
     }
 
-    // Only target rows whose deps are satisfied AND aren't already running.
-    // Forcing every row through `pending` would leave dep-unsatisfied rows
-    // stuck pending forever (the scheduler's eligibility predicate filters
-    // them out), and would re-issue runs that are already in flight.
+    // Only target rows whose deps are satisfied AND whose group isn't running.
+    // Force-resetting every row would leave dep-unsatisfied rows stuck `pending`
+    // forever (the scheduler's eligibility check filters them out anyway), and
+    // would re-issue runs already in flight.
     const eligibleRows = allRows.filter((r) => {
       const tableRow: TableRow = {
         id: r.id,
         data: r.data as RowData,
+        executions: (r.executions as RowExecutions) ?? {},
         position: r.position,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
       }
-      const cell = (r.data as RowData)[columnName] as WorkflowCellValue | null | undefined
-      if (cell?.status === 'running') return false
+      const exec = tableRow.executions[groupId]
+      if (exec?.status === 'running') return false
+      if (exec?.status === 'pending' && exec?.jobId) return false
       try {
-        return areWorkflowColumnDepsSatisfied(column, columnIndex, tableRow, table.schema)
+        return areGroupDepsSatisfied(group, tableRow)
       } catch {
         return false
       }
@@ -109,17 +107,17 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     }
 
     const updates = eligibleRows.map((r) => {
-      const pendingCell: WorkflowCellValue = {
+      const pendingExec: RowExecutionMetadata = {
+        status: 'pending',
         executionId: generateId(),
         jobId: null,
-        workflowId,
-        status: 'pending',
-        output: null,
+        workflowId: group.workflowId,
         error: null,
       }
       return {
         rowId: r.id,
-        data: { [columnName]: pendingCell as unknown as RowData[string] } as RowData,
+        data: {} as RowData,
+        executionsPatch: { [groupId]: pendingExec },
       }
     })
 
@@ -144,7 +142,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
         { status: 400 }
       )
     }
-    logger.error(`run-column failed for ${tableId}/${columnName}:`, error)
-    return NextResponse.json({ error: 'Failed to run column' }, { status: 500 })
+    logger.error(`run-group failed for ${tableId}/${groupId}:`, error)
+    return NextResponse.json({ error: 'Failed to run group' }, { status: 500 })
   }
 })

@@ -1,79 +1,120 @@
 /**
- * Shared cell-write primitives for workflow-column execution paths.
+ * Shared cell-write primitives for workflow-group execution paths.
  *
- * Both the scheduler (`runWorkflowColumn`) and the cell task body
- * (`executeWorkflowColumnJob`) need to write cells while honoring the
- * `cancelled` state written by `cancelWorkflowColumnRuns` — without the guard,
- * a stop click that lands mid-enqueue or mid-execution gets clobbered when the
- * pre-existing in-flight code path proceeds to its next cell write. The single
- * helper here keeps that race-protection consistent across both callers.
+ * Both the scheduler (`runWorkflowGroupCell`) and the cell task body
+ * (`executeWorkflowGroupCellJob`) need to write `data` patches + `executions`
+ * patches together while honoring the `cancelled` state written by
+ * `cancelWorkflowGroupRuns` — without the guard, a stop click that lands
+ * mid-enqueue or mid-run would get clobbered by the in-flight code path's
+ * next write.
  */
 
 import { createLogger } from '@sim/logger'
-import type { RowData, WorkflowCellValue } from '@/lib/table/types'
+import type {
+  RowData,
+  RowExecutionMetadata,
+  RowExecutions,
+  WorkflowGroup,
+} from '@/lib/table/types'
 
 const logger = createLogger('WorkflowCellWrite')
 
-export interface WriteWorkflowCellContext {
+export interface WriteWorkflowGroupContext {
   tableId: string
   rowId: string
-  columnName: string
   workspaceId: string
+  groupId: string
   executionId: string
   /** Used as the `requestId` passed to `updateRow` for log correlation. */
   requestId?: string
 }
 
+export interface WriteWorkflowGroupStatePayload {
+  /** Plain primitives to merge into `row.data`. Empty patch is fine. */
+  dataPatch?: RowData
+  /** New execution state for `executions[groupId]`. */
+  executionState: RowExecutionMetadata
+}
+
 /**
- * Writes the cell unless `cancelWorkflowColumnRuns` has already authoritatively
- * written `cancelled` for this run. Without this guard, a stop click that
- * lands while the scheduler is mid-enqueue or while the cell task is mid-run
- * gets clobbered when the in-flight code path proceeds to its next cell write.
+ * Writes the row unless `cancelWorkflowGroupRuns` has already authoritatively
+ * written `cancelled` for this run. Returns `'skipped'` so the caller can
+ * short-circuit any follow-up writes / job dispatch.
  */
-export async function writeWorkflowCell(
-  ctx: WriteWorkflowCellContext,
-  value: WorkflowCellValue
+export async function writeWorkflowGroupState(
+  ctx: WriteWorkflowGroupContext,
+  payload: WriteWorkflowGroupStatePayload
 ): Promise<'wrote' | 'skipped'> {
-  const { tableId, rowId, columnName, workspaceId, executionId } = ctx
-  const requestId = ctx.requestId ?? `wfcol-${executionId}`
+  const { tableId, rowId, workspaceId, groupId, executionId } = ctx
+  const requestId = ctx.requestId ?? `wfgrp-${executionId}`
   const { getTableById, getRowById, updateRow } = await import('@/lib/table/service')
 
   const table = await getTableById(tableId)
   if (!table) {
-    logger.warn(`Table ${tableId} vanished before cell write`)
+    logger.warn(`Table ${tableId} vanished before group state write`)
     return 'wrote'
   }
   const row = await getRowById(tableId, rowId, workspaceId)
   if (!row) {
-    logger.warn(`Row ${rowId} vanished before cell write`)
+    logger.warn(`Row ${rowId} vanished before group state write`)
     return 'wrote'
   }
-  const currentCell = row.data[columnName] as WorkflowCellValue | null | undefined
+  const current = (row.executions ?? {})[groupId] as RowExecutionMetadata | undefined
   if (
-    currentCell?.status === 'cancelled' &&
-    currentCell.executionId === executionId &&
-    value.status !== 'cancelled'
+    current?.status === 'cancelled' &&
+    current.executionId === executionId &&
+    payload.executionState.status !== 'cancelled'
   ) {
     logger.info(
-      `Skipping cell write — cancelled (table=${tableId} row=${rowId} col=${columnName} executionId=${executionId})`
+      `Skipping group write — cancelled (table=${tableId} row=${rowId} group=${groupId} executionId=${executionId})`
     )
     return 'skipped'
   }
-  const mergedData: RowData = { ...row.data, [columnName]: value as unknown as RowData[string] }
-  await updateRow({ tableId, rowId, data: mergedData, workspaceId }, table, requestId)
+  await updateRow(
+    {
+      tableId,
+      rowId,
+      data: payload.dataPatch ?? {},
+      workspaceId,
+      executionsPatch: { [groupId]: payload.executionState },
+    },
+    table,
+    requestId
+  )
   return 'wrote'
 }
 
-/** Builds the canonical `cancelled` cell shape used by every cancel path. */
-export function buildCancelledCell(
-  prev: Pick<WorkflowCellValue, 'executionId' | 'workflowId'>
-): WorkflowCellValue {
+/** Builds the canonical `cancelled` execution state used by every cancel path. */
+export function buildCancelledExecution(
+  prev: Pick<RowExecutionMetadata, 'executionId' | 'workflowId'>
+): RowExecutionMetadata {
   return {
+    status: 'cancelled',
     executionId: prev.executionId ?? null,
     jobId: null,
     workflowId: prev.workflowId,
-    status: 'cancelled',
-    output: null,
     error: 'Cancelled',
   }
+}
+
+/**
+ * Maps a group's `outputs[]` to a `blockId → Array<{path, columnName}>` map.
+ * The cell task uses this to fan a single block-complete event into N column
+ * writes.
+ */
+export function buildOutputsByBlockId(
+  group: WorkflowGroup
+): Map<string, Array<{ path: string; columnName: string }>> {
+  const map = new Map<string, Array<{ path: string; columnName: string }>>()
+  for (const out of group.outputs) {
+    const list = map.get(out.blockId) ?? []
+    list.push({ path: out.path, columnName: out.columnName })
+    map.set(out.blockId, list)
+  }
+  return map
+}
+
+/** Type-narrowing helper used by readers that can't assume `executions` is set. */
+export function readExecutions(row: { executions?: RowExecutions } | null | undefined): RowExecutions {
+  return row?.executions ?? {}
 }

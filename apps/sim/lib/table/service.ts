@@ -24,6 +24,7 @@ import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } fr
 import { buildFilterClause, buildSortClause } from './sql'
 import { fireTableTrigger } from './trigger'
 import type {
+  AddWorkflowGroupData,
   BatchInsertData,
   BatchUpdateByIdData,
   BulkDeleteByIdsData,
@@ -33,6 +34,7 @@ import type {
   BulkUpdateData,
   CreateTableData,
   DeleteColumnData,
+  DeleteWorkflowGroupData,
   InsertRowData,
   QueryOptions,
   QueryResult,
@@ -40,17 +42,20 @@ import type {
   ReplaceRowsData,
   ReplaceRowsResult,
   RowData,
+  RowExecutionMetadata,
+  RowExecutions,
   TableDefinition,
   TableMetadata,
   TableRow,
   TableSchema,
   UpdateColumnConstraintsData,
   UpdateColumnTypeData,
-  UpdateColumnWorkflowConfigData,
   UpdateRowData,
+  UpdateWorkflowGroupData,
   UpsertResult,
   UpsertRowData,
-  WorkflowCellValue,
+  WorkflowGroup,
+  WorkflowGroupOutput,
 } from './types'
 import {
   checkBatchUniqueConstraintsDb,
@@ -61,7 +66,7 @@ import {
   validateTableName,
   validateTableSchema,
 } from './validation'
-import { scheduleWorkflowColumnRuns } from './workflow-columns'
+import { assertValidSchema, scheduleWorkflowGroupRuns } from './workflow-columns'
 
 const logger = createLogger('TableService')
 
@@ -83,6 +88,7 @@ function notifyTableRowUpdated(tableId: string, row: TableRow): void {
       tableId,
       rowId: row.id,
       data: row.data,
+      executions: row.executions,
       position: row.position,
       updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
     }),
@@ -468,11 +474,6 @@ export async function addTableColumn(
     required?: boolean
     unique?: boolean
     position?: number
-    workflowConfig?: {
-      workflowId: string
-      dependencies?: string[]
-      outputs: Array<{ blockId: string; path: string }>
-    }
   },
   requestId: string
 ): Promise<TableDefinition> {
@@ -499,15 +500,6 @@ export async function addTableColumn(
     )
   }
 
-  if (column.type === 'workflow') {
-    if (!column.workflowConfig?.workflowId) {
-      throw new Error('workflowConfig.workflowId is required when creating a workflow column')
-    }
-    if (!column.workflowConfig.outputs?.length) {
-      throw new Error('workflowConfig.outputs must contain at least one entry')
-    }
-  }
-
   const schema = table.schema
   if (schema.columns.some((c) => c.name.toLowerCase() === column.name.toLowerCase())) {
     throw new Error(`Column "${column.name}" already exists`)
@@ -524,9 +516,6 @@ export async function addTableColumn(
     type: column.type as TableSchema['columns'][number]['type'],
     required: column.required ?? false,
     unique: column.unique ?? false,
-    ...(column.type === 'workflow' && column.workflowConfig
-      ? { workflowConfig: column.workflowConfig }
-      : {}),
   }
 
   const columns = [...schema.columns]
@@ -536,7 +525,8 @@ export async function addTableColumn(
     columns.push(newColumn)
   }
 
-  const updatedSchema: TableSchema = { columns }
+  const updatedSchema: TableSchema = { ...schema, columns }
+  assertValidSchema(updatedSchema, table.metadata?.columnOrder)
 
   const now = new Date()
 
@@ -547,41 +537,11 @@ export async function addTableColumn(
 
   logger.info(`[${requestId}] Added column "${column.name}" to table ${tableId}`)
 
-  const updatedTable: TableDefinition = {
+  return {
     ...table,
     schema: updatedSchema,
     updatedAt: now,
   }
-
-  // Mirror updateColumnWorkflowConfig: a workflow column added to a table with
-  // existing rows needs the scheduler to evaluate eligibility, since no row-write
-  // will fire it otherwise.
-  if (column.type === 'workflow' && column.workflowConfig) {
-    void (async () => {
-      try {
-        const rowRecords = await db
-          .select()
-          .from(userTableRows)
-          .where(eq(userTableRows.tableId, tableId))
-        if (rowRecords.length === 0) return
-        const rows: TableRow[] = rowRecords.map((r) => ({
-          id: r.id,
-          data: r.data as RowData,
-          position: r.position,
-          createdAt: r.createdAt,
-          updatedAt: r.updatedAt,
-        }))
-        await scheduleWorkflowColumnRuns(updatedTable, rows)
-      } catch (err) {
-        logger.error(
-          `[${requestId}] Failed to schedule workflow column runs after column add:`,
-          err
-        )
-      }
-    })()
-  }
-
-  return updatedTable
 }
 
 /**
@@ -666,22 +626,19 @@ export async function deleteTable(tableId: string, requestId: string): Promise<v
 }
 
 /**
- * Drops references to deleted blocks from every table workflow column that
- * targets the just-deployed workflow. Called from the workflow deploy
- * orchestrator immediately after the new deployment is committed, so the table
- * UI never holds stale `{blockId, path}` entries for blocks the user removed.
+ * Drops references to deleted blocks from every workflow group on every table
+ * that targets the just-deployed workflow. Called from the workflow deploy
+ * orchestrator after the new deployment commits, so the table UI never holds
+ * stale `{blockId, path}` entries for blocks the user removed.
  *
- * - Filters `workflowConfig.outputs` per column. If every entry would be
- *   filtered out, the column is left untouched and a warning is logged — the
- *   user must reconfigure it. Workflow columns must always have at least one
- *   valid output.
- * - Scoped to the workflow's workspace. Workflow columns can only reference
- *   workflows in the same workspace, so cross-workspace scan isn't needed.
+ * - Filters `outputs[]` per group. If every output would be filtered out, the
+ *   group is left untouched and a warning is logged — the user must
+ *   reconfigure it manually.
+ * - Scoped to the workflow's workspace.
  * - Idempotent: running twice with the same `validBlockIds` is a no-op on the
- *   second pass. Existing row data (`blockOutputs`, `runningBlockIds`) is left
- *   alone — it's already irrelevant once the column no longer surfaces it.
+ *   second pass. Existing row data is left alone.
  */
-export async function pruneStaleWorkflowColumnOutputs({
+export async function pruneStaleWorkflowGroupOutputs({
   workflowId,
   workspaceId,
   validBlockIds,
@@ -707,27 +664,22 @@ export async function pruneStaleWorkflowColumnOutputs({
 
   for (const t of tables) {
     const schema = t.schema as TableSchema
-    if (!schema?.columns?.length) continue
+    const groups = schema.workflowGroups ?? []
+    if (groups.length === 0) continue
 
     let mutated = false
-    const nextColumns = schema.columns.map((col) => {
-      if (col.type !== 'workflow') return col
-      if (col.workflowConfig?.workflowId !== workflowId) return col
-      const outputs = col.workflowConfig.outputs
-      if (!outputs?.length) return col
-      const filtered = outputs.filter((o) => validBlockIds.has(o.blockId))
-      if (filtered.length === outputs.length) return col
+    const nextGroups = groups.map((group) => {
+      if (group.workflowId !== workflowId) return group
+      const filtered = group.outputs.filter((o) => validBlockIds.has(o.blockId))
+      if (filtered.length === group.outputs.length) return group
       if (filtered.length === 0) {
         logger.warn(
-          `[${requestId}] All outputs for workflow column "${col.name}" in table ${t.id} reference deleted blocks; leaving column intact for user reconfiguration.`
+          `[${requestId}] All outputs for workflow group "${group.name ?? group.id}" in table ${t.id} reference deleted blocks; leaving group intact for user reconfiguration.`
         )
-        return col
+        return group
       }
       mutated = true
-      return {
-        ...col,
-        workflowConfig: { ...col.workflowConfig, outputs: filtered },
-      }
+      return { ...group, outputs: filtered }
     })
 
     if (!mutated) continue
@@ -735,7 +687,7 @@ export async function pruneStaleWorkflowColumnOutputs({
     await db
       .update(userTableDefinitions)
       .set({
-        schema: { ...schema, columns: nextColumns },
+        schema: { ...schema, workflowGroups: nextGroups },
         updatedAt: new Date(),
       })
       .where(eq(userTableDefinitions.id, t.id))
@@ -916,6 +868,7 @@ export async function insertRow(
   const insertedRow: TableRow = {
     id: row.id,
     data: row.data as RowData,
+    executions: (row.executions as RowExecutions) ?? {},
     position: row.position,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -930,7 +883,7 @@ export async function insertRow(
     table.schema,
     requestId
   )
-  void scheduleWorkflowColumnRuns(table, [insertedRow])
+  void scheduleWorkflowGroupRuns(table, [insertedRow])
   notifyTableRowUpdated(data.tableId, insertedRow)
 
   return insertedRow
@@ -1031,13 +984,14 @@ export async function batchInsertRows(
   const result: TableRow[] = insertedRows.map((r) => ({
     id: r.id,
     data: r.data as RowData,
+    executions: (r.executions as RowExecutions) ?? {},
     position: r.position,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   }))
 
   void fireTableTrigger(data.tableId, table.name, 'insert', result, null, table.schema, requestId)
-  void scheduleWorkflowColumnRuns(table, result)
+  void scheduleWorkflowGroupRuns(table, result)
   for (const row of result) notifyTableRowUpdated(data.tableId, row)
 
   return result
@@ -1311,6 +1265,7 @@ export async function upsertRow(
         row: {
           id: updatedRow.id,
           data: updatedRow.data as RowData,
+          executions: (updatedRow.executions as RowExecutions) ?? {},
           position: updatedRow.position,
           createdAt: updatedRow.createdAt,
           updatedAt: updatedRow.updatedAt,
@@ -1338,6 +1293,7 @@ export async function upsertRow(
       row: {
         id: insertedRow.id,
         data: insertedRow.data as RowData,
+        executions: (insertedRow.executions as RowExecutions) ?? {},
         position: insertedRow.position,
         createdAt: insertedRow.createdAt,
         updatedAt: insertedRow.updatedAt,
@@ -1372,7 +1328,7 @@ export async function upsertRow(
       requestId
     )
   }
-  void scheduleWorkflowColumnRuns(table, [result.row])
+  void scheduleWorkflowGroupRuns(table, [result.row])
   notifyTableRowUpdated(data.tableId, result.row)
 
   return result
@@ -1462,6 +1418,7 @@ export async function queryRows(
     rows: rows.map((r) => ({
       id: r.id,
       data: r.data as RowData,
+      executions: (r.executions as RowExecutions) ?? {},
       position: r.position,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
@@ -1504,10 +1461,28 @@ export async function getRowById(
   return {
     id: row.id,
     data: row.data as RowData,
+    executions: (row.executions as RowExecutions) ?? {},
     position: row.position,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
+}
+
+/** Merges an `executionsPatch` into the row's existing executions blob. */
+function applyExecutionsPatch(
+  existing: RowExecutions,
+  patch: Record<string, RowExecutionMetadata | null> | undefined
+): RowExecutions {
+  if (!patch) return existing
+  const next: RowExecutions = { ...existing }
+  for (const [gid, value] of Object.entries(patch)) {
+    if (value === null) {
+      delete next[gid]
+    } else {
+      next[gid] = value
+    }
+  }
+  return next
 }
 
 /**
@@ -1535,6 +1510,7 @@ export async function updateRow(
     ...(existingRow.data as RowData),
     ...data.data,
   }
+  const mergedExecutions = applyExecutionsPatch(existingRow.executions, data.executionsPatch)
 
   // Validate size
   const sizeValidation = validateRowSize(mergedData)
@@ -1566,7 +1542,7 @@ export async function updateRow(
 
   await db
     .update(userTableRows)
-    .set({ data: mergedData, updatedAt: now })
+    .set({ data: mergedData, executions: mergedExecutions, updatedAt: now })
     .where(eq(userTableRows.id, data.rowId))
 
   logger.info(`[${requestId}] Updated row ${data.rowId} in table ${data.tableId}`)
@@ -1574,6 +1550,7 @@ export async function updateRow(
   const updatedRow: TableRow = {
     id: data.rowId,
     data: mergedData,
+    executions: mergedExecutions,
     position: existingRow.position,
     createdAt: existingRow.createdAt,
     updatedAt: now,
@@ -1591,7 +1568,7 @@ export async function updateRow(
   )
   // Awaited (not `void`) so cell tasks dispatch their cascade before the
   // trigger.dev worker tears down on `run()` resolve.
-  await scheduleWorkflowColumnRuns(table, [updatedRow])
+  await scheduleWorkflowGroupRuns(table, [updatedRow])
   notifyTableRowUpdated(data.tableId, updatedRow)
 
   return updatedRow
@@ -1742,6 +1719,7 @@ export async function updateRowsByFilter(
   const updatedRows: TableRow[] = matchingRows.map((r) => ({
     id: r.id,
     data: { ...(r.data as RowData), ...data.data },
+    executions: ((r as { executions?: unknown }).executions as RowExecutions) ?? {},
     position: 0,
     createdAt: now,
     updatedAt: now,
@@ -1755,7 +1733,7 @@ export async function updateRowsByFilter(
     table.schema,
     requestId
   )
-  void scheduleWorkflowColumnRuns(table, updatedRows)
+  void scheduleWorkflowGroupRuns(table, updatedRows)
   for (const row of updatedRows) notifyTableRowUpdated(data.tableId, row)
 
   return {
@@ -1779,7 +1757,11 @@ export async function batchUpdateRows(
 
   const rowIds = data.updates.map((u) => u.rowId)
   const existingRows = await db
-    .select({ id: userTableRows.id, data: userTableRows.data })
+    .select({
+      id: userTableRows.id,
+      data: userTableRows.data,
+      executions: userTableRows.executions,
+    })
     .from(userTableRows)
     .where(
       and(
@@ -1789,17 +1771,28 @@ export async function batchUpdateRows(
       )
     )
 
-  const existingMap = new Map(existingRows.map((r) => [r.id, r.data as RowData]))
+  type ExistingRow = { data: RowData; executions: RowExecutions }
+  const existingMap = new Map<string, ExistingRow>(
+    existingRows.map((r) => [
+      r.id,
+      { data: r.data as RowData, executions: (r.executions as RowExecutions) ?? {} },
+    ])
+  )
 
   const missing = rowIds.filter((id) => !existingMap.has(id))
   if (missing.length > 0) {
     throw new Error(`Rows not found: ${missing.join(', ')}`)
   }
 
-  const mergedUpdates: Array<{ rowId: string; mergedData: RowData }> = []
+  const mergedUpdates: Array<{
+    rowId: string
+    mergedData: RowData
+    mergedExecutions: RowExecutions
+  }> = []
   for (const update of data.updates) {
     const existing = existingMap.get(update.rowId)!
-    const merged = { ...existing, ...update.data }
+    const merged = { ...existing.data, ...update.data }
+    const mergedExecutions = applyExecutionsPatch(existing.executions, update.executionsPatch)
 
     const sizeValidation = validateRowSize(merged)
     if (!sizeValidation.valid) {
@@ -1811,7 +1804,7 @@ export async function batchUpdateRows(
       throw new Error(`Row ${update.rowId}: ${schemaValidation.errors.join(', ')}`)
     }
 
-    mergedUpdates.push({ rowId: update.rowId, mergedData: merged })
+    mergedUpdates.push({ rowId: update.rowId, mergedData: merged, mergedExecutions })
   }
 
   const uniqueColumns = getUniqueColumns(table.schema)
@@ -1835,10 +1828,10 @@ export async function batchUpdateRows(
     await setTableTxTimeouts(trx, { statementMs: 60_000 })
     for (let i = 0; i < mergedUpdates.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
       const batch = mergedUpdates.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
-      const updatePromises = batch.map(({ rowId, mergedData }) =>
+      const updatePromises = batch.map(({ rowId, mergedData, mergedExecutions }) =>
         trx
           .update(userTableRows)
-          .set({ data: mergedData, updatedAt: now })
+          .set({ data: mergedData, executions: mergedExecutions, updatedAt: now })
           .where(eq(userTableRows.id, rowId))
       )
       await Promise.all(updatePromises)
@@ -1848,14 +1841,19 @@ export async function batchUpdateRows(
   logger.info(`[${requestId}] Batch updated ${mergedUpdates.length} rows in table ${data.tableId}`)
 
   // Fire update triggers with old and new row data
-  const oldRowsForTrigger = new Map(data.updates.map((u) => [u.rowId, existingMap.get(u.rowId)!]))
-  const updatedRowsForTrigger: TableRow[] = mergedUpdates.map(({ rowId, mergedData }) => ({
-    id: rowId,
-    data: mergedData,
-    position: 0,
-    createdAt: now,
-    updatedAt: now,
-  }))
+  const oldRowsForTrigger = new Map(
+    data.updates.map((u) => [u.rowId, existingMap.get(u.rowId)!.data])
+  )
+  const updatedRowsForTrigger: TableRow[] = mergedUpdates.map(
+    ({ rowId, mergedData, mergedExecutions }) => ({
+      id: rowId,
+      data: mergedData,
+      executions: mergedExecutions,
+      position: 0,
+      createdAt: now,
+      updatedAt: now,
+    })
+  )
   void fireTableTrigger(
     data.tableId,
     table.name,
@@ -1865,7 +1863,7 @@ export async function batchUpdateRows(
     table.schema,
     requestId
   )
-  void scheduleWorkflowColumnRuns(table, updatedRowsForTrigger)
+  void scheduleWorkflowGroupRuns(table, updatedRowsForTrigger)
   for (const row of updatedRowsForTrigger) notifyTableRowUpdated(data.tableId, row)
 
   return {
@@ -2091,24 +2089,47 @@ export async function renameColumn(
   }
 
   const actualOldName = schema.columns[columnIndex].name
-  const updatedColumns = schema.columns.map((c, i) => {
-    const base = i === columnIndex ? { ...c, name: data.newName } : { ...c }
-    // Cascade rename into sibling workflow columns' explicit dependency lists.
-    if (base.workflowConfig?.dependencies?.length) {
-      const rewritten = base.workflowConfig.dependencies.map((d) =>
-        d === actualOldName ? data.newName : d
-      )
-      base.workflowConfig = { ...base.workflowConfig, dependencies: rewritten }
+  const updatedColumns = schema.columns.map((c, i) =>
+    i === columnIndex ? { ...c, name: data.newName } : c
+  )
+  // Cascade rename into every workflow group: its output `columnName` refs
+  // and its `dependencies.columns` entries.
+  const updatedGroups = (schema.workflowGroups ?? []).map((group) => {
+    const renamedOutputs = group.outputs.map((o) =>
+      o.columnName === actualOldName ? { ...o, columnName: data.newName } : o
+    )
+    const renamedDeps = group.dependencies?.columns?.map((d) =>
+      d === actualOldName ? data.newName : d
+    )
+    const renamedGroupDeps = group.dependencies?.workflowGroups
+    const next = {
+      ...group,
+      outputs: renamedOutputs,
+      dependencies: {
+        ...(renamedDeps ? { columns: renamedDeps } : {}),
+        ...(renamedGroupDeps ? { workflowGroups: renamedGroupDeps } : {}),
+      },
     }
-    return base
+    return next
   })
-  const updatedSchema: TableSchema = { columns: updatedColumns }
+  const updatedSchema: TableSchema = {
+    ...schema,
+    columns: updatedColumns,
+    ...(updatedGroups.length > 0 ? { workflowGroups: updatedGroups } : {}),
+  }
+  assertValidSchema(updatedSchema, table.metadata?.columnOrder)
 
   const metadata = table.metadata as TableMetadata | null
   let updatedMetadata = metadata
   if (metadata?.columnWidths && actualOldName in metadata.columnWidths) {
     const { [actualOldName]: width, ...rest } = metadata.columnWidths
     updatedMetadata = { ...metadata, columnWidths: { ...rest, [data.newName]: width } }
+  }
+  if (updatedMetadata?.columnOrder?.includes(actualOldName)) {
+    updatedMetadata = {
+      ...updatedMetadata,
+      columnOrder: updatedMetadata.columnOrder.map((n) => (n === actualOldName ? data.newName : n)),
+    }
   }
 
   const now = new Date()
@@ -2166,17 +2187,30 @@ export async function deleteColumn(
   }
 
   const actualName = schema.columns[columnIndex].name
-  const updatedSchema: TableSchema = {
-    columns: schema.columns
-      .filter((_, i) => i !== columnIndex)
-      .map((c) => {
-        // Cascade removal into sibling workflow columns' explicit dependency lists.
-        if (!c.workflowConfig?.dependencies?.length) return c
-        const filtered = c.workflowConfig.dependencies.filter((d) => d !== actualName)
-        if (filtered.length === c.workflowConfig.dependencies.length) return c
-        return { ...c, workflowConfig: { ...c.workflowConfig, dependencies: filtered } }
-      }),
+  if (schema.columns[columnIndex].workflowGroupId) {
+    throw new Error(
+      `Cannot delete workflow-output column "${actualName}" directly. Remove or update the parent workflow group.`
+    )
   }
+  const updatedGroups = (schema.workflowGroups ?? []).map((group) => {
+    const filtered = group.dependencies?.columns?.filter((d) => d !== actualName)
+    if (!filtered) return group
+    return {
+      ...group,
+      dependencies: {
+        ...(filtered.length > 0 ? { columns: filtered } : {}),
+        ...(group.dependencies?.workflowGroups
+          ? { workflowGroups: group.dependencies.workflowGroups }
+          : {}),
+      },
+    }
+  })
+  const updatedSchema: TableSchema = {
+    ...schema,
+    columns: schema.columns.filter((_, i) => i !== columnIndex),
+    ...(updatedGroups.length > 0 ? { workflowGroups: updatedGroups } : {}),
+  }
+  assertValidSchema(updatedSchema, table.metadata?.columnOrder)
 
   const metadata = table.metadata as TableMetadata | null
   let updatedMetadata = metadata
@@ -2243,15 +2277,35 @@ export async function deleteColumns(
     throw new Error('Cannot delete all columns from a table')
   }
 
-  // Cascade removal into sibling workflow columns' explicit dependency lists.
-  const scrubbed = remaining.map((c) => {
-    if (!c.workflowConfig?.dependencies?.length) return c
-    const filtered = c.workflowConfig.dependencies.filter((d) => !namesToDelete.has(d))
-    if (filtered.length === c.workflowConfig.dependencies.length) return c
-    return { ...c, workflowConfig: { ...c.workflowConfig, dependencies: filtered } }
+  // Block deletion of any workflow-output column — they belong to a group.
+  const blocked = [...namesToDelete].filter((n) => {
+    const col = schema.columns.find((c) => c.name === n)
+    return !!col?.workflowGroupId
   })
-
-  const updatedSchema: TableSchema = { columns: scrubbed }
+  if (blocked.length > 0) {
+    throw new Error(
+      `Cannot delete workflow-output columns directly: ${blocked.join(', ')}. Remove or update the parent workflow group.`
+    )
+  }
+  const updatedGroups = (schema.workflowGroups ?? []).map((group) => {
+    const filtered = group.dependencies?.columns?.filter((d) => !namesToDelete.has(d))
+    if (!filtered) return group
+    return {
+      ...group,
+      dependencies: {
+        ...(filtered.length > 0 ? { columns: filtered } : {}),
+        ...(group.dependencies?.workflowGroups
+          ? { workflowGroups: group.dependencies.workflowGroups }
+          : {}),
+      },
+    }
+  })
+  const updatedSchema: TableSchema = {
+    ...schema,
+    columns: remaining,
+    ...(updatedGroups.length > 0 ? { workflowGroups: updatedGroups } : {}),
+  }
+  assertValidSchema(updatedSchema, table.metadata?.columnOrder)
 
   const metadata = table.metadata as TableMetadata | null
   let updatedMetadata = metadata
@@ -2358,7 +2412,7 @@ export async function updateColumnType(
   const updatedColumns = schema.columns.map((c, i) =>
     i === columnIndex ? { ...c, type: data.newType } : c
   )
-  const updatedSchema: TableSchema = { columns: updatedColumns }
+  const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
   const now = new Date()
 
   await db
@@ -2399,6 +2453,11 @@ export async function updateColumnConstraints(
   }
 
   const column = schema.columns[columnIndex]
+  if (column.workflowGroupId) {
+    throw new Error(
+      `Cannot change constraints on workflow-output column "${column.name}". Constraints aren't applicable to columns whose values come from workflow execution.`
+    )
+  }
   const escapedName = column.name.replace(/'/g, "''")
 
   if (data.required === true && !column.required) {
@@ -2438,7 +2497,7 @@ export async function updateColumnConstraints(
         }
       : c
   )
-  const updatedSchema: TableSchema = { columns: updatedColumns }
+  const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
   const now = new Date()
 
   await db
@@ -2454,10 +2513,12 @@ export async function updateColumnConstraints(
 }
 
 /**
- * Updates the workflow configuration on a workflow column.
+ * Atomically inserts a workflow group plus its output columns into a table's
+ * schema. Both arrays update in one DB write so the schema is never observed
+ * mid-mutation (e.g. columns referencing a group that doesn't yet exist).
  */
-export async function updateColumnWorkflowConfig(
-  data: UpdateColumnWorkflowConfigData,
+export async function addWorkflowGroup(
+  data: AddWorkflowGroupData,
   requestId: string
 ): Promise<TableDefinition> {
   const table = await getTableById(data.tableId)
@@ -2466,89 +2527,275 @@ export async function updateColumnWorkflowConfig(
   }
 
   const schema = table.schema
-  const columnIndex = schema.columns.findIndex(
-    (c) => c.name.toLowerCase() === data.columnName.toLowerCase()
-  )
-  if (columnIndex === -1) {
-    throw new Error(`Column "${data.columnName}" not found`)
+  const groups = schema.workflowGroups ?? []
+  if (groups.some((g) => g.id === data.group.id)) {
+    throw new Error(`Workflow group "${data.group.id}" already exists`)
   }
 
-  const column = schema.columns[columnIndex]
-  if (column.type !== 'workflow') {
-    throw new Error(`Column "${data.columnName}" is not a workflow column`)
-  }
-  if (!data.workflowConfig.outputs?.length) {
-    throw new Error('workflowConfig.outputs must contain at least one entry')
+  const existingNames = new Set(schema.columns.map((c) => c.name.toLowerCase()))
+  for (const col of data.outputColumns) {
+    if (!NAME_PATTERN.test(col.name)) {
+      throw new Error(
+        `Invalid output column name "${col.name}". Must satisfy ${NAME_PATTERN.source}.`
+      )
+    }
+    if (existingNames.has(col.name.toLowerCase())) {
+      throw new Error(`Column "${col.name}" already exists`)
+    }
   }
 
-  const oldOutputs = column.workflowConfig?.outputs ?? []
-  const newOutputs = data.workflowConfig.outputs
+  if (
+    schema.columns.length + data.outputColumns.length >
+    TABLE_LIMITS.MAX_COLUMNS_PER_TABLE
+  ) {
+    throw new Error(
+      `Adding ${data.outputColumns.length} columns would exceed the maximum (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE}).`
+    )
+  }
 
-  const updatedColumns = schema.columns.map((c, i) =>
-    i === columnIndex ? { ...c, workflowConfig: data.workflowConfig } : c
-  )
-  const updatedSchema: TableSchema = { columns: updatedColumns }
+  const updatedSchema: TableSchema = {
+    ...schema,
+    columns: [...schema.columns, ...data.outputColumns],
+    workflowGroups: [...groups, data.group],
+  }
+  assertValidSchema(updatedSchema, table.metadata?.columnOrder)
+
   const now = new Date()
-
   await db
     .update(userTableDefinitions)
     .set({ schema: updatedSchema, updatedAt: now })
     .where(eq(userTableDefinitions.id, data.tableId))
 
   logger.info(
-    `[${requestId}] Updated workflow config for column "${column.name}" in table ${data.tableId}`
+    `[${requestId}] Added workflow group "${data.group.id}" with ${data.outputColumns.length} output column(s) to table ${data.tableId}`
   )
 
   const updatedTable: TableDefinition = { ...table, schema: updatedSchema, updatedAt: now }
 
-  // Backfill newly-added outputs from each row's execution log instead of
-  // forcing a re-run. The orchestrator only persists user-picked paths today,
-  // so a new entry in `outputs[]` would otherwise render empty for every
-  // already-completed cell. The block's full output is still in
-  // `workflow_execution_logs.executionData.traceSpans`, keyed by `executionId`
-  // (which we kept on the cell). Walk that trace and write the missing values.
-  const newColumnDef = updatedColumns[columnIndex]
-  void backfillAddedOutputs({
-    table: updatedTable,
-    columnName: newColumnDef.name,
-    oldOutputs,
-    newOutputs,
-    requestId,
-  }).catch((err) => {
-    logger.warn(
-      `[${requestId}] Backfill from execution logs failed for ${data.tableId}/${column.name}:`,
-      err
-    )
-  })
-
-  // Kick the scheduler across existing rows. This covers the common case of a user
-  // converting a previously-populated plain column into a workflow column — rows are
-  // already filled, so no row-write will fire the scheduler otherwise. Each row passes
-  // through the eligibility predicate, which short-circuits on rows whose cells are
-  // already running/completed/errored or whose dependencies aren't yet filled.
+  // Schedule existing rows so already-filled deps trigger immediately.
   void (async () => {
     try {
       const rowRecords = await db
         .select()
         .from(userTableRows)
         .where(eq(userTableRows.tableId, data.tableId))
+      if (rowRecords.length === 0) return
       const rows: TableRow[] = rowRecords.map((r) => ({
         id: r.id,
         data: r.data as RowData,
+        executions: (r.executions as RowExecutions) ?? {},
         position: r.position,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
       }))
-      await scheduleWorkflowColumnRuns(updatedTable, rows)
+      await scheduleWorkflowGroupRuns(updatedTable, rows)
     } catch (err) {
-      logger.error(
-        `[${requestId}] Failed to schedule workflow column runs after config update:`,
-        err
-      )
+      logger.error(`[${requestId}] Failed to schedule runs after group add:`, err)
     }
   })()
 
   return updatedTable
+}
+
+/**
+ * Updates a workflow group: any combination of workflowId, name, dependencies,
+ * outputs[]. Computes added/removed outputs vs current state and inserts /
+ * removes columns transactionally. Removed outputs also clear their key from
+ * every row's `data`.
+ */
+export async function updateWorkflowGroup(
+  data: UpdateWorkflowGroupData,
+  requestId: string
+): Promise<TableDefinition> {
+  const table = await getTableById(data.tableId)
+  if (!table) {
+    throw new Error('Table not found')
+  }
+
+  const schema = table.schema
+  const groups = schema.workflowGroups ?? []
+  const groupIndex = groups.findIndex((g) => g.id === data.groupId)
+  if (groupIndex === -1) {
+    throw new Error(`Workflow group "${data.groupId}" not found`)
+  }
+  const group = groups[groupIndex]
+
+  const newOutputs = data.outputs ?? group.outputs
+  const oldKey = (o: WorkflowGroupOutput) => `${o.blockId}::${o.path}`
+  const oldByKey = new Map(group.outputs.map((o) => [oldKey(o), o]))
+  const newByKey = new Map(newOutputs.map((o) => [oldKey(o), o]))
+
+  const removed = group.outputs.filter((o) => !newByKey.has(oldKey(o)))
+  const added = newOutputs.filter((o) => !oldByKey.has(oldKey(o)))
+  const newColDefs = data.newOutputColumns ?? []
+  const newColByName = new Map(newColDefs.map((c) => [c.name, c]))
+
+  for (const out of added) {
+    if (!newColByName.has(out.columnName)) {
+      throw new Error(
+        `Missing column definition for new output "${out.columnName}" (group ${data.groupId}).`
+      )
+    }
+  }
+
+  const removedColumnNames = new Set(removed.map((o) => o.columnName))
+  let nextColumns = schema.columns.filter((c) => !removedColumnNames.has(c.name))
+  if (newColDefs.length > 0) {
+    const existingNames = new Set(nextColumns.map((c) => c.name.toLowerCase()))
+    for (const col of newColDefs) {
+      if (existingNames.has(col.name.toLowerCase())) {
+        throw new Error(`Column "${col.name}" already exists`)
+      }
+    }
+    nextColumns = [...nextColumns, ...newColDefs]
+  }
+
+  const updatedGroup: WorkflowGroup = {
+    ...group,
+    workflowId: data.workflowId ?? group.workflowId,
+    name: data.name ?? group.name,
+    dependencies: data.dependencies ?? group.dependencies,
+    outputs: newOutputs,
+  }
+  const nextGroups = groups.map((g, i) => (i === groupIndex ? updatedGroup : g))
+  const updatedSchema: TableSchema = {
+    ...schema,
+    columns: nextColumns,
+    workflowGroups: nextGroups,
+  }
+
+  const updatedColumnOrder = table.metadata?.columnOrder?.filter(
+    (n) => !removedColumnNames.has(n)
+  )
+  assertValidSchema(updatedSchema, updatedColumnOrder)
+
+  const updatedMetadata: TableMetadata | null =
+    updatedColumnOrder && table.metadata
+      ? { ...table.metadata, columnOrder: updatedColumnOrder }
+      : table.metadata
+        ? { ...table.metadata }
+        : null
+
+  const now = new Date()
+  await db.transaction(async (trx) => {
+    await setTableTxTimeouts(trx, { statementMs: 60_000 })
+    await trx
+      .update(userTableDefinitions)
+      .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
+      .where(eq(userTableDefinitions.id, data.tableId))
+    for (const name of removedColumnNames) {
+      await trx.execute(
+        sql`UPDATE user_table_rows SET data = data - ${name}::text WHERE table_id = ${data.tableId} AND data ? ${name}::text`
+      )
+    }
+  })
+
+  logger.info(
+    `[${requestId}] Updated workflow group "${data.groupId}" in table ${data.tableId} (added=${added.length}, removed=${removed.length})`
+  )
+
+  const updatedTable: TableDefinition = {
+    ...table,
+    schema: updatedSchema,
+    metadata: updatedMetadata,
+    updatedAt: now,
+  }
+
+  // Backfill the new outputs from execution logs so already-completed group
+  // runs surface the just-added columns without re-running the workflow.
+  if (added.length > 0) {
+    void backfillAddedGroupOutputs({
+      table: updatedTable,
+      groupId: data.groupId,
+      addedOutputs: added,
+      requestId,
+    }).catch((err) => {
+      logger.warn(
+        `[${requestId}] Backfill from execution logs failed for ${data.tableId} group ${data.groupId}:`,
+        err
+      )
+    })
+  }
+
+  return updatedTable
+}
+
+/**
+ * Removes a workflow group plus all its output columns. Also strips the
+ * group's `executions[groupId]` entry from every row.
+ */
+export async function deleteWorkflowGroup(
+  data: DeleteWorkflowGroupData,
+  requestId: string
+): Promise<TableDefinition> {
+  const table = await getTableById(data.tableId)
+  if (!table) {
+    throw new Error('Table not found')
+  }
+
+  const schema = table.schema
+  const groups = schema.workflowGroups ?? []
+  const group = groups.find((g) => g.id === data.groupId)
+  if (!group) {
+    throw new Error(`Workflow group "${data.groupId}" not found`)
+  }
+
+  const removedColumnNames = new Set(group.outputs.map((o) => o.columnName))
+  const nextGroups = groups
+    .filter((g) => g.id !== data.groupId)
+    .map((g) => ({
+      ...g,
+      dependencies: g.dependencies?.workflowGroups
+        ? {
+            ...(g.dependencies.columns ? { columns: g.dependencies.columns } : {}),
+            workflowGroups: g.dependencies.workflowGroups.filter((id) => id !== data.groupId),
+          }
+        : g.dependencies,
+    }))
+  const updatedSchema: TableSchema = {
+    ...schema,
+    columns: schema.columns.filter((c) => !removedColumnNames.has(c.name)),
+    workflowGroups: nextGroups,
+  }
+  const updatedColumnOrder = table.metadata?.columnOrder?.filter(
+    (n) => !removedColumnNames.has(n)
+  )
+  assertValidSchema(updatedSchema, updatedColumnOrder)
+
+  const updatedMetadata: TableMetadata | null =
+    updatedColumnOrder && table.metadata
+      ? { ...table.metadata, columnOrder: updatedColumnOrder }
+      : table.metadata
+        ? { ...table.metadata }
+        : null
+
+  const now = new Date()
+  await db.transaction(async (trx) => {
+    await setTableTxTimeouts(trx, { statementMs: 60_000 })
+    await trx
+      .update(userTableDefinitions)
+      .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
+      .where(eq(userTableDefinitions.id, data.tableId))
+    for (const name of removedColumnNames) {
+      await trx.execute(
+        sql`UPDATE user_table_rows SET data = data - ${name}::text WHERE table_id = ${data.tableId} AND data ? ${name}::text`
+      )
+    }
+    await trx.execute(
+      sql`UPDATE user_table_rows SET executions = executions - ${data.groupId}::text WHERE table_id = ${data.tableId} AND executions ? ${data.groupId}::text`
+    )
+  })
+
+  logger.info(
+    `[${requestId}] Deleted workflow group "${data.groupId}" from table ${data.tableId}`
+  )
+
+  return {
+    ...table,
+    schema: updatedSchema,
+    metadata: updatedMetadata,
+    updatedAt: now,
+  }
 }
 
 /** Minimal shape of a trace span we care about for backfill. */
@@ -2572,18 +2819,14 @@ function findSpanByBlockId(
   return undefined
 }
 
-async function backfillAddedOutputs(opts: {
+async function backfillAddedGroupOutputs(opts: {
   table: TableDefinition
-  columnName: string
-  oldOutputs: Array<{ blockId: string; path: string }>
-  newOutputs: Array<{ blockId: string; path: string }>
+  groupId: string
+  addedOutputs: WorkflowGroupOutput[]
   requestId: string
 }): Promise<void> {
-  const { table, columnName, oldOutputs, newOutputs, requestId } = opts
-
-  const oldKeys = new Set(oldOutputs.map((o) => `${o.blockId}::${o.path}`))
-  const added = newOutputs.filter((o) => !oldKeys.has(`${o.blockId}::${o.path}`))
-  if (added.length === 0) return
+  const { table, groupId, addedOutputs, requestId } = opts
+  if (addedOutputs.length === 0) return
 
   const { pluckByPath } = await import('./pluck')
 
@@ -2592,13 +2835,12 @@ async function backfillAddedOutputs(opts: {
     .from(userTableRows)
     .where(eq(userTableRows.tableId, table.id))
 
-  // Collect unique executionIds across completed cells; one batched fetch beats
-  // N round-trips when the table has many rows.
+  // Collect unique executionIds across rows whose group execution completed.
   const executionIdsByRow = new Map<string, string>()
   for (const r of rowRecords) {
-    const cell = (r.data as RowData)[columnName] as WorkflowCellValue | null | undefined
-    if (!cell || cell.status !== 'completed' || !cell.executionId) continue
-    executionIdsByRow.set(r.id, cell.executionId)
+    const exec = ((r.executions as RowExecutions) ?? {})[groupId]
+    if (!exec || exec.status !== 'completed' || !exec.executionId) continue
+    executionIdsByRow.set(r.id, exec.executionId)
   }
   if (executionIdsByRow.size === 0) return
 
@@ -2621,37 +2863,24 @@ async function backfillAddedOutputs(opts: {
 
   const updates: Array<{ rowId: string; data: RowData }> = []
   for (const r of rowRecords) {
-    const cell = (r.data as RowData)[columnName] as WorkflowCellValue | null | undefined
-    if (!cell || cell.status !== 'completed' || !cell.executionId) continue
-    const log = logByExecutionId.get(cell.executionId)
+    const exec = ((r.executions as RowExecutions) ?? {})[groupId]
+    if (!exec?.executionId) continue
+    const log = logByExecutionId.get(exec.executionId)
     if (!log) continue
 
-    const nextBlockOutputs: Record<string, Record<string, unknown>> = {}
-    for (const [k, v] of Object.entries(cell.blockOutputs ?? {})) {
-      nextBlockOutputs[k] =
-        v && typeof v === 'object' && !Array.isArray(v) ? { ...(v as Record<string, unknown>) } : {}
-    }
-
+    const dataPatch: RowData = {}
     let mutated = false
-    for (const out of added) {
-      if (nextBlockOutputs[out.blockId]?.[out.path] !== undefined) continue
+    for (const out of addedOutputs) {
+      if ((r.data as RowData)[out.columnName] !== undefined) continue
       const span = findSpanByBlockId(log.traceSpans, out.blockId)
       if (!span?.output) continue
       const picked = pluckByPath(span.output, out.path)
       if (picked === undefined) continue
-      nextBlockOutputs[out.blockId] = {
-        ...(nextBlockOutputs[out.blockId] ?? {}),
-        [out.path]: picked,
-      }
+      dataPatch[out.columnName] = picked as RowData[string]
       mutated = true
     }
     if (!mutated) continue
-
-    const updatedCell: WorkflowCellValue = { ...cell, blockOutputs: nextBlockOutputs }
-    updates.push({
-      rowId: r.id,
-      data: { [columnName]: updatedCell as unknown as RowData[string] } as RowData,
-    })
+    updates.push({ rowId: r.id, data: dataPatch })
   }
 
   if (updates.length === 0) return
@@ -2667,7 +2896,7 @@ async function backfillAddedOutputs(opts: {
   )
 
   logger.info(
-    `[${requestId}] Backfilled ${updates.length} cell(s) for column "${columnName}" in table ${table.id}`
+    `[${requestId}] Backfilled ${updates.length} row(s) for group "${groupId}" in table ${table.id}`
   )
 }
 
@@ -2704,8 +2933,6 @@ function isValueCompatibleWithType(
       return false
     }
     case 'json':
-      return true
-    case 'workflow':
       return true
     default:
       return false

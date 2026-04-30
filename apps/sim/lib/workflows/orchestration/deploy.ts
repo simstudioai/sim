@@ -234,9 +234,9 @@ export async function performFullDeploy(
   // showing perpetual "Waiting" indicators on future row runs.
   if (workflowData.workspaceId) {
     try {
-      const { pruneStaleWorkflowColumnOutputs } = await import('@/lib/table/service')
+      const { pruneStaleWorkflowGroupOutputs } = await import('@/lib/table/service')
       const validBlockIds = new Set(Object.keys(normalizedData.blocks))
-      await pruneStaleWorkflowColumnOutputs({
+      await pruneStaleWorkflowGroupOutputs({
         workflowId,
         workspaceId: workflowData.workspaceId as string,
         validBlockIds,

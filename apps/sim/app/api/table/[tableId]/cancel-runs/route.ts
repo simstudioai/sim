@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { cancelWorkflowColumnRuns } from '@/lib/table/workflow-columns'
+import { cancelWorkflowGroupRuns } from '@/lib/table/workflow-columns'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableCancelRunsAPI')
@@ -50,7 +50,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const cancelled = await cancelWorkflowColumnRuns(
+    const cancelled = await cancelWorkflowGroupRuns(
       tableId,
       validated.scope === 'row' ? validated.rowId : undefined
     )

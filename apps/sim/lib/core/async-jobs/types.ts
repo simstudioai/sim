@@ -25,7 +25,7 @@ export type JobType =
   | 'schedule-execution'
   | 'webhook-execution'
   | 'resume-execution'
-  | 'workflow-column-execution'
+  | 'workflow-group-cell'
   | 'cleanup-logs'
   | 'cleanup-soft-deletes'
   | 'cleanup-tasks'

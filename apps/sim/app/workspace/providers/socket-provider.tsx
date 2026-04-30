@@ -60,6 +60,8 @@ interface TableRowUpdatedEvent {
   tableId: string
   rowId: string
   data: Record<string, unknown>
+  /** Per-group execution state. Keyed by `WorkflowGroup.id`. */
+  executions?: Record<string, unknown>
   position: number
   updatedAt: string | number
 }

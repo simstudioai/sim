@@ -249,8 +249,6 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
           errors.push(`${column.name} must be valid JSON`)
         }
         break
-      case 'workflow':
-        break
     }
   }
 

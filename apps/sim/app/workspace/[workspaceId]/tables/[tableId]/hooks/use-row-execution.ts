@@ -6,36 +6,37 @@ import { tableKeys } from '@/hooks/queries/tables'
 
 const logger = createLogger('useRowExecution')
 
-export interface RunWorkflowColumnParams {
+export interface RunWorkflowGroupParams {
   tableId: string
   rowId: string
   workspaceId: string
-  columnName: string
+  groupId: string
 }
 
 interface UseRowExecutionReturn {
-  runWorkflowColumn: (params: RunWorkflowColumnParams) => Promise<void>
+  runWorkflowGroup: (params: RunWorkflowGroupParams) => Promise<void>
 }
 
 /**
- * Thin client-side wrapper around the manual-run endpoint. Invalidation lives in
- * `finally` so failed starts (4xx/5xx) still refresh the rows query — otherwise a
- * cell stuck in a stale state would remain in the UI until the next refetch.
+ * Thin client-side wrapper around the manual-run endpoint. Invalidation lives
+ * in `finally` so failed starts (4xx/5xx) still refresh the rows query —
+ * otherwise a row stuck in stale state would remain in the UI until the next
+ * refetch.
  */
 export function useRowExecution(): UseRowExecutionReturn {
   const queryClient = useQueryClient()
 
-  const runWorkflowColumn = useCallback(
-    async (params: RunWorkflowColumnParams) => {
+  const runWorkflowGroup = useCallback(
+    async (params: RunWorkflowGroupParams) => {
       try {
         const res = await fetch(
-          `/api/table/${params.tableId}/rows/${params.rowId}/run-workflow-column`,
+          `/api/table/${params.tableId}/rows/${params.rowId}/run-workflow-group`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               workspaceId: params.workspaceId,
-              columnName: params.columnName,
+              groupId: params.groupId,
             }),
           }
         )
@@ -46,7 +47,7 @@ export function useRowExecution(): UseRowExecutionReturn {
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error'
-        logger.error('Run workflow column failed:', err)
+        logger.error('Run workflow group failed:', err)
         toast.error(`Failed to run workflow: ${message}`)
       } finally {
         queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(params.tableId) })
@@ -55,5 +56,5 @@ export function useRowExecution(): UseRowExecutionReturn {
     [queryClient]
   )
 
-  return { runWorkflowColumn }
+  return { runWorkflowGroup }
 }

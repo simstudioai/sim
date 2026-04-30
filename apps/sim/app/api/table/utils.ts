@@ -167,20 +167,6 @@ export const CreateColumnSchema = z.object({
     required: z.boolean().optional(),
     unique: z.boolean().optional(),
     position: z.number().int().min(0).optional(),
-    workflowConfig: z
-      .object({
-        workflowId: z.string().min(1),
-        dependencies: z.array(z.string()).optional(),
-        outputs: z
-          .array(
-            z.object({
-              blockId: z.string().min(1),
-              path: z.string().min(1),
-            })
-          )
-          .min(1, 'Workflow column requires at least one output'),
-      })
-      .optional(),
   }),
 })
 
@@ -192,20 +178,6 @@ export const UpdateColumnSchema = z.object({
     type: columnTypeEnum.optional(),
     required: z.boolean().optional(),
     unique: z.boolean().optional(),
-    workflowConfig: z
-      .object({
-        workflowId: z.string().min(1),
-        dependencies: z.array(z.string()).optional(),
-        outputs: z
-          .array(
-            z.object({
-              blockId: z.string().min(1),
-              path: z.string().min(1),
-            })
-          )
-          .min(1, 'Workflow column requires at least one output'),
-      })
-      .optional(),
   }),
 })
 
@@ -214,12 +186,58 @@ export const DeleteColumnSchema = z.object({
   columnName: z.string().min(1, 'Column name is required'),
 })
 
+const WorkflowGroupOutputSchema = z.object({
+  blockId: z.string().min(1),
+  path: z.string().min(1),
+  columnName: z.string().min(1),
+})
+
+const WorkflowGroupDependenciesSchema = z.object({
+  columns: z.array(z.string()).optional(),
+  workflowGroups: z.array(z.string()).optional(),
+})
+
+const WorkflowGroupOutputColumnSchema = z.object({
+  name: z.string().min(1),
+  type: columnTypeEnum,
+  required: z.boolean().optional(),
+  unique: z.boolean().optional(),
+  workflowGroupId: z.string().min(1),
+})
+
+export const AddWorkflowGroupSchema = z.object({
+  workspaceId: z.string().min(1),
+  group: z.object({
+    id: z.string().min(1),
+    workflowId: z.string().min(1),
+    name: z.string().optional(),
+    dependencies: WorkflowGroupDependenciesSchema.optional(),
+    outputs: z.array(WorkflowGroupOutputSchema).min(1),
+  }),
+  outputColumns: z.array(WorkflowGroupOutputColumnSchema).min(1),
+})
+
+export const UpdateWorkflowGroupSchema = z.object({
+  workspaceId: z.string().min(1),
+  groupId: z.string().min(1),
+  workflowId: z.string().min(1).optional(),
+  name: z.string().optional(),
+  dependencies: WorkflowGroupDependenciesSchema.optional(),
+  outputs: z.array(WorkflowGroupOutputSchema).optional(),
+  newOutputColumns: z.array(WorkflowGroupOutputColumnSchema).optional(),
+})
+
+export const DeleteWorkflowGroupSchema = z.object({
+  workspaceId: z.string().min(1),
+  groupId: z.string().min(1),
+})
+
 export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
   return {
     name: col.name,
     type: col.type,
     required: col.required ?? false,
     unique: col.unique ?? false,
-    ...(col.workflowConfig ? { workflowConfig: col.workflowConfig } : {}),
+    ...(col.workflowGroupId ? { workflowGroupId: col.workflowGroupId } : {}),
   }
 }

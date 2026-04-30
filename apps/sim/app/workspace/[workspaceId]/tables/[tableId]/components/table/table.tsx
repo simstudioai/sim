@@ -49,9 +49,11 @@ import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
   Filter,
+  RowExecutionMetadata,
+  RowExecutions,
   SortDirection,
   TableRow as TableRowType,
-  WorkflowCellValue,
+  WorkflowGroup,
 } from '@/lib/table'
 import type { FlattenOutputsBlockInput } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
@@ -61,13 +63,14 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import {
   useAddTableColumn,
-  useRunColumn,
+  useRunGroup,
   useBatchCreateTableRows,
   useBatchUpdateTableRows,
   useCancelTableRuns,
   useCreateTableRow,
   useDeleteColumn,
   useDeleteTable,
+  useDeleteWorkflowGroup,
   useRenameTable,
   useUpdateColumn,
   useUpdateTableMetadata,
@@ -110,63 +113,72 @@ interface NormalizedSelection {
 }
 
 /**
- * One visual column in the rendered grid. Extends `ColumnDefinition` so existing
- * accessors (`name`, `type`, `workflowConfig`) keep meaning the **logical** column.
- * Workflow columns always fan out — one `DisplayColumn` per configured output —
- * and share a logical column. Non-workflow columns produce a single `DisplayColumn`.
+ * One visual column in the rendered grid. With the flat schema there's exactly
+ * one DisplayColumn per ColumnDefinition — no fan-out. Workflow grouping is
+ * derived from `column.workflowGroupId` and rendered as a meta-header banner.
  */
 interface DisplayColumn extends ColumnDefinition {
-  /** Stable per-visual-column identifier. */
+  /** Stable per-visual-column identifier (= column.name). */
   key: string
-  /** Pluck path for workflow visual columns; undefined for non-workflow columns. */
-  outputPath?: string
-  /** Source block id for workflow visual columns; undefined for non-workflow columns. */
+  /** Block id producing this column's value (workflow-output columns only). */
   outputBlockId?: string
-  /** Sibling count within the workflow group (1 for non-workflow columns). */
+  /** Pluck path the workflow ran for this column. */
+  outputPath?: string
+  /** Number of consecutive sibling columns sharing this group (1 for plain). */
   groupSize: number
   /** colIndex of the first sibling within `displayColumns`. */
   groupStartColIndex: number
   /** Header label shown above this visual column. */
   headerLabel: string
-  /** True when this is the leftmost sibling (or the only one). */
+  /** True when this is the leftmost sibling of its group (or non-grouped). */
   isGroupStart: boolean
 }
 
-function expandToDisplayColumns(columns: ColumnDefinition[]): DisplayColumn[] {
+function expandToDisplayColumns(
+  columns: ColumnDefinition[],
+  workflowGroups: WorkflowGroup[]
+): DisplayColumn[] {
   const out: DisplayColumn[] = []
-  for (const column of columns) {
-    if (column.type === 'workflow') {
-      const outputs = column.workflowConfig?.outputs
-      if (!outputs || outputs.length === 0) {
-        throw new Error(
-          `Workflow column "${column.name}" has no outputs configured — every workflow column must declare at least one output.`
-        )
+  const groupById = new Map(workflowGroups.map((g) => [g.id, g]))
+
+  // Pre-pass: compute `groupSize` and `groupStartColIndex` for every consecutive
+  // run of columns sharing a `workflowGroupId`. Validation guarantees cohesion;
+  // the renderer just walks sequentially.
+  for (let i = 0; i < columns.length; ) {
+    const column = columns[i]
+    const gid = column.workflowGroupId
+    if (gid) {
+      let size = 1
+      while (i + size < columns.length && columns[i + size].workflowGroupId === gid) {
+        size++
       }
+      const group = groupById.get(gid)
       const startIdx = out.length
-      for (let i = 0; i < outputs.length; i++) {
-        const { blockId, path } = outputs[i]
+      for (let k = 0; k < size; k++) {
+        const child = columns[i + k]
+        const output = group?.outputs.find((o) => o.columnName === child.name)
         out.push({
-          ...column,
-          key: `${column.name}::${blockId}::${path}`,
-          outputPath: path,
-          outputBlockId: blockId,
-          groupSize: outputs.length,
+          ...child,
+          key: child.name,
+          outputBlockId: output?.blockId,
+          outputPath: output?.path,
+          groupSize: size,
           groupStartColIndex: startIdx,
-          headerLabel: path,
-          isGroupStart: i === 0,
+          headerLabel: child.name,
+          isGroupStart: k === 0,
         })
       }
+      i += size
     } else {
       out.push({
         ...column,
         key: column.name,
-        outputPath: undefined,
-        outputBlockId: undefined,
         groupSize: 1,
         groupStartColIndex: out.length,
         headerLabel: column.name,
         isGroupStart: true,
       })
+      i += 1
     }
   }
   return out
@@ -175,35 +187,69 @@ function expandToDisplayColumns(columns: ColumnDefinition[]): DisplayColumn[] {
 /** A run of consecutive `displayColumns` rendered together in the meta header row. */
 type HeaderGroup =
   | { kind: 'plain'; size: 1; startColIndex: number }
-  | { kind: 'workflow'; size: number; startColIndex: number; workflowId: string }
+  | {
+      kind: 'workflow'
+      size: number
+      startColIndex: number
+      groupId: string
+      workflowId: string
+    }
 
-function buildHeaderGroups(displayColumns: DisplayColumn[]): HeaderGroup[] {
+function buildHeaderGroups(
+  displayColumns: DisplayColumn[],
+  workflowGroups: WorkflowGroup[]
+): HeaderGroup[] {
+  const groupById = new Map(workflowGroups.map((g) => [g.id, g]))
   const groups: HeaderGroup[] = []
   for (let i = 0; i < displayColumns.length; ) {
     const col = displayColumns[i]
-    if (col.type === 'workflow' && col.isGroupStart && col.workflowConfig) {
-      groups.push({
-        kind: 'workflow',
-        size: col.groupSize,
-        startColIndex: i,
-        workflowId: col.workflowConfig.workflowId,
-      })
-      i += col.groupSize
-    } else {
-      groups.push({ kind: 'plain', size: 1, startColIndex: i })
-      i += 1
+    if (col.workflowGroupId && col.isGroupStart) {
+      const group = groupById.get(col.workflowGroupId)
+      if (group) {
+        groups.push({
+          kind: 'workflow',
+          size: col.groupSize,
+          startColIndex: i,
+          groupId: col.workflowGroupId,
+          workflowId: group.workflowId,
+        })
+        i += col.groupSize
+        continue
+      }
     }
+    groups.push({ kind: 'plain', size: 1, startColIndex: i })
+    i += 1
   }
   return groups
 }
 
-/** Read a workflow cell's picked value for `(blockId, path)` — direct lookup. */
-function readPickedValue(
-  cell: WorkflowCellValue | null | undefined,
-  blockId: string,
-  path: string
-): unknown {
-  return (cell?.blockOutputs?.[blockId] as Record<string, unknown> | undefined)?.[path]
+/** Reads the per-group execution state for a row, defaulting to empty. */
+function readExecution(
+  row: { executions?: RowExecutions } | null | undefined,
+  groupId: string | undefined
+): RowExecutionMetadata | undefined {
+  if (!groupId) return undefined
+  return row?.executions?.[groupId]
+}
+
+/**
+ * Client-side mirror of the scheduler's deps predicate. Used to filter the
+ * row-run button so we don't fire downstream groups whose upstream isn't
+ * `completed` yet — the cascade handles those once the upstream finishes.
+ */
+function areRowDepsSatisfied(
+  group: WorkflowGroup,
+  row: { data: Record<string, unknown>; executions?: RowExecutions }
+): boolean {
+  const deps = group.dependencies ?? {}
+  for (const colName of deps.columns ?? []) {
+    const value = row.data[colName]
+    if (value === null || value === undefined || value === '') return false
+  }
+  for (const gid of deps.workflowGroups ?? []) {
+    if ((row.executions ?? {})[gid]?.status !== 'completed') return false
+  }
+  return true
 }
 
 const EMPTY_COLUMNS: DisplayColumn[] = []
@@ -362,7 +408,7 @@ export function Table({
     closeContextMenu,
   } = useContextMenu()
 
-  const { runWorkflowColumn } = useRowExecution()
+  const { runWorkflowGroup } = useRowExecution()
   const { data: workflows } = useWorkflows(workspaceId)
   const workflowsRef = useRef(workflows)
   workflowsRef.current = workflows
@@ -376,11 +422,12 @@ export function Table({
   const deleteColumnMutation = useDeleteColumn({ workspaceId, tableId })
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
   const cancelRunsMutation = useCancelTableRuns({ workspaceId, tableId })
-  const runColumnMutation = useRunColumn({ workspaceId, tableId })
+  const runGroupMutation = useRunGroup({ workspaceId, tableId })
+  const deleteWorkflowGroupMutation = useDeleteWorkflowGroup({ workspaceId, tableId })
 
-  const handleRunColumn = useCallback(
-    (columnName: string) => {
-      runColumnMutation.mutate({ columnName })
+  const handleRunGroup = useCallback(
+    (groupId: string, workflowId: string) => {
+      runGroupMutation.mutate({ groupId, workflowId })
     },
     // mutate is stable; intentionally excluded from deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -448,6 +495,11 @@ export function Table({
     [tableData?.schema?.columns]
   )
 
+  const tableWorkflowGroups = useMemo<WorkflowGroup[]>(
+    () => tableData?.schema?.workflowGroups ?? [],
+    [tableData?.schema?.workflowGroups]
+  )
+
   const displayColumns = useMemo<DisplayColumn[]>(() => {
     let ordered: ColumnDefinition[]
     if (!columnOrder || columnOrder.length === 0) {
@@ -466,10 +518,13 @@ export function Table({
         ordered.push(col)
       }
     }
-    return expandToDisplayColumns(ordered)
-  }, [columns, columnOrder])
+    return expandToDisplayColumns(ordered, tableWorkflowGroups)
+  }, [columns, columnOrder, tableWorkflowGroups])
 
-  const headerGroups = useMemo(() => buildHeaderGroups(displayColumns), [displayColumns])
+  const headerGroups = useMemo(
+    () => buildHeaderGroups(displayColumns, tableWorkflowGroups),
+    [displayColumns, tableWorkflowGroups]
+  )
   const hasWorkflowGroup = headerGroups.some((g) => g.kind === 'workflow')
 
   const maxPosition = useMemo(() => (rows.length > 0 ? rows[rows.length - 1].position : -1), [rows])
@@ -727,14 +782,12 @@ export function Table({
       return { isWorkflowColumn: false, executionId: null }
     }
     const column = columnsRef.current.find((c) => c.name === contextMenu.columnName)
-    if (!column || column.type !== 'workflow') {
+    const groupId = column?.workflowGroupId
+    if (!column || !groupId) {
       return { isWorkflowColumn: false, executionId: null }
     }
-    const cell = contextMenu.row.data[contextMenu.columnName] as
-      | WorkflowCellValue
-      | null
-      | undefined
-    return { isWorkflowColumn: true, executionId: cell?.executionId ?? null }
+    const exec = contextMenu.row.executions?.[groupId]
+    return { isWorkflowColumn: true, executionId: exec?.executionId ?? null }
   }, [contextMenu.row, contextMenu.columnName])
   const contextMenuExecutionId = contextMenuColumnInfo.executionId
   const contextMenuIsWorkflowColumn = contextMenuColumnInfo.isWorkflowColumn
@@ -980,18 +1033,10 @@ export function Table({
 
       measure.className = 'text-small'
       for (const row of currentRows) {
-        const rawVal = row.data[column.name]
-        let val: unknown = rawVal
-        if (column.type === 'workflow') {
-          const cell = rawVal as WorkflowCellValue | null | undefined
-          if (!column.outputBlockId || !column.outputPath) continue
-          const picked = readPickedValue(cell, column.outputBlockId, column.outputPath)
-          if (picked === undefined) continue
-          val = picked
-        }
+        const val = row.data[column.name]
         if (val == null) continue
         let text: string
-        if (column.type === 'json' || column.type === 'workflow') {
+        if (column.type === 'json') {
           if (typeof val === 'string') {
             text = val
           } else {
@@ -1591,7 +1636,7 @@ export function Table({
       if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
         if (!canEditRef.current) return
         const col = cols[anchor.colIndex]
-        if (!col || col.type === 'boolean' || col.type === 'workflow') return
+        if (!col || col.type === 'boolean' || col.workflowGroupId) return
         if (col.type === 'number' && !/[\d.-]/.test(e.key)) return
         if (col.type === 'date' && !/[\d\-/]/.test(e.key)) return
         e.preventDefault()
@@ -1924,10 +1969,10 @@ export function Table({
   const handleAddColumn = useCallback(
     (type = 'string', workflowId?: string) => {
       const name = generateColumnName()
-      // Workflow columns: don't persist anything yet. The sidebar's Save creates the
-      // column atomically via POST with the chosen workflowConfig — opens instantly
-      // and avoids stranding a placeholder column if the user cancels.
-      if (type === 'workflow' && workflowId) {
+      // Workflow group flow: don't persist columns until the user picks outputs.
+      // The sidebar's Save calls `addWorkflowGroup` to create N columns + 1 group
+      // atomically.
+      if (workflowId) {
         const wf = workflowsRef.current?.find((w) => w.id === workflowId)
         const proposedName = wf ? sanitizeWorkflowNameAsColumnRef.current(wf.name, name) : name
         setExecutionDetailsId(null)
@@ -2301,7 +2346,7 @@ export function Table({
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
   const workflowColumnNames = useMemo(
-    () => columns.filter((c) => c.type === 'workflow').map((c) => c.name),
+    () => columns.filter((c) => !!c.workflowGroupId).map((c) => c.name),
     [columns]
   )
   const hasWorkflowColumns = workflowColumnNames.length > 0
@@ -2317,12 +2362,11 @@ export function Table({
   const { runningByRowId, totalRunning } = useMemo(() => {
     const byRow = new Map<string, number>()
     let total = 0
-    if (workflowColumnNames.length === 0) return { runningByRowId: byRow, totalRunning: 0 }
     for (const row of rows) {
       let count = 0
-      for (const name of workflowColumnNames) {
-        const cell = row.data[name] as WorkflowCellValue | null | undefined
-        if (cell?.status === 'running') count++
+      const executions = row.executions ?? {}
+      for (const gid in executions) {
+        if (executions[gid]?.status === 'running') count++
       }
       if (count > 0) {
         byRow.set(row.id, count)
@@ -2330,7 +2374,7 @@ export function Table({
       }
     }
     return { runningByRowId: byRow, totalRunning: total }
-  }, [rows, workflowColumnNames])
+  }, [rows])
 
   const cancelRunsMutate = cancelRunsMutation.mutate
 
@@ -2348,12 +2392,19 @@ export function Table({
 
   const handleRunRow = useCallback(
     (rowId: string) => {
-      if (workflowColumnNames.length === 0) return
-      for (const columnName of workflowColumnNames) {
-        void runWorkflowColumn({ tableId, rowId, workspaceId, columnName })
+      if (tableWorkflowGroups.length === 0) return
+      const target = rowsRef.current.find((r) => r.id === rowId)
+      if (!target) return
+      // Only fire groups whose deps are already satisfied for THIS row. The
+      // cascade picks up downstream groups: when an upstream group completes,
+      // `scheduleWorkflowGroupRuns` evaluates eligibility and enqueues the
+      // newly-ready successors automatically.
+      for (const group of tableWorkflowGroups) {
+        if (!areRowDepsSatisfied(group, target)) continue
+        void runWorkflowGroup({ tableId, rowId, workspaceId, groupId: group.id })
       }
     },
-    [runWorkflowColumn, tableId, workspaceId, workflowColumnNames]
+    [runWorkflowGroup, tableId, workspaceId, tableWorkflowGroups]
   )
 
   if (!isLoadingTable && !tableData) {
@@ -2491,9 +2542,12 @@ export function Table({
                                 normalizedSelection.startCol <= g.startColIndex &&
                                 normalizedSelection.endCol >= g.startColIndex + g.size - 1
                               }
+                              groupId={g.groupId}
                               onSelectGroup={handleGroupSelect}
                               onOpenConfig={handleConfigureColumn}
-                              onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
+                              onRunGroup={
+                                userPermissions.canEdit ? handleRunGroup : undefined
+                              }
                               onInsertLeft={
                                 userPermissions.canEdit ? handleInsertColumnLeft : undefined
                               }
@@ -2557,6 +2611,7 @@ export function Table({
                         onDragEnd={handleColumnDragEnd}
                         onDragLeave={handleColumnDragLeave}
                         workflows={workflows}
+                        workflowGroups={tableWorkflowGroups}
                         onOpenConfig={handleConfigureColumn}
                       />
                     ))}
@@ -2666,6 +2721,7 @@ export function Table({
               : null
           }
           allColumns={columns}
+          workflowGroups={tableWorkflowGroups}
           workflows={workflows}
           workspaceId={workspaceId}
           tableId={tableId}
@@ -3224,6 +3280,7 @@ const DataRow = React.memo(function DataRow({
                     ? pendingCellValue[column.name]
                     : row.data[column.name]
                 }
+                exec={readExecution(row, column.workflowGroupId)}
                 column={column}
                 isEditing={isEditing}
                 initialCharacter={isEditing ? initialCharacter : undefined}
@@ -3241,6 +3298,7 @@ const DataRow = React.memo(function DataRow({
 
 function CellContent({
   value,
+  exec,
   column,
   isEditing,
   initialCharacter,
@@ -3249,6 +3307,7 @@ function CellContent({
   workflowNameById,
 }: {
   value: unknown
+  exec?: RowExecutionMetadata
   column: DisplayColumn
   isEditing: boolean
   initialCharacter?: string | null
@@ -3259,26 +3318,17 @@ function CellContent({
   const isNull = value === null || value === undefined
 
   let displayContent: React.ReactNode = null
-  if (column.type === 'workflow') {
-    const cell = value as WorkflowCellValue | null
+  if (column.workflowGroupId) {
     const blockId = column.outputBlockId
-    const outputPath = column.outputPath
-
-    // Per-block error trumps everything: if THIS block failed, show error here
-    // even if the overall workflow succeeded (error-port edges are normal).
-    // Conversely, `cell.status === 'error'` does NOT propagate to fanned-out
-    // columns whose blocks didn't themselves error — a downstream block that
-    // never ran stays empty, not Error.
-    const blockError = blockId ? cell?.blockErrors?.[blockId] : undefined
-
-    let perBlockText: string | null = null
-    if (blockId && outputPath && !blockError) {
-      const picked = readPickedValue(cell, blockId, outputPath)
-      if (picked !== undefined) {
-        perBlockText =
-          picked == null ? '' : typeof picked === 'string' ? picked : JSON.stringify(picked)
-      }
-    }
+    const blockError = blockId ? exec?.blockErrors?.[blockId] : undefined
+    const blockRunning = blockId ? (exec?.runningBlockIds?.includes(blockId) ?? false) : false
+    const hasValue = !isNull
+    const valueText =
+      typeof value === 'string'
+        ? value
+        : value === null || value === undefined
+          ? ''
+          : JSON.stringify(value)
 
     if (blockError) {
       displayContent = (
@@ -3289,18 +3339,14 @@ function CellContent({
           Error
         </span>
       )
-    } else if (perBlockText !== null) {
+    } else if (hasValue) {
       displayContent = (
         <span className='block overflow-clip text-ellipsis text-[var(--text-primary)]'>
-          {perBlockText}
+          {valueText}
         </span>
       )
-    } else if (cell?.status === 'running' && blockId) {
-      // Split the overall `running` state into per-block tiers: animated spinner
-      // if THIS block is currently executing, static dot if it's queued behind
-      // upstream blocks.
-      const isInProgress = cell.runningBlockIds?.includes(blockId) ?? false
-      if (isInProgress) {
+    } else if (exec?.status === 'running' || exec?.status === 'pending') {
+      if (blockRunning) {
         displayContent = (
           <div className='flex min-h-[20px] min-w-0 items-center gap-1.5'>
             <Loader animate className='h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]' />
@@ -3319,7 +3365,7 @@ function CellContent({
           </div>
         )
       }
-    } else if (cell?.status === 'cancelled') {
+    } else if (exec?.status === 'cancelled') {
       displayContent = (
         <span className='block overflow-clip text-ellipsis text-[var(--text-tertiary)]'>
           Cancelled
@@ -3710,6 +3756,7 @@ function ColumnOptionsMenu({
  */
 function WorkflowGroupMetaCell({
   workflowId,
+  groupId,
   size,
   startColIndex,
   columnName,
@@ -3718,12 +3765,13 @@ function WorkflowGroupMetaCell({
   isGroupSelected,
   onSelectGroup,
   onOpenConfig,
-  onRunColumn,
+  onRunGroup,
   onInsertLeft,
   onInsertRight,
   onDeleteColumn,
 }: {
   workflowId: string
+  groupId: string
   size: number
   startColIndex: number
   columnName: string
@@ -3733,7 +3781,7 @@ function WorkflowGroupMetaCell({
   isGroupSelected: boolean
   onSelectGroup: (startColIndex: number, size: number) => void
   onOpenConfig: (columnName: string) => void
-  onRunColumn?: (columnName: string) => void
+  onRunGroup?: (groupId: string, workflowId: string) => void
   onInsertLeft?: (columnName: string) => void
   onInsertRight?: (columnName: string) => void
   onDeleteColumn?: (columnName: string) => void
@@ -3758,9 +3806,9 @@ function WorkflowGroupMetaCell({
   const handlePlayClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      if (columnName) onRunColumn?.(columnName)
+      if (groupId && workflowId) onRunGroup?.(groupId, workflowId)
     },
-    [columnName, onRunColumn]
+    [groupId, workflowId, onRunGroup]
   )
 
   const handleContextMenu = useCallback(
@@ -3841,7 +3889,7 @@ function WorkflowGroupMetaCell({
             </Tooltip.Content>
           </Tooltip.Root>
         )}
-        {onRunColumn && (
+        {onRunGroup && (
           <button
             type='button'
             className={cn(
@@ -3849,8 +3897,8 @@ function WorkflowGroupMetaCell({
               !deployState && 'ml-auto'
             )}
             onClick={handlePlayClick}
-            aria-label='Run column'
-            title='Run column'
+            aria-label='Run group'
+            title='Run group'
           >
             <PlayOutline className='h-[10px] w-[10px]' />
           </button>
@@ -3895,6 +3943,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onDragEnd,
   onDragLeave,
   workflows,
+  workflowGroups,
   onOpenConfig,
 }: {
   column: DisplayColumn
@@ -3919,21 +3968,20 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onDragEnd?: () => void
   onDragLeave?: () => void
   workflows?: WorkflowMetadata[]
+  workflowGroups?: WorkflowGroup[]
   onOpenConfig: (columnName: string) => void
 }) {
   const renameInputRef = useRef<HTMLInputElement>(null)
   const didDragRef = useRef(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
-  const configuredWorkflow =
-    column.type === 'workflow' && column.workflowConfig
-      ? workflows?.find((w) => w.id === column.workflowConfig!.workflowId)
+  const ownGroup =
+    column.workflowGroupId && workflowGroups
+      ? workflowGroups.find((g) => g.id === column.workflowGroupId)
       : undefined
+  const configuredWorkflow = ownGroup ? workflows?.find((w) => w.id === ownGroup.workflowId) : undefined
   const workflowColor = configuredWorkflow?.color
-  const workflowId =
-    column.type === 'workflow' && column.workflowConfig
-      ? column.workflowConfig.workflowId
-      : undefined
+  const workflowId = ownGroup?.workflowId
   const workflowState = useWorkflowState(workflowId)
   const sourceBlock = useMemo(() => {
     if (!column.outputBlockId) return undefined
@@ -4114,7 +4162,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             workflowColor={workflowColor}
             blockIconInfo={blockIconInfo}
           />
-          {column.type === 'workflow' ? (
+          {column.workflowGroupId ? (
             <div className='ml-1.5 flex min-w-0 flex-col'>
               {blockName && (
                 <span className='truncate text-[var(--text-tertiary)] text-caption leading-tight'>
@@ -4144,7 +4192,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               workflowColor={workflowColor}
               blockIconInfo={blockIconInfo}
             />
-            {column.type === 'workflow' ? (
+            {column.workflowGroupId ? (
               <div className='ml-1.5 flex min-w-0 flex-col items-start'>
                 {blockName && (
                   <span className='truncate text-[10px] text-[var(--text-tertiary)] leading-tight'>
@@ -4247,33 +4295,13 @@ function ExpandedCellPopover({
     return { row, column, colIndex, value: row.data[column.name] }
   }, [expandedCell, rows, columns])
 
-  const isWorkflowCell = target?.column.type === 'workflow'
+  const isWorkflowCell = !!target?.column.workflowGroupId
   const isBooleanCell = target?.column.type === 'boolean'
   const isEditable = Boolean(target) && canEdit && !isWorkflowCell && !isBooleanCell
 
   const displayText = useMemo(() => {
     if (!target) return ''
-    const { column, value } = target
-    if (column.type === 'workflow') {
-      const cell = value as WorkflowCellValue | null | undefined
-      if (!cell) return ''
-      if (cell.status === 'error') return cell.error ?? 'Error'
-      // For fanned-out visual columns, surface the specific block's plucked value
-      // (live-streamed during the run, then preserved on terminal completion).
-      // Fall back to the workflow's full output if blockOutputs is missing.
-      const blockId = column.outputBlockId
-      const path = column.outputPath
-      if (blockId && path) {
-        const picked = readPickedValue(cell, blockId, path)
-        if (picked === undefined) return ''
-        if (picked === null) return ''
-        return typeof picked === 'string' ? picked : JSON.stringify(picked, null, 2)
-      }
-      if (cell.status !== 'completed') return ''
-      const output = cell.output
-      if (output == null) return ''
-      return typeof output === 'string' ? output : JSON.stringify(output, null, 2)
-    }
+    const { value } = target
     if (value == null) return ''
     if (typeof value === 'string') return value
     return JSON.stringify(value, null, 2)
@@ -4531,20 +4559,6 @@ function AddColumnTypeMenuItems({
   return (
     <>
       {COLUMN_TYPE_OPTIONS.map((option) => {
-        if (option.type === 'workflow') {
-          return (
-            <DropdownMenuSub key={option.type}>
-              <DropdownMenuSubTrigger>
-                <ColumnTypeIcon type='workflow' />
-                {option.label}
-              </DropdownMenuSubTrigger>
-              <WorkflowPickerSubContent
-                workflows={workflows}
-                onPick={(workflowId) => onSelect('workflow', workflowId)}
-              />
-            </DropdownMenuSub>
-          )
-        }
         return (
           <DropdownMenuItem key={option.type} onSelect={() => onSelect(option.type)}>
             <option.icon />
@@ -4552,6 +4566,16 @@ function AddColumnTypeMenuItems({
           </DropdownMenuItem>
         )
       })}
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>
+          <PlayOutline />
+          Workflow
+        </DropdownMenuSubTrigger>
+        <WorkflowPickerSubContent
+          workflows={workflows}
+          onPick={(workflowId) => onSelect('string', workflowId)}
+        />
+      </DropdownMenuSub>
     </>
   )
 }
@@ -4641,7 +4665,7 @@ function ColumnTypeIcon({
   workflowColor?: string
   blockIconInfo?: BlockIconInfo
 }) {
-  if (type === 'workflow') {
+  if (workflowColor || blockIconInfo) {
     if (blockIconInfo) {
       const BlockIcon = blockIconInfo.icon
       return (

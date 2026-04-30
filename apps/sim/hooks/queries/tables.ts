@@ -10,25 +10,31 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { toast } from '@/components/emcn'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import type {
+  ColumnDefinition,
   CsvHeaderMapping,
   Filter,
   RowData,
+  RowExecutionMetadata,
+  RowExecutions,
   Sort,
   TableDefinition,
   TableMetadata,
   TableRow,
-  WorkflowCellValue,
+  WorkflowGroup,
+  WorkflowGroupDependencies,
+  WorkflowGroupOutput,
 } from '@/lib/table'
 
 /** Short poll to surface running → completed transitions from the server without a dedicated realtime channel. */
 const ROWS_POLL_INTERVAL_WHILE_RUNNING_MS = 1500
 
-function hasRunningWorkflowCell(rows: TableRow[] | undefined): boolean {
+function hasRunningGroupExecution(rows: TableRow[] | undefined): boolean {
   if (!rows) return false
   for (const row of rows) {
-    for (const key in row.data) {
-      const cell = row.data[key] as WorkflowCellValue | null | undefined
-      if (cell && typeof cell === 'object' && cell.status === 'running') return true
+    const executions = row.executions ?? {}
+    for (const key in executions) {
+      const exec = executions[key]
+      if (exec?.status === 'running' || exec?.status === 'pending') return true
     }
   }
   return false
@@ -273,6 +279,7 @@ export function useTableRows({
           const incoming: TableRow = {
             id: event.rowId,
             data: event.data as RowData,
+            executions: (event.executions as RowExecutions) ?? {},
             position: event.position,
             createdAt: '',
             updatedAt:
@@ -287,7 +294,12 @@ export function useTableRows({
               totalCount: current.totalCount === null ? null : current.totalCount + 1,
             }
           }
-          const merged = { ...current.rows[idx], data: incoming.data, updatedAt: incoming.updatedAt }
+          const merged = {
+            ...current.rows[idx],
+            data: incoming.data,
+            executions: incoming.executions,
+            updatedAt: incoming.updatedAt,
+          }
           const next = [...current.rows]
           next[idx] = merged
           return { ...current, rows: next }
@@ -346,7 +358,7 @@ export function useTableRows({
     refetchInterval: (query) => {
       if (queryClient.isMutating() > 0) return false
       if (socketConnected) return false
-      return hasRunningWorkflowCell(query.state.data?.rows)
+      return hasRunningGroupExecution(query.state.data?.rows)
         ? ROWS_POLL_INTERVAL_WHILE_RUNNING_MS
         : false
     },
@@ -399,11 +411,6 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
       required?: boolean
       unique?: boolean
       position?: number
-      workflowConfig?: {
-        workflowId: string
-        dependencies?: string[]
-        outputs?: Array<{ blockId: string; path: string }>
-      }
     }) => {
       const res = await fetch(`/api/table/${tableId}/columns`, {
         method: 'POST',
@@ -784,11 +791,6 @@ interface UpdateColumnParams {
     type?: string
     required?: boolean
     unique?: boolean
-    workflowConfig?: {
-      workflowId: string
-      dependencies?: string[]
-      outputs?: Array<{ blockId: string; path: string }>
-    }
   }
 }
 
@@ -901,29 +903,22 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
     onMutate: async ({ scope, rowId }) => {
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
         if (scope === 'row' && r.id !== rowId) return null
+        const executions = (r.executions ?? {}) as RowExecutions
         let rowTouched = false
-        const nextData = { ...(r.data as RowData) }
-        for (const col in nextData) {
-          const cell = nextData[col] as WorkflowCellValue | null | undefined
-          if (
-            !cell ||
-            typeof cell !== 'object' ||
-            !('status' in cell) ||
-            (cell.status !== 'running' && cell.status !== 'pending')
-          ) {
-            continue
-          }
-          nextData[col] = {
-            executionId: cell.executionId ?? null,
-            jobId: null,
-            workflowId: cell.workflowId,
+        const nextExecutions: RowExecutions = { ...executions }
+        for (const gid in executions) {
+          const exec = executions[gid]
+          if (exec.status !== 'running' && exec.status !== 'pending') continue
+          nextExecutions[gid] = {
             status: 'cancelled',
-            output: null,
+            executionId: exec.executionId ?? null,
+            jobId: null,
+            workflowId: exec.workflowId,
             error: 'Cancelled',
-          } as unknown as RowData[string]
+          }
           rowTouched = true
         }
-        return rowTouched ? { ...r, data: nextData } : null
+        return rowTouched ? { ...r, executions: nextExecutions } : null
       })
       return { snapshots }
     },
@@ -1089,8 +1084,11 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
   })
 }
 
-interface RunColumnVariables {
-  columnName: string
+interface RunGroupVariables {
+  groupId: string
+  /** Workflow id sourced from the group's config — used as a fallback for the
+   *  optimistic execution `workflowId` field when the row hasn't run before. */
+  workflowId: string
 }
 
 type RowsCacheSnapshots = Array<[ReadonlyArray<unknown>, TableRowsResponse]>
@@ -1139,17 +1137,18 @@ function restoreCachedWorkflowCells(
 }
 
 /**
- * Trigger a workflow-column run for every eligible row in the table. The
- * server filters by deps; this hook optimistically flips matching cells to
- * `pending` immediately so the UI doesn't lag the network round-trip.
+ * Trigger a workflow-group run for every eligible row in the table. The server
+ * filters by deps; this hook optimistically flips each matching row's
+ * `executions[groupId]` to `pending` immediately so the UI doesn't lag the
+ * network round-trip.
  */
-export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
+export function useRunGroup({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ columnName }: RunColumnVariables) => {
+    mutationFn: async ({ groupId }: RunGroupVariables) => {
       const res = await fetch(
-        `/api/table/${tableId}/columns/${encodeURIComponent(columnName)}/run`,
+        `/api/table/${tableId}/groups/${encodeURIComponent(groupId)}/run`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1159,26 +1158,25 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
 
       if (!res.ok) {
         const error = await res.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to run column')
+        throw new Error(error.error || 'Failed to run group')
       }
 
       return res.json() as Promise<{ success: boolean; data: { triggered: number } }>
     },
-    onMutate: async ({ columnName }) => {
+    onMutate: async ({ groupId, workflowId }) => {
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
-        const cell = (r.data as RowData)[columnName] as WorkflowCellValue | null | undefined
-        if (cell?.status === 'running') return null
-        const pendingCell: WorkflowCellValue = {
-          executionId: cell?.executionId ?? null,
-          jobId: null,
-          workflowId: cell?.workflowId ?? '',
+        const exec = (r.executions ?? {})[groupId] as RowExecutionMetadata | undefined
+        if (exec?.status === 'running' || exec?.status === 'pending') return null
+        const pending: RowExecutionMetadata = {
           status: 'pending',
-          output: null,
+          executionId: exec?.executionId ?? null,
+          jobId: null,
+          workflowId: exec?.workflowId ?? workflowId,
           error: null,
         }
         return {
           ...r,
-          data: { ...(r.data as RowData), [columnName]: pendingCell as unknown as RowData[string] },
+          executions: { ...(r.executions ?? {}), [groupId]: pending },
         }
       })
       return { snapshots }
@@ -1187,6 +1185,91 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
       if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
     },
     onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    },
+  })
+}
+
+// ───────────────────────── Workflow group mutations ─────────────────────────
+
+interface AddWorkflowGroupVariables {
+  group: WorkflowGroup
+  outputColumns: ColumnDefinition[]
+}
+
+export function useAddWorkflowGroup({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ group, outputColumns }: AddWorkflowGroupVariables) => {
+      const res = await fetch(`/api/table/${tableId}/groups`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId, group, outputColumns }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error || 'Failed to add workflow group')
+      }
+      return res.json()
+    },
+    onSettled: () => {
+      invalidateTableSchema(queryClient, tableId)
+    },
+  })
+}
+
+interface UpdateWorkflowGroupVariables {
+  groupId: string
+  workflowId?: string
+  name?: string
+  dependencies?: WorkflowGroupDependencies
+  outputs?: WorkflowGroupOutput[]
+  newOutputColumns?: ColumnDefinition[]
+}
+
+export function useUpdateWorkflowGroup({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (vars: UpdateWorkflowGroupVariables) => {
+      const res = await fetch(`/api/table/${tableId}/groups`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId, ...vars }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error || 'Failed to update workflow group')
+      }
+      return res.json()
+    },
+    onSettled: () => {
+      invalidateTableSchema(queryClient, tableId)
+      queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    },
+  })
+}
+
+interface DeleteWorkflowGroupVariables {
+  groupId: string
+}
+
+export function useDeleteWorkflowGroup({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ groupId }: DeleteWorkflowGroupVariables) => {
+      const res = await fetch(`/api/table/${tableId}/groups`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId, groupId }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error || 'Failed to delete workflow group')
+      }
+      return res.json()
+    },
+    onSettled: () => {
+      invalidateTableSchema(queryClient, tableId)
       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
     },
   })

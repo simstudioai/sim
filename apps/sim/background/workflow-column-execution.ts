@@ -4,44 +4,66 @@ import { createLogger, runWithRequestContext } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
-import type { RowData, WorkflowCellValue } from '@/lib/table/types'
+import type { RowData, RowExecutionMetadata } from '@/lib/table/types'
 
-const logger = createLogger('TriggerWorkflowColumnExecution')
+const logger = createLogger('TriggerWorkflowGroupCell')
 
-export type WorkflowColumnExecutionPayload = {
+export type WorkflowGroupCellPayload = {
   tableId: string
   tableName: string
   rowId: string
-  columnName: string
+  groupId: string
   workflowId: string
   workspaceId: string
-  /** Sim-side correlation id used as `wfcol-${executionId}` in logs/requestId. */
+  /** Sim-side correlation id used as `wfgrp-${executionId}` in logs/requestId. */
   executionId: string
 }
 
 /**
- * Background workflow-column execution. Runs in a trigger.dev worker; writes
- * the terminal cell state (`completed`/`error`). Cancellation is authoritative
- * via `cancelWorkflowColumnRuns` — this task can't be the source of truth for
- * `cancelled` because trigger.dev may kill it before its own write lands.
+ * Background workflow-group cell execution. Runs in a trigger.dev worker;
+ * writes plain primitives into `row.data[output.columnName]` as picked
+ * blocks complete, and execution state into `row.executions[groupId]`.
+ * Cancellation is authoritative via `cancelWorkflowGroupRuns`.
  */
-export async function executeWorkflowColumnJob(
-  payload: WorkflowColumnExecutionPayload,
+export async function executeWorkflowGroupCellJob(
+  payload: WorkflowGroupCellPayload,
   signal?: AbortSignal
 ) {
-  const { tableId, tableName, rowId, columnName, workflowId, workspaceId, executionId } = payload
-  const requestId = `wfcol-${executionId}`
+  const { tableId, tableName, rowId, groupId, workflowId, workspaceId, executionId } = payload
+  const requestId = `wfgrp-${executionId}`
 
   return runWithRequestContext({ requestId }, async () => {
     const { getTableById, getRowById, updateRow } = await import('@/lib/table/service')
     const { executeWorkflow } = await import('@/lib/workflows/executor/execute-workflow')
     const { loadWorkflowFromNormalizedTables } = await import('@/lib/workflows/persistence/utils')
-    const { writeWorkflowCell } = await import('@/lib/table/cell-write')
+    const { writeWorkflowGroupState, buildOutputsByBlockId } = await import(
+      '@/lib/table/cell-write'
+    )
 
-    const cellCtx = { tableId, rowId, columnName, workspaceId, executionId, requestId }
-    const writeCell = (value: WorkflowCellValue) => writeWorkflowCell(cellCtx, value)
+    const cellCtx = { tableId, rowId, workspaceId, groupId, executionId, requestId }
+    const writeState = (
+      executionState: RowExecutionMetadata,
+      dataPatch?: RowData
+    ) => writeWorkflowGroupState(cellCtx, { executionState, dataPatch })
 
     try {
+      const table = await getTableById(tableId)
+      if (!table) {
+        logger.warn(`Table ${tableId} vanished before execution`)
+        return
+      }
+      const group = (table.schema.workflowGroups ?? []).find((g) => g.id === groupId)
+      if (!group) {
+        await writeState({
+          status: 'error',
+          executionId,
+          jobId: null,
+          workflowId,
+          error: `Workflow group ${groupId} no longer exists on this table`,
+        })
+        return
+      }
+
       const [workflowRecord] = await db
         .select()
         .from(workflowTable)
@@ -49,12 +71,11 @@ export async function executeWorkflowColumnJob(
         .limit(1)
 
       if (!workflowRecord || !workflowRecord.isDeployed) {
-        await writeCell({
+        await writeState({
+          status: 'error',
           executionId,
           jobId: null,
           workflowId,
-          status: 'error',
-          output: null,
           error: !workflowRecord ? 'Workflow not found' : 'Workflow is not deployed',
         })
         return
@@ -65,12 +86,11 @@ export async function executeWorkflowColumnJob(
         ? Object.values(normalizedData.blocks).find((b) => b?.type === 'start_trigger')
         : undefined
       if (!startBlock) {
-        await writeCell({
+        await writeState({
+          status: 'error',
           executionId,
           jobId: null,
           workflowId,
-          status: 'error',
-          output: null,
           error: 'Workflow is missing a Start trigger',
         })
         return
@@ -81,19 +101,21 @@ export async function executeWorkflowColumnJob(
         logger.warn(`Row ${rowId} vanished before execution`)
         return
       }
-      const table = await getTableById(tableId)
-      if (!table) {
-        logger.warn(`Table ${tableId} vanished before execution`)
-        return
-      }
 
+      // Output columns produced by THIS group are skipped on input — they're
+      // populated by the run we're starting. Other group's outputs ARE
+      // included (they're plain primitives in `row.data` thanks to the
+      // flattened schema).
+      const ownOutputColumns = new Set(group.outputs.map((o) => o.columnName))
       const inputRow: Record<string, unknown> = {}
       for (const key of Object.keys(row.data)) {
-        if (key === columnName) continue
+        if (ownOutputColumns.has(key)) continue
         inputRow[key] = row.data[key]
       }
 
-      const headers = table.schema.columns.filter((c) => c.name !== columnName).map((c) => c.name)
+      const headers = table.schema.columns
+        .filter((c) => !ownOutputColumns.has(c.name))
+        .map((c) => c.name)
 
       // Spread row columns as top-level inputs so Start block fields resolve
       // directly by column name; reserved metadata keys win on collision.
@@ -111,66 +133,62 @@ export async function executeWorkflowColumnJob(
         timestamp: new Date().toISOString(),
       }
 
-      // Picked outputs only (keyed `[blockId][path]`) so cells fit within the
-      // 100KB row cap when several workflow columns share a row.
       const { pluckByPath } = await import('@/lib/table/pluck')
-      const columnDef = table.schema.columns.find((c) => c.name === columnName)
-      const pickedPathsByBlock = new Map<string, string[]>()
-      for (const out of columnDef?.workflowConfig?.outputs ?? []) {
-        const list = pickedPathsByBlock.get(out.blockId) ?? []
-        list.push(out.path)
-        pickedPathsByBlock.set(out.blockId, list)
-      }
+      const outputsByBlockId = buildOutputsByBlockId(group)
 
-      const blockOutputs: Record<string, Record<string, unknown>> = {}
+      // Local accumulators for the run.
+      const accumulatedData: RowData = {}
       const blockErrors: Record<string, string> = {}
       const runningBlockIds = new Set<string>()
       let writeChain: Promise<void> = Promise.resolve()
+
+      /** Snapshot the current state and append a partial write to the chain. */
       const schedulePartialWrite = () => {
-        const blockOutputsSnapshot: Record<string, Record<string, unknown>> = {}
-        for (const [k, v] of Object.entries(blockOutputs)) {
-          blockOutputsSnapshot[k] = { ...v }
-        }
+        const dataSnapshot: RowData = { ...accumulatedData }
         const blockErrorsSnapshot = { ...blockErrors }
         const runningSnapshot = Array.from(runningBlockIds)
         writeChain = writeChain
           .then(async () => {
             if (signal?.aborted) return
-            const t = await getTableById(tableId)
-            if (!t) return
-            const r = await getRowById(tableId, rowId, workspaceId)
-            if (!r) return
-            const cell = r.data[columnName] as WorkflowCellValue | null | undefined
-            if (!cell || cell.executionId !== executionId || cell.status !== 'running') return
-            const updatedCell: WorkflowCellValue = {
-              ...cell,
-              blockOutputs: blockOutputsSnapshot,
-              blockErrors: blockErrorsSnapshot,
-              runningBlockIds: runningSnapshot,
-            }
-            const mergedData: RowData = {
-              ...r.data,
-              [columnName]: updatedCell as unknown as RowData[string],
-            }
-            await updateRow({ tableId, rowId, data: mergedData, workspaceId }, t, requestId)
+            await writeState(
+              {
+                status: 'running',
+                executionId,
+                // Stamp the jobId from the current row state — the scheduler
+                // wrote it before this task started, and we don't want to lose
+                // it on partial writes. Re-read defensively.
+                jobId: await readJobId(),
+                workflowId,
+                error: null,
+                runningBlockIds: runningSnapshot,
+                blockErrors: blockErrorsSnapshot,
+              },
+              dataSnapshot
+            )
           })
           .catch((err) => {
             logger.warn(
-              `Per-block cell write failed (table=${tableId} row=${rowId} col=${columnName}):`,
+              `Per-block partial write failed (table=${tableId} row=${rowId} group=${groupId}):`,
               err
             )
           })
       }
 
+      const readJobId = async (): Promise<string | null> => {
+        const r = await getRowById(tableId, rowId, workspaceId)
+        const exec = (r?.executions ?? {})[groupId] as RowExecutionMetadata | undefined
+        return exec?.jobId ?? null
+      }
+
       const onBlockStart = async (blockId: string): Promise<void> => {
-        if (!pickedPathsByBlock.has(blockId)) return
+        if (!outputsByBlockId.has(blockId)) return
         runningBlockIds.add(blockId)
         schedulePartialWrite()
       }
 
       const onBlockComplete = async (blockId: string, output: unknown): Promise<void> => {
-        const paths = pickedPathsByBlock.get(blockId)
-        if (!paths) return
+        const outputs = outputsByBlockId.get(blockId)
+        if (!outputs) return
 
         // executor hands us `{ input?, output: NormalizedBlockOutput, executionTime, ... }`
         const blockResult =
@@ -186,17 +204,12 @@ export async function executeWorkflowColumnJob(
             : null
 
         if (blockErrorMessage) {
-          // Per-block error: only the fanned-out cells sourced from this block
-          // render as `error`. The workflow keeps executing — error ports etc.
-          // are a normal Sim concept, so the column-level status stays driven
-          // by the run as a whole.
           blockErrors[blockId] = blockErrorMessage
         } else {
-          const slot: Record<string, unknown> = blockOutputs[blockId] ?? {}
-          for (const path of paths) {
-            slot[path] = pluckByPath(blockResult, path)
+          for (const out of outputs) {
+            const plucked = pluckByPath(blockResult, out.path)
+            accumulatedData[out.columnName] = plucked as RowData[string]
           }
-          blockOutputs[blockId] = slot
         }
         runningBlockIds.delete(blockId)
         schedulePartialWrite()
@@ -228,30 +241,30 @@ export async function executeWorkflowColumnJob(
       // `running` partial doesn't clobber it.
       await writeChain.catch(() => {})
 
-      await writeCell({
-        executionId,
-        jobId: null,
-        workflowId,
-        status: result.success ? 'completed' : 'error',
-        output: null,
-        error: result.success ? null : (result.error ?? 'Workflow execution failed'),
-        blockOutputs,
-        blockErrors,
-        runningBlockIds: [],
-      })
-    } catch (err) {
-      const message = toError(err).message
-      logger.error(
-        `Workflow column execution failed (table=${tableId} row=${rowId} col=${columnName})`,
-        { error: message, executionId }
-      )
-      try {
-        await writeCell({
+      await writeState(
+        {
+          status: result.success ? 'completed' : 'error',
           executionId,
           jobId: null,
           workflowId,
+          error: result.success ? null : (result.error ?? 'Workflow execution failed'),
+          runningBlockIds: [],
+          blockErrors,
+        },
+        accumulatedData
+      )
+    } catch (err) {
+      const message = toError(err).message
+      logger.error(
+        `Workflow group cell execution failed (table=${tableId} row=${rowId} group=${groupId})`,
+        { error: message, executionId }
+      )
+      try {
+        await writeState({
           status: 'error',
-          output: null,
+          executionId,
+          jobId: null,
+          workflowId,
           error: message,
         })
       } catch (writeErr) {
@@ -261,16 +274,16 @@ export async function executeWorkflowColumnJob(
   })
 }
 
-export const workflowColumnExecutionTask = task({
-  id: 'workflow-column-execution',
+export const workflowGroupCellTask = task({
+  id: 'workflow-group-cell',
   machine: 'medium-1x',
   retry: { maxAttempts: 1 },
   // Combined with `concurrencyKey: tableId`, caps each table's sub-queue to
   // 10 in-flight cell jobs while letting different tables run in parallel.
   queue: {
-    name: 'workflow-column-execution',
+    name: 'workflow-group-cell',
     concurrencyLimit: 10,
   },
-  run: (payload: WorkflowColumnExecutionPayload, { signal }) =>
-    executeWorkflowColumnJob(payload, signal),
+  run: (payload: WorkflowGroupCellPayload, { signal }) =>
+    executeWorkflowGroupCellJob(payload, signal),
 })

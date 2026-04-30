@@ -8,7 +8,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, Loader2, Plus, RepeatIcon, SplitIcon, X } from 'lucide-react'
 import { Button, Checkbox, Combobox, Input, Label, Switch, toast, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import type { ColumnDefinition } from '@/lib/table'
+import type {
+  ColumnDefinition,
+  WorkflowGroup,
+  WorkflowGroupDependencies,
+  WorkflowGroupOutput,
+} from '@/lib/table'
 import {
   type FlattenOutputsBlockInput,
   type FlattenOutputsEdgeInput,
@@ -20,7 +25,12 @@ import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import { getBlock } from '@/blocks'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
-import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
+import {
+  useAddTableColumn,
+  useAddWorkflowGroup,
+  useUpdateColumn,
+  useUpdateWorkflowGroup,
+} from '@/hooks/queries/tables'
 import { useWorkflowState, workflowKeys } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { COLUMN_TYPE_OPTIONS } from './column-types'
@@ -37,9 +47,39 @@ interface ColumnSidebarProps {
   /** The current column record for edit mode. Null for new mode or closed. */
   existingColumn: ColumnDefinition | null
   allColumns: ColumnDefinition[]
+  workflowGroups: WorkflowGroup[]
   workflows: WorkflowMetadata[] | undefined
   workspaceId: string
   tableId: string
+}
+
+/**
+ * Slugifies a string into a `NAME_PATTERN`-safe column name. Lowercase,
+ * non-alphanum runs collapse to `_`, leading digits get a `c_` prefix, empty
+ * results fall back to `output`.
+ */
+function slugifyColumnName(value: string): string {
+  let slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  if (!slug) slug = 'output'
+  if (/^[0-9]/.test(slug)) slug = `c_${slug}`
+  return slug
+}
+
+function deriveOutputColumnName(
+  blockName: string,
+  path: string,
+  taken: Set<string>
+): string {
+  const base = slugifyColumnName(`${blockName}_${path}`)
+  if (!taken.has(base)) return base
+  for (let i = 2; i < 1000; i++) {
+    const candidate = `${base}_${i}`
+    if (!taken.has(candidate)) return candidate
+  }
+  return `${base}_${Date.now()}`
 }
 
 const OUTPUT_VALUE_SEPARATOR = '::'
@@ -172,15 +212,32 @@ export function ColumnSidebar({
   onClose,
   existingColumn,
   allColumns,
+  workflowGroups,
   workflows,
   workspaceId,
   tableId,
 }: ColumnSidebarProps) {
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
   const addColumn = useAddTableColumn({ workspaceId, tableId })
+  const addWorkflowGroup = useAddWorkflowGroup({ workspaceId, tableId })
+  const updateWorkflowGroup = useUpdateWorkflowGroup({ workspaceId, tableId })
   const open = configState !== null
 
   const columnName = configState ? configState.columnName : ''
+
+  /**
+   * If the column being edited is a workflow output, resolve its parent group
+   * so we can populate workflow / outputs / dependencies state from it.
+   */
+  const existingGroup = useMemo<WorkflowGroup | undefined>(() => {
+    if (!existingColumn?.workflowGroupId) return undefined
+    return workflowGroups.find((g) => g.id === existingColumn.workflowGroupId)
+  }, [existingColumn, workflowGroups])
+
+  const isWorkflow =
+    !!existingGroup ||
+    configState?.mode === 'new' ||
+    (configState?.mode === 'create' && 'workflowId' in configState && !!configState.workflowId)
 
   /**
    * Columns to the left of the current column — these are the only valid trigger
@@ -227,9 +284,12 @@ export function ColumnSidebar({
       setTypeInput(type)
       setUniqueInput(!!existing?.unique)
       setNameInput(existing?.name ?? configState.columnName)
-      if (existing?.workflowConfig) {
-        setSelectedWorkflowId(existing.workflowConfig.workflowId)
-        setDeps(existing.workflowConfig.dependencies ?? leftOfCurrent.map((c) => c.name))
+      const group = existing?.workflowGroupId
+        ? workflowGroups.find((g) => g.id === existing.workflowGroupId)
+        : undefined
+      if (group) {
+        setSelectedWorkflowId(group.workflowId)
+        setDeps(group.dependencies?.columns ?? leftOfCurrent.map((c) => c.name))
         setSelectedOutputs([]) // re-encoded against current workflow blocks below
       } else {
         setSelectedWorkflowId('')
@@ -237,17 +297,17 @@ export function ColumnSidebar({
         setSelectedOutputs([])
       }
     } else {
-      setTypeInput('workflow')
+      setTypeInput('string')
       setUniqueInput(false)
       setNameInput(configState.proposedName)
       setSelectedWorkflowId(configState.workflowId)
       setDeps(leftOfCurrent.map((c) => c.name))
       setSelectedOutputs([])
     }
-  }, [open, configState])
+  }, [open, configState, workflowGroups])
 
   const workflowState = useWorkflowState(
-    open && typeInput === 'workflow' && selectedWorkflowId ? selectedWorkflowId : undefined
+    open && isWorkflow && selectedWorkflowId ? selectedWorkflowId : undefined
   )
 
   /**
@@ -283,7 +343,7 @@ export function ColumnSidebar({
       .filter(
         (c) =>
           c.name !== columnName &&
-          c.type !== 'workflow' &&
+          !c.workflowGroupId &&
           !startBlockInputs.existingNames.has(c.name)
       )
       .map((c) => c.name)
@@ -408,19 +468,18 @@ export function ColumnSidebar({
    * removed) are dropped silently — the user can re-pick on save.
    */
   useEffect(() => {
-    if (!existingColumnRef.current?.workflowConfig?.outputs?.length) return
+    if (!existingGroup?.outputs.length) return
     if (selectedOutputs.length > 0) return
     if (blockOutputGroups.length === 0) return
-    const saved = existingColumnRef.current.workflowConfig.outputs
     const encoded: string[] = []
-    for (const entry of saved) {
+    for (const entry of existingGroup.outputs) {
       const match = blockOutputGroups.find(
         (g) => g.blockId === entry.blockId && g.paths.includes(entry.path)
       )
       if (match) encoded.push(encodeOutputValue(entry.blockId, entry.path))
     }
     if (encoded.length > 0) setSelectedOutputs(encoded)
-  }, [blockOutputGroups, selectedOutputs.length])
+  }, [blockOutputGroups, selectedOutputs.length, existingGroup])
 
   const toggleDep = (name: string) => {
     setDeps((prev) => (prev.includes(name) ? prev.filter((d) => d !== name) : [...prev, name]))
@@ -432,12 +491,63 @@ export function ColumnSidebar({
     )
   }
 
-  const isWorkflow = typeInput === 'workflow'
-
   const typeOptions = useMemo(
     () => COLUMN_TYPE_OPTIONS.map((o) => ({ label: o.label, value: o.type, icon: o.icon })),
     []
   )
+
+  /**
+   * Builds the ordered, deduplicated `(blockId, path)` list from the picker
+   * state, sorted by execution order. Empty array if the user hasn't picked
+   * anything.
+   */
+  const buildOrderedPickedOutputs = (): Array<{ blockId: string; path: string }> => {
+    const seen = new Set<string>()
+    const outputs: Array<{ blockId: string; path: string }> = []
+    for (const encoded of selectedOutputs) {
+      if (seen.has(encoded)) continue
+      seen.add(encoded)
+      outputs.push(decodeOutputValue(encoded))
+    }
+    const wfState = workflowState.data as
+      | {
+          blocks?: Record<string, FlattenOutputsBlockInput>
+          edges?: FlattenOutputsEdgeInput[]
+        }
+      | null
+      | undefined
+    if (wfState?.blocks) {
+      const blocks = Object.values(wfState.blocks)
+      const edges = wfState.edges ?? []
+      const distances = getBlockExecutionOrder(blocks, edges)
+      const flat = flattenWorkflowOutputs(blocks, edges)
+      const indexInFlat = new Map(
+        flat.map((f, i) => [`${f.blockId}${OUTPUT_VALUE_SEPARATOR}${f.path}`, i])
+      )
+      outputs.sort((a, b) => {
+        const da = distances[a.blockId]
+        const db = distances[b.blockId]
+        const sa = da === undefined || da < 0 ? Number.POSITIVE_INFINITY : da
+        const sb = db === undefined || db < 0 ? Number.POSITIVE_INFINITY : db
+        if (sa !== sb) return sa - sb
+        const ia =
+          indexInFlat.get(`${a.blockId}${OUTPUT_VALUE_SEPARATOR}${a.path}`) ??
+          Number.POSITIVE_INFINITY
+        const ib =
+          indexInFlat.get(`${b.blockId}${OUTPUT_VALUE_SEPARATOR}${b.path}`) ??
+          Number.POSITIVE_INFINITY
+        return ia - ib
+      })
+    }
+    return outputs
+  }
+
+  /** Maps blockId → blockName from the loaded workflow state. */
+  const blockNameByBlockId = useMemo<Map<string, string>>(() => {
+    const m = new Map<string, string>()
+    for (const g of blockOutputGroups) m.set(g.blockId, g.blockName)
+    return m
+  }, [blockOutputGroups])
 
   const handleSave = async () => {
     if (!configState) return
@@ -447,62 +557,84 @@ export function ColumnSidebar({
       return
     }
 
-    let workflowConfig: ColumnDefinition['workflowConfig'] | undefined
-    if (isWorkflow) {
-      const seen = new Set<string>()
-      const outputs: Array<{ blockId: string; path: string }> = []
-      for (const encoded of selectedOutputs) {
-        if (seen.has(encoded)) continue
-        seen.add(encoded)
-        outputs.push(decodeOutputValue(encoded))
-      }
-      // Sort by execution order so fanned-out columns appear left-to-right
-      // in the order their source blocks run. BFS distance from the start
-      // block gives a clean linear order; same-distance ties fall back to
-      // discovery order in `flattenWorkflowOutputs`.
-      const wfState = workflowState.data as
-        | {
-            blocks?: Record<string, FlattenOutputsBlockInput>
-            edges?: FlattenOutputsEdgeInput[]
-          }
-        | null
-        | undefined
-      if (wfState?.blocks) {
-        const blocks = Object.values(wfState.blocks)
-        const edges = wfState.edges ?? []
-        const distances = getBlockExecutionOrder(blocks, edges)
-        const flat = flattenWorkflowOutputs(blocks, edges)
-        const indexInFlat = new Map(
-          flat.map((f, i) => [`${f.blockId}${OUTPUT_VALUE_SEPARATOR}${f.path}`, i])
-        )
-        outputs.sort((a, b) => {
-          const da = distances[a.blockId]
-          const db = distances[b.blockId]
-          const sa = da === undefined || da < 0 ? Number.POSITIVE_INFINITY : da
-          const sb = db === undefined || db < 0 ? Number.POSITIVE_INFINITY : db
-          if (sa !== sb) return sa - sb
-          const ia =
-            indexInFlat.get(`${a.blockId}${OUTPUT_VALUE_SEPARATOR}${a.path}`) ??
-            Number.POSITIVE_INFINITY
-          const ib =
-            indexInFlat.get(`${b.blockId}${OUTPUT_VALUE_SEPARATOR}${b.path}`) ??
-            Number.POSITIVE_INFINITY
-          return ia - ib
-        })
-      }
-      workflowConfig = {
-        workflowId: selectedWorkflowId,
-        dependencies: deps,
-        outputs,
-      }
-    }
-
     try {
-      if (configState.mode === 'create') {
+      if (isWorkflow) {
+        const orderedOutputs = buildOrderedPickedOutputs()
+        const dependencies: WorkflowGroupDependencies = { columns: deps }
+
+        if (existingGroup) {
+          // Update path: diff outputs, derive new column names for added entries,
+          // call updateWorkflowGroup so service handles add/remove transactionally.
+          const oldKeys = new Set(existingGroup.outputs.map((o) => `${o.blockId}::${o.path}`))
+          const taken = new Set(allColumns.map((c) => c.name))
+          const fullOutputs: WorkflowGroupOutput[] = []
+          const newOutputColumns: ColumnDefinition[] = []
+          for (const o of orderedOutputs) {
+            const key = `${o.blockId}::${o.path}`
+            const existing = existingGroup.outputs.find(
+              (e) => e.blockId === o.blockId && e.path === o.path
+            )
+            if (existing) {
+              fullOutputs.push(existing)
+            } else {
+              const blockName = blockNameByBlockId.get(o.blockId) ?? 'output'
+              const colName = deriveOutputColumnName(blockName, o.path, taken)
+              taken.add(colName)
+              fullOutputs.push({ blockId: o.blockId, path: o.path, columnName: colName })
+              newOutputColumns.push({
+                name: colName,
+                type: 'string',
+                required: false,
+                unique: false,
+                workflowGroupId: existingGroup.id,
+              })
+            }
+            oldKeys.delete(key)
+          }
+          await updateWorkflowGroup.mutateAsync({
+            groupId: existingGroup.id,
+            workflowId: selectedWorkflowId,
+            name: existingGroup.name,
+            dependencies,
+            outputs: fullOutputs,
+            ...(newOutputColumns.length > 0 ? { newOutputColumns } : {}),
+          })
+          toast.success(`Saved "${existingGroup.name ?? 'Workflow'}"`)
+        } else {
+          // Create path: build a fresh group with auto-derived column names.
+          const groupId = generateId()
+          const taken = new Set(allColumns.map((c) => c.name))
+          const newOutputColumns: ColumnDefinition[] = []
+          const groupOutputs: WorkflowGroupOutput[] = []
+          for (const o of orderedOutputs) {
+            const blockName = blockNameByBlockId.get(o.blockId) ?? 'output'
+            const colName = deriveOutputColumnName(blockName, o.path, taken)
+            taken.add(colName)
+            newOutputColumns.push({
+              name: colName,
+              type: 'string',
+              required: false,
+              unique: false,
+              workflowGroupId: groupId,
+            })
+            groupOutputs.push({ blockId: o.blockId, path: o.path, columnName: colName })
+          }
+          const workflowName =
+            workflows?.find((w) => w.id === selectedWorkflowId)?.name ?? 'Workflow'
+          const group: WorkflowGroup = {
+            id: groupId,
+            workflowId: selectedWorkflowId,
+            name: workflowName,
+            dependencies,
+            outputs: groupOutputs,
+          }
+          await addWorkflowGroup.mutateAsync({ group, outputColumns: newOutputColumns })
+          toast.success(`Added "${workflowName}"`)
+        }
+      } else if (configState.mode === 'create') {
         await addColumn.mutateAsync({
           name: trimmedName,
           type: typeInput,
-          ...(workflowConfig ? { workflowConfig } : {}),
         })
         toast.success(`Added "${trimmedName}"`)
       } else {
@@ -515,12 +647,10 @@ export function ColumnSidebar({
           name?: string
           type?: ColumnDefinition['type']
           unique?: boolean
-          workflowConfig?: ColumnDefinition['workflowConfig']
         } = {
           ...(renamed ? { name: trimmedName } : {}),
-          ...(typeChanged || configState.mode === 'new' ? { type: typeInput } : {}),
+          ...(typeChanged ? { type: typeInput } : {}),
           ...(uniqueChanged ? { unique: uniqueInput } : {}),
-          ...(workflowConfig ? { workflowConfig } : {}),
         }
 
         if (Object.keys(updates).length === 0) {

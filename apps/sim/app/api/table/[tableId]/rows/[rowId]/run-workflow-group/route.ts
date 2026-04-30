@@ -5,15 +5,15 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getRowById, updateRow } from '@/lib/table'
-import type { RowData, WorkflowCellValue } from '@/lib/table'
+import { updateRow } from '@/lib/table'
+import type { RowExecutionMetadata } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
-const logger = createLogger('TableRunWorkflowColumnAPI')
+const logger = createLogger('TableRunWorkflowGroupAPI')
 
 const RunSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  columnName: z.string().min(1, 'Column name is required'),
+  groupId: z.string().min(1, 'Group ID is required'),
 })
 
 interface RouteParams {
@@ -21,10 +21,11 @@ interface RouteParams {
 }
 
 /**
- * POST /api/table/[tableId]/rows/[rowId]/run-workflow-column
- * Manually (re-)runs a workflow column for a specific row by force-resetting
- * the cell to `pending`. The `updateRow` call fires the scheduler which
- * enqueues the cell job.
+ * POST /api/table/[tableId]/rows/[rowId]/run-workflow-group
+ *
+ * Manually (re-)runs a workflow group for a single row by force-resetting
+ * `executions[groupId]` to `pending`. The `updateRow` call fires the
+ * scheduler which enqueues the cell job.
  */
 export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
@@ -47,34 +48,27 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const column = table.schema.columns.find((c) => c.name === validated.columnName)
-    if (!column || column.type !== 'workflow' || !column.workflowConfig?.workflowId) {
-      return NextResponse.json(
-        { error: 'Column is not a configured workflow column' },
-        { status: 400 }
-      )
-    }
-
-    const row = await getRowById(tableId, rowId, validated.workspaceId)
-    if (!row) {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
+    const group = (table.schema.workflowGroups ?? []).find((g) => g.id === validated.groupId)
+    if (!group) {
+      return NextResponse.json({ error: 'Workflow group not found' }, { status: 404 })
     }
 
     const executionId = generateId()
-    const pendingCell: WorkflowCellValue = {
+    const pendingExec: RowExecutionMetadata = {
+      status: 'pending',
       executionId,
       jobId: null,
-      workflowId: column.workflowConfig.workflowId,
-      status: 'pending',
-      output: null,
+      workflowId: group.workflowId,
       error: null,
     }
-    const nextData: RowData = {
-      ...row.data,
-      [validated.columnName]: pendingCell as unknown as RowData[string],
-    }
     await updateRow(
-      { tableId, rowId, data: nextData, workspaceId: validated.workspaceId },
+      {
+        tableId,
+        rowId,
+        data: {},
+        workspaceId: validated.workspaceId,
+        executionsPatch: { [validated.groupId]: pendingExec },
+      },
       table,
       requestId
     )
@@ -87,7 +81,10 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
         { status: 400 }
       )
     }
-    logger.error(`run-workflow-column failed for ${tableId}/${rowId}:`, error)
-    return NextResponse.json({ error: 'Failed to run workflow column' }, { status: 500 })
+    if (error instanceof Error && error.message === 'Row not found') {
+      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
+    }
+    logger.error(`run-workflow-group failed for ${tableId}/${rowId}:`, error)
+    return NextResponse.json({ error: 'Failed to run workflow group' }, { status: 500 })
   }
 })
