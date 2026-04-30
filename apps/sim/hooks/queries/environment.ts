@@ -18,7 +18,8 @@ const logger = createLogger('EnvironmentQueries')
 export const environmentKeys = {
   all: ['environment'] as const,
   personal: () => [...environmentKeys.all, 'personal'] as const,
-  workspace: (workspaceId: string) => [...environmentKeys.all, 'workspace', workspaceId] as const,
+  workspaces: () => [...environmentKeys.all, 'workspace'] as const,
+  workspace: (workspaceId: string) => [...environmentKeys.workspaces(), workspaceId] as const,
 }
 
 /**
@@ -65,6 +66,7 @@ export function useSavePersonalEnvironment() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: environmentKeys.personal() })
+      queryClient.invalidateQueries({ queryKey: environmentKeys.workspaces() })
     },
   })
 }
