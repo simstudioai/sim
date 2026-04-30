@@ -24,7 +24,6 @@ import {
 } from './text-editor-state'
 
 const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
-  // Core
   { token: 'comment', foreground: '606060', fontStyle: 'italic' },
   { token: 'string', foreground: '3ab872' },
   { token: 'string.escape', foreground: '3ab872' },
@@ -43,9 +42,6 @@ const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'tag', foreground: '33b4ff' },
   { token: 'attribute.name', foreground: '8fc7f5' },
   { token: 'attribute.value', foreground: '3ab872' },
-  // Markdown — Monaco Monarch emits these (tokenPostfix: ".md")
-  // `keyword.md` covers headings + list markers (already caught by `keyword` above)
-  // `comment.md` covers blockquotes (already caught by `comment` above)
   { token: 'strong', foreground: 'e6e6e6', fontStyle: 'bold' },
   { token: 'emphasis', foreground: 'c8c8c8', fontStyle: 'italic' },
   { token: 'variable', foreground: '3ab872' },
@@ -54,14 +50,13 @@ const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
 ]
 
 const SIM_LIGHT_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
-  // Core
   { token: 'comment', foreground: '888888', fontStyle: 'italic' },
   { token: 'string', foreground: '16825d' },
   { token: 'string.escape', foreground: '16825d' },
   { token: 'string.link', foreground: '0078d4' },
-  { token: 'number', foreground: 'c9660c' },
-  { token: 'number.float', foreground: 'c9660c' },
-  { token: 'number.hex', foreground: 'c9660c' },
+  { token: 'number', foreground: 'a85500' },
+  { token: 'number.float', foreground: 'a85500' },
+  { token: 'number.hex', foreground: 'a85500' },
   { token: 'keyword', foreground: '0078d4' },
   { token: 'keyword.control', foreground: '0078d4' },
   { token: 'storage', foreground: '0078d4' },
@@ -73,7 +68,6 @@ const SIM_LIGHT_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'tag', foreground: '0078d4' },
   { token: 'attribute.name', foreground: '7c4dcc' },
   { token: 'attribute.value', foreground: '16825d' },
-  // Markdown — Monaco Monarch emits these (tokenPostfix: ".md")
   { token: 'strong', foreground: '1a1a1a', fontStyle: 'bold' },
   { token: 'emphasis', foreground: '444444', fontStyle: 'italic' },
   { token: 'variable', foreground: '16825d' },
