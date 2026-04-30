@@ -15,30 +15,25 @@ export type TokenizerProviderId = 'openai' | 'google'
 
 export interface EmbeddingModelInfo {
   provider: EmbeddingProviderKind
-  /** Whether the provider supports requesting a custom output dimensionality. */
-  supportsCustomDimensions: boolean
   /** Pricing/billing label — must match an entry in EMBEDDING_MODEL_PRICING when billed. */
   pricingId: string
   /** Provider id for `estimateTokenCount` so token counts match the embedding provider's tokenization. */
   tokenizerProvider: TokenizerProviderId
 }
 
-export const SUPPORTED_EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
+export const SUPPORTED_EMBEDDING_MODELS: Partial<Record<string, EmbeddingModelInfo>> = {
   'text-embedding-3-small': {
     provider: 'openai',
-    supportsCustomDimensions: true,
     pricingId: 'text-embedding-3-small',
     tokenizerProvider: 'openai',
   },
   'text-embedding-3-large': {
     provider: 'openai',
-    supportsCustomDimensions: true,
     pricingId: 'text-embedding-3-large',
     tokenizerProvider: 'openai',
   },
   'gemini-embedding-001': {
     provider: 'gemini',
-    supportsCustomDimensions: true,
     pricingId: 'gemini-embedding-001',
     tokenizerProvider: 'google',
   },

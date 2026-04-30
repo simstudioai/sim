@@ -8,8 +8,9 @@ import {
   EMBEDDING_DIMENSIONS,
   getEmbeddingModelInfo,
   SUPPORTED_EMBEDDING_MODELS,
+  type TokenizerProviderId,
 } from '@/lib/knowledge/embedding-models'
-import { batchByTokenLimit } from '@/lib/tokenization'
+import { batchByTokenLimit, estimateTokenCount } from '@/lib/tokenization'
 
 const logger = createLogger('EmbeddingUtils')
 
@@ -48,6 +49,8 @@ interface ResolvedProvider {
   modelName: string
   pricingId: string
   isBYOK: boolean
+  /** Tokenizer used to estimate tokens when the API does not return a usage field. */
+  tokenizerProvider: TokenizerProviderId
   buildRequest: (inputs: string[], inputType: EmbeddingInputType) => ProviderRequest
 }
 
@@ -93,7 +96,6 @@ async function resolveGeminiKey(workspaceId?: string | null): Promise<{
 }
 
 function buildOpenAIProvider(modelName: string, apiKey: string): ResolvedProvider['buildRequest'] {
-  const info = getEmbeddingModelInfo(modelName)
   return (inputs) => ({
     apiUrl: 'https://api.openai.com/v1/embeddings',
     headers: {
@@ -104,7 +106,7 @@ function buildOpenAIProvider(modelName: string, apiKey: string): ResolvedProvide
       input: inputs,
       model: modelName,
       encoding_format: 'float',
-      ...(info.supportsCustomDimensions && { dimensions: EMBEDDING_DIMENSIONS }),
+      dimensions: EMBEDDING_DIMENSIONS,
     },
     parse: (json) => {
       const data = json as { data: Array<{ embedding: number[] }> }
@@ -117,8 +119,7 @@ function buildAzureOpenAIProvider(
   deployment: string,
   apiKey: string,
   endpoint: string,
-  apiVersion: string,
-  supportsCustomDimensions: boolean
+  apiVersion: string
 ): ResolvedProvider['buildRequest'] {
   return (inputs) => ({
     apiUrl: `${endpoint}/openai/deployments/${deployment}/embeddings?api-version=${apiVersion}`,
@@ -129,7 +130,7 @@ function buildAzureOpenAIProvider(
     body: {
       input: inputs,
       encoding_format: 'float',
-      ...(supportsCustomDimensions && { dimensions: EMBEDDING_DIMENSIONS }),
+      dimensions: EMBEDDING_DIMENSIONS,
     },
     parse: (json) => {
       const data = json as { data: Array<{ embedding: number[] }> }
@@ -197,26 +198,28 @@ async function resolveProvider(
   const azureApiKey = env.AZURE_OPENAI_API_KEY
   const azureEndpoint = env.AZURE_OPENAI_ENDPOINT
   const azureApiVersion = env.AZURE_OPENAI_API_VERSION
+  const azureDeploymentName = env.KB_OPENAI_MODEL_NAME
   const isOpenAIModel = SUPPORTED_EMBEDDING_MODELS[embeddingModel]?.provider === 'openai'
-  const azureDeployment =
-    isOpenAIModel && azureApiKey && azureEndpoint ? env.KB_OPENAI_MODEL_NAME || null : null
+  const useAzure = Boolean(
+    isOpenAIModel && azureApiKey && azureEndpoint && azureApiVersion && azureDeploymentName
+  )
 
-  if (azureDeployment) {
+  const info = getEmbeddingModelInfo(embeddingModel)
+
+  if (useAzure) {
     return {
-      modelName: azureDeployment,
-      pricingId: getEmbeddingModelInfo(embeddingModel).pricingId,
+      modelName: azureDeploymentName!,
+      pricingId: info.pricingId,
       isBYOK: false,
+      tokenizerProvider: info.tokenizerProvider,
       buildRequest: buildAzureOpenAIProvider(
-        azureDeployment,
+        azureDeploymentName!,
         azureApiKey!,
         azureEndpoint!,
-        azureApiVersion!,
-        getEmbeddingModelInfo(embeddingModel).supportsCustomDimensions
+        azureApiVersion!
       ),
     }
   }
-
-  const info = getEmbeddingModelInfo(embeddingModel)
 
   if (info.provider === 'openai') {
     const { apiKey, isBYOK } = await resolveOpenAIKey(workspaceId)
@@ -224,6 +227,7 @@ async function resolveProvider(
       modelName: embeddingModel,
       pricingId: info.pricingId,
       isBYOK,
+      tokenizerProvider: info.tokenizerProvider,
       buildRequest: buildOpenAIProvider(embeddingModel, apiKey),
     }
   }
@@ -234,6 +238,7 @@ async function resolveProvider(
       modelName: embeddingModel,
       pricingId: info.pricingId,
       isBYOK,
+      tokenizerProvider: info.tokenizerProvider,
       buildRequest: buildGeminiProvider(embeddingModel, apiKey),
     }
   }
@@ -273,8 +278,11 @@ async function callEmbeddingAPI(
       const usage = (json as { usage?: { total_tokens?: number } }).usage
       const totalTokens =
         usage?.total_tokens ??
-        // Gemini does not return usage.total_tokens — fall back to a rough estimate
-        inputs.reduce((sum, text) => sum + Math.ceil(text.length / 4), 0)
+        // Gemini does not return usage.total_tokens — estimate with the provider's tokenizer
+        inputs.reduce(
+          (sum, text) => sum + estimateTokenCount(text, provider.tokenizerProvider).count,
+          0
+        )
 
       return { embeddings, totalTokens }
     },
