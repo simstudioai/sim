@@ -120,20 +120,15 @@ export const rdsIntrospectBodySchema = rdsConnectionBodySchema.extend({
   engine: z.enum(['aurora-postgresql', 'aurora-mysql']).optional(),
 })
 
-const mongoConnectionBodySchema = z
-  .object({
-    host: z.string().min(1, 'Host is required'),
-    port: z.coerce.number().int().positive('Port must be a positive integer'),
-    database: z.string().min(1, 'Database name is required'),
-    username: z.string().min(1, 'Username is required').optional(),
-    password: z.string().min(1, 'Password is required').optional(),
-    authSource: z.string().optional(),
-    ssl: sslModeSchema,
-  })
-  .refine((data) => Boolean(data.username) === Boolean(data.password), {
-    message: 'Username and password must be provided together',
-    path: ['password'],
-  })
+const mongoConnectionBodySchema = z.object({
+  host: z.string().min(1, 'Host is required'),
+  port: z.coerce.number().int().positive('Port must be a positive integer'),
+  database: z.string().min(1, 'Database name is required'),
+  username: z.string().min(1, 'Username is required').optional(),
+  password: z.string().min(1, 'Password is required').optional(),
+  authSource: z.string().optional(),
+  ssl: sslModeSchema,
+})
 
 const mongoJsonStringOrObjectSchema = (message: string) =>
   z

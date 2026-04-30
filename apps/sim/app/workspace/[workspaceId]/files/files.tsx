@@ -1033,7 +1033,7 @@ export function Files() {
     return tags
   }, [typeFilter, sizeFilter, uploadedByFilter, members])
 
-  if (fileIdFromRoute && !selectedFile) {
+  if (fileIdFromRoute && !selectedFile && isLoading) {
     return (
       <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
         <ResourceHeader icon={FilesIcon} breadcrumbs={loadingBreadcrumbs} />
