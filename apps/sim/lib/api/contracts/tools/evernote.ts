@@ -6,7 +6,35 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const evernoteToolResponseSchema = z.object({}).passthrough()
+const evernoteSuccessOutputSchema = <T extends z.ZodType>(output: T) =>
+  z.object({
+    success: z.literal(true),
+    output,
+  })
+
+const evernoteNoteResponseSchema = evernoteSuccessOutputSchema(z.object({ note: z.unknown() }))
+const evernoteNotebookResponseSchema = evernoteSuccessOutputSchema(
+  z.object({ notebook: z.unknown() })
+)
+const evernoteTagResponseSchema = evernoteSuccessOutputSchema(z.object({ tag: z.unknown() }))
+const evernoteListNotebooksResponseSchema = evernoteSuccessOutputSchema(
+  z.object({ notebooks: z.array(z.unknown()) })
+)
+const evernoteListTagsResponseSchema = evernoteSuccessOutputSchema(
+  z.object({ tags: z.array(z.unknown()) })
+)
+const evernoteSearchNotesResponseSchema = evernoteSuccessOutputSchema(
+  z.object({
+    totalNotes: z.number(),
+    notes: z.array(z.unknown()),
+  })
+)
+const evernoteDeleteNoteResponseSchema = evernoteSuccessOutputSchema(
+  z.object({
+    success: z.literal(true),
+    noteGuid: z.string(),
+  })
+)
 
 const CREATE_NOTE_REQUIRED = 'apiKey, title, and content are required'
 export const evernoteCreateNoteBodySchema = z.object({
@@ -90,77 +118,77 @@ export const evernoteCreateNoteContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/evernote/create-note',
   body: evernoteCreateNoteBodySchema,
-  response: { mode: 'json', schema: evernoteToolResponseSchema },
+  response: { mode: 'json', schema: evernoteNoteResponseSchema },
 })
 
 export const evernoteUpdateNoteContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/evernote/update-note',
   body: evernoteUpdateNoteBodySchema,
-  response: { mode: 'json', schema: evernoteToolResponseSchema },
+  response: { mode: 'json', schema: evernoteNoteResponseSchema },
 })
 
 export const evernoteCreateTagContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/evernote/create-tag',
   body: evernoteCreateTagBodySchema,
-  response: { mode: 'json', schema: evernoteToolResponseSchema },
+  response: { mode: 'json', schema: evernoteTagResponseSchema },
 })
 
 export const evernoteSearchNotesContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/evernote/search-notes',
   body: evernoteSearchNotesBodySchema,
-  response: { mode: 'json', schema: evernoteToolResponseSchema },
+  response: { mode: 'json', schema: evernoteSearchNotesResponseSchema },
 })
 
 export const evernoteCreateNotebookContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/evernote/create-notebook',
   body: evernoteCreateNotebookBodySchema,
-  response: { mode: 'json', schema: evernoteToolResponseSchema },
+  response: { mode: 'json', schema: evernoteNotebookResponseSchema },
 })
 
 export const evernoteDeleteNoteContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/evernote/delete-note',
   body: evernoteDeleteNoteBodySchema,
-  response: { mode: 'json', schema: evernoteToolResponseSchema },
+  response: { mode: 'json', schema: evernoteDeleteNoteResponseSchema },
 })
 
 export const evernoteListNotebooksContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/evernote/list-notebooks',
   body: evernoteListNotebooksBodySchema,
-  response: { mode: 'json', schema: evernoteToolResponseSchema },
+  response: { mode: 'json', schema: evernoteListNotebooksResponseSchema },
 })
 
 export const evernoteGetNotebookContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/evernote/get-notebook',
   body: evernoteGetNotebookBodySchema,
-  response: { mode: 'json', schema: evernoteToolResponseSchema },
+  response: { mode: 'json', schema: evernoteNotebookResponseSchema },
 })
 
 export const evernoteListTagsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/evernote/list-tags',
   body: evernoteListTagsBodySchema,
-  response: { mode: 'json', schema: evernoteToolResponseSchema },
+  response: { mode: 'json', schema: evernoteListTagsResponseSchema },
 })
 
 export const evernoteGetNoteContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/evernote/get-note',
   body: evernoteGetNoteBodySchema,
-  response: { mode: 'json', schema: evernoteToolResponseSchema },
+  response: { mode: 'json', schema: evernoteNoteResponseSchema },
 })
 
 export const evernoteCopyNoteContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/evernote/copy-note',
   body: evernoteCopyNoteBodySchema,
-  response: { mode: 'json', schema: evernoteToolResponseSchema },
+  response: { mode: 'json', schema: evernoteNoteResponseSchema },
 })
 
 export type EvernoteCreateNoteBody = ContractBody<typeof evernoteCreateNoteContract>

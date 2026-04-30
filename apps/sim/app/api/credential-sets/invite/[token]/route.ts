@@ -10,7 +10,11 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { credentialSetInviteTokenParamsSchema } from '@/lib/api/contracts/credential-sets'
+import {
+  acceptCredentialSetInvitationContract,
+  getCredentialSetInvitationContract,
+} from '@/lib/api/contracts/credential-sets'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { normalizeEmail } from '@/lib/invitations/core'
@@ -19,8 +23,10 @@ import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 const logger = createLogger('CredentialSetInviteToken')
 
 export const GET = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ token: string }> }) => {
-    const { token } = credentialSetInviteTokenParamsSchema.parse(await params)
+  async (req: NextRequest, context: { params: Promise<{ token: string }> }) => {
+    const parsed = await parseRequest(getCredentialSetInvitationContract, req, context)
+    if (!parsed.success) return parsed.response
+    const { token } = parsed.data.params
 
     const [invitation] = await db
       .select({
@@ -69,8 +75,10 @@ export const GET = withRouteHandler(
 )
 
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ token: string }> }) => {
-    const { token } = credentialSetInviteTokenParamsSchema.parse(await params)
+  async (req: NextRequest, context: { params: Promise<{ token: string }> }) => {
+    const parsed = await parseRequest(acceptCredentialSetInvitationContract, req, context)
+    if (!parsed.success) return parsed.response
+    const { token } = parsed.data.params
 
     const session = await getSession()
     if (!session?.user?.id) {

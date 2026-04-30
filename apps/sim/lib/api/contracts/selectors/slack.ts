@@ -5,7 +5,11 @@ import {
 } from '@/lib/api/contracts/selectors/shared'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 
-const slackChannelSchema = z.object({ id: z.string(), name: z.string() }).passthrough()
+const slackChannelSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  isPrivate: z.boolean(),
+})
 const slackUserSchema = z
   .object({ id: z.string(), name: z.string(), real_name: z.string() })
   .passthrough()

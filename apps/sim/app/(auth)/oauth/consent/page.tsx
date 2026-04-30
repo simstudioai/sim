@@ -5,6 +5,8 @@ import { ArrowLeftRight } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button, Loader } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import { oauthAuthorizeParamsContract } from '@/lib/api/contracts/oauth-connections'
 import { signOut, useSession } from '@/lib/auth/auth-client'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 
@@ -102,16 +104,15 @@ export default function OAuthConsentPage() {
   const handleSwitchAccount = useCallback(async () => {
     if (!consentCode) return
 
-    // boundary-raw-fetch: route handler not yet contract-backed (uses safeParse, not parseRequest)
-    const res = await fetch(`/api/auth/oauth2/authorize-params?consent_code=${consentCode}`, {
-      credentials: 'include',
-    })
-    if (!res.ok) {
+    const params = await requestJson(oauthAuthorizeParamsContract, {
+      query: { consent_code: consentCode },
+    }).catch(() => null)
+
+    if (!params) {
       setError('Unable to switch accounts. Please re-initiate the connection.')
       return
     }
 
-    const params = (await res.json()) as Record<string, string | null>
     const authorizeUrl = new URL('/api/auth/oauth2/authorize', window.location.origin)
     for (const [key, value] of Object.entries(params)) {
       if (value) authorizeUrl.searchParams.set(key, value)

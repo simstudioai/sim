@@ -2,9 +2,9 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { renderHelpConfirmationEmail } from '@/components/emails'
 import {
-  contactRequestSchema,
   getContactTopicLabel,
   mapContactTopicToHelpType,
+  submitContactBodySchema,
 } from '@/lib/api/contracts/contact'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
@@ -120,7 +120,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       }
     }
 
-    const validationResult = contactRequestSchema.safeParse(body)
+    const validationResult = submitContactBodySchema.safeParse(body)
 
     if (!validationResult.success) {
       logger.warn(`[${requestId}] Invalid contact request data`, {

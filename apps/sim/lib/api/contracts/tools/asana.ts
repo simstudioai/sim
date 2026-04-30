@@ -6,7 +6,78 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const asanaToolResponseSchema = z.object({}).passthrough()
+const asanaUserSummarySchema = z.object({
+  gid: z.string(),
+  name: z.string(),
+})
+
+const asanaCreatedBySchema = asanaUserSummarySchema.extend({
+  resource_type: z.string().optional(),
+})
+
+const asanaTaskSchema = z.object({
+  gid: z.string(),
+  resource_type: z.string().optional(),
+  resource_subtype: z.string().optional(),
+  name: z.string(),
+  notes: z.string(),
+  completed: z.boolean(),
+  assignee: asanaUserSummarySchema.optional(),
+  created_by: asanaCreatedBySchema.optional(),
+  due_on: z.string().optional(),
+  created_at: z.string().optional(),
+  modified_at: z.string().optional(),
+})
+
+const asanaTaskMutationResponseSchema = z.object({
+  success: z.literal(true),
+  ts: z.string(),
+  gid: z.string(),
+  name: z.string(),
+  notes: z.string(),
+  completed: z.boolean(),
+  created_at: z.string().optional(),
+  modified_at: z.string().optional(),
+  permalink_url: z.string().optional(),
+})
+
+const asanaTasksResponseSchema = z.object({
+  success: z.literal(true),
+  ts: z.string(),
+  tasks: z.array(asanaTaskSchema),
+  next_page: z.unknown().optional(),
+})
+
+const asanaSingleTaskResponseSchema = asanaTaskSchema.extend({
+  success: z.literal(true),
+  ts: z.string(),
+})
+
+const asanaProjectSchema = z.object({
+  gid: z.string(),
+  name: z.string(),
+  resource_type: z.string(),
+})
+
+const asanaProjectsResponseSchema = z.object({
+  success: z.literal(true),
+  ts: z.string(),
+  projects: z.array(asanaProjectSchema),
+})
+
+const asanaCommentResponseSchema = z.object({
+  success: z.literal(true),
+  ts: z.string(),
+  gid: z.string(),
+  text: z.string(),
+  created_at: z.string().optional(),
+  created_by: asanaUserSummarySchema.optional(),
+})
+
+const asanaGetTaskResponseSchema = z.union([
+  asanaSingleTaskResponseSchema,
+  asanaTasksResponseSchema,
+])
 
 export const asanaAddCommentBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
@@ -59,42 +130,42 @@ export const asanaAddCommentContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/asana/add-comment',
   body: asanaAddCommentBodySchema,
-  response: { mode: 'json', schema: asanaToolResponseSchema },
+  response: { mode: 'json', schema: asanaCommentResponseSchema },
 })
 
 export const asanaCreateTaskContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/asana/create-task',
   body: asanaCreateTaskBodySchema,
-  response: { mode: 'json', schema: asanaToolResponseSchema },
+  response: { mode: 'json', schema: asanaTaskMutationResponseSchema },
 })
 
 export const asanaGetProjectsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/asana/get-projects',
   body: asanaGetProjectsBodySchema,
-  response: { mode: 'json', schema: asanaToolResponseSchema },
+  response: { mode: 'json', schema: asanaProjectsResponseSchema },
 })
 
 export const asanaGetTaskContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/asana/get-task',
   body: asanaGetTaskBodySchema,
-  response: { mode: 'json', schema: asanaToolResponseSchema },
+  response: { mode: 'json', schema: asanaGetTaskResponseSchema },
 })
 
 export const asanaSearchTasksContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/asana/search-tasks',
   body: asanaSearchTasksBodySchema,
-  response: { mode: 'json', schema: asanaToolResponseSchema },
+  response: { mode: 'json', schema: asanaTasksResponseSchema },
 })
 
 export const asanaUpdateTaskContract = defineRouteContract({
   method: 'PUT',
   path: '/api/tools/asana/update-task',
   body: asanaUpdateTaskBodySchema,
-  response: { mode: 'json', schema: asanaToolResponseSchema },
+  response: { mode: 'json', schema: asanaTaskMutationResponseSchema },
 })
 
 export type AsanaAddCommentBody = ContractBody<typeof asanaAddCommentContract>

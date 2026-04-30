@@ -90,7 +90,7 @@ export const imapPollingTrigger: TriggerConfig = {
         }
 
         try {
-          const data = (await requestJson(imapMailboxesContract, {
+          const data = await requestJson(imapMailboxesContract, {
             body: {
               host,
               port: port ?? undefined,
@@ -98,15 +98,12 @@ export const imapPollingTrigger: TriggerConfig = {
               username,
               password,
             },
-          })) as { mailboxes?: Array<{ path: string; name: string }> }
+          })
 
-          if (data.mailboxes && Array.isArray(data.mailboxes)) {
-            return data.mailboxes.map((mailbox) => ({
-              id: mailbox.path,
-              label: mailbox.name,
-            }))
-          }
-          return []
+          return data.mailboxes.map((mailbox) => ({
+            id: mailbox.path,
+            label: mailbox.name,
+          }))
         } catch (error) {
           logger.error('Error fetching IMAP mailboxes:', error)
           throw error

@@ -54,7 +54,7 @@ export function SlackChannelSelector({
         (data.channels ?? []).map((channel) => ({
           id: channel.id,
           name: channel.name,
-          isPrivate: Boolean((channel as { isPrivate?: unknown }).isPrivate),
+          isPrivate: channel.isPrivate,
         }))
       )
     } catch (err) {

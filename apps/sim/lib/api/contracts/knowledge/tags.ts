@@ -62,6 +62,21 @@ export const saveDocumentTagDefinitionsDataSchema = z
   .or(z.array(tagDefinitionDataSchema))
 export type SaveDocumentTagDefinitionsResult = z.output<typeof saveDocumentTagDefinitionsDataSchema>
 
+export const tagUsageDocumentSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  tagValue: z.string(),
+})
+
+export const tagUsageDataSchema = z.object({
+  tagName: z.string(),
+  tagSlot: z.string(),
+  documentCount: z.number(),
+  documents: z.array(tagUsageDocumentSchema),
+})
+
+export type TagUsageData = z.output<typeof tagUsageDataSchema>
+
 export const listTagDefinitionsContract = defineRouteContract({
   method: 'GET',
   path: '/api/knowledge/[id]/tag-definitions',
@@ -141,6 +156,6 @@ export const getTagUsageContract = defineRouteContract({
   params: knowledgeBaseParamsSchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema(z.unknown()),
+    schema: successResponseSchema(z.array(tagUsageDataSchema)),
   },
 })

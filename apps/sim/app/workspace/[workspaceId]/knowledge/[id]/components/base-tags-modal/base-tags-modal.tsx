@@ -16,7 +16,7 @@ import {
   Trash,
 } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
-import { getTagUsageContract } from '@/lib/api/contracts/knowledge'
+import { getTagUsageContract, type TagUsageData } from '@/lib/api/contracts/knowledge'
 import { cn } from '@/lib/core/utils/cn'
 import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
@@ -33,13 +33,6 @@ const FIELD_TYPE_LABELS: Record<string, string> = {
   number: 'Number',
   date: 'Date',
   boolean: 'Boolean',
-}
-
-interface TagUsageData {
-  tagName: string
-  tagSlot: string
-  documentCount: number
-  documents: Array<{ id: string; name: string; tagValue: string }>
 }
 
 interface DocumentListProps {
@@ -113,7 +106,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         params: { id: knowledgeBaseId },
       })
       if (result.success) {
-        setTagUsageData(result.data as TagUsageData[])
+        setTagUsageData(result.data)
       }
     } catch (error) {
       logger.error('Error fetching tag usage:', error)

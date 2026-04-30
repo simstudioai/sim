@@ -333,7 +333,19 @@ export const fileManageBodySchema = z.discriminatedUnion('operation', [
   fileManageAppendBodySchema,
 ])
 
-const toolJsonResponseSchema = z.record(z.string(), z.unknown())
+const toolJsonResponseSchema = z
+  .object({
+    success: z.boolean().optional(),
+    output: z.unknown().optional(),
+    error: z.string().optional(),
+    message: z.string().optional(),
+    data: z.unknown().optional(),
+  })
+  .passthrough()
+
+export const speechTokenResponseSchema = z.object({
+  token: z.string(),
+})
 
 export const imageProxyContract = defineRouteContract({
   method: 'GET',
@@ -423,7 +435,7 @@ export const speechTokenContract = defineRouteContract({
   method: 'POST',
   path: '/api/speech/token',
   body: speechTokenBodySchema,
-  response: { mode: 'json', schema: toolJsonResponseSchema },
+  response: { mode: 'json', schema: speechTokenResponseSchema },
 })
 
 export const fileManageContract = defineRouteContract({
