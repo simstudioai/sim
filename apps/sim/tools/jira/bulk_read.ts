@@ -93,7 +93,7 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
         `Invalid Jira project key "${projectKey}". Expected an alphanumeric project key (e.g., PROJ).`
       )
     }
-    const jql = `project = ${projectKey} ORDER BY updated DESC`
+    const jql = `project = "${projectKey}" ORDER BY updated DESC`
 
     let collected: any[] = []
     let nextPageToken: string | undefined
