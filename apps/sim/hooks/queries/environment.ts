@@ -68,7 +68,7 @@ export function useSavePersonalEnvironment() {
       logger.info('Saved personal environment variables')
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: environmentKeys.personal() })
+      queryClient.invalidateQueries({ queryKey: environmentKeys.all })
     },
   })
 }
