@@ -18,6 +18,15 @@ import {
 
 const jsonResponseSchema = z.unknown()
 
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 Bytes'
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
+  const value = bytes / k ** i
+  return `${value.toFixed(value >= 100 || i === 0 ? 0 : 1)} ${sizes[i]}`
+}
+
 const multipartPartUrlSchema = z.object({
   partNumber: z.number(),
   url: z.string(),
@@ -334,7 +343,7 @@ export const presignedUrlBodySchema = z
         if (val > MAX_FILE_SIZE) {
           ctx.addIssue({
             code: 'custom',
-            message: `File size ${val} exceeds maximum allowed size (${MAX_FILE_SIZE} bytes)`,
+            message: `File size ${formatFileSize(val)} exceeds maximum allowed size of ${formatFileSize(MAX_FILE_SIZE)}`,
           })
         }
       }),
@@ -355,12 +364,25 @@ export const batchPresignedUrlBodySchema = z
             contentType: z.string().refine((value) => value.trim().length > 0, {
               message: 'contentType is required for all files',
             }),
-            fileSize: z
-              .number()
-              .positive('fileSize must be positive for all files')
-              .max(MAX_FILE_SIZE, `File exceeds maximum size of ${MAX_FILE_SIZE} bytes`),
+            fileSize: z.number(),
           })
           .passthrough()
+          .superRefine((file, ctx) => {
+            const name = typeof file.fileName === 'string' ? file.fileName : 'file'
+            if (!Number.isFinite(file.fileSize) || file.fileSize <= 0) {
+              ctx.addIssue({
+                code: 'custom',
+                path: ['fileSize'],
+                message: `${name} is empty (fileSize must be greater than 0)`,
+              })
+            } else if (file.fileSize > MAX_FILE_SIZE) {
+              ctx.addIssue({
+                code: 'custom',
+                path: ['fileSize'],
+                message: `${name} (${formatFileSize(file.fileSize)}) exceeds maximum allowed size of ${formatFileSize(MAX_FILE_SIZE)}`,
+              })
+            }
+          })
       )
       .min(1, 'files array is required and cannot be empty')
       .max(100, 'Cannot process more than 100 files at once'),
