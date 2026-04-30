@@ -154,8 +154,14 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
     if (req.method === 'POST' && req.url === '/api/table-row-updated') {
       try {
         const body = await readRequestBody(req)
-        const { tableId, rowId, data, position, updatedAt } = JSON.parse(body)
-        await roomManager.handleTableRowUpdated(tableId, { rowId, data, position, updatedAt })
+        const { tableId, rowId, data, executions, position, updatedAt } = JSON.parse(body)
+        await roomManager.handleTableRowUpdated(tableId, {
+          rowId,
+          data,
+          executions,
+          position,
+          updatedAt,
+        })
         sendSuccess(res)
       } catch (error) {
         logger.error('Error handling table row update notification:', error)

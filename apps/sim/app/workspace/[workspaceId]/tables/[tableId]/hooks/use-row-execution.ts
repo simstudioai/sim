@@ -59,9 +59,6 @@ export function useRowExecution(): UseRowExecutionReturn {
       return res.json()
     },
     onMutate: async (params) => {
-      logger.info(
-        `[FLASH-DEBUG] useRowExecution onMutate row=${params.rowId} group=${params.groupId} clearedCols=${JSON.stringify(params.outputColumnNames)}`
-      )
       const snapshots = await snapshotAndMutateRows(queryClient, params.tableId, (r) => {
         if (r.id !== params.rowId) return null
         const exec = (r.executions ?? {})[params.groupId] as RowExecutionMetadata | undefined
@@ -89,7 +86,6 @@ export function useRowExecution(): UseRowExecutionReturn {
       toast.error(`Failed to run workflow: ${message}`)
     },
     onSettled: (_data, _err, params) => {
-      logger.info(`[FLASH-DEBUG] useRowExecution onSettled → invalidate row=${params.rowId}`)
       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(params.tableId) })
     },
   })

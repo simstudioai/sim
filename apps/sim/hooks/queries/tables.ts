@@ -258,17 +258,9 @@ export function useTableRows({
 
     onTableRowUpdated((event) => {
       if (event.tableId !== tableId) return
-      const incomingExec = Object.fromEntries(
-        Object.entries(
-          (event.executions as Record<string, { status?: string }> | undefined) ?? {}
-        ).map(([gid, e]) => [gid, e?.status ?? null])
-      )
       // While an optimistic mutation is in flight, applying the socket delta
       // could clobber the optimistic state — defer to onSettled invalidate.
       if (queryClient.isMutating() > 0) {
-        logger.info(
-          `[FLASH-DEBUG] socket row=${event.rowId} (mutation in flight → invalidate) incomingExec=${JSON.stringify(incomingExec)}`
-        )
         queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
         return
       }
@@ -294,15 +286,6 @@ export function useTableRows({
               totalCount: current.totalCount === null ? null : current.totalCount + 1,
             }
           }
-          const prevExec = Object.fromEntries(
-            Object.entries(current.rows[idx].executions ?? {}).map(([gid, e]) => [
-              gid,
-              e?.status ?? null,
-            ])
-          )
-          logger.info(
-            `[FLASH-DEBUG] socket merge row=${event.rowId} prevExec=${JSON.stringify(prevExec)} incomingExec=${JSON.stringify(incomingExec)}`
-          )
           const merged = {
             ...current.rows[idx],
             data: incoming.data,

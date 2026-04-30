@@ -177,6 +177,8 @@ export interface IRoomManager {
 export interface TableRowUpdatedPayload {
   rowId: string
   data: Record<string, unknown>
+  /** Per-workflow-group execution state. Keyed by `WorkflowGroup.id`. */
+  executions?: Record<string, unknown>
   position: number
   updatedAt: string | number
 }

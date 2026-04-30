@@ -78,12 +78,6 @@ const logger = createLogger('TableService')
  * server can broadcast to subscribed clients in the table room.
  */
 function notifyTableRowUpdated(tableId: string, row: TableRow): void {
-  const execStates = Object.fromEntries(
-    Object.entries(row.executions ?? {}).map(([gid, e]) => [gid, e?.status ?? null])
-  )
-  logger.info(
-    `[FLASH-DEBUG] notify row=${row.id} table=${tableId} exec=${JSON.stringify(execStates)}`
-  )
   void fetch(`${getSocketServerUrl()}/api/table-row-updated`, {
     method: 'POST',
     headers: {
@@ -1578,11 +1572,9 @@ export async function updateRow(
   // `running` execution state — those land last, so the cached executions
   // end on the live state instead of being clobbered by a stale envelope.
   notifyTableRowUpdated(data.tableId, updatedRow)
-  logger.info(`[FLASH-DEBUG] updateRow → scheduler START row=${data.rowId}`)
   // Awaited (not `void`) so cell tasks dispatch their cascade before the
   // trigger.dev worker tears down on `run()` resolve.
   await scheduleWorkflowGroupRuns(table, [updatedRow])
-  logger.info(`[FLASH-DEBUG] updateRow → scheduler END row=${data.rowId}`)
 
   return updatedRow
 }

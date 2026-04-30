@@ -125,7 +125,6 @@ interface RunGroupCellOptions {
  */
 export async function runWorkflowGroupCell(opts: RunGroupCellOptions): Promise<void> {
   const { tableId, tableName, rowId, groupId, workflowId, workspaceId, executionId } = opts
-  logger.info(`[FLASH-DEBUG] runWorkflowGroupCell START row=${rowId} group=${groupId}`)
 
   const { getJobQueue, shouldExecuteInline } = await import('@/lib/core/async-jobs/config')
   const cellCtx = { tableId, rowId, workspaceId, groupId, executionId }
@@ -143,7 +142,6 @@ export async function runWorkflowGroupCell(opts: RunGroupCellOptions): Promise<v
   let queue: Awaited<ReturnType<typeof getJobQueue>>
   try {
     queue = await getJobQueue()
-    logger.info(`[FLASH-DEBUG] enqueue START row=${rowId} group=${groupId}`)
     jobId = await queue.enqueue('workflow-group-cell', taskPayload, {
       metadata: {
         workflowId,
@@ -183,7 +181,6 @@ export async function runWorkflowGroupCell(opts: RunGroupCellOptions): Promise<v
   // we abort the just-enqueued job.
   let stampResult: 'wrote' | 'skipped' = 'wrote'
   try {
-    logger.info(`[FLASH-DEBUG] write running+jobId row=${rowId} group=${groupId} jobId=${jobId}`)
     stampResult = await writeWorkflowGroupState(cellCtx, {
       executionState: {
         status: 'running',

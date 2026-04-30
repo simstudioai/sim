@@ -1,13 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import {
   createTableColumnBodySchema,
   deleteTableColumnBodySchema,
   updateTableColumnBodySchema,
 } from '@/lib/api/contracts/tables'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table'
-import { getTableById } from '@/lib/table'
+import { COLUMN_TYPES, getTableById } from '@/lib/table'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+
+const columnTypeEnum = z.enum(COLUMN_TYPES)
 
 const logger = createLogger('TableUtils')
 

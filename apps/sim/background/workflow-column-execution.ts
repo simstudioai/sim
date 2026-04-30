@@ -150,9 +150,6 @@ export async function executeWorkflowGroupCellJob(
         const dataSnapshot: RowData = { ...accumulatedData }
         const blockErrorsSnapshot = { ...blockErrors }
         const runningSnapshot = Array.from(runningBlockIds)
-        logger.info(
-          `[FLASH-DEBUG] partial write scheduled row=${rowId} group=${groupId} dataKeys=${JSON.stringify(Object.keys(dataSnapshot))} running=${JSON.stringify(runningSnapshot)} errors=${JSON.stringify(Object.keys(blockErrorsSnapshot))}`
-        )
         writeChain = writeChain
           .then(async () => {
             if (signal?.aborted) return
@@ -250,9 +247,6 @@ export async function executeWorkflowGroupCellJob(
       // Drain queued partial writes before the terminal write so a late
       // `running` partial doesn't clobber it.
       await writeChain.catch(() => {})
-      logger.info(
-        `[FLASH-DEBUG] terminal write row=${rowId} group=${groupId} status=${result.success ? 'completed' : 'error'} dataKeys=${JSON.stringify(Object.keys(accumulatedData))}`
-      )
 
       await writeState(
         {

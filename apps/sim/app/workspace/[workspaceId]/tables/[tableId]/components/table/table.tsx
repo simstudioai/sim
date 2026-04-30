@@ -3429,10 +3429,6 @@ function CellContent({
         </span>
       )
     } else {
-      // eslint-disable-next-line no-console
-      console.log(
-        `[FLASH-DEBUG] render dash col=${column.name} groupId=${column.workflowGroupId} status=${exec?.status ?? 'undefined'} value=${value === null ? 'null' : value === undefined ? 'undefined' : typeof value} runningBlockIds=${JSON.stringify(exec?.runningBlockIds ?? [])} blockErrors=${JSON.stringify(Object.keys(exec?.blockErrors ?? {}))}`
-      )
       displayContent = <span className='text-[var(--text-tertiary)]'>—</span>
     }
     return displayContent
