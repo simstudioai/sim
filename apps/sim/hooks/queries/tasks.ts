@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   addMothershipChatResourceContract,
+  createMothershipChatContract,
   deleteMothershipChatContract,
   forkMothershipChatContract,
   listMothershipChatsContract,
@@ -527,15 +528,8 @@ export function useMarkTaskUnread(workspaceId?: string) {
 }
 
 async function createChat(workspaceId: string): Promise<{ id: string }> {
-  // boundary-raw-fetch: fire-and-forget POST inside a mutation, no shared request helper for this endpoint
-  const response = await fetch('/api/mothership/chats', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ workspaceId }),
-  })
-  if (!response.ok) throw new Error('Failed to create chat')
-  const data = await response.json()
-  return { id: data.id }
+  const { id } = await requestJson(createMothershipChatContract, { body: { workspaceId } })
+  return { id }
 }
 
 export function useCreateTask(workspaceId?: string) {
