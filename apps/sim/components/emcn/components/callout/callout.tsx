@@ -3,7 +3,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 
-const calloutVariants = cva('flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[12px]', {
+const calloutVariants = cva('flex items-center gap-2 rounded-lg border px-2.5 py-2.5 text-[12px]', {
   variants: {
     variant: {
       default: 'border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)]',
