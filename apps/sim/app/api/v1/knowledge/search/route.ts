@@ -84,11 +84,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const accessChecks = await Promise.all(
       knowledgeBaseIds.map((kbId) => checkKnowledgeBaseAccess(kbId, userId))
     )
-    const accessibleKbIds = knowledgeBaseIds.filter(
-      (_, idx) =>
-        accessChecks[idx]?.hasAccess &&
-        accessChecks[idx]?.knowledgeBase?.workspaceId === workspaceId
-    )
+    const accessibleKbs = knowledgeBaseIds
+      .map((_, idx) => accessChecks[idx])
+      .filter(
+        (ac): ac is NonNullable<typeof ac> =>
+          Boolean(ac?.hasAccess) && ac?.knowledgeBase?.workspaceId === workspaceId
+      )
+      .map((ac) => ac.knowledgeBase!)
+    const accessibleKbIds = accessibleKbs.map((kb) => kb.id)
 
     if (accessibleKbIds.length === 0) {
       return NextResponse.json(
@@ -173,6 +176,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const hasQuery = query && query.trim().length > 0
     const hasFilters = structuredFilters.length > 0
 
+    const embeddingModels = Array.from(new Set(accessibleKbs.map((kb) => kb.embeddingModel)))
+    if (hasQuery && embeddingModels.length > 1) {
+      return NextResponse.json(
+        {
+          error:
+            'Selected knowledge bases use different embedding models and cannot be searched together. Search them separately.',
+        },
+        { status: 400 }
+      )
+    }
+    const queryEmbeddingModel = embeddingModels[0]
+
     let results: SearchResult[]
 
     if (!hasQuery && hasFilters) {
@@ -184,7 +199,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     } else if (hasQuery && hasFilters) {
       const strategy = getQueryStrategy(accessibleKbIds.length, topK)
       const queryVector = JSON.stringify(
-        await generateSearchEmbedding(query!, undefined, workspaceId)
+        await generateSearchEmbedding(query!, queryEmbeddingModel, workspaceId)
       )
       results = await handleTagAndVectorSearch({
         knowledgeBaseIds: accessibleKbIds,
@@ -196,7 +211,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     } else if (hasQuery) {
       const strategy = getQueryStrategy(accessibleKbIds.length, topK)
       const queryVector = JSON.stringify(
-        await generateSearchEmbedding(query!, undefined, workspaceId)
+        await generateSearchEmbedding(query!, queryEmbeddingModel, workspaceId)
       )
       results = await handleVectorOnlySearch({
         knowledgeBaseIds: accessibleKbIds,
