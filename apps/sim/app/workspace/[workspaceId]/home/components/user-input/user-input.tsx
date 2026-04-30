@@ -470,7 +470,11 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     currentFiles.clearAttachedFiles()
     prevSelectedContextsRef.current = []
     currentContext.clearContexts()
+    // Programmatic close() bypasses Radix's onOpenChange, so handlePlusMenuClose won't
+    // fire — clear mention state inline so ArrowUp etc. aren't intercepted post-submit.
     plusMenuRef.current?.close()
+    mentionRangeRef.current = null
+    setMentionQuery(null)
 
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
