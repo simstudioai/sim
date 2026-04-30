@@ -140,6 +140,7 @@ export const POST = withRouteHandler(
         contextId,
         resumeInput,
         userId,
+        allowedPauseKinds: ['human'],
       })
 
       if (enqueueResult.status === 'queued') {

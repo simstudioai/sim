@@ -128,6 +128,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         }
       }
 
+      // We never auto-retry a failed dispatch: workflow blocks aren't idempotent, and an
+      // operator must investigate stranded rows by hand. Setting nextResumeAt to the next
+      // future pause (or null) drops the row out of the poll, surfacing the failure.
       await db
         .update(pausedExecutions)
         .set({ nextResumeAt: nextRemaining })

@@ -19,6 +19,7 @@ import type {
 } from '@/executor/execution/types'
 import type {
   ExecutionResult,
+  PauseKind,
   PausePoint,
   SerializedSnapshot,
   StreamingExecution,
@@ -87,6 +88,8 @@ interface EnqueueResumeArgs {
   contextId: string
   resumeInput: unknown
   userId: string
+  /** Restrict which `pauseKind`s are eligible to resume. Defaults to allowing any. */
+  allowedPauseKinds?: PauseKind[]
 }
 
 type EnqueueResumeResult =
@@ -191,7 +194,7 @@ export class PauseResumeManager {
   }
 
   static async enqueueOrStartResume(args: EnqueueResumeArgs): Promise<EnqueueResumeResult> {
-    const { executionId, contextId, resumeInput, userId } = args
+    const { executionId, contextId, resumeInput, userId, allowedPauseKinds } = args
 
     return await db.transaction(async (tx) => {
       const pausedExecution = await tx
@@ -220,6 +223,11 @@ export class PauseResumeManager {
       }
       if (!pausePoint.snapshotReady) {
         throw new Error('Snapshot not ready; execution still finalizing pause')
+      }
+
+      const pauseKind: PauseKind = pausePoint.pauseKind ?? 'human'
+      if (allowedPauseKinds && !allowedPauseKinds.includes(pauseKind)) {
+        throw new Error(`Pause point cannot be resumed manually (pauseKind=${pauseKind})`)
       }
 
       const activeResume = await tx
@@ -1334,12 +1342,13 @@ export class PauseResumeManager {
       .where(whereClause)
       .orderBy(desc(pausedExecutions.pausedAt))
 
-    return rows.map((row) =>
-      PauseResumeManager.normalizePausedExecution(
-        row,
-        PauseResumeManager.mapPausePoints(row.pausePoints)
+    return rows.flatMap((row) => {
+      const humanPoints = PauseResumeManager.mapPausePoints(row.pausePoints).filter(
+        (point) => point.pauseKind !== 'time'
       )
-    )
+      if (humanPoints.length === 0) return []
+      return [PauseResumeManager.normalizePausedExecution(row, humanPoints)]
+    })
   }
 
   static async getPausedExecutionById(
@@ -1391,7 +1400,11 @@ export class PauseResumeManager {
       row.pausePoints,
       queuePositions,
       latestEntries
-    )
+    ).filter((point) => point.pauseKind !== 'time')
+
+    if (pausePoints.length === 0) {
+      return null
+    }
 
     const executionSummary = PauseResumeManager.normalizePausedExecution(row, pausePoints)
 
