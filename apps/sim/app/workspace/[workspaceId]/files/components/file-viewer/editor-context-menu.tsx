@@ -62,7 +62,7 @@ export function EditorContextMenu({
       >
         {canEdit && (
           <DropdownMenuItem disabled={!hasSelection} onSelect={onCut}>
-            <Scissors className='h-[14px] w-[14px]' />
+            <Scissors />
             Cut
             <DropdownMenuShortcut>⌘X</DropdownMenuShortcut>
           </DropdownMenuItem>
