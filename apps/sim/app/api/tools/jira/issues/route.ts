@@ -172,7 +172,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
       const buildUrl = (token?: string) => {
         const jqlParts: string[] = []
-        if (projectKey) jqlParts.push(`project = ${projectKey}`)
+        if (projectKey) jqlParts.push(`project = "${escapeJql(projectKey)}"`)
         if (query) {
           const q = escapeJql(query)
           jqlParts.push(`(key ~ "${q}" OR summary ~ "${q}")`)
