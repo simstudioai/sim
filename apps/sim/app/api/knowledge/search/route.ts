@@ -402,11 +402,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       let tokenCount = null
       if (hasQuery) {
         try {
-          // Use the tokenizer matching the actual embedding provider so token counts
-          // (and the input cost derived from them) reflect how the provider tokenizes.
-          const tokenizerProvider =
-            getEmbeddingModelInfo(queryEmbeddingModel).provider === 'gemini' ? 'google' : 'openai'
-          tokenCount = estimateTokenCount(validatedData.query!, tokenizerProvider)
+          tokenCount = estimateTokenCount(
+            validatedData.query!,
+            getEmbeddingModelInfo(queryEmbeddingModel).tokenizerProvider
+          )
           cost = calculateCost(queryEmbeddingModel, tokenCount.count, 0, false)
         } catch (error) {
           logger.warn(`[${requestId}] Failed to calculate cost for search query`, {

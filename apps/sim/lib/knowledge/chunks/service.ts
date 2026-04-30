@@ -15,15 +15,6 @@ import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 
-/**
- * Map embedding model provider → tokenization provider id used by
- * `estimateTokenCount`. Keeps stored token counts (and any cost computed
- * from them) consistent with how the embedding provider tokenizes.
- */
-function tokenizerProviderForEmbeddingModel(model: string): 'openai' | 'google' {
-  return getEmbeddingModelInfo(model).provider === 'gemini' ? 'google' : 'openai'
-}
-
 const logger = createLogger('ChunksService')
 
 /**
@@ -136,10 +127,9 @@ export async function createChunk(
     workspaceId
   )
 
-  // Calculate accurate token count using the tokenizer matching the KB's embedding provider.
   const tokenCount = estimateTokenCount(
     chunkData.content,
-    tokenizerProviderForEmbeddingModel(kbEmbeddingModel)
+    getEmbeddingModelInfo(kbEmbeddingModel).tokenizerProvider
   )
 
   const chunkId = generateId()
@@ -398,10 +388,9 @@ export async function updateChunk(
         }
         const { embeddings } = await generateEmbeddings([content], chunkEmbeddingModel, workspaceId)
 
-        // Calculate accurate token count using the tokenizer matching the KB's embedding provider.
         const tokenCount = estimateTokenCount(
           content,
-          tokenizerProviderForEmbeddingModel(chunkEmbeddingModel)
+          getEmbeddingModelInfo(chunkEmbeddingModel).tokenizerProvider
         )
 
         dbUpdateData.content = content
