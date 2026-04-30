@@ -605,12 +605,12 @@ async function forkChat(params: {
   return { id: data.id }
 }
 
-export function useForkTask() {
+export function useForkTask(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: forkChat,
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: taskKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
     },
   })
 }
