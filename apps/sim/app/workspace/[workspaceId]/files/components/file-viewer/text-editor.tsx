@@ -174,30 +174,30 @@ const MonacoEditor = dynamic(
       colors: {
         'editor.background': '#fefefe',
         'editor.foreground': '#1a1a1a',
-        'editorLineNumber.foreground': '#cccccc',
+        'editorLineNumber.foreground': '#bbbbbb',
         'editorLineNumber.activeForeground': '#707070',
-        'editor.selectionBackground': '#33b4ff22',
-        'editor.inactiveSelectionBackground': '#33b4ff12',
+        'editor.selectionBackground': '#0078d430',
+        'editor.inactiveSelectionBackground': '#0078d418',
         'editor.lineHighlightBackground': '#f7f7f7',
         'editor.lineHighlightBorder': '#00000000',
         'editorGutter.background': '#fefefe',
         'editorWidget.background': '#ffffff',
         'editorWidget.border': '#dedede',
         'editorWidget.foreground': '#1a1a1a',
-        'editor.findMatchBackground': '#33b4ff40',
-        'editor.findMatchHighlightBackground': '#33b4ff1a',
-        'editor.findMatchBorder': '#33b4ff',
+        'editor.findMatchBackground': '#0078d428',
+        'editor.findMatchHighlightBackground': '#0078d414',
+        'editor.findMatchBorder': '#0078d4',
         'scrollbar.shadow': '#00000000',
         'scrollbarSlider.background': '#dedede80',
         'scrollbarSlider.hoverBackground': '#cccccc',
         'scrollbarSlider.activeBackground': '#b0b0b0',
-        'editorBracketMatch.background': '#33b4ff1a',
-        'editorBracketMatch.border': '#33b4ff80',
+        'editorBracketMatch.background': '#0078d418',
+        'editorBracketMatch.border': '#0078d480',
         'editorIndentGuide.background1': '#f0f0f0',
         'editorIndentGuide.activeBackground1': '#d8d8d8',
         'editorCursor.foreground': '#1a1a1a',
-        'editor.wordHighlightBackground': '#33b4ff14',
-        'editor.wordHighlightBorder': '#33b4ff40',
+        'editor.wordHighlightBackground': '#0078d414',
+        'editor.wordHighlightBorder': '#0078d450',
         'editorSuggestWidget.background': '#ffffff',
         'editorSuggestWidget.border': '#dedede',
         'editorSuggestWidget.foreground': '#1a1a1a',
@@ -208,11 +208,11 @@ const MonacoEditor = dynamic(
         'editorHoverWidget.foreground': '#1a1a1a',
         'minimap.background': '#fefefe',
         'minimapSlider.background': '#dedede80',
-        focusBorder: '#33b4ff80',
+        focusBorder: '#0078d480',
         'input.background': '#ffffff',
         'input.border': '#dedede',
         'input.foreground': '#1a1a1a',
-        'inputOption.activeBorder': '#33b4ff',
+        'inputOption.activeBorder': '#0078d4',
       },
     })
 
@@ -626,7 +626,7 @@ export const TextEditor = memo(function TextEditor({
       editor.focus()
     }
 
-    editor.onContextMenu((e) => {
+    const contextMenuDisposable = editor.onContextMenu((e) => {
       e.event.preventDefault()
       const sel = editor.getSelection()
       setContextMenu({
@@ -635,6 +635,7 @@ export const TextEditor = memo(function TextEditor({
         hasSelection: sel !== null && !sel.isEmpty(),
       })
     })
+    editor.onDidDispose(() => contextMenuDisposable.dispose())
   }
 
   const handleEditorChange = useCallback(
@@ -783,7 +784,7 @@ export const TextEditor = memo(function TextEditor({
             closeContextMenu()
           }}
           onCopyAll={() => {
-            navigator.clipboard.writeText(monacoEditorRef.current?.getValue() ?? '')
+            navigator.clipboard.writeText(monacoEditorRef.current?.getValue() ?? '').catch(() => {})
             closeContextMenu()
           }}
           onPaste={() => {
