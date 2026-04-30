@@ -2,9 +2,8 @@
 
 import { type KeyboardEvent, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { Input, Label } from '@/components/emcn'
+import { Input, Label, Loader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import AuthBackground from '@/app/(auth)/components/auth-background'
@@ -156,7 +155,7 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
                 <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
                   {isLoading ? (
                     <span className='flex items-center gap-2'>
-                      <Loader2 className='h-4 w-4 animate-spin' />
+                      <Loader className='h-4 w-4' animate />
                       Redirecting to SSO...
                     </span>
                   ) : (

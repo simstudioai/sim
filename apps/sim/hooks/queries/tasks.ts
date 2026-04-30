@@ -526,6 +526,41 @@ export function useMarkTaskUnread(workspaceId?: string) {
   })
 }
 
+async function createChat(workspaceId: string): Promise<{ id: string }> {
+  const response = await fetch('/api/mothership/chats', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId }),
+  })
+  if (!response.ok) throw new Error('Failed to create chat')
+  const data = await response.json()
+  return { id: data.id }
+}
+
+export function useCreateTask(workspaceId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => {
+      if (!workspaceId) throw new Error('workspaceId is required')
+      return createChat(workspaceId)
+    },
+    onSuccess: (data) => {
+      const existing = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId)) ?? []
+      const newTask: TaskMetadata = {
+        id: data.id,
+        name: 'New task',
+        updatedAt: new Date(),
+        isActive: false,
+        isUnread: false,
+      }
+      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [newTask, ...existing])
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+    },
+  })
+}
+
 async function forkChat(params: {
   chatId: string
   upToMessageId: string

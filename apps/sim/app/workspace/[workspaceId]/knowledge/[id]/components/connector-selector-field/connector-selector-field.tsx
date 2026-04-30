@@ -1,8 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Loader2 } from 'lucide-react'
-import { Combobox, type ComboboxOption } from '@/components/emcn'
+import { Combobox, type ComboboxOption, Loader } from '@/components/emcn'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import { getDependsOnFields } from '@/blocks/utils'
 import type { ConnectorConfigField } from '@/connectors/types'
@@ -68,7 +67,7 @@ export function ConnectorSelectorField({
   if (isLoading && isEnabled) {
     return (
       <div className='flex items-center gap-2 rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 text-[var(--text-muted)] text-sm'>
-        <Loader2 className='h-3.5 w-3.5 animate-spin' />
+        <Loader className='h-3.5 w-3.5' animate />
         Loading...
       </div>
     )
