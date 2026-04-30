@@ -73,13 +73,21 @@ function deriveOutputColumnName(
   path: string,
   taken: Set<string>
 ): string {
-  const base = slugifyColumnName(`${blockName}_${path}`)
-  if (!taken.has(base)) return base
+  // Try the bare path first — short and reads as the source field. Only escalate
+  // to longer names on collision so the common case stays clean.
+  const candidates = [
+    slugifyColumnName(path),
+    slugifyColumnName(`${blockName}_${path}`),
+  ]
+  for (const c of candidates) {
+    if (!taken.has(c)) return c
+  }
+  const last = candidates[candidates.length - 1]
   for (let i = 2; i < 1000; i++) {
-    const candidate = `${base}_${i}`
+    const candidate = `${last}_${i}`
     if (!taken.has(candidate)) return candidate
   }
-  return `${base}_${Date.now()}`
+  return `${last}_${Date.now()}`
 }
 
 const OUTPUT_VALUE_SEPARATOR = '::'
