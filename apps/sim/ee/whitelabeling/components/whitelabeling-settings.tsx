@@ -6,7 +6,7 @@ import { toError } from '@sim/utils/errors'
 import { X } from 'lucide-react'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
-import { Button, Input, Label, Loader, Skeleton, toast } from '@/components/emcn'
+import { Button, Callout, Input, Label, Loader, Skeleton, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
@@ -318,6 +318,7 @@ export function WhitelabelingSettings() {
 
   return (
     <div className='flex flex-col gap-8'>
+      <Callout>Applies organization-wide</Callout>
       <section>
         <SectionTitle>Brand Identity</SectionTitle>
         <div className='flex flex-col gap-5'>
