@@ -19,9 +19,9 @@ import {
   updateDocument,
 } from '@/lib/knowledge/documents/service'
 import {
-  DEFAULT_EMBEDDING_MODEL,
   EMBEDDING_DIMENSIONS,
   generateSearchEmbedding,
+  getConfiguredEmbeddingModel,
 } from '@/lib/knowledge/embeddings'
 import {
   createKnowledgeBase,
@@ -111,7 +111,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               description: args.description,
               workspaceId,
               userId: context.userId,
-              embeddingModel: DEFAULT_EMBEDDING_MODEL,
+              embeddingModel: getConfiguredEmbeddingModel(),
               embeddingDimension: EMBEDDING_DIMENSIONS,
               chunkingConfig: args.chunkingConfig || {
                 maxSize: 1024,
