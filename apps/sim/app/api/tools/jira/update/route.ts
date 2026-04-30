@@ -80,7 +80,8 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: issueKeyValidation.error }, { status: 400 })
     }
 
-    const notifyParam = notifyUsers === false ? '?notifyUsers=false' : ''
+    const notifyParam =
+      notifyUsers === false ? '?notifyUsers=false' : notifyUsers === true ? '?notifyUsers=true' : ''
     const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueKey}${notifyParam}`
 
     logger.info('Updating Jira issue at:', url)
