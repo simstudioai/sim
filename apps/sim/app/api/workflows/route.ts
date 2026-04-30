@@ -5,8 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createWorkflowBodySchema, workflowListQuerySchema } from '@/lib/api/contracts/workflows'
-import { validateSchema } from '@/lib/api/server'
+import { createWorkflowContract, workflowListQuerySchema } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -117,14 +117,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   const userId = auth.userId
 
   try {
-    const body = await req.json()
-    const validation = validateSchema(createWorkflowBodySchema, body, 'Invalid request data')
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid workflow creation data`, {
-        errors: validation.error.issues,
-      })
-      return validation.response
-    }
+    const parsed = await parseRequest(createWorkflowContract, req, {})
+    if (!parsed.success) return parsed.response
     const {
       id: clientId,
       name: requestedName,
@@ -134,7 +128,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       folderId,
       sortOrder: providedSortOrder,
       deduplicate,
-    } = validation.data
+    } = parsed.data.body
 
     if (!workspaceId) {
       logger.warn(`[${requestId}] Workflow creation blocked: missing workspaceId`)

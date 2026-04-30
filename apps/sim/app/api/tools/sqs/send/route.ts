@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsSqsSendContract } from '@/lib/api/contracts/tools/aws/sqs-send'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createSqsClient, sendMessage } from '../utils'
@@ -18,7 +18,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const parsed = await parseAwsToolRequest(awsSqsSendContract, request, {
+    const parsed = await parseToolRequest(awsSqsSendContract, request, {
       errorFormat: 'details',
       logger,
     })

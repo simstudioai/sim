@@ -13,11 +13,48 @@ const DescribeStacksSchema = z.object({
   stackName: z.string().optional(),
 })
 
+const DescribeStacksResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    stacks: z.array(
+      z.object({
+        stackName: z.string(),
+        stackId: z.string(),
+        stackStatus: z.string(),
+        stackStatusReason: z.string().optional(),
+        creationTime: z.number().optional(),
+        lastUpdatedTime: z.number().optional(),
+        description: z.string().optional(),
+        enableTerminationProtection: z.boolean().optional(),
+        driftInformation: z
+          .object({
+            stackDriftStatus: z.string().optional(),
+            lastCheckTimestamp: z.number().optional(),
+          })
+          .nullable(),
+        outputs: z.array(
+          z.object({
+            outputKey: z.string(),
+            outputValue: z.string(),
+            description: z.string().optional(),
+          })
+        ),
+        tags: z.array(
+          z.object({
+            key: z.string(),
+            value: z.string(),
+          })
+        ),
+      })
+    ),
+  }),
+})
+
 export const awsCloudformationDescribeStacksContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/cloudformation/describe-stacks',
   body: DescribeStacksSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: DescribeStacksResponseSchema },
 })
 export type AwsCloudformationDescribeStacksRequest = ContractBodyInput<
   typeof awsCloudformationDescribeStacksContract

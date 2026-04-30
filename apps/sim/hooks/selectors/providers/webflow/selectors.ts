@@ -1,5 +1,5 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { ensureCredential, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -16,7 +16,7 @@ export const webflowSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'webflow.sites')
-      const data = await requestSelectorContract(selectorContracts.webflowSitesSelectorContract, {
+      const data = await requestJson(selectorContracts.webflowSitesSelectorContract, {
         body: { credential: credentialId, workflowId: context.workflowId },
         signal,
       })
@@ -42,17 +42,14 @@ export const webflowSelectors = {
       if (!context.siteId) {
         throw new Error('Missing site ID for webflow.collections selector')
       }
-      const data = await requestSelectorContract(
-        selectorContracts.webflowCollectionsSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-            siteId: context.siteId,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.webflowCollectionsSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+          siteId: context.siteId,
+        },
+        signal,
+      })
       return (data.collections || []).map((collection) => ({
         id: collection.id,
         label: collection.name,
@@ -76,7 +73,7 @@ export const webflowSelectors = {
       if (!context.collectionId) {
         throw new Error('Missing collection ID for webflow.items selector')
       }
-      const data = await requestSelectorContract(selectorContracts.webflowItemsSelectorContract, {
+      const data = await requestJson(selectorContracts.webflowItemsSelectorContract, {
         body: {
           credential: credentialId,
           workflowId: context.workflowId,

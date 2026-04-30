@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { fileDownloadBodySchema } from '@/lib/api/contracts/storage-transfer'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { fileDownloadContract } from '@/lib/api/contracts/storage-transfer'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { StorageContext } from '@/lib/uploads/config'
@@ -25,16 +25,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = authResult.userId
-    const validationResult = fileDownloadBodySchema.safeParse(await request.json())
-    if (!validationResult.success) {
-      return createErrorResponse(
-        new Error(getValidationErrorMessage(validationResult.error, 'Invalid request data')),
-        400
-      )
-    }
 
-    const body = validationResult.data
-    const { key, name, isExecutionFile, context, url } = body
+    const parsed = await parseRequest(
+      fileDownloadContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          createErrorResponse(
+            new Error(getValidationErrorMessage(error, 'Invalid request data')),
+            400
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const { key, name, isExecutionFile, context, url } = parsed.data.body
 
     if (!key) {
       return createErrorResponse(new Error('File key is required'), 400)

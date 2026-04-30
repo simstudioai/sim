@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
-import { workflowLogBodySchema } from '@/lib/api/contracts/workflows'
-import { getValidationErrorMessage, parseJsonBody, validateSchema } from '@/lib/api/server'
+import { workflowLogContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -16,9 +16,9 @@ const logger = createLogger('WorkflowLogAPI')
 export const dynamic = 'force-dynamic'
 
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const { id } = await context.params
 
     try {
       const accessValidation = await validateWorkflowAccess(request, id, false)
@@ -29,23 +29,10 @@ export const POST = withRouteHandler(
         return createErrorResponse(accessValidation.error.message, accessValidation.error.status)
       }
 
-      const parsedBody = await parseJsonBody(request)
-      if (!parsedBody.success) return parsedBody.response
+      const parsed = await parseRequest(workflowLogContract, request, context)
+      if (!parsed.success) return parsed.response
 
-      const validation = validateSchema(
-        workflowLogBodySchema,
-        parsedBody.data,
-        'Invalid request body'
-      )
-      if (!validation.success) {
-        logger.warn(`[${requestId}] Invalid request body`)
-        return createErrorResponse(
-          getValidationErrorMessage(validation.error, 'Invalid request body'),
-          400
-        )
-      }
-
-      const { logs, executionId, result } = validation.data
+      const { logs, executionId, result } = parsed.data.body
 
       if (result) {
         if (!executionId) {

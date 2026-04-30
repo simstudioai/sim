@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { importSkillBodySchema } from '@/lib/api/contracts'
-import { validateSchema } from '@/lib/api/server'
+import { importSkillContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -50,10 +50,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
-    const validation = validateSchema(importSkillBodySchema, body, 'Invalid request')
+    const validation = await parseRequest(importSkillContract, req, {})
     if (!validation.success) return validation.response
-    const { url } = validation.data
+    const { url } = validation.data.body
 
     let rawUrl: string
     try {

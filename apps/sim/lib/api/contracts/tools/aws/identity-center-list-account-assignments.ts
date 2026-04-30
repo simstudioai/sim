@@ -23,11 +23,24 @@ const Schema = z.object({
   nextToken: z.string().optional(),
 })
 
+const ResponseSchema = z.object({
+  assignments: z.array(
+    z.object({
+      accountId: z.string(),
+      permissionSetArn: z.string(),
+      principalType: z.string(),
+      principalId: z.string(),
+    })
+  ),
+  nextToken: z.string().nullable(),
+  count: z.number(),
+})
+
 export const awsIdentityCenterListAccountAssignmentsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/identity-center/list-account-assignments',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ResponseSchema },
 })
 export type AwsIdentityCenterListAccountAssignmentsRequest = ContractBodyInput<
   typeof awsIdentityCenterListAccountAssignmentsContract

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { batchWorkspaceInvitationBodySchema } from '@/lib/api/contracts/invitations'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { batchWorkspaceInvitationsContract } from '@/lib/api/contracts/invitations'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { normalizeEmail } from '@/lib/invitations/core'
@@ -49,18 +49,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   }
 
   try {
-    const parsedBody = batchWorkspaceInvitationBodySchema.safeParse(
-      await req.json().catch(() => null)
-    )
-    if (!parsedBody.success) {
-      return NextResponse.json(
-        {
-          error: getValidationErrorMessage(parsedBody.error, 'Invalid invitation batch payload'),
-        },
-        { status: 400 }
-      )
-    }
-    const body = parsedBody.data
+    const parsed = await parseRequest(batchWorkspaceInvitationsContract, req, {})
+    if (!parsed.success) return parsed.response
+    const { body } = parsed.data
 
     const context = await prepareWorkspaceInvitationContext({
       workspaceId: body.workspaceId,

@@ -2,8 +2,8 @@ import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { type NextRequest, NextResponse } from 'next/server'
-import { textractParseBodySchema } from '@/lib/api/contracts/media-tools'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { textractParseContract } from '@/lib/api/contracts/media-tools'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { validateS3BucketName } from '@/lib/core/security/input-validation'
@@ -284,20 +284,28 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = authResult.userId
-    const body = await request.json()
-    const validation = validateSchema(textractParseBodySchema, body)
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: validation.error.issues })
-      return NextResponse.json(
-        {
-          success: false,
-          error: getValidationErrorMessage(validation.error, 'Invalid request data'),
-          details: validation.error.issues,
+
+    const parsed = await parseRequest(
+      textractParseContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid request data`, { errors: error.issues })
+          return NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request data'),
+              details: error.issues,
+            },
+            { status: 400 }
+          )
         },
-        { status: 400 }
-      )
-    }
-    const validatedData = validation.data
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const validatedData = parsed.data.body
 
     const processingMode = validatedData.processingMode || 'sync'
     const featureTypes = validatedData.featureTypes ?? []

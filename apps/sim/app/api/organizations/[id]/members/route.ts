@@ -11,11 +11,11 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  inviteOrganizationMemberBodySchema,
+  inviteOrganizationMemberContract,
   organizationMemberQuerySchema,
   organizationParamsSchema,
 } from '@/lib/api/contracts/organization'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
@@ -179,7 +179,7 @@ export const GET = withRouteHandler(
  * Invite new member to organization
  */
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
       const session = await getSession()
 
@@ -187,29 +187,14 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const paramsResult = organizationParamsSchema.safeParse(await params)
-      if (!paramsResult.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
-          { status: 400 }
-        )
-      }
+      const parsed = await parseRequest(inviteOrganizationMemberContract, request, context)
+      if (!parsed.success) return parsed.response
 
-      const { id: organizationId } = paramsResult.data
+      const { id: organizationId } = parsed.data.params
 
       await validateInvitationsAllowed(session.user.id, { organizationId })
 
-      const bodyResult = inviteOrganizationMemberBodySchema.safeParse(
-        await request.json().catch(() => ({}))
-      )
-      if (!bodyResult.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(bodyResult.error) },
-          { status: 400 }
-        )
-      }
-
-      const { email, role = 'member' } = bodyResult.data
+      const { email, role = 'member' } = parsed.data.body
 
       // Validate and normalize email
       const normalizedEmail = email.trim().toLowerCase()
@@ -369,7 +354,7 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: 403 })
       }
       logger.error('Failed to invite organization member', {
-        organizationId: (await params).id,
+        organizationId: (await context.params).id,
         error,
       })
 

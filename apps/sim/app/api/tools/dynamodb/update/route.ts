@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsDynamodbUpdateContract } from '@/lib/api/contracts/tools/aws/dynamodb-update'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createDynamoDBClient, updateItem } from '@/app/api/tools/dynamodb/utils'
@@ -16,7 +16,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const parsed = await parseAwsToolRequest(awsDynamodbUpdateContract, request, {
+    const parsed = await parseToolRequest(awsDynamodbUpdateContract, request, {
       errorFormat: 'details',
       logger,
     })

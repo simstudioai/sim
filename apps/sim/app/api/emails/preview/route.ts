@@ -17,7 +17,7 @@ import {
   renderWorkspaceInvitationEmail,
 } from '@/components/emails'
 import { emailPreviewQuerySchema } from '@/lib/api/contracts/common'
-import { validateSchema } from '@/lib/api/server'
+import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const emailTemplates = {
@@ -149,11 +149,10 @@ function isEmailTemplate(template: string): template is EmailTemplate {
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url)
-  const queryValidation = validateSchema(
-    emailPreviewQuerySchema,
+  const queryValidation = emailPreviewQuerySchema.safeParse(
     Object.fromEntries(searchParams.entries())
   )
-  if (!queryValidation.success) return queryValidation.response
+  if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
   const { template } = queryValidation.data
 
   if (!template) {

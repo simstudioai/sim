@@ -6,11 +6,8 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, gt, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { renderOTPEmail } from '@/components/emails'
-import {
-  chatEmailOtpRequestBodySchema,
-  chatEmailOtpVerifyBodySchema,
-} from '@/lib/api/contracts/chats'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { requestChatEmailOtpContract, verifyChatEmailOtpContract } from '@/lib/api/contracts/chats'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getRedisClient } from '@/lib/core/config/redis'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -220,8 +217,8 @@ async function deleteOTP(email: string, chatId: string): Promise<void> {
 }
 
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ identifier: string }> }) => {
-    const { identifier } = await params
+  async (request: NextRequest, context: { params: Promise<{ identifier: string }> }) => {
+    const { identifier } = await context.params
     const requestId = generateRequestId()
 
     try {
@@ -242,15 +239,15 @@ export const POST = withRouteHandler(
         }
       }
 
-      const body = await request.json()
-      const validation = validateSchema(chatEmailOtpRequestBodySchema, body)
-      if (!validation.success) {
-        return addCorsHeaders(
-          createErrorResponse(getValidationErrorMessage(validation.error, 'Invalid request'), 400),
-          request
-        )
-      }
-      const { email } = validation.data
+      const parsed = await parseRequest(requestChatEmailOtpContract, request, context, {
+        validationErrorResponse: (error) =>
+          addCorsHeaders(
+            createErrorResponse(getValidationErrorMessage(error, 'Invalid request'), 400),
+            request
+          ),
+      })
+      if (!parsed.success) return parsed.response
+      const { email } = parsed.data.body
 
       const deploymentResult = await db
         .select({
@@ -346,20 +343,20 @@ export const POST = withRouteHandler(
 )
 
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ identifier: string }> }) => {
-    const { identifier } = await params
+  async (request: NextRequest, context: { params: Promise<{ identifier: string }> }) => {
+    const { identifier } = await context.params
     const requestId = generateRequestId()
 
     try {
-      const body = await request.json()
-      const validation = validateSchema(chatEmailOtpVerifyBodySchema, body)
-      if (!validation.success) {
-        return addCorsHeaders(
-          createErrorResponse(getValidationErrorMessage(validation.error, 'Invalid request'), 400),
-          request
-        )
-      }
-      const { email, otp } = validation.data
+      const parsed = await parseRequest(verifyChatEmailOtpContract, request, context, {
+        validationErrorResponse: (error) =>
+          addCorsHeaders(
+            createErrorResponse(getValidationErrorMessage(error, 'Invalid request'), 400),
+            request
+          ),
+      })
+      if (!parsed.success) return parsed.response
+      const { email, otp } = parsed.data.body
 
       const deploymentResult = await db
         .select({

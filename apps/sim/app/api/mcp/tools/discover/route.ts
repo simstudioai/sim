@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { mcpToolDiscoveryQuerySchema, refreshMcpToolsBodySchema } from '@/lib/api/contracts/mcp'
-import { validateSchema } from '@/lib/api/server'
+import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
@@ -16,11 +16,10 @@ export const GET = withRouteHandler(
   withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       const { searchParams } = new URL(request.url)
-      const queryValidation = validateSchema(
-        mcpToolDiscoveryQuerySchema,
+      const queryValidation = mcpToolDiscoveryQuerySchema.safeParse(
         Object.fromEntries(searchParams)
       )
-      if (!queryValidation.success) return queryValidation.response
+      if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
       const query = queryValidation.data
       const serverId = query.serverId
       const forceRefresh = query.refresh === 'true'
@@ -58,11 +57,7 @@ export const POST = withRouteHandler(
   withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       const rawBody = getParsedBody(request) ?? (await request.json())
-      const parsedBody = validateSchema(
-        refreshMcpToolsBodySchema,
-        rawBody,
-        'Invalid request format'
-      )
+      const parsedBody = refreshMcpToolsBodySchema.safeParse(rawBody)
 
       if (!parsedBody.success) {
         return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)

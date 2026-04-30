@@ -132,6 +132,7 @@ const providerMessageSchema = z
 const providerResponseFormatSchema = z
   .object({
     name: z.string(),
+    // untyped-response: caller-supplied JSON Schema (request body field, not a route response)
     schema: z.unknown(),
     strict: z.boolean().optional(),
   })
@@ -213,5 +214,41 @@ export const getFireworksProviderModelsContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: providerModelsResponseSchema,
+  },
+})
+
+/**
+ * `POST /api/providers` returns either a streamed response (handled at the
+ * runtime level — this contract models only the JSON case) or a JSON provider
+ * payload. The JSON case mirrors the canonical `ProviderResponse` shape from
+ * `@/providers/types`, but provider-specific fields are tolerated via
+ * passthrough so raw provider output flows through without contract drift.
+ */
+const executeProviderResponseSchema = z
+  .object({
+    content: z.string(),
+    model: z.string(),
+    tokens: z
+      .object({
+        input: z.number().optional(),
+        output: z.number().optional(),
+        total: z.number().optional(),
+      })
+      .optional(),
+    toolCalls: z.array(z.record(z.string(), z.unknown())).optional(),
+    toolResults: z.array(z.record(z.string(), z.unknown())).optional(),
+    timing: z.record(z.string(), z.unknown()).optional(),
+    cost: z.record(z.string(), z.unknown()).optional(),
+    interactionId: z.string().optional(),
+  })
+  .passthrough()
+
+export const executeProviderContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/providers',
+  body: providerApiRequestBodySchema,
+  response: {
+    mode: 'json',
+    schema: executeProviderResponseSchema,
   },
 })

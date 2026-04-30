@@ -23,7 +23,7 @@ export const awsIamDeleteUserContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/iam/delete-user',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: z.object({ message: z.string() }) },
 })
 export type AwsIamDeleteUserRequest = ContractBodyInput<typeof awsIamDeleteUserContract>
 export type AwsIamDeleteUserBody = ContractBody<typeof awsIamDeleteUserContract>

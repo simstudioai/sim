@@ -7,7 +7,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsIdentityCenterCreateAccountAssignmentContract } from '@/lib/api/contracts/tools/aws/identity-center-create-account-assignment'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createSSOAdminClient, mapAssignmentStatus } from '../utils'
@@ -21,7 +21,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const parsed = await parseAwsToolRequest(
+    const parsed = await parseToolRequest(
       awsIdentityCenterCreateAccountAssignmentContract,
       request,
       {

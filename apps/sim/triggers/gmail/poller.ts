@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { GmailIcon } from '@/components/icons'
+import { requestJson } from '@/lib/api/client/request'
 import { gmailLabelsSelectorContract } from '@/lib/api/contracts/selectors/google'
 import { isCredentialSetValue } from '@/executor/constants'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
 
@@ -68,7 +68,7 @@ export const gmailPollingTrigger: TriggerConfig = {
           return GMAIL_SYSTEM_LABELS
         }
         try {
-          const data = await requestSelectorContract(gmailLabelsSelectorContract, {
+          const data = await requestJson(gmailLabelsSelectorContract, {
             query: { credentialId },
           })
           return data.labels.map((label) => ({

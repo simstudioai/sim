@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { defineRouteContract } from '@/lib/api/contracts/types'
 import { NO_EMAIL_HEADER_CONTROL_CHARS_REGEX } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
@@ -61,6 +62,7 @@ export const contactRequestSchema = z.object({
 })
 
 export type ContactRequestPayload = z.infer<typeof contactRequestSchema>
+export type ContactRequestBody = z.input<typeof contactRequestSchema>
 
 export function getContactTopicLabel(value: ContactRequestPayload['topic']): string {
   return CONTACT_TOPIC_OPTIONS.find((option) => option.value === value)?.label ?? value
@@ -80,3 +82,18 @@ export function mapContactTopicToHelpType(topic: ContactRequestPayload['topic'])
       return 'other'
   }
 }
+
+export const contactResponseSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+})
+
+export const submitContactContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/contact',
+  body: contactRequestSchema,
+  response: {
+    mode: 'json',
+    schema: contactResponseSchema,
+  },
+})

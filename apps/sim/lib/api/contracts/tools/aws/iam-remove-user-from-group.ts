@@ -24,7 +24,7 @@ export const awsIamRemoveUserFromGroupContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/iam/remove-user-from-group',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: z.object({ message: z.string() }) },
 })
 export type AwsIamRemoveUserFromGroupRequest = ContractBodyInput<
   typeof awsIamRemoveUserFromGroupContract

@@ -2,7 +2,7 @@ import { ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsS3ListObjectsContract } from '@/lib/api/contracts/tools/aws/s3-list-objects'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -32,7 +32,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const parsed = await parseAwsToolRequest(awsS3ListObjectsContract, request, {
+    const parsed = await parseToolRequest(awsS3ListObjectsContract, request, {
       errorFormat: 'details',
       logger,
     })

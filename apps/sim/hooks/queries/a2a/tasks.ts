@@ -4,7 +4,7 @@
  * Hooks for interacting with A2A tasks in the UI.
  */
 
-import type { Artifact, Message, TaskState } from '@a2a-js/sdk'
+import type { Artifact, Message, TaskState, TextPart } from '@a2a-js/sdk'
 import { generateId } from '@sim/utils/id'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isTerminalState } from '@/lib/a2a/utils'
@@ -110,7 +110,7 @@ async function sendA2ATask(params: SendA2ATaskParams): Promise<SendA2ATaskOutcom
   const lastAgentMessage = task.history?.filter((m) => m.role === 'agent').pop()
   const content = lastAgentMessage
     ? lastAgentMessage.parts
-        .filter((p): p is import('@a2a-js/sdk').TextPart => p.kind === 'text')
+        .filter((p): p is TextPart => p.kind === 'text')
         .map((p) => p.text)
         .join('')
     : ''

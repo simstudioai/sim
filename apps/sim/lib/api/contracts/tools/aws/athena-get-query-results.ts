@@ -18,11 +18,26 @@ const GetQueryResultsSchema = z.object({
   nextToken: z.string().optional(),
 })
 
+const GetQueryResultsResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    columns: z.array(
+      z.object({
+        name: z.string(),
+        type: z.string(),
+      })
+    ),
+    rows: z.array(z.record(z.string(), z.string())),
+    nextToken: z.string().nullable(),
+    updateCount: z.number().nullable(),
+  }),
+})
+
 export const awsAthenaGetQueryResultsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/athena/get-query-results',
   body: GetQueryResultsSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: GetQueryResultsResponseSchema },
 })
 export type AwsAthenaGetQueryResultsRequest = ContractBodyInput<
   typeof awsAthenaGetQueryResultsContract

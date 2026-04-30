@@ -19,11 +19,23 @@ const S3PutObjectSchema = z.object({
   acl: z.string().optional().nullable(),
 })
 
+const S3PutObjectResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    url: z.string(),
+    uri: z.string(),
+    etag: z.string().optional(),
+    location: z.string(),
+    key: z.string(),
+    bucket: z.string(),
+  }),
+})
+
 export const awsS3PutObjectContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/s3/put-object',
   body: S3PutObjectSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: S3PutObjectResponseSchema },
 })
 export type AwsS3PutObjectRequest = ContractBodyInput<typeof awsS3PutObjectContract>
 export type AwsS3PutObjectBody = ContractBody<typeof awsS3PutObjectContract>

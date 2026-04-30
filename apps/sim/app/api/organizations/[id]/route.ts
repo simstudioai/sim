@@ -4,8 +4,8 @@ import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateOrganizationBodySchema } from '@/lib/api/contracts/organization'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { updateOrganizationContract } from '@/lib/api/contracts/organization'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import {
   getOrganizationSeatAnalytics,
@@ -49,7 +49,6 @@ export const GET = withRouteHandler(
       const url = new URL(request.url)
       const includeSeats = url.searchParams.get('include') === 'seats'
 
-      // Verify user has access to this organization
       const memberEntry = await db
         .select()
         .from(member)
@@ -63,7 +62,6 @@ export const GET = withRouteHandler(
         )
       }
 
-      // Get organization data
       const organizationEntry = await db
         .select()
         .from(organization)
@@ -92,14 +90,12 @@ export const GET = withRouteHandler(
         hasAdminAccess,
       }
 
-      // Include seat information if requested
       if (includeSeats) {
         const seatInfo = await getOrganizationSeatInfo(organizationId)
         if (seatInfo) {
           response.data.seats = seatInfo
         }
 
-        // Include analytics for admins
         if (hasAdminAccess) {
           const analytics = await getOrganizationSeatAnalytics(organizationId)
           if (analytics) {
@@ -126,7 +122,7 @@ export const GET = withRouteHandler(
  * Note: For seat updates, use PUT /api/organizations/[id]/seats instead
  */
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
       const session = await getSession()
 
@@ -134,20 +130,12 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { id: organizationId } = await params
-      const body = await request.json()
+      const parsed = await parseRequest(updateOrganizationContract, request, context)
+      if (!parsed.success) return parsed.response
 
-      const validation = updateOrganizationBodySchema.safeParse(body)
-      if (!validation.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(validation.error) },
-          { status: 400 }
-        )
-      }
+      const { id: organizationId } = parsed.data.params
+      const { name, slug, logo } = parsed.data.body
 
-      const { name, slug, logo } = validation.data
-
-      // Verify user has admin access
       const memberEntry = await db
         .select()
         .from(member)
@@ -165,9 +153,7 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
       }
 
-      // Handle settings update
       if (name !== undefined || slug !== undefined || logo !== undefined) {
-        // Check if slug is already taken by another organization
         if (slug !== undefined) {
           const existingSlug = await db
             .select()
@@ -180,7 +166,6 @@ export const PUT = withRouteHandler(
           }
         }
 
-        // Build update object with only provided fields
         const updateData: {
           updatedAt: Date
           name?: string
@@ -191,7 +176,6 @@ export const PUT = withRouteHandler(
         if (slug !== undefined) updateData.slug = slug
         if (logo !== undefined) updateData.logo = logo
 
-        // Update organization
         const updatedOrg = await db
           .update(organization)
           .set(updateData)
@@ -238,7 +222,7 @@ export const PUT = withRouteHandler(
       return NextResponse.json({ error: 'No valid fields provided for update' }, { status: 400 })
     } catch (error) {
       logger.error('Failed to update organization', {
-        organizationId: (await params).id,
+        organizationId: (await context.params).id,
         error,
       })
 
@@ -246,7 +230,3 @@ export const PUT = withRouteHandler(
     }
   }
 )
-
-// DELETE method removed - organization deletion not implemented
-// If deletion is needed in the future, it should be implemented with proper
-// cleanup of subscriptions, members, workspaces, and billing data

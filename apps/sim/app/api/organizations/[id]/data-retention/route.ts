@@ -4,8 +4,8 @@ import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateOrganizationDataRetentionBodySchema } from '@/lib/api/contracts/organization'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { updateOrganizationDataRetentionContract } from '@/lib/api/contracts/organization'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import {
   CLEANUP_CONFIG,
@@ -94,22 +94,19 @@ export const GET = withRouteHandler(
  * Requires enterprise plan and owner/admin role.
  */
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id: organizationId } = await params
+    const parsed = await parseRequest(updateOrganizationDataRetentionContract, request, context, {
+      validationErrorResponse: (err) => validationErrorResponse(err, 'Invalid request body'),
+    })
+    if (!parsed.success) return parsed.response
 
-    const body = await request.json()
-    const parsed = updateOrganizationDataRetentionBodySchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(parsed.error, 'Invalid request body') },
-        { status: 400 }
-      )
-    }
+    const { id: organizationId } = parsed.data.params
+    const body = parsed.data.body
 
     const [memberEntry] = await db
       .select({ role: member.role })
@@ -156,14 +153,14 @@ export const PUT = withRouteHandler(
 
     const current = normalizeConfigured(currentOrg.dataRetentionSettings)
     const merged: OrganizationRetentionSettings = { ...current }
-    if (parsed.data.logRetentionHours !== undefined) {
-      merged.logRetentionHours = parsed.data.logRetentionHours
+    if (body.logRetentionHours !== undefined) {
+      merged.logRetentionHours = body.logRetentionHours
     }
-    if (parsed.data.softDeleteRetentionHours !== undefined) {
-      merged.softDeleteRetentionHours = parsed.data.softDeleteRetentionHours
+    if (body.softDeleteRetentionHours !== undefined) {
+      merged.softDeleteRetentionHours = body.softDeleteRetentionHours
     }
-    if (parsed.data.taskCleanupHours !== undefined) {
-      merged.taskCleanupHours = parsed.data.taskCleanupHours
+    if (body.taskCleanupHours !== undefined) {
+      merged.taskCleanupHours = body.taskCleanupHours
     }
 
     const [updated] = await db
@@ -186,7 +183,7 @@ export const PUT = withRouteHandler(
       actorEmail: session.user.email ?? undefined,
       resourceName: currentOrg.name,
       description: 'Updated data retention settings',
-      metadata: { changes: parsed.data },
+      metadata: { changes: body },
       request,
     })
 

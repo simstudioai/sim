@@ -24,7 +24,7 @@ export const awsIamDeleteAccessKeyContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/iam/delete-access-key',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: z.object({ message: z.string() }) },
 })
 export type AwsIamDeleteAccessKeyRequest = ContractBodyInput<typeof awsIamDeleteAccessKeyContract>
 export type AwsIamDeleteAccessKeyBody = ContractBody<typeof awsIamDeleteAccessKeyContract>

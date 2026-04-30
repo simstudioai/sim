@@ -2,12 +2,8 @@ import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { sttToolBodySchema } from '@/lib/api/contracts/media-tools'
-import {
-  getValidationErrorMessage,
-  validateSchema,
-  validationErrorResponse,
-} from '@/lib/api/server'
+import { sttToolContract } from '@/lib/api/contracts/media-tools'
+import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { extractAudioFromVideo, isVideoFile } from '@/lib/audio/extractor'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
@@ -39,15 +35,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = authResult.userId
-    const validation = validateSchema(sttToolBodySchema, await request.json())
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid STT request:`, validation.error.issues)
-      return validationErrorResponse(
-        validation.error,
-        getValidationErrorMessage(validation.error, 'Invalid request data')
-      )
-    }
-    const body = validation.data
+
+    const parsed = await parseRequest(
+      sttToolContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid STT request:`, error.issues)
+          return validationErrorResponse(
+            error,
+            getValidationErrorMessage(error, 'Invalid request data')
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const body = parsed.data.body
     const {
       provider,
       apiKey,

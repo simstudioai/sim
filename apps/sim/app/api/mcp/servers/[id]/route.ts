@@ -5,8 +5,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { mcpServerIdParamsSchema, updateMcpServerBodySchema } from '@/lib/api/contracts/mcp'
-import { validateSchema } from '@/lib/api/server'
+import { updateMcpServerBodySchema } from '@/lib/api/contracts/mcp'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   McpDnsResolutionError,
@@ -34,16 +33,10 @@ export const PATCH = withRouteHandler(
       { params }
     ) => {
       try {
-        const paramsValidation = validateSchema(mcpServerIdParamsSchema, await params)
-        if (!paramsValidation.success) return paramsValidation.response
-        const { id: serverId } = paramsValidation.data
+        const { id: serverId } = await params
 
         const rawBody = getParsedBody(request) ?? (await request.json())
-        const parsedBody = validateSchema(
-          updateMcpServerBodySchema,
-          rawBody,
-          'Invalid request format'
-        )
+        const parsedBody = updateMcpServerBodySchema.safeParse(rawBody)
 
         if (!parsedBody.success) {
           return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)

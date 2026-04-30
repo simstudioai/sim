@@ -26,11 +26,24 @@ const QueryLogsSchema = z.object({
   ),
 })
 
+const QueryLogsResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    results: z.array(z.record(z.string(), z.string())),
+    statistics: z.object({
+      bytesScanned: z.number(),
+      recordsMatched: z.number(),
+      recordsScanned: z.number(),
+    }),
+    status: z.string(),
+  }),
+})
+
 export const awsCloudwatchQueryLogsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/cloudwatch/query-logs',
   body: QueryLogsSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: QueryLogsResponseSchema },
 })
 export type AwsCloudwatchQueryLogsRequest = ContractBodyInput<typeof awsCloudwatchQueryLogsContract>
 export type AwsCloudwatchQueryLogsBody = ContractBody<typeof awsCloudwatchQueryLogsContract>

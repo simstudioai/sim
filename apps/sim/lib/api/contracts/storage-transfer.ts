@@ -1,5 +1,9 @@
 import { z } from 'zod'
 import {
+  batchPresignedUploadResponseSchema,
+  presignedUploadResponseSchema,
+} from '@/lib/api/contracts/file-uploads'
+import {
   type ContractBodyInput,
   type ContractJsonResponse,
   type ContractParamsInput,
@@ -13,6 +17,47 @@ import {
 } from '@/lib/uploads/utils/file-schemas'
 
 const jsonResponseSchema = z.unknown()
+
+const multipartPartUrlSchema = z.object({
+  partNumber: z.number(),
+  url: z.string(),
+  blockId: z.string().optional(),
+})
+
+const multipartCompletedUploadSchema = z.object({
+  success: z.literal(true),
+  location: z.string(),
+  path: z.string(),
+  key: z.string(),
+})
+
+export const initiateMultipartResponseSchema = z.object({
+  uploadId: z.string(),
+  key: z.string(),
+  uploadToken: z.string(),
+})
+
+export const getMultipartPartUrlsResponseSchema = z.object({
+  presignedUrls: z.array(multipartPartUrlSchema),
+})
+
+export const completeMultipartResponseSchema = z.union([
+  multipartCompletedUploadSchema,
+  z.object({
+    results: z.array(multipartCompletedUploadSchema),
+  }),
+])
+
+export const abortMultipartResponseSchema = z.object({
+  success: z.literal(true),
+})
+
+export const multipartUploadResponseSchema = z.union([
+  initiateMultipartResponseSchema,
+  getMultipartPartUrlsResponseSchema,
+  completeMultipartResponseSchema,
+  abortMultipartResponseSchema,
+])
 
 const connectionFields = {
   host: z.string().min(1, 'Host is required'),
@@ -285,7 +330,14 @@ export const presignedUrlBodySchema = z
     fileSize: z
       .number({ error: 'fileSize must be a positive number' })
       .positive('fileSize must be a positive number')
-      .max(MAX_FILE_SIZE, `File size exceeds maximum allowed size (${MAX_FILE_SIZE} bytes)`),
+      .superRefine((val, ctx) => {
+        if (val > MAX_FILE_SIZE) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `File size ${val} exceeds maximum allowed size (${MAX_FILE_SIZE} bytes)`,
+          })
+        }
+      }),
     userId: z.string().optional(),
     chatId: z.string().optional(),
   })
@@ -555,7 +607,14 @@ export const presignedUploadContract = defineRouteContract({
   path: '/api/files/presigned',
   query: presignedUploadQuerySchema,
   body: presignedUrlBodySchema,
-  response: { mode: 'json', schema: jsonResponseSchema },
+  response: { mode: 'json', schema: presignedUploadResponseSchema },
+})
+
+export const presignedUploadBodyContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/files/presigned',
+  body: presignedUrlBodySchema,
+  response: { mode: 'json', schema: presignedUploadResponseSchema },
 })
 
 export const batchPresignedUploadContract = defineRouteContract({
@@ -563,13 +622,48 @@ export const batchPresignedUploadContract = defineRouteContract({
   path: '/api/files/presigned/batch',
   query: presignedUploadQuerySchema,
   body: batchPresignedUrlBodySchema,
-  response: { mode: 'json', schema: jsonResponseSchema },
+  response: { mode: 'json', schema: batchPresignedUploadResponseSchema },
+})
+
+export const batchPresignedUploadBodyContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/files/presigned/batch',
+  body: batchPresignedUrlBodySchema,
+  response: { mode: 'json', schema: batchPresignedUploadResponseSchema },
 })
 
 export const multipartUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/files/multipart',
-  response: { mode: 'json', schema: jsonResponseSchema },
+  response: { mode: 'json', schema: multipartUploadResponseSchema },
+})
+
+export const initiateMultipartUploadContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/files/multipart',
+  body: initiateMultipartBodySchema,
+  response: { mode: 'json', schema: initiateMultipartResponseSchema },
+})
+
+export const getMultipartPartUrlsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/files/multipart',
+  body: getMultipartPartUrlsBodySchema,
+  response: { mode: 'json', schema: getMultipartPartUrlsResponseSchema },
+})
+
+export const completeMultipartUploadContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/files/multipart',
+  body: completeMultipartBodySchema,
+  response: { mode: 'json', schema: completeMultipartResponseSchema },
+})
+
+export const abortMultipartUploadContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/files/multipart',
+  body: tokenBoundMultipartBodySchema,
+  response: { mode: 'json', schema: abortMultipartResponseSchema },
 })
 
 export const fileServeContract = defineRouteContract({

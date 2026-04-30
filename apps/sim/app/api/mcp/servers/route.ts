@@ -7,7 +7,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createMcpServerBodySchema, deleteMcpServerByQuerySchema } from '@/lib/api/contracts/mcp'
-import { validateSchema } from '@/lib/api/server'
+import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   McpDnsResolutionError,
@@ -68,11 +68,7 @@ export const POST = withRouteHandler(
     async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
       try {
         const rawBody = getParsedBody(request) ?? (await request.json())
-        const parsedBody = validateSchema(
-          createMcpServerBodySchema,
-          rawBody,
-          'Invalid request format'
-        )
+        const parsedBody = createMcpServerBodySchema.safeParse(rawBody)
 
         if (!parsedBody.success) {
           return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
@@ -238,11 +234,10 @@ export const DELETE = withRouteHandler(
     async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
       try {
         const { searchParams } = new URL(request.url)
-        const queryValidation = validateSchema(
-          deleteMcpServerByQuerySchema,
+        const queryValidation = deleteMcpServerByQuerySchema.safeParse(
           Object.fromEntries(searchParams)
         )
-        if (!queryValidation.success) return queryValidation.response
+        if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
         const query = queryValidation.data
         const serverId = query.serverId
         const sourceParam = query.source

@@ -1,14 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
+  abortMultipartUploadContract,
   type CompleteMultipartBody,
-  completeMultipartBodySchema,
-  getMultipartPartUrlsBodySchema,
-  initiateMultipartBodySchema,
+  completeMultipartUploadContract,
+  getMultipartPartUrlsContract,
+  initiateMultipartUploadContract,
   multipartActionSchema,
-  tokenBoundMultipartBodySchema,
 } from '@/lib/api/contracts/storage-transfer'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -73,15 +73,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     switch (action) {
       case 'initiate': {
-        const dataResult = initiateMultipartBodySchema.safeParse(await request.json())
-        if (!dataResult.success) {
-          return NextResponse.json(
-            { error: getValidationErrorMessage(dataResult.error) },
-            { status: 400 }
-          )
-        }
+        const parsed = await parseRequest(
+          initiateMultipartUploadContract,
+          request,
+          {},
+          {
+            validationErrorResponse: (error) =>
+              NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+          }
+        )
+        if (!parsed.success) return parsed.response
 
-        const data = dataResult.data
+        const data = parsed.data.body
         const { fileName, contentType, fileSize, workspaceId, context = 'knowledge-base' } = data
 
         if (!workspaceId || typeof workspaceId !== 'string') {
@@ -146,15 +149,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       case 'get-part-urls': {
-        const dataResult = getMultipartPartUrlsBodySchema.safeParse(await request.json())
-        if (!dataResult.success) {
-          return NextResponse.json(
-            { error: getValidationErrorMessage(dataResult.error) },
-            { status: 400 }
-          )
-        }
+        const parsed = await parseRequest(
+          getMultipartPartUrlsContract,
+          request,
+          {},
+          {
+            validationErrorResponse: (error) =>
+              NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+          }
+        )
+        if (!parsed.success) return parsed.response
 
-        const data = dataResult.data
+        const data = parsed.data.body
         const { partNumbers } = data
 
         const tokenPayload = verifyTokenForUser(data.uploadToken, userId)
@@ -188,15 +194,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       case 'complete': {
-        const dataResult = completeMultipartBodySchema.safeParse(await request.json())
-        if (!dataResult.success) {
-          return NextResponse.json(
-            { error: getValidationErrorMessage(dataResult.error) },
-            { status: 400 }
-          )
-        }
+        const parsed = await parseRequest(
+          completeMultipartUploadContract,
+          request,
+          {},
+          {
+            validationErrorResponse: (error) =>
+              NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+          }
+        )
+        if (!parsed.success) return parsed.response
 
-        const data: CompleteMultipartBody = dataResult.data
+        const data: CompleteMultipartBody = parsed.data.body
 
         if ('uploads' in data && Array.isArray(data.uploads)) {
           const verified = data.uploads.map((upload) => {
@@ -299,15 +308,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       case 'abort': {
-        const dataResult = tokenBoundMultipartBodySchema.safeParse(await request.json())
-        if (!dataResult.success) {
-          return NextResponse.json(
-            { error: getValidationErrorMessage(dataResult.error) },
-            { status: 400 }
-          )
-        }
+        const parsed = await parseRequest(
+          abortMultipartUploadContract,
+          request,
+          {},
+          {
+            validationErrorResponse: (error) =>
+              NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+          }
+        )
+        if (!parsed.success) return parsed.response
 
-        const data = dataResult.data
+        const data = parsed.data.body
         const tokenPayload = verifyTokenForUser(data.uploadToken, userId)
         if (!tokenPayload) {
           return NextResponse.json({ error: 'Invalid or expired upload token' }, { status: 403 })

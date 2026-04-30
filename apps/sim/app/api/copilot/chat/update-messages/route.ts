@@ -3,8 +3,8 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateCopilotMessagesBodySchema } from '@/lib/api/contracts/copilot'
-import { validateSchema } from '@/lib/api/server'
+import { updateCopilotMessagesContract } from '@/lib/api/contracts/copilot'
+import { parseRequest } from '@/lib/api/server'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import {
@@ -27,13 +27,21 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const body = await req.json()
+    const parsed = await parseRequest(
+      updateCopilotMessagesContract,
+      req,
+      {},
+      {
+        invalidJson: 'throw',
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const { chatId, messages, planArtifact, config } = parsed.data.body
 
-    // Debug: Log what we received
-    const lastMsg = body.messages?.[body.messages.length - 1]
+    const lastMsg = messages[messages.length - 1]
     if (lastMsg?.role === 'assistant') {
       logger.info(`[${tracker.requestId}] Received messages to save`, {
-        messageCount: body.messages?.length,
+        messageCount: messages.length,
         lastMsgId: lastMsg.id,
         lastMsgContentLength: lastMsg.content?.length || 0,
         lastMsgContentBlockCount: lastMsg.contentBlocks?.length || 0,
@@ -41,9 +49,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       })
     }
 
-    const validation = validateSchema(updateCopilotMessagesBodySchema, body)
-    if (!validation.success) return validation.response
-    const { chatId, messages, planArtifact, config } = validation.data
     const normalizedMessages: PersistedMessage[] = messages.map((message) =>
       normalizeMessage(message as Record<string, unknown>)
     )

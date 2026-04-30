@@ -1,8 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateKnowledgeBaseBodySchema } from '@/lib/api/contracts/knowledge'
-import { parseJsonBody, validateSchema } from '@/lib/api/server'
+import { updateKnowledgeBaseContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -63,9 +63,9 @@ export const GET = withRouteHandler(
 )
 
 export const PUT = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const { id } = await context.params
 
     try {
       const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
@@ -88,22 +88,10 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const parsedBody = await parseJsonBody(req)
-      if (!parsedBody.success) return parsedBody.response
+      const parsed = await parseRequest(updateKnowledgeBaseContract, req, context)
+      if (!parsed.success) return parsed.response
 
-      const validation = validateSchema(
-        updateKnowledgeBaseBodySchema,
-        parsedBody.data,
-        'Invalid request data'
-      )
-      if (!validation.success) {
-        logger.warn(`[${requestId}] Invalid knowledge base update data`, {
-          errors: validation.error.issues,
-        })
-        return validation.response
-      }
-
-      const validatedData = validation.data
+      const validatedData = parsed.data.body
 
       const updatedKnowledgeBase = await updateKnowledgeBase(
         id,

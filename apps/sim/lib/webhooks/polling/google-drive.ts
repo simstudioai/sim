@@ -1,3 +1,4 @@
+import type { Logger } from '@sim/logger'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import {
   getProviderConfig,
@@ -212,7 +213,7 @@ async function getStartPageToken(
   accessToken: string,
   config: GoogleDriveWebhookConfig,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<string> {
   const params = new URLSearchParams()
   if (config.includeSharedDrives) {
@@ -245,7 +246,7 @@ async function fetchChanges(
   accessToken: string,
   config: GoogleDriveWebhookConfig,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<{ changes: DriveChangeEntry[]; newStartPageToken: string }> {
   const allChanges: DriveChangeEntry[] = []
   let currentPageToken = config.pageToken!
@@ -360,7 +361,7 @@ async function processChanges(
   webhookData: PollWebhookContext['webhookData'],
   workflowData: PollWebhookContext['workflowData'],
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<{ processedCount: number; failedCount: number; newKnownFileIds: string[] }> {
   let processedCount = 0
   let failedCount = 0

@@ -169,25 +169,79 @@ export const jiraIssueSelectorContract = defineRouteContract({
   },
 })
 
+const jiraWriteResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    ts: z.string(),
+    id: z.string(),
+    issueKey: z.string(),
+    self: z.string(),
+    summary: z.string(),
+    success: z.literal(true),
+    url: z.string(),
+    assigneeId: z.string().optional(),
+  }),
+})
+
+const jiraUpdateResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    ts: z.string(),
+    issueKey: z.string(),
+    summary: z.string(),
+    success: z.literal(true),
+  }),
+})
+
+const jiraAttachmentSchema = z.object({
+  id: z.string(),
+  filename: z.string(),
+  mimeType: z.string(),
+  size: z.number(),
+  content: z.string(),
+})
+
+const jiraAddAttachmentUserFileSchema = z
+  .object({
+    id: z.string().optional(),
+    name: z.string(),
+    url: z.string().optional(),
+    size: z.number(),
+    type: z.string().optional(),
+    key: z.string(),
+  })
+  .passthrough()
+
+const jiraAddAttachmentResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    ts: z.string(),
+    issueKey: z.string(),
+    attachments: z.array(jiraAttachmentSchema),
+    attachmentIds: z.array(z.string()),
+    files: z.array(jiraAddAttachmentUserFileSchema),
+  }),
+})
+
 export const jiraWriteContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/jira/write',
   body: jiraWriteBodySchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: jiraWriteResponseSchema },
 })
 
 export const jiraUpdateContract = defineRouteContract({
   method: 'PUT',
   path: '/api/tools/jira/update',
   body: jiraUpdateBodySchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: jiraUpdateResponseSchema },
 })
 
 export const jiraAddAttachmentContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/jira/add-attachment',
   body: jiraAddAttachmentBodySchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: jiraAddAttachmentResponseSchema },
 })
 
 export type JiraProjectsQuery = ContractQuery<typeof jiraProjectsSelectorContract>

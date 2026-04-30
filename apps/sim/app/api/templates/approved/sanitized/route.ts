@@ -5,7 +5,7 @@ import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { noInputSchema } from '@/lib/api/contracts/primitives'
-import { validateSchema } from '@/lib/api/server'
+import { validationErrorResponse } from '@/lib/api/server'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -24,11 +24,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const queryValidation = validateSchema(
-      noInputSchema,
+    const queryValidation = noInputSchema.safeParse(
       Object.fromEntries(request.nextUrl.searchParams.entries())
     )
-    if (!queryValidation.success) return queryValidation.response
+    if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
     const hasApiKey = !!request.headers.get('x-api-key')
 
     // Check internal API key authentication
@@ -136,11 +135,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 // Add a helpful OPTIONS handler for CORS preflight
 export const OPTIONS = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
-  const queryValidation = validateSchema(
-    noInputSchema,
+  const queryValidation = noInputSchema.safeParse(
     Object.fromEntries(request.nextUrl.searchParams.entries())
   )
-  if (!queryValidation.success) return queryValidation.response
+  if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
   logger.info(`[${requestId}] OPTIONS request received for /api/templates/approved/sanitized`)
 
   return new NextResponse(null, {

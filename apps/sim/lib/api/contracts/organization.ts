@@ -259,6 +259,26 @@ export const listOrganizationMembersContract = defineRouteContract({
   },
 })
 
+export const inviteOrganizationMemberContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/organizations/[id]/members',
+  params: organizationParamsSchema,
+  body: inviteOrganizationMemberBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema.extend({
+      data: z
+        .object({
+          invitationId: z.string(),
+          email: z.string(),
+          role: organizationRoleSchema,
+        })
+        .passthrough()
+        .optional(),
+    }),
+  },
+})
+
 export const inviteOrganizationMembersContract = defineRouteContract({
   method: 'POST',
   path: '/api/organizations/[id]/invitations',
@@ -387,6 +407,40 @@ export const updateOrganizationContract = defineRouteContract({
         })
         .passthrough()
         .optional(),
+    }),
+  },
+})
+
+export const updateOrganizationDataRetentionContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/organizations/[id]/data-retention',
+  params: organizationParamsSchema,
+  body: updateOrganizationDataRetentionBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema.extend({
+      data: z
+        .object({
+          isEnterprise: z.boolean(),
+          defaults: z.record(z.string(), z.unknown()),
+          configured: z.record(z.string(), z.unknown()),
+          effective: z.record(z.string(), z.unknown()),
+        })
+        .passthrough()
+        .optional(),
+    }),
+  },
+})
+
+export const updateOrganizationWhitelabelContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/organizations/[id]/whitelabel',
+  params: organizationParamsSchema,
+  body: updateOrganizationWhitelabelBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema.extend({
+      data: z.record(z.string(), z.unknown()).optional(),
     }),
   },
 })

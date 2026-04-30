@@ -24,7 +24,7 @@ export const awsIamAttachRolePolicyContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/iam/attach-role-policy',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: z.object({ message: z.string() }) },
 })
 export type AwsIamAttachRolePolicyRequest = ContractBodyInput<typeof awsIamAttachRolePolicyContract>
 export type AwsIamAttachRolePolicyBody = ContractBody<typeof awsIamAttachRolePolicyContract>

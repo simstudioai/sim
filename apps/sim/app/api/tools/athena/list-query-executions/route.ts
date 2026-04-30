@@ -2,7 +2,7 @@ import { ListQueryExecutionsCommand } from '@aws-sdk/client-athena'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsAthenaListQueryExecutionsContract } from '@/lib/api/contracts/tools/aws/athena-list-query-executions'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createAthenaClient } from '@/app/api/tools/athena/utils'
@@ -16,7 +16,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const parsed = await parseAwsToolRequest(awsAthenaListQueryExecutionsContract, request, {
+    const parsed = await parseToolRequest(awsAthenaListQueryExecutionsContract, request, {
       errorFormat: 'details',
       logger,
     })

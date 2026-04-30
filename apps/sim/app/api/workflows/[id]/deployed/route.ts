@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest, NextResponse } from 'next/server'
-import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { getDeployedWorkflowStateContract } from '@/lib/api/contracts/deployments'
+import { parseRequest } from '@/lib/api/server'
 import { verifyInternalToken } from '@/lib/auth/internal'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -20,17 +20,11 @@ function addNoCacheHeaders(response: NextResponse): NextResponse {
 }
 
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const paramsValidation = validateSchema(workflowIdParamsSchema, await params)
-    if (!paramsValidation.success) {
-      const response = createErrorResponse(
-        getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
-        400
-      )
-      return addNoCacheHeaders(response)
-    }
-    const { id } = paramsValidation.data
+    const parsed = await parseRequest(getDeployedWorkflowStateContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { id } = parsed.data.params
 
     try {
       const authHeader = request.headers.get('authorization')

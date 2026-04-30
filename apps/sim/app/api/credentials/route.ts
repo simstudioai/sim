@@ -6,12 +6,12 @@ import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  createCredentialBodySchema,
+  createWorkspaceCredentialContract,
   credentialsListGetQuerySchema,
   normalizeCredentialEnvKey,
   serviceAccountJsonSchema,
 } from '@/lib/api/contracts/credentials'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -232,15 +232,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-    const parseResult = createCredentialBodySchema.safeParse(body)
-
-    if (!parseResult.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(parseResult.error) },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(
+      createWorkspaceCredentialContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
     const {
       workspaceId,
@@ -252,7 +253,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       envKey,
       envOwnerUserId,
       serviceAccountJson,
-    } = parseResult.data
+    } = parsed.data.body
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, session.user.id)
     if (!workspaceAccess.canWrite) {

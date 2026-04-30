@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { jobIdParamsSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const NO_EMAIL_HEADER_CONTROL_CHARS_REGEX = /^[^\r\n\u0000-\u001F\u007F]+$/
@@ -29,6 +30,21 @@ export const integrationRequestBodySchema = z.object({
   useCase: z.string().max(2000).optional(),
 })
 export type IntegrationRequestBody = z.input<typeof integrationRequestBodySchema>
+
+export const integrationRequestResponseSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+})
+
+export const integrationRequestContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/help/integration-request',
+  body: integrationRequestBodySchema,
+  response: {
+    mode: 'json',
+    schema: integrationRequestResponseSchema,
+  },
+})
 
 export const getAllowedProvidersContract = defineRouteContract({
   method: 'GET',
@@ -74,5 +90,28 @@ export const getStatusContract = defineRouteContract({
       url: z.string().url(),
       lastUpdated: z.string(),
     }),
+  },
+})
+
+const jobStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed'])
+
+const jobStatusResponseSchema = z
+  .object({
+    success: z.literal(true),
+    taskId: z.string(),
+    status: jobStatusSchema,
+    metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+    output: z.unknown().optional(),
+    error: z.string().optional(),
+  })
+  .passthrough()
+
+export const getJobStatusContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/jobs/[jobId]',
+  params: jobIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: jobStatusResponseSchema,
   },
 })

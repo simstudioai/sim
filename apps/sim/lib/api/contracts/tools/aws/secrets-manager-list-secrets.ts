@@ -14,11 +14,28 @@ const ListSecretsSchema = z.object({
   nextToken: z.string().nullish(),
 })
 
+const ListSecretsResponseSchema = z.object({
+  secrets: z.array(
+    z.object({
+      name: z.string(),
+      arn: z.string(),
+      description: z.string().nullable(),
+      createdDate: z.string().nullable(),
+      lastChangedDate: z.string().nullable(),
+      lastAccessedDate: z.string().nullable(),
+      rotationEnabled: z.boolean(),
+      tags: z.array(z.object({ key: z.string(), value: z.string() })),
+    })
+  ),
+  nextToken: z.string().nullable(),
+  count: z.number(),
+})
+
 export const awsSecretsManagerListSecretsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/secrets_manager/list-secrets',
   body: ListSecretsSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ListSecretsResponseSchema },
 })
 export type AwsSecretsManagerListSecretsRequest = ContractBodyInput<
   typeof awsSecretsManagerListSecretsContract

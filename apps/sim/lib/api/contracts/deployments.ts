@@ -10,7 +10,7 @@ const workflowStateSchema = z.custom<WorkflowState>(
 
 export const deploymentVersionParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.number().int().positive(),
+  version: z.coerce.number().int().positive(),
 })
 
 export const deploymentVersionOrActiveParamsSchema = z.object({
@@ -260,7 +260,7 @@ export const updateDeploymentVersionMetadataContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/workflows/[id]/deployments/[version]',
   params: deploymentVersionParamsSchema,
-  body: updateDeploymentVersionMetadataBodySchema,
+  body: deploymentVersionPatchBodySchema,
   response: {
     mode: 'json',
     schema: updateDeploymentVersionMetadataResponseSchema,

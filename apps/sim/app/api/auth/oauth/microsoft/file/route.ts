@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { microsoftFileQuerySchema } from '@/lib/api/contracts/selectors/microsoft'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -16,7 +16,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   try {
     const { searchParams } = new URL(request.url)
-    const parsedQuery = validateSchema(microsoftFileQuerySchema, {
+    const parsedQuery = microsoftFileQuerySchema.safeParse({
       credentialId: searchParams.get('credentialId') ?? undefined,
       fileId: searchParams.get('fileId') ?? undefined,
       workflowId: searchParams.get('workflowId') ?? undefined,

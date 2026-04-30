@@ -1,3 +1,4 @@
+import type { Logger } from '@sim/logger'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import {
   getProviderConfig,
@@ -246,7 +247,7 @@ async function isDriveFileUnchanged(
   spreadsheetId: string,
   lastModifiedTime: string | undefined,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<{ unchanged: boolean; currentModifiedTime?: string }> {
   try {
     const currentModifiedTime = await getDriveFileModifiedTime(accessToken, spreadsheetId, logger)
@@ -263,7 +264,7 @@ async function isDriveFileUnchanged(
 async function getDriveFileModifiedTime(
   accessToken: string,
   fileId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<string | undefined> {
   try {
     const response = await fetch(
@@ -294,7 +295,7 @@ async function fetchSheetState(
   valueRenderOption: ValueRenderOption,
   dateTimeRenderOption: DateTimeRenderOption,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<{ rowCount: number; headers: string[]; headerRowIndex: number }> {
   const encodedSheet = encodeURIComponent(sheetName)
   const params = new URLSearchParams({
@@ -349,7 +350,7 @@ async function fetchRowRange(
   valueRenderOption: ValueRenderOption,
   dateTimeRenderOption: DateTimeRenderOption,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<string[][]> {
   const encodedSheet = encodeURIComponent(sheetName)
   const params = new URLSearchParams({
@@ -389,7 +390,7 @@ async function processRows(
   webhookData: PollWebhookContext['webhookData'],
   workflowData: PollWebhookContext['workflowData'],
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<{ processedCount: number; failedCount: number }> {
   let processedCount = 0
   let failedCount = 0

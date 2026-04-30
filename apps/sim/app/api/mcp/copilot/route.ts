@@ -19,7 +19,6 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { mcpRequestBodySchema, mcpToolCallParamsSchema } from '@/lib/api/contracts/mcp'
-import { validateSchema } from '@/lib/api/server'
 import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
@@ -284,7 +283,7 @@ function buildMcpServer(abortSignal?: AbortSignal): Server {
       }
     }
 
-    const paramsValidation = validateSchema(mcpToolCallParamsSchema, request.params)
+    const paramsValidation = mcpToolCallParamsSchema.safeParse(request.params)
     if (!paramsValidation.success) {
       throw new McpError(ErrorCode.InvalidParams, 'Tool name required')
     }
@@ -360,7 +359,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    const bodyValidation = validateSchema(mcpRequestBodySchema, parsedBody)
+    const bodyValidation = mcpRequestBodySchema.safeParse(parsedBody)
     if (!bodyValidation.success) {
       return NextResponse.json(
         createError(0, ErrorCode.InvalidRequest, 'Invalid JSON-RPC message'),

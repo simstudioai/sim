@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { mongodbInsertContract } from '@/lib/api/contracts/database-tools'
-import { parseDatabaseToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createMongoDBConnection, sanitizeCollectionName } from '@/app/api/tools/mongodb/utils'
@@ -20,7 +20,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const parsed = await parseDatabaseToolRequest(mongodbInsertContract, request, { logger })
+    const parsed = await parseToolRequest(mongodbInsertContract, request, { logger })
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 

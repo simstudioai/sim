@@ -73,6 +73,33 @@ export const oauthTokenPostQuerySchema = z.object({
   userId: z.string().min(1).optional(),
 })
 
+const oauthTokenResponseSchema = z.object({
+  accessToken: z.string(),
+  idToken: z.string().optional(),
+  instanceUrl: z.string().optional(),
+})
+
+export const oauthTokenGetContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/auth/oauth/token',
+  query: oauthTokenGetQuerySchema,
+  response: {
+    mode: 'json',
+    schema: oauthTokenResponseSchema,
+  },
+})
+
+export const oauthTokenPostContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/auth/oauth/token',
+  query: oauthTokenPostQuerySchema,
+  body: oauthTokenRequestBodySchema,
+  response: {
+    mode: 'json',
+    schema: oauthTokenResponseSchema,
+  },
+})
+
 export const shopifyAuthorizeQuerySchema = z.object({
   shop: z.string().optional(),
   returnUrl: z.string().optional(),

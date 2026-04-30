@@ -25,11 +25,22 @@ const AssumeRoleSchema = z.object({
   tokenCode: z.string().nullish(),
 })
 
+const AssumeRoleResponseSchema = z.object({
+  accessKeyId: z.string(),
+  secretAccessKey: z.string(),
+  sessionToken: z.string(),
+  expiration: z.string().nullable(),
+  assumedRoleArn: z.string(),
+  assumedRoleId: z.string(),
+  packedPolicySize: z.number().nullable(),
+  sourceIdentity: z.string().nullable(),
+})
+
 export const awsStsAssumeRoleContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/sts/assume-role',
   body: AssumeRoleSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: AssumeRoleResponseSchema },
 })
 export type AwsStsAssumeRoleRequest = ContractBodyInput<typeof awsStsAssumeRoleContract>
 export type AwsStsAssumeRoleBody = ContractBody<typeof awsStsAssumeRoleContract>

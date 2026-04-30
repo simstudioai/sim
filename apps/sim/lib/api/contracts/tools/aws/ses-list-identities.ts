@@ -20,11 +20,24 @@ const ListIdentitiesSchema = z.object({
   nextToken: z.string().nullish(),
 })
 
+const ListIdentitiesResponseSchema = z.object({
+  identities: z.array(
+    z.object({
+      identityName: z.string(),
+      identityType: z.string(),
+      sendingEnabled: z.boolean(),
+      verificationStatus: z.string(),
+    })
+  ),
+  nextToken: z.string().nullable(),
+  count: z.number(),
+})
+
 export const awsSesListIdentitiesContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/ses/list-identities',
   body: ListIdentitiesSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ListIdentitiesResponseSchema },
 })
 export type AwsSesListIdentitiesRequest = ContractBodyInput<typeof awsSesListIdentitiesContract>
 export type AwsSesListIdentitiesBody = ContractBody<typeof awsSesListIdentitiesContract>

@@ -538,6 +538,7 @@ export const docusignToolContract = defineRouteContract({
   body: docusignToolBodySchema,
   response: {
     mode: 'json',
+    // untyped-response: forwards DocuSign API response unchanged; shape varies by operation (envelope, listing, base64 download, etc.)
     schema: z.unknown(),
   },
 })
@@ -568,6 +569,7 @@ export const onePasswordListVaultsContract = defineRouteContract({
   body: onePasswordListVaultsBodySchema,
   response: {
     mode: 'json',
+    // untyped-response: service-account mode returns normalized vault shapes while connect-server mode forwards 1Password Connect /v1/vaults response unchanged
     schema: z.unknown(),
   },
 })
@@ -578,6 +580,7 @@ export const onePasswordGetVaultContract = defineRouteContract({
   body: onePasswordGetVaultBodySchema,
   response: {
     mode: 'json',
+    // untyped-response: service-account mode returns a normalized vault shape while connect-server mode forwards 1Password Connect /v1/vaults/{id} response unchanged
     schema: z.unknown(),
   },
 })
@@ -588,6 +591,7 @@ export const onePasswordListItemsContract = defineRouteContract({
   body: onePasswordListItemsBodySchema,
   response: {
     mode: 'json',
+    // untyped-response: service-account mode returns normalized item-overview shapes while connect-server mode forwards 1Password Connect /v1/vaults/{id}/items response unchanged
     schema: z.unknown(),
   },
 })
@@ -598,6 +602,7 @@ export const onePasswordGetItemContract = defineRouteContract({
   body: onePasswordGetItemBodySchema,
   response: {
     mode: 'json',
+    // untyped-response: service-account mode returns a normalized item shape while connect-server mode forwards 1Password Connect /v1/vaults/{vaultId}/items/{itemId} response unchanged
     schema: z.unknown(),
   },
 })
@@ -608,6 +613,7 @@ export const onePasswordCreateItemContract = defineRouteContract({
   body: onePasswordCreateItemBodySchema,
   response: {
     mode: 'json',
+    // untyped-response: service-account mode returns a normalized item shape while connect-server mode forwards 1Password Connect create-item response unchanged
     schema: z.unknown(),
   },
 })
@@ -618,6 +624,7 @@ export const onePasswordUpdateItemContract = defineRouteContract({
   body: onePasswordUpdateItemBodySchema,
   response: {
     mode: 'json',
+    // untyped-response: service-account mode returns a normalized item shape while connect-server mode forwards 1Password Connect PATCH item response unchanged
     schema: z.unknown(),
   },
 })
@@ -628,8 +635,13 @@ export const onePasswordReplaceItemContract = defineRouteContract({
   body: onePasswordReplaceItemBodySchema,
   response: {
     mode: 'json',
+    // untyped-response: service-account mode returns a normalized item shape while connect-server mode forwards 1Password Connect PUT item response unchanged
     schema: z.unknown(),
   },
+})
+
+const onePasswordDeleteItemResponseSchema = z.object({
+  success: z.literal(true),
 })
 
 export const onePasswordDeleteItemContract = defineRouteContract({
@@ -638,8 +650,13 @@ export const onePasswordDeleteItemContract = defineRouteContract({
   body: onePasswordDeleteItemBodySchema,
   response: {
     mode: 'json',
-    schema: z.unknown(),
+    schema: onePasswordDeleteItemResponseSchema,
   },
+})
+
+const onePasswordResolveSecretResponseSchema = z.object({
+  value: z.string(),
+  reference: z.string(),
 })
 
 export const onePasswordResolveSecretContract = defineRouteContract({
@@ -648,7 +665,7 @@ export const onePasswordResolveSecretContract = defineRouteContract({
   body: onePasswordResolveSecretBodySchema,
   response: {
     mode: 'json',
-    schema: z.unknown(),
+    schema: onePasswordResolveSecretResponseSchema,
   },
 })
 

@@ -17,11 +17,22 @@ const S3CopyObjectSchema = z.object({
   acl: z.string().optional().nullable(),
 })
 
+const S3CopyObjectResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    url: z.string(),
+    uri: z.string(),
+    copySourceVersionId: z.string().optional(),
+    versionId: z.string().optional(),
+    etag: z.string().optional(),
+  }),
+})
+
 export const awsS3CopyObjectContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/s3/copy-object',
   body: S3CopyObjectSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: S3CopyObjectResponseSchema },
 })
 export type AwsS3CopyObjectRequest = ContractBodyInput<typeof awsS3CopyObjectContract>
 export type AwsS3CopyObjectBody = ContractBody<typeof awsS3CopyObjectContract>

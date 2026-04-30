@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { neo4jDeleteContract } from '@/lib/api/contracts/database-tools'
-import { parseDatabaseToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createNeo4jDriver, validateCypherQuery } from '@/app/api/tools/neo4j/utils'
@@ -21,7 +21,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const parsed = await parseDatabaseToolRequest(neo4jDeleteContract, request, { logger })
+    const parsed = await parseToolRequest(neo4jDeleteContract, request, { logger })
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 

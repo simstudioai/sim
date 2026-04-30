@@ -4,8 +4,8 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateWorkflowBodySchema } from '@/lib/api/contracts/workflows'
-import { validateSchema } from '@/lib/api/server'
+import { updateWorkflowContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { AuthType, checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -243,10 +243,10 @@ export const DELETE = withRouteHandler(
  * Update workflow metadata (name, description, color, folderId)
  */
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
     const startTime = Date.now()
-    const { id: workflowId } = await params
+    const { id: workflowId } = await context.params
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -257,15 +257,9 @@ export const PUT = withRouteHandler(
 
       const userId = auth.userId
 
-      const body = await request.json()
-      const validation = validateSchema(updateWorkflowBodySchema, body, 'Invalid request data')
-      if (!validation.success) {
-        logger.warn(`[${requestId}] Invalid workflow update data for ${workflowId}`, {
-          errors: validation.error.issues,
-        })
-        return validation.response
-      }
-      const updates = validation.data
+      const parsed = await parseRequest(updateWorkflowContract, request, context)
+      if (!parsed.success) return parsed.response
+      const updates = parsed.data.body
 
       // Fetch the workflow to check ownership/access
       const authorization = await authorizeWorkflowByWorkspacePermission({

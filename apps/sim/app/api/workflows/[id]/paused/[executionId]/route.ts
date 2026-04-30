@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { workflowExecutionParamsSchema } from '@/lib/api/contracts/workflows'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { pausedWorkflowExecutionByIdContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
@@ -11,26 +11,11 @@ export const dynamic = 'force-dynamic'
 export const GET = withRouteHandler(
   async (
     request: NextRequest,
-    {
-      params,
-    }: {
-      params: Promise<{ id: string; executionId: string }>
-    }
+    context: { params: Promise<{ id: string; executionId: string }> }
   ) => {
-    const paramsValidation = validateSchema(
-      workflowExecutionParamsSchema,
-      await params,
-      'Invalid route parameters'
-    )
-    if (!paramsValidation.success) {
-      return NextResponse.json(
-        {
-          error: getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
-        },
-        { status: 400 }
-      )
-    }
-    const { id: workflowId, executionId } = paramsValidation.data
+    const parsed = await parseRequest(pausedWorkflowExecutionByIdContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { id: workflowId, executionId } = parsed.data.params
 
     const access = await validateWorkflowAccess(request, workflowId, false)
     if (access.error) {

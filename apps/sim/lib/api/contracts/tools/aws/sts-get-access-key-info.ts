@@ -19,11 +19,15 @@ const GetAccessKeyInfoSchema = z.object({
   targetAccessKeyId: z.string().min(1, 'Target access key ID is required'),
 })
 
+const GetAccessKeyInfoResponseSchema = z.object({
+  account: z.string(),
+})
+
 export const awsStsGetAccessKeyInfoContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/sts/get-access-key-info',
   body: GetAccessKeyInfoSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: GetAccessKeyInfoResponseSchema },
 })
 export type AwsStsGetAccessKeyInfoRequest = ContractBodyInput<typeof awsStsGetAccessKeyInfoContract>
 export type AwsStsGetAccessKeyInfoBody = ContractBody<typeof awsStsGetAccessKeyInfoContract>

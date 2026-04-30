@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
+import { cleanedWorkflowStateSchema } from '@/lib/api/contracts/workflows'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncConfirmationStatus,
@@ -379,20 +380,408 @@ export const submitCopilotFeedbackContract = defineRouteContract({
 
 export type SubmitCopilotFeedbackResult = ContractJsonResponse<typeof submitCopilotFeedbackContract>
 
+const v1CopilotChatToolCallSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: z.string(),
+  params: z.record(z.string(), z.unknown()).optional(),
+  // untyped-response: copilot tool result is the user-defined output of an arbitrary tool invocation
+  result: z.unknown().optional(),
+  error: z.string().optional(),
+  durationMs: z.number().optional(),
+})
+
 export const v1CopilotChatContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/copilot/chat',
   body: v1CopilotChatBodySchema,
   response: {
     mode: 'json',
-    schema: z
+    schema: z.object({
+      success: z.boolean(),
+      content: z.string().optional(),
+      toolCalls: z.array(v1CopilotChatToolCallSchema).optional(),
+      chatId: z.string().optional(),
+      error: z.string().optional(),
+    }),
+  },
+})
+
+const successFlagSchema = z.object({ success: z.literal(true) })
+
+const copilotCheckpointSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  workflowId: z.string(),
+  chatId: z.string(),
+  messageId: z.string().nullable().optional(),
+  createdAt: z.string().nullable(),
+  updatedAt: z.string().nullable(),
+})
+
+const copilotChatResourceSchema = z.object({
+  type: copilotResourceTypeSchema,
+  id: z.string(),
+  title: z.string(),
+})
+
+const copilotAvailableModelSchema = z.object({
+  id: z.string(),
+  friendlyName: z.string(),
+  provider: z.string(),
+})
+
+const copilotChatGetChatSchema = z
+  .object({
+    id: z.string(),
+    title: z.string().nullable(),
+    model: z.string().nullable(),
+    messages: z.array(z.unknown()),
+    messageCount: z.number(),
+    planArtifact: z.unknown().nullable(),
+    config: z.unknown().nullable(),
+    activeStreamId: z.string().nullable().optional(),
+    resources: z.array(z.unknown()).optional(),
+    createdAt: z.string().nullable(),
+    updatedAt: z.string().nullable(),
+    streamSnapshot: z
       .object({
-        success: z.boolean(),
-        content: z.unknown().optional(),
-        toolCalls: z.unknown().optional(),
-        chatId: z.string().optional(),
-        error: z.string().optional(),
+        events: z.array(z.unknown()),
+        previewSessions: z.array(z.unknown()),
+        status: z.string(),
       })
-      .passthrough(),
+      .optional(),
+  })
+  .passthrough()
+
+const copilotChatGetListItemSchema = z
+  .object({
+    id: z.string(),
+    title: z.string().nullable(),
+    model: z.string().nullable(),
+    messages: z.array(z.unknown()),
+    messageCount: z.number(),
+    planArtifact: z.unknown().nullable(),
+    config: z.unknown().nullable(),
+    createdAt: z.string().nullable(),
+    updatedAt: z.string().nullable(),
+  })
+  .passthrough()
+
+const copilotConnectedCredentialSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  provider: z.string(),
+  serviceName: z.string(),
+  lastUsed: z.string(),
+  isDefault: z.boolean(),
+  accessToken: z.string().nullable(),
+})
+
+const copilotNotConnectedServiceSchema = z.object({
+  providerId: z.string(),
+  name: z.string(),
+  description: z.string(),
+  baseProvider: z.string(),
+})
+
+const copilotCredentialsResultSchema = z.object({
+  oauth: z.object({
+    connected: z.object({
+      credentials: z.array(copilotConnectedCredentialSchema),
+      total: z.number(),
+    }),
+    notConnected: z.object({
+      services: z.array(copilotNotConnectedServiceSchema),
+      total: z.number(),
+    }),
+  }),
+  environment: z.object({
+    variableNames: z.array(z.string()),
+    count: z.number(),
+    personalVariables: z.array(z.string()),
+    workspaceVariables: z.array(z.string()),
+    conflicts: z.array(z.string()),
+  }),
+})
+
+export const copilotCredentialsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/copilot/credentials',
+  query: copilotCredentialsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      result: copilotCredentialsResultSchema,
+    }),
+  },
+})
+
+export const copilotStatsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/stats',
+  body: copilotStatsBodySchema,
+  response: { mode: 'json', schema: successFlagSchema },
+})
+
+export const validateCopilotApiKeyContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/api-keys/validate',
+  body: validateCopilotApiKeyBodySchema,
+  response: { mode: 'empty' },
+})
+
+export const createWorkflowCopilotChatContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/chats',
+  body: createWorkflowCopilotChatBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      id: z.string(),
+    }),
+  },
+})
+
+export const createCopilotCheckpointContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/checkpoints',
+  body: createCopilotCheckpointBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      checkpoint: copilotCheckpointSchema,
+    }),
+  },
+})
+
+export const listCopilotCheckpointsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/copilot/checkpoints',
+  query: listCopilotCheckpointsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      checkpoints: z.array(copilotCheckpointSchema),
+    }),
+  },
+})
+
+export const copilotConfirmContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/confirm',
+  body: copilotConfirmBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      message: z.string(),
+      toolCallId: z.string(),
+      status: z.string(),
+    }),
+  },
+})
+
+export const copilotModelsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/copilot/models',
+  query: copilotModelsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      models: z.array(copilotAvailableModelSchema),
+    }),
+  },
+})
+
+export const addCopilotChatResourceContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/chat/resources',
+  body: addCopilotChatResourceBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      resources: z.array(copilotChatResourceSchema).optional(),
+    }),
+  },
+})
+
+export const reorderCopilotChatResourcesContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/copilot/chat/resources',
+  body: reorderCopilotChatResourcesBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      resources: z.array(copilotChatResourceSchema),
+    }),
+  },
+})
+
+export const removeCopilotChatResourceContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/copilot/chat/resources',
+  body: removeCopilotChatResourceBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      resources: z.array(copilotChatResourceSchema),
+    }),
+  },
+})
+
+/**
+ * Forwards the agent indexer's free-form JSON response.
+ * Shape varies by upstream version.
+ */
+export const copilotTrainingDataContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/training',
+  body: copilotTrainingDataBodySchema,
+  response: {
+    mode: 'json',
+    // untyped-response: forwards external agent indexer /operations/add response unchanged; shape varies by upstream version
+    schema: z.unknown(),
+  },
+})
+
+/**
+ * Forwards the agent indexer's free-form JSON response.
+ * Shape varies by upstream version.
+ */
+export const copilotTrainingExampleContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/training/examples',
+  body: copilotTrainingExampleBodySchema,
+  response: {
+    mode: 'json',
+    // untyped-response: forwards external agent indexer /examples/add response unchanged; shape varies by upstream version
+    schema: z.unknown(),
+  },
+})
+
+export const renameCopilotChatContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/copilot/chat/rename',
+  body: renameCopilotChatBodySchema,
+  response: { mode: 'json', schema: successFlagSchema },
+})
+
+export const addCopilotAutoAllowedToolContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/auto-allowed-tools',
+  body: copilotToolPreferenceBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      autoAllowedTools: z.array(z.string()),
+    }),
+  },
+})
+
+export const removeCopilotAutoAllowedToolContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/copilot/auto-allowed-tools',
+  query: copilotToolPreferenceQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      autoAllowedTools: z.array(z.string()),
+    }),
+  },
+})
+
+export const revertCopilotCheckpointContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/checkpoints/revert',
+  body: revertCopilotCheckpointBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      workflowId: z.string(),
+      checkpointId: z.string(),
+      revertedAt: z.string(),
+      checkpoint: z.object({
+        id: z.string(),
+        workflowState: cleanedWorkflowStateSchema,
+      }),
+    }),
+  },
+})
+
+export const copilotChatAbortContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/chat/abort',
+  body: copilotChatAbortBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      aborted: z.boolean(),
+      settled: z.boolean().optional(),
+    }),
+  },
+})
+
+export const copilotChatStreamContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/copilot/chat/stream',
+  query: copilotChatStreamQuerySchema,
+  response: { mode: 'stream' },
+})
+
+export const copilotChatStopContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/chat/stop',
+  body: copilotChatStopBodySchema,
+  response: { mode: 'json', schema: successFlagSchema },
+})
+
+export const copilotChatGetContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/copilot/chat',
+  query: copilotChatGetQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.union([
+      z.object({
+        success: z.literal(true),
+        chat: copilotChatGetChatSchema,
+      }),
+      z.object({
+        success: z.literal(true),
+        chats: z.array(copilotChatGetListItemSchema),
+      }),
+    ]),
+  },
+})
+
+export const deleteCopilotChatContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/copilot/chat/delete',
+  body: deleteCopilotChatBodySchema,
+  response: { mode: 'json', schema: successFlagSchema },
+})
+
+export const updateCopilotMessagesContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/chat/update-messages',
+  body: updateCopilotMessagesBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      messageCount: z.number(),
+    }),
   },
 })

@@ -25,11 +25,15 @@ const SendTemplatedEmailSchema = z.object({
   configurationSetName: z.string().nullish(),
 })
 
+const SendTemplatedEmailResponseSchema = z.object({
+  messageId: z.string(),
+})
+
 export const awsSesSendTemplatedEmailContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/ses/send-templated-email',
   body: SendTemplatedEmailSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: SendTemplatedEmailResponseSchema },
 })
 export type AwsSesSendTemplatedEmailRequest = ContractBodyInput<
   typeof awsSesSendTemplatedEmailContract

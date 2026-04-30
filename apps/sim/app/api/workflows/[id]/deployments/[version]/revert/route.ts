@@ -1,8 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
-import { deploymentVersionRouteParamsSchema } from '@/lib/api/contracts/deployments'
 import { workflowDeploymentVersionParamSchema } from '@/lib/api/contracts/workflows'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performRevertToVersion } from '@/lib/workflows/orchestration'
@@ -20,18 +18,7 @@ export const POST = withRouteHandler(
     { params }: { params: Promise<{ id: string; version: string }> }
   ) => {
     const requestId = generateRequestId()
-    const paramsValidation = validateSchema(
-      deploymentVersionRouteParamsSchema,
-      await params,
-      'Invalid route parameters'
-    )
-    if (!paramsValidation.success) {
-      return createErrorResponse(
-        getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
-        400
-      )
-    }
-    const { id, version } = paramsValidation.data
+    const { id, version } = await params
 
     try {
       const {
@@ -43,11 +30,7 @@ export const POST = withRouteHandler(
         return createErrorResponse(error.message, error.status)
       }
 
-      const versionValidation = validateSchema(
-        workflowDeploymentVersionParamSchema,
-        version,
-        'Invalid version'
-      )
+      const versionValidation = workflowDeploymentVersionParamSchema.safeParse(version)
       if (!versionValidation.success) {
         return createErrorResponse('Invalid version', 400)
       }

@@ -4,13 +4,12 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  createMothershipChatBodySchema,
-  listMothershipChatsQuerySchema,
+  createMothershipChatContract,
+  listMothershipChatsContract,
 } from '@/lib/api/contracts/mothership-tasks'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import {
   authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
@@ -32,13 +31,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const queryResult = validateSchema(listMothershipChatsQuerySchema, {
-      workspaceId: request.nextUrl.searchParams.get('workspaceId'),
-    })
-    if (!queryResult.success) {
-      return createBadRequestResponse(getValidationErrorMessage(queryResult.error))
-    }
-    const { workspaceId } = queryResult.data
+    const queryResult = await parseRequest(listMothershipChatsContract, request, {})
+    if (!queryResult.success) return queryResult.response
+    const { workspaceId } = queryResult.data.query
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
 
@@ -78,12 +73,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const body = await request.json()
-    const validation = validateSchema(createMothershipChatBodySchema, body)
-    if (!validation.success) {
-      return createBadRequestResponse(getValidationErrorMessage(validation.error))
-    }
-    const { workspaceId } = validation.data
+    const validation = await parseRequest(createMothershipChatContract, request, {})
+    if (!validation.success) return validation.response
+    const { workspaceId } = validation.data.body
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
 

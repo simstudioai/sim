@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { mcpToolExecutionBodySchema } from '@/lib/api/contracts/mcp'
-import { validateSchema } from '@/lib/api/server'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getExecutionTimeout } from '@/lib/core/execution-limits'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
@@ -46,11 +45,7 @@ export const POST = withRouteHandler(
   withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       const rawBody = getParsedBody(request) ?? (await request.json())
-      const parsedBody = validateSchema(
-        mcpToolExecutionBodySchema,
-        rawBody,
-        'Invalid request format'
-      )
+      const parsedBody = mcpToolExecutionBodySchema.safeParse(rawBody)
 
       if (!parsedBody.success) {
         return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)

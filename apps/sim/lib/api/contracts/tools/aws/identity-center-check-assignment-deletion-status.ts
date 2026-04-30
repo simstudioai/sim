@@ -20,11 +20,23 @@ const Schema = z.object({
   requestId: z.string().min(1, 'Request ID is required'),
 })
 
+const ResponseSchema = z.object({
+  message: z.string(),
+  status: z.string(),
+  requestId: z.string(),
+  accountId: z.string().nullable(),
+  permissionSetArn: z.string().nullable(),
+  principalType: z.string().nullable(),
+  principalId: z.string().nullable(),
+  failureReason: z.string().nullable(),
+  createdDate: z.string().nullable(),
+})
+
 export const awsIdentityCenterCheckAssignmentDeletionStatusContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/identity-center/check-assignment-deletion-status',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ResponseSchema },
 })
 export type AwsIdentityCenterCheckAssignmentDeletionStatusRequest = ContractBodyInput<
   typeof awsIdentityCenterCheckAssignmentDeletionStatusContract

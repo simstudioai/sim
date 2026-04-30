@@ -2,11 +2,8 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import {
-  updateWorkspaceFileContentBodySchema,
-  workspaceFileParamsSchema,
-} from '@/lib/api/contracts/workspace-files'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { updateWorkspaceFileContentContract } from '@/lib/api/contracts/workspace-files'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace'
@@ -21,21 +18,17 @@ const logger = createLogger('WorkspaceFileContentAPI')
  * Update a workspace file's text content (requires write permission)
  */
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) => {
-    const paramsResult = workspaceFileParamsSchema.safeParse(await params)
-    if (!paramsResult.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
-        { status: 400 }
-      )
-    }
-    const { id: workspaceId, fileId } = paramsResult.data
-
+  async (request: NextRequest, context: { params: Promise<{ id: string; fileId: string }> }) => {
     try {
       const session = await getSession()
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
+
+      const parsed = await parseRequest(updateWorkspaceFileContentContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id: workspaceId, fileId } = parsed.data.params
+      const { content, encoding } = parsed.data.body
 
       const userPermission = await getUserEntityPermissions(
         session.user.id,
@@ -46,17 +39,6 @@ export const PUT = withRouteHandler(
         logger.warn(`User ${session.user.id} lacks write permission for workspace ${workspaceId}`)
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
-
-      const bodyResult = updateWorkspaceFileContentBodySchema.safeParse(
-        await request.json().catch(() => ({}))
-      )
-      if (!bodyResult.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(bodyResult.error, 'Content must be a string') },
-          { status: 400 }
-        )
-      }
-      const { content, encoding } = bodyResult.data
 
       const buffer =
         encoding === 'base64' ? Buffer.from(content, 'base64') : Buffer.from(content, 'utf-8')

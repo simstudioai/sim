@@ -2,8 +2,8 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const webhooksRouteQuerySchema = z.object({
-  workflowId: z.string().nullable(),
-  blockId: z.string().nullable(),
+  workflowId: z.string().optional(),
+  blockId: z.string().optional(),
 })
 
 export const webhooksByBlockQuerySchema = z.object({
@@ -126,6 +126,50 @@ export const listWebhooksByBlockResponseSchema = z.object({
 
 export type ListWebhooksByBlockResponse = z.output<typeof listWebhooksByBlockResponseSchema>
 
+const listWebhooksResponseSchema = z.object({
+  webhooks: z.array(webhookListItemSchema),
+})
+
+const upsertWebhookResponseSchema = z
+  .object({
+    webhook: webhookDataSchema,
+    credentialSetInfo: z
+      .object({
+        credentialSetId: z.string(),
+        totalWebhooks: z.number(),
+        created: z.number(),
+        updated: z.number(),
+        deleted: z.number(),
+      })
+      .optional(),
+  })
+  .passthrough()
+
+const getWebhookResponseSchema = z.object({
+  webhook: webhookListItemSchema,
+})
+
+const updateWebhookResponseSchema = z.object({
+  webhook: webhookDataSchema,
+})
+
+const deleteWebhookResponseSchema = z.object({
+  success: z.literal(true),
+})
+
+const webhookPollingResponseSchema = z
+  .object({
+    success: z.boolean(),
+    message: z.string(),
+    requestId: z.string(),
+    status: z.enum(['skip', 'completed']).optional(),
+    total: z.number().optional(),
+    successful: z.number().optional(),
+    failed: z.number().optional(),
+    error: z.string().optional(),
+  })
+  .passthrough()
+
 export const listWebhooksByBlockContract = defineRouteContract({
   method: 'GET',
   path: '/api/webhooks',
@@ -133,5 +177,94 @@ export const listWebhooksByBlockContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: listWebhooksByBlockResponseSchema,
+  },
+})
+
+export const listWebhooksContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/webhooks',
+  query: webhooksRouteQuerySchema,
+  response: {
+    mode: 'json',
+    schema: listWebhooksResponseSchema,
+  },
+})
+
+export const upsertWebhookContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/webhooks',
+  body: webhookUpsertBodySchema,
+  response: {
+    mode: 'json',
+    schema: upsertWebhookResponseSchema,
+  },
+})
+
+export const getWebhookContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/webhooks/[id]',
+  params: webhookIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: getWebhookResponseSchema,
+  },
+})
+
+export const updateWebhookContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/webhooks/[id]',
+  params: webhookIdParamsSchema,
+  body: webhookPatchBodySchema,
+  response: {
+    mode: 'json',
+    schema: updateWebhookResponseSchema,
+  },
+})
+
+export const deleteWebhookContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/webhooks/[id]',
+  params: webhookIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: deleteWebhookResponseSchema,
+  },
+})
+
+export const webhookPollingContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/webhooks/poll/[provider]',
+  params: webhookPollingParamsSchema,
+  response: {
+    mode: 'json',
+    schema: webhookPollingResponseSchema,
+  },
+})
+
+/**
+ * Webhook trigger endpoints proxy provider responses back to the caller. The
+ * payload shape varies per provider (challenge text, queued execution result,
+ * pre-deployment verification, etc.) so the response is genuinely unbounded
+ * and stays as `z.unknown()`.
+ */
+export const webhookTriggerGetContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/webhooks/trigger/[path]',
+  params: webhookTriggerParamsSchema,
+  response: {
+    mode: 'json',
+    // untyped-response: webhook trigger forwards arbitrary provider verification or workflow execution payloads
+    schema: z.unknown(),
+  },
+})
+
+export const webhookTriggerPostContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/webhooks/trigger/[path]',
+  params: webhookTriggerParamsSchema,
+  response: {
+    mode: 'json',
+    // untyped-response: webhook trigger forwards arbitrary provider challenge or workflow execution payloads
+    schema: z.unknown(),
   },
 })

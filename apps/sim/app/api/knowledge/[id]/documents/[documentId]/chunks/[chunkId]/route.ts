@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateChunkBodySchema } from '@/lib/api/contracts/knowledge'
-import { parseJsonBody, validateSchema } from '@/lib/api/server'
+import { updateKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteChunk, updateChunk } from '@/lib/knowledge/chunks/service'
@@ -63,10 +63,10 @@ export const GET = withRouteHandler(
 export const PUT = withRouteHandler(
   async (
     req: NextRequest,
-    { params }: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
+    context: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
   ) => {
     const requestId = generateId().slice(0, 8)
-    const { id: knowledgeBaseId, documentId, chunkId } = await params
+    const { id: knowledgeBaseId, documentId, chunkId } = await context.params
 
     try {
       const session = await getSession()
@@ -105,22 +105,10 @@ export const PUT = withRouteHandler(
         )
       }
 
-      const parsedBody = await parseJsonBody(req)
-      if (!parsedBody.success) return parsedBody.response
+      const parsed = await parseRequest(updateKnowledgeChunkContract, req, context)
+      if (!parsed.success) return parsed.response
 
-      const validation = validateSchema(
-        updateChunkBodySchema,
-        parsedBody.data,
-        'Invalid request data'
-      )
-      if (!validation.success) {
-        logger.warn(`[${requestId}] Invalid chunk update data`, {
-          errors: validation.error.issues,
-        })
-        return validation.response
-      }
-
-      const validatedData = validation.data
+      const validatedData = parsed.data.body
 
       const updatedChunk = await updateChunk(
         chunkId,

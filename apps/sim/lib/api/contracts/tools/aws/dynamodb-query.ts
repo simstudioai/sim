@@ -27,11 +27,20 @@ const QuerySchema = z.object({
   scanIndexForward: z.boolean().optional(),
 })
 
+const QueryResponseSchema = z.object({
+  message: z.string(),
+  // untyped-response: DynamoDB Items are arbitrary user attribute-value records
+  items: z.array(z.record(z.string(), z.unknown())),
+  count: z.number(),
+  // untyped-response: DynamoDB LastEvaluatedKey mirrors the table's primary key shape
+  lastEvaluatedKey: z.record(z.string(), z.unknown()).optional(),
+})
+
 export const awsDynamodbQueryContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/dynamodb/query',
   body: QuerySchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: QueryResponseSchema },
 })
 export type AwsDynamodbQueryRequest = ContractBodyInput<typeof awsDynamodbQueryContract>
 export type AwsDynamodbQueryBody = ContractBody<typeof awsDynamodbQueryContract>

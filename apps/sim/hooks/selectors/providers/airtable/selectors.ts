@@ -1,5 +1,5 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { ensureCredential, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -16,7 +16,7 @@ export const airtableSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'airtable.bases')
-      const data = await requestSelectorContract(selectorContracts.airtableBasesSelectorContract, {
+      const data = await requestJson(selectorContracts.airtableBasesSelectorContract, {
         body: { credential: credentialId, workflowId: context.workflowId },
         signal,
       })
@@ -28,7 +28,7 @@ export const airtableSelectors = {
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'airtable.bases')
-      const data = await requestSelectorContract(selectorContracts.airtableBasesSelectorContract, {
+      const data = await requestJson(selectorContracts.airtableBasesSelectorContract, {
         body: {
           credential: credentialId,
           workflowId: context.workflowId,
@@ -57,7 +57,7 @@ export const airtableSelectors = {
       if (!context.baseId) {
         throw new Error('Missing base ID for airtable.tables selector')
       }
-      const data = await requestSelectorContract(selectorContracts.airtableTablesSelectorContract, {
+      const data = await requestJson(selectorContracts.airtableTablesSelectorContract, {
         body: {
           credential: credentialId,
           workflowId: context.workflowId,
@@ -74,7 +74,7 @@ export const airtableSelectors = {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'airtable.tables')
       if (!context.baseId) return null
-      const data = await requestSelectorContract(selectorContracts.airtableTablesSelectorContract, {
+      const data = await requestJson(selectorContracts.airtableTablesSelectorContract, {
         body: {
           credential: credentialId,
           workflowId: context.workflowId,

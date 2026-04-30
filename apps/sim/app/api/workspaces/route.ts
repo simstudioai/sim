@@ -4,8 +4,9 @@ import { permissions, settings, type WorkspaceMode, workflow, workspace } from '
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
-import { createWorkspaceBodySchema, listWorkspacesQuerySchema } from '@/lib/api/contracts'
+import { type NextRequest, NextResponse } from 'next/server'
+import { createWorkspaceContract, listWorkspacesQuerySchema } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -168,7 +169,7 @@ export const GET = withRouteHandler(async (request: Request) => {
 })
 
 // POST /api/workspaces - Create a new workspace
-export const POST = withRouteHandler(async (req: Request) => {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const session = await getSession()
 
   if (!session?.user?.id) {
@@ -176,7 +177,9 @@ export const POST = withRouteHandler(async (req: Request) => {
   }
 
   try {
-    const { name, color, skipDefaultWorkflow } = createWorkspaceBodySchema.parse(await req.json())
+    const parsed = await parseRequest(createWorkspaceContract, req, {})
+    if (!parsed.success) return parsed.response
+    const { name, color, skipDefaultWorkflow } = parsed.data.body
     const activeOrganizationId =
       (session.session as { activeOrganizationId?: string } | null)?.activeOrganizationId ?? null
     const creationPolicy = await getWorkspaceCreationPolicy({

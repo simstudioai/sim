@@ -5,8 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createConnectorBodySchema } from '@/lib/api/contracts/knowledge'
-import { parseJsonBody, validateSchema } from '@/lib/api/server'
+import { createKnowledgeConnectorContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { encryptApiKey } from '@/lib/api-key/crypto'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { hasLiveSyncAccess } from '@/lib/billing/core/subscription'
@@ -72,9 +72,9 @@ export const GET = withRouteHandler(
  * POST /api/knowledge/[id]/connectors - Create a new connector
  */
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id: knowledgeBaseId } = await params
+    const { id: knowledgeBaseId } = await context.params
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -91,18 +91,11 @@ export const POST = withRouteHandler(
         )
       }
 
-      const parsedBody = await parseJsonBody(request)
-      if (!parsedBody.success) return parsedBody.response
-
-      const validation = validateSchema(
-        createConnectorBodySchema,
-        parsedBody.data,
-        'Invalid request'
-      )
-      if (!validation.success) return validation.response
+      const parsed = await parseRequest(createKnowledgeConnectorContract, request, context)
+      if (!parsed.success) return parsed.response
 
       const { connectorType, credentialId, apiKey, sourceConfig, syncIntervalMinutes } =
-        validation.data
+        parsed.data.body
 
       if (syncIntervalMinutes > 0 && syncIntervalMinutes < 60) {
         const canUseLiveSync = await hasLiveSyncAccess(auth.userId)

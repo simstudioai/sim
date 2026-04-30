@@ -1,5 +1,5 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { ensureCredential, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -16,7 +16,7 @@ export const trelloSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'trello.boards')
-      const data = await requestSelectorContract(selectorContracts.trelloBoardsSelectorContract, {
+      const data = await requestJson(selectorContracts.trelloBoardsSelectorContract, {
         body: { credential: credentialId, workflowId: context.workflowId },
         signal,
       })
@@ -27,7 +27,7 @@ export const trelloSelectors = {
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'trello.boards')
-      const data = await requestSelectorContract(selectorContracts.trelloBoardsSelectorContract, {
+      const data = await requestJson(selectorContracts.trelloBoardsSelectorContract, {
         body: { credential: credentialId, workflowId: context.workflowId },
         signal,
       })

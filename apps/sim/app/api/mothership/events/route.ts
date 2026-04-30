@@ -9,7 +9,7 @@
 
 import type { NextRequest } from 'next/server'
 import { mothershipEventsQuerySchema } from '@/lib/api/contracts/mothership-tasks'
-import { validateSchema } from '@/lib/api/server'
+import { validationErrorResponse } from '@/lib/api/server'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createWorkspaceSSE } from '@/lib/events/sse-endpoint'
@@ -36,10 +36,9 @@ const mothershipEventsHandler = createWorkspaceSSE({
 })
 
 export const GET = withRouteHandler((request: NextRequest) => {
-  const validation = validateSchema(
-    mothershipEventsQuerySchema,
+  const validation = mothershipEventsQuerySchema.safeParse(
     Object.fromEntries(request.nextUrl.searchParams.entries())
   )
-  if (!validation.success) return validation.response
+  if (!validation.success) return validationErrorResponse(validation.error)
   return mothershipEventsHandler(request)
 })

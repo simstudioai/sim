@@ -4,20 +4,15 @@ import { workflow, workspaceNotificationSubscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { buildServerUpdateNotificationSchema } from '@/lib/api/contracts/notifications'
+import { updateNotificationServerContract } from '@/lib/api/contracts/notifications'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { MAX_EMAIL_RECIPIENTS, MAX_WORKFLOW_IDS } from '../constants'
 
 const logger = createLogger('WorkspaceNotificationAPI')
-
-const updateNotificationSchema = buildServerUpdateNotificationSchema({
-  maxEmailRecipients: MAX_EMAIL_RECIPIENTS,
-  maxWorkflowIds: MAX_WORKFLOW_IDS,
-})
 
 type RouteParams = { params: Promise<{ id: string; notificationId: string }> }
 
@@ -91,14 +86,14 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   }
 })
 
-export const PUT = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
+export const PUT = withRouteHandler(async (request: NextRequest, context: RouteParams) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id: workspaceId, notificationId } = await params
+    const { id: workspaceId, notificationId } = await context.params
     const { hasAccess } = await checkWorkspaceWriteAccess(session.user.id, workspaceId)
 
     if (!hasAccess) {
@@ -111,17 +106,11 @@ export const PUT = withRouteHandler(async (request: NextRequest, { params }: Rou
       return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
     }
 
-    const body = await request.json()
-    const validationResult = updateNotificationSchema.safeParse(body)
-
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Invalid request', details: validationResult.error.issues },
-        { status: 400 }
-      )
-    }
-
-    const data = validationResult.data
+    const parsed = await parseRequest(updateNotificationServerContract, request, context, {
+      validationErrorResponse: (error) => validationErrorResponse(error, 'Invalid request'),
+    })
+    if (!parsed.success) return parsed.response
+    const data = parsed.data.body
 
     if (data.workflowIds && data.workflowIds.length > 0) {
       const workflowsInWorkspace = await db

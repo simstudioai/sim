@@ -25,11 +25,15 @@ const DeleteSchema = z.object({
   expressionAttributeValues: z.record(z.string(), z.unknown()).optional(),
 })
 
+const DeleteResponseSchema = z.object({
+  message: z.string(),
+})
+
 export const awsDynamodbDeleteContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/dynamodb/delete',
   body: DeleteSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: DeleteResponseSchema },
 })
 export type AwsDynamodbDeleteRequest = ContractBodyInput<typeof awsDynamodbDeleteContract>
 export type AwsDynamodbDeleteBody = ContractBody<typeof awsDynamodbDeleteContract>

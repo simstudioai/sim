@@ -5,8 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { duplicateFolderBodySchema } from '@/lib/api/contracts'
-import { validateSchema } from '@/lib/api/server'
+import { duplicateFolderContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -17,8 +17,8 @@ const logger = createLogger('FolderDuplicateAPI')
 
 // POST /api/folders/[id]/duplicate - Duplicate a folder with all its child folders and workflows
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: sourceFolderId } = await params
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const { id: sourceFolderId } = await context.params
     const requestId = generateRequestId()
     const startTime = Date.now()
 
@@ -29,15 +29,9 @@ export const POST = withRouteHandler(
     }
 
     try {
-      const body = await req.json()
-      const validation = validateSchema(duplicateFolderBodySchema, body, 'Invalid request data')
-      if (!validation.success) {
-        logger.warn(`[${requestId}] Invalid duplication request data`, {
-          errors: validation.error.issues,
-        })
-        return validation.response
-      }
-      const { name, workspaceId, parentId, color, newId: clientNewId } = validation.data
+      const parsed = await parseRequest(duplicateFolderContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { name, workspaceId, parentId, color, newId: clientNewId } = parsed.data.body
 
       logger.info(`[${requestId}] Duplicating folder ${sourceFolderId} for user ${session.user.id}`)
 

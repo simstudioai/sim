@@ -5,8 +5,8 @@ import { toError } from '@sim/utils/errors'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { workflowStateSchema } from '@/lib/api/contracts/workflows'
-import { validateSchema } from '@/lib/api/server'
+import { putWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -75,10 +75,10 @@ export const GET = withRouteHandler(
  * Save complete workflow state to normalized database tables
  */
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
     const startTime = Date.now()
-    const { id: workflowId } = await params
+    const { id: workflowId } = await context.params
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -88,10 +88,9 @@ export const PUT = withRouteHandler(
       }
       const userId = auth.userId
 
-      const body = await request.json()
-      const validation = validateSchema(workflowStateSchema, body, 'Invalid request body')
-      if (!validation.success) return validation.response
-      const state = validation.data
+      const parsed = await parseRequest(putWorkflowNormalizedStateContract, request, context)
+      if (!parsed.success) return parsed.response
+      const state = parsed.data.body
 
       const authorization = await authorizeWorkflowByWorkspacePermission({
         workflowId,

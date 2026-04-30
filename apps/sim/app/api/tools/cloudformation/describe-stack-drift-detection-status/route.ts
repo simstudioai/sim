@@ -5,7 +5,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsCloudformationDescribeStackDriftDetectionStatusContract } from '@/lib/api/contracts/tools/aws/cloudformation-describe-stack-drift-detection-status'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -18,7 +18,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const parsed = await parseAwsToolRequest(
+    const parsed = await parseToolRequest(
       awsCloudformationDescribeStackDriftDetectionStatusContract,
       request,
       {

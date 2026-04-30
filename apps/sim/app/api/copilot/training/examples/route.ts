@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { copilotTrainingExampleBodySchema } from '@/lib/api/contracts/copilot'
-import { validateSchema } from '@/lib/api/server'
+import { copilotTrainingExampleContract } from '@/lib/api/contracts/copilot'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalApiKey, createUnauthorizedResponse } from '@/lib/copilot/request/http'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -30,20 +30,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-
-    const validationResult = validateSchema(
-      copilotTrainingExampleBodySchema,
-      body,
-      'Invalid training example format'
+    const parsed = await parseRequest(
+      copilotTrainingExampleContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn('Invalid training example format', { errors: error.issues })
+          return validationErrorResponse(error, 'Invalid training example format')
+        },
+      }
     )
-
-    if (!validationResult.success) {
-      logger.warn('Invalid training example format', { errors: validationResult.error.issues })
-      return validationResult.response
-    }
-
-    const validatedData = validationResult.data
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info('Sending workflow example to agent indexer', {
       hasJsonField: typeof validatedData.json === 'string',

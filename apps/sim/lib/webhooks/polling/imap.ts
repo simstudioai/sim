@@ -1,3 +1,4 @@
+import type { Logger } from '@sim/logger'
 import type { FetchMessageObject, MailboxLockObject } from 'imapflow'
 import { ImapFlow } from 'imapflow'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
@@ -192,7 +193,7 @@ async function updateImapState(
   uidByMailbox: Record<string, number>,
   timestamp: string,
   config: ImapWebhookConfig,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>,
+  logger: Logger,
   uidValidityByMailbox: Record<string, string>
 ) {
   const existingUidByMailbox = config.lastProcessedUidByMailbox || {}
@@ -238,7 +239,7 @@ async function fetchNewEmails(
   client: ImapFlow,
   config: ImapWebhookConfig,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ) {
   const emails: Array<{
     uid: number
@@ -486,7 +487,7 @@ async function processEmails(
   config: ImapWebhookConfig,
   client: ImapFlow,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ) {
   let processedCount = 0
   let failedCount = 0

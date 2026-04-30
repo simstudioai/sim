@@ -5,8 +5,12 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { webhookIdParamsSchema, webhookPatchBodySchema } from '@/lib/api/contracts/webhooks'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import {
+  deleteWebhookContract,
+  getWebhookContract,
+  updateWebhookContract,
+} from '@/lib/api/contracts/webhooks'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -20,13 +24,13 @@ export const dynamic = 'force-dynamic'
 
 // Get a specific webhook
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
 
     try {
-      const paramsValidation = validateSchema(webhookIdParamsSchema, await params)
-      if (!paramsValidation.success) return paramsValidation.response
-      const { id } = paramsValidation.data
+      const parsed = await parseRequest(getWebhookContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id } = parsed.data.params
 
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
@@ -79,13 +83,13 @@ export const GET = withRouteHandler(
 )
 
 export const PATCH = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
 
     try {
-      const paramsValidation = validateSchema(webhookIdParamsSchema, await params)
-      if (!paramsValidation.success) return paramsValidation.response
-      const { id } = paramsValidation.data
+      const parsed = await parseRequest(updateWebhookContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id } = parsed.data.params
 
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
@@ -94,15 +98,7 @@ export const PATCH = withRouteHandler(
       }
       const userId = auth.userId
 
-      const bodyResult = validateSchema(webhookPatchBodySchema, await request.json())
-      if (!bodyResult.success) {
-        const message = getValidationErrorMessage(bodyResult.error)
-        logger.warn(`[${requestId}] ${message}`)
-        return NextResponse.json({ error: message }, { status: 400 })
-      }
-
-      const body = bodyResult.data
-      const { isActive, failedCount } = body
+      const { isActive, failedCount } = parsed.data.body
 
       const webhooks = await db
         .select({
@@ -157,13 +153,13 @@ export const PATCH = withRouteHandler(
 
 // Delete a webhook
 export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
 
     try {
-      const paramsValidation = validateSchema(webhookIdParamsSchema, await params)
-      if (!paramsValidation.success) return paramsValidation.response
-      const { id } = paramsValidation.data
+      const parsed = await parseRequest(deleteWebhookContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id } = parsed.data.params
 
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {

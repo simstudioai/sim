@@ -2,8 +2,8 @@ import { db, member, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { ssoRegistrationBodySchema } from '@/lib/api/contracts/auth'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { ssoRegistrationContract } from '@/lib/api/contracts/auth'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth'
 import { hasSSOAccess } from '@/lib/billing'
 import { env } from '@/lib/core/config/env'
@@ -33,22 +33,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'SSO requires an Enterprise plan' }, { status: 403 })
     }
 
-    const rawBody = await request.json()
+    const parsed = await parseRequest(
+      ssoRegistrationContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn('Invalid SSO registration request', { errors: error.issues })
+          return NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Validation failed') },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const parseResult = ssoRegistrationBodySchema.safeParse(rawBody)
-
-    if (!parseResult.success) {
-      logger.warn('Invalid SSO registration request', {
-        errors: parseResult.error.issues,
-      })
-
-      return NextResponse.json(
-        { error: getValidationErrorMessage(parseResult.error, 'Validation failed') },
-        { status: 400 }
-      )
-    }
-
-    const body = parseResult.data
+    const body = parsed.data.body
     const { providerId, issuer, domain, providerType, mapping, orgId } = body
 
     if (orgId) {

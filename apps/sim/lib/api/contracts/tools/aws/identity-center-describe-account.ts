@@ -19,11 +19,20 @@ const Schema = z.object({
   accountId: z.string().min(12, 'Account ID must be 12 digits').max(12),
 })
 
+const ResponseSchema = z.object({
+  id: z.string(),
+  arn: z.string(),
+  name: z.string(),
+  email: z.string(),
+  status: z.string(),
+  joinedTimestamp: z.string().nullable(),
+})
+
 export const awsIdentityCenterDescribeAccountContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/identity-center/describe-account',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ResponseSchema },
 })
 export type AwsIdentityCenterDescribeAccountRequest = ContractBodyInput<
   typeof awsIdentityCenterDescribeAccountContract

@@ -6,7 +6,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsCloudformationDescribeStackEventsContract } from '@/lib/api/contracts/tools/aws/cloudformation-describe-stack-events'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -19,14 +19,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const parsed = await parseAwsToolRequest(
-      awsCloudformationDescribeStackEventsContract,
-      request,
-      {
-        errorFormat: 'details',
-        logger,
-      }
-    )
+    const parsed = await parseToolRequest(awsCloudformationDescribeStackEventsContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
     if (!parsed.success) return parsed.response
     const validatedData = parsed.data.body
 

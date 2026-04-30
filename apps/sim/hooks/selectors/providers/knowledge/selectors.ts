@@ -1,5 +1,5 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { ensureKnowledgeBase, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -20,17 +20,14 @@ export const knowledgeSelectors = {
     enabled: ({ context }) => Boolean(context.knowledgeBaseId),
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const knowledgeBaseId = ensureKnowledgeBase(context)
-      const result = await requestSelectorContract(
-        selectorContracts.listKnowledgeSelectorDocumentsContract,
-        {
-          params: { id: knowledgeBaseId },
-          query: {
-            limit: 100,
-            search,
-          },
-          signal,
-        }
-      )
+      const result = await requestJson(selectorContracts.listKnowledgeSelectorDocumentsContract, {
+        params: { id: knowledgeBaseId },
+        query: {
+          limit: 100,
+          search,
+        },
+        signal,
+      })
       return result.data.documents.map((doc) => ({
         id: doc.id,
         label: doc.filename,
@@ -39,14 +36,11 @@ export const knowledgeSelectors = {
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
       const knowledgeBaseId = ensureKnowledgeBase(context)
-      const result = await requestSelectorContract(
-        selectorContracts.getKnowledgeSelectorDocumentContract,
-        {
-          params: { id: knowledgeBaseId, documentId: detailId },
-          query: { includeDisabled: 'true' },
-          signal,
-        }
-      )
+      const result = await requestJson(selectorContracts.getKnowledgeSelectorDocumentContract, {
+        params: { id: knowledgeBaseId, documentId: detailId },
+        query: { includeDisabled: 'true' },
+        signal,
+      })
       return { id: result.data.id, label: result.data.filename }
     },
   },

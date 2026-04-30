@@ -20,11 +20,26 @@ const Schema = z.object({
   nextToken: z.string().optional(),
 })
 
+const ResponseSchema = z.object({
+  accounts: z.array(
+    z.object({
+      id: z.string(),
+      arn: z.string(),
+      name: z.string(),
+      email: z.string(),
+      status: z.string(),
+      joinedTimestamp: z.string().nullable(),
+    })
+  ),
+  nextToken: z.string().nullable(),
+  count: z.number(),
+})
+
 export const awsIdentityCenterListAccountsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/identity-center/list-accounts',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ResponseSchema },
 })
 export type AwsIdentityCenterListAccountsRequest = ContractBodyInput<
   typeof awsIdentityCenterListAccountsContract

@@ -28,11 +28,23 @@ const SendBulkEmailSchema = z.object({
   configurationSetName: z.string().nullish(),
 })
 
+const SendBulkEmailResponseSchema = z.object({
+  results: z.array(
+    z.object({
+      messageId: z.string().nullable(),
+      status: z.string(),
+      error: z.string().nullable(),
+    })
+  ),
+  successCount: z.number(),
+  failureCount: z.number(),
+})
+
 export const awsSesSendBulkEmailContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/ses/send-bulk-email',
   body: SendBulkEmailSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: SendBulkEmailResponseSchema },
 })
 export type AwsSesSendBulkEmailRequest = ContractBodyInput<typeof awsSesSendBulkEmailContract>
 export type AwsSesSendBulkEmailBody = ContractBody<typeof awsSesSendBulkEmailContract>

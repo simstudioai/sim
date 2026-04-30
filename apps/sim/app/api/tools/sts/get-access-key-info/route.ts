@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsStsGetAccessKeyInfoContract } from '@/lib/api/contracts/tools/aws/sts-get-access-key-info'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createSTSClient, getAccessKeyInfo } from '../utils'
@@ -16,7 +16,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const parsed = await parseAwsToolRequest(awsStsGetAccessKeyInfoContract, request, {
+    const parsed = await parseToolRequest(awsStsGetAccessKeyInfoContract, request, {
       errorFormat: 'details',
       logger,
     })

@@ -25,11 +25,20 @@ const ScanSchema = z.object({
   exclusiveStartKey: z.record(z.string(), z.unknown()).optional(),
 })
 
+const ScanResponseSchema = z.object({
+  message: z.string(),
+  // untyped-response: DynamoDB Items are arbitrary user attribute-value records
+  items: z.array(z.record(z.string(), z.unknown())),
+  count: z.number(),
+  // untyped-response: DynamoDB LastEvaluatedKey mirrors the table's primary key shape
+  lastEvaluatedKey: z.record(z.string(), z.unknown()).optional(),
+})
+
 export const awsDynamodbScanContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/dynamodb/scan',
   body: ScanSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ScanResponseSchema },
 })
 export type AwsDynamodbScanRequest = ContractBodyInput<typeof awsDynamodbScanContract>
 export type AwsDynamodbScanBody = ContractBody<typeof awsDynamodbScanContract>

@@ -14,7 +14,7 @@ export interface ValidationErrorBody {
   details: z.core.$ZodIssue[]
 }
 
-export type ValidationResult<S extends ApiSchema> =
+type ValidationResult<S extends ApiSchema> =
   | { success: true; data: z.output<S> }
   | { success: false; response: NextResponse<unknown>; error: z.ZodError }
 
@@ -67,24 +67,6 @@ export function validationErrorResponseFromError(
 ): NextResponse<ValidationErrorBody> | null {
   if (!isZodError(error)) return null
   return validationErrorResponse(error, message, status)
-}
-
-export function validateSchema<S extends ApiSchema>(
-  schema: S,
-  data: unknown,
-  message = 'Validation error',
-  status = 400
-): ValidationResult<S> {
-  const result = schema.safeParse(data)
-  if (!result.success) {
-    return {
-      success: false,
-      response: validationErrorResponse(result.error, message, status),
-      error: result.error,
-    }
-  }
-
-  return { success: true, data: result.data }
 }
 
 export async function parseJsonBody(

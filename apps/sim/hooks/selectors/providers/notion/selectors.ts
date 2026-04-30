@@ -1,5 +1,5 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { ensureCredential, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -16,13 +16,10 @@ export const notionSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'notion.databases')
-      const data = await requestSelectorContract(
-        selectorContracts.notionDatabasesSelectorContract,
-        {
-          body: { credential: credentialId, workflowId: context.workflowId },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.notionDatabasesSelectorContract, {
+        body: { credential: credentialId, workflowId: context.workflowId },
+        signal,
+      })
       return (data.databases || []).map((db) => ({
         id: db.id,
         label: db.name,
@@ -31,13 +28,10 @@ export const notionSelectors = {
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'notion.databases')
-      const data = await requestSelectorContract(
-        selectorContracts.notionDatabasesSelectorContract,
-        {
-          body: { credential: credentialId, workflowId: context.workflowId },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.notionDatabasesSelectorContract, {
+        body: { credential: credentialId, workflowId: context.workflowId },
+        signal,
+      })
       const db = (data.databases || []).find((d) => d.id === detailId) ?? null
       if (!db) return null
       return { id: db.id, label: db.name }
@@ -55,7 +49,7 @@ export const notionSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'notion.pages')
-      const data = await requestSelectorContract(selectorContracts.notionPagesSelectorContract, {
+      const data = await requestJson(selectorContracts.notionPagesSelectorContract, {
         body: { credential: credentialId, workflowId: context.workflowId },
         signal,
       })
@@ -67,7 +61,7 @@ export const notionSelectors = {
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'notion.pages')
-      const data = await requestSelectorContract(selectorContracts.notionPagesSelectorContract, {
+      const data = await requestJson(selectorContracts.notionPagesSelectorContract, {
         body: { credential: credentialId, workflowId: context.workflowId },
         signal,
       })

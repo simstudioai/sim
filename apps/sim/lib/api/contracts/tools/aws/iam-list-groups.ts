@@ -21,11 +21,26 @@ const Schema = z.object({
   marker: z.string().optional().nullable(),
 })
 
+const ListGroupsResponseSchema = z.object({
+  groups: z.array(
+    z.object({
+      groupName: z.string(),
+      groupId: z.string(),
+      arn: z.string(),
+      path: z.string(),
+      createDate: z.string().nullable(),
+    })
+  ),
+  isTruncated: z.boolean(),
+  marker: z.string().nullable(),
+  count: z.number(),
+})
+
 export const awsIamListGroupsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/iam/list-groups',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ListGroupsResponseSchema },
 })
 export type AwsIamListGroupsRequest = ContractBodyInput<typeof awsIamListGroupsContract>
 export type AwsIamListGroupsBody = ContractBody<typeof awsIamListGroupsContract>

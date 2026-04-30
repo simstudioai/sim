@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  copilotToolPreferenceBodySchema,
-  copilotToolPreferenceQuerySchema,
+  addCopilotAutoAllowedToolContract,
+  removeCopilotAutoAllowedToolContract,
 } from '@/lib/api/contracts/copilot'
-import { validateSchema } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -74,15 +74,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = session.user.id
-    const bodyResult = validateSchema(
-      copilotToolPreferenceBodySchema,
-      await request.json().catch(() => null)
+    const parsed = await parseRequest(
+      addCopilotAutoAllowedToolContract,
+      request,
+      {},
+      {
+        validationErrorResponse: () =>
+          NextResponse.json({ error: 'toolId must be a string' }, { status: 400 }),
+        invalidJsonResponse: () =>
+          NextResponse.json({ error: 'toolId must be a string' }, { status: 400 }),
+      }
     )
-
-    if (!bodyResult.success) {
-      return NextResponse.json({ error: 'toolId must be a string' }, { status: 400 })
-    }
-    const { toolId } = bodyResult.data
+    if (!parsed.success) return parsed.response
+    const { toolId } = parsed.data.body
 
     const res = await fetchGo(`${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed`, {
       method: 'POST',
@@ -121,15 +125,17 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = session.user.id
-    const queryResult = validateSchema(
-      copilotToolPreferenceQuerySchema,
-      Object.fromEntries(new URL(request.url).searchParams)
+    const parsed = await parseRequest(
+      removeCopilotAutoAllowedToolContract,
+      request,
+      {},
+      {
+        validationErrorResponse: () =>
+          NextResponse.json({ error: 'toolId query parameter is required' }, { status: 400 }),
+      }
     )
-
-    if (!queryResult.success) {
-      return NextResponse.json({ error: 'toolId query parameter is required' }, { status: 400 })
-    }
-    const { toolId } = queryResult.data
+    if (!parsed.success) return parsed.response
+    const { toolId } = parsed.data.query
 
     const res = await fetchGo(
       `${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed?userId=${encodeURIComponent(userId)}&toolId=${encodeURIComponent(toolId)}`,

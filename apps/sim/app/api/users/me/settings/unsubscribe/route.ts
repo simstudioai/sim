@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { unsubscribeBodySchema, unsubscribeQuerySchema } from '@/lib/api/contracts/user'
+import {
+  unsubscribeFormContract,
+  unsubscribeGetContract,
+  unsubscribePostContract,
+} from '@/lib/api/contracts/user'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { EmailType } from '@/lib/messaging/email/mailer'
@@ -18,17 +23,20 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const { searchParams } = new URL(req.url)
-    const parsedQuery = unsubscribeQuerySchema.safeParse({
-      email: searchParams.get('email') || undefined,
-      token: searchParams.get('token') || undefined,
-    })
-
-    if (!parsedQuery.success) {
+    const parsed = await parseRequest(
+      unsubscribeGetContract,
+      req,
+      {},
+      {
+        validationErrorResponse: () =>
+          NextResponse.json({ error: 'Missing email or token parameter' }, { status: 400 }),
+      }
+    )
+    if (!parsed.success) {
       logger.warn(`[${requestId}] Missing email or token in GET request`)
-      return NextResponse.json({ error: 'Missing email or token parameter' }, { status: 400 })
+      return parsed.response
     }
-    const { email, token } = parsedQuery.data
+    const { email, token } = parsed.data.query
 
     const tokenVerification = verifyUnsubscribeToken(email, token)
     if (!tokenVerification.valid) {
@@ -63,7 +71,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const { searchParams } = new URL(req.url)
     const contentType = req.headers.get('content-type') || ''
 
     let email: string
@@ -71,37 +78,45 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     let type: 'all' | 'marketing' | 'updates' | 'notifications' = 'all'
 
     if (contentType.includes('application/x-www-form-urlencoded')) {
-      const parsedQuery = unsubscribeQuerySchema.safeParse({
-        email: searchParams.get('email') || undefined,
-        token: searchParams.get('token') || undefined,
-      })
-
-      if (!parsedQuery.success) {
+      const parsed = await parseRequest(
+        unsubscribeFormContract,
+        req,
+        {},
+        {
+          validationErrorResponse: () =>
+            NextResponse.json({ error: 'Missing email or token parameter' }, { status: 400 }),
+        }
+      )
+      if (!parsed.success) {
         logger.warn(`[${requestId}] One-click unsubscribe missing email or token in URL`)
-        return NextResponse.json({ error: 'Missing email or token parameter' }, { status: 400 })
+        return parsed.response
       }
 
-      email = parsedQuery.data.email
-      token = parsedQuery.data.token
+      email = parsed.data.query.email
+      token = parsed.data.query.token
 
       logger.info(`[${requestId}] Processing one-click unsubscribe for: ${email}`)
     } else {
-      const body = await req.json()
-      const result = unsubscribeBodySchema.safeParse(body)
-
-      if (!result.success) {
-        logger.warn(`[${requestId}] Invalid unsubscribe POST data`, {
-          errors: result.error.issues,
-        })
-        return NextResponse.json(
-          { error: 'Invalid request data', details: result.error.issues },
-          { status: 400 }
-        )
+      const parsed = await parseRequest(
+        unsubscribePostContract,
+        req,
+        {},
+        {
+          validationErrorResponse: (error) =>
+            NextResponse.json(
+              { error: 'Invalid request data', details: error.issues },
+              { status: 400 }
+            ),
+        }
+      )
+      if (!parsed.success) {
+        logger.warn(`[${requestId}] Invalid unsubscribe POST data`)
+        return parsed.response
       }
 
-      email = result.data.email
-      token = result.data.token
-      type = result.data.type
+      email = parsed.data.body.email
+      token = parsed.data.body.token
+      type = parsed.data.body.type
     }
 
     const tokenVerification = verifyUnsubscribeToken(email, token)

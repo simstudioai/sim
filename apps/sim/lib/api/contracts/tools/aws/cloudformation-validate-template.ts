@@ -13,11 +13,29 @@ const ValidateTemplateSchema = z.object({
   templateBody: z.string().min(1, 'Template body is required'),
 })
 
+const ValidateTemplateResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    description: z.string().optional(),
+    parameters: z.array(
+      z.object({
+        parameterKey: z.string().optional(),
+        defaultValue: z.string().optional(),
+        noEcho: z.boolean().optional(),
+        description: z.string().optional(),
+      })
+    ),
+    capabilities: z.array(z.string()),
+    capabilitiesReason: z.string().optional(),
+    declaredTransforms: z.array(z.string()),
+  }),
+})
+
 export const awsCloudformationValidateTemplateContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/cloudformation/validate-template',
   body: ValidateTemplateSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ValidateTemplateResponseSchema },
 })
 export type AwsCloudformationValidateTemplateRequest = ContractBodyInput<
   typeof awsCloudformationValidateTemplateContract

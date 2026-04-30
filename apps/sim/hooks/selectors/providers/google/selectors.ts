@@ -1,5 +1,5 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { ensureCredential, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -17,33 +17,27 @@ export const googleSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'google.tasks.lists')
-      const data = await requestSelectorContract(
-        selectorContracts.googleTasksTaskListsSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-            impersonateEmail: context.impersonateUserEmail,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.googleTasksTaskListsSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+          impersonateEmail: context.impersonateUserEmail,
+        },
+        signal,
+      })
       return (data.taskLists || []).map((tl) => ({ id: tl.id, label: tl.title }))
     },
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'google.tasks.lists')
-      const data = await requestSelectorContract(
-        selectorContracts.googleTasksTaskListsSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-            impersonateEmail: context.impersonateUserEmail,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.googleTasksTaskListsSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+          impersonateEmail: context.impersonateUserEmail,
+        },
+        signal,
+      })
       const tl = (data.taskLists || []).find((t) => t.id === detailId) ?? null
       if (!tl) return null
       return { id: tl.id, label: tl.title }
@@ -62,7 +56,7 @@ export const googleSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'gmail.labels')
-      const data = await requestSelectorContract(selectorContracts.gmailLabelsSelectorContract, {
+      const data = await requestJson(selectorContracts.gmailLabelsSelectorContract, {
         query: {
           credentialId,
           impersonateEmail: context.impersonateUserEmail,
@@ -88,7 +82,7 @@ export const googleSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'google.calendar')
-      const data = await requestSelectorContract(selectorContracts.googleCalendarSelectorContract, {
+      const data = await requestJson(selectorContracts.googleCalendarSelectorContract, {
         query: {
           credentialId,
           impersonateEmail: context.impersonateUserEmail,
@@ -120,20 +114,17 @@ export const googleSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'google.drive')
-      const data = await requestSelectorContract(
-        selectorContracts.googleDriveFilesSelectorContract,
-        {
-          query: {
-            credentialId,
-            mimeType: context.mimeType,
-            parentId: context.fileId,
-            query: search,
-            workflowId: context.workflowId,
-            impersonateEmail: context.impersonateUserEmail,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.googleDriveFilesSelectorContract, {
+        query: {
+          credentialId,
+          mimeType: context.mimeType,
+          parentId: context.fileId,
+          query: search,
+          workflowId: context.workflowId,
+          impersonateEmail: context.impersonateUserEmail,
+        },
+        signal,
+      })
       return (data.files || []).map((file) => ({
         id: file.id,
         label: file.name,
@@ -142,18 +133,15 @@ export const googleSelectors = {
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'google.drive')
-      const data = await requestSelectorContract(
-        selectorContracts.googleDriveFileSelectorContract,
-        {
-          query: {
-            credentialId,
-            fileId: detailId,
-            workflowId: context.workflowId,
-            impersonateEmail: context.impersonateUserEmail,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.googleDriveFileSelectorContract, {
+        query: {
+          credentialId,
+          fileId: detailId,
+          workflowId: context.workflowId,
+          impersonateEmail: context.impersonateUserEmail,
+        },
+        signal,
+      })
       const file = data.file
       if (!file) return null
       return { id: file.id, label: file.name }
@@ -176,7 +164,7 @@ export const googleSelectors = {
       if (!context.spreadsheetId) {
         throw new Error('Missing spreadsheet ID for google.sheets selector')
       }
-      const data = await requestSelectorContract(selectorContracts.googleSheetsSelectorContract, {
+      const data = await requestJson(selectorContracts.googleSheetsSelectorContract, {
         query: {
           credentialId,
           spreadsheetId: context.spreadsheetId,

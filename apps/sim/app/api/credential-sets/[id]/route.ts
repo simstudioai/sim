@@ -4,8 +4,8 @@ import { credentialSet, credentialSetMember, member, user } from '@sim/db/schema
 import { createLogger } from '@sim/logger'
 import { and, count, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateCredentialSetBodySchema } from '@/lib/api/contracts/credential-sets'
-import { validateSchema } from '@/lib/api/server'
+import { updateCredentialSetContract } from '@/lib/api/contracts/credential-sets'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -89,7 +89,7 @@ export const GET = withRouteHandler(
 )
 
 export const PUT = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const session = await getSession()
 
     if (!session?.user?.id) {
@@ -105,7 +105,7 @@ export const PUT = withRouteHandler(
       )
     }
 
-    const { id } = await params
+    const { id } = await context.params
 
     try {
       const result = await getCredentialSetWithAccess(id, session.user.id)
@@ -118,10 +118,9 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
       }
 
-      const body = await req.json()
-      const validation = validateSchema(updateCredentialSetBodySchema, body)
-      if (!validation.success) return validation.response
-      const updates = validation.data
+      const parsed = await parseRequest(updateCredentialSetContract, req, context)
+      if (!parsed.success) return parsed.response
+      const updates = parsed.data.body
 
       if (updates.name) {
         const existingSet = await db

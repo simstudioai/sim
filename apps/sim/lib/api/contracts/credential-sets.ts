@@ -183,6 +183,19 @@ export const deleteCredentialSetContract = defineRouteContract({
   },
 })
 
+export const updateCredentialSetContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/credential-sets/[id]',
+  params: credentialSetIdParamsSchema,
+  body: updateCredentialSetBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      credentialSet: credentialSetWriteSchema.passthrough().optional(),
+    }),
+  },
+})
+
 export const listCredentialSetMembershipsContract = defineRouteContract({
   method: 'GET',
   path: '/api/credential-sets/memberships',

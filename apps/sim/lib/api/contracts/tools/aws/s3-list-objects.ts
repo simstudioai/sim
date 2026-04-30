@@ -16,11 +16,29 @@ const S3ListObjectsSchema = z.object({
   continuationToken: z.string().optional().nullable(),
 })
 
+const S3ListObjectsResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    objects: z.array(
+      z.object({
+        key: z.string(),
+        size: z.number(),
+        lastModified: z.string(),
+        etag: z.string(),
+      })
+    ),
+    isTruncated: z.boolean().optional(),
+    nextContinuationToken: z.string().optional(),
+    keyCount: z.number().optional(),
+    prefix: z.string().nullish(),
+  }),
+})
+
 export const awsS3ListObjectsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/s3/list-objects',
   body: S3ListObjectsSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: S3ListObjectsResponseSchema },
 })
 export type AwsS3ListObjectsRequest = ContractBodyInput<typeof awsS3ListObjectsContract>
 export type AwsS3ListObjectsBody = ContractBody<typeof awsS3ListObjectsContract>

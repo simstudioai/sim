@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { copilotModelsQuerySchema } from '@/lib/api/contracts/copilot'
-import { validateSchema } from '@/lib/api/server'
+import { copilotModelsContract } from '@/lib/api/contracts/copilot'
+import { parseRequest } from '@/lib/api/server'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
@@ -34,11 +34,8 @@ function isRawAvailableModel(item: unknown): item is RawAvailableModel {
 }
 
 export const GET = withRouteHandler(async (req: NextRequest) => {
-  const queryValidation = validateSchema(
-    copilotModelsQuerySchema,
-    Object.fromEntries(new URL(req.url).searchParams)
-  )
-  if (!queryValidation.success) return queryValidation.response
+  const parsed = await parseRequest(copilotModelsContract, req, {})
+  if (!parsed.success) return parsed.response
 
   const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
   if (!isAuthenticated || !userId) {

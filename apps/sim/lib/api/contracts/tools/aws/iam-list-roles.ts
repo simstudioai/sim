@@ -21,11 +21,28 @@ const Schema = z.object({
   marker: z.string().optional().nullable(),
 })
 
+const ListRolesResponseSchema = z.object({
+  roles: z.array(
+    z.object({
+      roleName: z.string(),
+      roleId: z.string(),
+      arn: z.string(),
+      path: z.string(),
+      createDate: z.string().nullable(),
+      description: z.string().nullable(),
+      maxSessionDuration: z.number().nullable(),
+    })
+  ),
+  isTruncated: z.boolean(),
+  marker: z.string().nullable(),
+  count: z.number(),
+})
+
 export const awsIamListRolesContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/iam/list-roles',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ListRolesResponseSchema },
 })
 export type AwsIamListRolesRequest = ContractBodyInput<typeof awsIamListRolesContract>
 export type AwsIamListRolesBody = ContractBody<typeof awsIamListRolesContract>

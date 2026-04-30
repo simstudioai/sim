@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { knowledgeTagParamsSchema } from '@/lib/api/contracts/knowledge'
-import { validateSchema } from '@/lib/api/server'
+import { deleteTagDefinitionContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteTagDefinition } from '@/lib/knowledge/tags/service'
@@ -14,15 +14,11 @@ const logger = createLogger('TagDefinitionAPI')
 
 // DELETE /api/knowledge/[id]/tag-definitions/[tagId] - Delete a tag definition
 export const DELETE = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string; tagId: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string; tagId: string }> }) => {
     const requestId = generateId().slice(0, 8)
-    const validation = validateSchema(
-      knowledgeTagParamsSchema,
-      await params,
-      'Invalid request parameters'
-    )
-    if (!validation.success) return validation.response
-    const { id: knowledgeBaseId, tagId } = validation.data
+    const parsed = await parseRequest(deleteTagDefinitionContract, req, context)
+    if (!parsed.success) return parsed.response
+    const { id: knowledgeBaseId, tagId } = parsed.data.params
 
     try {
       logger.info(

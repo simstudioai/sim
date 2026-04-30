@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { postgresqlExecuteContract } from '@/lib/api/contracts/database-tools'
-import { parseDatabaseToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -23,7 +23,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const parsed = await parseDatabaseToolRequest(postgresqlExecuteContract, request, { logger })
+    const parsed = await parseToolRequest(postgresqlExecuteContract, request, { logger })
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 

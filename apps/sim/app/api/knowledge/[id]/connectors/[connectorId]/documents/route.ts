@@ -4,8 +4,8 @@ import { document, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { connectorDocumentsPatchBodySchema } from '@/lib/api/contracts/knowledge'
-import { parseJsonBody, validateSchema } from '@/lib/api/server'
+import { patchKnowledgeConnectorDocumentsContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -121,9 +121,9 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
  * PATCH /api/knowledge/[id]/connectors/[connectorId]/documents
  * Restore or exclude connector documents.
  */
-export const PATCH = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
+export const PATCH = withRouteHandler(async (request: NextRequest, context: RouteParams) => {
   const requestId = generateRequestId()
-  const { id: knowledgeBaseId, connectorId } = await params
+  const { id: knowledgeBaseId, connectorId } = await context.params
 
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -154,17 +154,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       return NextResponse.json({ error: 'Connector not found' }, { status: 404 })
     }
 
-    const parsedBody = await parseJsonBody(request)
-    if (!parsedBody.success) return parsedBody.response
+    const parsed = await parseRequest(patchKnowledgeConnectorDocumentsContract, request, context)
+    if (!parsed.success) return parsed.response
 
-    const validation = validateSchema(
-      connectorDocumentsPatchBodySchema,
-      parsedBody.data,
-      'Invalid request'
-    )
-    if (!validation.success) return validation.response
-
-    const { operation, documentIds } = validation.data
+    const { operation, documentIds } = parsed.data.body
 
     if (operation === 'restore') {
       const updated = await db

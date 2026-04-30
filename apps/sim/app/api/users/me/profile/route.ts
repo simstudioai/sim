@@ -3,8 +3,8 @@ import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateUserProfileBodySchema } from '@/lib/api/contracts'
-import { validateSchema } from '@/lib/api/server'
+import { updateUserProfileContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -31,16 +31,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = session.user.id
-    const body = await request.json()
 
-    const validation = validateSchema(updateUserProfileBodySchema, body, 'Invalid profile data')
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid profile data`, {
-        errors: validation.error.issues,
-      })
-      return validation.response
-    }
-    const validatedData = validation.data
+    const parsed = await parseRequest(updateUserProfileContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const updateData: UpdateData = { updatedAt: new Date() }
     if (validatedData.name !== undefined) updateData.name = validatedData.name

@@ -4,6 +4,7 @@ import path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const API_DIR = path.join(ROOT, 'apps/sim/app/api')
+const CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts')
 const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
@@ -23,6 +24,8 @@ const BOUNDARY_POLICY_BASELINE = {
   clientHookLocalSchemaConstructors: 0,
   clientHookRawFetches: 0,
   doubleCasts: 8,
+  rawJsonReads: 23,
+  untypedResponses: 0,
   annotationsMissingReason: 0,
 } as const
 
@@ -55,13 +58,30 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/workspaces/[id]/pdf/preview/route.ts',
   'apps/sim/app/api/workspaces/[id]/pptx/preview/route.ts',
   'apps/sim/app/api/workspaces/[id]/docx/preview/route.ts',
+  // Routes with no client-supplied input. Auth is handled via session/cron/internal
+  // tokens and there are no params, query, or body to validate. Previously had
+  // no-op `validateSchema(noInputSchema, {})` guards.
+  'apps/sim/app/api/health/route.ts',
+  'apps/sim/app/api/settings/allowed-providers/route.ts',
+  'apps/sim/app/api/settings/allowed-integrations/route.ts',
+  'apps/sim/app/api/settings/allowed-mcp-domains/route.ts',
+  'apps/sim/app/api/cron/cleanup-tasks/route.ts',
+  'apps/sim/app/api/cron/cleanup-soft-deletes/route.ts',
+  'apps/sim/app/api/cron/cleanup-stale-executions/route.ts',
+  'apps/sim/app/api/cron/renew-subscriptions/route.ts',
+  'apps/sim/app/api/logs/cleanup/route.ts',
+  'apps/sim/app/api/knowledge/connectors/sync/route.ts',
+  'apps/sim/app/api/webhooks/outbox/process/route.ts',
+  'apps/sim/app/api/webhooks/cleanup/idempotency/route.ts',
+  // MCP routes that take only auth context (no client-supplied params/query/body).
+  'apps/sim/app/api/mcp/discover/route.ts',
+  'apps/sim/app/api/mcp/tools/stored/route.ts',
 ])
 
 const CONTRACT_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/contracts(?:\/[^'"]*)?['"]/
 const SERVER_VALIDATION_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/server(?:\/validation)?['"]/
 const SCHEMA_PARSE_PATTERN = /\b\w+Schema\.(?:safeParse|parse)\(/
-const VALIDATE_SCHEMA_CALL_PATTERN = /\bvalidateSchema\(\s*\w+Schema\b/
-const CONTRACT_SERVER_HELPER_PATTERN = /\b(?:parseAwsToolRequest|parseDatabaseToolRequest)\(/
+const CONTRACT_SERVER_HELPER_PATTERN = /\bparseToolRequest\(/
 const CANONICAL_HELPER_USAGE_PATTERN =
   /\b(?:isZodError|validationErrorResponse|validationErrorResponseFromError|getValidationErrorMessage)\s*\(/
 const CONTRACT_MAP_PARSE_PATTERN =
@@ -80,8 +100,12 @@ const CONTRACT_DERIVED_WIRE_TYPE_PATTERN =
 const RAW_FETCH_PATTERN = /\bfetch\(/g
 const RAW_FETCH_HELPER_GUARD_PATTERN = /(?:requestJson|requestRaw|prefetchJson|preFetchJson)$/
 const DOUBLE_CAST_PATTERN = /\bas unknown as\b/g
+const RAW_JSON_READ_PATTERN = /\bawait\s+(?:request|req)\.json\s*\(\s*\)/g
+const UNTYPED_RESPONSE_PATTERN = /\bschema\s*:\s*z\.unknown\s*\(\s*\)/g
 const RAW_FETCH_ANNOTATION_PREFIX = '// boundary-raw-fetch:'
 const DOUBLE_CAST_ANNOTATION_PREFIX = '// double-cast-allowed:'
+const RAW_JSON_ANNOTATION_PREFIX = '// boundary-raw-json:'
+const UNTYPED_RESPONSE_ANNOTATION_PREFIX = '// untyped-response:'
 const SOURCE_FILE_EXTENSIONS = /\.(?:ts|tsx)$/
 const TEST_FILE_PATTERN = /(?:\.test|\.spec)\.(?:ts|tsx)$/
 const TEST_HELPER_FILE_PATTERN = /(?:^|\/)test-[^/]+\.ts$/
@@ -97,7 +121,7 @@ const SOURCE_SKIP_DIRS = new Set([
   'uploads',
 ])
 
-type AnnotationKind = 'raw-fetch' | 'double-cast'
+type AnnotationKind = 'raw-fetch' | 'double-cast' | 'raw-json' | 'untyped-response'
 
 interface AnnotationResult {
   allowed: boolean
@@ -111,6 +135,18 @@ interface RawFetchFinding {
 }
 
 interface DoubleCastFinding {
+  path: string
+  line: number
+  preview: string
+}
+
+interface RawJsonFinding {
+  path: string
+  line: number
+  preview: string
+}
+
+interface UntypedResponseFinding {
   path: string
   line: number
   preview: string
@@ -207,7 +243,14 @@ function extractAnnotation(
   lineIndex: number,
   kind: AnnotationKind
 ): AnnotationResult {
-  const prefix = kind === 'raw-fetch' ? RAW_FETCH_ANNOTATION_PREFIX : DOUBLE_CAST_ANNOTATION_PREFIX
+  const prefix =
+    kind === 'raw-fetch'
+      ? RAW_FETCH_ANNOTATION_PREFIX
+      : kind === 'double-cast'
+        ? DOUBLE_CAST_ANNOTATION_PREFIX
+        : kind === 'raw-json'
+          ? RAW_JSON_ANNOTATION_PREFIX
+          : UNTYPED_RESPONSE_ANNOTATION_PREFIX
   const lines = content.split('\n')
   let inspected = 0
 
@@ -360,6 +403,99 @@ function findDoubleCastFindings(
   return { findings, exemptions, missingReasons }
 }
 
+/**
+ * Inspect a route file for `await request.json()` / `await req.json()` reads.
+ *
+ * Annotated reads (`// boundary-raw-json: <reason>` on one of the three
+ * preceding non-empty lines) are treated as exemptions and excluded from
+ * `findings`. An annotation with the prefix but an empty reason is flagged
+ * via `missingReasons` and still counts as a finding.
+ *
+ * Every other raw read becomes a finding and contributes to the
+ * `rawJsonReads` ratcheted metric (counted by unique route file in
+ * `buildBoundaryPolicyMetrics`). Adding a new unannotated raw read pushes
+ * the file count above `BOUNDARY_POLICY_BASELINE.rawJsonReads` and fails
+ * the audit.
+ */
+function findRawJsonFindings(
+  filePath: string,
+  content: string
+): {
+  findings: RawJsonFinding[]
+  exemptions: number
+  missingReasons: AnnotationMissingReasonFinding[]
+} {
+  const relativePath = path.relative(ROOT, filePath)
+  const lines = content.split('\n')
+  const findings: RawJsonFinding[] = []
+  const missingReasons: AnnotationMissingReasonFinding[] = []
+  let exemptions = 0
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] ?? ''
+    RAW_JSON_READ_PATTERN.lastIndex = 0
+    while (RAW_JSON_READ_PATTERN.exec(line) !== null) {
+      const annotation = extractAnnotation(content, i, 'raw-json')
+      if (annotation.missingReason) {
+        missingReasons.push({ path: relativePath, line: i + 1, kind: 'raw-json' })
+        findings.push({ path: relativePath, line: i + 1, preview: buildPreview(line) })
+        continue
+      }
+      if (annotation.allowed) {
+        exemptions += 1
+        continue
+      }
+      findings.push({ path: relativePath, line: i + 1, preview: buildPreview(line) })
+    }
+  }
+
+  return { findings, exemptions, missingReasons }
+}
+
+/**
+ * Inspect a contracts file for `schema: z.unknown()` response declarations.
+ *
+ * Each callsite must carry a `// untyped-response: <reason>` annotation on
+ * one of the three preceding non-empty lines. Annotated callsites become
+ * exemptions; un-annotated callsites become findings that count toward the
+ * `untypedResponses` ratchet. An annotation with the prefix but an empty
+ * reason is flagged via `missingReasons` and still counts as a finding.
+ */
+function findUntypedResponseFindings(
+  filePath: string,
+  content: string
+): {
+  findings: UntypedResponseFinding[]
+  exemptions: number
+  missingReasons: AnnotationMissingReasonFinding[]
+} {
+  const relativePath = path.relative(ROOT, filePath)
+  const lines = content.split('\n')
+  const findings: UntypedResponseFinding[] = []
+  const missingReasons: AnnotationMissingReasonFinding[] = []
+  let exemptions = 0
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] ?? ''
+    UNTYPED_RESPONSE_PATTERN.lastIndex = 0
+    while (UNTYPED_RESPONSE_PATTERN.exec(line) !== null) {
+      const annotation = extractAnnotation(content, i, 'untyped-response')
+      if (annotation.missingReason) {
+        missingReasons.push({ path: relativePath, line: i + 1, kind: 'untyped-response' })
+        findings.push({ path: relativePath, line: i + 1, preview: buildPreview(line) })
+        continue
+      }
+      if (annotation.allowed) {
+        exemptions += 1
+        continue
+      }
+      findings.push({ path: relativePath, line: i + 1, preview: buildPreview(line) })
+    }
+  }
+
+  return { findings, exemptions, missingReasons }
+}
+
 function isClientHookFile(filePath: string): boolean {
   const normalized = filePath.replace(/\\/g, '/')
   return (
@@ -405,15 +541,9 @@ function hasZodUsage(relativePath: string, content: string): boolean {
   }
   if (
     SERVER_VALIDATION_IMPORT_PATTERN.test(content) &&
-    /\b(?:isZodError|validationErrorResponseFromError|validateSchema)\b/.test(content) &&
-    (SCHEMA_PARSE_PATTERN.test(content) || VALIDATE_SCHEMA_CALL_PATTERN.test(content))
+    /\b(?:isZodError|validationErrorResponseFromError)\b/.test(content) &&
+    SCHEMA_PARSE_PATTERN.test(content)
   ) {
-    return true
-  }
-  // Routes that import contract schemas and validate via the v1 helpers
-  // (`validateSchema(schema, ...)` from `@/app/api/v1/knowledge/utils`) rely
-  // on Zod indirectly. Treat them as Zod-backed.
-  if (CONTRACT_IMPORT_PATTERN.test(content) && /\bvalidateSchema\(\w+Schema\b/.test(content)) {
     return true
   }
 
@@ -547,6 +677,8 @@ function buildBoundaryPolicyMetrics(
   queryHookAudits: QueryHookAudit[],
   rawFetchSummary: { findings: RawFetchFinding[]; exemptions: number },
   doubleCastSummary: { findings: DoubleCastFinding[]; exemptions: number },
+  rawJsonSummary: { findings: RawJsonFinding[]; exemptions: number },
+  untypedResponseSummary: { findings: UntypedResponseFinding[]; exemptions: number },
   annotationsMissingReason: AnnotationMissingReasonFinding[]
 ): {
   ratchetedMetrics: BoundaryPolicyMetric[]
@@ -617,6 +749,16 @@ function buildBoundaryPolicyMetrics(
         current: doubleCastSummary.findings.length,
       },
       {
+        key: 'rawJsonReads',
+        label: 'route files with raw await request.json() reads',
+        current: new Set(rawJsonSummary.findings.map((finding) => finding.path)).size,
+      },
+      {
+        key: 'untypedResponses',
+        label: 'contract untyped (z.unknown) response schemas',
+        current: untypedResponseSummary.findings.length,
+      },
+      {
         key: 'annotationsMissingReason',
         label: 'audit annotations missing reason',
         current: annotationsMissingReason.length,
@@ -635,6 +777,14 @@ function buildBoundaryPolicyMetrics(
         label: 'as unknown as double-cast exemptions (annotated)',
         current: doubleCastSummary.exemptions,
       },
+      {
+        label: 'route raw await request.json() annotated exemptions',
+        current: rawJsonSummary.exemptions,
+      },
+      {
+        label: 'contract untyped response annotated exemptions',
+        current: untypedResponseSummary.exemptions,
+      },
     ],
   }
 }
@@ -649,15 +799,23 @@ function printBoundaryPolicyMetric(metric: BoundaryPolicyMetric) {
 function printRawFetchAndDoubleCastMetrics(
   rawFetchFindings: RawFetchFinding[],
   doubleCastFindings: DoubleCastFinding[],
+  rawJsonFindings: RawJsonFinding[],
   annotationsMissingReason: AnnotationMissingReasonFinding[],
   rawFetchExemptions: number,
-  doubleCastExemptions: number
+  doubleCastExemptions: number,
+  rawJsonExemptions: number
 ) {
   console.log('\nRaw fetch and double-cast metrics:')
   console.log(`  client hook raw fetch() calls: ${rawFetchFindings.length}`)
   console.log(`  client hook raw fetch() exemptions (annotated): ${rawFetchExemptions}`)
   console.log(`  as unknown as double-casts (non-test): ${doubleCastFindings.length}`)
   console.log(`  as unknown as double-cast exemptions (annotated): ${doubleCastExemptions}`)
+  const rawJsonFiles = new Set(rawJsonFindings.map((finding) => finding.path)).size
+  console.log(
+    `  route files with raw await request.json() reads: ${rawJsonFiles} (baseline ${BOUNDARY_POLICY_BASELINE.rawJsonReads})`
+  )
+  console.log(`  route raw await request.json() reads (callsites): ${rawJsonFindings.length}`)
+  console.log(`  route raw await request.json() annotated exemptions: ${rawJsonExemptions}`)
   console.log(`  audit annotations missing reason: ${annotationsMissingReason.length}`)
 
   console.log('  raw fetch examples:')
@@ -676,6 +834,14 @@ function printRawFetchAndDoubleCastMetrics(
     console.log(`    ... ${doubleCastFindings.length - 25} more`)
   }
 
+  console.log('  raw await request.json() examples:')
+  for (const finding of rawJsonFindings.slice(0, 25)) {
+    console.log(`    ${finding.path}:${finding.line} ${finding.preview}`)
+  }
+  if (rawJsonFindings.length > 25) {
+    console.log(`    ... ${rawJsonFindings.length - 25} more`)
+  }
+
   console.log('  annotations missing reason (must be 0 for --enforce-boundary-baseline):')
   for (const finding of annotationsMissingReason.slice(0, 25)) {
     console.log(`    ${finding.path}:${finding.line} (${finding.kind})`)
@@ -685,7 +851,7 @@ function printRawFetchAndDoubleCastMetrics(
   }
 
   console.log(
-    '  annotation forms: `// boundary-raw-fetch: <reason>` (raw fetch), `// double-cast-allowed: <reason>` (double-cast)'
+    '  annotation forms: `// boundary-raw-fetch: <reason>` (raw fetch), `// double-cast-allowed: <reason>` (double-cast), `// boundary-raw-json: <reason>` (raw request.json read), `// untyped-response: <reason>` (z.unknown() response schema)'
   )
 }
 
@@ -801,17 +967,24 @@ async function main() {
   const enforceBoundaryBaseline = process.argv.includes('--enforce-boundary-baseline')
   const routeFiles = await walk(API_DIR, (fileName) => fileName === 'route.ts')
   const audits: RouteAudit[] = []
+  const rawJsonFindings: RawJsonFinding[] = []
+  const annotationsMissingReason: AnnotationMissingReasonFinding[] = []
+  let rawJsonExemptions = 0
 
   for (const filePath of routeFiles) {
     const content = await readFile(filePath, 'utf8')
     audits.push(auditRoute(filePath, content))
+
+    const rawJson = findRawJsonFindings(filePath, content)
+    rawJsonFindings.push(...rawJson.findings)
+    rawJsonExemptions += rawJson.exemptions
+    annotationsMissingReason.push(...rawJson.missingReasons)
   }
   const queryHookAudits = await auditQueryHooks()
 
   const sourceFiles = await walkAllSourceFiles(ROOT, true)
   const rawFetchFindings: RawFetchFinding[] = []
   const doubleCastFindings: DoubleCastFinding[] = []
-  const annotationsMissingReason: AnnotationMissingReasonFinding[] = []
   let rawFetchExemptions = 0
   let doubleCastExemptions = 0
 
@@ -831,11 +1004,25 @@ async function main() {
     annotationsMissingReason.push(...doubleCast.missingReasons)
   }
 
+  const contractFiles = await walk(CONTRACTS_DIR, (fileName) => /\.ts$/.test(fileName))
+  const untypedResponseFindings: UntypedResponseFinding[] = []
+  let untypedResponseExemptions = 0
+
+  for (const filePath of contractFiles) {
+    const content = await readFile(filePath, 'utf8')
+    const untyped = findUntypedResponseFindings(filePath, content)
+    untypedResponseFindings.push(...untyped.findings)
+    untypedResponseExemptions += untyped.exemptions
+    annotationsMissingReason.push(...untyped.missingReasons)
+  }
+
   const { ratchetedMetrics, printOnlyMetrics } = buildBoundaryPolicyMetrics(
     audits,
     queryHookAudits,
     { findings: rawFetchFindings, exemptions: rawFetchExemptions },
     { findings: doubleCastFindings, exemptions: doubleCastExemptions },
+    { findings: rawJsonFindings, exemptions: rawJsonExemptions },
+    { findings: untypedResponseFindings, exemptions: untypedResponseExemptions },
     annotationsMissingReason
   )
 
@@ -858,9 +1045,11 @@ async function main() {
   printRawFetchAndDoubleCastMetrics(
     rawFetchFindings,
     doubleCastFindings,
+    rawJsonFindings,
     annotationsMissingReason,
     rawFetchExemptions,
-    doubleCastExemptions
+    doubleCastExemptions,
+    rawJsonExemptions
   )
 
   if (!checkOnly) return

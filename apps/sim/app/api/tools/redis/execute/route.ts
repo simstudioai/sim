@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import Redis from 'ioredis'
 import { type NextRequest, NextResponse } from 'next/server'
 import { redisExecuteContract } from '@/lib/api/contracts/database-tools'
-import { parseDatabaseToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -18,7 +18,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const parsed = await parseDatabaseToolRequest(redisExecuteContract, request, {
+    const parsed = await parseToolRequest(redisExecuteContract, request, {
       errorFormat: 'firstError',
       logger,
     })

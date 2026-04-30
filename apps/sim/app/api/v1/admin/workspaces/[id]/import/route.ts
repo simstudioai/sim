@@ -33,7 +33,7 @@ import {
   adminV1ImportWorkspaceContract,
   adminV1WorkspaceImportBodySchema,
 } from '@/lib/api/contracts'
-import { parseJsonBody, parseRequest, validateSchema } from '@/lib/api/server'
+import { parseJsonBody, parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   extractWorkflowName,
@@ -94,7 +94,7 @@ export const POST = withRouteHandler(
           return badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
         }
 
-        const validation = validateSchema(adminV1WorkspaceImportBodySchema, rawBody.data)
+        const validation = adminV1WorkspaceImportBodySchema.safeParse(rawBody.data)
         if (!validation.success) {
           return badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
         }

@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { webhookPollingParamsSchema } from '@/lib/api/contracts/webhooks'
-import { validateSchema } from '@/lib/api/server'
+import { webhookPollingContract } from '@/lib/api/contracts/webhooks'
+import { parseRequest } from '@/lib/api/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -17,9 +17,10 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 180
 
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ provider: string }> }) => {
-    const paramsResult = validateSchema(webhookPollingParamsSchema, await params)
-    const provider = paramsResult.success ? paramsResult.data.provider : ''
+  async (request: NextRequest, context: { params: Promise<{ provider: string }> }) => {
+    const parsed = await parseRequest(webhookPollingContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { provider } = parsed.data.params
     const requestId = generateShortId()
 
     try {

@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsIamDetachUserPolicyContract } from '@/lib/api/contracts/tools/aws/iam-detach-user-policy'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createIAMClient, detachUserPolicy } from '../utils'
@@ -16,7 +16,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const parsed = await parseAwsToolRequest(awsIamDetachUserPolicyContract, request, {
+    const parsed = await parseToolRequest(awsIamDetachUserPolicyContract, request, {
       errorFormat: 'details',
       logger,
     })

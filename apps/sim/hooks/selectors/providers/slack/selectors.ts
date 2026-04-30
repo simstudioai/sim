@@ -1,5 +1,5 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { ensureCredential, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -16,7 +16,7 @@ export const slackSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'slack.channels')
-      const data = await requestSelectorContract(selectorContracts.slackChannelsSelectorContract, {
+      const data = await requestJson(selectorContracts.slackChannelsSelectorContract, {
         body: {
           credential: credentialId,
           workflowId: context.workflowId,
@@ -41,7 +41,7 @@ export const slackSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'slack.users')
-      const data = await requestSelectorContract(selectorContracts.slackUsersSelectorContract, {
+      const data = await requestJson(selectorContracts.slackUsersSelectorContract, {
         body: {
           credential: credentialId,
           workflowId: context.workflowId,

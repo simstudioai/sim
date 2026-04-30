@@ -6,9 +6,9 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   removeOrganizationMemberQuerySchema,
-  updateOrganizationMemberRoleBodySchema,
+  updateOrganizationMemberRoleContract,
 } from '@/lib/api/contracts/organization'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { getUserUsageData } from '@/lib/billing/core/usage'
@@ -140,10 +140,7 @@ export const GET = withRouteHandler(
  * Update organization member role
  */
 export const PUT = withRouteHandler(
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string; memberId: string }> }
-  ) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string; memberId: string }> }) => {
     try {
       const session = await getSession()
 
@@ -151,18 +148,11 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { id: organizationId, memberId } = await params
-      const body = await request.json()
+      const parsed = await parseRequest(updateOrganizationMemberRoleContract, request, context)
+      if (!parsed.success) return parsed.response
 
-      const validation = updateOrganizationMemberRoleBodySchema.safeParse(body)
-      if (!validation.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(validation.error) },
-          { status: 400 }
-        )
-      }
-
-      const { role } = validation.data
+      const { id: organizationId, memberId } = parsed.data.params
+      const { role } = parsed.data.body
 
       const userMember = await db
         .select()
@@ -259,8 +249,8 @@ export const PUT = withRouteHandler(
       })
     } catch (error) {
       logger.error('Failed to update organization member role', {
-        organizationId: (await params).id,
-        memberId: (await params).memberId,
+        organizationId: (await context.params).id,
+        memberId: (await context.params).memberId,
         error,
       })
 

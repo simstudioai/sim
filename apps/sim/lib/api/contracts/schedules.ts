@@ -212,7 +212,7 @@ export const updateScheduleContract = defineRouteContract({
   method: 'PUT',
   path: '/api/schedules/[id]',
   params: scheduleIdParamsSchema,
-  body: updateScheduleBodySchema,
+  body: scheduleUpdateSchema,
   response: {
     mode: 'json',
     schema: messageResponseSchema,

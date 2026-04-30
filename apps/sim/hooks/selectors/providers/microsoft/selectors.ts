@@ -1,5 +1,5 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { ensureCredential, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -16,25 +16,19 @@ export const microsoftSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'microsoft.planner.plans')
-      const data = await requestSelectorContract(
-        selectorContracts.microsoftPlannerPlansSelectorContract,
-        {
-          body: { credential: credentialId, workflowId: context.workflowId },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.microsoftPlannerPlansSelectorContract, {
+        body: { credential: credentialId, workflowId: context.workflowId },
+        signal,
+      })
       return (data.plans || []).map((plan) => ({ id: plan.id, label: plan.title }))
     },
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'microsoft.planner.plans')
-      const data = await requestSelectorContract(
-        selectorContracts.microsoftPlannerPlansSelectorContract,
-        {
-          body: { credential: credentialId, workflowId: context.workflowId },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.microsoftPlannerPlansSelectorContract, {
+        body: { credential: credentialId, workflowId: context.workflowId },
+        signal,
+      })
       const plan = (data.plans || []).find((p) => p.id === detailId) ?? null
       if (!plan) return null
       return { id: plan.id, label: plan.title }
@@ -52,7 +46,7 @@ export const microsoftSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'outlook.folders')
-      const data = await requestSelectorContract(selectorContracts.outlookFoldersSelectorContract, {
+      const data = await requestJson(selectorContracts.outlookFoldersSelectorContract, {
         query: { credentialId },
         signal,
       })
@@ -74,7 +68,7 @@ export const microsoftSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'microsoft.teams')
-      const data = await requestSelectorContract(selectorContracts.microsoftTeamsSelectorContract, {
+      const data = await requestJson(selectorContracts.microsoftTeamsSelectorContract, {
         body: { credential: credentialId, workflowId: context.workflowId },
         signal,
       })
@@ -96,7 +90,7 @@ export const microsoftSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'microsoft.chats')
-      const data = await requestSelectorContract(selectorContracts.microsoftChatsSelectorContract, {
+      const data = await requestJson(selectorContracts.microsoftChatsSelectorContract, {
         body: { credential: credentialId, workflowId: context.workflowId },
         signal,
       })
@@ -122,17 +116,14 @@ export const microsoftSelectors = {
       if (!context.teamId) {
         throw new Error('Missing team ID for microsoft.channels selector')
       }
-      const data = await requestSelectorContract(
-        selectorContracts.microsoftChannelsSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-            teamId: context.teamId,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.microsoftChannelsSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+          teamId: context.teamId,
+        },
+        signal,
+      })
       return (data.channels || []).map((channel) => ({
         id: channel.id,
         label: channel.displayName,
@@ -155,17 +146,14 @@ export const microsoftSelectors = {
       if (!context.planId) {
         throw new Error('Missing plan ID for microsoft.planner selector')
       }
-      const data = await requestSelectorContract(
-        selectorContracts.microsoftPlannerTasksSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-            planId: context.planId,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.microsoftPlannerTasksSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+          planId: context.planId,
+        },
+        signal,
+      })
       return (data.tasks || []).map((task) => ({
         id: task.id,
         label: task.title,
@@ -174,17 +162,14 @@ export const microsoftSelectors = {
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId || !context.planId) return null
       const credentialId = ensureCredential(context, 'microsoft.planner')
-      const data = await requestSelectorContract(
-        selectorContracts.microsoftPlannerTasksSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-            planId: context.planId,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.microsoftPlannerTasksSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+          planId: context.planId,
+        },
+        signal,
+      })
       const task = (data.tasks || []).find((t) => t.id === detailId) ?? null
       if (!task) return null
       return { id: task.id, label: task.title }
@@ -202,7 +187,7 @@ export const microsoftSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'onedrive.files')
-      const data = await requestSelectorContract(selectorContracts.onedriveFilesSelectorContract, {
+      const data = await requestJson(selectorContracts.onedriveFilesSelectorContract, {
         query: { credentialId },
         signal,
       })
@@ -224,13 +209,10 @@ export const microsoftSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'onedrive.folders')
-      const data = await requestSelectorContract(
-        selectorContracts.onedriveFoldersSelectorContract,
-        {
-          query: { credentialId },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.onedriveFoldersSelectorContract, {
+        query: { credentialId },
+        signal,
+      })
       return (data.files || []).map((file) => ({
         id: file.id,
         label: file.name,
@@ -254,18 +236,15 @@ export const microsoftSelectors = {
       if (!context.spreadsheetId) {
         throw new Error('Missing spreadsheet ID for microsoft.excel.sheets selector')
       }
-      const data = await requestSelectorContract(
-        selectorContracts.microsoftExcelSheetsSelectorContract,
-        {
-          query: {
-            credentialId,
-            spreadsheetId: context.spreadsheetId,
-            driveId: context.driveId,
-            workflowId: context.workflowId,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.microsoftExcelSheetsSelectorContract, {
+        query: {
+          credentialId,
+          spreadsheetId: context.spreadsheetId,
+          driveId: context.driveId,
+          workflowId: context.workflowId,
+        },
+        signal,
+      })
       return (data.sheets || []).map((sheet) => ({
         id: sheet.id,
         label: sheet.name,
@@ -291,17 +270,14 @@ export const microsoftSelectors = {
       if (!context.siteId) {
         throw new Error('Missing site ID for microsoft.excel.drives selector')
       }
-      const data = await requestSelectorContract(
-        selectorContracts.microsoftExcelDrivesSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-            siteId: context.siteId,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.microsoftExcelDrivesSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+          siteId: context.siteId,
+        },
+        signal,
+      })
       return data.drives.map((drive) => ({
         id: drive.id,
         label: drive.name,
@@ -310,18 +286,15 @@ export const microsoftSelectors = {
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId || !context.siteId) return null
       const credentialId = ensureCredential(context, 'microsoft.excel.drives')
-      const data = await requestSelectorContract(
-        selectorContracts.microsoftExcelDriveSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-            siteId: context.siteId,
-            driveId: detailId,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.microsoftExcelDriveSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+          siteId: context.siteId,
+          driveId: detailId,
+        },
+        signal,
+      })
       const { drive } = data
       if (!drive) return null
       return { id: drive.id, label: drive.name }
@@ -341,7 +314,7 @@ export const microsoftSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'microsoft.excel')
-      const data = await requestSelectorContract(selectorContracts.microsoftFilesSelectorContract, {
+      const data = await requestJson(selectorContracts.microsoftFilesSelectorContract, {
         query: {
           credentialId,
           query: search,
@@ -369,7 +342,7 @@ export const microsoftSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'microsoft.word')
-      const data = await requestSelectorContract(selectorContracts.microsoftFilesSelectorContract, {
+      const data = await requestJson(selectorContracts.microsoftFilesSelectorContract, {
         query: {
           credentialId,
           query: search,

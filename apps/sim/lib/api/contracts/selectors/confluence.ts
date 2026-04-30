@@ -313,7 +313,11 @@ const defineConfluencePostContract = <TBody extends z.ZodType>(path: string, bod
     method: 'POST',
     path,
     body,
-    response: { mode: 'json', schema: z.unknown() },
+    response: {
+      mode: 'json',
+      // untyped-response: shared helper for ~16 confluence POST routes, each forwarding a different Atlassian Confluence v2 payload (pages, comments, labels, blogposts, page properties, search, etc.) whose shapes diverge per resource and are version-dependent
+      schema: z.unknown(),
+    },
   })
 
 const defineConfluencePutContract = <TBody extends z.ZodType>(path: string, body: TBody) =>
@@ -321,7 +325,11 @@ const defineConfluencePutContract = <TBody extends z.ZodType>(path: string, body
     method: 'PUT',
     path,
     body,
-    response: { mode: 'json', schema: z.unknown() },
+    response: {
+      mode: 'json',
+      // untyped-response: shared helper for confluence PUT routes (page, comment, blogpost, space, page-properties) that proxy raw Atlassian Confluence v2 update responses whose shape varies per resource
+      schema: z.unknown(),
+    },
   })
 
 const defineConfluenceDeleteContract = <TBody extends z.ZodType>(path: string, body: TBody) =>
@@ -329,7 +337,11 @@ const defineConfluenceDeleteContract = <TBody extends z.ZodType>(path: string, b
     method: 'DELETE',
     path,
     body,
-    response: { mode: 'json', schema: z.unknown() },
+    response: {
+      mode: 'json',
+      // untyped-response: shared helper for confluence DELETE routes returning either a normalized deleted marker, an empty body, or a forwarded Atlassian Confluence v2 response depending on the resource
+      schema: z.unknown(),
+    },
   })
 
 const defineConfluenceGetContract = <TQuery extends z.ZodType>(path: string, query: TQuery) =>
@@ -337,7 +349,11 @@ const defineConfluenceGetContract = <TQuery extends z.ZodType>(path: string, que
     method: 'GET',
     path,
     query,
-    response: { mode: 'json', schema: z.unknown() },
+    response: {
+      mode: 'json',
+      // untyped-response: shared helper for confluence GET listing routes (attachments, blogposts, comments, labels, page-properties, space, spaces, space-labels, pages-by-label) each returning a different paginated Atlassian Confluence v2 shape
+      schema: z.unknown(),
+    },
   })
 
 export const confluenceSpacesSelectorContract = definePostSelector(

@@ -109,10 +109,12 @@ Domain validators that are not HTTP boundaries — tools, blocks, triggers, conn
 
 ### Boundary annotations
 
-A small number of legitimate exceptions to the boundary rules are tolerated when annotated. The audit script recognizes two annotation forms:
+A small number of legitimate exceptions to the boundary rules are tolerated when annotated. The audit script recognizes four annotation forms:
 
 - `// boundary-raw-fetch: <reason>` — placed on the line directly above a raw `fetch(` call inside `apps/sim/hooks/queries/**` or `apps/sim/hooks/selectors/**`. Use only for documented exceptions: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests
 - `// double-cast-allowed: <reason>` — placed on the line directly above an `as unknown as X` cast outside test files
+- `// boundary-raw-json: <reason>` — placed on the line directly above a raw `await request.json()` / `await req.json()` read in a route handler. Use only when the body is a JSON-RPC envelope, a tolerant `.catch(() => ({}))` parse, or otherwise cannot go through `parseRequest`
+- `// untyped-response: <reason>` — placed on the line directly above a `schema: z.unknown()` response declaration in a contract file. Use only when the response body is genuinely opaque (user-supplied data, third-party passthrough)
 
 Placement rule: the annotation must immediately precede the call or cast. Up to three non-empty preceding comment lines are tolerated, so additional context comments above the annotation are fine. The reason must be non-empty after trimming — annotations with empty reasons fail strict mode (`annotationsMissingReason`).
 
@@ -136,8 +138,7 @@ Every API route handler must be wrapped with `withRouteHandler`. This sets up `A
 
 Routes never `import { z } from 'zod'` and never define route-local boundary schemas. They consume the contract from `@/lib/api/contracts/**` and validate with canonical helpers from `@/lib/api/server`:
 
-- `parseRequest(contract, request, context)` — fully contract-bound routes; parses params, query, body, and headers in one call
-- `validateSchema(schema, data)` — for ad-hoc validation against a contract schema or primitive
+- `parseRequest(contract, request, context, options?)` — fully contract-bound routes; parses params, query, body, and headers in one call. Pass `{}` for `context` on routes without route params, or the route's `context` argument when route params exist. Returns a discriminated union; check `parsed.success` and return `parsed.response` on failure
 - `validationErrorResponse(error)` and `getValidationErrorMessage(error, fallback)` — produce 400 responses from a `ZodError`
 - `validationErrorResponseFromError(error)` — when handling unknown caught errors that may or may not be a `ZodError`
 - `isZodError(error)` — type guard. Routes never use `instanceof z.ZodError`
@@ -149,19 +150,17 @@ import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { createFolderContract } from '@/lib/api/contracts/folders'
-import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('FoldersAPI')
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  try {
-    const { body } = await parseRequest(createFolderContract, request)
-    logger.info('Creating folder', { workspaceId: body.workspaceId })
-    return NextResponse.json({ ok: true })
-  } catch (error) {
-    return validationErrorResponseFromError(error)
-  }
+ const parsed = await parseRequest(createFolderContract, request, {})
+ if (!parsed.success) return parsed.response
+ const { body } = parsed.data
+ logger.info('Creating folder', { workspaceId: body.workspaceId })
+ return NextResponse.json({ ok: true })
 })
 ```
 

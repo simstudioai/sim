@@ -1,7 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { noInputSchema } from '@/lib/api/contracts/primitives'
-import { validateSchema } from '@/lib/api/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { dispatchCleanupJobs } from '@/lib/billing/cleanup-dispatcher'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -12,9 +10,6 @@ const logger = createLogger('SoftDeleteCleanupAPI')
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
-    const validation = validateSchema(noInputSchema, {})
-    if (!validation.success) return validation.response
-
     const authError = verifyCronAuth(request, 'soft-delete cleanup')
     if (authError) return authError
 

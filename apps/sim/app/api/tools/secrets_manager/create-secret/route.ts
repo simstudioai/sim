@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsSecretsManagerCreateSecretContract } from '@/lib/api/contracts/tools/aws/secrets-manager-create-secret'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createSecret, createSecretsManagerClient } from '../utils'
@@ -18,7 +18,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const parsed = await parseAwsToolRequest(awsSecretsManagerCreateSecretContract, request, {
+    const parsed = await parseToolRequest(awsSecretsManagerCreateSecretContract, request, {
       errorFormat: 'details',
       logger,
     })

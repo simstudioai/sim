@@ -84,6 +84,22 @@ const apiResponseWithLimitsSchema = z
   })
   .passthrough()
 
+export const listAuditLogsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/audit-logs',
+  query: auditLogsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z
+      .object({
+        success: z.literal(true),
+        data: z.array(z.unknown()),
+        nextCursor: z.string().nullable().optional(),
+      })
+      .passthrough(),
+  },
+})
+
 export const v1ListAuditLogsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/audit-logs',

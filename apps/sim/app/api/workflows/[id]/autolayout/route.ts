@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
-import { workflowAutoLayoutBodySchema } from '@/lib/api/contracts/workflows'
-import { parseJsonBody, validateSchema } from '@/lib/api/server'
+import { workflowAutoLayoutContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -26,10 +26,10 @@ const logger = createLogger('AutoLayoutAPI')
  * Apply autolayout to an existing workflow
  */
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
     const startTime = Date.now()
-    const { id: workflowId } = await params
+    const { id: workflowId } = await context.params
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -40,21 +40,9 @@ export const POST = withRouteHandler(
 
       const userId = auth.userId
 
-      const parsedBody = await parseJsonBody(request)
-      if (!parsedBody.success) return parsedBody.response
-
-      const validation = validateSchema(
-        workflowAutoLayoutBodySchema,
-        parsedBody.data,
-        'Invalid request data'
-      )
-      if (!validation.success) {
-        logger.warn(`[${requestId}] Invalid autolayout request data`, {
-          errors: validation.error.issues,
-        })
-        return validation.response
-      }
-      const layoutOptions = validation.data
+      const parsed = await parseRequest(workflowAutoLayoutContract, request, context)
+      if (!parsed.success) return parsed.response
+      const layoutOptions = parsed.data.body
 
       logger.info(`[${requestId}] Processing autolayout request for workflow ${workflowId}`, {
         userId,

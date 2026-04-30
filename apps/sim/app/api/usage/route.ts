@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateUsageLimitBodySchema, usageQuerySchema } from '@/lib/api/contracts/subscription'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { getUsageLimitContract, updateUsageLimitContract } from '@/lib/api/contracts/subscription'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getUserUsageLimitInfo, updateUserUsageLimit } from '@/lib/billing'
 import {
@@ -26,16 +26,21 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const queryResult = usageQuerySchema.safeParse(
-      Object.fromEntries(request.nextUrl.searchParams.entries())
+    const parsed = await parseRequest(
+      getUsageLimitContract,
+      request,
+      {},
+      {
+        validationErrorResponse: () =>
+          NextResponse.json(
+            { error: 'Invalid context. Must be "user" or "organization"' },
+            { status: 400 }
+          ),
+      }
     )
-    if (!queryResult.success) {
-      return NextResponse.json(
-        { error: 'Invalid context. Must be "user" or "organization"' },
-        { status: 400 }
-      )
-    }
-    const { context, userId = session.user.id, organizationId } = queryResult.data
+    if (!parsed.success) return parsed.response
+
+    const { context, userId = session.user.id, organizationId } = parsed.data.query
 
     if (context === 'user' && userId !== session.user.id) {
       return NextResponse.json(
@@ -94,16 +99,22 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validation = validateSchema(updateUsageLimitBodySchema, body)
+    const parsed = await parseRequest(
+      updateUsageLimitContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          const message = getValidationErrorMessage(error)
+          logger.error('Validation error:', message)
+          return NextResponse.json({ error: message }, { status: 400 })
+        },
+      }
+    )
 
-    if (!validation.success) {
-      const message = getValidationErrorMessage(validation.error)
-      logger.error('Validation error:', message)
-      return NextResponse.json({ error: message }, { status: 400 })
-    }
+    if (!parsed.success) return parsed.response
 
-    const { limit, context, organizationId } = validation.data
+    const { limit, context, organizationId } = parsed.data.body
     const userId = session.user.id
 
     if (context === 'user') {

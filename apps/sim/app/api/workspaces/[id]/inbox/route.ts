@@ -2,8 +2,8 @@ import { db, mothershipInboxTask, workspace } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateInboxConfigBodySchema } from '@/lib/api/contracts/inbox'
-import { validateSchema } from '@/lib/api/server'
+import { updateInboxConfigContract } from '@/lib/api/contracts/inbox'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasInboxAccess } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -78,8 +78,8 @@ export const GET = withRouteHandler(
 )
 
 export const PATCH = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: workspaceId } = await params
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const { id: workspaceId } = await context.params
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -97,13 +97,9 @@ export const PATCH = withRouteHandler(
     }
 
     try {
-      const validation = validateSchema(
-        updateInboxConfigBodySchema,
-        await req.json(),
-        'Invalid request'
-      )
-      if (!validation.success) return validation.response
-      const body = validation.data
+      const parsed = await parseRequest(updateInboxConfigContract, req, context)
+      if (!parsed.success) return parsed.response
+      const body = parsed.data.body
 
       if (body.enabled === true) {
         const [current] = await db

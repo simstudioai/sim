@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { resetPasswordBodySchema } from '@/lib/api/contracts'
+import { resetPasswordContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { auth } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -10,20 +11,21 @@ const logger = createLogger('PasswordResetAPI')
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    const body = await request.json()
+    const parsed = await parseRequest(
+      resetPasswordContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn('Invalid password reset request data', { errors: error.issues })
+          const message = error.issues.map((e) => e.message).join(' ')
+          return NextResponse.json({ message }, { status: 400 })
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const validationResult = resetPasswordBodySchema.safeParse(body)
-
-    if (!validationResult.success) {
-      const errorMessage = validationResult.error.issues.map((e) => e.message).join(' ')
-
-      logger.warn('Invalid password reset request data', {
-        errors: validationResult.error.issues,
-      })
-      return NextResponse.json({ message: errorMessage }, { status: 400 })
-    }
-
-    const { token, newPassword } = validationResult.data
+    const { token, newPassword } = parsed.data.body
 
     await auth.api.resetPassword({
       body: {

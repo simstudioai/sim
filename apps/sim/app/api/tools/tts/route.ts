@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { ttsToolBodySchema } from '@/lib/api/contracts/media-tools'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { ttsToolContract } from '@/lib/api/contracts/media-tools'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
@@ -20,18 +20,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validationResult = validateSchema(ttsToolBodySchema, body)
-    if (!validationResult.success) {
-      return NextResponse.json(
-        {
-          error: getValidationErrorMessage(validationResult.error, 'Missing required parameters'),
-        },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(
+      ttsToolContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Missing required parameters') },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+
     const { text, voiceId, apiKey, modelId, workspaceId, workflowId, executionId } =
-      validationResult.data
+      parsed.data.body
 
     const voiceIdValidation = validateAlphanumericId(voiceId, 'voiceId', 255)
     if (!voiceIdValidation.isValid) {

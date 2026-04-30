@@ -228,4 +228,79 @@ export const deleteMothershipChatContract = defineRouteContract({
   },
 })
 
+export const createMothershipChatResponseSchema = z.object({
+  success: z.literal(true),
+  id: z.string(),
+})
+
+export const mothershipExecuteResponseSchema = z
+  .object({
+    content: z.string().optional(),
+    model: z.literal('mothership'),
+    tokens: z
+      .object({
+        prompt: z.number().optional(),
+        completion: z.number().optional(),
+        total: z.number().optional(),
+      })
+      .passthrough(),
+    cost: z.unknown().optional(),
+    toolCalls: z.array(z.unknown()).optional(),
+  })
+  .passthrough()
+
+const mothershipChatStreamSnapshotSchema = z
+  .object({
+    events: z.array(z.unknown()),
+    previewSessions: z.array(z.unknown()),
+    status: z.string(),
+  })
+  .passthrough()
+
+export const getMothershipChatResponseSchema = z.object({
+  success: z.literal(true),
+  chat: z
+    .object({
+      id: z.string(),
+      title: z.string().nullable(),
+      messages: z.array(z.unknown()),
+      conversationId: z.string().nullable(),
+      resources: z.array(z.unknown()),
+      createdAt: z.union([z.string(), z.date()]).nullable().optional(),
+      updatedAt: z.union([z.string(), z.date()]).nullable().optional(),
+      streamSnapshot: mothershipChatStreamSnapshotSchema.optional(),
+    })
+    .passthrough(),
+})
+
+export const createMothershipChatContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/mothership/chats',
+  body: createMothershipChatBodySchema,
+  response: {
+    mode: 'json',
+    schema: createMothershipChatResponseSchema,
+  },
+})
+
+export const mothershipExecuteContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/mothership/execute',
+  body: mothershipExecuteBodySchema,
+  response: {
+    mode: 'json',
+    schema: mothershipExecuteResponseSchema,
+  },
+})
+
+export const getMothershipChatContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/mothership/chats/[chatId]',
+  params: mothershipChatParamsSchema,
+  response: {
+    mode: 'json',
+    schema: getMothershipChatResponseSchema,
+  },
+})
+
 export type MothershipTask = z.infer<typeof mothershipTaskSchema>

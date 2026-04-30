@@ -32,11 +32,15 @@ const SendEmailSchema = z
     path: ['bodyText'],
   })
 
+const SendEmailResponseSchema = z.object({
+  messageId: z.string(),
+})
+
 export const awsSesSendEmailContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/ses/send-email',
   body: SendEmailSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: SendEmailResponseSchema },
 })
 export type AwsSesSendEmailRequest = ContractBodyInput<typeof awsSesSendEmailContract>
 export type AwsSesSendEmailBody = ContractBody<typeof awsSesSendEmailContract>

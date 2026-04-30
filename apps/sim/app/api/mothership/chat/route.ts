@@ -1,9 +1,9 @@
-import type { NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import {
   mothershipChatGetQuerySchema,
   mothershipChatPostEnvelopeSchema,
 } from '@/lib/api/contracts/mothership-tasks'
-import { validateSchema } from '@/lib/api/server'
+import { validationErrorResponse } from '@/lib/api/server'
 import { handleUnifiedChatPost, maxDuration } from '@/lib/copilot/chat/post'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { GET as copilotChatGet } from '@/app/api/copilot/chat/queries'
@@ -12,11 +12,10 @@ export { maxDuration }
 
 // Unified chat route surface.
 export const GET = withRouteHandler((request: NextRequest) => {
-  const validation = validateSchema(
-    mothershipChatGetQuerySchema,
+  const validation = mothershipChatGetQuerySchema.safeParse(
     Object.fromEntries(request.nextUrl.searchParams.entries())
   )
-  if (!validation.success) return validation.response as NextResponse
+  if (!validation.success) return validationErrorResponse(validation.error)
 
   return copilotChatGet(request)
 })
@@ -27,14 +26,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     .json()
     .catch(() => undefined)
   if (body !== undefined) {
-    const validation = validateSchema(
-      mothershipChatPostEnvelopeSchema,
-      body,
-      'Invalid request body'
-    )
-    if (!validation.success) {
-      return validation.response
-    }
+    const validation = mothershipChatPostEnvelopeSchema.safeParse(body)
+    if (!validation.success) return validationErrorResponse(validation.error)
   }
 
   return handleUnifiedChatPost(request)

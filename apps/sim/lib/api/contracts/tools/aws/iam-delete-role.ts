@@ -23,7 +23,7 @@ export const awsIamDeleteRoleContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/iam/delete-role',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: z.object({ message: z.string() }) },
 })
 export type AwsIamDeleteRoleRequest = ContractBodyInput<typeof awsIamDeleteRoleContract>
 export type AwsIamDeleteRoleBody = ContractBody<typeof awsIamDeleteRoleContract>

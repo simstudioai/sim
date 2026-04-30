@@ -1,3 +1,4 @@
+import type { Stagehand as StagehandType } from '@browserbasehq/stagehand'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { stagehandAgentContract } from '@/lib/api/contracts/internal-tools'
@@ -10,8 +11,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ensureZodObject, normalizeUrl } from '@/app/api/tools/stagehand/utils'
 
 const logger = createLogger('StagehandAgentAPI')
-
-type StagehandType = import('@browserbasehq/stagehand').Stagehand
 
 const BROWSERBASE_API_KEY = env.BROWSERBASE_API_KEY
 const BROWSERBASE_PROJECT_ID = env.BROWSERBASE_PROJECT_ID

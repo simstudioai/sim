@@ -2,10 +2,10 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  renameWorkspaceFileBodySchema,
+  renameWorkspaceFileContract,
   workspaceFileParamsSchema,
 } from '@/lib/api/contracts/workspace-files'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -25,22 +25,19 @@ const logger = createLogger('WorkspaceFileAPI')
  * Rename a workspace file (requires write permission)
  */
 export const PATCH = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string; fileId: string }> }) => {
     const requestId = generateRequestId()
-    const paramsResult = workspaceFileParamsSchema.safeParse(await params)
-    if (!paramsResult.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
-        { status: 400 }
-      )
-    }
-    const { id: workspaceId, fileId } = paramsResult.data
 
     try {
       const session = await getSession()
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
+
+      const parsed = await parseRequest(renameWorkspaceFileContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id: workspaceId, fileId } = parsed.data.params
+      const { name } = parsed.data.body
 
       const userPermission = await getUserEntityPermissions(
         session.user.id,
@@ -53,17 +50,6 @@ export const PATCH = withRouteHandler(
         )
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
-
-      const bodyResult = renameWorkspaceFileBodySchema.safeParse(
-        await request.json().catch(() => ({}))
-      )
-      if (!bodyResult.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(bodyResult.error, 'Name is required') },
-          { status: 400 }
-        )
-      }
-      const { name } = bodyResult.data
 
       const updatedFile = await renameWorkspaceFile(workspaceId, fileId, name)
 

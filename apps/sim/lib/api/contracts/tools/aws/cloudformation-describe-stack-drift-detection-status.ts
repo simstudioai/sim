@@ -13,11 +13,24 @@ const DescribeStackDriftDetectionStatusSchema = z.object({
   stackDriftDetectionId: z.string().min(1, 'Stack drift detection ID is required'),
 })
 
+const DescribeStackDriftDetectionStatusResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    stackId: z.string(),
+    stackDriftDetectionId: z.string(),
+    stackDriftStatus: z.string().optional(),
+    detectionStatus: z.string(),
+    detectionStatusReason: z.string().optional(),
+    driftedStackResourceCount: z.number().optional(),
+    timestamp: z.number().optional(),
+  }),
+})
+
 export const awsCloudformationDescribeStackDriftDetectionStatusContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/cloudformation/describe-stack-drift-detection-status',
   body: DescribeStackDriftDetectionStatusSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: DescribeStackDriftDetectionStatusResponseSchema },
 })
 export type AwsCloudformationDescribeStackDriftDetectionStatusRequest = ContractBodyInput<
   typeof awsCloudformationDescribeStackDriftDetectionStatusContract

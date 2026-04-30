@@ -5,8 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, isNotNull, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createFolderBodySchema, listFoldersQuerySchema } from '@/lib/api/contracts'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { createFolderContract, listFoldersContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -22,17 +22,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const validation = listFoldersQuerySchema.safeParse(Object.fromEntries(searchParams.entries()))
-
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(validation.error) },
-        { status: 400 }
-      )
-    }
-
-    const { workspaceId, scope } = validation.data
+    const parsed = await parseRequest(listFoldersContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { workspaceId, scope } = parsed.data.query
 
     // Check if user has workspace permissions
     const workspacePermission = await getUserEntityPermissions(
@@ -71,12 +63,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validation = validateSchema(createFolderBodySchema, body, 'Invalid request data')
-    if (!validation.success) {
-      logger.warn('Invalid folder creation data', { errors: validation.error.issues })
-      return validation.response
-    }
+    const parsed = await parseRequest(createFolderContract, request, {})
+    if (!parsed.success) return parsed.response
     const {
       id: clientId,
       name,
@@ -84,7 +72,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       parentId,
       color,
       sortOrder: providedSortOrder,
-    } = validation.data
+    } = parsed.data.body
 
     const workspacePermission = await getUserEntityPermissions(
       session.user.id,

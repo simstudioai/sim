@@ -1,3 +1,4 @@
+import type { Logger } from '@sim/logger'
 import { htmlToText } from 'html-to-text'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
@@ -181,7 +182,7 @@ async function fetchNewOutlookEmails(
   accessToken: string,
   config: OutlookWebhookConfig,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ) {
   try {
     const apiUrl = 'https://graph.microsoft.com/v1.0/me/messages'
@@ -294,7 +295,7 @@ async function resolveWellKnownFolderId(
   accessToken: string,
   folderName: string,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<string | null> {
   try {
     const response = await fetchWithRetry(
@@ -325,7 +326,7 @@ async function resolveWellKnownFolderIds(
   accessToken: string,
   folderIds: string[],
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<Map<string, string>> {
   const resolvedIds = new Map<string, string>()
   const wellKnownFolders = folderIds.filter(isWellKnownFolderName)
@@ -381,7 +382,7 @@ async function processOutlookEmails(
   config: OutlookWebhookConfig,
   accessToken: string,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ) {
   let processedCount = 0
   let failedCount = 0
@@ -487,7 +488,7 @@ async function downloadOutlookAttachments(
   accessToken: string,
   messageId: string,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<OutlookAttachment[]> {
   const attachments: OutlookAttachment[] = []
 
@@ -541,11 +542,7 @@ async function downloadOutlookAttachments(
   return attachments
 }
 
-async function markOutlookEmailAsRead(
-  accessToken: string,
-  messageId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
-) {
+async function markOutlookEmailAsRead(accessToken: string, messageId: string, logger: Logger) {
   try {
     const response = await fetchWithRetry(
       `https://graph.microsoft.com/v1.0/me/messages/${messageId}`,

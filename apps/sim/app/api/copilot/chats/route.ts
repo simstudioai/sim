@@ -4,8 +4,8 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createWorkflowCopilotChatBodySchema } from '@/lib/api/contracts/copilot'
-import { validateSchema } from '@/lib/api/server'
+import { createWorkflowCopilotChatContract } from '@/lib/api/contracts/copilot'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -92,12 +92,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const body = await request.json()
-    const validation = validateSchema(createWorkflowCopilotChatBodySchema, body)
-    if (!validation.success) {
-      return createBadRequestResponse('workspaceId and workflowId are required')
-    }
-    const { workspaceId, workflowId } = validation.data
+    const parsed = await parseRequest(
+      createWorkflowCopilotChatContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          validationErrorResponse(error, 'workspaceId and workflowId are required'),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const { workspaceId, workflowId } = parsed.data.body
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
 

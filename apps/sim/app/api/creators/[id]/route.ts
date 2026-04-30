@@ -5,9 +5,9 @@ import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   creatorProfileParamsSchema,
-  updateCreatorProfileBodySchema,
+  updateCreatorProfileContract,
 } from '@/lib/api/contracts/creator-profile'
-import { isZodError, validationErrorResponse } from '@/lib/api/server'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -76,23 +76,26 @@ export const GET = withRouteHandler(
 
 // PUT /api/creators/[id] - Update a creator profile
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const paramsResult = creatorProfileParamsSchema.safeParse(await params)
-    if (!paramsResult.success) {
-      return NextResponse.json({ error: 'Invalid route parameters' }, { status: 400 })
-    }
-    const { id } = paramsResult.data
 
     try {
       const session = await getSession()
       if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized update attempt for profile: ${id}`)
+        logger.warn(`[${requestId}] Unauthorized update attempt`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const body = await request.json()
-      const data = updateCreatorProfileBodySchema.parse(body)
+      const parsed = await parseRequest(updateCreatorProfileContract, request, context, {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid update data`, { errors: error.issues })
+          return validationErrorResponse(error, 'Invalid update data')
+        },
+      })
+      if (!parsed.success) return parsed.response
+
+      const { id } = parsed.data.params
+      const data = parsed.data.body
 
       // Check if profile exists
       const existing = await db
@@ -153,14 +156,7 @@ export const PUT = withRouteHandler(
 
       return NextResponse.json({ data: updated[0] })
     } catch (error) {
-      if (isZodError(error)) {
-        logger.warn(`[${requestId}] Invalid update data for profile: ${id}`, {
-          errors: error.issues,
-        })
-        return validationErrorResponse(error, 'Invalid update data')
-      }
-
-      logger.error(`[${requestId}] Error updating creator profile: ${id}`, error)
+      logger.error(`[${requestId}] Error updating creator profile`, error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
   }

@@ -22,7 +22,7 @@ import {
   textEditorContentReducer,
 } from './text-editor-state'
 
-const SIM_DARK_RULES: import('monaco-editor').editor.ITokenThemeRule[] = [
+const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'comment', foreground: '606060', fontStyle: 'italic' },
   { token: 'string', foreground: '3ab872' },
   { token: 'string.escape', foreground: '3ab872' },
@@ -38,7 +38,7 @@ const SIM_DARK_RULES: import('monaco-editor').editor.ITokenThemeRule[] = [
   { token: 'annotation', foreground: 'ffca28' },
 ]
 
-const SIM_LIGHT_RULES: import('monaco-editor').editor.ITokenThemeRule[] = [
+const SIM_LIGHT_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'comment', foreground: '888888', fontStyle: 'italic' },
   { token: 'string', foreground: '16825d' },
   { token: 'string.escape', foreground: '16825d' },

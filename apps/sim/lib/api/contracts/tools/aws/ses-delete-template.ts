@@ -19,11 +19,15 @@ const DeleteTemplateSchema = z.object({
   templateName: z.string().min(1, 'Template name is required'),
 })
 
+const DeleteTemplateResponseSchema = z.object({
+  message: z.string(),
+})
+
 export const awsSesDeleteTemplateContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/ses/delete-template',
   body: DeleteTemplateSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: DeleteTemplateResponseSchema },
 })
 export type AwsSesDeleteTemplateRequest = ContractBodyInput<typeof awsSesDeleteTemplateContract>
 export type AwsSesDeleteTemplateBody = ContractBody<typeof awsSesDeleteTemplateContract>

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { copilotTrainingDataBodySchema } from '@/lib/api/contracts/copilot'
-import { validateSchema } from '@/lib/api/server'
+import { copilotTrainingDataContract } from '@/lib/api/contracts/copilot'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalApiKey, createUnauthorizedResponse } from '@/lib/copilot/request/http'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -30,19 +30,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const body = await request.json()
-    const validationResult = validateSchema(
-      copilotTrainingDataBodySchema,
-      body,
-      'Invalid training data format'
+    const parsed = await parseRequest(
+      copilotTrainingDataContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn('Invalid training data format', { errors: error.issues })
+          return validationErrorResponse(error, 'Invalid training data format')
+        },
+      }
     )
-
-    if (!validationResult.success) {
-      logger.warn('Invalid training data format', { errors: validationResult.error.issues })
-      return validationResult.response
-    }
-
-    const { title, prompt, input, output, operations } = validationResult.data
+    if (!parsed.success) return parsed.response
+    const { title, prompt, input, output, operations } = parsed.data.body
 
     logger.info('Sending training data to agent indexer', {
       title,

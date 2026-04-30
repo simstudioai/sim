@@ -2,11 +2,8 @@ import { db, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import {
-  deploymentVersionPatchBodySchema,
-  deploymentVersionRouteParamsSchema,
-} from '@/lib/api/contracts/deployments'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { updateDeploymentVersionMetadataContract } from '@/lib/api/contracts/deployments'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -25,14 +22,7 @@ export const GET = withRouteHandler(
     { params }: { params: Promise<{ id: string; version: string }> }
   ) => {
     const requestId = generateRequestId()
-    const paramsValidation = validateSchema(deploymentVersionRouteParamsSchema, await params)
-    if (!paramsValidation.success) {
-      return createErrorResponse(
-        getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
-        400
-      )
-    }
-    const { id, version } = paramsValidation.data
+    const { id, version } = await params
 
     try {
       const { error } = await validateWorkflowPermissions(id, requestId, 'read')
@@ -72,32 +62,18 @@ export const GET = withRouteHandler(
 )
 
 export const PATCH = withRouteHandler(
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string; version: string }> }
-  ) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string; version: string }> }) => {
     const requestId = generateRequestId()
-    const paramsValidation = validateSchema(deploymentVersionRouteParamsSchema, await params)
-    if (!paramsValidation.success) {
-      return createErrorResponse(
-        getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
-        400
-      )
-    }
-    const { id, version } = paramsValidation.data
 
     try {
-      const body = await request.json()
-      const validation = validateSchema(deploymentVersionPatchBodySchema, body)
+      const parsed = await parseRequest(updateDeploymentVersionMetadataContract, request, context, {
+        validationErrorResponse: (error) =>
+          createErrorResponse(getValidationErrorMessage(error, 'Invalid request body'), 400),
+      })
+      if (!parsed.success) return parsed.response
 
-      if (!validation.success) {
-        return createErrorResponse(
-          getValidationErrorMessage(validation.error, 'Invalid request body'),
-          400
-        )
-      }
-
-      const { name, description, isActive } = validation.data
+      const { id, version } = parsed.data.params
+      const { name, description, isActive } = parsed.data.body
 
       // Activation requires admin permission, other updates require write
       const requiredPermission = isActive ? 'admin' : 'write'
@@ -110,10 +86,7 @@ export const PATCH = withRouteHandler(
         return createErrorResponse(error.message, error.status)
       }
 
-      const versionNum = Number(version)
-      if (!Number.isFinite(versionNum)) {
-        return createErrorResponse('Invalid version', 400)
-      }
+      const versionNum = version
 
       // Handle activation
       if (isActive) {
@@ -234,10 +207,7 @@ export const PATCH = withRouteHandler(
 
       return createSuccessResponse({ name: updated.name, description: updated.description })
     } catch (error: any) {
-      logger.error(
-        `[${requestId}] Error updating deployment version ${version} for workflow ${id}`,
-        error
-      )
+      logger.error(`[${requestId}] Error updating deployment version`, error)
       return createErrorResponse(error.message || 'Failed to update deployment version', 500)
     }
   }

@@ -1,7 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { purchaseCreditsBodySchema } from '@/lib/api/contracts/subscription'
+import { purchaseCreditsContract } from '@/lib/api/contracts/subscription'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getCreditBalance } from '@/lib/billing/credits/balance'
 import { purchaseCredits } from '@/lib/billing/credits/purchase'
@@ -34,20 +35,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-    const validation = purchaseCreditsBodySchema.safeParse(body)
-
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Invalid amount. Must be between $10 and $1000' },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(
+      purchaseCreditsContract,
+      request,
+      {},
+      {
+        validationErrorResponse: () =>
+          NextResponse.json(
+            { error: 'Invalid amount. Must be between $10 and $1000' },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
     const result = await purchaseCredits({
       userId: session.user.id,
-      amountDollars: validation.data.amount,
-      requestId: validation.data.requestId,
+      amountDollars: parsed.data.body.amount,
+      requestId: parsed.data.body.requestId,
     })
 
     if (!result.success) {
@@ -60,11 +65,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       actorEmail: session.user.email,
       action: AuditAction.CREDIT_PURCHASED,
       resourceType: AuditResourceType.BILLING,
-      resourceId: validation.data.requestId,
-      description: `Purchased $${validation.data.amount} in credits`,
+      resourceId: parsed.data.body.requestId,
+      description: `Purchased $${parsed.data.body.amount} in credits`,
       metadata: {
-        amountDollars: validation.data.amount,
-        requestId: validation.data.requestId,
+        amountDollars: parsed.data.body.amount,
+        requestId: parsed.data.body.requestId,
       },
       request,
     })

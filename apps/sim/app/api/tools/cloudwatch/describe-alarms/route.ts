@@ -8,7 +8,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsCloudwatchDescribeAlarmsContract } from '@/lib/api/contracts/tools/aws/cloudwatch-describe-alarms'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -21,7 +21,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const parsed = await parseAwsToolRequest(awsCloudwatchDescribeAlarmsContract, request, {
+    const parsed = await parseToolRequest(awsCloudwatchDescribeAlarmsContract, request, {
       errorFormat: 'details',
       logger,
     })

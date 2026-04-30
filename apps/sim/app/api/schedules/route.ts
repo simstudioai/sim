@@ -6,8 +6,8 @@ import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createScheduleBodySchema, scheduleQuerySchema } from '@/lib/api/contracts/schedules'
-import { validateSchema } from '@/lib/api/server'
+import { createScheduleContract, scheduleQuerySchema } from '@/lib/api/contracts/schedules'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -27,11 +27,10 @@ const logger = createLogger('ScheduledAPI')
 export const GET = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   const url = new URL(req.url)
-  const queryValidation = validateSchema(
-    scheduleQuerySchema,
+  const queryValidation = scheduleQuerySchema.safeParse(
     Object.fromEntries(url.searchParams.entries())
   )
-  if (!queryValidation.success) return queryValidation.response
+  if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
   const { workflowId, workspaceId, blockId } = queryValidation.data
 
   try {
@@ -207,18 +206,22 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const bodyResult = createScheduleBodySchema.safeParse(await req.json())
-    if (!bodyResult.success) {
-      return NextResponse.json(
-        {
-          error: 'Invalid request body',
-          details: bodyResult.error.issues,
-        },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(
+      createScheduleContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { error: 'Invalid request body', details: error.issues },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+
     const { workspaceId, title, prompt, cronExpression, timezone, lifecycle, maxRuns, startDate } =
-      bodyResult.data
+      parsed.data.body
 
     const hasPermission = await verifyWorkspaceMembership(session.user.id, workspaceId)
     if (!hasPermission) {

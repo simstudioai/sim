@@ -19,11 +19,46 @@ const IntrospectSchema = z.object({
   tableName: z.string().optional(),
 })
 
+const KeySchemaEntrySchema = z.object({
+  attributeName: z.string(),
+  keyType: z.enum(['HASH', 'RANGE']),
+})
+
+const SecondaryIndexSchema = z.object({
+  indexName: z.string(),
+  keySchema: z.array(KeySchemaEntrySchema),
+  projectionType: z.string(),
+  indexStatus: z.string(),
+})
+
+const TableDetailsSchema = z.object({
+  tableName: z.string(),
+  tableStatus: z.string(),
+  keySchema: z.array(KeySchemaEntrySchema),
+  attributeDefinitions: z.array(
+    z.object({
+      attributeName: z.string(),
+      attributeType: z.enum(['S', 'N', 'B']),
+    })
+  ),
+  globalSecondaryIndexes: z.array(SecondaryIndexSchema),
+  localSecondaryIndexes: z.array(SecondaryIndexSchema),
+  itemCount: z.number(),
+  tableSizeBytes: z.number(),
+  billingMode: z.string(),
+})
+
+const IntrospectResponseSchema = z.object({
+  message: z.string(),
+  tables: z.array(z.string()),
+  tableDetails: TableDetailsSchema.optional(),
+})
+
 export const awsDynamodbIntrospectContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/dynamodb/introspect',
   body: IntrospectSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: IntrospectResponseSchema },
 })
 export type AwsDynamodbIntrospectRequest = ContractBodyInput<typeof awsDynamodbIntrospectContract>
 export type AwsDynamodbIntrospectBody = ContractBody<typeof awsDynamodbIntrospectContract>

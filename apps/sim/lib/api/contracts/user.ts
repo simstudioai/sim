@@ -158,6 +158,18 @@ export const resetPasswordBodySchema = z.object({
 
 export type ResetPasswordBody = z.input<typeof resetPasswordBodySchema>
 
+export const resetPasswordContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/auth/reset-password',
+  body: resetPasswordBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+    }),
+  },
+})
+
 export const unsubscribeBodySchema = z.object({
   email: z.string().email('Invalid email address'),
   token: z.string().min(1, 'Token is required'),
@@ -167,6 +179,62 @@ export const unsubscribeBodySchema = z.object({
 export const unsubscribeQuerySchema = z.object({
   email: z.string().min(1),
   token: z.string().min(1),
+})
+
+const unsubscribePreferencesSchema = z
+  .object({
+    unsubscribeAll: z.boolean().optional(),
+    unsubscribeMarketing: z.boolean().optional(),
+    unsubscribeUpdates: z.boolean().optional(),
+    unsubscribeNotifications: z.boolean().optional(),
+  })
+  .passthrough()
+
+export const unsubscribeGetResponseSchema = z.object({
+  success: z.literal(true),
+  email: z.string(),
+  token: z.string(),
+  emailType: z.string(),
+  isTransactional: z.boolean(),
+  currentPreferences: unsubscribePreferencesSchema,
+})
+
+export const unsubscribeActionResponseSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  email: z.string(),
+  type: z.enum(['all', 'marketing', 'updates', 'notifications']),
+  emailType: z.string(),
+})
+
+export const unsubscribeGetContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/users/me/settings/unsubscribe',
+  query: unsubscribeQuerySchema,
+  response: {
+    mode: 'json',
+    schema: unsubscribeGetResponseSchema,
+  },
+})
+
+export const unsubscribeFormContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/users/me/settings/unsubscribe',
+  query: unsubscribeQuerySchema,
+  response: {
+    mode: 'json',
+    schema: unsubscribeActionResponseSchema,
+  },
+})
+
+export const unsubscribePostContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/users/me/settings/unsubscribe',
+  body: unsubscribeBodySchema,
+  response: {
+    mode: 'json',
+    schema: unsubscribeActionResponseSchema,
+  },
 })
 
 export const usageLogsQuerySchema = z.object({

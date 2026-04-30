@@ -3,8 +3,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createInboxSenderBodySchema, deleteInboxSenderBodySchema } from '@/lib/api/contracts/inbox'
-import { validateSchema } from '@/lib/api/server'
+import { addInboxSenderContract, removeInboxSenderContract } from '@/lib/api/contracts/inbox'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasInboxAccess } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -69,8 +69,8 @@ export const GET = withRouteHandler(
 )
 
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: workspaceId } = await params
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const { id: workspaceId } = await context.params
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -88,13 +88,9 @@ export const POST = withRouteHandler(
     }
 
     try {
-      const validation = validateSchema(
-        createInboxSenderBodySchema,
-        await req.json(),
-        'Invalid request'
-      )
-      if (!validation.success) return validation.response
-      const { email, label } = validation.data
+      const parsed = await parseRequest(addInboxSenderContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { email, label } = parsed.data.body
       const normalizedEmail = email.toLowerCase()
 
       const [existing] = await db
@@ -132,8 +128,8 @@ export const POST = withRouteHandler(
 )
 
 export const DELETE = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: workspaceId } = await params
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const { id: workspaceId } = await context.params
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -151,13 +147,9 @@ export const DELETE = withRouteHandler(
     }
 
     try {
-      const validation = validateSchema(
-        deleteInboxSenderBodySchema,
-        await req.json(),
-        'Invalid request'
-      )
-      if (!validation.success) return validation.response
-      const { senderId } = validation.data
+      const parsed = await parseRequest(removeInboxSenderContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { senderId } = parsed.data.body
 
       await db
         .delete(mothershipInboxAllowedSender)

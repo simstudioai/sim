@@ -4,8 +4,8 @@ import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateOrganizationWhitelabelBodySchema } from '@/lib/api/contracts/organization'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { updateOrganizationWhitelabelContract } from '@/lib/api/contracts/organization'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
@@ -69,7 +69,7 @@ export const GET = withRouteHandler(
  * Requires enterprise plan and owner/admin role.
  */
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
       const session = await getSession()
 
@@ -77,17 +77,13 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { id: organizationId } = await params
+      const parsed = await parseRequest(updateOrganizationWhitelabelContract, request, context, {
+        validationErrorResponse: (err) => validationErrorResponse(err, 'Invalid request body'),
+      })
+      if (!parsed.success) return parsed.response
 
-      const body = await request.json()
-      const parsed = updateOrganizationWhitelabelBodySchema.safeParse(body)
-
-      if (!parsed.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(parsed.error, 'Invalid request body') },
-          { status: 400 }
-        )
-      }
+      const { id: organizationId } = parsed.data.params
+      const incoming = parsed.data.body
 
       const [memberEntry] = await db
         .select({ role: member.role })
@@ -131,7 +127,6 @@ export const PUT = withRouteHandler(
       }
 
       const current: OrganizationWhitelabelSettings = currentOrg.whitelabelSettings ?? {}
-      const incoming = parsed.data
 
       const merged: OrganizationWhitelabelSettings = { ...current }
 

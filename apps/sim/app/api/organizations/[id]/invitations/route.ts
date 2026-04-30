@@ -5,11 +5,10 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  createOrganizationInvitationBodySchema,
-  organizationInvitationsQuerySchema,
+  inviteOrganizationMembersContract,
   organizationParamsSchema,
 } from '@/lib/api/contracts/organization'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import {
   validateBulkInvitations,
@@ -101,48 +100,24 @@ export const GET = withRouteHandler(
 )
 
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
       const session = await getSession()
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const paramsResult = organizationParamsSchema.safeParse(await params)
-      if (!paramsResult.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
-          { status: 400 }
-        )
-      }
+      const parsed = await parseRequest(inviteOrganizationMembersContract, request, context)
+      if (!parsed.success) return parsed.response
 
-      const { id: organizationId } = paramsResult.data
+      const { id: organizationId } = parsed.data.params
 
       await validateInvitationsAllowed(session.user.id, { organizationId })
 
-      const queryResult = organizationInvitationsQuerySchema.safeParse(
-        Object.fromEntries(new URL(request.url).searchParams.entries())
-      )
-      if (!queryResult.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(queryResult.error, 'Invalid query parameters') },
-          { status: 400 }
-        )
-      }
-      const validateOnly = queryResult.data.validate === true
-      const isBatch = queryResult.data.batch === true
+      const validateOnly = parsed.data.query.validate === true
+      const isBatch = parsed.data.query.batch === true
 
-      const bodyResult = createOrganizationInvitationBodySchema.safeParse(
-        await request.json().catch(() => ({}))
-      )
-      if (!bodyResult.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(bodyResult.error, 'Invalid request body') },
-          { status: 400 }
-        )
-      }
-
-      const { email, emails, role = 'member', workspaceInvitations } = bodyResult.data
+      const { email, emails, role = 'member', workspaceInvitations } = parsed.data.body
       const invitationEmails = email ? [email] : emails
 
       if (!invitationEmails || !Array.isArray(invitationEmails) || invitationEmails.length === 0) {
