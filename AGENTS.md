@@ -14,12 +14,14 @@ You are a professional software engineer. All code must follow best practices: a
 ## Architecture
 
 ### Core Principles
+
 1. Single Responsibility: Each component, hook, store has one clear purpose
 2. Composition Over Complexity: Break down complex logic into smaller pieces
 3. Type Safety First: TypeScript interfaces for all props, state, return types
 4. Predictable State: Zustand for global state, useState for UI-only concerns
 
 ### Root Structure
+
 ```
 apps/
 ├── sim/                    # Next.js app (UI + API routes + workflow editor)
@@ -52,12 +54,14 @@ packages/
 ```
 
 ### Package boundaries
+
 - `apps/* → packages/*` only. Packages never import from `apps/*`.
 - Each package has explicit subpath `exports` maps; no barrels that accidentally pull in heavy halves.
 - `apps/realtime` intentionally avoids Next.js, React, the block/tool registry, provider SDKs, and the executor. CI enforces this via `scripts/check-monorepo-boundaries.ts` and `scripts/check-realtime-prune-graph.ts`.
 - Auth is shared across services via the Better Auth "Shared Database Session" pattern: both apps read the same `BETTER_AUTH_SECRET` and point at the same DB via `@sim/db`.
 
 ### Naming Conventions
+
 - Components: PascalCase (`WorkflowList`)
 - Hooks: `use` prefix (`useWorkflowOperations`)
 - Files: kebab-case (`workflow-list.tsx`)
@@ -80,6 +84,7 @@ import { useWorkflowStore } from '../../../stores/workflows/store'
 Use barrel exports (`index.ts`) when a folder has 3+ exports. Do not re-export from non-barrel files; import directly from the source.
 
 ### Import Order
+
 1. React/core libraries
 2. External libraries
 3. UI components (`@/components/emcn`, `@/components/ui`)
@@ -184,6 +189,28 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 ```
 
 Routes under `apps/sim/app/api/v1/**` use the shared middleware in `apps/sim/app/api/v1/middleware.ts` for auth, rate-limit, and workspace access. Compose contract validation inside that middleware — never reimplement auth/rate-limit per-route.
+
+### Adding a new boundary feature end-to-end
+
+When adding a new route + client surface, follow this order. Each step has one place it lives.
+
+1. **Author the contract first** in `apps/sim/lib/api/contracts/<domain>.ts` (or a subdirectory for large domains: `knowledge/`, `selectors/`, `tools/`). Define one schema per request slice (`params`, `query`, `body`, `headers`) and one for the response, then wrap with `defineRouteContract`. Export named type aliases (`z.input` for inputs, `z.output` for outputs).
+2. **Implement the route** in `apps/sim/app/api/<path>/route.ts`. Auth always runs **before** `parseRequest` — never validate untrusted input before authenticating the caller. The route returns exactly the shape declared in `contract.response.schema`.
+3. **Add the React Query hook** in `apps/sim/hooks/queries/<domain>.ts`. Use `requestJson(contract, input)` for the call. Build a hierarchical query-key factory (`all` → `lists()` → `list(workspaceId)` → `details()` → `detail(id)`) so invalidations can target prefixes.
+4. **Use the hook in the component**. The mutation's `data` and `error` are fully typed from the contract; surface `error.message` (already extracted from the response body's `error` or `message` field by `requestJson`).
+
+### Schema review checklist (read the contract diff like a DB migration)
+
+LLMs will write contracts that compile but are sloppy. The human reviewer should optimize attention on:
+
+- **`required` vs `optional` vs `nullable` is correct**. `optional()` allows omission; `nullable()` allows `null`; chaining both creates a tri-state that's almost never what you want.
+- **Response schema matches the route's actual JSON output**. The most common drift bug — route emits a field the schema doesn't declare, or omits a required field. Walk every `NextResponse.json(...)` callsite against the schema.
+- **Error messages are descriptive**. `'fileName cannot be empty'` beats `'Required'`. Use the second arg of `min(1, '...')`, `nonempty('...')`, etc. For cross-field refines, use `superRefine` with a `path` and a message that names the failing field.
+- **Bounds are set** on arrays (`.min(1)`, `.max(N)`), strings (`.min(1).max(N)` for IDs/names), and numbers (`.min().max()` for limits/sizes).
+- **`z.unknown()` is a smell** unless the data is genuinely arbitrary (provider passthrough, user-defined tool result, JSON-RPC envelope). When kept, must be annotated `// untyped-response: <specific reason>` in a `schema:` slot.
+- **Discriminated unions over plain unions** when the wire has a discriminant field — gives clients exhaustive narrowing.
+
+CI (`bun run check:api-validation:strict`) catches structural violations (Zod imports in routes, raw `request.json()`, double casts, missing annotations). It does **not** catch these schema-quality judgments — that's the human's job in PR review.
 
 ## Hooks
 
@@ -404,6 +431,7 @@ tools/{service}/
 ```
 
 **Tool structure:**
+
 ```typescript
 export const serviceTool: ToolConfig<Params, Response> = {
   id: 'service_action',
@@ -442,6 +470,7 @@ Register in `blocks/registry.ts` (alphabetically).
 **Important:** `tools.config.tool` runs during serialization (before variable resolution). Never do `Number()` or other type coercions there — dynamic references like `<Block.output>` will be destroyed. Use `tools.config.params` for type coercions (it runs during execution, after variables are resolved).
 
 **SubBlock Properties:**
+
 ```typescript
 {
   id: 'field', title: 'Label', type: 'short-input', placeholder: '...',
@@ -453,6 +482,7 @@ Register in `blocks/registry.ts` (alphabetically).
 ```
 
 **condition examples:**
+
 - `{ field: 'op', value: 'send' }` - show when op === 'send'
 - `{ field: 'op', value: ['a','b'] }` - show when op is 'a' OR 'b'
 - `{ field: 'op', value: 'x', not: true }` - show when op !== 'x'
@@ -461,6 +491,7 @@ Register in `blocks/registry.ts` (alphabetically).
 **dependsOn:** `['field']` or `{ all: ['a'], any: ['b', 'c'] }`
 
 **File Input Pattern (basic/advanced mode):**
+
 ```typescript
 // Basic: file-upload UI
 { id: 'uploadFile', type: 'file-upload', canonicalParamId: 'file', mode: 'basic' },
@@ -469,6 +500,7 @@ Register in `blocks/registry.ts` (alphabetically).
 ```
 
 In `tools.config.tool`, normalize with:
+
 ```typescript
 import { normalizeFileInput } from '@/blocks/utils'
 const file = normalizeFileInput(params.uploadFile || params.fileRef, { single: true })
@@ -498,12 +530,13 @@ Register in `triggers/registry.ts`.
 
 ### Integration Checklist
 
-- [ ] Look up API docs
-- [ ] Create `tools/{service}/` with types and tools
-- [ ] Register tools in `tools/registry.ts`
-- [ ] Add icon to `components/icons.tsx`
-- [ ] Create block in `blocks/blocks/{service}.ts`
-- [ ] Register block in `blocks/registry.ts`
-- [ ] (Optional) Create and register triggers
-- [ ] (If file uploads) Create internal API route with `downloadFileFromStorage`
-- [ ] (If file uploads) Use `normalizeFileInput` in block config
+- Look up API docs
+- Create `tools/{service}/` with types and tools
+- Register tools in `tools/registry.ts`
+- Add icon to `components/icons.tsx`
+- Create block in `blocks/blocks/{service}.ts`
+- Register block in `blocks/registry.ts`
+- (Optional) Create and register triggers
+- (If file uploads) Create internal API route with `downloadFileFromStorage`
+- (If file uploads) Use `normalizeFileInput` in block config
+
