@@ -199,22 +199,25 @@ async function resolveProvider(
   const azureApiKey = env.AZURE_OPENAI_API_KEY
   const azureEndpoint = env.AZURE_OPENAI_ENDPOINT
   const azureApiVersion = env.AZURE_OPENAI_API_VERSION
-  const azureDeploymentName = env.KB_OPENAI_MODEL_NAME
   const isOpenAIModel = SUPPORTED_EMBEDDING_MODELS[embeddingModel]?.provider === 'openai'
-  const useAzure = Boolean(
-    isOpenAIModel && azureApiKey && azureEndpoint && azureApiVersion && azureDeploymentName
-  )
+  /**
+   * Azure deployment names default to the embedding model name when
+   * `KB_OPENAI_MODEL_NAME` is unset — this matches the pre-existing
+   * convention where deployments are named after the model they host.
+   */
+  const azureDeploymentName = env.KB_OPENAI_MODEL_NAME || embeddingModel
+  const useAzure = Boolean(isOpenAIModel && azureApiKey && azureEndpoint && azureApiVersion)
 
   const info = getEmbeddingModelInfo(embeddingModel)
 
   if (useAzure) {
     return {
-      modelName: azureDeploymentName!,
+      modelName: azureDeploymentName,
       pricingId: info.pricingId,
       isBYOK: false,
       tokenizerProvider: info.tokenizerProvider,
       buildRequest: buildAzureOpenAIProvider(
-        azureDeploymentName!,
+        azureDeploymentName,
         azureApiKey!,
         azureEndpoint!,
         azureApiVersion!
