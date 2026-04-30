@@ -609,7 +609,8 @@ export function useForkTask(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: forkChat,
-    onSuccess: (data, variables) => {
+    onSuccess: async (data, variables) => {
+      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
       const existing = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
       if (existing) {
         const sourceTask = existing.find((t) => t.id === variables.chatId)
