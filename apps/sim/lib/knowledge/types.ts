@@ -34,7 +34,7 @@ export interface CreateKnowledgeBaseData {
   name: string
   description?: string
   workspaceId: string
-  embeddingModel: 'text-embedding-3-small'
+  embeddingModel: string
   embeddingDimension: 1536
   chunkingConfig: ChunkingConfig
   userId: string

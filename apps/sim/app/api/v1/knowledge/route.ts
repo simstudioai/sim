@@ -6,6 +6,7 @@ import {
 } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
 import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
 import { formatKnowledgeBase, handleError } from '@/app/api/v1/knowledge/utils'
 import { authenticateRequest, validateWorkspaceAccess } from '@/app/api/v1/middleware'
@@ -63,8 +64,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         description,
         workspaceId,
         userId,
-        embeddingModel: 'text-embedding-3-small',
-        embeddingDimension: 1536,
+        embeddingModel: getConfiguredEmbeddingModel(),
+        embeddingDimension: EMBEDDING_DIMENSIONS,
         chunkingConfig: chunkingConfig ?? { maxSize: 1024, minSize: 100, overlap: 200 },
       },
       requestId

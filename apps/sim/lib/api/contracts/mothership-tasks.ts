@@ -228,6 +228,25 @@ export const deleteMothershipChatContract = defineRouteContract({
   },
 })
 
+export const forkMothershipChatBodySchema = z.object({
+  upToMessageId: z.string().min(1, 'upToMessageId is required'),
+})
+export type ForkMothershipChatBody = z.input<typeof forkMothershipChatBodySchema>
+
+export const forkMothershipChatContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/mothership/chats/[chatId]/fork',
+  params: mothershipChatParamsSchema,
+  body: forkMothershipChatBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      id: z.string(),
+    }),
+  },
+})
+
 export const createMothershipChatResponseSchema = z.object({
   success: z.literal(true),
   id: z.string(),

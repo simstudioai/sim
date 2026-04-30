@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DEFAULT_RERANKER_MODEL, rerankerModelSchema } from '@/lib/knowledge/reranker-models'
 
 export const knowledgeSearchTagFilterSchema = z.object({
   tagName: z.string(),
@@ -33,6 +34,8 @@ export const knowledgeSearchBodySchema = z
       .optional()
       .nullable()
       .transform((val) => val || undefined),
+    rerankerEnabled: z.boolean().optional().default(false),
+    rerankerModel: rerankerModelSchema.optional().default(DEFAULT_RERANKER_MODEL),
   })
   .refine(
     (data) => {

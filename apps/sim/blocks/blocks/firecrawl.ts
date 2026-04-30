@@ -1,6 +1,7 @@
 import { FirecrawlIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, SubBlockType } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { FirecrawlResponse } from '@/tools/firecrawl/types'
 
 export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
@@ -28,8 +29,38 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
         { label: 'Map', id: 'map' },
         { label: 'Extract', id: 'extract' },
         { label: 'Agent', id: 'agent' },
+        { label: 'Parse Document', id: 'parse' },
       ],
       value: () => 'scrape',
+    },
+    {
+      id: 'fileUpload',
+      title: 'Document',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'document',
+      acceptedTypes:
+        'application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.oasis.opendocument.text,application/rtf,text/rtf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/html',
+      placeholder: 'Upload a document (PDF, DOCX, HTML, XLSX, etc.)',
+      mode: 'basic',
+      maxSize: 50,
+      condition: {
+        field: 'operation',
+        value: 'parse',
+      },
+      required: true,
+    },
+    {
+      id: 'fileReference',
+      title: 'File Reference',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'document',
+      placeholder: 'File reference from previous block',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'parse',
+      },
+      required: true,
     },
     {
       id: 'url',
@@ -180,7 +211,7 @@ Example 2 - Product Data:
       type: 'switch',
       condition: {
         field: 'operation',
-        value: 'scrape',
+        value: ['scrape', 'parse'],
       },
     },
     {
@@ -190,7 +221,7 @@ Example 2 - Product Data:
       placeholder: '["markdown", "html"]',
       condition: {
         field: 'operation',
-        value: 'scrape',
+        value: ['scrape', 'parse'],
       },
     },
     {
@@ -219,7 +250,7 @@ Example 2 - Product Data:
       placeholder: '60000',
       condition: {
         field: 'operation',
-        value: ['scrape', 'search'],
+        value: ['scrape', 'search', 'parse'],
       },
     },
     {
@@ -230,6 +261,83 @@ Example 2 - Product Data:
       condition: {
         field: 'operation',
         value: ['crawl', 'map', 'search'],
+      },
+    },
+    {
+      id: 'includeTags',
+      title: 'Include Tags',
+      type: 'long-input',
+      placeholder: '["article", "main"]',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'parse',
+      },
+    },
+    {
+      id: 'excludeTags',
+      title: 'Exclude Tags',
+      type: 'long-input',
+      placeholder: '["nav", "footer"]',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'parse',
+      },
+    },
+    {
+      id: 'parsers',
+      title: 'Parsers',
+      type: 'long-input',
+      placeholder: '[{"type": "pdf", "mode": "auto"}]',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'parse',
+      },
+    },
+    {
+      id: 'removeBase64Images',
+      title: 'Remove Base64 Images',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'parse',
+      },
+    },
+    {
+      id: 'blockAds',
+      title: 'Block Ads',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'parse',
+      },
+    },
+    {
+      id: 'proxy',
+      title: 'Proxy Mode',
+      type: 'dropdown',
+      options: [
+        { id: 'basic', label: 'Basic' },
+        { id: 'auto', label: 'Auto' },
+      ],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'parse',
+      },
+    },
+    {
+      id: 'zeroDataRetention',
+      title: 'Zero Data Retention',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'parse',
       },
     },
     {
@@ -278,6 +386,7 @@ Example 2 - Product Data:
       'firecrawl_map',
       'firecrawl_extract',
       'firecrawl_agent',
+      'firecrawl_parse',
     ],
     config: {
       tool: (params) => {
@@ -294,6 +403,8 @@ Example 2 - Product Data:
             return 'firecrawl_extract'
           case 'agent':
             return 'firecrawl_agent'
+          case 'parse':
+            return 'firecrawl_parse'
           default:
             return 'firecrawl_scrape'
         }
@@ -375,6 +486,68 @@ Example 2 - Product Data:
             if (prompt) result.prompt = prompt
             break
 
+          case 'parse': {
+            const file = normalizeFileInput(params.document, { single: true })
+            if (!file) {
+              throw new Error('A document file is required for the parse operation')
+            }
+            result.file = file
+            if (formats) {
+              if (Array.isArray(formats)) {
+                result.formats = formats
+              } else if (typeof formats === 'string') {
+                try {
+                  const parsed = JSON.parse(formats)
+                  result.formats = Array.isArray(parsed) ? parsed : ['markdown']
+                } catch {
+                  result.formats = ['markdown']
+                }
+              }
+            }
+            if (onlyMainContent != null) result.onlyMainContent = onlyMainContent
+            if (timeout) result.timeout = Number.parseInt(timeout)
+
+            const parseStringArray = (value: unknown): string[] | undefined => {
+              if (Array.isArray(value)) return value as string[]
+              if (typeof value === 'string' && value.trim() !== '') {
+                try {
+                  const parsed = JSON.parse(value)
+                  return Array.isArray(parsed) ? parsed : undefined
+                } catch {
+                  return undefined
+                }
+              }
+              return undefined
+            }
+
+            const includeTagsParsed = parseStringArray(params.includeTags)
+            if (includeTagsParsed) result.includeTags = includeTagsParsed
+
+            const excludeTagsParsed = parseStringArray(params.excludeTags)
+            if (excludeTagsParsed) result.excludeTags = excludeTagsParsed
+
+            if (params.parsers) {
+              if (Array.isArray(params.parsers)) {
+                result.parsers = params.parsers
+              } else if (typeof params.parsers === 'string' && params.parsers.trim() !== '') {
+                try {
+                  const parsed = JSON.parse(params.parsers)
+                  if (Array.isArray(parsed)) result.parsers = parsed
+                } catch {
+                  // Skip invalid parsers config
+                }
+              }
+            }
+
+            if (params.removeBase64Images != null)
+              result.removeBase64Images = params.removeBase64Images
+            if (params.blockAds != null) result.blockAds = params.blockAds
+            if (params.proxy) result.proxy = params.proxy
+            if (params.zeroDataRetention != null)
+              result.zeroDataRetention = params.zeroDataRetention
+            break
+          }
+
           case 'agent':
             if (agentPrompt) result.prompt = agentPrompt
             if (agentUrls) {
@@ -451,6 +624,14 @@ Example 2 - Product Data:
     },
     maxCredits: { type: 'number', description: 'Maximum credits to spend' },
     strictConstrainToURLs: { type: 'boolean', description: 'Limit agent to provided URLs only' },
+    document: { type: 'json', description: 'Document input (file upload or file reference)' },
+    includeTags: { type: 'json', description: 'HTML tags to include during parsing' },
+    excludeTags: { type: 'json', description: 'HTML tags to exclude during parsing' },
+    parsers: { type: 'json', description: 'Parser configuration (e.g., [{"type": "pdf"}])' },
+    removeBase64Images: { type: 'boolean', description: 'Remove base64 images, keep alt text' },
+    blockAds: { type: 'boolean', description: 'Block ads and popups during parsing' },
+    proxy: { type: 'string', description: 'Proxy mode (basic or auto)' },
+    zeroDataRetention: { type: 'boolean', description: 'Enable zero data retention' },
   },
   outputs: {
     // Scrape output
@@ -471,5 +652,9 @@ Example 2 - Product Data:
     // Agent output
     status: { type: 'string', description: 'Agent job status' },
     expiresAt: { type: 'string', description: 'Result expiration timestamp' },
+    // Parse output
+    summary: { type: 'string', description: 'Generated summary of the parsed document' },
+    rawHtml: { type: 'string', description: 'Unprocessed raw HTML from the parsed document' },
+    screenshot: { type: 'string', description: 'Screenshot URL or base64 (when requested)' },
   },
 }

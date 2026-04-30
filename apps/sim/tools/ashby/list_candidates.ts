@@ -1,5 +1,10 @@
 import type { AshbyListCandidatesParams, AshbyListCandidatesResponse } from '@/tools/ashby/types'
-import { CANDIDATE_OUTPUTS, mapCandidate } from '@/tools/ashby/utils'
+import {
+  ashbyAuthHeaders,
+  ashbyErrorMessage,
+  CANDIDATE_OUTPUTS,
+  mapCandidate,
+} from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCandidatesTool: ToolConfig<
@@ -30,19 +35,27 @@ export const listCandidatesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Number of results per page (default 100)',
     },
+    createdAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Only return candidates created after this ISO 8601 timestamp (e.g. 2024-01-01T00:00:00Z)',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/candidate.list',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.cursor) body.cursor = params.cursor
       if (params.perPage) body.limit = params.perPage
+      if (params.createdAfter) {
+        const ms = new Date(params.createdAfter).getTime()
+        if (!Number.isNaN(ms)) body.createdAfter = ms
+      }
       return body
     },
   },
@@ -51,7 +64,7 @@ export const listCandidatesTool: ToolConfig<
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to list candidates')
+      throw new Error(ashbyErrorMessage(data, 'Failed to list candidates'))
     }
 
     return {

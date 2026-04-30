@@ -10,6 +10,7 @@ import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
 import {
   createKnowledgeBase,
   getKnowledgeBases,
@@ -88,9 +89,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const validatedData = parsed.data.body
 
     try {
+      const embeddingModel = getConfiguredEmbeddingModel()
+
       const createData = {
         ...validatedData,
         userId: session.user.id,
+        embeddingModel,
+        embeddingDimension: EMBEDDING_DIMENSIONS,
       }
 
       const newKnowledgeBase = await createKnowledgeBase(createData, requestId)
@@ -136,8 +141,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         metadata: {
           name: validatedData.name,
           description: validatedData.description,
-          embeddingModel: validatedData.embeddingModel,
-          embeddingDimension: validatedData.embeddingDimension,
+          embeddingModel,
+          embeddingDimension: EMBEDDING_DIMENSIONS,
           chunkingStrategy: validatedData.chunkingConfig.strategy,
           chunkMaxSize: validatedData.chunkingConfig.maxSize,
           chunkMinSize: validatedData.chunkingConfig.minSize,

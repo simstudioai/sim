@@ -128,6 +128,45 @@ export const updateWorkspaceFileContentContract = defineRouteContract({
   },
 })
 
+const documentStyleSummarySchema = z
+  .object({
+    format: z.enum(['docx', 'pptx']),
+    theme: z
+      .object({
+        name: z.string(),
+        colors: z.record(z.string(), z.string()),
+        fonts: z.object({ major: z.string(), minor: z.string() }),
+      })
+      .passthrough(),
+    styles: z.array(z.object({}).passthrough()).optional(),
+  })
+  .passthrough()
+
+export const workspaceFileStyleContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/files/[fileId]/style',
+  params: workspaceFileParamsSchema,
+  response: {
+    mode: 'json',
+    schema: documentStyleSummarySchema,
+  },
+})
+
+const compiledCheckResponseSchema = z.union([
+  z.object({ ok: z.literal(true) }),
+  z.object({ ok: z.literal(false), error: z.string(), errorName: z.string() }),
+])
+
+export const workspaceFileCompiledCheckContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/files/[fileId]/compiled-check',
+  params: workspaceFileParamsSchema,
+  response: {
+    mode: 'json',
+    schema: compiledCheckResponseSchema,
+  },
+})
+
 export const v1ListFilesContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/files',

@@ -1,3 +1,4 @@
+import { DEFAULT_RERANKER_MODEL, SUPPORTED_RERANKER_MODELS } from '@/lib/knowledge/reranker-models'
 import type { KnowledgeSearchResponse } from '@/tools/knowledge/types'
 import { enrichKBTagFiltersSchema } from '@/tools/schema-enrichers'
 import { parseTagFilters } from '@/tools/shared/tags'
@@ -41,6 +42,18 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
         },
       },
     },
+    rerankerEnabled: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Whether to apply Cohere reranking to vector search results',
+    },
+    rerankerModel: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: `Cohere rerank model to use (one of: ${SUPPORTED_RERANKER_MODELS.join(', ')})`,
+    },
   },
 
   schemaEnrichment: {
@@ -65,11 +78,18 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       // Parse tag filters from various formats (array, JSON string)
       const structuredFilters = parseTagFilters(params.tagFilters)
 
+      const rerankerEnabled = params.rerankerEnabled === true || params.rerankerEnabled === 'true'
+      const rerankerModel =
+        typeof params.rerankerModel === 'string' && params.rerankerModel.length > 0
+          ? params.rerankerModel
+          : DEFAULT_RERANKER_MODEL
+
       const requestBody = {
         knowledgeBaseIds,
         query: params.query,
         topK: params.topK ? Math.max(1, Math.min(100, Number(params.topK))) : 10,
         ...(structuredFilters.length > 0 && { tagFilters: structuredFilters }),
+        ...(rerankerEnabled && { rerankerEnabled: true, rerankerModel }),
         ...(workflowId && { workflowId }),
       }
 
@@ -83,9 +103,25 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
     // Restructure cost: extract tokens/model to top level for logging
     let costFields: Record<string, unknown> = {}
     if (data.cost && typeof data.cost === 'object') {
-      const { tokens, model, input, output: outputCost, total } = data.cost
+      const {
+        tokens,
+        model,
+        input,
+        output: outputCost,
+        total,
+        rerankerCost,
+        rerankerModel,
+        rerankerSearchUnits,
+      } = data.cost
       costFields = {
-        cost: { input, output: outputCost, total },
+        cost: {
+          input,
+          output: outputCost,
+          total,
+          ...(typeof rerankerCost === 'number' && { rerankerCost }),
+          ...(typeof rerankerModel === 'string' && { rerankerModel }),
+          ...(typeof rerankerSearchUnits === 'number' && { rerankerSearchUnits }),
+        },
         ...(tokens && { tokens }),
         ...(model && { model }),
       }

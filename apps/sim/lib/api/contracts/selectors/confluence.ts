@@ -163,9 +163,7 @@ export const confluenceCreatePagePropertyBodySchema = confluencePageScopedSchema
 export const confluenceUpdatePagePropertyBodySchema = confluenceCreatePagePropertyBodySchema.extend(
   {
     propertyId: z.string({ error: 'Property ID is required' }).min(1, 'Property ID is required'),
-    versionNumber: z
-      .number({ error: 'Version number is required' })
-      .min(1, 'Version number is required'),
+    versionNumber: z.number().min(1).optional(),
   }
 )
 

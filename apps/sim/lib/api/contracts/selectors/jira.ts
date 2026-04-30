@@ -64,6 +64,7 @@ export const jiraIssuesBodySchema = z.object({
 })
 
 export const jiraParentReferenceSchema = z.union([
+  z.string().min(1),
   z.object({ key: z.string().min(1) }).passthrough(),
   z.object({ id: z.string().min(1) }).passthrough(),
 ])

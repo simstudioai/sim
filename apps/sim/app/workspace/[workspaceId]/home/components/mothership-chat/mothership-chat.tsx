@@ -217,6 +217,7 @@ export function MothershipChat({
                         chatId={chatId}
                         userQuery={precedingUserContent}
                         requestId={msg.requestId}
+                        messageId={msg.id}
                       />
                     </div>
                   )}

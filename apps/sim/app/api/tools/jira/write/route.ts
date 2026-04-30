@@ -95,8 +95,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       fields.description = toAdf(description)
     }
 
-    if (parent !== undefined && parent !== null) {
-      fields.parent = parent
+    if (parent !== undefined && parent !== null && parent !== '') {
+      if (typeof parent === 'string') {
+        fields.parent = /^\d+$/.test(parent) ? { id: parent } : { key: parent }
+      } else if (typeof parent === 'object') {
+        fields.parent = parent
+      }
     }
 
     if (priority !== undefined && priority !== null && priority !== '') {

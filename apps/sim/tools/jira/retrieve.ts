@@ -232,7 +232,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
   request: {
     url: (params: JiraRetrieveParams) => {
       if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -251,7 +251,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     }
 
     const fetchIssue = async (cloudId: string) => {
-      const issueUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params.issueKey}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations`
+      const issueUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations`
       const issueResponse = await fetch(issueUrl, {
         method: 'GET',
         headers: {
@@ -273,7 +273,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     }
 
     const fetchSupplementary = async (cloudId: string, data: any) => {
-      const base = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params.issueKey}`
+      const base = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}`
       const [commentsResp, worklogResp, watchersResp] = await Promise.all([
         fetch(`${base}/comment?maxResults=100&orderBy=-created`, {
           headers: { Accept: 'application/json', Authorization: `Bearer ${params.accessToken}` },

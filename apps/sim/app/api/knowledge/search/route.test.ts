@@ -432,6 +432,7 @@ describe('Knowledge Search API Route', () => {
           userId: 'user-123',
           name: 'Test KB',
           deletedAt: null,
+          embeddingModel: 'text-embedding-3-small',
         },
       })
 
@@ -524,6 +525,7 @@ describe('Knowledge Search API Route', () => {
             userId: 'user-123',
             name: 'Test KB',
             deletedAt: null,
+            embeddingModel: 'text-embedding-3-small',
           },
         })
 
@@ -571,6 +573,7 @@ describe('Knowledge Search API Route', () => {
             userId: 'user-123',
             name: 'Test KB',
             deletedAt: null,
+            embeddingModel: 'text-embedding-3-small',
           },
         })
 
@@ -625,6 +628,7 @@ describe('Knowledge Search API Route', () => {
             userId: 'user-123',
             name: 'Test KB',
             deletedAt: null,
+            embeddingModel: 'text-embedding-3-small',
           },
         })
 
@@ -694,6 +698,7 @@ describe('Knowledge Search API Route', () => {
           userId: 'user-123',
           name: 'Test KB',
           deletedAt: null,
+          embeddingModel: 'text-embedding-3-small',
         },
       })
 
@@ -739,6 +744,7 @@ describe('Knowledge Search API Route', () => {
           userId: 'user-123',
           name: 'Test KB',
           deletedAt: null,
+          embeddingModel: 'text-embedding-3-small',
         },
       })
 
@@ -877,6 +883,7 @@ describe('Knowledge Search API Route', () => {
           userId: 'user-123',
           name: 'Test KB',
           deletedAt: null,
+          embeddingModel: 'text-embedding-3-small',
         },
       })
 
@@ -921,11 +928,17 @@ describe('Knowledge Search API Route', () => {
             userId: 'user-123',
             name: 'Test KB',
             deletedAt: null,
+            embeddingModel: 'text-embedding-3-small',
           },
         })
         .mockResolvedValueOnce({
           hasAccess: true,
-          knowledgeBase: { id: 'kb-456', userId: 'user-123', name: 'Test KB 2' },
+          knowledgeBase: {
+            id: 'kb-456',
+            userId: 'user-123',
+            name: 'Test KB 2',
+            embeddingModel: 'text-embedding-3-small',
+          },
         })
 
       mockGetDocumentTagDefinitions.mockResolvedValue(mockTagDefinitions)

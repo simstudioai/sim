@@ -16,6 +16,7 @@ export const byokProviderIdSchema = z.enum([
   'google_cloud',
   'parallel_ai',
   'brandfetch',
+  'cohere',
 ])
 
 export const byokKeySchema = z.object({

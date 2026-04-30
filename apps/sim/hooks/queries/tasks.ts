@@ -3,6 +3,7 @@ import { requestJson } from '@/lib/api/client/request'
 import {
   addMothershipChatResourceContract,
   deleteMothershipChatContract,
+  forkMothershipChatContract,
   listMothershipChatsContract,
   type MothershipTask,
   removeMothershipChatResourceContract,
@@ -521,6 +522,46 @@ export function useMarkTaskUnread(workspaceId?: string) {
       if (context?.previousTasks) {
         queryClient.setQueryData(taskKeys.list(workspaceId), context.previousTasks)
       }
+    },
+  })
+}
+
+async function forkChat(params: {
+  chatId: string
+  upToMessageId: string
+}): Promise<{ id: string }> {
+  const data = await requestJson(forkMothershipChatContract, {
+    params: { chatId: params.chatId },
+    body: { upToMessageId: params.upToMessageId },
+  })
+  return { id: data.id }
+}
+
+export function useForkTask(workspaceId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: forkChat,
+    onSuccess: async (data, variables) => {
+      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
+      const existing = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
+      if (existing) {
+        const sourceTask = existing.find((t) => t.id === variables.chatId)
+        const baseName = (sourceTask?.name ?? 'New task').replace(/^Fork \| /, '')
+        const optimisticTask: TaskMetadata = {
+          id: data.id,
+          name: `Fork | ${baseName}`,
+          updatedAt: new Date(),
+          isActive: false,
+          isUnread: false,
+        }
+        queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [
+          optimisticTask,
+          ...existing,
+        ])
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
     },
   })
 }

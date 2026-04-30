@@ -212,6 +212,7 @@ describe('Knowledge Utils', () => {
         id: 'kb1',
         userId: 'user1',
         workspaceId: null,
+        embeddingModel: 'text-embedding-3-small',
         chunkingConfig: { maxSize: 1024, minSize: 1, overlap: 200 },
       })
       docRows.push({ id: 'doc1', knowledgeBaseId: 'kb1' })
@@ -370,7 +371,7 @@ describe('Knowledge Utils', () => {
       Object.keys(env).forEach((key) => delete (env as any)[key])
 
       await expect(generateEmbeddings(['test text'])).rejects.toThrow(
-        'Either OPENAI_API_KEY or Azure OpenAI configuration (AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT) must be configured'
+        'OPENAI_API_KEY is not configured'
       )
     })
   })
