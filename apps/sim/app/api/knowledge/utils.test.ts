@@ -212,6 +212,7 @@ describe('Knowledge Utils', () => {
         id: 'kb1',
         userId: 'user1',
         workspaceId: null,
+        embeddingModel: 'text-embedding-3-small',
         chunkingConfig: { maxSize: 1024, minSize: 1, overlap: 200 },
       })
       docRows.push({ id: 'doc1', knowledgeBaseId: 'kb1' })

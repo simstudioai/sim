@@ -150,10 +150,12 @@ export async function rerank<T extends RerankItem>(
   )
 
   return {
-    results: response.results.map((r) => ({
-      item: cappedItems[r.index],
-      relevanceScore: r.relevance_score,
-    })),
+    results: response.results
+      .filter((r) => r.index >= 0 && r.index < cappedItems.length)
+      .map((r) => ({
+        item: cappedItems[r.index],
+        relevanceScore: r.relevance_score,
+      })),
     isBYOK,
   }
 }

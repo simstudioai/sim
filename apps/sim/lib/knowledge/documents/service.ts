@@ -34,6 +34,7 @@ import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import {
   buildUndefinedTagsError,
@@ -43,6 +44,7 @@ import {
   validateTagValue,
 } from '@/lib/knowledge/tags/utils'
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
+import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
@@ -533,6 +535,8 @@ export async function processDocumentAsync(
 
         logger.info(`[${documentId}] Creating embedding records with tags`)
 
+        const tokenizerProvider = getEmbeddingModelInfo(kbEmbeddingModel).tokenizerProvider
+
         const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
           id: generateId(),
           knowledgeBaseId,
@@ -541,7 +545,7 @@ export async function processDocumentAsync(
           chunkHash: sha256Hex(chunk.text),
           content: chunk.text,
           contentLength: chunk.text.length,
-          tokenCount: Math.ceil(chunk.text.length / 4),
+          tokenCount: estimateTokenCount(chunk.text, tokenizerProvider),
           embedding: embeddings[chunkIndex] || null,
           embeddingModel: kbEmbeddingModel,
           startOffset: chunk.metadata.startIndex,
