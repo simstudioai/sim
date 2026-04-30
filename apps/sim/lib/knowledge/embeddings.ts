@@ -173,6 +173,22 @@ function buildGeminiProvider(modelName: string, apiKey: string): ResolvedProvide
   })
 }
 
+/**
+ * Resolve the Azure deployment name for a given OpenAI embedding model.
+ * Returns null if no deployment is configured for that model — caller falls
+ * back to direct OpenAI rather than risk routing to a wrong-model deployment
+ * (which would silently produce mismatched vectors).
+ */
+function resolveAzureDeployment(embeddingModel: string): string | null {
+  if (embeddingModel === 'text-embedding-3-small') {
+    return env.AZURE_OPENAI_DEPLOYMENT_TEXT_EMBEDDING_3_SMALL || env.KB_OPENAI_MODEL_NAME || null
+  }
+  if (embeddingModel === 'text-embedding-3-large') {
+    return env.AZURE_OPENAI_DEPLOYMENT_TEXT_EMBEDDING_3_LARGE || null
+  }
+  return null
+}
+
 async function resolveProvider(
   embeddingModel: string,
   workspaceId?: string | null
@@ -180,18 +196,17 @@ async function resolveProvider(
   const azureApiKey = env.AZURE_OPENAI_API_KEY
   const azureEndpoint = env.AZURE_OPENAI_ENDPOINT
   const azureApiVersion = env.AZURE_OPENAI_API_VERSION
-  const useAzure =
-    !!(azureApiKey && azureEndpoint) &&
-    SUPPORTED_EMBEDDING_MODELS[embeddingModel]?.provider === 'openai'
+  const isOpenAIModel = SUPPORTED_EMBEDDING_MODELS[embeddingModel]?.provider === 'openai'
+  const azureDeployment =
+    isOpenAIModel && azureApiKey && azureEndpoint ? resolveAzureDeployment(embeddingModel) : null
 
-  if (useAzure) {
-    const deployment = env.KB_OPENAI_MODEL_NAME || embeddingModel
+  if (azureDeployment) {
     return {
-      modelName: deployment,
+      modelName: azureDeployment,
       pricingId: getEmbeddingModelInfo(embeddingModel).pricingId,
       isBYOK: false,
       buildRequest: buildAzureOpenAIProvider(
-        deployment,
+        azureDeployment,
         azureApiKey!,
         azureEndpoint!,
         azureApiVersion!,

@@ -21,7 +21,7 @@ import {
   handleVectorOnlySearch,
   type SearchResult,
 } from '@/app/api/knowledge/search/utils'
-import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
+import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
 import { getRerankModelPricing } from '@/providers/models'
 import { calculateCost } from '@/providers/utils'
 
@@ -243,18 +243,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       const accessibleKbs = accessChecks
-        .filter(
-          (
-            ac
-          ): ac is {
-            hasAccess: true
-            knowledgeBase: {
-              id: string
-              embeddingModel: string
-              workspaceId?: string | null
-            }
-          } => Boolean(ac?.hasAccess)
-        )
+        .filter((ac): ac is KnowledgeBaseAccessResult => Boolean(ac?.hasAccess))
         .map((ac) => ac.knowledgeBase)
       const workspaceId = accessibleKbs[0]?.workspaceId
 
