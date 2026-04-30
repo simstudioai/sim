@@ -494,10 +494,13 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
           plusMenuRef.current?.moveActive(-1)
           return
         }
-        if (e.key === 'Tab' && !e.shiftKey) {
-          e.preventDefault()
-          if (plusMenuRef.current?.selectActive()) return
-          return
+        if ((e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey) {
+          // Confirm the highlighted match if there is one. If no items match, fall
+          // through so Enter still submits and Tab still does its default thing.
+          if (plusMenuRef.current?.selectActive()) {
+            e.preventDefault()
+            return
+          }
         }
       }
 

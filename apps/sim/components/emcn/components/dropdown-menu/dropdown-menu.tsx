@@ -111,7 +111,7 @@ const DropdownMenuContent = React.forwardRef<
         'z-[var(--z-dropdown)] max-h-[240px] min-w-[8rem] max-w-[220px] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm',
         className
       )}
-      {...(props as React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>)}
+      {...props}
     />
   </DropdownMenuPrimitive.Portal>
 ))
