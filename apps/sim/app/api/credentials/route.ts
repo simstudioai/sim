@@ -5,7 +5,13 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  createWorkspaceCredentialContract,
+  credentialsListGetQuerySchema,
+  normalizeCredentialEnvKey,
+  serviceAccountJsonSchema,
+} from '@/lib/api/contracts/credentials'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -15,142 +21,8 @@ import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
-import { isValidEnvVarName } from '@/executor/constants'
 
 const logger = createLogger('CredentialsAPI')
-
-const credentialTypeSchema = z.enum(['oauth', 'env_workspace', 'env_personal', 'service_account'])
-
-function normalizeEnvKeyInput(raw: string): string {
-  const trimmed = raw.trim()
-  const wrappedMatch = /^\{\{\s*([A-Za-z0-9_]+)\s*\}\}$/.exec(trimmed)
-  return wrappedMatch ? wrappedMatch[1] : trimmed
-}
-
-const listCredentialsSchema = z.object({
-  workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
-  type: credentialTypeSchema.optional(),
-  providerId: z.string().optional(),
-  credentialId: z.string().optional(),
-})
-
-const serviceAccountJsonSchema = z
-  .string()
-  .min(1, 'Service account JSON key is required')
-  .transform((val, ctx) => {
-    try {
-      const parsed = JSON.parse(val)
-      if (parsed.type !== 'service_account') {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'JSON key must have type "service_account"',
-        })
-        return z.NEVER
-      }
-      if (!parsed.client_email || typeof parsed.client_email !== 'string') {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'JSON key must contain a valid client_email',
-        })
-        return z.NEVER
-      }
-      if (!parsed.private_key || typeof parsed.private_key !== 'string') {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'JSON key must contain a valid private_key',
-        })
-        return z.NEVER
-      }
-      if (!parsed.project_id || typeof parsed.project_id !== 'string') {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'JSON key must contain a valid project_id',
-        })
-        return z.NEVER
-      }
-      return parsed as {
-        type: 'service_account'
-        client_email: string
-        private_key: string
-        project_id: string
-        [key: string]: unknown
-      }
-    } catch {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Invalid JSON format',
-      })
-      return z.NEVER
-    }
-  })
-
-const createCredentialSchema = z
-  .object({
-    workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
-    type: credentialTypeSchema,
-    displayName: z.string().trim().min(1).max(255).optional(),
-    description: z.string().trim().max(500).optional(),
-    providerId: z.string().trim().min(1).optional(),
-    accountId: z.string().trim().min(1).optional(),
-    envKey: z.string().trim().min(1).optional(),
-    envOwnerUserId: z.string().trim().min(1).optional(),
-    serviceAccountJson: z.string().optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.type === 'oauth') {
-      if (!data.accountId) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'accountId is required for oauth credentials',
-          path: ['accountId'],
-        })
-      }
-      if (!data.providerId) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'providerId is required for oauth credentials',
-          path: ['providerId'],
-        })
-      }
-      if (!data.displayName) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'displayName is required for oauth credentials',
-          path: ['displayName'],
-        })
-      }
-      return
-    }
-
-    if (data.type === 'service_account') {
-      if (!data.serviceAccountJson) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'serviceAccountJson is required for service account credentials',
-          path: ['serviceAccountJson'],
-        })
-      }
-      return
-    }
-
-    const normalizedEnvKey = data.envKey ? normalizeEnvKeyInput(data.envKey) : ''
-    if (!normalizedEnvKey) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'envKey is required for env credentials',
-        path: ['envKey'],
-      })
-      return
-    }
-
-    if (!isValidEnvVarName(normalizedEnvKey)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'envKey must contain only letters, numbers, and underscores',
-        path: ['envKey'],
-      })
-    }
-  })
 
 interface ExistingCredentialSourceParams {
   workspaceId: string
@@ -244,7 +116,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const rawType = searchParams.get('type')
     const rawProviderId = searchParams.get('providerId')
     const rawCredentialId = searchParams.get('credentialId')
-    const parseResult = listCredentialsSchema.safeParse({
+    const parseResult = credentialsListGetQuerySchema.safeParse({
       workspaceId: rawWorkspaceId?.trim(),
       type: rawType?.trim() || undefined,
       providerId: rawProviderId?.trim() || undefined,
@@ -256,9 +128,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         workspaceId: rawWorkspaceId,
         type: rawType,
         providerId: rawProviderId,
-        errors: parseResult.error.errors,
+        errors: parseResult.error.issues,
       })
-      return NextResponse.json({ error: parseResult.error.errors[0]?.message }, { status: 400 })
+      return NextResponse.json(
+        { error: getValidationErrorMessage(parseResult.error) },
+        { status: 400 }
+      )
     }
 
     const { workspaceId, type, providerId, credentialId: lookupCredentialId } = parseResult.data
@@ -357,12 +232,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-    const parseResult = createCredentialSchema.safeParse(body)
-
-    if (!parseResult.success) {
-      return NextResponse.json({ error: parseResult.error.errors[0]?.message }, { status: 400 })
-    }
+    const parsed = await parseRequest(
+      createWorkspaceCredentialContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
     const {
       workspaceId,
@@ -374,7 +253,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       envKey,
       envOwnerUserId,
       serviceAccountJson,
-    } = parseResult.data
+    } = parsed.data.body
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, session.user.id)
     if (!workspaceAccess.canWrite) {
@@ -385,7 +264,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const resolvedDescription = description?.trim() || null
     let resolvedProviderId: string | null = providerId ?? null
     let resolvedAccountId: string | null = accountId ?? null
-    const resolvedEnvKey: string | null = envKey ? normalizeEnvKeyInput(envKey) : null
+    const resolvedEnvKey: string | null = envKey ? normalizeCredentialEnvKey(envKey) : null
     let resolvedEnvOwnerUserId: string | null = null
     let resolvedEncryptedServiceAccountKey: string | null = null
 
@@ -433,7 +312,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const jsonParseResult = serviceAccountJsonSchema.safeParse(serviceAccountJson)
       if (!jsonParseResult.success) {
         return NextResponse.json(
-          { error: jsonParseResult.error.errors[0]?.message || 'Invalid service account JSON' },
+          {
+            error: getValidationErrorMessage(jsonParseResult.error, 'Invalid service account JSON'),
+          },
           { status: 400 }
         )
       }

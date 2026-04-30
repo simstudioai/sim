@@ -4,7 +4,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { v1ListLogsContract } from '@/lib/api/contracts/logs'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildLogFilters, getOrderBy } from '@/app/api/v1/logs/filters'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
@@ -14,28 +15,6 @@ const logger = createLogger('V1LogsAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-const QueryParamsSchema = z.object({
-  workspaceId: z.string(),
-  workflowIds: z.string().optional(),
-  folderIds: z.string().optional(),
-  triggers: z.string().optional(),
-  level: z.enum(['info', 'error']).optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  executionId: z.string().optional(),
-  minDurationMs: z.coerce.number().optional(),
-  maxDurationMs: z.coerce.number().optional(),
-  minCost: z.coerce.number().optional(),
-  maxCost: z.coerce.number().optional(),
-  model: z.string().optional(),
-  details: z.enum(['basic', 'full']).optional().default('basic'),
-  includeTraceSpans: z.coerce.boolean().optional().default(false),
-  includeFinalOutput: z.coerce.boolean().optional().default(false),
-  limit: z.coerce.number().optional().default(100),
-  cursor: z.string().optional(),
-  order: z.enum(['desc', 'asc']).optional().default('desc'),
-})
 
 interface CursorData {
   startedAt: string
@@ -64,18 +43,24 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = rateLimit.userId!
-    const { searchParams } = new URL(request.url)
-    const rawParams = Object.fromEntries(searchParams.entries())
+    const parsed = await parseRequest(
+      v1ListLogsContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            {
+              error: getValidationErrorMessage(error, 'Invalid parameters'),
+              details: error.issues,
+            },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const validationResult = QueryParamsSchema.safeParse(rawParams)
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Invalid parameters', details: validationResult.error.errors },
-        { status: 400 }
-      )
-    }
-
-    const params = validationResult.data
+    const params = parsed.data.query
 
     logger.info(`[${requestId}] Fetching logs for workspace ${params.workspaceId}`, {
       userId,

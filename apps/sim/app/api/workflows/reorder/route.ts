@@ -3,24 +3,14 @@ import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { reorderWorkflowsContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkflowReorderAPI')
-
-const ReorderSchema = z.object({
-  workspaceId: z.string(),
-  updates: z.array(
-    z.object({
-      id: z.string(),
-      sortOrder: z.number().int().min(0),
-      folderId: z.string().nullable().optional(),
-    })
-  ),
-})
 
 export const PUT = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
@@ -32,8 +22,9 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
   const userId = auth.userId
 
   try {
-    const body = await req.json()
-    const { workspaceId, updates } = ReorderSchema.parse(body)
+    const parsed = await parseRequest(reorderWorkflowsContract, req, {})
+    if (!parsed.success) return parsed.response
+    const { workspaceId, updates } = parsed.data.body
 
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (!permission || permission === 'read') {
@@ -78,14 +69,6 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
 
     return NextResponse.json({ success: true, updated: validUpdates.length })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid reorder data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error reordering workflows`, error)
     return NextResponse.json({ error: 'Failed to reorder workflows' }, { status: 500 })
   }

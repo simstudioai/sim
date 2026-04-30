@@ -27,34 +27,33 @@ import { db } from '@sim/db'
 import { permissionGroup, permissionGroupMember, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq, inArray, sql } from 'drizzle-orm'
+import {
+  type AdminV1PermissionGroup,
+  adminV1DeleteAccessControlContract,
+  adminV1ListAccessControlContract,
+} from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
-  badRequestResponse,
+  adminValidationErrorResponse,
   internalErrorResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
 const logger = createLogger('AdminAccessControlAPI')
 
-export interface AdminPermissionGroup {
-  id: string
-  workspaceId: string
-  workspaceName: string | null
-  organizationId: string | null
-  name: string
-  description: string | null
-  memberCount: number
-  createdAt: string
-  createdByUserId: string
-  createdByEmail: string | null
-}
-
 export const GET = withRouteHandler(
   withAdminAuth(async (request) => {
-    const url = new URL(request.url)
-    const workspaceId = url.searchParams.get('workspaceId')
-    const organizationId = url.searchParams.get('organizationId')
+    const parsed = await parseRequest(
+      adminV1ListAccessControlContract,
+      request,
+      {},
+      { validationErrorResponse: adminValidationErrorResponse }
+    )
+    if (!parsed.success) return parsed.response
+
+    const { workspaceId, organizationId } = parsed.data.query
 
     try {
       const baseQuery = db
@@ -100,7 +99,7 @@ export const GET = withRouteHandler(
             createdAt: group.createdAt.toISOString(),
             createdByUserId: group.createdByUserId,
             createdByEmail: group.createdByEmail,
-          } as AdminPermissionGroup
+          } as AdminV1PermissionGroup
         })
       )
 
@@ -132,14 +131,18 @@ export const GET = withRouteHandler(
 
 export const DELETE = withRouteHandler(
   withAdminAuth(async (request) => {
-    const url = new URL(request.url)
-    const workspaceId = url.searchParams.get('workspaceId')
-    const organizationId = url.searchParams.get('organizationId')
-    const reason = url.searchParams.get('reason') || 'Enterprise plan churn cleanup'
+    const parsed = await parseRequest(
+      adminV1DeleteAccessControlContract,
+      request,
+      {},
+      {
+        validationErrorResponse: adminValidationErrorResponse,
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!workspaceId && !organizationId) {
-      return badRequestResponse('workspaceId or organizationId is required')
-    }
+    const { workspaceId, organizationId, reason: rawReason } = parsed.data.query
+    const reason = rawReason || 'Enterprise plan churn cleanup'
 
     try {
       const selectBase = db

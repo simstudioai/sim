@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import type { WorkBook } from 'xlsx'
 import { Button, Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -76,7 +77,7 @@ export const XlsxPreview = memo(function XlsxPreview({
   const [isDirty, setIsDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const isSavingRef = useRef(false)
-  const workbookRef = useRef<import('xlsx').WorkBook | null>(null)
+  const workbookRef = useRef<WorkBook | null>(null)
   const xlsxModuleRef = useRef<typeof import('xlsx') | null>(null)
   const dataTableRef = useRef<DataTableHandle>(null)
   const updateContent = useUpdateWorkspaceFileContent()

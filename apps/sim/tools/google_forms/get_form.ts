@@ -3,7 +3,7 @@ import type {
   GoogleFormsGetFormParams,
   GoogleFormsGetFormResponse,
 } from '@/tools/google_forms/types'
-import { buildGetFormUrl } from '@/tools/google_forms/utils'
+import { buildGetFormUrl, getGoogleFormsErrorMessage } from '@/tools/google_forms/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getFormTool: ToolConfig<GoogleFormsGetFormParams, GoogleFormsGetFormResponse> = {
@@ -45,7 +45,6 @@ export const getFormTool: ToolConfig<GoogleFormsGetFormParams, GoogleFormsGetFor
     const data = (await response.json()) as GoogleForm
 
     if (!response.ok) {
-      const errorData = data as unknown as { error?: { message?: string } }
       return {
         success: false,
         output: {
@@ -60,7 +59,7 @@ export const getFormTool: ToolConfig<GoogleFormsGetFormParams, GoogleFormsGetFor
           settings: null,
           publishSettings: null,
         },
-        error: errorData.error?.message ?? 'Failed to get form',
+        error: getGoogleFormsErrorMessage(data, 'Failed to get form'),
       }
     }
 

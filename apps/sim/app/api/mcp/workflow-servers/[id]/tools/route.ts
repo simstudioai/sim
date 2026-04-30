@@ -6,6 +6,10 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import {
+  createWorkflowMcpToolBodySchema,
+  workflowMcpServerParamsSchema,
+} from '@/lib/api/contracts/workflow-mcp-servers'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
@@ -29,7 +33,7 @@ export const GET = withRouteHandler(
   withMcpAuth<RouteParams>('read')(
     async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
       try {
-        const { id: serverId } = await params
+        const { id: serverId } = workflowMcpServerParamsSchema.parse(await params)
 
         logger.info(`[${requestId}] Listing tools for workflow MCP server: ${serverId}`)
 
@@ -92,20 +96,19 @@ export const POST = withRouteHandler(
       { params }
     ) => {
       try {
-        const { id: serverId } = await params
-        const body = getParsedBody(request) || (await request.json())
+        const { id: serverId } = workflowMcpServerParamsSchema.parse(await params)
+        const rawBody = getParsedBody(request) ?? (await request.json())
+        const parsedBody = createWorkflowMcpToolBodySchema.safeParse(rawBody)
+
+        if (!parsedBody.success) {
+          return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
+        }
+
+        const body = parsedBody.data
 
         logger.info(`[${requestId}] Adding tool to workflow MCP server: ${serverId}`, {
           workflowId: body.workflowId,
         })
-
-        if (!body.workflowId) {
-          return createMcpErrorResponse(
-            new Error('Missing required field: workflowId'),
-            'Missing required field',
-            400
-          )
-        }
 
         const [server] = await db
           .select({ id: workflowMcpServer.id })

@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { presignedUploadBodyContract, uploadTypeSchema } from '@/lib/api/contracts/storage-transfer'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles } from '@/lib/uploads'
@@ -12,13 +14,7 @@ import { createErrorResponse } from '@/app/api/files/utils'
 
 const logger = createLogger('PresignedUploadAPI')
 
-interface PresignedUrlRequest {
-  fileName: string
-  contentType: string
-  fileSize: number
-  userId?: string
-  chatId?: string
-}
+const VALID_UPLOAD_TYPES = ['knowledge-base', 'chat', 'copilot', 'profile-pictures'] as const
 
 class PresignedUrlError extends Error {
   constructor(
@@ -44,43 +40,36 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    let data: PresignedUrlRequest
-    try {
-      data = await request.json()
-    } catch {
-      throw new ValidationError('Invalid JSON in request body')
-    }
+    const parsed = await parseRequest(
+      presignedUploadBodyContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          throw new ValidationError(getValidationErrorMessage(error, 'Invalid request data'))
+        },
+        invalidJsonResponse: () => {
+          throw new ValidationError('Invalid JSON in request body')
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const { fileName, contentType, fileSize } = data
-
-    if (!fileName?.trim()) {
-      throw new ValidationError('fileName is required and cannot be empty')
-    }
-    if (!contentType?.trim()) {
-      throw new ValidationError('contentType is required and cannot be empty')
-    }
-    if (!fileSize || fileSize <= 0) {
-      throw new ValidationError('fileSize must be a positive number')
-    }
-
-    const MAX_FILE_SIZE = 100 * 1024 * 1024
-    if (fileSize > MAX_FILE_SIZE) {
-      throw new ValidationError(
-        `File size (${fileSize} bytes) exceeds maximum allowed size (${MAX_FILE_SIZE} bytes)`
-      )
-    }
+    const { fileName, contentType, fileSize } = parsed.data.body
 
     const uploadTypeParam = request.nextUrl.searchParams.get('type')
     if (!uploadTypeParam) {
       throw new ValidationError('type query parameter is required')
     }
 
-    const validTypes: StorageContext[] = ['knowledge-base', 'chat', 'copilot', 'profile-pictures']
-    if (!validTypes.includes(uploadTypeParam as StorageContext)) {
-      throw new ValidationError(`Invalid type parameter. Must be one of: ${validTypes.join(', ')}`)
+    const uploadTypeResult = uploadTypeSchema.safeParse(uploadTypeParam)
+    if (!uploadTypeResult.success) {
+      throw new ValidationError(
+        `Invalid type parameter. Must be one of: ${VALID_UPLOAD_TYPES.join(', ')}`
+      )
     }
 
-    const uploadType = uploadTypeParam as StorageContext
+    const uploadType = uploadTypeResult.data as StorageContext
 
     if (uploadType === 'knowledge-base') {
       const fileValidationError = validateFileType(fileName, contentType)

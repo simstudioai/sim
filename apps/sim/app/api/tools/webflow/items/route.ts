@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { webflowItemsSelectorContract } from '@/lib/api/contracts/selectors'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -10,16 +12,21 @@ const logger = createLogger('WebflowItemsAPI')
 
 export const dynamic = 'force-dynamic'
 
-export const POST = withRouteHandler(async (request: Request) => {
+interface WebflowItem {
+  id: string
+  fieldData?: {
+    name?: string
+    title?: string
+    slug?: string
+  }
+}
+
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const requestId = generateRequestId()
-    const body = await request.json()
-    const { credential, workflowId, collectionId, search } = body
-
-    if (!credential) {
-      logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(webflowItemsSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, workflowId, collectionId, search } = parsed.data.body
 
     const collectionIdValidation = validateAlphanumericId(collectionId, 'collectionId')
     if (!collectionIdValidation.isValid) {
@@ -27,7 +34,7 @@ export const POST = withRouteHandler(async (request: Request) => {
       return NextResponse.json({ error: collectionIdValidation.error }, { status: 400 })
     }
 
-    const authz = await authorizeCredentialUse(request as any, {
+    const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
       workflowId,
     })
@@ -77,10 +84,10 @@ export const POST = withRouteHandler(async (request: Request) => {
       )
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as { items?: WebflowItem[] }
     const items = data.items || []
 
-    let formattedItems = items.map((item: any) => {
+    let formattedItems = items.map((item) => {
       const fieldData = item.fieldData || {}
       const name = fieldData.name || fieldData.title || fieldData.slug || item.id
       return {

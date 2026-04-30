@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { jiraUpdateContract } from '@/lib/api/contracts/selectors/jira'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -11,26 +12,6 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JiraUpdateAPI')
 
-const jiraUpdateSchema = z.object({
-  domain: z.string().min(1, 'Domain is required'),
-  accessToken: z.string().min(1, 'Access token is required'),
-  issueKey: z.string().min(1, 'Issue key is required'),
-  summary: z.string().optional(),
-  title: z.string().optional(),
-  description: z.union([z.string(), z.record(z.unknown())]).optional(),
-  priority: z.string().optional(),
-  assignee: z.string().optional(),
-  labels: z.array(z.string()).optional(),
-  components: z.array(z.string()).optional(),
-  duedate: z.string().optional(),
-  fixVersions: z.array(z.string()).optional(),
-  environment: z.union([z.string(), z.record(z.unknown())]).optional(),
-  customFieldId: z.string().optional(),
-  customFieldValue: z.string().optional(),
-  notifyUsers: z.boolean().optional(),
-  cloudId: z.string().optional(),
-})
-
 export const PUT = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
@@ -38,14 +19,8 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validation = jiraUpdateSchema.safeParse(body)
-
-    if (!validation.success) {
-      const firstError = validation.error.errors[0]
-      logger.error('Validation error:', firstError)
-      return NextResponse.json({ error: firstError.message }, { status: 400 })
-    }
+    const parsed = await parseRequest(jiraUpdateContract, request, {})
+    if (!parsed.success) return parsed.response
 
     const {
       domain,
@@ -65,7 +40,7 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       customFieldValue,
       notifyUsers,
       cloudId: providedCloudId,
-    } = validation.data
+    } = parsed.data.body
 
     const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
     logger.info('Using cloud ID:', cloudId)

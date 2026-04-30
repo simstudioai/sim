@@ -24,6 +24,8 @@ import {
 } from '@/lib/mcp/tool-validation'
 import type { McpTransport } from '@/lib/mcp/types'
 import {
+  type McpServer,
+  type McpTool,
   useAllowedMcpDomains,
   useCreateMcpServer,
   useDeleteMcpServer,
@@ -40,31 +42,6 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { McpServerFormModal, McpServerSkeleton } from './components'
 
 const logger = createLogger('McpSettings')
-
-interface McpToolSchema {
-  type: 'object'
-  properties?: Record<string, unknown>
-  required?: string[]
-}
-
-interface McpTool {
-  name: string
-  description?: string
-  serverId: string
-  inputSchema?: McpToolSchema
-}
-
-interface McpServer {
-  id: string
-  name?: string
-  transport?: string
-  url?: string
-  headers?: Record<string, string>
-  enabled?: boolean
-  connectionStatus?: 'connected' | 'disconnected' | 'error'
-  lastError?: string | null
-  lastConnected?: string
-}
 
 function formatTransportLabel(transport: string): string {
   return transport

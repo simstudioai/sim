@@ -49,12 +49,6 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
       visibility: 'user-or-llm',
       description: 'Message ID to reply to (for threading)',
     },
-    conversationId: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Conversation ID for threading',
-    },
     cc: {
       type: 'string',
       required: false,
@@ -91,7 +85,6 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
         cc: params.cc || null,
         bcc: params.bcc || null,
         replyToMessageId: params.replyToMessageId || null,
-        conversationId: params.conversationId || null,
         attachments: params.attachments || null,
       }
     },

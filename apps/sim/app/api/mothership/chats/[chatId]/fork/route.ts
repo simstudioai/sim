@@ -4,7 +4,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { forkMothershipChatContract } from '@/lib/api/contracts/mothership-tasks'
+import { parseRequest } from '@/lib/api/server'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
@@ -24,26 +25,25 @@ import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('ForkChatAPI')
 
-const ForkChatSchema = z.object({
-  upToMessageId: z.string().min(1),
-})
-
 /**
  * POST /api/mothership/chats/[chatId]/fork
  * Creates a new chat branched from the given chat, keeping messages up to and
  * including the specified message. Resources and copilot-side state are copied.
  */
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ chatId: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
     try {
       const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
       if (!isAuthenticated || !userId) {
         return createUnauthorizedResponse()
       }
 
-      const { chatId } = await params
-      const body = await request.json()
-      const { upToMessageId } = ForkChatSchema.parse(body)
+      const parsed = await parseRequest(forkMothershipChatContract, request, context, {
+        validationErrorResponse: () => createBadRequestResponse('upToMessageId is required'),
+      })
+      if (!parsed.success) return parsed.response
+      const { chatId } = parsed.data.params
+      const { upToMessageId } = parsed.data.body
 
       // Load parent chat and verify ownership.
       const [parent] = await db
@@ -148,9 +148,6 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ success: true, id: newId })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return createBadRequestResponse('upToMessageId is required')
-      }
       logger.error('Error forking chat:', error)
       return createInternalServerErrorResponse('Failed to fork chat')
     }

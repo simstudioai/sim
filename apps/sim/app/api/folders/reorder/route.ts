@@ -3,24 +3,14 @@ import { workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { reorderFoldersContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FolderReorderAPI')
-
-const ReorderSchema = z.object({
-  workspaceId: z.string(),
-  updates: z.array(
-    z.object({
-      id: z.string(),
-      sortOrder: z.number().int().min(0),
-      parentId: z.string().nullable().optional(),
-    })
-  ),
-})
 
 export const PUT = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
@@ -32,8 +22,9 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
   }
 
   try {
-    const body = await req.json()
-    const { workspaceId, updates } = ReorderSchema.parse(body)
+    const parsed = await parseRequest(reorderFoldersContract, req, {})
+    if (!parsed.success) return parsed.response
+    const { workspaceId, updates } = parsed.data.body
 
     const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
     if (!permission || permission === 'read') {
@@ -78,14 +69,6 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
 
     return NextResponse.json({ success: true, updated: validUpdates.length })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid folder reorder data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error reordering folders`, error)
     return NextResponse.json({ error: 'Failed to reorder folders' }, { status: 500 })
   }

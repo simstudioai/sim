@@ -1,8 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  type ContractBodyInput,
+  removeWorkspaceEnvironmentContract,
+  savePersonalEnvironmentContract,
+  upsertWorkspaceEnvironmentContract,
+} from '@/lib/api/contracts'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { fetchPersonalEnvironment, fetchWorkspaceEnvironment } from '@/lib/environment/api'
-import { API_ENDPOINTS } from '@/stores/constants'
 
 const logger = createLogger('EnvironmentQueries')
 
@@ -47,24 +53,14 @@ export function useWorkspaceEnvironment<TData = WorkspaceEnvironmentData>(
 /**
  * Save personal environment variables mutation
  */
-interface SavePersonalEnvironmentParams {
-  variables: Record<string, string>
-}
+type SavePersonalEnvironmentParams = ContractBodyInput<typeof savePersonalEnvironmentContract>
 
 export function useSavePersonalEnvironment() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async ({ variables }: SavePersonalEnvironmentParams) => {
-      const response = await fetch(API_ENDPOINTS.ENVIRONMENT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ variables }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to save environment variables: ${response.statusText}`)
-      }
+      await requestJson(savePersonalEnvironmentContract, { body: { variables } })
 
       logger.info('Saved personal environment variables')
     },
@@ -78,28 +74,21 @@ export function useSavePersonalEnvironment() {
 /**
  * Upsert workspace environment variables mutation
  */
-interface UpsertWorkspaceEnvironmentParams {
-  workspaceId: string
-  variables: Record<string, string>
-}
+type UpsertWorkspaceEnvironmentParams = { workspaceId: string } & ContractBodyInput<
+  typeof upsertWorkspaceEnvironmentContract
+>
 
 export function useUpsertWorkspaceEnvironment() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async ({ workspaceId, variables }: UpsertWorkspaceEnvironmentParams) => {
-      const response = await fetch(API_ENDPOINTS.WORKSPACE_ENVIRONMENT(workspaceId), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ variables }),
+      const data = await requestJson(upsertWorkspaceEnvironmentContract, {
+        params: { id: workspaceId },
+        body: { variables },
       })
-
-      if (!response.ok) {
-        throw new Error(`Failed to update workspace environment: ${response.statusText}`)
-      }
-
       logger.info(`Upserted workspace environment variables for workspace: ${workspaceId}`)
-      return await response.json()
+      return data
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
@@ -112,28 +101,21 @@ export function useUpsertWorkspaceEnvironment() {
 /**
  * Remove workspace environment variables mutation
  */
-interface RemoveWorkspaceEnvironmentParams {
-  workspaceId: string
-  keys: string[]
-}
+type RemoveWorkspaceEnvironmentParams = { workspaceId: string } & ContractBodyInput<
+  typeof removeWorkspaceEnvironmentContract
+>
 
 export function useRemoveWorkspaceEnvironment() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async ({ workspaceId, keys }: RemoveWorkspaceEnvironmentParams) => {
-      const response = await fetch(API_ENDPOINTS.WORKSPACE_ENVIRONMENT(workspaceId), {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keys }),
+      const data = await requestJson(removeWorkspaceEnvironmentContract, {
+        params: { id: workspaceId },
+        body: { keys },
       })
-
-      if (!response.ok) {
-        throw new Error(`Failed to remove workspace environment keys: ${response.statusText}`)
-      }
-
       logger.info(`Removed ${keys.length} workspace environment keys for workspace: ${workspaceId}`)
-      return await response.json()
+      return data
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({

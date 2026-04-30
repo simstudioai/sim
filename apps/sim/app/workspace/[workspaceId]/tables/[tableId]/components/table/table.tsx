@@ -1666,7 +1666,7 @@ export function Table({
     )
   }, [generateColumnName])
 
-  const handleChangeType = useCallback((columnName: string, newType: string) => {
+  const handleChangeType = useCallback((columnName: string, newType: ColumnDefinition['type']) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
     const previousType = column?.type
     updateColumnMutation.mutate(
@@ -3057,7 +3057,11 @@ const TableBodySkeleton = React.memo(function TableBodySkeleton({
   )
 })
 
-const COLUMN_TYPE_OPTIONS: { type: string; label: string; icon: React.ElementType }[] = [
+const COLUMN_TYPE_OPTIONS: {
+  type: ColumnDefinition['type']
+  label: string
+  icon: React.ElementType
+}[] = [
   { type: 'string', label: 'Text', icon: TypeText },
   { type: 'number', label: 'Number', icon: TypeNumber },
   { type: 'boolean', label: 'Boolean', icon: TypeBoolean },
@@ -3102,7 +3106,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onRenameCancel: () => void
   onRenameColumn: (columnName: string) => void
   onColumnSelect: (colIndex: number, shiftKey: boolean) => void
-  onChangeType: (columnName: string, newType: string) => void
+  onChangeType: (columnName: string, newType: ColumnDefinition['type']) => void
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
   onToggleUnique: (columnName: string) => void

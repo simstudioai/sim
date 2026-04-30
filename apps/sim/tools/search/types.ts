@@ -21,8 +21,8 @@ export interface SearchResponse extends ToolResponse {
       output: number
       total: number
       tokens: {
-        prompt: number
-        completion: number
+        input: number
+        output: number
         total: number
       }
       model: string

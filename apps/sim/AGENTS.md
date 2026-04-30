@@ -69,6 +69,105 @@ feature/
 - Use Tailwind classes and `cn()` for conditional classes; avoid inline styles unless CSS variables are the intended mechanism.
 - Keep styling local to the component; do not modify global styles for feature work.
 
+## API Contracts
+
+Boundary HTTP request and response shapes for all routes under `apps/sim/app/api/**` live in `apps/sim/lib/api/contracts/**` (one file per resource family). Routes never define route-local boundary Zod schemas, and clients never define ad-hoc wire types — both sides consume the same contract.
+
+- Each contract is built with `defineRouteContract({ method, path, params?, query?, body?, headers?, response: { mode: 'json', schema } })` from `@/lib/api/contracts`.
+- Contracts export named schemas AND named TypeScript type aliases (e.g., `export type CreateFolderBody = z.input<typeof createFolderBodySchema>`). Clients import the named aliases — never `z.input<...>` / `z.output<...>` in hooks.
+- Shared identifier schemas live in `apps/sim/lib/api/contracts/primitives.ts` (e.g., `workspaceIdSchema`, `workflowIdSchema`).
+- Audit script: `bun run check:api-validation` enforces boundary policy and prints ratchet metrics for route Zod imports, route-local schema constructors, route `ZodError` references, client hook Zod imports, and related counters. It must pass on PRs. `bun run check:api-validation:strict` is the strict CI gate and additionally fails on annotations with empty reasons.
+- Domain validators that are not HTTP boundaries — tools, blocks, triggers, connectors, realtime handlers, and internal helpers — may still use Zod directly. The contract rule is boundary-only.
+
+### Boundary annotations
+
+A small number of legitimate exceptions to the boundary rules are tolerated when annotated. The audit script recognizes four annotation forms:
+
+- `// boundary-raw-fetch: <reason>` — placed on the line directly above a raw `fetch(` call inside `apps/sim/hooks/queries/**` or `apps/sim/hooks/selectors/**`. Use only for documented exceptions: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests.
+- `// double-cast-allowed: <reason>` — placed on the line directly above an `as unknown as X` cast outside test files.
+- `// boundary-raw-json: <reason>` — placed on the line directly above a raw `await request.json()` / `await req.json()` read in a route handler. Use only when the body is a JSON-RPC envelope, a tolerant `.catch(() => ({}))` parse, or otherwise cannot go through `parseRequest`.
+- `// untyped-response: <reason>` — placed on the line directly above a `schema: z.unknown()` response declaration in a contract file. Use only when the response body is genuinely opaque (user-supplied data, third-party passthrough).
+
+Placement rule: the annotation must immediately precede the call or cast. Up to three non-empty preceding comment lines are tolerated, so additional context comments above the annotation are fine. The reason must be non-empty after trimming — annotations with empty reasons fail strict mode (`annotationsMissingReason`).
+
+Whole-file allowlists for routes (legitimate non-boundary or auth-handled routes that legitimately import Zod for non-boundary reasons) go through `INDIRECT_ZOD_ROUTES` in `scripts/check-api-validation-contracts.ts`, not per-line annotations.
+
+Examples:
+
+```ts
+// boundary-raw-fetch: streaming SSE chunks must be processed as they arrive
+const response = await fetch(`/api/copilot/chat/stream?chatId=${chatId}`, { signal })
+```
+
+```ts
+// double-cast-allowed: legacy provider type lacks the discriminator field we need
+const provider = config as unknown as LegacyProvider
+```
+
+## API Route Pattern
+
+Routes never `import { z } from 'zod'` and never define route-local boundary schemas. They consume the contract from `@/lib/api/contracts/**` and validate with canonical helpers from `@/lib/api/server`:
+
+- `parseRequest(contract, request, context, options?)` — fully contract-bound routes; parses params, query, body, and headers in one call. Pass `{}` for `context` on routes without route params, or the route's `context` argument when route params exist. Returns a discriminated union; check `parsed.success` and return `parsed.response` on failure.
+- `validationErrorResponse(error)` and `getValidationErrorMessage(error, fallback)` — produce 400 responses from a `ZodError`.
+- `validationErrorResponseFromError(error)` — when handling unknown caught errors that may or may not be a `ZodError`.
+- `isZodError(error)` — type guard. Routes never use `instanceof z.ZodError`.
+
+### Fully contract-bound route (`parseRequest`)
+
+```typescript
+import { createLogger } from '@sim/logger'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
+import { createFolderContract } from '@/lib/api/contracts/folders'
+import { parseRequest } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+
+const logger = createLogger('FoldersAPI')
+
+export const POST = withRouteHandler(async (request: NextRequest) => {
+  const parsed = await parseRequest(createFolderContract, request, {})
+  if (!parsed.success) return parsed.response
+  const { body } = parsed.data
+  logger.info('Creating folder', { workspaceId: body.workspaceId })
+  return NextResponse.json({ ok: true })
+})
+```
+
+Routes under `apps/sim/app/api/v1/**` use the shared middleware in `apps/sim/app/api/v1/middleware.ts` for auth, rate-limit, and workspace access. Compose contract validation inside that middleware — never reimplement auth/rate-limit per-route.
+
+## React Query Client Boundary
+
+Hooks in `apps/sim/hooks/queries/**` consume contracts the same way routes do. Every same-origin JSON call must go through `requestJson(contract, ...)` from `@/lib/api/client/request` instead of raw `fetch`:
+
+- Hooks import named type aliases from `@/lib/api/contracts/**`. Never write `z.input<...>` / `z.output<...>` in hooks, and never `import { z } from 'zod'` in client code.
+- `requestJson` parses params, query, body, and headers against the contract on the way out and validates the JSON response on the way back. Hooks always forward `signal` for cancellation.
+- Documented exceptions for raw `fetch`: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests. Mark each raw `fetch` with a TSDoc comment explaining which exception applies.
+
+```typescript
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'
+
+async function fetchEntities(workspaceId: string, signal?: AbortSignal): Promise<EntityList> {
+  const data = await requestJson(listEntitiesContract, {
+    query: { workspaceId },
+    signal,
+  })
+  return data.entities
+}
+
+export function useEntityList(workspaceId?: string) {
+  return useQuery({
+    queryKey: entityKeys.list(workspaceId),
+    queryFn: ({ signal }) => fetchEntities(workspaceId as string, signal),
+    enabled: Boolean(workspaceId),
+    staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
+  })
+}
+```
+
 ## Testing
 
 - Use Vitest.

@@ -77,19 +77,19 @@ describe('Copilot Chat Delete API Route', () => {
       expect(dbChainMockFns.where).toHaveBeenCalled()
     })
 
-    it('should return 500 for invalid request body - missing chatId', async () => {
+    it('should return 400 for invalid request body - missing chatId', async () => {
       authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const req = createMockRequest('DELETE', {})
 
       const response = await DELETE(req)
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(400)
       const responseData = await response.json()
-      expect(responseData.error).toBe('Failed to delete chat')
+      expect(responseData.error).toBe('Validation error')
     })
 
-    it('should return 500 for invalid request body - chatId is not a string', async () => {
+    it('should return 400 for invalid request body - chatId is not a string', async () => {
       authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const req = createMockRequest('DELETE', {
@@ -98,9 +98,9 @@ describe('Copilot Chat Delete API Route', () => {
 
       const response = await DELETE(req)
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(400)
       const responseData = await response.json()
-      expect(responseData.error).toBe('Failed to delete chat')
+      expect(responseData.error).toBe('Validation error')
     })
 
     it('should handle database errors gracefully', async () => {

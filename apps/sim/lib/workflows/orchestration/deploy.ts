@@ -27,7 +27,7 @@ import {
   createSchedulesForDeploy,
   validateWorkflowSchedules,
 } from '@/lib/workflows/schedules'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployOrchestration')
 
@@ -416,9 +416,7 @@ export async function performActivateVersion(
     .limit(1)
   const previousVersionId = currentActiveVersion?.id
 
-  const scheduleValidation = validateWorkflowSchedules(
-    blocks as Record<string, import('@/stores/workflows/workflow/types').BlockState>
-  )
+  const scheduleValidation = validateWorkflowSchedules(blocks as Record<string, BlockState>)
   if (!scheduleValidation.isValid) {
     return {
       success: false,
@@ -432,7 +430,7 @@ export async function performActivateVersion(
     workflowId,
     workflow,
     userId,
-    blocks: blocks as Record<string, import('@/stores/workflows/workflow/types').BlockState>,
+    blocks: blocks as Record<string, BlockState>,
     requestId,
     deploymentVersionId: versionRow.id,
     previousVersionId,
@@ -457,7 +455,7 @@ export async function performActivateVersion(
 
   const scheduleResult = await createSchedulesForDeploy(
     workflowId,
-    blocks as Record<string, import('@/stores/workflows/workflow/types').BlockState>,
+    blocks as Record<string, BlockState>,
     db,
     versionRow.id
   )

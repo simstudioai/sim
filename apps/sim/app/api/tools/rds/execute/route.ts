@@ -1,22 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { rdsExecuteContract } from '@/lib/api/contracts/database-tools'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createRdsClient, executeStatement } from '@/app/api/tools/rds/utils'
 
 const logger = createLogger('RDSExecuteAPI')
-
-const ExecuteSchema = z.object({
-  region: z.string().min(1, 'AWS region is required'),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  resourceArn: z.string().min(1, 'Resource ARN is required'),
-  secretArn: z.string().min(1, 'Secret ARN is required'),
-  database: z.string().optional(),
-  query: z.string().min(1, 'Query is required'),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
@@ -27,8 +18,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-    const params = ExecuteSchema.parse(body)
+    const parsed = await parseToolRequest(rdsExecuteContract, request, { logger })
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
 
     logger.info(`[${requestId}] Executing raw SQL on RDS database ${params.database}`)
 
@@ -61,14 +53,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       client.destroy()
     }
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     logger.error(`[${requestId}] RDS execute failed:`, error)
 

@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  bulkKnowledgeChunksContract,
+  createChunkBodySchema,
+  listKnowledgeChunksQuerySchema,
+} from '@/lib/api/contracts/knowledge'
+import { isZodError, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -10,28 +15,6 @@ import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowled
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('DocumentChunksAPI')
-
-const GetChunksQuerySchema = z.object({
-  search: z.string().optional(),
-  enabled: z.enum(['true', 'false', 'all']).optional().default('all'),
-  limit: z.coerce.number().min(1).max(100).optional().default(50),
-  offset: z.coerce.number().min(0).optional().default(0),
-  sortBy: z.enum(['chunkIndex', 'tokenCount', 'enabled']).optional().default('chunkIndex'),
-  sortOrder: z.enum(['asc', 'desc']).optional().default('asc'),
-})
-
-const CreateChunkSchema = z.object({
-  content: z.string().min(1, 'Content is required').max(10000, 'Content too long'),
-  enabled: z.boolean().optional().default(true),
-})
-
-const BatchOperationSchema = z.object({
-  operation: z.enum(['enable', 'disable', 'delete']),
-  chunkIds: z
-    .array(z.string())
-    .min(1, 'At least one chunk ID is required')
-    .max(100, 'Cannot operate on more than 100 chunks at once'),
-})
 
 export const GET = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ id: string; documentId: string }> }) => {
@@ -84,7 +67,7 @@ export const GET = withRouteHandler(
       }
 
       const { searchParams } = new URL(req.url)
-      const queryParams = GetChunksQuerySchema.parse({
+      const queryResult = listKnowledgeChunksQuerySchema.safeParse({
         search: searchParams.get('search') || undefined,
         enabled: searchParams.get('enabled') || undefined,
         limit: searchParams.get('limit') || undefined,
@@ -92,8 +75,14 @@ export const GET = withRouteHandler(
         sortBy: searchParams.get('sortBy') || undefined,
         sortOrder: searchParams.get('sortOrder') || undefined,
       })
+      if (!queryResult.success) {
+        return NextResponse.json(
+          { error: 'Invalid query parameters', details: queryResult.error.issues },
+          { status: 400 }
+        )
+      }
 
-      const result = await queryChunks(documentId, queryParams, requestId)
+      const result = await queryChunks(documentId, queryResult.data, requestId)
 
       return NextResponse.json({
         success: true,
@@ -178,7 +167,7 @@ export const POST = withRouteHandler(
       }
 
       try {
-        const validatedData = CreateChunkSchema.parse(searchParams)
+        const validatedData = createChunkBodySchema.parse(searchParams)
 
         const docTags = {
           // Text tags (7 slots)
@@ -253,12 +242,12 @@ export const POST = withRouteHandler(
           },
         })
       } catch (validationError) {
-        if (validationError instanceof z.ZodError) {
+        if (isZodError(validationError)) {
           logger.warn(`[${requestId}] Invalid chunk creation data`, {
-            errors: validationError.errors,
+            errors: validationError.issues,
           })
           return NextResponse.json(
-            { error: 'Invalid request data', details: validationError.errors },
+            { error: 'Invalid request data', details: validationError.issues },
             { status: 400 }
           )
         }
@@ -309,36 +298,36 @@ export const PATCH = withRouteHandler(
         )
       }
 
-      const body = await req.json()
-
-      try {
-        const validatedData = BatchOperationSchema.parse(body)
-        const { operation, chunkIds } = validatedData
-
-        const result = await batchChunkOperation(documentId, operation, chunkIds, requestId)
-
-        return NextResponse.json({
-          success: true,
-          data: {
-            operation,
-            successCount: result.processed,
-            errorCount: result.errors.length,
-            processed: result.processed,
-            errors: result.errors,
+      const parsed = await parseRequest(
+        bulkKnowledgeChunksContract,
+        req,
+        { params },
+        {
+          validationErrorResponse: (error) => {
+            logger.warn(`[${requestId}] Invalid batch operation data`, { errors: error.issues })
+            return NextResponse.json(
+              { error: 'Invalid request data', details: error.issues },
+              { status: 400 }
+            )
           },
-        })
-      } catch (validationError) {
-        if (validationError instanceof z.ZodError) {
-          logger.warn(`[${requestId}] Invalid batch operation data`, {
-            errors: validationError.errors,
-          })
-          return NextResponse.json(
-            { error: 'Invalid request data', details: validationError.errors },
-            { status: 400 }
-          )
         }
-        throw validationError
-      }
+      )
+      if (!parsed.success) return parsed.response
+      const validatedData = parsed.data.body
+      const { operation, chunkIds } = validatedData
+
+      const result = await batchChunkOperation(documentId, operation, chunkIds, requestId)
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          operation,
+          successCount: result.processed,
+          errorCount: result.errors.length,
+          processed: result.processed,
+          errors: result.errors,
+        },
+      })
     } catch (error) {
       logger.error(`[${requestId}] Error in batch chunk operation`, error)
       return NextResponse.json({ error: 'Failed to perform batch operation' }, { status: 500 })

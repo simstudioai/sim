@@ -26,6 +26,11 @@ import { member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
 import {
+  adminV1CreateOrganizationContract,
+  adminV1ListOrganizationsContract,
+} from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
+import {
   createOrganizationWithOwner,
   OrganizationSlugInvalidError,
   OrganizationSlugTakenError,
@@ -33,6 +38,8 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
+  adminInvalidJsonResponse,
+  adminValidationErrorResponse,
   badRequestResponse,
   internalErrorResponse,
   listResponse,
@@ -42,7 +49,6 @@ import {
 import {
   type AdminOrganization,
   createPaginationMeta,
-  parsePaginationParams,
   toAdminOrganization,
 } from '@/app/api/v1/admin/types'
 
@@ -50,8 +56,17 @@ const logger = createLogger('AdminOrganizationsAPI')
 
 export const GET = withRouteHandler(
   withAdminAuth(async (request) => {
-    const url = new URL(request.url)
-    const { limit, offset } = parsePaginationParams(url)
+    const parsed = await parseRequest(
+      adminV1ListOrganizationsContract,
+      request,
+      {},
+      {
+        validationErrorResponse: adminValidationErrorResponse,
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const { limit, offset } = parsed.data.query
 
     try {
       const [countResult, organizations] = await Promise.all([
@@ -75,21 +90,24 @@ export const GET = withRouteHandler(
 
 export const POST = withRouteHandler(
   withAdminAuth(async (request) => {
+    const parsed = await parseRequest(
+      adminV1CreateOrganizationContract,
+      request,
+      {},
+      {
+        validationErrorResponse: adminValidationErrorResponse,
+        invalidJsonResponse: adminInvalidJsonResponse,
+      }
+    )
+    if (!parsed.success) return parsed.response
+
     try {
-      const body = await request.json()
-
-      if (!body.name || typeof body.name !== 'string' || body.name.trim().length === 0) {
-        return badRequestResponse('name is required')
-      }
-
-      if (!body.ownerId || typeof body.ownerId !== 'string') {
-        return badRequestResponse('ownerId is required')
-      }
+      const { name, ownerId, slug: requestedSlug } = parsed.data.body
 
       const [ownerData] = await db
         .select({ id: user.id, name: user.name })
         .from(user)
-        .where(eq(user.id, body.ownerId))
+        .where(eq(user.id, ownerId))
         .limit(1)
 
       if (!ownerData) {
@@ -99,7 +117,7 @@ export const POST = withRouteHandler(
       const [existingMembership] = await db
         .select({ organizationId: member.organizationId })
         .from(member)
-        .where(eq(member.userId, body.ownerId))
+        .where(eq(member.userId, ownerId))
         .limit(1)
 
       if (existingMembership) {
@@ -108,16 +126,15 @@ export const POST = withRouteHandler(
         )
       }
 
-      const name = body.name.trim()
       const slug =
-        body.slug?.trim() ||
+        requestedSlug?.trim() ||
         name
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/^-|-$/g, '')
 
       const { organizationId, memberId } = await createOrganizationWithOwner({
-        ownerUserId: body.ownerId,
+        ownerUserId: ownerId,
         name,
         slug,
       })
@@ -131,7 +148,7 @@ export const POST = withRouteHandler(
       logger.info(`Admin API: Created organization ${organizationId}`, {
         name,
         slug,
-        ownerId: body.ownerId,
+        ownerId,
         memberId,
       })
 

@@ -3,10 +3,10 @@ import { copilotFeedback } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { submitCopilotFeedbackContract } from '@/lib/api/contracts'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import {
   authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
   createInternalServerErrorResponse,
   createRequestTracker,
   createUnauthorizedResponse,
@@ -15,16 +15,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CopilotFeedbackAPI')
-
-// Schema for feedback submission
-const FeedbackSchema = z.object({
-  chatId: z.string().uuid('Chat ID must be a valid UUID'),
-  userQuery: z.string().min(1, 'User query is required'),
-  agentResponse: z.string().min(1, 'Agent response is required'),
-  isPositiveFeedback: z.boolean(),
-  feedback: z.string().optional(),
-  workflowYaml: z.string().optional(), // Optional workflow YAML when edit/build workflow tools were used
-})
 
 /**
  * POST /api/copilot/feedback
@@ -42,9 +32,25 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const body = await req.json()
+    const parsed = await parseRequest(
+      submitCopilotFeedbackContract,
+      req,
+      {},
+      {
+        invalidJson: 'throw',
+        validationErrorResponse: (error) => {
+          logger.error(`[${tracker.requestId}] Validation error:`, {
+            duration: tracker.getDuration(),
+            errors: error.issues,
+          })
+          return validationErrorResponse(error, 'Invalid request data')
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
     const { chatId, userQuery, agentResponse, isPositiveFeedback, feedback, workflowYaml } =
-      FeedbackSchema.parse(body)
+      parsed.data.body
 
     logger.info(`[${tracker.requestId}] Processing copilot feedback submission`, {
       userId: authenticatedUserId,
@@ -95,16 +101,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     })
   } catch (error) {
     const duration = tracker.getDuration()
-
-    if (error instanceof z.ZodError) {
-      logger.error(`[${tracker.requestId}] Validation error:`, {
-        duration,
-        errors: error.errors,
-      })
-      return createBadRequestResponse(
-        `Invalid request data: ${error.errors.map((e) => e.message).join(', ')}`
-      )
-    }
 
     logger.error(`[${tracker.requestId}] Error submitting copilot feedback:`, {
       duration,

@@ -40,41 +40,12 @@ vi.mock('@/app/api/knowledge/search/utils', () => ({
 
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 
-vi.mock('@/app/api/v1/knowledge/utils', () => ({
+vi.mock('@/app/api/v1/middleware', () => ({
   authenticateRequest: mockAuthenticateRequest,
   validateWorkspaceAccess: mockValidateWorkspaceAccess,
-  parseJsonBody: async (req: Request) => {
-    try {
-      return { success: true, data: await req.json() }
-    } catch {
-      return {
-        success: false,
-        response: new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400 }),
-      }
-    }
-  },
-  validateSchema: <T>(
-    schema: {
-      safeParse: (v: unknown) => {
-        success: boolean
-        data?: T
-        error?: { issues: { message: string }[] }
-      }
-    },
-    data: unknown
-  ) => {
-    const result = schema.safeParse(data)
-    if (!result.success) {
-      return {
-        success: false,
-        response: new Response(
-          JSON.stringify({ error: result.error?.issues.map((i) => i.message).join(', ') }),
-          { status: 400 }
-        ),
-      }
-    }
-    return { success: true, data: result.data }
-  },
+}))
+
+vi.mock('@/app/api/v1/knowledge/utils', () => ({
   handleError: (e: unknown) =>
     new Response(JSON.stringify({ error: e instanceof Error ? e.message : 'error' }), {
       status: 500,

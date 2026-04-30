@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import { getStarsContract } from '@/lib/api/contracts'
 
 /**
  * Query key factory for GitHub stars queries
@@ -15,15 +17,8 @@ export const githubStarsKeys = {
 export const GITHUB_STARS_FALLBACK = '27.8k'
 
 async function fetchGitHubStars(signal?: AbortSignal): Promise<string> {
-  const response = await fetch('/api/stars', {
-    signal,
-    headers: { 'Cache-Control': 'max-age=3600' },
-  })
-  if (!response.ok) {
-    throw new Error('Failed to fetch GitHub stars')
-  }
-  const data = await response.json()
-  const value = data?.stars
+  const data = await requestJson(getStarsContract, { signal })
+  const value = data.stars
   return typeof value === 'string' && value.length > 0 ? value : GITHUB_STARS_FALLBACK
 }
 

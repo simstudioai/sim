@@ -5,7 +5,8 @@ import { toError } from '@sim/utils/errors'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { putWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -22,98 +23,6 @@ import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/type
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowStateAPI')
-
-const PositionSchema = z.object({
-  x: z.number(),
-  y: z.number(),
-})
-
-const BlockDataSchema = z.object({
-  parentId: z.string().optional(),
-  extent: z.literal('parent').optional(),
-  width: z.number().optional(),
-  height: z.number().optional(),
-  collection: z.unknown().optional(),
-  count: z.number().optional(),
-  loopType: z.enum(['for', 'forEach', 'while', 'doWhile']).optional(),
-  whileCondition: z.string().optional(),
-  doWhileCondition: z.string().optional(),
-  parallelType: z.enum(['collection', 'count']).optional(),
-  type: z.string().optional(),
-  canonicalModes: z.record(z.enum(['basic', 'advanced'])).optional(),
-})
-
-const SubBlockStateSchema = z.object({
-  id: z.string(),
-  type: z.string(),
-  value: z.any(),
-})
-
-const BlockOutputSchema = z.any()
-
-const BlockStateSchema = z.object({
-  id: z.string(),
-  type: z.string(),
-  name: z.string(),
-  position: PositionSchema,
-  subBlocks: z.record(SubBlockStateSchema),
-  outputs: z.record(BlockOutputSchema),
-  enabled: z.boolean(),
-  horizontalHandles: z.boolean().optional(),
-  height: z.number().optional(),
-  advancedMode: z.boolean().optional(),
-  triggerMode: z.boolean().optional(),
-  data: BlockDataSchema.optional(),
-})
-
-const EdgeSchema = z.object({
-  id: z.string(),
-  source: z.string(),
-  target: z.string(),
-  sourceHandle: z.string().optional(),
-  targetHandle: z.string().optional(),
-  type: z.string().optional(),
-  animated: z.boolean().optional(),
-  style: z.record(z.any()).optional(),
-  data: z.record(z.any()).optional(),
-  label: z.string().optional(),
-  labelStyle: z.record(z.any()).optional(),
-  labelShowBg: z.boolean().optional(),
-  labelBgStyle: z.record(z.any()).optional(),
-  labelBgPadding: z.array(z.number()).optional(),
-  labelBgBorderRadius: z.number().optional(),
-  markerStart: z.string().optional(),
-  markerEnd: z.string().optional(),
-})
-
-const LoopSchema = z.object({
-  id: z.string(),
-  nodes: z.array(z.string()),
-  iterations: z.number(),
-  loopType: z.enum(['for', 'forEach', 'while', 'doWhile']),
-  forEachItems: z.union([z.array(z.any()), z.record(z.any()), z.string()]).optional(),
-  whileCondition: z.string().optional(),
-  doWhileCondition: z.string().optional(),
-})
-
-const ParallelSchema = z.object({
-  id: z.string(),
-  nodes: z.array(z.string()),
-  distribution: z.union([z.array(z.any()), z.record(z.any()), z.string()]).optional(),
-  count: z.number().optional(),
-  parallelType: z.enum(['count', 'collection']).optional(),
-})
-
-const WorkflowStateSchema = z.object({
-  blocks: z.record(BlockStateSchema),
-  edges: z.array(EdgeSchema),
-  loops: z.record(LoopSchema).optional(),
-  parallels: z.record(ParallelSchema).optional(),
-  lastSaved: z.number().optional(),
-  isDeployed: z.boolean().optional(),
-  deployedAt: z.coerce.date().optional(),
-  variables: z.any().optional(), // Workflow variables
-})
 
 /**
  * GET /api/workflows/[id]/state
@@ -149,6 +58,7 @@ export const GET = withRouteHandler(
         edges: normalized.edges,
         loops: normalized.loops || {},
         parallels: normalized.parallels || {},
+        variables: authorization.workflow?.variables || {},
       })
     } catch (error) {
       logger.error('Failed to fetch workflow state', {
@@ -165,10 +75,10 @@ export const GET = withRouteHandler(
  * Save complete workflow state to normalized database tables
  */
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
     const startTime = Date.now()
-    const { id: workflowId } = await params
+    const { id: workflowId } = await context.params
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -178,8 +88,9 @@ export const PUT = withRouteHandler(
       }
       const userId = auth.userId
 
-      const body = await request.json()
-      const state = WorkflowStateSchema.parse(body)
+      const parsed = await parseRequest(putWorkflowNormalizedStateContract, request, context)
+      if (!parsed.success) return parsed.response
+      const state = parsed.data.body
 
       const authorization = await authorizeWorkflowByWorkspacePermission({
         workflowId,
@@ -203,6 +114,26 @@ export const PUT = withRouteHandler(
           { error: authorization.message || 'Access denied' },
           { status: authorization.status || 403 }
         )
+      }
+
+      if (state.variables) {
+        const mismatchedVariable = Object.values(state.variables).find(
+          (variable) => variable.workflowId !== workflowId
+        )
+        if (mismatchedVariable) {
+          return NextResponse.json(
+            {
+              error: 'Invalid workflow state',
+              details: [
+                {
+                  path: ['variables', mismatchedVariable.id, 'workflowId'],
+                  message: 'Variable workflowId must match the workflow route parameter',
+                },
+              ],
+            },
+            { status: 400 }
+          )
+        }
       }
 
       // Sanitize custom tools in agent blocks before saving
@@ -348,13 +279,6 @@ export const PUT = withRouteHandler(
         `[${requestId}] Error saving workflow ${workflowId} state after ${elapsed}ms`,
         error
       )
-
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Invalid request body', details: error.errors },
-          { status: 400 }
-        )
-      }
 
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }

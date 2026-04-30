@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { fileManageContract } from '@/lib/api/contracts/media-tools'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
@@ -22,48 +24,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ success: false, error: auth.error }, { status: 401 })
   }
 
-  const { searchParams } = new URL(request.url)
-  const userId = auth.userId || searchParams.get('userId')
+  const parsed = await parseRequest(fileManageContract, request, {})
+  if (!parsed.success) return parsed.response
 
+  const { query, body } = parsed.data
+  const userId = auth.userId || query.userId
   if (!userId) {
     return NextResponse.json({ success: false, error: 'userId is required' }, { status: 400 })
   }
 
-  let body: Record<string, unknown>
-  try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
-  }
-
-  const workspaceId = (body.workspaceId as string) || searchParams.get('workspaceId')
+  const workspaceId = body.workspaceId || query.workspaceId
   if (!workspaceId) {
     return NextResponse.json({ success: false, error: 'workspaceId is required' }, { status: 400 })
   }
 
-  const operation = body.operation as string
-
   try {
-    switch (operation) {
+    switch (body.operation) {
       case 'write': {
-        const fileName = body.fileName as string | undefined
-        const content = body.content as string | undefined
-        const contentType = body.contentType as string | undefined
-
-        if (!fileName) {
-          return NextResponse.json(
-            { success: false, error: 'fileName is required for write operation' },
-            { status: 400 }
-          )
-        }
-
-        if (!content && content !== '') {
-          return NextResponse.json(
-            { success: false, error: 'content is required for write operation' },
-            { status: 400 }
-          )
-        }
-
+        const { fileName, content, contentType } = body
         const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(fileName))
         const fileBuffer = Buffer.from(content ?? '', 'utf-8')
         const result = await uploadWorkspaceFile(
@@ -92,22 +70,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       case 'append': {
-        const fileName = body.fileName as string | undefined
-        const content = body.content as string | undefined
-
-        if (!fileName) {
-          return NextResponse.json(
-            { success: false, error: 'fileName is required for append operation' },
-            { status: 400 }
-          )
-        }
-
-        if (!content && content !== '') {
-          return NextResponse.json(
-            { success: false, error: 'content is required for append operation' },
-            { status: 400 }
-          )
-        }
+        const { fileName, content } = body
 
         const existing = await getWorkspaceFileByName(workspaceId, fileName)
         if (!existing) {
@@ -152,16 +115,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           await releaseLock(lockKey, lockValue)
         }
       }
-
-      default:
-        return NextResponse.json(
-          { success: false, error: `Unknown operation: ${operation}. Supported: write, append` },
-          { status: 400 }
-        )
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
-    logger.error('File operation failed', { operation, error: message })
+    logger.error('File operation failed', { operation: body.operation, error: message })
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 })

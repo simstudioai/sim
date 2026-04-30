@@ -27,12 +27,18 @@ import { db } from '@sim/db'
 import { subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import {
+  adminV1CancelSubscriptionContract,
+  adminV1GetSubscriptionContract,
+} from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminValidationErrorResponse,
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
@@ -47,8 +53,13 @@ interface RouteParams {
 }
 
 export const GET = withRouteHandler(
-  withAdminAuthParams<RouteParams>(async (_, context) => {
-    const { id: subscriptionId } = await context.params
+  withAdminAuthParams<RouteParams>(async (request, context) => {
+    const parsed = await parseRequest(adminV1GetSubscriptionContract, request, context, {
+      validationErrorResponse: adminValidationErrorResponse,
+    })
+    if (!parsed.success) return parsed.response
+
+    const { id: subscriptionId } = parsed.data.params
 
     try {
       const [subData] = await db
@@ -73,10 +84,14 @@ export const GET = withRouteHandler(
 
 export const DELETE = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: subscriptionId } = await context.params
-    const url = new URL(request.url)
-    const atPeriodEnd = url.searchParams.get('atPeriodEnd') === 'true'
-    const reason = url.searchParams.get('reason') || 'Admin cancellation (no reason provided)'
+    const parsed = await parseRequest(adminV1CancelSubscriptionContract, request, context, {
+      validationErrorResponse: adminValidationErrorResponse,
+    })
+    if (!parsed.success) return parsed.response
+
+    const { id: subscriptionId } = parsed.data.params
+    const { atPeriodEnd, reason: rawReason } = parsed.data.query
+    const reason = rawReason || 'Admin cancellation (no reason provided)'
 
     try {
       const [existing] = await db

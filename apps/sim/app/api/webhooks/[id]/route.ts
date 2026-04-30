@@ -5,8 +5,13 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  deleteWebhookContract,
+  getWebhookContract,
+  updateWebhookContract,
+} from '@/lib/api/contracts/webhooks'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { validateInteger } from '@/lib/core/security/input-validation'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -19,11 +24,13 @@ export const dynamic = 'force-dynamic'
 
 // Get a specific webhook
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
 
     try {
-      const { id } = await params
+      const parsed = await parseRequest(getWebhookContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id } = parsed.data.params
 
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
@@ -76,11 +83,13 @@ export const GET = withRouteHandler(
 )
 
 export const PATCH = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
 
     try {
-      const { id } = await params
+      const parsed = await parseRequest(updateWebhookContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id } = parsed.data.params
 
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
@@ -89,16 +98,7 @@ export const PATCH = withRouteHandler(
       }
       const userId = auth.userId
 
-      const body = await request.json()
-      const { isActive, failedCount } = body
-
-      if (failedCount !== undefined) {
-        const validation = validateInteger(failedCount, 'failedCount', { min: 0 })
-        if (!validation.isValid) {
-          logger.warn(`[${requestId}] ${validation.error}`)
-          return NextResponse.json({ error: validation.error }, { status: 400 })
-        }
-      }
+      const { isActive, failedCount } = parsed.data.body
 
       const webhooks = await db
         .select({
@@ -153,11 +153,13 @@ export const PATCH = withRouteHandler(
 
 // Delete a webhook
 export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
 
     try {
-      const { id } = await params
+      const parsed = await parseRequest(deleteWebhookContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id } = parsed.data.params
 
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {

@@ -4,7 +4,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { formSubmitBodySchema } from '@/lib/api/contracts/forms'
+import { parseJsonBody } from '@/lib/api/server'
 import { addCorsHeaders, validateAuthToken } from '@/lib/core/security/deployment'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -18,12 +19,6 @@ import { setFormAuthCookie, validateFormAuth } from '@/app/api/form/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('FormIdentifierAPI')
-
-const formPostBodySchema = z.object({
-  formData: z.record(z.unknown()).optional(),
-  password: z.string().optional(),
-  email: z.string().email('Invalid email format').optional().or(z.literal('')),
-})
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -58,26 +53,24 @@ export const POST = withRouteHandler(
     const requestId = generateRequestId()
 
     try {
-      let parsedBody
-      try {
-        const rawBody = await request.json()
-        const validation = formPostBodySchema.safeParse(rawBody)
-
-        if (!validation.success) {
-          const errorMessage = validation.error.errors
-            .map((err) => `${err.path.join('.')}: ${err.message}`)
-            .join(', ')
-          logger.warn(`[${requestId}] Validation error: ${errorMessage}`)
-          return addCorsHeaders(
-            createErrorResponse(`Invalid request body: ${errorMessage}`, 400),
-            request
-          )
-        }
-
-        parsedBody = validation.data
-      } catch (_error) {
+      const parsedJson = await parseJsonBody(request)
+      if (!parsedJson.success) {
         return addCorsHeaders(createErrorResponse('Invalid request body', 400), request)
       }
+
+      const bodyValidation = formSubmitBodySchema.safeParse(parsedJson.data)
+      if (!bodyValidation.success) {
+        const errorMessage = bodyValidation.error.issues
+          .map((err) => `${err.path.join('.')}: ${err.message}`)
+          .join(', ')
+        logger.warn(`[${requestId}] Validation error: ${errorMessage}`)
+        return addCorsHeaders(
+          createErrorResponse(`Invalid request body: ${errorMessage}`, 400),
+          request
+        )
+      }
+
+      const parsedBody = bodyValidation.data
 
       const deploymentResult = await db
         .select({

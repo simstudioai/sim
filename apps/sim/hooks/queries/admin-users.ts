@@ -21,7 +21,7 @@ interface AdminUser {
   banReason: string | null
 }
 
-interface AdminUsersResponse {
+interface AdminUserListData {
   users: AdminUser[]
   total: number
 }
@@ -48,7 +48,7 @@ async function fetchAdminUsers(
   offset: number,
   limit: number,
   searchQuery: string
-): Promise<AdminUsersResponse> {
+): Promise<AdminUserListData> {
   if (isValidUuid(searchQuery.trim())) {
     const { data, error } = await client.admin.getUser({ query: { id: searchQuery.trim() } })
     if (error) throw new Error(error.message ?? 'Failed to fetch user')

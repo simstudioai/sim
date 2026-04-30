@@ -2,8 +2,6 @@ import { createLogger } from '@sim/logger'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 import type {
-  FileParseApiMultiResponse,
-  FileParseApiResponse,
   FileParseResult,
   FileParserInput,
   FileParserOutput,
@@ -15,6 +13,51 @@ import type {
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('FileParserTool')
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object'
+
+const isUserFile = (value: unknown): value is UserFile =>
+  isRecord(value) &&
+  typeof value.id === 'string' &&
+  typeof value.name === 'string' &&
+  typeof value.url === 'string' &&
+  typeof value.size === 'number' &&
+  typeof value.type === 'string' &&
+  typeof value.key === 'string'
+
+const isFileParseResult = (value: unknown): value is FileParseResult =>
+  isRecord(value) &&
+  typeof value.content === 'string' &&
+  typeof value.fileType === 'string' &&
+  typeof value.size === 'number' &&
+  typeof value.name === 'string' &&
+  typeof value.binary === 'boolean'
+
+const normalizeFileParseResult = (value: unknown): FileParseResult => {
+  if (isRecord(value) && isFileParseResult(value.output)) {
+    return value.output
+  }
+
+  if (isFileParseResult(value)) {
+    return value
+  }
+
+  const record = isRecord(value) ? value : {}
+  const file = isUserFile(record.file) ? record.file : undefined
+  const metadata = isRecord(record.metadata) ? record.metadata : undefined
+  const fallback: FileParseResult = {
+    content: typeof record.content === 'string' ? record.content : '',
+    fileType: typeof record.fileType === 'string' ? record.fileType : '',
+    size: typeof record.size === 'number' ? record.size : 0,
+    name: typeof record.name === 'string' ? record.name : 'unknown',
+    binary: typeof record.binary === 'boolean' ? record.binary : false,
+    ...(metadata && { metadata }),
+    ...(file && { file }),
+  }
+
+  return Object.assign({}, record, fallback)
+}
 
 interface ToolBodyParams extends Partial<FileParserInput> {
   files?: FileUploadInput[]
@@ -28,17 +71,17 @@ interface ToolBodyParams extends Partial<FileParserInput> {
 const parseFileParserResponse = async (response: Response): Promise<FileParserOutput> => {
   logger.info('Received response status:', response.status)
 
-  const result = (await response.json()) as FileParseApiResponse | FileParseApiMultiResponse
+  const result: unknown = await response.json()
   logger.info('Response parsed successfully')
 
   // Handle multiple files response
-  if ('results' in result) {
+  if (isRecord(result) && Array.isArray(result.results)) {
     logger.info('Processing multiple files response')
 
     // Extract individual file results
-    const fileResults: FileParseResult[] = result.results.map((fileResult) => {
-      return fileResult.output || (fileResult as unknown as FileParseResult)
-    })
+    const fileResults: FileParseResult[] = result.results.map((fileResult) =>
+      normalizeFileParseResult(fileResult)
+    )
 
     // Collect UserFile objects from results
     const processedFiles: UserFile[] = fileResults
@@ -68,15 +111,17 @@ const parseFileParserResponse = async (response: Response): Promise<FileParserOu
   }
 
   // Handle single file response
-  logger.info('Successfully parsed file:', result.output?.name || 'unknown')
+  const fileOutput = normalizeFileParseResult(result)
 
-  const fileOutput: FileParseResult = result.output || (result as unknown as FileParseResult)
+  logger.info('Successfully parsed file:', fileOutput.name || 'unknown')
 
   // For a single file, create the output with just array format
   const output: FileParserOutputData = {
     files: [fileOutput],
-    combinedContent: fileOutput?.content || result.content || '',
-    ...(fileOutput?.file && { processedFiles: [fileOutput.file] }),
+    combinedContent:
+      fileOutput.content ||
+      (isRecord(result) && typeof result.content === 'string' ? result.content : ''),
+    ...(fileOutput.file && { processedFiles: [fileOutput.file] }),
   }
 
   return {
@@ -130,21 +175,20 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       const determinedFileType: string | undefined = params.fileType
 
       const resolveFilePath = (fileInput: unknown): string | null => {
-        if (!fileInput || typeof fileInput !== 'object') return null
+        if (!isRecord(fileInput)) return null
 
-        if ('path' in fileInput && typeof (fileInput as { path?: unknown }).path === 'string') {
-          return (fileInput as { path: string }).path
+        if (typeof fileInput.path === 'string') {
+          return fileInput.path
         }
 
-        if ('url' in fileInput && typeof (fileInput as { url?: unknown }).url === 'string') {
-          return (fileInput as { url: string }).url
+        if (typeof fileInput.url === 'string') {
+          return fileInput.url
         }
 
-        if ('key' in fileInput && typeof (fileInput as { key?: unknown }).key === 'string') {
-          const fileRecord = fileInput as Record<string, unknown>
-          const key = fileRecord.key as string
+        if (typeof fileInput.key === 'string') {
+          const key = fileInput.key
           const context =
-            typeof fileRecord.context === 'string' ? fileRecord.context : inferContextFromKey(key)
+            typeof fileInput.context === 'string' ? fileInput.context : inferContextFromKey(key)
           return `/api/files/serve/${encodeURIComponent(key)}?context=${context}`
         }
 

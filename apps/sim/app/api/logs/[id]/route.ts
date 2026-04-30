@@ -9,6 +9,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { logIdParamsSchema } from '@/lib/api/contracts/logs'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -29,7 +30,7 @@ export const GET = withRouteHandler(
       }
 
       const userId = session.user.id
-      const { id } = await params
+      const { id } = logIdParamsSchema.parse(await params)
 
       const rows = await db
         .select({

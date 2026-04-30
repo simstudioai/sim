@@ -4,6 +4,8 @@ import { knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { restoreKnowledgeBaseContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -13,9 +15,11 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 const logger = createLogger('RestoreKnowledgeBaseAPI')
 
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const parsed = await parseRequest(restoreKnowledgeBaseContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { id } = parsed.data.params
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })

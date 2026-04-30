@@ -1,16 +1,19 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  v1DeleteKnowledgeBaseContract,
+  v1GetKnowledgeBaseContract,
+  v1UpdateKnowledgeBaseContract,
+} from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteKnowledgeBase, updateKnowledgeBase } from '@/lib/knowledge/service'
 import {
-  authenticateRequest,
   formatKnowledgeBase,
   handleError,
-  parseJsonBody,
   resolveKnowledgeBase,
-  validateSchema,
 } from '@/app/api/v1/knowledge/utils'
+import { authenticateRequest } from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -19,138 +22,97 @@ interface KnowledgeRouteParams {
   params: Promise<{ id: string }>
 }
 
-const WorkspaceIdSchema = z.object({
-  workspaceId: z.string().min(1, 'workspaceId query parameter is required'),
+/** GET /api/v1/knowledge/[id] — Get knowledge base details. */
+export const GET = withRouteHandler(async (request: NextRequest, context: KnowledgeRouteParams) => {
+  const auth = await authenticateRequest(request, 'knowledge-detail')
+  if (auth instanceof NextResponse) return auth
+  const { requestId, userId, rateLimit } = auth
+
+  try {
+    const parsed = await parseRequest(v1GetKnowledgeBaseContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id } = parsed.data.params
+    const result = await resolveKnowledgeBase(id, parsed.data.query.workspaceId, userId, rateLimit)
+    if (result instanceof NextResponse) return result
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        knowledgeBase: formatKnowledgeBase(result.kb),
+      },
+    })
+  } catch (error) {
+    return handleError(requestId, error, 'Failed to get knowledge base')
+  }
 })
 
-const UpdateKBSchema = z
-  .object({
-    workspaceId: z.string().min(1, 'Workspace ID is required'),
-    name: z.string().min(1).max(255, 'Name must be 255 characters or less').optional(),
-    description: z.string().max(1000, 'Description must be 1000 characters or less').optional(),
-    chunkingConfig: z
-      .object({
-        maxSize: z.number().min(100).max(4000),
-        minSize: z.number().min(1).max(2000),
-        overlap: z.number().min(0).max(500),
-      })
-      .optional(),
-  })
-  .refine(
-    (data) =>
-      data.name !== undefined ||
-      data.description !== undefined ||
-      data.chunkingConfig !== undefined,
-    { message: 'At least one of name, description, or chunkingConfig must be provided' }
-  )
-
-/** GET /api/v1/knowledge/[id] — Get knowledge base details. */
-export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: KnowledgeRouteParams) => {
-    const auth = await authenticateRequest(request, 'knowledge-detail')
-    if (auth instanceof NextResponse) return auth
-    const { requestId, userId, rateLimit } = auth
-
-    try {
-      const { id } = await params
-      const { searchParams } = new URL(request.url)
-
-      const validation = validateSchema(WorkspaceIdSchema, {
-        workspaceId: searchParams.get('workspaceId'),
-      })
-      if (!validation.success) return validation.response
-
-      const result = await resolveKnowledgeBase(id, validation.data.workspaceId, userId, rateLimit)
-      if (result instanceof NextResponse) return result
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          knowledgeBase: formatKnowledgeBase(result.kb),
-        },
-      })
-    } catch (error) {
-      return handleError(requestId, error, 'Failed to get knowledge base')
-    }
-  }
-)
-
 /** PUT /api/v1/knowledge/[id] — Update a knowledge base. */
-export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: KnowledgeRouteParams) => {
-    const auth = await authenticateRequest(request, 'knowledge-detail')
-    if (auth instanceof NextResponse) return auth
-    const { requestId, userId, rateLimit } = auth
+export const PUT = withRouteHandler(async (request: NextRequest, context: KnowledgeRouteParams) => {
+  const auth = await authenticateRequest(request, 'knowledge-detail')
+  if (auth instanceof NextResponse) return auth
+  const { requestId, userId, rateLimit } = auth
 
-    try {
-      const { id } = await params
+  try {
+    const parsed = await parseRequest(v1UpdateKnowledgeBaseContract, request, context)
+    if (!parsed.success) return parsed.response
 
-      const body = await parseJsonBody(request)
-      if (!body.success) return body.response
+    const { id } = parsed.data.params
+    const { workspaceId, name, description, chunkingConfig } = parsed.data.body
 
-      const validation = validateSchema(UpdateKBSchema, body.data)
-      if (!validation.success) return validation.response
+    const result = await resolveKnowledgeBase(id, workspaceId, userId, rateLimit, 'write')
+    if (result instanceof NextResponse) return result
 
-      const { workspaceId, name, description, chunkingConfig } = validation.data
+    const updates: {
+      name?: string
+      description?: string
+      chunkingConfig?: { maxSize: number; minSize: number; overlap: number }
+    } = {}
+    if (name !== undefined) updates.name = name
+    if (description !== undefined) updates.description = description
+    if (chunkingConfig !== undefined) updates.chunkingConfig = chunkingConfig
 
-      const result = await resolveKnowledgeBase(id, workspaceId, userId, rateLimit, 'write')
-      if (result instanceof NextResponse) return result
+    const updatedKb = await updateKnowledgeBase(id, updates, requestId)
 
-      const updates: {
-        name?: string
-        description?: string
-        chunkingConfig?: { maxSize: number; minSize: number; overlap: number }
-      } = {}
-      if (name !== undefined) updates.name = name
-      if (description !== undefined) updates.description = description
-      if (chunkingConfig !== undefined) updates.chunkingConfig = chunkingConfig
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: AuditAction.KNOWLEDGE_BASE_UPDATED,
+      resourceType: AuditResourceType.KNOWLEDGE_BASE,
+      resourceId: id,
+      resourceName: updatedKb.name,
+      description: `Updated knowledge base "${updatedKb.name}" via API`,
+      metadata: { updatedFields: Object.keys(updates) },
+      request,
+    })
 
-      const updatedKb = await updateKnowledgeBase(id, updates, requestId)
-
-      recordAudit({
-        workspaceId,
-        actorId: userId,
-        action: AuditAction.KNOWLEDGE_BASE_UPDATED,
-        resourceType: AuditResourceType.KNOWLEDGE_BASE,
-        resourceId: id,
-        resourceName: updatedKb.name,
-        description: `Updated knowledge base "${updatedKb.name}" via API`,
-        metadata: { updatedFields: Object.keys(updates) },
-        request,
-      })
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          knowledgeBase: formatKnowledgeBase(updatedKb),
-          message: 'Knowledge base updated successfully',
-        },
-      })
-    } catch (error) {
-      return handleError(requestId, error, 'Failed to update knowledge base')
-    }
+    return NextResponse.json({
+      success: true,
+      data: {
+        knowledgeBase: formatKnowledgeBase(updatedKb),
+        message: 'Knowledge base updated successfully',
+      },
+    })
+  } catch (error) {
+    return handleError(requestId, error, 'Failed to update knowledge base')
   }
-)
+})
 
 /** DELETE /api/v1/knowledge/[id] — Delete a knowledge base. */
 export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: KnowledgeRouteParams) => {
+  async (request: NextRequest, context: KnowledgeRouteParams) => {
     const auth = await authenticateRequest(request, 'knowledge-detail')
     if (auth instanceof NextResponse) return auth
     const { requestId, userId, rateLimit } = auth
 
     try {
-      const { id } = await params
-      const { searchParams } = new URL(request.url)
+      const parsed = await parseRequest(v1DeleteKnowledgeBaseContract, request, context)
+      if (!parsed.success) return parsed.response
 
-      const validation = validateSchema(WorkspaceIdSchema, {
-        workspaceId: searchParams.get('workspaceId'),
-      })
-      if (!validation.success) return validation.response
-
+      const { id } = parsed.data.params
       const result = await resolveKnowledgeBase(
         id,
-        validation.data.workspaceId,
+        parsed.data.query.workspaceId,
         userId,
         rateLimit,
         'write'
@@ -160,7 +122,7 @@ export const DELETE = withRouteHandler(
       await deleteKnowledgeBase(id, requestId)
 
       recordAudit({
-        workspaceId: validation.data.workspaceId,
+        workspaceId: parsed.data.query.workspaceId,
         actorId: userId,
         action: AuditAction.KNOWLEDGE_BASE_DELETED,
         resourceType: AuditResourceType.KNOWLEDGE_BASE,

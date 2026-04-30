@@ -227,7 +227,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: LIST_OPERATIONS as unknown as string[],
+        value: [...LIST_OPERATIONS],
       },
     },
     // Order ID

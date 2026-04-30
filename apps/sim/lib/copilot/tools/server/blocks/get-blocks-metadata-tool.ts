@@ -102,7 +102,7 @@ export interface CopilotBlockMetadata {
 }
 
 const GetBlocksMetadataInputSchema = z.object({ blockIds: z.array(z.string()).min(1) })
-const GetBlocksMetadataResultSchema = z.object({ metadata: z.record(z.any()) })
+const GetBlocksMetadataResultSchema = z.object({ metadata: z.record(z.string(), z.any()) })
 
 export const getBlocksMetadataServerTool: BaseServerTool<
   z.infer<typeof GetBlocksMetadataInputSchema>,

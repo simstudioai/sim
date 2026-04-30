@@ -16,13 +16,18 @@ import { db } from '@sim/db'
 import { subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, type SQL } from 'drizzle-orm'
+import { adminV1ListSubscriptionsContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
-import { internalErrorResponse, listResponse } from '@/app/api/v1/admin/responses'
+import {
+  adminValidationErrorResponse,
+  internalErrorResponse,
+  listResponse,
+} from '@/app/api/v1/admin/responses'
 import {
   type AdminSubscription,
   createPaginationMeta,
-  parsePaginationParams,
   toAdminSubscription,
 } from '@/app/api/v1/admin/types'
 
@@ -30,10 +35,17 @@ const logger = createLogger('AdminSubscriptionsAPI')
 
 export const GET = withRouteHandler(
   withAdminAuth(async (request) => {
-    const url = new URL(request.url)
-    const { limit, offset } = parsePaginationParams(url)
-    const planFilter = url.searchParams.get('plan')
-    const statusFilter = url.searchParams.get('status')
+    const parsed = await parseRequest(
+      adminV1ListSubscriptionsContract,
+      request,
+      {},
+      {
+        validationErrorResponse: adminValidationErrorResponse,
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const { limit, offset, plan: planFilter, status: statusFilter } = parsed.data.query
 
     try {
       const conditions: SQL<unknown>[] = []

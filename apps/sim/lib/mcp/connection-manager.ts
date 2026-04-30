@@ -390,6 +390,6 @@ export class McpConnectionManager {
   }
 }
 
-export const mcpConnectionManager = isTest
-  ? (null as unknown as McpConnectionManager)
+export const mcpConnectionManager: McpConnectionManager | null = isTest
+  ? null
   : new McpConnectionManager()

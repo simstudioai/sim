@@ -1,7 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateKnowledgeBaseContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -15,40 +16,6 @@ import {
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('KnowledgeBaseByIdAPI')
-
-/**
- * Schema for updating a knowledge base
- *
- * Chunking config units:
- * - maxSize: tokens (1 token ≈ 4 characters)
- * - minSize: characters
- * - overlap: tokens (1 token ≈ 4 characters)
- */
-const UpdateKnowledgeBaseSchema = z.object({
-  name: z.string().min(1, 'Name is required').optional(),
-  description: z.string().optional(),
-  workspaceId: z.string().nullable().optional(),
-  chunkingConfig: z
-    .object({
-      /** Maximum chunk size in tokens (1 token ≈ 4 characters) */
-      maxSize: z.number().min(100).max(4000),
-      /** Minimum chunk size in characters */
-      minSize: z.number().min(1).max(2000),
-      /** Overlap between chunks in characters */
-      overlap: z.number().min(0).max(500),
-    })
-    .refine(
-      (data) => {
-        // Convert maxSize from tokens to characters for comparison (1 token ≈ 4 chars)
-        const maxSizeInChars = data.maxSize * 4
-        return data.minSize < maxSizeInChars
-      },
-      {
-        message: 'Min chunk size (characters) must be less than max chunk size (tokens × 4)',
-      }
-    )
-    .optional(),
-})
 
 export const GET = withRouteHandler(
   async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -96,9 +63,9 @@ export const GET = withRouteHandler(
 )
 
 export const PUT = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const { id } = await context.params
 
     try {
       const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
@@ -121,67 +88,55 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const body = await req.json()
+      const parsed = await parseRequest(updateKnowledgeBaseContract, req, context)
+      if (!parsed.success) return parsed.response
 
-      try {
-        const validatedData = UpdateKnowledgeBaseSchema.parse(body)
+      const validatedData = parsed.data.body
 
-        const updatedKnowledgeBase = await updateKnowledgeBase(
-          id,
-          {
-            name: validatedData.name,
+      const updatedKnowledgeBase = await updateKnowledgeBase(
+        id,
+        {
+          name: validatedData.name,
+          description: validatedData.description,
+          workspaceId: validatedData.workspaceId,
+          chunkingConfig: validatedData.chunkingConfig,
+        },
+        requestId
+      )
+
+      logger.info(`[${requestId}] Knowledge base updated: ${id} for user ${userId}`)
+
+      recordAudit({
+        workspaceId: accessCheck.knowledgeBase.workspaceId ?? null,
+        actorId: userId,
+        actorName: auth.userName,
+        actorEmail: auth.userEmail,
+        action: AuditAction.KNOWLEDGE_BASE_UPDATED,
+        resourceType: AuditResourceType.KNOWLEDGE_BASE,
+        resourceId: id,
+        resourceName: validatedData.name ?? updatedKnowledgeBase.name,
+        description: `Updated knowledge base "${validatedData.name ?? updatedKnowledgeBase.name}"`,
+        metadata: {
+          updatedFields: Object.keys(validatedData).filter(
+            (k) => validatedData[k as keyof typeof validatedData] !== undefined
+          ),
+          ...(validatedData.name && { newName: validatedData.name }),
+          ...(validatedData.description !== undefined && {
             description: validatedData.description,
-            workspaceId: validatedData.workspaceId,
-            chunkingConfig: validatedData.chunkingConfig,
-          },
-          requestId
-        )
+          }),
+          ...(validatedData.chunkingConfig && {
+            chunkMaxSize: validatedData.chunkingConfig.maxSize,
+            chunkMinSize: validatedData.chunkingConfig.minSize,
+            chunkOverlap: validatedData.chunkingConfig.overlap,
+          }),
+        },
+        request: req,
+      })
 
-        logger.info(`[${requestId}] Knowledge base updated: ${id} for user ${userId}`)
-
-        recordAudit({
-          workspaceId: accessCheck.knowledgeBase.workspaceId ?? null,
-          actorId: userId,
-          actorName: auth.userName,
-          actorEmail: auth.userEmail,
-          action: AuditAction.KNOWLEDGE_BASE_UPDATED,
-          resourceType: AuditResourceType.KNOWLEDGE_BASE,
-          resourceId: id,
-          resourceName: validatedData.name ?? updatedKnowledgeBase.name,
-          description: `Updated knowledge base "${validatedData.name ?? updatedKnowledgeBase.name}"`,
-          metadata: {
-            updatedFields: Object.keys(validatedData).filter(
-              (k) => validatedData[k as keyof typeof validatedData] !== undefined
-            ),
-            ...(validatedData.name && { newName: validatedData.name }),
-            ...(validatedData.description !== undefined && {
-              description: validatedData.description,
-            }),
-            ...(validatedData.chunkingConfig && {
-              chunkMaxSize: validatedData.chunkingConfig.maxSize,
-              chunkMinSize: validatedData.chunkingConfig.minSize,
-              chunkOverlap: validatedData.chunkingConfig.overlap,
-            }),
-          },
-          request: req,
-        })
-
-        return NextResponse.json({
-          success: true,
-          data: updatedKnowledgeBase,
-        })
-      } catch (validationError) {
-        if (validationError instanceof z.ZodError) {
-          logger.warn(`[${requestId}] Invalid knowledge base update data`, {
-            errors: validationError.errors,
-          })
-          return NextResponse.json(
-            { error: 'Invalid request data', details: validationError.errors },
-            { status: 400 }
-          )
-        }
-        throw validationError
-      }
+      return NextResponse.json({
+        success: true,
+        data: updatedKnowledgeBase,
+      })
     } catch (error) {
       if (error instanceof KnowledgeBaseConflictError) {
         return NextResponse.json({ error: error.message }, { status: 409 })

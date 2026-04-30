@@ -578,29 +578,54 @@ tools: {
 
 #### 3. Create Internal API Route
 
-Create `apps/sim/app/api/tools/{service}/{action}/route.ts`:
+Create `apps/sim/app/api/tools/{service}/{action}/route.ts`. Internal tool routes are HTTP boundaries and follow the same contract policy as public routes — define the request/response shape in `apps/sim/lib/api/contracts/{service}-tools.ts` (or an existing `internal-tools.ts` / `communication-tools.ts` aggregate) and validate with canonical helpers from `@/lib/api/server`. Never write a route-local Zod schema.
 
 ```typescript
+// apps/sim/lib/api/contracts/{service}-tools.ts
+import { z } from 'zod'
+import { defineRouteContract } from '@/lib/api/contracts'
+import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
+
+export const {service}UploadBodySchema = z.object({
+  accessToken: z.string(),
+  file: FileInputSchema.optional().nullable(),
+  fileContent: z.string().optional().nullable(),
+  // ... other params
+})
+
+export const {service}UploadResponseSchema = z.object({
+  success: z.boolean(),
+  output: z.object({ id: z.string(), url: z.string() }).optional(),
+  error: z.string().optional(),
+})
+
+export const {service}UploadContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/{service}/upload',
+  body: {service}UploadBodySchema,
+  response: { mode: 'json', schema: {service}UploadResponseSchema },
+})
+
+export type {Service}UploadBody = z.input<typeof {service}UploadBodySchema>
+export type {Service}UploadResponse = z.output<typeof {service}UploadResponseSchema>
+```
+
+```typescript
+// apps/sim/app/api/tools/{service}/upload/route.ts
 import { createLogger } from '@sim/logger'
 import { NextResponse, type NextRequest } from 'next/server'
-import { z } from 'zod'
+import { {service}UploadContract } from '@/lib/api/contracts/{service}-tools'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { FileInputSchema, type RawFileInput } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { type RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
 const logger = createLogger('{Service}UploadAPI')
 
-const RequestSchema = z.object({
-  accessToken: z.string(),
-  file: FileInputSchema.optional().nullable(),
-  // Legacy field for backwards compatibility
-  fileContent: z.string().optional().nullable(),
-  // ... other params
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
@@ -608,8 +633,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await request.json()
-  const data = RequestSchema.parse(body)
+  const parsed = await parseRequest({service}UploadContract, request, {})
+  if (!parsed.success) return parsed.response
+  const data = parsed.data.body
 
   let fileBuffer: Buffer
   let fileName: string
@@ -624,22 +650,20 @@ export async function POST(request: NextRequest) {
     fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
     fileName = userFile.name
   } else if (data.fileContent) {
-    // Legacy: base64 string (backwards compatibility)
     fileBuffer = Buffer.from(data.fileContent, 'base64')
     fileName = 'file'
   } else {
     return NextResponse.json({ success: false, error: 'File required' }, { status: 400 })
   }
 
-  // Now call external API with fileBuffer
   const response = await fetch('https://api.{service}.com/upload', {
     method: 'POST',
     headers: { Authorization: `Bearer ${data.accessToken}` },
-    body: new Uint8Array(fileBuffer),  // Convert Buffer for fetch
+    body: new Uint8Array(fileBuffer),
   })
 
   // ... handle response
-}
+})
 ```
 
 #### 4. Update Tool to Use Internal Route

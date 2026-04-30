@@ -1737,20 +1737,12 @@ async function executeMcpTool(
       }
     }
 
-    // Get tool schema if provided (from agent block's cached schema)
-    const toolSchema = params._toolSchema
-
     const requestBody: Record<string, any> = {
       serverId,
       toolName,
       arguments: toolArguments,
       workflowId: mcpScope.workflowId,
       workspaceId: mcpScope.workspaceId,
-    }
-
-    // Include schema to skip discovery on execution
-    if (toolSchema) {
-      requestBody.toolSchema = toolSchema
     }
 
     const body = JSON.stringify(requestBody)
@@ -1761,7 +1753,6 @@ async function executeMcpTool(
     logger.info(`[${actualRequestId}] Making MCP tool request to ${toolName} on ${serverId}`, {
       hasWorkspaceId: !!mcpScope.workspaceId,
       hasWorkflowId: !!mcpScope.workflowId,
-      hasToolSchema: !!toolSchema,
     })
 
     const mcpUrl = new URL('/api/mcp/tools/execute', baseUrl)

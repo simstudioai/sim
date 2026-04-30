@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { mondayGroupsSelectorContract } from '@/lib/api/contracts/selectors'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateMondayNumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -10,23 +12,36 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('MondayGroupsAPI')
 
-export const POST = withRouteHandler(async (request: Request) => {
+interface MondayGraphQLError {
+  message?: string
+}
+
+interface MondayGroupsResponse {
+  errors?: MondayGraphQLError[]
+  error_message?: string
+  data?: {
+    boards?: Array<{
+      groups?: Array<{
+        id: string
+        title: string
+      }>
+    }>
+  }
+}
+
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const requestId = generateRequestId()
-    const body = await request.json()
-    const { credential, boardId, workflowId } = body
-
-    if (!credential || !boardId) {
-      logger.error('Missing credential or boardId in request')
-      return NextResponse.json({ error: 'Credential and boardId are required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(mondayGroupsSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, boardId, workflowId } = parsed.data.body
 
     const boardIdValidation = validateMondayNumericId(boardId, 'boardId')
     if (!boardIdValidation.isValid) {
       return NextResponse.json({ error: boardIdValidation.error }, { status: 400 })
     }
 
-    const authz = await authorizeCredentialUse(request as any, {
+    const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
       workflowId,
     })
@@ -62,7 +77,7 @@ export const POST = withRouteHandler(async (request: Request) => {
       }),
     })
 
-    const data = await response.json()
+    const data = (await response.json()) as MondayGroupsResponse
 
     if (data.errors?.length) {
       logger.error('Monday.com API error', { errors: data.errors })
@@ -78,7 +93,7 @@ export const POST = withRouteHandler(async (request: Request) => {
     }
 
     const board = data.data?.boards?.[0]
-    const groups = (board?.groups || []).map((group: { id: string; title: string }) => ({
+    const groups = (board?.groups || []).map((group) => ({
       id: group.id,
       name: group.title,
     }))

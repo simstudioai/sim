@@ -1,34 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { sendGridSendMailContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SendGridSendMailAPI')
-
-const SendGridSendMailSchema = z.object({
-  apiKey: z.string().min(1, 'API key is required'),
-  from: z.string().min(1, 'From email is required'),
-  fromName: z.string().optional().nullable(),
-  to: z.string().min(1, 'To email is required'),
-  toName: z.string().optional().nullable(),
-  subject: z.string().optional().nullable(),
-  content: z.string().optional().nullable(),
-  contentType: z.string().optional().nullable(),
-  cc: z.string().optional().nullable(),
-  bcc: z.string().optional().nullable(),
-  replyTo: z.string().optional().nullable(),
-  replyToName: z.string().optional().nullable(),
-  templateId: z.string().optional().nullable(),
-  dynamicTemplateData: z.any().optional().nullable(),
-  attachments: RawFileInputArraySchema.optional().nullable(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -46,8 +28,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     logger.info(`[${requestId}] Authenticated SendGrid send request via ${authResult.authType}`)
 
-    const body = await request.json()
-    const validatedData = SendGridSendMailSchema.parse(body)
+    const parsed = await parseRequest(sendGridSendMailContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Sending SendGrid email`, {
       to: validatedData.to,
@@ -172,14 +155,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Validation error:`, error.errors)
-      return NextResponse.json(
-        { success: false, error: error.errors[0]?.message || 'Validation failed' },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Unexpected error:`, error)
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Unknown error' },

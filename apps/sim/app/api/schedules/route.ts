@@ -6,6 +6,8 @@ import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { createScheduleContract, scheduleQuerySchema } from '@/lib/api/contracts/schedules'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -25,9 +27,11 @@ const logger = createLogger('ScheduledAPI')
 export const GET = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   const url = new URL(req.url)
-  const workflowId = url.searchParams.get('workflowId')
-  const workspaceId = url.searchParams.get('workspaceId')
-  const blockId = url.searchParams.get('blockId')
+  const queryValidation = scheduleQuerySchema.safeParse(
+    Object.fromEntries(url.searchParams.entries())
+  )
+  if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
+  const { workflowId, workspaceId, blockId } = queryValidation.data
 
   try {
     const session = await getSession()
@@ -202,33 +206,22 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
-    const {
-      workspaceId,
-      title,
-      prompt,
-      cronExpression,
-      timezone = 'UTC',
-      lifecycle = 'persistent',
-      maxRuns,
-      startDate,
-    } = body as {
-      workspaceId: string
-      title: string
-      prompt: string
-      cronExpression: string
-      timezone?: string
-      lifecycle?: 'persistent' | 'until_complete'
-      maxRuns?: number
-      startDate?: string
-    }
+    const parsed = await parseRequest(
+      createScheduleContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { error: 'Invalid request body', details: error.issues },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!workspaceId || !title?.trim() || !prompt?.trim() || !cronExpression?.trim()) {
-      return NextResponse.json(
-        { error: 'Missing required fields: workspaceId, title, prompt, cronExpression' },
-        { status: 400 }
-      )
-    }
+    const { workspaceId, title, prompt, cronExpression, timezone, lifecycle, maxRuns, startDate } =
+      parsed.data.body
 
     const hasPermission = await verifyWorkspaceMembership(session.user.id, workspaceId)
     if (!hasPermission) {
