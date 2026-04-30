@@ -45,14 +45,14 @@ export interface CalloutProps
  * <Callout variant='warning'>This action is irreversible</Callout>
  * ```
  */
-function Callout({ className, variant, icon, children, ...props }: CalloutProps) {
+function Callout({ className, variant, icon, children, role = 'note', ...props }: CalloutProps) {
   const variantKey = (variant ?? 'default') as keyof typeof DEFAULT_ICONS
   const Icon = icon === null ? null : (icon ?? DEFAULT_ICONS[variantKey])
 
   return (
-    <div className={cn(calloutVariants({ variant }), className)} {...props}>
+    <div role={role} className={cn(calloutVariants({ variant }), className)} {...props}>
       {Icon && <Icon className='h-[14px] w-[14px] shrink-0' />}
-      <p>{children}</p>
+      <span>{children}</span>
     </div>
   )
 }
