@@ -1,5 +1,6 @@
+import type { AshbyCreateCandidateParams, AshbyCreateCandidateResponse } from '@/tools/ashby/types'
+import { CANDIDATE_OUTPUTS, mapCandidate } from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
-import type { AshbyCreateCandidateParams, AshbyCreateCandidateResponse } from './types'
 
 export const createCandidateTool: ToolConfig<
   AshbyCreateCandidateParams,
@@ -25,7 +26,7 @@ export const createCandidateTool: ToolConfig<
     },
     email: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'Primary email address for the candidate',
     },
@@ -65,12 +66,12 @@ export const createCandidateTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {
         name: params.name,
-        email: params.email,
       }
+      if (params.email) body.email = params.email
       if (params.phoneNumber) body.phoneNumber = params.phoneNumber
       if (params.linkedInUrl) body.linkedInUrl = params.linkedInUrl
       if (params.githubUrl) body.githubUrl = params.githubUrl
-      if (params.sourceId) body.sourceId = params.sourceId
+      if (params.sourceId) body.sourceId = params.sourceId.trim()
       return body
     },
   },
@@ -82,55 +83,11 @@ export const createCandidateTool: ToolConfig<
       throw new Error(data.errorInfo?.message || 'Failed to create candidate')
     }
 
-    const r = data.results
-
     return {
       success: true,
-      output: {
-        id: r.id ?? null,
-        name: r.name ?? null,
-        primaryEmailAddress: r.primaryEmailAddress
-          ? {
-              value: r.primaryEmailAddress.value ?? '',
-              type: r.primaryEmailAddress.type ?? 'Other',
-              isPrimary: r.primaryEmailAddress.isPrimary ?? true,
-            }
-          : null,
-        primaryPhoneNumber: r.primaryPhoneNumber
-          ? {
-              value: r.primaryPhoneNumber.value ?? '',
-              type: r.primaryPhoneNumber.type ?? 'Other',
-              isPrimary: r.primaryPhoneNumber.isPrimary ?? true,
-            }
-          : null,
-        createdAt: r.createdAt ?? null,
-      },
+      output: mapCandidate(data.results),
     }
   },
 
-  outputs: {
-    id: { type: 'string', description: 'Created candidate UUID' },
-    name: { type: 'string', description: 'Full name' },
-    primaryEmailAddress: {
-      type: 'object',
-      description: 'Primary email contact info',
-      optional: true,
-      properties: {
-        value: { type: 'string', description: 'Email address' },
-        type: { type: 'string', description: 'Contact type (Personal, Work, Other)' },
-        isPrimary: { type: 'boolean', description: 'Whether this is the primary email' },
-      },
-    },
-    primaryPhoneNumber: {
-      type: 'object',
-      description: 'Primary phone contact info',
-      optional: true,
-      properties: {
-        value: { type: 'string', description: 'Phone number' },
-        type: { type: 'string', description: 'Contact type (Personal, Work, Other)' },
-        isPrimary: { type: 'boolean', description: 'Whether this is the primary phone' },
-      },
-    },
-    createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
-  },
+  outputs: CANDIDATE_OUTPUTS,
 }

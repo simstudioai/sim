@@ -98,11 +98,7 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
-  const [turnstileSiteKey, setTurnstileSiteKey] = useState<string | undefined>()
-
-  useEffect(() => {
-    setTurnstileSiteKey(getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'))
-  }, [])
+  const [turnstileSiteKey] = useState(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'))
   const rawRedirectUrl = searchParams.get('redirect') || searchParams.get('callbackUrl') || ''
   const isValidRedirectUrl = rawRedirectUrl ? validateCallbackUrl(rawRedirectUrl) : false
   const invalidCallbackRef = useRef(false)

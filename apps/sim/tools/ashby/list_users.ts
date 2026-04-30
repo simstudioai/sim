@@ -1,3 +1,5 @@
+import type { AshbyUserSummary } from '@/tools/ashby/types'
+import { mapUserSummary, USER_SUMMARY_OUTPUT } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListUsersParams {
@@ -8,14 +10,7 @@ interface AshbyListUsersParams {
 
 interface AshbyListUsersResponse extends ToolResponse {
   output: {
-    users: Array<{
-      id: string
-      firstName: string
-      lastName: string
-      email: string
-      isEnabled: boolean
-      globalRole: string | null
-    }>
+    users: AshbyUserSummary[]
     moreDataAvailable: boolean
     nextCursor: string | null
   }
@@ -73,14 +68,9 @@ export const listUsersTool: ToolConfig<AshbyListUsersParams, AshbyListUsersRespo
     return {
       success: true,
       output: {
-        users: (data.results ?? []).map((u: Record<string, unknown>) => ({
-          id: u.id ?? null,
-          firstName: u.firstName ?? null,
-          lastName: u.lastName ?? null,
-          email: u.email ?? null,
-          isEnabled: u.isEnabled ?? false,
-          globalRole: u.globalRole ?? null,
-        })),
+        users: (data.results ?? [])
+          .map(mapUserSummary)
+          .filter((u: AshbyUserSummary | null): u is AshbyUserSummary => u !== null),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
       },
@@ -93,19 +83,7 @@ export const listUsersTool: ToolConfig<AshbyListUsersParams, AshbyListUsersRespo
       description: 'List of users',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'User UUID' },
-          firstName: { type: 'string', description: 'First name' },
-          lastName: { type: 'string', description: 'Last name' },
-          email: { type: 'string', description: 'Email address' },
-          isEnabled: { type: 'boolean', description: 'Whether the user account is enabled' },
-          globalRole: {
-            type: 'string',
-            description:
-              'User role (Organization Admin, Elevated Access, Limited Access, External Recruiter)',
-            optional: true,
-          },
-        },
+        properties: USER_SUMMARY_OUTPUT.properties,
       },
     },
     moreDataAvailable: {

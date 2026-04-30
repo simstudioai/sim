@@ -9,22 +9,23 @@ import {
   Button,
   ChevronDown,
   Code,
+  Copy as CopyIcon,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Input,
+  Search as SearchIcon,
   Tooltip,
 } from '@/components/emcn'
-import { Copy as CopyIcon, Search as SearchIcon } from '@/components/emcn/icons'
 import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
+import type { TraceSpan } from '@/lib/logs/types'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getBlock, getBlockByToolName } from '@/blocks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
-import type { TraceSpan } from '@/stores/logs/filters/types'
 
 interface TraceSpansProps {
   traceSpans?: TraceSpan[]
@@ -56,6 +57,86 @@ function useSetToggle() {
     },
     []
   )
+}
+
+/**
+ * Formats a token count with locale-aware thousands separators.
+ * Returns `undefined` for missing or non-positive counts so callers can
+ * filter them out before rendering.
+ */
+function formatTokenCount(value: number | undefined): string | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
+  return value.toLocaleString('en-US')
+}
+
+/**
+ * Builds a compact, dot-separated token summary for a span:
+ * `"1,234 in · 567 out · 1,801 total"` with cache/reasoning appended when
+ * present. Returns `undefined` when the span has no meaningful token data.
+ */
+function formatTokensSummary(tokens: TraceSpan['tokens']): string | undefined {
+  if (!tokens) return undefined
+  const parts: string[] = []
+  const input = formatTokenCount(tokens.input)
+  const output = formatTokenCount(tokens.output)
+  const total = formatTokenCount(tokens.total)
+  const cacheRead = formatTokenCount(tokens.cacheRead)
+  const cacheWrite = formatTokenCount(tokens.cacheWrite)
+  const reasoning = formatTokenCount(tokens.reasoning)
+  if (input) parts.push(`${input} in`)
+  if (cacheRead) parts.push(`${cacheRead} cached`)
+  if (cacheWrite) parts.push(`${cacheWrite} cache write`)
+  if (output) parts.push(`${output} out`)
+  if (reasoning) parts.push(`${reasoning} reasoning`)
+  if (total) parts.push(`${total} total`)
+  return parts.length > 0 ? parts.join(' · ') : undefined
+}
+
+/**
+ * Formats a USD cost value for display. Shows `<$0.0001` for non-zero sub-cent
+ * amounts so the user sees it was counted.
+ */
+function formatCostAmount(value: number | undefined): string | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
+  if (value < 0.0001) return '<$0.0001'
+  return `$${value.toFixed(4)}`
+}
+
+/**
+ * Builds a compact cost summary: `"$0.0023 · $0.0001 in · $0.0022 out"`.
+ * Falls back to whichever parts are present.
+ */
+function formatCostSummary(cost: TraceSpan['cost']): string | undefined {
+  if (!cost) return undefined
+  const parts: string[] = []
+  const total = formatCostAmount(cost.total)
+  const input = formatCostAmount(cost.input)
+  const output = formatCostAmount(cost.output)
+  if (total) parts.push(total)
+  if (input) parts.push(`${input} in`)
+  if (output) parts.push(`${output} out`)
+  return parts.length > 0 ? parts.join(' · ') : undefined
+}
+
+/**
+ * Derives tokens-per-second from output tokens over segment duration.
+ * Returns `undefined` when inputs are missing or non-positive.
+ */
+function formatTps(outputTokens: number | undefined, durationMs: number): string | undefined {
+  if (typeof outputTokens !== 'number' || !(outputTokens > 0)) return undefined
+  if (!(durationMs > 0)) return undefined
+  const tps = Math.round(outputTokens / (durationMs / 1000))
+  if (!(tps > 0)) return undefined
+  return `${tps.toLocaleString('en-US')} tok/s`
+}
+
+/**
+ * Formats time-to-first-token. Uses `ms` below 1000, `s` above.
+ */
+function formatTtft(ms: number | undefined): string | undefined {
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return undefined
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  return `${(ms / 1000).toFixed(2)}s`
 }
 
 /**
@@ -185,7 +266,7 @@ function ProgressBar({
     const computeSegment = (s: TraceSpan) => {
       const startMs = new Date(s.startTime).getTime()
       const endMs = new Date(s.endTime).getTime()
-      const duration = endMs - startMs
+      const duration = s.duration || endMs - startMs
       const startPercent =
         totalDuration > 0 ? ((startMs - workflowStartTime) / totalDuration) * 100 : 0
       const widthPercent = totalDuration > 0 ? (duration / totalDuration) * 100 : 0
@@ -238,7 +319,7 @@ function InputOutputSection({
   data: unknown
   isError: boolean
   spanId: string
-  sectionType: 'input' | 'output'
+  sectionType: 'input' | 'output' | 'thinking' | 'modelToolCalls' | 'errorMessage'
   expandedSections: Set<string>
   onToggle: (section: string) => void
 }) {
@@ -268,31 +349,32 @@ function InputOutputSection({
 
   const jsonString = useMemo(() => {
     if (!data) return ''
+    if (typeof data === 'string') return data
     return JSON.stringify(data, null, 2)
   }, [data])
 
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+  function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
     setContextMenuPosition({ x: e.clientX, y: e.clientY })
     setIsContextMenuOpen(true)
-  }, [])
+  }
 
-  const closeContextMenu = useCallback(() => {
+  function closeContextMenu() {
     setIsContextMenuOpen(false)
-  }, [])
+  }
 
-  const handleCopy = useCallback(() => {
+  function handleCopy() {
     navigator.clipboard.writeText(jsonString)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
     closeContextMenu()
-  }, [jsonString, closeContextMenu])
+  }
 
-  const handleSearch = useCallback(() => {
+  function handleSearch() {
     activateSearch()
     closeContextMenu()
-  }, [activateSearch, closeContextMenu])
+  }
 
   return (
     <div className='relative flex min-w-0 flex-col gap-1.5 overflow-hidden'>
@@ -513,63 +595,52 @@ const TraceSpanNode = memo(function TraceSpanNode({
 
   const { icon: BlockIcon, bgColor } = getBlockIconAndColor(span.type, span.name)
 
-  // Build all children including tool calls
-  const allChildren = useMemo(() => {
-    const children: TraceSpan[] = []
-
-    // Add tool calls as child spans
-    if (span.toolCalls && span.toolCalls.length > 0) {
-      span.toolCalls.forEach((toolCall, index) => {
-        const toolStartTime = toolCall.startTime
-          ? new Date(toolCall.startTime).getTime()
-          : spanStartTime
-        const toolEndTime = toolCall.endTime
-          ? new Date(toolCall.endTime).getTime()
-          : toolStartTime + (toolCall.duration || 0)
-
-        children.push({
-          id: `${spanId}-tool-${index}`,
-          name: toolCall.name,
+  const displayChildren = useMemo(() => {
+    const kids: TraceSpan[] = span.children?.length
+      ? [...span.children]
+      : (span.toolCalls ?? []).map((tc, i) => ({
+          id: `${spanId}-tool-${i}`,
+          name: tc.name,
           type: 'tool',
-          duration: toolCall.duration || toolEndTime - toolStartTime,
-          startTime: new Date(toolStartTime).toISOString(),
-          endTime: new Date(toolEndTime).toISOString(),
-          status: toolCall.error ? ('error' as const) : ('success' as const),
-          input: toolCall.input,
-          output: toolCall.error
-            ? { error: toolCall.error, ...(toolCall.output || {}) }
-            : toolCall.output,
-        } as TraceSpan)
-      })
-    }
+          duration: tc.duration || 0,
+          startTime: tc.startTime ?? span.startTime,
+          endTime: tc.endTime ?? span.endTime,
+          status: tc.error ? ('error' as const) : ('success' as const),
+          input: tc.input,
+          output: tc.error ? { error: tc.error, ...(tc.output ?? {}) } : tc.output,
+        }))
 
-    // Add regular children
-    if (span.children && span.children.length > 0) {
-      children.push(...span.children)
-    }
+    kids.sort((a, b) => parseTime(a.startTime) - parseTime(b.startTime))
 
-    // Sort by start time
-    return children.sort((a, b) => parseTime(a.startTime) - parseTime(b.startTime))
-  }, [span, spanId, spanStartTime])
-
-  // Hide empty model timing segments for agents without tool calls
-  const filteredChildren = useMemo(() => {
     const isAgent = span.type?.toLowerCase() === 'agent'
-    const hasToolCalls =
-      (span.toolCalls?.length ?? 0) > 0 || allChildren.some((c) => c.type?.toLowerCase() === 'tool')
-
-    if (isAgent && !hasToolCalls) {
-      return allChildren.filter((c) => c.type?.toLowerCase() !== 'model')
+    const hasToolCall = kids.some((c) => c.type?.toLowerCase() === 'tool')
+    if (isAgent && !hasToolCall) {
+      return kids.filter((c) => c.type?.toLowerCase() !== 'model')
     }
-    return allChildren
-  }, [allChildren, span.type, span.toolCalls])
+    return kids
+  }, [span])
 
-  const hasChildren = filteredChildren.length > 0
+  const hasChildren = displayChildren.length > 0
   const isExpanded = isRootWorkflow || expandedNodes.has(spanId)
   const isToggleable = !isRootWorkflow
 
   const hasInput = Boolean(span.input)
   const hasOutput = Boolean(span.output)
+  const hasThinking = Boolean(span.thinking)
+  const hasModelToolCalls = Boolean(span.modelToolCalls && span.modelToolCalls.length > 0)
+  const hasFinishReason = Boolean(span.finishReason)
+  const tokensSummary = formatTokensSummary(span.tokens)
+  const hasTokens = Boolean(tokensSummary)
+  const costSummary = formatCostSummary(span.cost)
+  const hasCost = Boolean(costSummary)
+  const isModelSpan = span.type?.toLowerCase() === 'model'
+  const tpsSummary = isModelSpan ? formatTps(span.tokens?.output, duration) : undefined
+  const hasTps = Boolean(tpsSummary)
+  const ttftSummary = formatTtft(span.ttft)
+  const hasTtft = Boolean(ttftSummary)
+  const hasProvider = Boolean(span.provider)
+  const hasErrorType = Boolean(span.errorType)
+  const hasErrorMessage = Boolean(span.errorMessage)
 
   // For progress bar - show child segments for workflow/iteration types
   const lowerType = span.type?.toLowerCase() || ''
@@ -641,7 +712,18 @@ const TraceSpanNode = memo(function TraceSpanNode({
           />
 
           {/* Input/Output Sections */}
-          {(hasInput || hasOutput) && (
+          {(hasInput ||
+            hasOutput ||
+            hasThinking ||
+            hasModelToolCalls ||
+            hasFinishReason ||
+            hasTokens ||
+            hasCost ||
+            hasTps ||
+            hasTtft ||
+            hasProvider ||
+            hasErrorType ||
+            hasErrorMessage) && (
             <div className='flex min-w-0 flex-col gap-1.5 overflow-hidden py-0.5'>
               {hasInput && (
                 <InputOutputSection
@@ -670,13 +752,125 @@ const TraceSpanNode = memo(function TraceSpanNode({
                   onToggle={onToggleSection}
                 />
               )}
+
+              {hasThinking && (
+                <>
+                  {(hasInput || hasOutput) && (
+                    <div className='border-[var(--border)] border-t border-dashed' />
+                  )}
+                  <InputOutputSection
+                    label='Thinking'
+                    data={span.thinking}
+                    isError={false}
+                    spanId={spanId}
+                    sectionType='thinking'
+                    expandedSections={expandedSections}
+                    onToggle={onToggleSection}
+                  />
+                </>
+              )}
+
+              {hasModelToolCalls && (
+                <>
+                  {(hasInput || hasOutput || hasThinking) && (
+                    <div className='border-[var(--border)] border-t border-dashed' />
+                  )}
+                  <InputOutputSection
+                    label='Tool calls'
+                    data={span.modelToolCalls}
+                    isError={false}
+                    spanId={spanId}
+                    sectionType='modelToolCalls'
+                    expandedSections={expandedSections}
+                    onToggle={onToggleSection}
+                  />
+                </>
+              )}
+
+              {hasErrorMessage && (
+                <>
+                  {(hasInput || hasOutput || hasThinking || hasModelToolCalls) && (
+                    <div className='border-[var(--border)] border-t border-dashed' />
+                  )}
+                  <InputOutputSection
+                    label='Error'
+                    data={span.errorMessage}
+                    isError
+                    spanId={spanId}
+                    sectionType='errorMessage'
+                    expandedSections={expandedSections}
+                    onToggle={onToggleSection}
+                  />
+                </>
+              )}
+
+              {hasErrorType && (
+                <div className='flex items-center justify-between gap-2 font-medium text-caption'>
+                  <span className='flex-shrink-0 text-[var(--text-tertiary)]'>Error type</span>
+                  <span className='min-w-0 truncate text-right text-[var(--text-error)]'>
+                    {span.errorType}
+                  </span>
+                </div>
+              )}
+
+              {hasFinishReason && (
+                <div className='flex items-center justify-between font-medium text-caption'>
+                  <span className='text-[var(--text-tertiary)]'>Finish reason</span>
+                  <span className='text-[var(--text-secondary)]'>{span.finishReason}</span>
+                </div>
+              )}
+
+              {hasProvider && (
+                <div className='flex items-center justify-between gap-2 font-medium text-caption'>
+                  <span className='flex-shrink-0 text-[var(--text-tertiary)]'>Provider</span>
+                  <span className='min-w-0 truncate text-right text-[var(--text-secondary)]'>
+                    {span.provider}
+                  </span>
+                </div>
+              )}
+
+              {hasTtft && (
+                <div className='flex items-center justify-between gap-2 font-medium text-caption'>
+                  <span className='flex-shrink-0 text-[var(--text-tertiary)]'>TTFT</span>
+                  <span className='min-w-0 truncate text-right text-[var(--text-secondary)]'>
+                    {ttftSummary}
+                  </span>
+                </div>
+              )}
+
+              {hasTokens && (
+                <div className='flex items-center justify-between gap-2 font-medium text-caption'>
+                  <span className='flex-shrink-0 text-[var(--text-tertiary)]'>Tokens</span>
+                  <span className='min-w-0 truncate text-right text-[var(--text-secondary)]'>
+                    {tokensSummary}
+                  </span>
+                </div>
+              )}
+
+              {hasTps && (
+                <div className='flex items-center justify-between gap-2 font-medium text-caption'>
+                  <span className='flex-shrink-0 text-[var(--text-tertiary)]'>Throughput</span>
+                  <span className='min-w-0 truncate text-right text-[var(--text-secondary)]'>
+                    {tpsSummary}
+                  </span>
+                </div>
+              )}
+
+              {hasCost && (
+                <div className='flex items-center justify-between gap-2 font-medium text-caption'>
+                  <span className='flex-shrink-0 text-[var(--text-tertiary)]'>Cost</span>
+                  <span className='min-w-0 truncate text-right text-[var(--text-secondary)]'>
+                    {costSummary}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
           {/* Nested Children */}
           {hasChildren && (
             <div className='flex min-w-0 flex-col gap-0.5 border-[var(--border)] border-l pl-2.5'>
-              {filteredChildren.map((child, index) => (
+              {displayChildren.map((child, index) => (
                 <div key={child.id || `${spanId}-child-${index}`} className='pl-1.5'>
                   <TraceSpanNode
                     span={child}

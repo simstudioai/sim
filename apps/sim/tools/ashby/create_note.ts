@@ -1,5 +1,5 @@
+import type { AshbyCreateNoteParams, AshbyCreateNoteResponse } from '@/tools/ashby/types'
 import type { ToolConfig } from '@/tools/types'
-import type { AshbyCreateNoteParams, AshbyCreateNoteResponse } from './types'
 
 export const createNoteTool: ToolConfig<AshbyCreateNoteParams, AshbyCreateNoteResponse> = {
   id: 'ashby_create_note',
@@ -51,7 +51,7 @@ export const createNoteTool: ToolConfig<AshbyCreateNoteParams, AshbyCreateNoteRe
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
-        candidateId: params.candidateId,
+        candidateId: params.candidateId.trim(),
         sendNotifications: params.sendNotifications ?? false,
       }
       if (params.noteType === 'text/html') {
@@ -74,16 +74,42 @@ export const createNoteTool: ToolConfig<AshbyCreateNoteParams, AshbyCreateNoteRe
     }
 
     const r = data.results
+    const author = r.author
 
     return {
       success: true,
       output: {
-        noteId: r.id ?? null,
+        id: r.id ?? '',
+        createdAt: r.createdAt ?? null,
+        isPrivate: r.isPrivate ?? false,
+        content: r.content ?? null,
+        author: author
+          ? {
+              id: author.id ?? '',
+              firstName: author.firstName ?? null,
+              lastName: author.lastName ?? null,
+              email: author.email ?? null,
+            }
+          : null,
       },
     }
   },
 
   outputs: {
-    noteId: { type: 'string', description: 'Created note UUID' },
+    id: { type: 'string', description: 'Created note UUID' },
+    createdAt: { type: 'string', description: 'ISO 8601 creation timestamp', optional: true },
+    isPrivate: { type: 'boolean', description: 'Whether the note is private' },
+    content: { type: 'string', description: 'Note content', optional: true },
+    author: {
+      type: 'object',
+      description: 'Author of the note',
+      optional: true,
+      properties: {
+        id: { type: 'string', description: 'Author user UUID' },
+        firstName: { type: 'string', description: 'Author first name', optional: true },
+        lastName: { type: 'string', description: 'Author last name', optional: true },
+        email: { type: 'string', description: 'Author email', optional: true },
+      },
+    },
   },
 }

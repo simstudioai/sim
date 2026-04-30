@@ -2,16 +2,18 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { generateId } from '@sim/utils/id'
+import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
+  AuthContext,
   DeleteSubscriptionContext,
+  EventMatchContext,
   FormatInputContext,
   FormatInputResult,
   SubscriptionContext,
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Ashby')
 
@@ -48,17 +50,74 @@ export const ashbyHandler: WebhookProviderHandler = {
       input: {
         ...((b.data as Record<string, unknown>) || {}),
         action: b.action,
-        data: b.data || {},
       },
     }
   },
 
-  verifyAuth: createHmacVerifier({
-    configKey: 'secretToken',
-    headerName: 'ashby-signature',
-    validateFn: validateAshbySignature,
-    providerLabel: 'Ashby',
-  }),
+  verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext): NextResponse | null {
+    const secretToken = (providerConfig.secretToken as string | undefined)?.trim()
+    if (!secretToken) {
+      logger.warn(
+        `[${requestId}] Ashby webhook missing secretToken in providerConfig — rejecting request`
+      )
+      return new NextResponse(
+        'Unauthorized - Ashby webhook signing secret is not configured. Re-save the trigger so a webhook can be registered.',
+        { status: 401 }
+      )
+    }
+
+    const signature = request.headers.get('ashby-signature')
+    if (!signature) {
+      logger.warn(`[${requestId}] Ashby webhook missing signature header`)
+      return new NextResponse('Unauthorized - Missing Ashby signature', { status: 401 })
+    }
+
+    if (!validateAshbySignature(secretToken, signature, rawBody)) {
+      logger.warn(`[${requestId}] Ashby signature verification failed`, {
+        signatureLength: signature.length,
+        secretLength: secretToken.length,
+      })
+      return new NextResponse('Unauthorized - Invalid Ashby signature', { status: 401 })
+    }
+
+    return null
+  },
+
+  async matchEvent({
+    webhook,
+    body,
+    requestId,
+    providerConfig,
+  }: EventMatchContext): Promise<boolean> {
+    const triggerId = providerConfig.triggerId as string | undefined
+    const obj = body as Record<string, unknown>
+    const action = typeof obj?.action === 'string' ? obj.action : ''
+
+    if (action === 'ping') {
+      logger.debug(`[${requestId}] Ashby ping event received. Skipping execution.`, {
+        webhookId: webhook.id,
+        triggerId,
+      })
+      return false
+    }
+
+    if (!triggerId) return true
+
+    const { isAshbyEventMatch } = await import('@/triggers/ashby/utils')
+    if (!isAshbyEventMatch(triggerId, action)) {
+      logger.debug(
+        `[${requestId}] Ashby event mismatch for trigger ${triggerId}. Action: ${action || '(missing)'}. Skipping execution.`,
+        {
+          webhookId: webhook.id,
+          triggerId,
+          receivedAction: action,
+        }
+      )
+      return false
+    }
+
+    return true
+  },
 
   async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     try {
@@ -78,18 +137,12 @@ export const ashbyHandler: WebhookProviderHandler = {
         throw new Error('Trigger ID is required to create Ashby webhook.')
       }
 
-      const webhookTypeMap: Record<string, string> = {
-        ashby_application_submit: 'applicationSubmit',
-        ashby_candidate_stage_change: 'candidateStageChange',
-        ashby_candidate_hire: 'candidateHire',
-        ashby_candidate_delete: 'candidateDelete',
-        ashby_job_create: 'jobCreate',
-        ashby_offer_create: 'offerCreate',
-      }
-
-      const webhookType = webhookTypeMap[triggerId]
+      const { ASHBY_TRIGGER_ACTION_MAP } = await import('@/triggers/ashby/utils')
+      const webhookType = ASHBY_TRIGGER_ACTION_MAP[triggerId]
       if (!webhookType) {
-        throw new Error(`Unknown Ashby triggerId: ${triggerId}. Add it to webhookTypeMap.`)
+        throw new Error(
+          `Unknown Ashby triggerId: ${triggerId}. Add it to ASHBY_TRIGGER_ACTION_MAP.`
+        )
       }
 
       const notificationUrl = getNotificationUrl(ctx.webhook)

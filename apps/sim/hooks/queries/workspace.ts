@@ -200,7 +200,7 @@ export function useDeleteWorkspace() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.workspaceId) })
     },
@@ -237,7 +237,7 @@ export function useUpdateWorkspace() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.workspaceId) })
     },
@@ -251,6 +251,7 @@ export interface WorkspaceUser {
   name: string | null
   image: string | null
   permissionType: 'admin' | 'write' | 'read'
+  isExternal: boolean
 }
 
 /** Viewer context for a workspace permissions response. */
@@ -407,7 +408,7 @@ export function useUpdateWorkspaceSettings() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.settings(variables.workspaceId),
       })

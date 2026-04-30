@@ -1088,9 +1088,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const executionTime = Date.now() - startTime
 
     if (isolatedResult.error) {
-      logger.error(`[${requestId}] Function execution failed in isolated-vm`, {
+      const isSystemError = isolatedResult.error.isSystemError === true
+      const logFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
+      logFn(`[${requestId}] Function execution failed in isolated-vm`, {
         error: isolatedResult.error,
         executionTime,
+        isSystemError,
       })
 
       const ivmError = isolatedResult.error
@@ -1119,7 +1122,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         resolvedCode
       )
 
-      logger.error(`[${requestId}] Enhanced error details`, {
+      const detailLogFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
+      detailLogFn(`[${requestId}] Enhanced error details`, {
         originalMessage: ivmError.message,
         enhancedMessage: userFriendlyErrorMessage,
         line: enhancedError.line,
@@ -1145,7 +1149,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
             stack: enhancedError.stack,
           },
         },
-        { status: 500 }
+        { status: isSystemError ? 500 : 422 }
       )
     }
 

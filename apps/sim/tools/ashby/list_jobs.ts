@@ -1,5 +1,6 @@
+import type { AshbyListJobsParams, AshbyListJobsResponse } from '@/tools/ashby/types'
+import { JOB_OUTPUTS, mapJob } from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
-import type { AshbyListJobsParams, AshbyListJobsResponse } from './types'
 
 export const listJobsTool: ToolConfig<AshbyListJobsParams, AshbyListJobsResponse> = {
   id: 'ashby_list_jobs',
@@ -61,16 +62,7 @@ export const listJobsTool: ToolConfig<AshbyListJobsParams, AshbyListJobsResponse
     return {
       success: true,
       output: {
-        jobs: (data.results ?? []).map((j: Record<string, unknown>) => ({
-          id: j.id ?? null,
-          title: j.title ?? null,
-          status: j.status ?? null,
-          employmentType: j.employmentType ?? null,
-          departmentId: j.departmentId ?? null,
-          locationId: j.locationId ?? null,
-          createdAt: j.createdAt ?? null,
-          updatedAt: j.updatedAt ?? null,
-        })),
+        jobs: (data.results ?? []).map(mapJob),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
       },
@@ -83,20 +75,7 @@ export const listJobsTool: ToolConfig<AshbyListJobsParams, AshbyListJobsResponse
       description: 'List of jobs',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Job UUID' },
-          title: { type: 'string', description: 'Job title' },
-          status: { type: 'string', description: 'Job status (Open, Closed, Archived, Draft)' },
-          employmentType: {
-            type: 'string',
-            description: 'Employment type (FullTime, PartTime, Intern, Contract, Temporary)',
-            optional: true,
-          },
-          departmentId: { type: 'string', description: 'Department UUID', optional: true },
-          locationId: { type: 'string', description: 'Location UUID', optional: true },
-          createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
-          updatedAt: { type: 'string', description: 'ISO 8601 last update timestamp' },
-        },
+        properties: JOB_OUTPUTS,
       },
     },
     moreDataAvailable: {

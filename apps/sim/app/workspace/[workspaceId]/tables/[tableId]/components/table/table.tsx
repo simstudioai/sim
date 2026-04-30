@@ -387,13 +387,13 @@ export function Table({
     []
   )
 
-  const handleColumnOrderChange = useCallback((order: string[]) => {
+  function handleColumnOrderChange(order: string[]) {
     setColumnOrder(order)
-  }, [])
+  }
 
-  const handleColumnRename = useCallback((oldName: string, newName: string) => {
-    // Width keys are either the logical name (non-fanned) or `${name}::${path}` (fanned).
-    // Rename rewrites every entry whose key matches the renamed column, preserving the suffix.
+  // Width keys are either the logical name or `${name}::${path}` (fanned-out
+  // workflow columns). Rename rewrites every key whose prefix matches.
+  function handleColumnRename(oldName: string, newName: string) {
     let updatedWidths = columnWidthsRef.current
     let widthsChanged = false
     const nextWidths: Record<string, number> = {}
@@ -418,13 +418,15 @@ export function Table({
       columnWidths: updatedWidths,
       ...(updatedOrder ? { columnOrder: updatedOrder } : {}),
     })
-  }, [])
+  }
 
-  const getColumnWidths = useCallback(() => columnWidthsRef.current, [])
+  function getColumnWidths() {
+    return columnWidthsRef.current
+  }
 
-  const handleColumnWidthsChange = useCallback((widths: Record<string, number>) => {
+  function handleColumnWidthsChange(widths: Record<string, number>) {
     setColumnWidths(widths)
-  }, [])
+  }
 
   const { pushUndo, undo, redo } = useTableUndo({
     workspaceId,
@@ -1078,7 +1080,7 @@ export function Table({
     setDropTargetColumnName(null)
   }, [])
 
-  const handleScrollDragOver = useCallback((e: React.DragEvent) => {
+  function handleScrollDragOver(e: React.DragEvent) {
     if (!dragColumnNameRef.current) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
@@ -1111,11 +1113,11 @@ export function Table({
       left += groupWidth
       i += groupSize
     }
-  }, [])
+  }
 
-  const handleScrollDrop = useCallback((e: React.DragEvent) => {
+  function handleScrollDrop(e: React.DragEvent) {
     e.preventDefault()
-  }, [])
+  }
 
   useEffect(() => {
     if (!tableData?.metadata || metadataSeededRef.current) return
@@ -3262,12 +3264,15 @@ function CellContent({
     const blockId = column.outputBlockId
     const outputPath = column.outputPath
 
-    // Per-block output is live-streamed during the run. If the source block has
-    // completed, render its plucked value regardless of overall workflow status —
-    // completed blocks stay visible during run, error, cancel. `readPickedValue`
-    // handles current and legacy cell shapes plus the cell.output fallback.
+    // Per-block error trumps everything: if THIS block failed, show error here
+    // even if the overall workflow succeeded (error-port edges are normal).
+    // Conversely, `cell.status === 'error'` does NOT propagate to fanned-out
+    // columns whose blocks didn't themselves error — a downstream block that
+    // never ran stays empty, not Error.
+    const blockError = blockId ? cell?.blockErrors?.[blockId] : undefined
+
     let perBlockText: string | null = null
-    if (blockId && outputPath) {
+    if (blockId && outputPath && !blockError) {
       const picked = readPickedValue(cell, blockId, outputPath)
       if (picked !== undefined) {
         perBlockText =
@@ -3275,7 +3280,16 @@ function CellContent({
       }
     }
 
-    if (perBlockText !== null) {
+    if (blockError) {
+      displayContent = (
+        <span
+          className='block overflow-clip text-ellipsis text-[var(--text-error)]'
+          title={blockError}
+        >
+          Error
+        </span>
+      )
+    } else if (perBlockText !== null) {
       displayContent = (
         <span className='block overflow-clip text-ellipsis text-[var(--text-primary)]'>
           {perBlockText}
@@ -3305,15 +3319,6 @@ function CellContent({
           </div>
         )
       }
-    } else if (cell?.status === 'error') {
-      displayContent = (
-        <span
-          className='block overflow-clip text-ellipsis text-[var(--text-error)]'
-          title={cell.error ?? undefined}
-        >
-          Error
-        </span>
-      )
     } else if (cell?.status === 'cancelled') {
       displayContent = (
         <span className='block overflow-clip text-ellipsis text-[var(--text-tertiary)]'>
@@ -4040,39 +4045,33 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     [onDragLeave]
   )
 
-  const handleHeaderClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (didDragRef.current) {
-        didDragRef.current = false
-        return
-      }
-      if (isRenaming) return
-      onColumnSelect(colIndex, e.shiftKey)
-      if (!e.shiftKey) {
-        onOpenConfig(column.name)
-      }
-    },
-    [colIndex, column.name, isRenaming, onColumnSelect, onOpenConfig]
-  )
+  function handleHeaderClick(e: React.MouseEvent) {
+    if (didDragRef.current) {
+      didDragRef.current = false
+      return
+    }
+    if (isRenaming) return
+    onColumnSelect(colIndex, e.shiftKey)
+    if (!e.shiftKey) {
+      onOpenConfig(column.name)
+    }
+  }
 
-  const handleChevronClick = useCallback((e: React.MouseEvent) => {
+  function handleChevronClick(e: React.MouseEvent) {
     e.stopPropagation()
     const rect = (e.currentTarget as HTMLElement).closest('th')?.getBoundingClientRect()
     if (rect) {
       setMenuPosition({ x: rect.left, y: rect.bottom })
     }
     setMenuOpen(true)
-  }, [])
+  }
 
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      if (readOnly || isRenaming) return
-      e.preventDefault()
-      setMenuPosition({ x: e.clientX, y: e.clientY })
-      setMenuOpen(true)
-    },
-    [readOnly, isRenaming]
-  )
+  function handleContextMenu(e: React.MouseEvent) {
+    if (readOnly || isRenaming) return
+    e.preventDefault()
+    setMenuPosition({ x: e.clientX, y: e.clientY })
+    setMenuOpen(true)
+  }
 
   return (
     <th

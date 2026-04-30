@@ -958,8 +958,16 @@ export class AgentBlockHandler implements BlockHandler {
     streamingExec: StreamingExecution
   ): StreamingExecution {
     return {
-      stream: memoryService.wrapStreamForPersistence(streamingExec.stream, ctx, inputs),
+      stream: streamingExec.stream,
       execution: streamingExec.execution,
+      onFullContent: async (content: string) => {
+        if (!content.trim()) return
+        try {
+          await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
+        } catch (error) {
+          logger.error('Failed to persist streaming response:', error)
+        }
+      },
     }
   }
 

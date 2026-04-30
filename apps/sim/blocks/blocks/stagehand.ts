@@ -1,28 +1,6 @@
 import { StagehandIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
-import type { ToolResponse } from '@/tools/types'
-
-export interface StagehandExtractResponse extends ToolResponse {
-  output: {
-    data: Record<string, any>
-  }
-}
-
-export interface StagehandAgentResponse extends ToolResponse {
-  output: {
-    agentResult: {
-      success: boolean
-      completed: boolean
-      message: string
-      actions?: Array<{
-        type: string
-        description: string
-        result?: string
-      }>
-    }
-    structuredOutput?: Record<string, any>
-  }
-}
+import type { StagehandAgentResponse, StagehandExtractResponse } from '@/tools/stagehand/types'
 
 export type StagehandResponse = StagehandExtractResponse | StagehandAgentResponse
 
@@ -345,6 +323,27 @@ Example 3 (Data Collection):
         generationType: 'json-schema',
       },
     },
+    {
+      id: 'mode',
+      title: 'Agent Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'DOM (default)', id: 'dom' },
+        { label: 'Hybrid', id: 'hybrid' },
+        { label: 'CUA', id: 'cua' },
+      ],
+      value: () => 'dom',
+      condition: { field: 'operation', value: 'agent' },
+      mode: 'advanced',
+    },
+    {
+      id: 'maxSteps',
+      title: 'Max Steps',
+      type: 'short-input',
+      placeholder: '20',
+      condition: { field: 'operation', value: 'agent' },
+      mode: 'advanced',
+    },
     // Shared API key field
     {
       id: 'apiKey',
@@ -361,6 +360,19 @@ Example 3 (Data Collection):
       tool: (params) => {
         return params.operation === 'agent' ? 'stagehand_agent' : 'stagehand_extract'
       },
+      params: (params) => {
+        const next: Record<string, any> = { ...params }
+        if (typeof next.maxSteps === 'string') {
+          const trimmed = next.maxSteps.trim()
+          if (trimmed === '') {
+            next.maxSteps = undefined
+          } else {
+            const n = Number(trimmed)
+            next.maxSteps = Number.isFinite(n) ? n : undefined
+          }
+        }
+        return next
+      },
     },
   },
   inputs: {
@@ -376,6 +388,8 @@ Example 3 (Data Collection):
     task: { type: 'string', description: 'Task description (agent operation)' },
     variables: { type: 'json', description: 'Task variables (agent operation)' },
     outputSchema: { type: 'json', description: 'Output schema (agent operation)' },
+    mode: { type: 'string', description: 'Agent mode: dom, hybrid, or cua (agent operation)' },
+    maxSteps: { type: 'number', description: 'Max agent steps (agent operation)' },
   },
   outputs: {
     // Extract outputs
@@ -383,5 +397,10 @@ Example 3 (Data Collection):
     // Agent outputs
     agentResult: { type: 'json', description: 'Agent execution result (agent operation)' },
     structuredOutput: { type: 'json', description: 'Structured output data (agent operation)' },
+    liveViewUrl: {
+      type: 'string',
+      description: 'Embeddable Browserbase live view URL (agent operation)',
+    },
+    sessionId: { type: 'string', description: 'Browserbase session identifier (agent operation)' },
   },
 }

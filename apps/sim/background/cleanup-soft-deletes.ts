@@ -18,9 +18,8 @@ import { and, inArray, isNotNull, lt } from 'drizzle-orm'
 import { type CleanupJobPayload, resolveCleanupScope } from '@/lib/billing/cleanup-dispatcher'
 import {
   batchDeleteByWorkspaceAndTimestamp,
-  DEFAULT_BATCH_SIZE,
-  DEFAULT_MAX_BATCHES_PER_TABLE,
   deleteRowsById,
+  selectRowsByIdChunks,
 } from '@/lib/cleanup/batch-delete'
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
 import type { StorageContext } from '@/lib/uploads'
@@ -44,35 +43,37 @@ async function selectExpiredWorkspaceFiles(
   workspaceIds: string[],
   retentionDate: Date
 ): Promise<WorkspaceFileScope> {
-  const limit = DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE
-
   const [legacyRows, multiContextRows] = await Promise.all([
-    db
-      .select({ id: workspaceFile.id, key: workspaceFile.key })
-      .from(workspaceFile)
-      .where(
-        and(
-          inArray(workspaceFile.workspaceId, workspaceIds),
-          isNotNull(workspaceFile.deletedAt),
-          lt(workspaceFile.deletedAt, retentionDate)
+    selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
+      db
+        .select({ id: workspaceFile.id, key: workspaceFile.key })
+        .from(workspaceFile)
+        .where(
+          and(
+            inArray(workspaceFile.workspaceId, chunkIds),
+            isNotNull(workspaceFile.deletedAt),
+            lt(workspaceFile.deletedAt, retentionDate)
+          )
         )
-      )
-      .limit(limit),
-    db
-      .select({
-        id: workspaceFiles.id,
-        key: workspaceFiles.key,
-        context: workspaceFiles.context,
-      })
-      .from(workspaceFiles)
-      .where(
-        and(
-          inArray(workspaceFiles.workspaceId, workspaceIds),
-          isNotNull(workspaceFiles.deletedAt),
-          lt(workspaceFiles.deletedAt, retentionDate)
+        .limit(chunkLimit)
+    ),
+    selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
+      db
+        .select({
+          id: workspaceFiles.id,
+          key: workspaceFiles.key,
+          context: workspaceFiles.context,
+        })
+        .from(workspaceFiles)
+        .where(
+          and(
+            inArray(workspaceFiles.workspaceId, chunkIds),
+            isNotNull(workspaceFiles.deletedAt),
+            lt(workspaceFiles.deletedAt, retentionDate)
+          )
         )
-      )
-      .limit(limit),
+        .limit(chunkLimit)
+    ),
   ])
 
   return {
@@ -182,17 +183,19 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
   // (chats + S3) AND the DB deletes below — selecting twice could return
   // different subsets above the LIMIT cap and orphan or prematurely purge data.
   const [doomedWorkflows, fileScope] = await Promise.all([
-    db
-      .select({ id: workflow.id })
-      .from(workflow)
-      .where(
-        and(
-          inArray(workflow.workspaceId, workspaceIds),
-          isNotNull(workflow.archivedAt),
-          lt(workflow.archivedAt, retentionDate)
+    selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
+      db
+        .select({ id: workflow.id })
+        .from(workflow)
+        .where(
+          and(
+            inArray(workflow.workspaceId, chunkIds),
+            isNotNull(workflow.archivedAt),
+            lt(workflow.archivedAt, retentionDate)
+          )
         )
-      )
-      .limit(DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE),
+        .limit(chunkLimit)
+    ),
     selectExpiredWorkspaceFiles(workspaceIds, retentionDate),
   ])
 
@@ -200,11 +203,13 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
   let chatCleanup: { execute: () => Promise<void> } | null = null
 
   if (doomedWorkflowIds.length > 0) {
-    const doomedChats = await db
-      .select({ id: copilotChats.id })
-      .from(copilotChats)
-      .where(inArray(copilotChats.workflowId, doomedWorkflowIds))
-      .limit(DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE)
+    const doomedChats = await selectRowsByIdChunks(doomedWorkflowIds, (chunkIds, chunkLimit) =>
+      db
+        .select({ id: copilotChats.id })
+        .from(copilotChats)
+        .where(inArray(copilotChats.workflowId, chunkIds))
+        .limit(chunkLimit)
+    )
 
     const doomedChatIds = doomedChats.map((c) => c.id)
     if (doomedChatIds.length > 0) {

@@ -1016,6 +1016,13 @@ export const invitationKindEnum = pgEnum('invitation_kind', ['organization', 'wo
 
 export type InvitationKind = (typeof invitationKindEnum.enumValues)[number]
 
+export const invitationMembershipIntentEnum = pgEnum('invitation_membership_intent', [
+  'internal',
+  'external',
+])
+
+export type InvitationMembershipIntent = (typeof invitationMembershipIntentEnum.enumValues)[number]
+
 export const invitationStatusEnum = pgEnum('invitation_status', [
   'pending',
   'accepted',
@@ -1038,6 +1045,9 @@ export const invitation = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'cascade',
     }),
+    membershipIntent: invitationMembershipIntentEnum('membership_intent')
+      .notNull()
+      .default('internal'),
     role: text('role').notNull(),
     status: invitationStatusEnum('status').notNull().default('pending'),
     token: text('token').notNull().unique(),

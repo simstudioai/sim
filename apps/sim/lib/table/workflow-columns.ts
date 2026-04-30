@@ -266,7 +266,7 @@ export async function runWorkflowColumn(opts: RunWorkflowColumnOptions): Promise
   // Single post-enqueue write: stamps `running` + jobId so the cancel API can
   // reach this run from any pod. If cancel won the race the helper bails and
   // we abort the just-enqueued job.
-  let stampResult: 'wrote' | 'cancelled' = 'wrote'
+  let stampResult: 'wrote' | 'skipped' = 'wrote'
   try {
     stampResult = await writeWorkflowCell(cellCtx, {
       executionId,
@@ -282,7 +282,9 @@ export async function runWorkflowColumn(opts: RunWorkflowColumnOptions): Promise
       err
     )
   }
-  if (stampResult === 'cancelled') {
+  if (stampResult === 'skipped') {
+    // Cell already terminal (cancelled by user, or some other race) — abort
+    // the trigger.dev job we just enqueued so it never picks up this row.
     try {
       await queue.cancelJob(jobId)
     } catch (cancelErr) {

@@ -10,13 +10,24 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+
+vi.mock('@/lib/copilot/request/session', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/copilot/request/session')>(
+    '@/lib/copilot/request/session'
+  )
+  return {
+    ...actual,
+    hasAbortMarker: vi.fn().mockResolvedValue(false),
+  }
+})
+
 import {
   buildPreviewContentUpdate,
   decodeJsonStringPrefix,
   extractEditContent,
   runStreamLoop,
 } from '@/lib/copilot/request/go/stream'
-import { createEvent } from '@/lib/copilot/request/session'
+import { AbortReason, createEvent, hasAbortMarker } from '@/lib/copilot/request/session'
 import { RequestTraceV1Outcome, TraceCollector } from '@/lib/copilot/request/trace'
 import type { ExecutionContext, StreamingContext } from '@/lib/copilot/request/types'
 
@@ -194,6 +205,64 @@ describe('copilot go stream helpers', () => {
     )
   })
 
+  it('does not retry transient backend statuses because stream requests are not idempotent', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('bad gateway', { status: 502 }))
+
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+
+    await expect(
+      runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+        timeout: 1000,
+      })
+    ).rejects.toMatchObject({
+      name: 'CopilotBackendError',
+      status: 502,
+      body: 'bad gateway',
+    })
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retry non-transient backend statuses before the SSE stream opens', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('limit reached', { status: 402 }))
+
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+
+    await expect(
+      runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+        timeout: 1000,
+      })
+    ).rejects.toThrow('Usage limit reached')
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retry network errors because Go may already be executing the request', async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new TypeError('fetch failed'))
+
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+
+    await expect(
+      runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+        timeout: 1000,
+      })
+    ).rejects.toThrow('fetch failed')
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
   it('fails closed when the shared stream ends before a terminal event', async () => {
     const textEvent = createEvent({
       streamId: 'stream-1',
@@ -225,6 +294,137 @@ describe('copilot go stream helpers', () => {
         message.includes('Copilot backend stream ended before a terminal event')
       )
     ).toBe(true)
+  })
+
+  it('reclassifies as aborted when the body closes without terminal but the abort marker is set', async () => {
+    const textEvent = createEvent({
+      streamId: 'stream-1',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.text,
+      payload: {
+        channel: 'assistant',
+        text: 'partial response',
+      },
+    })
+
+    vi.mocked(fetch).mockResolvedValueOnce(createSseResponse([textEvent]))
+    vi.mocked(hasAbortMarker).mockResolvedValueOnce(true)
+
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+
+    await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+      timeout: 1000,
+    })
+
+    expect(hasAbortMarker).toHaveBeenCalledWith(context.messageId)
+    expect(context.wasAborted).toBe(true)
+    expect(
+      context.errors.some((message) =>
+        message.includes('Copilot backend stream ended before a terminal event')
+      )
+    ).toBe(false)
+  })
+
+  it('invokes onAbortObserved with MarkerObservedAtBodyClose when reclassifying via the abort marker', async () => {
+    const textEvent = createEvent({
+      streamId: 'stream-1',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.text,
+      payload: {
+        channel: 'assistant',
+        text: 'partial response',
+      },
+    })
+
+    vi.mocked(fetch).mockResolvedValueOnce(createSseResponse([textEvent]))
+    vi.mocked(hasAbortMarker).mockResolvedValueOnce(true)
+
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+    const onAbortObserved = vi.fn()
+
+    await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+      timeout: 1000,
+      onAbortObserved,
+    })
+
+    expect(onAbortObserved).toHaveBeenCalledTimes(1)
+    expect(onAbortObserved).toHaveBeenCalledWith(AbortReason.MarkerObservedAtBodyClose)
+    expect(context.wasAborted).toBe(true)
+  })
+
+  it('does not invoke onAbortObserved when no abort marker is present at body close', async () => {
+    const textEvent = createEvent({
+      streamId: 'stream-1',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.text,
+      payload: {
+        channel: 'assistant',
+        text: 'partial response',
+      },
+    })
+
+    vi.mocked(fetch).mockResolvedValueOnce(createSseResponse([textEvent]))
+    vi.mocked(hasAbortMarker).mockResolvedValueOnce(false)
+
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+    const onAbortObserved = vi.fn()
+
+    await expect(
+      runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+        timeout: 1000,
+        onAbortObserved,
+      })
+    ).rejects.toThrow('Copilot backend stream ended before a terminal event')
+
+    expect(onAbortObserved).not.toHaveBeenCalled()
+  })
+
+  it('still fails closed when the body closes without terminal and the abort marker check throws', async () => {
+    const textEvent = createEvent({
+      streamId: 'stream-1',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.text,
+      payload: {
+        channel: 'assistant',
+        text: 'partial response',
+      },
+    })
+
+    vi.mocked(fetch).mockResolvedValueOnce(createSseResponse([textEvent]))
+    vi.mocked(hasAbortMarker).mockRejectedValueOnce(new Error('redis unavailable'))
+
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+
+    await expect(
+      runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+        timeout: 1000,
+      })
+    ).rejects.toThrow('Copilot backend stream ended before a terminal event')
+    expect(context.wasAborted).toBe(false)
   })
 
   it('fails closed when the shared stream receives an invalid event', async () => {

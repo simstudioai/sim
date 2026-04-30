@@ -17,6 +17,7 @@ export const redisConfigMockFns = {
   mockOnRedisReconnect: vi.fn(),
   mockAcquireLock: vi.fn().mockResolvedValue(true),
   mockReleaseLock: vi.fn().mockResolvedValue(true),
+  mockExtendLock: vi.fn().mockResolvedValue(true),
   mockCloseRedisConnection: vi.fn().mockResolvedValue(undefined),
   mockResetForTesting: vi.fn(),
 }
@@ -34,6 +35,7 @@ export const redisConfigMock = {
   onRedisReconnect: redisConfigMockFns.mockOnRedisReconnect,
   acquireLock: redisConfigMockFns.mockAcquireLock,
   releaseLock: redisConfigMockFns.mockReleaseLock,
+  extendLock: redisConfigMockFns.mockExtendLock,
   closeRedisConnection: redisConfigMockFns.mockCloseRedisConnection,
   resetForTesting: redisConfigMockFns.mockResetForTesting,
 }

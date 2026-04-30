@@ -46,7 +46,11 @@ function toToolCallInfo(block: PersistedContentBlock): ToolCallInfo | undefined 
 
 function toDisplayBlock(block: PersistedContentBlock): ContentBlock | undefined {
   const displayed = toDisplayBlockBody(block)
-  return displayed ? withBlockTiming(displayed, block) : undefined
+  if (!displayed) return undefined
+  if (block.parentToolCallId && displayed.parentToolCallId === undefined) {
+    displayed.parentToolCallId = block.parentToolCallId
+  }
+  return withBlockTiming(displayed, block)
 }
 
 function toDisplayBlockBody(block: PersistedContentBlock): ContentBlock | undefined {

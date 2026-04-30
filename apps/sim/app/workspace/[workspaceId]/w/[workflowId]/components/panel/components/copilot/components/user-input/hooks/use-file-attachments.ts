@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { toast } from '@/components/emcn'
 import { resolveFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('useFileAttachments')
@@ -147,9 +149,13 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
 
             if (!uploadResponse.ok) {
               const errorData = await uploadResponse.json().catch(() => ({
-                error: `Upload failed: ${uploadResponse.status}`,
+                message: `Upload failed: ${uploadResponse.status}`,
               }))
-              throw new Error(errorData.error || `Failed to upload file: ${uploadResponse.status}`)
+              throw new Error(
+                errorData.message ||
+                  errorData.error ||
+                  `Failed to upload file: ${uploadResponse.status}`
+              )
             }
 
             const uploadData = await uploadResponse.json()
@@ -172,6 +178,9 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
             )
           } catch (error) {
             logger.error(`File upload failed: ${error}`)
+            toast.error(`Couldn't upload "${file.name}"`, {
+              description: toError(error).message,
+            })
             if (placeholder.previewUrl) URL.revokeObjectURL(placeholder.previewUrl)
             setAttachedFiles((prev) => prev.filter((f) => f.id !== placeholder.id))
           }

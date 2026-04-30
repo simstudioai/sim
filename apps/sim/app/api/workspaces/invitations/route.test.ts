@@ -108,9 +108,9 @@ const mockGetSession = authMockFns.mockGetSession
 const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
 
 import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
-import { POST } from '@/app/api/workspaces/invitations/route'
+import { POST } from '@/app/api/workspaces/invitations/batch/route'
 
-describe('POST /api/workspaces/invitations', () => {
+describe('POST /api/workspaces/invitations/batch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockDbResults.value = []
@@ -169,8 +169,7 @@ describe('POST /api/workspaces/invitations', () => {
 
     const request = createMockRequest('POST', {
       workspaceId: 'workspace-1',
-      email: 'new@example.com',
-      permission: 'read',
+      invitations: [{ email: 'new@example.com', permission: 'read' }],
     })
 
     const response = await POST(request)
@@ -201,8 +200,7 @@ describe('POST /api/workspaces/invitations', () => {
 
     const request = createMockRequest('POST', {
       workspaceId: 'workspace-1',
-      email: 'new@example.com',
-      permission: 'read',
+      invitations: [{ email: 'new@example.com', permission: 'read' }],
     })
 
     const response = await POST(request)
@@ -213,7 +211,7 @@ describe('POST /api/workspaces/invitations', () => {
     expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
   })
 
-  it('rejects org-owned invites when the organization has no available seats', async () => {
+  it('reports org-owned invites as failed when the organization has no available seats', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValueOnce({
       id: 'workspace-1',
       name: 'Org Workspace',
@@ -240,20 +238,25 @@ describe('POST /api/workspaces/invitations', () => {
 
     const request = createMockRequest('POST', {
       workspaceId: 'workspace-1',
-      email: 'new@example.com',
-      permission: 'read',
+      invitations: [{ email: 'new@example.com', permission: 'read' }],
     })
 
     const response = await POST(request)
     const data = await response.json()
 
-    expect(response.status).toBe(400)
-    expect(data.error).toContain('No available seats')
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.failed).toEqual([
+      {
+        email: 'new@example.com',
+        error: 'No available seats. Currently using 5 of 5 seats.',
+      },
+    ])
     expect(mockValidateSeatAvailability).toHaveBeenCalledWith('org-1', 1)
     expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
   })
 
-  it('rejects org-owned invites for users already in another organization', async () => {
+  it('creates an external workspace invitation for users already in another organization', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValueOnce({
       id: 'workspace-1',
       name: 'Org Workspace',
@@ -281,16 +284,25 @@ describe('POST /api/workspaces/invitations', () => {
 
     const request = createMockRequest('POST', {
       workspaceId: 'workspace-1',
-      email: 'new@example.com',
-      permission: 'read',
+      invitations: [{ email: 'new@example.com', permission: 'read' }],
     })
 
     const response = await POST(request)
     const data = await response.json()
 
-    expect(response.status).toBe(409)
-    expect(data.error).toContain('already a member of another organization')
-    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(data.invitations[0].membershipIntent).toBe('external')
+    expect(mockValidateSeatAvailability).not.toHaveBeenCalled()
+    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'workspace',
+        email: 'new@example.com',
+        organizationId: 'org-1',
+        membershipIntent: 'external',
+        grants: [{ workspaceId: 'workspace-1', permission: 'read' }],
+      })
+    )
   })
 
   it('creates a unified workspace invitation for a grandfathered workspace', async () => {
@@ -306,8 +318,7 @@ describe('POST /api/workspaces/invitations', () => {
 
     const request = createMockRequest('POST', {
       workspaceId: 'workspace-1',
-      email: 'new@example.com',
-      permission: 'write',
+      invitations: [{ email: 'new@example.com', permission: 'write' }],
     })
 
     const response = await POST(request)
@@ -327,6 +338,40 @@ describe('POST /api/workspaces/invitations', () => {
     expect(mockValidateSeatAvailability).not.toHaveBeenCalled()
   })
 
+  it('creates multiple workspace invitations in one batch request', async () => {
+    mockDbResults.value = [[{ permissionType: 'admin' }], [], []]
+    mockCreatePendingInvitation
+      .mockResolvedValueOnce({
+        invitationId: 'inv-1',
+        token: 'tok-1',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      })
+      .mockResolvedValueOnce({
+        invitationId: 'inv-2',
+        token: 'tok-2',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      })
+
+    const request = createMockRequest('POST', {
+      workspaceId: 'workspace-1',
+      invitations: [
+        { email: 'first@example.com', permission: 'read' },
+        { email: 'second@example.com', permission: 'write' },
+      ],
+    })
+
+    const response = await POST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(data.successful).toEqual(['first@example.com', 'second@example.com'])
+    expect(data.failed).toEqual([])
+    expect(data.invitations).toHaveLength(2)
+    expect(mockCreatePendingInvitation).toHaveBeenCalledTimes(2)
+    expect(mockSendInvitationEmail).toHaveBeenCalledTimes(2)
+  })
+
   it('rolls back the unified invitation when email delivery fails', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValueOnce({
       id: 'workspace-1',
@@ -344,13 +389,18 @@ describe('POST /api/workspaces/invitations', () => {
 
     const request = createMockRequest('POST', {
       workspaceId: 'workspace-1',
-      email: 'new@example.com',
-      permission: 'read',
+      invitations: [{ email: 'new@example.com', permission: 'read' }],
     })
 
     const response = await POST(request)
 
-    expect(response.status).toBe(502)
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({
+        success: false,
+        failed: [{ email: 'new@example.com', error: 'mailer unavailable' }],
+      })
+    )
     expect(mockCancelPendingInvitation).toHaveBeenCalledWith('inv-1')
   })
 })

@@ -24,6 +24,7 @@ function createMockChain(finalResult: any) {
   chain.where = vi.fn().mockReturnValue(chain)
   chain.limit = vi.fn().mockReturnValue(chain)
   chain.innerJoin = vi.fn().mockReturnValue(chain)
+  chain.leftJoin = vi.fn().mockReturnValue(chain)
   chain.orderBy = vi.fn().mockReturnValue(chain)
 
   return chain
@@ -225,7 +226,41 @@ describe('Permission Utils', () => {
           name: 'Alice Smith',
           image: 'https://example.com/alice.png',
           permissionType: 'admin',
+          isExternal: false,
         },
+      ])
+    })
+
+    it('marks users as external when they are not members of the workspace organization', async () => {
+      const mockUsersResults = [
+        {
+          userId: 'internal-user',
+          email: 'internal@example.com',
+          name: 'Internal User',
+          image: null,
+          permissionType: 'admin' as PermissionType,
+          workspaceOrganizationId: 'org-1',
+          organizationMemberId: 'member-1',
+        },
+        {
+          userId: 'external-user',
+          email: 'external@example.com',
+          name: 'External User',
+          image: null,
+          permissionType: 'write' as PermissionType,
+          workspaceOrganizationId: 'org-1',
+          organizationMemberId: null,
+        },
+      ]
+
+      const usersChain = createMockChain(mockUsersResults)
+      mockDb.select.mockReturnValue(usersChain)
+
+      const result = await getUsersWithPermissions('workspace456')
+
+      expect(result.map((u) => ({ email: u.email, isExternal: u.isExternal }))).toEqual([
+        { email: 'internal@example.com', isExternal: false },
+        { email: 'external@example.com', isExternal: true },
       ])
     })
 

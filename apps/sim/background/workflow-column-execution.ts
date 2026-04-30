@@ -123,6 +123,7 @@ export async function executeWorkflowColumnJob(
       }
 
       const blockOutputs: Record<string, Record<string, unknown>> = {}
+      const blockErrors: Record<string, string> = {}
       const runningBlockIds = new Set<string>()
       let writeChain: Promise<void> = Promise.resolve()
       const schedulePartialWrite = () => {
@@ -130,6 +131,7 @@ export async function executeWorkflowColumnJob(
         for (const [k, v] of Object.entries(blockOutputs)) {
           blockOutputsSnapshot[k] = { ...v }
         }
+        const blockErrorsSnapshot = { ...blockErrors }
         const runningSnapshot = Array.from(runningBlockIds)
         writeChain = writeChain
           .then(async () => {
@@ -143,6 +145,7 @@ export async function executeWorkflowColumnJob(
             const updatedCell: WorkflowCellValue = {
               ...cell,
               blockOutputs: blockOutputsSnapshot,
+              blockErrors: blockErrorsSnapshot,
               runningBlockIds: runningSnapshot,
             }
             const mergedData: RowData = {
@@ -168,16 +171,33 @@ export async function executeWorkflowColumnJob(
       const onBlockComplete = async (blockId: string, output: unknown): Promise<void> => {
         const paths = pickedPathsByBlock.get(blockId)
         if (!paths) return
+
         // executor hands us `{ input?, output: NormalizedBlockOutput, executionTime, ... }`
         const blockResult =
           output && typeof output === 'object' && 'output' in (output as object)
             ? (output as { output: unknown }).output
             : output
-        const slot: Record<string, unknown> = blockOutputs[blockId] ?? {}
-        for (const path of paths) {
-          slot[path] = pluckByPath(blockResult, path)
+
+        const blockErrorMessage =
+          blockResult &&
+          typeof blockResult === 'object' &&
+          typeof (blockResult as { error?: unknown }).error === 'string'
+            ? (blockResult as { error: string }).error
+            : null
+
+        if (blockErrorMessage) {
+          // Per-block error: only the fanned-out cells sourced from this block
+          // render as `error`. The workflow keeps executing — error ports etc.
+          // are a normal Sim concept, so the column-level status stays driven
+          // by the run as a whole.
+          blockErrors[blockId] = blockErrorMessage
+        } else {
+          const slot: Record<string, unknown> = blockOutputs[blockId] ?? {}
+          for (const path of paths) {
+            slot[path] = pluckByPath(blockResult, path)
+          }
+          blockOutputs[blockId] = slot
         }
-        blockOutputs[blockId] = slot
         runningBlockIds.delete(blockId)
         schedulePartialWrite()
       }
@@ -208,30 +228,17 @@ export async function executeWorkflowColumnJob(
       // `running` partial doesn't clobber it.
       await writeChain.catch(() => {})
 
-      if (result.success) {
-        // `output: null` — fanned-out columns render from `blockOutputs`.
-        await writeCell({
-          executionId,
-          jobId: null,
-          workflowId,
-          status: 'completed',
-          output: null,
-          error: null,
-          blockOutputs,
-          runningBlockIds: [],
-        })
-      } else {
-        await writeCell({
-          executionId,
-          jobId: null,
-          workflowId,
-          status: 'error',
-          output: null,
-          error: result.error ?? 'Workflow execution failed',
-          blockOutputs,
-          runningBlockIds: [],
-        })
-      }
+      await writeCell({
+        executionId,
+        jobId: null,
+        workflowId,
+        status: result.success ? 'completed' : 'error',
+        output: null,
+        error: result.success ? null : (result.error ?? 'Workflow execution failed'),
+        blockOutputs,
+        blockErrors,
+        runningBlockIds: [],
+      })
     } catch (err) {
       const message = toError(err).message
       logger.error(

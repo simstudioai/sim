@@ -84,6 +84,13 @@ export interface WorkflowCellValue {
    * (or absent) on terminal states.
    */
   runningBlockIds?: string[]
+  /**
+   * Per-block error messages keyed by `blockId`. Errors are a normal Sim concept
+   * (error-port edges) — only the column sourced from the failing block should
+   * render `Error`, not every fanned-out column. Downstream blocks that never
+   * ran stay empty rather than inheriting the workflow's overall error status.
+   */
+  blockErrors?: Record<string, string>
 }
 
 export interface TableSchema {
@@ -201,12 +208,18 @@ export interface QueryOptions {
   sort?: Sort
   limit?: number
   offset?: number
+  /**
+   * When true (default), runs a `COUNT(*)` and returns `totalCount` as a number.
+   * Pass `false` to skip the count query (grid UI doesn't need it); `totalCount`
+   * is returned as `null` to signal it was not computed.
+   */
+  includeTotal?: boolean
 }
 
 export interface QueryResult {
   rows: TableRow[]
   rowCount: number
-  totalCount: number
+  totalCount: number | null
   limit: number
   offset: number
 }

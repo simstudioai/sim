@@ -17,8 +17,6 @@ const BROWSERBASE_PROJECT_ID = env.BROWSERBASE_PROJECT_ID
 const requestSchema = z.object({
   instruction: z.string(),
   schema: z.record(z.any()),
-  useTextExtract: z.boolean().optional().default(false),
-  selector: z.string().nullable().optional(),
   provider: z.enum(['openai', 'anthropic']).optional().default('openai'),
   apiKey: z.string(),
   url: z.string().url(),
@@ -51,7 +49,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const params = validationResult.data
-    const { url: rawUrl, instruction, selector, provider, apiKey, schema } = params
+    const { url: rawUrl, instruction, provider, apiKey, schema } = params
     const url = normalizeUrl(rawUrl)
     const urlValidation = await validateUrlWithDNS(url, 'url')
     if (!urlValidation.isValid) {
@@ -101,8 +99,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     try {
-      const modelName =
-        provider === 'anthropic' ? 'anthropic/claude-sonnet-4-5-20250929' : 'openai/gpt-5'
+      const modelName = provider === 'anthropic' ? 'anthropic/claude-sonnet-4-6' : 'openai/gpt-5'
 
       logger.info('Initializing Stagehand with Browserbase (v3)', { provider, modelName })
 
@@ -162,14 +159,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         logger.info('Calling stagehand.extract with options', {
           hasInstruction: !!instruction,
           hasSchema: !!zodSchema,
-          hasSelector: !!selector,
         })
 
         let extractedData
         if (zodSchema) {
-          extractedData = await stagehand.extract(instruction, zodSchema, {
-            selector: selector || undefined,
-          })
+          extractedData = await stagehand.extract(instruction, zodSchema)
         } else {
           extractedData = await stagehand.extract(instruction)
         }

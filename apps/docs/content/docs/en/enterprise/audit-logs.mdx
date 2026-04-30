@@ -44,7 +44,7 @@ Authorization: Bearer <api-key>
 | `resourceType` | string | Filter by resource type (e.g. `workflow`) |
 | `resourceId` | string | Filter by a specific resource ID |
 | `workspaceId` | string | Filter by workspace |
-| `actorId` | string | Filter by user ID (must be an org member) |
+| `actorId` | string | Filter by user ID. For organization-wide filters, the actor must be a current or former org member; workspace-scoped logs can also include external workspace members. |
 | `startDate` | string | ISO 8601 date — return logs on or after this date |
 | `endDate` | string | ISO 8601 date — return logs on or before this date |
 | `includeDeparted` | boolean | Include logs from members who have since left the organization (default `false`) |
@@ -98,6 +98,8 @@ Audit log events follow a `resource.action` naming pattern. The table below list
 | **Credentials** | `credential.created`, `credential.deleted`, `oauth.disconnected` |
 | **Organization** | `organization.updated`, `org_member.added`, `org_member.role_changed` |
 
+Workspace invitation events include whether the invite is for an internal organization member or an external workspace member in their metadata. External workspace members can appear as actors on workspace-scoped events, but they are not organization members and do not appear in the organization roster.
+
 ---
 
 <FAQ items={[
@@ -123,7 +125,7 @@ Audit log events follow a `resource.action` naming pattern. The table below list
   },
   {
     question: "Can I filter logs by a specific user?",
-    answer: "Yes. Pass the actorId query parameter to filter logs by a specific user. The actor must be a current or former member of your organization."
+    answer: "Yes. Pass the actorId query parameter to filter logs by a specific user. Organization-wide actor filters require the actor to be a current or former member of your organization. Workspace-scoped logs may also include external workspace members who acted inside a workspace without joining the organization."
   }
 ]} />
 

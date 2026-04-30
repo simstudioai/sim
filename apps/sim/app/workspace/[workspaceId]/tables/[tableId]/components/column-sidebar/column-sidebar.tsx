@@ -3,7 +3,9 @@
 import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toError } from '@sim/utils/errors'
-import { ExternalLink, Loader2, RepeatIcon, SplitIcon, X } from 'lucide-react'
+import { generateId } from '@sim/utils/id'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { ExternalLink, Loader2, Plus, RepeatIcon, SplitIcon, X } from 'lucide-react'
 import { Button, Checkbox, Combobox, Input, Label, Switch, toast, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition } from '@/lib/table'
@@ -13,10 +15,13 @@ import {
   flattenWorkflowOutputs,
   getBlockExecutionOrder,
 } from '@/lib/workflows/blocks/flatten-outputs'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
+import type { InputFormatField } from '@/lib/workflows/types'
 import { getBlock } from '@/blocks'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
-import { useWorkflowState } from '@/hooks/queries/workflows'
+import { useWorkflowState, workflowKeys } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { COLUMN_TYPE_OPTIONS } from './column-types'
 
@@ -63,6 +68,36 @@ interface BlockOutputGroup {
   blockIcon: string | React.ComponentType<{ className?: string }>
   blockColor: string
   paths: string[]
+}
+
+/**
+ * Loose shape of `useWorkflowState` data — we only need the fields we round-trip
+ * through PUT /state. Typed locally to avoid pulling the heavy `WorkflowState`
+ * generic from `@/stores/workflows/workflow/types`.
+ */
+interface WorkflowStatePayload {
+  blocks: Record<string, {
+    type: string
+    subBlocks?: Record<string, { id?: string; type?: string; value?: unknown }>
+  } & Record<string, unknown>>
+  edges: unknown[]
+  loops: unknown
+  parallels: unknown
+  lastSaved?: number
+  isDeployed?: boolean
+}
+
+function tableColumnTypeToInputType(colType: ColumnDefinition['type'] | undefined): string {
+  switch (colType) {
+    case 'number':
+      return 'number'
+    case 'boolean':
+      return 'boolean'
+    case 'json':
+      return 'object'
+    default:
+      return 'string'
+  }
 }
 
 const TagIcon: React.FC<{
@@ -214,6 +249,107 @@ export function ColumnSidebar({
   const workflowState = useWorkflowState(
     open && typeInput === 'workflow' && selectedWorkflowId ? selectedWorkflowId : undefined
   )
+
+  /**
+   * Resolves the unified Start block id and its current `inputFormat` field
+   * names. The "Add inputs" mutation only adds rows for table columns that
+   * aren't already represented in the start block — clicking the button when
+   * everything's covered does nothing, so we hide it in that case.
+   */
+  const startBlockInputs = useMemo<{
+    blockId: string | null
+    existingNames: Set<string>
+    existing: InputFormatField[]
+  }>(() => {
+    const blocks = (workflowState.data as { blocks?: Record<string, { type: string }> } | null)
+      ?.blocks
+    if (!blocks) return { blockId: null, existingNames: new Set(), existing: [] }
+    const candidate = TriggerUtils.findStartBlock(blocks, 'manual')
+    if (!candidate) return { blockId: null, existingNames: new Set(), existing: [] }
+    const block = blocks[candidate.blockId] as
+      | { subBlocks?: Record<string, { value?: unknown }> }
+      | undefined
+    const existing = normalizeInputFormatValue(block?.subBlocks?.inputFormat?.value)
+    return {
+      blockId: candidate.blockId,
+      existingNames: new Set(existing.map((f) => f.name).filter((n): n is string => !!n)),
+      existing,
+    }
+  }, [workflowState.data])
+
+  const missingInputColumnNames = useMemo<string[]>(() => {
+    if (!startBlockInputs.blockId) return []
+    return allColumns
+      .filter(
+        (c) =>
+          c.name !== columnName &&
+          c.type !== 'workflow' &&
+          !startBlockInputs.existingNames.has(c.name)
+      )
+      .map((c) => c.name)
+  }, [allColumns, columnName, startBlockInputs])
+
+  const queryClient = useQueryClient()
+  const addInputsMutation = useMutation({
+    mutationFn: async () => {
+      const wfId = selectedWorkflowId
+      const startBlockId = startBlockInputs.blockId
+      const state = workflowState.data as WorkflowStatePayload | null | undefined
+      if (!wfId || !startBlockId || !state || missingInputColumnNames.length === 0) {
+        throw new Error('Nothing to add')
+      }
+      const startBlock = state.blocks[startBlockId]
+      if (!startBlock) throw new Error('Start block missing from workflow')
+
+      const newFields: InputFormatField[] = missingInputColumnNames.map((name) => {
+        const col = allColumns.find((c) => c.name === name)
+        return {
+          id: generateId(),
+          name,
+          type: tableColumnTypeToInputType(col?.type),
+          value: '',
+          collapsed: false,
+        } as InputFormatField & { id: string; collapsed: boolean }
+      })
+
+      const updatedSubBlock = {
+        ...(startBlock.subBlocks?.inputFormat ?? { id: 'inputFormat', type: 'input-format' }),
+        value: [...startBlockInputs.existing, ...newFields],
+      }
+      const updatedBlocks = {
+        ...state.blocks,
+        [startBlockId]: {
+          ...startBlock,
+          subBlocks: { ...startBlock.subBlocks, inputFormat: updatedSubBlock },
+        },
+      }
+
+      const res = await fetch(`/api/workflows/${wfId}/state`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blocks: updatedBlocks,
+          edges: state.edges,
+          loops: state.loops,
+          parallels: state.parallels,
+          lastSaved: state.lastSaved ?? Date.now(),
+          isDeployed: state.isDeployed ?? false,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error ?? 'Failed to add inputs')
+      }
+      return missingInputColumnNames.length
+    },
+    onSuccess: (added) => {
+      queryClient.invalidateQueries({ queryKey: workflowKeys.state(selectedWorkflowId) })
+      toast.success(`Added ${added} input${added === 1 ? '' : 's'} to start block`)
+    },
+    onError: (err) => {
+      toast.error(toError(err).message)
+    },
+  })
 
   const blockOutputGroups = useMemo<BlockOutputGroup[]>(() => {
     const state = workflowState.data as
@@ -560,6 +696,30 @@ export function ColumnSidebar({
                 {showValidation && !selectedWorkflowId && (
                   <FieldError message='Select a workflow' />
                 )}
+                {selectedWorkflowId &&
+                  startBlockInputs.blockId &&
+                  missingInputColumnNames.length > 0 && (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          type='button'
+                          variant='default'
+                          size='sm'
+                          onClick={() => addInputsMutation.mutate()}
+                          disabled={addInputsMutation.isPending}
+                          className='self-start'
+                        >
+                          <Plus className='h-[14px] w-[14px]' />
+                          {addInputsMutation.isPending
+                            ? 'Adding…'
+                            : `Add inputs (${missingInputColumnNames.length})`}
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side='top'>
+                        Adds {missingInputColumnNames.join(', ')} to the workflow's Start block
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
               </div>
 
               <FieldDivider />

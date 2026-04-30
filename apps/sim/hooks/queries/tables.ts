@@ -57,11 +57,14 @@ interface TableRowsParams {
   offset: number
   filter?: Filter | null
   sort?: Sort | null
+  /** When `false`, skip the server-side `COUNT(*)` and receive `totalCount: null`. */
+  includeTotal?: boolean
 }
 
 interface TableRowsResponse {
   rows: TableRow[]
-  totalCount: number
+  /** `null` when the request opted out of the count via `includeTotal: false`. */
+  totalCount: number | null
 }
 
 interface RowMutationContext {
@@ -83,12 +86,14 @@ function createRowsParamsKey({
   offset,
   filter,
   sort,
+  includeTotal,
 }: Omit<TableRowsParams, 'workspaceId' | 'tableId'>): string {
   return JSON.stringify({
     limit,
     offset,
     filter: filter ?? null,
     sort: sort ?? null,
+    includeTotal: includeTotal ?? true,
   })
 }
 
@@ -117,6 +122,7 @@ async function fetchTableRows({
   offset,
   filter,
   sort,
+  includeTotal,
   signal,
 }: TableRowsParams & { signal?: AbortSignal }): Promise<TableRowsResponse> {
   const searchParams = new URLSearchParams({
@@ -133,6 +139,10 @@ async function fetchTableRows({
     searchParams.set('sort', JSON.stringify(sort))
   }
 
+  if (includeTotal === false) {
+    searchParams.set('includeTotal', 'false')
+  }
+
   const res = await fetch(`/api/table/${tableId}/rows?${searchParams}`, { signal })
   if (!res.ok) {
     const error = await res.json().catch(() => ({}))
@@ -140,15 +150,15 @@ async function fetchTableRows({
   }
 
   const json: {
-    data?: { rows: TableRow[]; totalCount: number }
+    data?: { rows: TableRow[]; totalCount: number | null }
     rows?: TableRow[]
-    totalCount?: number
+    totalCount?: number | null
   } = await res.json()
 
   const data = json.data || json
   return {
     rows: (data.rows || []) as TableRow[],
-    totalCount: data.totalCount || 0,
+    totalCount: data.totalCount ?? null,
   }
 }
 
@@ -231,10 +241,11 @@ export function useTableRows({
   offset,
   filter,
   sort,
+  includeTotal,
   enabled = true,
 }: TableRowsParams & { enabled?: boolean }) {
   const queryClient = useQueryClient()
-  const paramsKey = createRowsParamsKey({ limit, offset, filter, sort })
+  const paramsKey = createRowsParamsKey({ limit, offset, filter, sort, includeTotal })
   const {
     isConnected: socketConnected,
     joinTable,
@@ -249,9 +260,8 @@ export function useTableRows({
 
     onTableRowUpdated((event) => {
       if (event.tableId !== tableId) return
-      // While an optimistic mutation is in flight, defer the update — applying it
-      // could clobber the optimistic state. The mutation's onSettled invalidate
-      // will refetch authoritative state. Equivalent to the polling pause guard.
+      // While an optimistic mutation is in flight, applying the socket delta
+      // could clobber the optimistic state — defer to onSettled invalidate.
       if (queryClient.isMutating() > 0) {
         queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
         return
@@ -270,9 +280,12 @@ export function useTableRows({
           }
           const idx = current.rows.findIndex((r) => r.id === event.rowId)
           if (idx === -1) {
-            // New row: insert at position. Sort by position so paginated views stay coherent.
             const next = [...current.rows, incoming].sort((a, b) => a.position - b.position)
-            return { ...current, rows: next, totalCount: current.totalCount + 1 }
+            return {
+              ...current,
+              rows: next,
+              totalCount: current.totalCount === null ? null : current.totalCount + 1,
+            }
           }
           const merged = { ...current.rows[idx], data: incoming.data, updatedAt: incoming.updatedAt }
           const next = [...current.rows]
@@ -294,7 +307,11 @@ export function useTableRows({
           if (!current) return current
           const next = current.rows.filter((r) => r.id !== event.rowId)
           if (next.length === current.rows.length) return current
-          return { ...current, rows: next, totalCount: Math.max(0, current.totalCount - 1) }
+          return {
+            ...current,
+            rows: next,
+            totalCount: current.totalCount === null ? null : Math.max(0, current.totalCount - 1),
+          }
         }
       )
     })
@@ -316,6 +333,7 @@ export function useTableRows({
         offset,
         filter,
         sort,
+        includeTotal,
         signal,
       }),
     enabled: Boolean(workspaceId && tableId) && enabled,
@@ -503,7 +521,11 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
             r.position >= row.position ? { ...r, position: r.position + 1 } : r
           )
           const rows: TableRow[] = [...shifted, row].sort((a, b) => a.position - b.position)
-          return { ...old, rows, totalCount: old.totalCount + 1 }
+          return {
+            ...old,
+            rows,
+            totalCount: old.totalCount === null ? null : old.totalCount + 1,
+          }
         }
       )
     },

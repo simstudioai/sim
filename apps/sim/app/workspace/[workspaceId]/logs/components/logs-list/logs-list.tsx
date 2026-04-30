@@ -44,7 +44,7 @@ const LogRow = memo(
     onContextMenu,
     selectedRowRef,
   }: LogRowProps) {
-    const formattedDate = useMemo(() => formatDate(log.createdAt), [log.createdAt])
+    const formattedDate = formatDate(log.createdAt)
     const isMothershipJob = log.trigger === 'mothership'
     const isDeletedWorkflow = !isMothershipJob && !log.workflow?.id && !log.workflowId
     const workflowName = isMothershipJob

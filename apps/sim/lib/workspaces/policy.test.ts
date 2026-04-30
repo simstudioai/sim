@@ -219,6 +219,23 @@ describe('getWorkspaceCreationPolicy', () => {
     expect(result.workspaceMode).toBe(WORKSPACE_MODE.ORGANIZATION)
     expect(result.reason).toContain('owners and admins')
   })
+
+  it('blocks users without org membership from creating workspaces in the active org context', async () => {
+    mockDbResults.value = [[], [{ userId: 'owner-1' }]]
+
+    const result = await getWorkspaceCreationPolicy({
+      userId: 'external-user-1',
+      activeOrganizationId: 'org-1',
+    })
+
+    expect(result.canCreate).toBe(false)
+    expect(result.workspaceMode).toBe(WORKSPACE_MODE.ORGANIZATION)
+    expect(result.organizationId).toBe('org-1')
+    expect(result.billedAccountUserId).toBe('owner-1')
+    expect(result.reason).toContain('owners and admins')
+    expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
+    expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
+  })
 })
 
 describe('getWorkspaceInvitePolicy', () => {

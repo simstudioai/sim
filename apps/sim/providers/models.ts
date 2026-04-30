@@ -183,6 +183,49 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 1047576,
         releaseDate: '2025-04-14',
       },
+      // GPT-5.5 family
+      {
+        id: 'gpt-5.5-pro',
+        pricing: {
+          input: 30.0,
+          output: 180.0,
+          updatedAt: '2026-04-23',
+        },
+        capabilities: {
+          nativeStructuredOutputs: true,
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
+        releaseDate: '2026-04-23',
+      },
+      {
+        id: 'gpt-5.5',
+        pricing: {
+          input: 5.0,
+          cachedInput: 0.5,
+          output: 30.0,
+          updatedAt: '2026-04-23',
+        },
+        capabilities: {
+          nativeStructuredOutputs: true,
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
+        releaseDate: '2026-04-23',
+        recommended: true,
+      },
       // GPT-5.4 family
       {
         id: 'gpt-5.4-pro',
@@ -219,7 +262,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1050000,
         releaseDate: '2026-03-05',
-        recommended: true,
       },
       {
         id: 'gpt-5.4-mini',

@@ -11,14 +11,15 @@ interface AshbyListNotesResponse extends ToolResponse {
   output: {
     notes: Array<{
       id: string
-      content: string
+      content: string | null
+      isPrivate: boolean
       author: {
         id: string
-        firstName: string
-        lastName: string
-        email: string
+        firstName: string | null
+        lastName: string | null
+        email: string | null
       } | null
-      createdAt: string
+      createdAt: string | null
     }>
     moreDataAvailable: boolean
     nextCursor: string | null
@@ -67,7 +68,7 @@ export const listNotesTool: ToolConfig<AshbyListNotesParams, AshbyListNotesRespo
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
-        candidateId: params.candidateId,
+        candidateId: params.candidateId.trim(),
       }
       if (params.cursor) body.cursor = params.cursor
       if (params.perPage) body.limit = params.perPage
@@ -91,17 +92,18 @@ export const listNotesTool: ToolConfig<AshbyListNotesParams, AshbyListNotesRespo
               author?: { id?: string; firstName?: string; lastName?: string; email?: string }
             }
           ) => ({
-            id: n.id ?? null,
-            content: n.content ?? null,
+            id: (n.id as string) ?? '',
+            content: (n.content as string) ?? null,
+            isPrivate: (n.isPrivate as boolean) ?? false,
             author: n.author
               ? {
-                  id: n.author.id ?? null,
+                  id: n.author.id ?? '',
                   firstName: n.author.firstName ?? null,
                   lastName: n.author.lastName ?? null,
                   email: n.author.email ?? null,
                 }
               : null,
-            createdAt: n.createdAt ?? null,
+            createdAt: (n.createdAt as string) ?? null,
           })
         ),
         moreDataAvailable: data.moreDataAvailable ?? false,
@@ -118,19 +120,20 @@ export const listNotesTool: ToolConfig<AshbyListNotesParams, AshbyListNotesRespo
         type: 'object',
         properties: {
           id: { type: 'string', description: 'Note UUID' },
-          content: { type: 'string', description: 'Note content' },
+          content: { type: 'string', description: 'Note content', optional: true },
+          isPrivate: { type: 'boolean', description: 'Whether the note is private' },
           author: {
             type: 'object',
             description: 'Note author',
             optional: true,
             properties: {
               id: { type: 'string', description: 'Author user UUID' },
-              firstName: { type: 'string', description: 'First name' },
-              lastName: { type: 'string', description: 'Last name' },
-              email: { type: 'string', description: 'Email address' },
+              firstName: { type: 'string', description: 'First name', optional: true },
+              lastName: { type: 'string', description: 'Last name', optional: true },
+              email: { type: 'string', description: 'Email address', optional: true },
             },
           },
-          createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
+          createdAt: { type: 'string', description: 'ISO 8601 creation timestamp', optional: true },
         },
       },
     },

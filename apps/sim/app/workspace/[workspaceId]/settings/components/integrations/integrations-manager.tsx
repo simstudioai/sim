@@ -801,15 +801,16 @@ export function IntegrationsManager() {
                   {filteredServices.map((service) => {
                     const config = getServiceConfigByProviderId(service.value)
                     return (
-                      <button
+                      <Button
                         key={service.value}
                         type='button'
+                        variant='ghost'
                         onClick={() => {
                           setCreateOAuthProviderId(service.value)
                           setCreateStep(2)
                           setServiceSearch('')
                         }}
-                        className='flex items-center gap-2.5 rounded-[6px] px-2 py-2 text-left hover:bg-[var(--surface-5)]'
+                        className='h-auto w-full justify-start gap-2.5 rounded-[6px] px-2 py-2 text-left hover-hover:bg-[var(--surface-5)]'
                       >
                         <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
                           {config ? (
@@ -823,7 +824,7 @@ export function IntegrationsManager() {
                         <span className='font-medium text-[15px] text-[var(--text-primary)]'>
                           {service.label}
                         </span>
-                      </button>
+                      </Button>
                     )
                   })}
                   {filteredServices.length === 0 && (
@@ -844,17 +845,18 @@ export function IntegrationsManager() {
           <>
             <ModalHeader>
               <div className='flex items-center gap-2.5'>
-                <button
+                <Button
                   type='button'
+                  variant='ghost'
                   onClick={() => {
                     setCreateStep(1)
                     setCreateError(null)
                   }}
-                  className='flex h-6 w-6 items-center justify-center rounded-[4px] text-[var(--text-muted)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                  className='h-6 w-6 rounded-[4px] p-0 text-[var(--text-muted)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
                   aria-label='Back'
                 >
                   ←
-                </button>
+                </Button>
                 <span>
                   Connect{' '}
                   {selectedOAuthService?.name || resolveProviderLabel(createOAuthProviderId)}
@@ -970,17 +972,18 @@ export function IntegrationsManager() {
           <>
             <ModalHeader>
               <div className='flex items-center gap-2.5'>
-                <button
+                <Button
                   type='button'
+                  variant='ghost'
                   onClick={() => {
                     setCreateStep(1)
                     setSaError(null)
                   }}
-                  className='flex h-6 w-6 items-center justify-center rounded-[4px] text-[var(--text-muted)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                  className='h-6 w-6 rounded-[4px] p-0 text-[var(--text-muted)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
                   aria-label='Back'
                 >
                   ←
-                </button>
+                </Button>
                 <span>
                   Add {selectedOAuthService?.name || resolveProviderLabel(createOAuthProviderId)}
                 </span>
@@ -1146,10 +1149,10 @@ export function IntegrationsManager() {
             ? This action cannot be undone.
           </p>
           {deleteError && (
-            <div className='mt-3 rounded-lg border border-red-500/50 bg-red-50 p-3 dark:bg-red-950/30'>
+            <div className='mt-3 rounded-lg border border-[color-mix(in_srgb,var(--text-error)_40%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] p-3'>
               <div className='flex items-start gap-2.5'>
-                <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
-                <p className='text-red-700 text-small dark:text-red-300'>{deleteError}</p>
+                <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-[var(--text-error)]' />
+                <p className='text-[var(--text-error)] text-small'>{deleteError}</p>
               </div>
             </div>
           )}
@@ -1240,9 +1243,10 @@ export function IntegrationsManager() {
                   Display Name
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
-                      <button
+                      <Button
                         type='button'
-                        className='-my-1 flex h-5 w-5 items-center justify-center'
+                        variant='ghost'
+                        className='-my-1 h-5 w-5 p-0'
                         onClick={() => {
                           navigator.clipboard.writeText(selectedCredential.id)
                           setCopyIdSuccess(true)
@@ -1251,11 +1255,11 @@ export function IntegrationsManager() {
                         aria-label='Copy value'
                       >
                         {copyIdSuccess ? (
-                          <Check className='h-3 w-3 text-green-500' />
+                          <Check className='h-3 w-3 text-[var(--text-success)]' />
                         ) : (
                           <Clipboard className='h-3 w-3 text-[var(--text-icon)]' />
                         )}
-                      </button>
+                      </Button>
                     </Tooltip.Trigger>
                     <Tooltip.Content>
                       {copyIdSuccess ? 'Copied!' : 'Copy credential ID'}
@@ -1288,7 +1292,7 @@ export function IntegrationsManager() {
               </div>
 
               {detailsError && (
-                <div className='rounded-lg border border-[color-mix(in_srgb,var(--status-red)_40%,transparent)] bg-[color-mix(in_srgb,var(--status-red)_10%,transparent)] px-2.5 py-2 text-[var(--status-red)] text-small'>
+                <div className='rounded-lg border border-[color-mix(in_srgb,var(--text-error)_40%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] px-2.5 py-2 text-[var(--text-error)] text-small'>
                   {detailsError}
                 </div>
               )}

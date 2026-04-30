@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDate, formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 
@@ -264,17 +265,16 @@ function LineChartComponent({
                 const isHovered = hoverSeriesId === s.id
                 const dimmed = activeSeriesId ? !isActive : false
                 return (
-                  <button
+                  <Button
                     key={`legend-${s.id}`}
                     type='button'
+                    variant='ghost'
                     aria-pressed={activeSeriesId === s.id}
                     aria-label={`Toggle ${s.label}`}
-                    className='inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-micro'
+                    className='inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-transparent px-1.5 py-0.5 text-micro'
                     style={{
                       color: resolvedColors[s.id || ''] || s.color,
                       opacity: dimmed ? 0.4 : isHovered ? 1 : 0.9,
-                      border: '1px solid hsl(var(--border))',
-                      background: 'transparent',
                     }}
                     onMouseEnter={() => setHoverSeriesId(s.id || null)}
                     onMouseLeave={() => setHoverSeriesId((prev) => (prev === s.id ? null : prev))}
@@ -294,7 +294,7 @@ function LineChartComponent({
                       style={{ backgroundColor: resolvedColors[s.id || ''] || s.color }}
                     />
                     <span className='text-[var(--text-muted)]'>{s.label}</span>
-                  </button>
+                  </Button>
                 )
               })}
             </div>

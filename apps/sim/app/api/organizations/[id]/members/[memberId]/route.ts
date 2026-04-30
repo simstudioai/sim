@@ -8,7 +8,11 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { getUserUsageData } from '@/lib/billing/core/usage'
-import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
+import {
+  removeExternalUserFromOrganizationWorkspaces,
+  removeUserFromOrganization,
+} from '@/lib/billing/organizations/membership'
+import { reduceOrganizationSeatsByOne } from '@/lib/billing/organizations/seats'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationMemberAPI')
@@ -282,6 +286,7 @@ export const DELETE = withRouteHandler(
       }
 
       const { id: organizationId, memberId: targetUserId } = await params
+      const shouldReduceSeats = request.nextUrl.searchParams.get('shouldReduceSeats') === 'true'
 
       const userMember = await db
         .select()
@@ -311,7 +316,79 @@ export const DELETE = withRouteHandler(
         .limit(1)
 
       if (targetMember.length === 0) {
-        return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+        const [targetUser] = await db
+          .select({ id: user.id, email: user.email, name: user.name })
+          .from(user)
+          .where(eq(user.id, targetUserId))
+          .limit(1)
+
+        if (!targetUser) {
+          return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+        }
+
+        const externalResult = await removeExternalUserFromOrganizationWorkspaces({
+          userId: targetUserId,
+          organizationId,
+        })
+
+        if (!externalResult.success) {
+          const error = externalResult.error || 'External workspace member not found'
+          const status =
+            error === 'External workspace member not found'
+              ? 404
+              : error === 'User is an organization member'
+                ? 409
+                : 500
+
+          return NextResponse.json({ error }, { status })
+        }
+
+        logger.info('External workspace member removed from organization workspaces', {
+          organizationId,
+          removedMemberId: targetUserId,
+          removedBy: session.user.id,
+          workspaceAccessRevoked: externalResult.workspaceAccessRevoked,
+          permissionGroupsRevoked: externalResult.permissionGroupsRevoked,
+          credentialMembershipsRevoked: externalResult.credentialMembershipsRevoked,
+          pendingInvitationsCancelled: externalResult.pendingInvitationsCancelled,
+        })
+
+        recordAudit({
+          workspaceId: null,
+          actorId: session.user.id,
+          action: AuditAction.ORG_MEMBER_REMOVED,
+          resourceType: AuditResourceType.ORGANIZATION,
+          resourceId: organizationId,
+          actorName: session.user.name ?? undefined,
+          actorEmail: session.user.email ?? undefined,
+          description: `Removed external workspace member ${targetUserId} from organization`,
+          metadata: {
+            targetUserId,
+            targetEmail: targetUser.email ?? undefined,
+            targetName: targetUser.name ?? undefined,
+            membershipType: 'external',
+            workspaceAccessRevoked: externalResult.workspaceAccessRevoked,
+            permissionGroupsRevoked: externalResult.permissionGroupsRevoked,
+            credentialMembershipsRevoked: externalResult.credentialMembershipsRevoked,
+            pendingInvitationsCancelled: externalResult.pendingInvitationsCancelled,
+          },
+          request,
+        })
+
+        return NextResponse.json({
+          success: true,
+          message: 'External member removed successfully',
+          data: {
+            removedMemberId: targetUserId,
+            removedBy: session.user.id,
+            removedAt: new Date().toISOString(),
+            membershipType: 'external',
+            workspaceAccessRevoked: externalResult.workspaceAccessRevoked,
+            permissionGroupsRevoked: externalResult.permissionGroupsRevoked,
+            credentialMembershipsRevoked: externalResult.credentialMembershipsRevoked,
+            pendingInvitationsCancelled: externalResult.pendingInvitationsCancelled,
+          },
+        })
       }
 
       const result = await removeUserFromOrganization({
@@ -328,6 +405,28 @@ export const DELETE = withRouteHandler(
           return NextResponse.json({ error: result.error }, { status: 404 })
         }
         return NextResponse.json({ error: result.error }, { status: 500 })
+      }
+
+      let seatReduction: Awaited<ReturnType<typeof reduceOrganizationSeatsByOne>> | null = null
+      if (shouldReduceSeats && session.user.id !== targetUserId) {
+        try {
+          seatReduction = await reduceOrganizationSeatsByOne({
+            organizationId,
+            actorUserId: session.user.id,
+            removedUserId: targetUserId,
+          })
+        } catch (seatError) {
+          logger.error('Failed to reduce seats after member removal', {
+            organizationId,
+            removedMemberId: targetUserId,
+            removedBy: session.user.id,
+            error: seatError,
+          })
+          seatReduction = {
+            reduced: false,
+            reason: 'Failed to reduce seats after member removal',
+          }
+        }
       }
 
       if (session.user.id === targetUserId) {
@@ -348,6 +447,7 @@ export const DELETE = withRouteHandler(
         removedBy: session.user.id,
         wasSelfRemoval: session.user.id === targetUserId,
         billingActions: result.billingActions,
+        seatReduction,
       })
 
       recordAudit({
@@ -367,6 +467,7 @@ export const DELETE = withRouteHandler(
           targetEmail: targetMember[0].email ?? undefined,
           targetName: targetMember[0].name ?? undefined,
           wasSelfRemoval: session.user.id === targetUserId,
+          seatReduction,
         },
         request,
       })
@@ -381,6 +482,7 @@ export const DELETE = withRouteHandler(
           removedMemberId: targetUserId,
           removedBy: session.user.id,
           removedAt: new Date().toISOString(),
+          seatReduction,
         },
       })
     } catch (error) {

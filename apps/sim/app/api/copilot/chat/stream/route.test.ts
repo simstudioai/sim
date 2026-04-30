@@ -38,6 +38,7 @@ vi.mock('@/lib/copilot/request/session', () => ({
   }),
   encodeSSEEnvelope: (event: Record<string, unknown>) =>
     new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`),
+  encodeSSEComment: (comment: string) => new TextEncoder().encode(`: ${comment}\n\n`),
   SSE_RESPONSE_HEADERS: {
     'Content-Type': 'text/event-stream',
   },
@@ -132,6 +133,7 @@ describe('copilot chat stream replay route', () => {
     )
 
     const chunks = await readAllChunks(response)
+    expect(chunks[0]).toBe(': accepted\n\n')
     expect(chunks.join('')).toContain(
       JSON.stringify({
         status: MothershipStreamV1CompletionStatus.cancelled,

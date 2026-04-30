@@ -1,9 +1,11 @@
 import { db } from '@sim/db'
-import { subscription as subscriptionTable } from '@sim/db/schema'
+import { member, subscription as subscriptionTable, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
+import { isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { resolveDefaultPaymentMethod } from '@/lib/billing/stripe-payment-method'
+import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import type { OutboxHandler } from '@/lib/core/outbox/service'
 
 const logger = createLogger('BillingOutboxHandlers')
@@ -17,6 +19,7 @@ export const OUTBOX_EVENT_TYPES = {
    * enqueue this event after every DB change to `cancelAtPeriodEnd`.
    */
   STRIPE_SYNC_CANCEL_AT_PERIOD_END: 'stripe.sync-cancel-at-period-end',
+  STRIPE_SYNC_SUBSCRIPTION_SEATS: 'stripe.sync-subscription-seats',
   STRIPE_THRESHOLD_OVERAGE_INVOICE: 'stripe.threshold-overage-invoice',
   STRIPE_SYNC_CUSTOMER_CONTACT: 'stripe.sync-customer-contact',
 } as const
@@ -29,10 +32,15 @@ export interface StripeSyncCancelAtPeriodEndPayload {
   reason?: string
 }
 
+export interface StripeSyncSubscriptionSeatsPayload {
+  /** The DB subscription row id — the handler reads current seats from this row. */
+  subscriptionId: string
+  reason?: string
+}
+
 export interface StripeSyncCustomerContactPayload {
-  stripeCustomerId: string
-  email: string
-  name?: string
+  /** The DB subscription row id — handler resolves current owner/contact at processing time. */
+  subscriptionId: string
   reason?: string
 }
 
@@ -47,6 +55,21 @@ export interface StripeThresholdOverageInvoicePayload {
   invoiceIdemKeyStem: string
   itemIdemKeyStem: string
   metadata?: Record<string, string>
+}
+
+async function getSubscriptionSeatSyncState(subscriptionId: string) {
+  const [row] = await db
+    .select({
+      plan: subscriptionTable.plan,
+      seats: subscriptionTable.seats,
+      status: subscriptionTable.status,
+      stripeSubscriptionId: subscriptionTable.stripeSubscriptionId,
+    })
+    .from(subscriptionTable)
+    .where(eq(subscriptionTable.id, subscriptionId))
+    .limit(1)
+
+  return row ?? null
 }
 
 const stripeSyncCancelAtPeriodEnd: OutboxHandler<StripeSyncCancelAtPeriodEndPayload> = async (
@@ -84,6 +107,113 @@ const stripeSyncCancelAtPeriodEnd: OutboxHandler<StripeSyncCancelAtPeriodEndPayl
     desiredValue,
     reason: payload.reason,
   })
+}
+
+const stripeSyncSubscriptionSeats: OutboxHandler<StripeSyncSubscriptionSeatsPayload> = async (
+  payload,
+  ctx
+) => {
+  const stripe = requireStripeClient()
+  const maxSyncAttempts = 2
+
+  for (let attempt = 1; attempt <= maxSyncAttempts; attempt++) {
+    const row = await getSubscriptionSeatSyncState(payload.subscriptionId)
+    if (!row) {
+      logger.warn('Subscription not found when syncing seats', {
+        eventId: ctx.eventId,
+        subscriptionId: payload.subscriptionId,
+      })
+      return
+    }
+
+    if (!isTeam(row.plan)) {
+      logger.info('Skipping seat sync for non-Team subscription', {
+        eventId: ctx.eventId,
+        subscriptionId: payload.subscriptionId,
+        plan: row.plan,
+      })
+      return
+    }
+
+    if (!row.stripeSubscriptionId) {
+      logger.warn('Subscription has no Stripe id when syncing seats', {
+        eventId: ctx.eventId,
+        subscriptionId: payload.subscriptionId,
+      })
+      return
+    }
+
+    if (!hasUsableSubscriptionStatus(row.status)) {
+      logger.warn('Skipping seat sync for unusable DB subscription status', {
+        eventId: ctx.eventId,
+        subscriptionId: payload.subscriptionId,
+        status: row.status,
+      })
+      return
+    }
+
+    const desiredSeats = row.seats || 1
+    const stripeSubscription = await stripe.subscriptions.retrieve(row.stripeSubscriptionId)
+
+    if (!hasUsableSubscriptionStatus(stripeSubscription.status)) {
+      logger.warn('Skipping seat sync for unusable Stripe subscription', {
+        eventId: ctx.eventId,
+        subscriptionId: payload.subscriptionId,
+        stripeSubscriptionId: row.stripeSubscriptionId,
+        stripeStatus: stripeSubscription.status,
+      })
+      return
+    }
+
+    const subscriptionItem = stripeSubscription.items.data[0]
+    if (!subscriptionItem) {
+      throw new Error(
+        `No subscription item found for Stripe subscription ${row.stripeSubscriptionId}`
+      )
+    }
+
+    if (subscriptionItem.quantity !== desiredSeats) {
+      await stripe.subscriptions.update(
+        row.stripeSubscriptionId,
+        {
+          items: [
+            {
+              id: subscriptionItem.id,
+              quantity: desiredSeats,
+            },
+          ],
+          proration_behavior: 'always_invoice',
+        },
+        { idempotencyKey: `outbox:${ctx.eventId}:seats:${desiredSeats}` }
+      )
+    }
+
+    const latest = await getSubscriptionSeatSyncState(payload.subscriptionId)
+    const latestSeats = latest?.seats || 1
+    if (latestSeats !== desiredSeats) {
+      logger.info('Subscription seats changed during Stripe sync; retrying latest value', {
+        eventId: ctx.eventId,
+        subscriptionId: payload.subscriptionId,
+        stripeSubscriptionId: row.stripeSubscriptionId,
+        attemptedSeats: desiredSeats,
+        latestSeats,
+        attempt,
+      })
+      continue
+    }
+
+    logger.info('Synced subscription seats from DB to Stripe', {
+      eventId: ctx.eventId,
+      subscriptionId: payload.subscriptionId,
+      stripeSubscriptionId: row.stripeSubscriptionId,
+      seats: desiredSeats,
+      alreadySynced: subscriptionItem.quantity === desiredSeats,
+      reason: payload.reason,
+    })
+    return
+  }
+
+  throw new Error(`Subscription seats changed while syncing ${payload.subscriptionId}`)
 }
 
 const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoicePayload> = async (
@@ -178,18 +308,63 @@ const stripeSyncCustomerContact: OutboxHandler<StripeSyncCustomerContactPayload>
   payload,
   ctx
 ) => {
+  const [subscriptionRow] = await db
+    .select({
+      referenceId: subscriptionTable.referenceId,
+      stripeCustomerId: subscriptionTable.stripeCustomerId,
+    })
+    .from(subscriptionTable)
+    .where(eq(subscriptionTable.id, payload.subscriptionId))
+    .limit(1)
+
+  if (!subscriptionRow) {
+    logger.warn('Subscription not found when syncing Stripe customer contact', {
+      eventId: ctx.eventId,
+      subscriptionId: payload.subscriptionId,
+    })
+    return
+  }
+
+  if (!subscriptionRow.stripeCustomerId) {
+    logger.warn('Subscription has no Stripe customer id when syncing contact', {
+      eventId: ctx.eventId,
+      subscriptionId: payload.subscriptionId,
+    })
+    return
+  }
+
+  const [owner] = await db
+    .select({
+      email: user.email,
+      name: user.name,
+    })
+    .from(member)
+    .innerJoin(user, eq(member.userId, user.id))
+    .where(and(eq(member.organizationId, subscriptionRow.referenceId), eq(member.role, 'owner')))
+    .limit(1)
+
+  if (!owner) {
+    logger.warn('Organization owner not found when syncing Stripe customer contact', {
+      eventId: ctx.eventId,
+      subscriptionId: payload.subscriptionId,
+      organizationId: subscriptionRow.referenceId,
+    })
+    return
+  }
+
   const stripe = requireStripeClient()
   await stripe.customers.update(
-    payload.stripeCustomerId,
+    subscriptionRow.stripeCustomerId,
     {
-      email: payload.email,
-      ...(payload.name ? { name: payload.name } : {}),
+      email: owner.email,
+      ...(owner.name ? { name: owner.name } : {}),
     },
     { idempotencyKey: `outbox:${ctx.eventId}` }
   )
   logger.info('Synced Stripe customer contact', {
     eventId: ctx.eventId,
-    stripeCustomerId: payload.stripeCustomerId,
+    stripeCustomerId: subscriptionRow.stripeCustomerId,
+    subscriptionId: payload.subscriptionId,
     reason: payload.reason,
   })
 }
@@ -197,6 +372,8 @@ const stripeSyncCustomerContact: OutboxHandler<StripeSyncCustomerContactPayload>
 export const billingOutboxHandlers = {
   [OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END]:
     stripeSyncCancelAtPeriodEnd as OutboxHandler<unknown>,
+  [OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS]:
+    stripeSyncSubscriptionSeats as OutboxHandler<unknown>,
   [OUTBOX_EVENT_TYPES.STRIPE_THRESHOLD_OVERAGE_INVOICE]:
     stripeThresholdOverageInvoice as OutboxHandler<unknown>,
   [OUTBOX_EVENT_TYPES.STRIPE_SYNC_CUSTOMER_CONTACT]:

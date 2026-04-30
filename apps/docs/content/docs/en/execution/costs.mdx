@@ -272,6 +272,8 @@ Sim has two paid plan tiers - **Pro** and **Max**. Either can be used individual
 
 To use Pro or Max with a team, select **Get For Team** in subscription settings and choose the tier and number of seats. Credits are pooled across the organization at the per-seat rate (e.g. Max for Teams with 3 seats = 75,000 credits/mo pooled).
 
+Internal organization members use seats and contribute to the team's pooled credit allocation. External workspace members do not join your organization, do not appear in the organization roster, and do not count toward your seat total.
+
 ### Daily Refresh Credits
 
 Paid plans include a small daily credit allowance that does not count toward your plan limit. Each day, usage up to the daily refresh amount is excluded from billable usage. This allowance resets every 24 hours and does not carry over - use it or lose it.
@@ -317,7 +319,7 @@ By default, your usage is capped at the credits included in your plan. To allow 
 | **Max** | Up to 10 | — |
 | **Team / Enterprise** | Unlimited | Unlimited |
 
-Team and Enterprise plans unlock shared workspaces that belong to your organization. Members invited to a shared workspace automatically join the organization and count toward your seat total. When a Team or Enterprise subscription is cancelled or downgraded, existing shared workspaces remain accessible to current members but new invites are disabled until the organization is upgraded again.
+Team and Enterprise plans unlock shared workspaces that belong to your organization. Internal members invited to a shared workspace join the organization and count toward your seat total. Existing Sim users who already belong to another organization can be added as external workspace members; they get workspace access without joining your organization or using one of your seats. When a Team or Enterprise subscription is cancelled or downgraded, existing shared workspaces remain accessible to current members but new invites are disabled until the organization is upgraded again.
 
 ### Rate Limits
 
@@ -368,7 +370,8 @@ Sim uses a **base subscription + overage** billing model:
 - Example: 7,000 credits used = $25 (subscription) + $5 (overage for 1,000 extra credits at $0.005/credit)
 
 **Team Plans:**
-- Usage is pooled across all team members in the organization
+- Usage is pooled across internal team members in the organization
+- External workspace members keep their own organization or personal billing context for runs where they are the billing actor
 - Overage is calculated from total team usage against the pooled limit
 - Organization owner receives one bill
 

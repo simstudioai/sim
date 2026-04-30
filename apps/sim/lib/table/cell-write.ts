@@ -25,13 +25,15 @@ export interface WriteWorkflowCellContext {
 }
 
 /**
- * Writes the cell unless cancellation has already won the race for this run.
- * Returns `'cancelled'` so callers can short-circuit any follow-up writes/jobs.
+ * Writes the cell unless `cancelWorkflowColumnRuns` has already authoritatively
+ * written `cancelled` for this run. Without this guard, a stop click that
+ * lands while the scheduler is mid-enqueue or while the cell task is mid-run
+ * gets clobbered when the in-flight code path proceeds to its next cell write.
  */
 export async function writeWorkflowCell(
   ctx: WriteWorkflowCellContext,
   value: WorkflowCellValue
-): Promise<'wrote' | 'cancelled'> {
+): Promise<'wrote' | 'skipped'> {
   const { tableId, rowId, columnName, workspaceId, executionId } = ctx
   const requestId = ctx.requestId ?? `wfcol-${executionId}`
   const { getTableById, getRowById, updateRow } = await import('@/lib/table/service')
@@ -55,7 +57,7 @@ export async function writeWorkflowCell(
     logger.info(
       `Skipping cell write — cancelled (table=${tableId} row=${rowId} col=${columnName} executionId=${executionId})`
     )
-    return 'cancelled'
+    return 'skipped'
   }
   const mergedData: RowData = { ...row.data, [columnName]: value as unknown as RowData[string] }
   await updateRow({ tableId, rowId, data: mergedData, workspaceId }, table, requestId)
