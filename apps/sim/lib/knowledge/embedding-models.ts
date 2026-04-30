@@ -1,6 +1,8 @@
 /**
- * Client-safe registry of embedding models supported by the platform.
- * Kept free of server imports so it can be imported into UI code.
+ * Registry of embedding models supported by the platform.
+ * Selection happens server-side via the `KB_EMBEDDING_MODEL` env var; this
+ * registry exists to resolve provider, tokenizer, and pricing metadata at
+ * runtime for any model recorded on a knowledge base row.
  */
 
 export const EMBEDDING_DIMENSIONS = 1536
@@ -19,9 +21,6 @@ export interface EmbeddingModelInfo {
   pricingId: string
   /** Provider id for `estimateTokenCount` so token counts match the embedding provider's tokenization. */
   tokenizerProvider: TokenizerProviderId
-  label: string
-  /** Short user-facing description shown in the KB creation UI. */
-  description: string
 }
 
 export const SUPPORTED_EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
@@ -30,30 +29,20 @@ export const SUPPORTED_EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
     supportsCustomDimensions: true,
     pricingId: 'text-embedding-3-small',
     tokenizerProvider: 'openai',
-    label: 'OpenAI text-embedding-3-small',
-    description: 'Cheapest. Good for English-heavy retrieval at low cost.',
   },
   'text-embedding-3-large': {
     provider: 'openai',
     supportsCustomDimensions: true,
     pricingId: 'text-embedding-3-large',
     tokenizerProvider: 'openai',
-    label: 'OpenAI text-embedding-3-large',
-    description: 'Slightly better quality than 3-small at ~6.5× the cost.',
   },
   'gemini-embedding-001': {
     provider: 'gemini',
     supportsCustomDimensions: true,
     pricingId: 'gemini-embedding-001',
     tokenizerProvider: 'google',
-    label: 'Google gemini-embedding-001',
-    description: 'Strong multilingual retrieval. Good cost/quality balance.',
   },
 }
-
-export const SUPPORTED_EMBEDDING_MODEL_IDS = Object.keys(SUPPORTED_EMBEDDING_MODELS) as Array<
-  keyof typeof SUPPORTED_EMBEDDING_MODELS
->
 
 export function getEmbeddingModelInfo(model: string): EmbeddingModelInfo {
   const info = SUPPORTED_EMBEDDING_MODELS[model]

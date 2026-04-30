@@ -122,9 +122,8 @@ export const env = createEnv({
     AZURE_ANTHROPIC_ENDPOINT:              z.string().url().optional(),            // Azure Anthropic service endpoint
     AZURE_ANTHROPIC_API_KEY:               z.string().min(1).optional(),           // Azure Anthropic API key
     AZURE_ANTHROPIC_API_VERSION:           z.string().min(1).optional(),           // Azure Anthropic API version (e.g. 2023-06-01)
-    KB_OPENAI_MODEL_NAME:                  z.string().optional(),                  // Knowledge base OpenAI model name (works with both regular OpenAI and Azure OpenAI). Used as the Azure deployment for text-embedding-3-small (legacy/default).
-    AZURE_OPENAI_DEPLOYMENT_TEXT_EMBEDDING_3_SMALL: z.string().optional(),          // Azure deployment name serving text-embedding-3-small. If unset, falls back to KB_OPENAI_MODEL_NAME.
-    AZURE_OPENAI_DEPLOYMENT_TEXT_EMBEDDING_3_LARGE: z.string().optional(),          // Azure deployment name serving text-embedding-3-large. Required to use 3-large via Azure.
+    KB_OPENAI_MODEL_NAME:                  z.string().optional(),                  // Azure deployment name serving the configured KB embedding model (used only when AZURE_OPENAI_* credentials are set).
+    KB_EMBEDDING_MODEL:                    z.string().optional(),                  // Embedding model used for all new knowledge bases. Must be one of the supported model ids; defaults to text-embedding-3-small.
     WAND_OPENAI_MODEL_NAME:                z.string().optional(),                  // Wand generation OpenAI model name (works with both regular OpenAI and Azure OpenAI)
     OCR_AZURE_ENDPOINT:                    z.string().url().optional(),            // Azure Mistral OCR service endpoint
     OCR_AZURE_MODEL_NAME:                  z.string().optional(),                  // Azure Mistral OCR model name for document processing

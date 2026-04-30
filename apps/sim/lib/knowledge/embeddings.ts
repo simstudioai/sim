@@ -22,7 +22,6 @@ export {
   DEFAULT_EMBEDDING_MODEL,
   EMBEDDING_DIMENSIONS,
   getEmbeddingModelInfo,
-  SUPPORTED_EMBEDDING_MODEL_IDS,
   SUPPORTED_EMBEDDING_MODELS,
 } from '@/lib/knowledge/embedding-models'
 
@@ -174,19 +173,21 @@ function buildGeminiProvider(modelName: string, apiKey: string): ResolvedProvide
 }
 
 /**
- * Resolve the Azure deployment name for a given OpenAI embedding model.
- * Returns null if no deployment is configured for that model — caller falls
- * back to direct OpenAI rather than risk routing to a wrong-model deployment
- * (which would silently produce mismatched vectors).
+ * Returns the embedding model to use for new knowledge bases.
+ * Sourced from the `KB_EMBEDDING_MODEL` env var; falls back to the default if
+ * unset or set to an unsupported model.
  */
-function resolveAzureDeployment(embeddingModel: string): string | null {
-  if (embeddingModel === 'text-embedding-3-small') {
-    return env.AZURE_OPENAI_DEPLOYMENT_TEXT_EMBEDDING_3_SMALL || env.KB_OPENAI_MODEL_NAME || null
+export function getConfiguredEmbeddingModel(): string {
+  const configured = env.KB_EMBEDDING_MODEL
+  if (configured && SUPPORTED_EMBEDDING_MODELS[configured]) {
+    return configured
   }
-  if (embeddingModel === 'text-embedding-3-large') {
-    return env.AZURE_OPENAI_DEPLOYMENT_TEXT_EMBEDDING_3_LARGE || null
+  if (configured) {
+    logger.warn(
+      `KB_EMBEDDING_MODEL="${configured}" is not a supported embedding model — falling back to ${DEFAULT_EMBEDDING_MODEL}`
+    )
   }
-  return null
+  return DEFAULT_EMBEDDING_MODEL
 }
 
 async function resolveProvider(
@@ -198,7 +199,7 @@ async function resolveProvider(
   const azureApiVersion = env.AZURE_OPENAI_API_VERSION
   const isOpenAIModel = SUPPORTED_EMBEDDING_MODELS[embeddingModel]?.provider === 'openai'
   const azureDeployment =
-    isOpenAIModel && azureApiKey && azureEndpoint ? resolveAzureDeployment(embeddingModel) : null
+    isOpenAIModel && azureApiKey && azureEndpoint ? env.KB_OPENAI_MODEL_NAME || null : null
 
   if (azureDeployment) {
     return {

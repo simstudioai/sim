@@ -6,11 +6,7 @@ import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  DEFAULT_EMBEDDING_MODEL,
-  EMBEDDING_DIMENSIONS,
-  SUPPORTED_EMBEDDING_MODEL_IDS,
-} from '@/lib/knowledge/embeddings'
+import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
 import {
   createKnowledgeBase,
   getKnowledgeBases,
@@ -25,10 +21,6 @@ const CreateKnowledgeBaseSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  embeddingModel: z
-    .enum(SUPPORTED_EMBEDDING_MODEL_IDS as [string, ...string[]])
-    .default(DEFAULT_EMBEDDING_MODEL),
-  embeddingDimension: z.literal(EMBEDDING_DIMENSIONS).default(EMBEDDING_DIMENSIONS),
   chunkingConfig: z
     .object({
       maxSize: z.number().min(100).max(4000).default(1024),
@@ -125,9 +117,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     try {
       const validatedData = CreateKnowledgeBaseSchema.parse(body)
 
+      const embeddingModel = getConfiguredEmbeddingModel()
+
       const createData = {
         ...validatedData,
         userId: session.user.id,
+        embeddingModel,
+        embeddingDimension: EMBEDDING_DIMENSIONS,
       }
 
       const newKnowledgeBase = await createKnowledgeBase(createData, requestId)
@@ -173,8 +169,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         metadata: {
           name: validatedData.name,
           description: validatedData.description,
-          embeddingModel: validatedData.embeddingModel,
-          embeddingDimension: validatedData.embeddingDimension,
+          embeddingModel,
+          embeddingDimension: EMBEDDING_DIMENSIONS,
           chunkingStrategy: validatedData.chunkingConfig.strategy,
           chunkMaxSize: validatedData.chunkingConfig.maxSize,
           chunkMinSize: validatedData.chunkingConfig.minSize,
