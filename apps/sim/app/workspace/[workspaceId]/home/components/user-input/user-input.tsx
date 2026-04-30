@@ -152,10 +152,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
   const prevDefaultValueRef = useRef(defaultValue)
   useEffect(() => {
-    if (!defaultValue) return
     if (defaultValue === prevDefaultValueRef.current) return
     prevDefaultValueRef.current = defaultValue
-    setValue(defaultValue)
+    if (defaultValue) setValue(defaultValue)
   }, [defaultValue])
 
   const files = useFileAttachments({
