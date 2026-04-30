@@ -1,5 +1,5 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { ensureCredential, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -16,7 +16,7 @@ export const mondaySelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'monday.boards')
-      const data = await requestSelectorContract(selectorContracts.mondayBoardsSelectorContract, {
+      const data = await requestJson(selectorContracts.mondayBoardsSelectorContract, {
         body: { credential: credentialId, workflowId: context.workflowId },
         signal,
       })
@@ -28,7 +28,7 @@ export const mondaySelectors = {
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'monday.boards')
-      const data = await requestSelectorContract(selectorContracts.mondayBoardsSelectorContract, {
+      const data = await requestJson(selectorContracts.mondayBoardsSelectorContract, {
         body: { credential: credentialId, workflowId: context.workflowId },
         signal,
       })
@@ -53,7 +53,7 @@ export const mondaySelectors = {
       if (!context.boardId) {
         throw new Error('Missing board ID for monday.groups selector')
       }
-      const data = await requestSelectorContract(selectorContracts.mondayGroupsSelectorContract, {
+      const data = await requestJson(selectorContracts.mondayGroupsSelectorContract, {
         body: {
           credential: credentialId,
           boardId: context.boardId,
@@ -70,7 +70,7 @@ export const mondaySelectors = {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'monday.groups')
       if (!context.boardId) return null
-      const data = await requestSelectorContract(selectorContracts.mondayGroupsSelectorContract, {
+      const data = await requestJson(selectorContracts.mondayGroupsSelectorContract, {
         body: {
           credential: credentialId,
           boardId: context.boardId,

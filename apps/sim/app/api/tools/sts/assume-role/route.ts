@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsStsAssumeRoleContract } from '@/lib/api/contracts/tools/aws/sts-assume-role'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { assumeRole, createSTSClient } from '../utils'
@@ -16,7 +16,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const parsed = await parseAwsToolRequest(awsStsAssumeRoleContract, request, {
+    const parsed = await parseToolRequest(awsStsAssumeRoleContract, request, {
       errorFormat: 'details',
       logger,
     })

@@ -23,11 +23,31 @@ const Schema = z.object({
   marker: z.string().optional().nullable(),
 })
 
+const SimulatePrincipalPolicyResponseSchema = z.object({
+  evaluationResults: z.array(
+    z.object({
+      evalActionName: z.string(),
+      evalResourceName: z.string(),
+      evalDecision: z.string(),
+      matchedStatements: z.array(
+        z.object({
+          sourcePolicyId: z.string(),
+          sourcePolicyType: z.string(),
+        })
+      ),
+      missingContextValues: z.array(z.string()),
+    })
+  ),
+  isTruncated: z.boolean(),
+  marker: z.string().nullable(),
+  count: z.number(),
+})
+
 export const awsIamSimulatePrincipalPolicyContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/iam/simulate-principal-policy',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: SimulatePrincipalPolicyResponseSchema },
 })
 export type AwsIamSimulatePrincipalPolicyRequest = ContractBodyInput<
   typeof awsIamSimulatePrincipalPolicyContract

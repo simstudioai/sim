@@ -113,3 +113,30 @@ export const deleteWorkspaceApiKeyContract = defineRouteContract({
     }),
   },
 })
+
+export const updateWorkspaceApiKeyContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/workspaces/[id]/api-keys/[keyId]',
+  params: workspaceApiKeyIdParamsSchema,
+  body: updateWorkspaceApiKeyBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      key: apiKeySchema,
+    }),
+  },
+})
+
+export const deleteWorkspaceApiKeysContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/workspaces/[id]/api-keys',
+  params: workspaceApiKeyParamsSchema,
+  body: deleteWorkspaceApiKeysBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      deletedCount: z.number(),
+    }),
+  },
+})

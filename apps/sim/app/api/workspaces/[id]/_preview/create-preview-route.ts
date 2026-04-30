@@ -2,7 +2,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { z } from 'zod'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { defineRouteContract } from '@/lib/api/contracts'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
@@ -43,8 +44,16 @@ export interface DocumentPreviewRouteConfig {
 export function createDocumentPreviewRoute(config: DocumentPreviewRouteConfig) {
   const logger = createLogger(`${config.label}PreviewAPI`)
 
-  return async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const paramsResult = config.routeParamsSchema.safeParse(await params)
+  const previewContract = defineRouteContract({
+    method: 'POST',
+    path: '/api/workspaces/[id]/_preview',
+    params: config.routeParamsSchema,
+    body: config.previewBodySchema,
+    response: { mode: 'json', schema: config.previewBodySchema },
+  })
+
+  return async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+    const paramsResult = config.routeParamsSchema.safeParse(await context.params)
     if (!paramsResult.success) {
       return NextResponse.json(
         { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
@@ -64,20 +73,17 @@ export function createDocumentPreviewRoute(config: DocumentPreviewRouteConfig) {
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
-      let body: unknown
-      try {
-        body = await req.json()
-      } catch {
-        return NextResponse.json({ error: 'Invalid or missing JSON body' }, { status: 400 })
-      }
-      const bodyResult = config.previewBodySchema.safeParse(body)
-      if (!bodyResult.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(bodyResult.error, 'code is required') },
-          { status: 400 }
-        )
-      }
-      const { code } = bodyResult.data
+      const parsed = await parseRequest(previewContract, req, context, {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { error: getValidationErrorMessage(error, 'code is required') },
+            { status: 400 }
+          ),
+        invalidJsonResponse: () =>
+          NextResponse.json({ error: 'Invalid or missing JSON body' }, { status: 400 }),
+      })
+      if (!parsed.success) return parsed.response
+      const { code } = parsed.data.body
 
       if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
         return NextResponse.json({ error: 'code exceeds maximum size' }, { status: 413 })

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { generateCopilotApiKeyBodySchema } from '@/lib/api/contracts'
+import { generateCopilotApiKeyContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -16,20 +17,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const userId = session.user.id
 
-    const body = await req.json().catch(() => ({}))
-    const validationResult = generateCopilotApiKeyBodySchema.safeParse(body)
+    const parsed = await parseRequest(generateCopilotApiKeyContract, req, {})
+    if (!parsed.success) return parsed.response
 
-    if (!validationResult.success) {
-      return NextResponse.json(
-        {
-          error: 'Invalid request body',
-          details: validationResult.error.issues,
-        },
-        { status: 400 }
-      )
-    }
-
-    const { name } = validationResult.data
+    const { name } = parsed.data.body
 
     const res = await fetchGo(`${SIM_AGENT_API_URL}/api/validate-key/generate`, {
       method: 'POST',

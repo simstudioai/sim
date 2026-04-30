@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsSesGetAccountContract } from '@/lib/api/contracts/tools/aws/ses-get-account'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createSESClient, getAccount } from '../utils'
@@ -16,7 +16,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const parsed = await parseAwsToolRequest(awsSesGetAccountContract, request, {
+    const parsed = await parseToolRequest(awsSesGetAccountContract, request, {
       errorFormat: 'details',
       logger,
     })

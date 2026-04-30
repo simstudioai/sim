@@ -17,11 +17,30 @@ const DescribeStackEventsSchema = z.object({
   ),
 })
 
+const DescribeStackEventsResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    events: z.array(
+      z.object({
+        stackId: z.string(),
+        eventId: z.string(),
+        stackName: z.string(),
+        logicalResourceId: z.string().optional(),
+        physicalResourceId: z.string().optional(),
+        resourceType: z.string().optional(),
+        resourceStatus: z.string().optional(),
+        resourceStatusReason: z.string().optional(),
+        timestamp: z.number().optional(),
+      })
+    ),
+  }),
+})
+
 export const awsCloudformationDescribeStackEventsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/cloudformation/describe-stack-events',
   body: DescribeStackEventsSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: DescribeStackEventsResponseSchema },
 })
 export type AwsCloudformationDescribeStackEventsRequest = ContractBodyInput<
   typeof awsCloudformationDescribeStackEventsContract

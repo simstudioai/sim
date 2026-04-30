@@ -5,20 +5,16 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { buildServerCreateNotificationSchema } from '@/lib/api/contracts/notifications'
+import { createNotificationServerContract } from '@/lib/api/contracts/notifications'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { MAX_EMAIL_RECIPIENTS, MAX_NOTIFICATIONS_PER_TYPE, MAX_WORKFLOW_IDS } from './constants'
+import { MAX_NOTIFICATIONS_PER_TYPE } from './constants'
 
 const logger = createLogger('WorkspaceNotificationsAPI')
-
-const createNotificationSchema = buildServerCreateNotificationSchema({
-  maxEmailRecipients: MAX_EMAIL_RECIPIENTS,
-  maxWorkflowIds: MAX_WORKFLOW_IDS,
-})
 
 async function checkWorkspaceWriteAccess(
   userId: string,
@@ -77,31 +73,25 @@ export const GET = withRouteHandler(
 )
 
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
       const session = await getSession()
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { id: workspaceId } = await params
+      const { id: workspaceId } = await context.params
       const { hasAccess } = await checkWorkspaceWriteAccess(session.user.id, workspaceId)
 
       if (!hasAccess) {
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
-      const body = await request.json()
-      const validationResult = createNotificationSchema.safeParse(body)
-
-      if (!validationResult.success) {
-        return NextResponse.json(
-          { error: 'Invalid request', details: validationResult.error.issues },
-          { status: 400 }
-        )
-      }
-
-      const data = validationResult.data
+      const parsed = await parseRequest(createNotificationServerContract, request, context, {
+        validationErrorResponse: (error) => validationErrorResponse(error, 'Invalid request'),
+      })
+      if (!parsed.success) return parsed.response
+      const data = parsed.data.body
 
       const existingCount = await db
         .select({ id: workspaceNotificationSubscription.id })

@@ -26,11 +26,17 @@ const UpdateSchema = z.object({
   conditionExpression: z.string().optional(),
 })
 
+const UpdateResponseSchema = z.object({
+  message: z.string(),
+  // untyped-response: DynamoDB UpdateItem Attributes is an arbitrary user attribute-value record
+  item: z.record(z.string(), z.unknown()).nullable(),
+})
+
 export const awsDynamodbUpdateContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/dynamodb/update',
   body: UpdateSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: UpdateResponseSchema },
 })
 export type AwsDynamodbUpdateRequest = ContractBodyInput<typeof awsDynamodbUpdateContract>
 export type AwsDynamodbUpdateBody = ContractBody<typeof awsDynamodbUpdateContract>

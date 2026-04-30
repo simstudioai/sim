@@ -1,8 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { duplicateWorkspaceBodySchema } from '@/lib/api/contracts/workspaces'
-import { validateSchema } from '@/lib/api/server'
+import { duplicateWorkspaceContract } from '@/lib/api/contracts/workspaces'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -12,8 +12,8 @@ const logger = createLogger('WorkspaceDuplicateAPI')
 
 // POST /api/workspaces/[id]/duplicate - Duplicate a workspace with all its workflows
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: sourceWorkspaceId } = await params
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const { id: sourceWorkspaceId } = await context.params
     const requestId = generateRequestId()
     const startTime = Date.now()
 
@@ -26,15 +26,9 @@ export const POST = withRouteHandler(
     }
 
     try {
-      const body = await req.json()
-      const validation = validateSchema(duplicateWorkspaceBodySchema, body, 'Invalid request data')
-      if (!validation.success) {
-        logger.warn(`[${requestId}] Invalid duplication request data`, {
-          errors: validation.error.issues,
-        })
-        return validation.response
-      }
-      const { name } = validation.data
+      const parsed = await parseRequest(duplicateWorkspaceContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { name } = parsed.data.body
 
       logger.info(
         `[${requestId}] Duplicating workspace ${sourceWorkspaceId} for user ${session.user.id}`

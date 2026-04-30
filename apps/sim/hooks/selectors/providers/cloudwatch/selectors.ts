@@ -1,5 +1,5 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -30,16 +30,13 @@ export const cloudwatchSelectors = {
       Boolean(context.awsAccessKeyId && context.awsSecretAccessKey && context.awsRegion),
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const awsCredentials = ensureAwsSelectorCredentials(context, 'cloudwatch.logGroups')
-      const data = await requestSelectorContract(
-        selectorContracts.cloudwatchLogGroupsSelectorContract,
-        {
-          body: {
-            ...awsCredentials,
-            prefix: search,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.cloudwatchLogGroupsSelectorContract, {
+        body: {
+          ...awsCredentials,
+          prefix: search,
+        },
+        signal,
+      })
       return (data.output?.logGroups || []).map((lg) => ({
         id: lg.logGroupName,
         label: lg.logGroupName,
@@ -73,17 +70,14 @@ export const cloudwatchSelectors = {
       if (!context.logGroupName) {
         throw new Error('Missing log group name for cloudwatch.logStreams selector')
       }
-      const data = await requestSelectorContract(
-        selectorContracts.cloudwatchLogStreamsSelectorContract,
-        {
-          body: {
-            ...awsCredentials,
-            logGroupName: context.logGroupName,
-            prefix: search,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.cloudwatchLogStreamsSelectorContract, {
+        body: {
+          ...awsCredentials,
+          logGroupName: context.logGroupName,
+          prefix: search,
+        },
+        signal,
+      })
       return (data.output?.logStreams || []).map((ls) => ({
         id: ls.logStreamName,
         label: ls.logStreamName,

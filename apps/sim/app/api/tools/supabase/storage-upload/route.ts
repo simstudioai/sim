@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { supabaseStorageUploadContract } from '@/lib/api/contracts/database-tools'
-import { parseDatabaseToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateSupabaseProjectId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -39,7 +39,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
-    const parsed = await parseDatabaseToolRequest(supabaseStorageUploadContract, request, {
+    const parsed = await parseToolRequest(supabaseStorageUploadContract, request, {
       errorFormat: 'toolDetails',
       logger,
     })

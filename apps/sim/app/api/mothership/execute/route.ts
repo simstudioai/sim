@@ -2,8 +2,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { mothershipExecuteBodySchema } from '@/lib/api/contracts/mothership-tasks'
-import { validateSchema } from '@/lib/api/server'
+import { mothershipExecuteContract } from '@/lib/api/contracts/mothership-tasks'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
@@ -40,8 +40,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
-    const validation = validateSchema(mothershipExecuteBodySchema, body, 'Invalid request data')
+    const validation = await parseRequest(mothershipExecuteContract, req, {})
     if (!validation.success) return validation.response
     const {
       messages,
@@ -53,7 +52,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       requestId: providedRequestId,
       workflowId,
       executionId,
-    } = validation.data
+    } = validation.data.body
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
 

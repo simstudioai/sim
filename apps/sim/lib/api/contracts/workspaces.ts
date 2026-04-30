@@ -270,4 +270,21 @@ export const getWorkspaceMembersContract = defineRouteContract({
   },
 })
 
+export const duplicateWorkspaceContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/duplicate',
+  params: workspaceParamsSchema,
+  body: duplicateWorkspaceBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      id: z.string(),
+      name: z.string(),
+      ownerId: z.string(),
+      workflowsCount: z.number(),
+      foldersCount: z.number(),
+    }),
+  },
+})
+
 export type WorkspacesResponse = ContractJsonResponse<typeof listWorkspacesContract>

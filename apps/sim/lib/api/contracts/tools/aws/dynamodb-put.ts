@@ -25,11 +25,17 @@ const PutSchema = z.object({
   expressionAttributeValues: z.record(z.string(), z.unknown()).optional(),
 })
 
+const PutResponseSchema = z.object({
+  message: z.string(),
+  // untyped-response: DynamoDB Item is an arbitrary user attribute-value record
+  item: z.record(z.string(), z.unknown()),
+})
+
 export const awsDynamodbPutContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/dynamodb/put',
   body: PutSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: PutResponseSchema },
 })
 export type AwsDynamodbPutRequest = ContractBodyInput<typeof awsDynamodbPutContract>
 export type AwsDynamodbPutBody = ContractBody<typeof awsDynamodbPutContract>

@@ -4,8 +4,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { billingSwitchPlanBodySchema } from '@/lib/api/contracts/subscription'
-import { validateSchema } from '@/lib/api/server'
+import { billingSwitchPlanContract } from '@/lib/api/contracts/subscription'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
@@ -48,13 +48,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Billing is not enabled' }, { status: 400 })
     }
 
-    const body = await request.json()
-    const parsed = validateSchema(billingSwitchPlanBodySchema, body, 'Invalid request')
-    if (!parsed.success) {
-      return parsed.response
-    }
+    const parsed = await parseRequest(billingSwitchPlanContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const { targetPlanName, interval } = parsed.data
+    const { targetPlanName, interval } = parsed.data.body
     const userId = session.user.id
 
     const sub = await getHighestPrioritySubscription(userId)

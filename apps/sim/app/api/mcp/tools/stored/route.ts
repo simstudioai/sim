@@ -4,8 +4,6 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { unknownRecordSchema } from '@/lib/api/contracts/primitives'
-import { validateSchema } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withMcpAuth } from '@/lib/mcp/middleware'
 import type { McpToolSchema, StoredMcpTool } from '@/lib/mcp/types'
@@ -18,12 +16,6 @@ export const dynamic = 'force-dynamic'
 export const GET = withRouteHandler(
   withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
-      const queryValidation = validateSchema(
-        unknownRecordSchema,
-        Object.fromEntries(request.nextUrl.searchParams)
-      )
-      if (!queryValidation.success) return queryValidation.response
-
       logger.info(`[${requestId}] Fetching stored MCP tools for workspace ${workspaceId}`)
 
       const workflows = await db

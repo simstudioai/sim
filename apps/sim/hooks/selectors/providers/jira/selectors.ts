@@ -1,5 +1,6 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { fetchOAuthToken, requestSelectorContract } from '@/hooks/selectors/helpers'
+import { fetchOAuthToken } from '@/hooks/selectors/helpers'
 import { ensureCredential, ensureDomain, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -26,7 +27,7 @@ export const jiraSelectors = {
       if (!accessToken) {
         throw new Error('Missing Jira access token')
       }
-      const data = await requestSelectorContract(selectorContracts.jiraProjectsSelectorContract, {
+      const data = await requestJson(selectorContracts.jiraProjectsSelectorContract, {
         query: {
           domain,
           accessToken,
@@ -47,7 +48,7 @@ export const jiraSelectors = {
       if (!accessToken) {
         throw new Error('Missing Jira access token')
       }
-      const data = await requestSelectorContract(selectorContracts.jiraProjectSelectorContract, {
+      const data = await requestJson(selectorContracts.jiraProjectSelectorContract, {
         body: {
           domain,
           accessToken,
@@ -85,7 +86,7 @@ export const jiraSelectors = {
       if (!accessToken) {
         throw new Error('Missing Jira access token')
       }
-      const data = await requestSelectorContract(selectorContracts.jiraIssuesSelectorContract, {
+      const data = await requestJson(selectorContracts.jiraIssuesSelectorContract, {
         query: {
           domain,
           accessToken,
@@ -113,7 +114,7 @@ export const jiraSelectors = {
       if (!accessToken) {
         throw new Error('Missing Jira access token')
       }
-      const data = await requestSelectorContract(selectorContracts.jiraIssueSelectorContract, {
+      const data = await requestJson(selectorContracts.jiraIssueSelectorContract, {
         body: {
           domain,
           accessToken,

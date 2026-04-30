@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsIamListPoliciesContract } from '@/lib/api/contracts/tools/aws/iam-list-policies'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createIAMClient, listPolicies } from '../utils'
@@ -16,7 +16,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const parsed = await parseAwsToolRequest(awsIamListPoliciesContract, request, {
+    const parsed = await parseToolRequest(awsIamListPoliciesContract, request, {
       errorFormat: 'details',
       logger,
     })

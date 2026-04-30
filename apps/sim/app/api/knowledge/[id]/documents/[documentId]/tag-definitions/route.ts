@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { saveDocumentTagDefinitionsBodySchema } from '@/lib/api/contracts/knowledge'
-import { parseJsonBody, validateSchema } from '@/lib/api/server'
+import { saveDocumentTagDefinitionsContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
@@ -65,9 +65,9 @@ export const GET = withRouteHandler(
 
 // POST /api/knowledge/[id]/documents/[documentId]/tag-definitions - Create/update tag definitions
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string; documentId: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string; documentId: string }> }) => {
     const requestId = generateId().slice(0, 8)
-    const { id: knowledgeBaseId, documentId } = await params
+    const { id: knowledgeBaseId, documentId } = await context.params
 
     try {
       logger.info(`[${requestId}] Creating/updating tag definitions for document ${documentId}`)
@@ -96,25 +96,10 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const parsedBody = await parseJsonBody(req)
-      if (!parsedBody.success) return parsedBody.response
+      const parsed = await parseRequest(saveDocumentTagDefinitionsContract, req, context)
+      if (!parsed.success) return parsed.response
 
-      if (!parsedBody.data || typeof parsedBody.data !== 'object') {
-        logger.error(`[${requestId}] Invalid request body:`, parsedBody.data)
-        return NextResponse.json(
-          { error: 'Request body must be a valid JSON object' },
-          { status: 400 }
-        )
-      }
-
-      const validation = validateSchema(
-        saveDocumentTagDefinitionsBodySchema,
-        parsedBody.data,
-        'Invalid request data'
-      )
-      if (!validation.success) return validation.response
-
-      const validatedData = validation.data
+      const validatedData = parsed.data.body
 
       for (const def of validatedData.definitions) {
         /**

@@ -293,6 +293,45 @@ export const createBillingPortalContract = defineRouteContract({
   },
 })
 
+export const billingSwitchPlanResponseSchema = z.object({
+  success: z.literal(true),
+  plan: z.string().optional(),
+  interval: z.enum(['month', 'year']).optional(),
+  message: z.string().optional(),
+})
+
+export const billingUpdateCostResponseSchema = z.object({
+  success: z.literal(true),
+  message: z.string().optional(),
+  data: z.object({
+    userId: z.string().optional(),
+    cost: z.number().optional(),
+    billingEnabled: z.boolean().optional(),
+    processedAt: z.string(),
+    requestId: z.string(),
+  }),
+})
+
+export const billingSwitchPlanContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/billing/switch-plan',
+  body: billingSwitchPlanBodySchema,
+  response: {
+    mode: 'json',
+    schema: billingSwitchPlanResponseSchema,
+  },
+})
+
+export const billingUpdateCostContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/billing/update-cost',
+  body: billingUpdateCostBodySchema,
+  response: {
+    mode: 'json',
+    schema: billingUpdateCostResponseSchema,
+  },
+})
+
 export type BillingUsageData = z.infer<typeof billingUsageDataSchema>
 export type SubscriptionBillingData = z.infer<typeof subscriptionBillingDataSchema>
 export type SubscriptionApiResponse = z.infer<typeof subscriptionApiResponseSchema>

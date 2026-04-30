@@ -3,7 +3,8 @@ import { workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateFolderBodySchema } from '@/lib/api/contracts'
+import { updateFolderContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -15,28 +16,29 @@ const logger = createLogger('FoldersIDAPI')
 
 // PUT - Update a folder
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
       const session = await getSession()
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { id } = await params
-      const body = await request.json()
+      const parsed = await parseRequest(updateFolderContract, request, context, {
+        validationErrorResponse: (error) => {
+          logger.error('Folder update validation failed:', { errors: error.issues })
+          const errorMessages = error.issues
+            .map((err) => `${err.path.join('.')}: ${err.message}`)
+            .join(', ')
+          return NextResponse.json(
+            { error: `Validation failed: ${errorMessages}` },
+            { status: 400 }
+          )
+        },
+      })
+      if (!parsed.success) return parsed.response
 
-      const validationResult = updateFolderBodySchema.safeParse(body)
-      if (!validationResult.success) {
-        logger.error('Folder update validation failed:', {
-          errors: validationResult.error.issues,
-        })
-        const errorMessages = validationResult.error.issues
-          .map((err) => `${err.path.join('.')}: ${err.message}`)
-          .join(', ')
-        return NextResponse.json({ error: `Validation failed: ${errorMessages}` }, { status: 400 })
-      }
-
-      const { name, color, isExpanded, parentId, sortOrder } = validationResult.data
+      const { id } = parsed.data.params
+      const { name, color, isExpanded, parentId, sortOrder } = parsed.data.body
 
       // Verify the folder exists
       const existingFolder = await db

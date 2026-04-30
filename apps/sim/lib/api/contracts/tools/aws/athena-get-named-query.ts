@@ -13,11 +13,23 @@ const GetNamedQuerySchema = z.object({
   namedQueryId: z.string().min(1, 'Named query ID is required'),
 })
 
+const GetNamedQueryResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    namedQueryId: z.string(),
+    name: z.string(),
+    description: z.string().nullable(),
+    database: z.string(),
+    queryString: z.string(),
+    workGroup: z.string().nullable(),
+  }),
+})
+
 export const awsAthenaGetNamedQueryContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/athena/get-named-query',
   body: GetNamedQuerySchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: GetNamedQueryResponseSchema },
 })
 export type AwsAthenaGetNamedQueryRequest = ContractBodyInput<typeof awsAthenaGetNamedQueryContract>
 export type AwsAthenaGetNamedQueryBody = ContractBody<typeof awsAthenaGetNamedQueryContract>

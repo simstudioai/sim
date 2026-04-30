@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { identifierValidationQuerySchema } from '@/lib/api/contracts/chats'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -18,7 +18,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const { searchParams } = new URL(request.url)
     const identifier = searchParams.get('identifier')
 
-    const validation = validateSchema(identifierValidationQuerySchema, { identifier })
+    const validation = identifierValidationQuerySchema.safeParse({ identifier })
 
     if (!validation.success) {
       const errorMessage = getValidationErrorMessage(validation.error, 'Invalid identifier')

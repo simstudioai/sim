@@ -1,5 +1,5 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { ensureCredential, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -16,7 +16,7 @@ export const zoomSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'zoom.meetings')
-      const data = await requestSelectorContract(selectorContracts.zoomMeetingsSelectorContract, {
+      const data = await requestJson(selectorContracts.zoomMeetingsSelectorContract, {
         body: { credential: credentialId, workflowId: context.workflowId },
         signal,
       })
@@ -28,7 +28,7 @@ export const zoomSelectors = {
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'zoom.meetings')
-      const data = await requestSelectorContract(selectorContracts.zoomMeetingsSelectorContract, {
+      const data = await requestJson(selectorContracts.zoomMeetingsSelectorContract, {
         body: { credential: credentialId, workflowId: context.workflowId },
         signal,
       })

@@ -20,11 +20,18 @@ const Schema = z.object({
   email: z.string().email('Valid email address is required'),
 })
 
+const ResponseSchema = z.object({
+  userId: z.string(),
+  userName: z.string(),
+  displayName: z.string().nullable(),
+  email: z.string().nullable(),
+})
+
 export const awsIdentityCenterGetUserContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/identity-center/get-user',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ResponseSchema },
 })
 export type AwsIdentityCenterGetUserRequest = ContractBodyInput<
   typeof awsIdentityCenterGetUserContract

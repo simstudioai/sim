@@ -1,5 +1,6 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { fetchOAuthToken, requestSelectorContract } from '@/hooks/selectors/helpers'
+import { fetchOAuthToken } from '@/hooks/selectors/helpers'
 import { ensureCredential, ensureDomain, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -18,17 +19,14 @@ export const confluenceSelectors = {
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'confluence.spaces')
       const domain = ensureDomain(context, 'confluence.spaces')
-      const data = await requestSelectorContract(
-        selectorContracts.confluenceSpacesSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-            domain,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.confluenceSpacesSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+          domain,
+        },
+        signal,
+      })
       return (data.spaces || []).map((space) => ({
         id: space.id,
         label: `${space.name} (${space.key})`,
@@ -38,17 +36,14 @@ export const confluenceSelectors = {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'confluence.spaces')
       const domain = ensureDomain(context, 'confluence.spaces')
-      const data = await requestSelectorContract(
-        selectorContracts.confluenceSpacesSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-            domain,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.confluenceSpacesSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+          domain,
+        },
+        signal,
+      })
       const space = (data.spaces || []).find((s) => s.id === detailId) ?? null
       if (!space) return null
       return { id: space.id, label: `${space.name} (${space.key})` }
@@ -76,17 +71,14 @@ export const confluenceSelectors = {
       if (!accessToken) {
         throw new Error('Missing Confluence access token')
       }
-      const data = await requestSelectorContract(
-        selectorContracts.confluencePagesSelectorContract,
-        {
-          body: {
-            domain,
-            accessToken,
-            title: search,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.confluencePagesSelectorContract, {
+        body: {
+          domain,
+          accessToken,
+          title: search,
+        },
+        signal,
+      })
       return (data.files || []).map((file) => ({
         id: file.id,
         label: file.name,
@@ -100,7 +92,7 @@ export const confluenceSelectors = {
       if (!accessToken) {
         throw new Error('Missing Confluence access token')
       }
-      const data = await requestSelectorContract(selectorContracts.confluencePageSelectorContract, {
+      const data = await requestJson(selectorContracts.confluencePageSelectorContract, {
         body: {
           domain,
           accessToken,

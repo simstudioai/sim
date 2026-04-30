@@ -5,7 +5,7 @@ import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { mcpServerIdParamsSchema } from '@/lib/api/contracts/mcp'
-import { validateSchema } from '@/lib/api/server'
+import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
@@ -161,8 +161,8 @@ export const POST = withRouteHandler(
   withMcpAuth<{ id: string }>('read')(
     async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
       try {
-        const paramsValidation = validateSchema(mcpServerIdParamsSchema, await params)
-        if (!paramsValidation.success) return paramsValidation.response
+        const paramsValidation = mcpServerIdParamsSchema.safeParse(await params)
+        if (!paramsValidation.success) return validationErrorResponse(paramsValidation.error)
         const { id: serverId } = paramsValidation.data
         logger.info(`[${requestId}] Refreshing MCP server: ${serverId}`)
 

@@ -5,7 +5,7 @@ import {
   fireworksUpstreamResponseSchema,
   providerModelsResponseSchema,
 } from '@/lib/api/contracts/providers'
-import { validateSchema } from '@/lib/api/server'
+import { validationErrorResponse } from '@/lib/api/server'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
@@ -35,10 +35,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   let apiKey: string | undefined
 
-  const queryValidation = validateSchema(fireworksProviderModelsQuerySchema, {
+  const queryValidation = fireworksProviderModelsQuerySchema.safeParse({
     workspaceId: request.nextUrl.searchParams.get('workspaceId') ?? undefined,
   })
-  if (!queryValidation.success) return queryValidation.response
+  if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
   const { workspaceId } = queryValidation.data
   if (workspaceId) {
     const session = await getSession()

@@ -7,7 +7,6 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { executeWorkflowBodySchema } from '@/lib/api/contracts/workflows'
-import { validateSchema } from '@/lib/api/server'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
@@ -314,7 +313,7 @@ async function handleExecutePost(
       reqLogger.warn('Failed to parse request body, using defaults')
     }
 
-    const validation = validateSchema(executeWorkflowBodySchema, body, 'Invalid request body')
+    const validation = executeWorkflowBodySchema.safeParse(body)
     if (!validation.success) {
       reqLogger.warn('Invalid request body:', validation.error.issues)
       return NextResponse.json(

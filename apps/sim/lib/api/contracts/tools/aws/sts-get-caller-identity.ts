@@ -18,11 +18,17 @@ const GetCallerIdentitySchema = z.object({
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
 })
 
+const GetCallerIdentityResponseSchema = z.object({
+  account: z.string(),
+  arn: z.string(),
+  userId: z.string(),
+})
+
 export const awsStsGetCallerIdentityContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/sts/get-caller-identity',
   body: GetCallerIdentitySchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: GetCallerIdentityResponseSchema },
 })
 export type AwsStsGetCallerIdentityRequest = ContractBodyInput<
   typeof awsStsGetCallerIdentityContract

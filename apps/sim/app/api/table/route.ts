@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createTableBodySchema, listTablesQuerySchema } from '@/lib/api/contracts/tables'
-import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
+import { createTableContract, listTablesQuerySchema } from '@/lib/api/contracts/tables'
+import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -47,14 +47,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    let body: unknown
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-    }
+    const parsed = await parseRequest(
+      createTableContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => validationErrorResponse(error),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const params = createTableBodySchema.parse(body)
+    const params = parsed.data.body
 
     const { hasAccess, canWrite } = await checkWorkspaceAccess(
       params.workspaceId,
@@ -124,10 +127,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (isZodError(error)) {
-      return validationErrorResponse(error)
-    }
-
     if (error instanceof Error) {
       if (error.message.includes('maximum table limit')) {
         return NextResponse.json({ error: error.message }, { status: 403 })

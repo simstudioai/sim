@@ -4,8 +4,8 @@ import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { chatIdParamsSchema, updateChatBodySchema } from '@/lib/api/contracts/chats'
-import { getValidationErrorMessage, isZodError } from '@/lib/api/server'
+import { chatIdParamsSchema, updateChatContract } from '@/lib/api/contracts/chats'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
@@ -69,10 +69,7 @@ export const GET = withRouteHandler(
  * PATCH endpoint to update an existing chat deployment
  */
 export const PATCH = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id } = chatIdParamsSchema.parse(await params)
-    const chatId = id
-
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
       const session = await getSession()
 
@@ -80,171 +77,165 @@ export const PATCH = withRouteHandler(
         return createErrorResponse('Unauthorized', 401)
       }
 
-      const body = await request.json()
+      const parsed = await parseRequest(updateChatContract, request, context, {
+        validationErrorResponse: (error) =>
+          createErrorResponse(getValidationErrorMessage(error), 400, 'VALIDATION_ERROR'),
+      })
+      if (!parsed.success) return parsed.response
 
-      try {
-        const validatedData = updateChatBodySchema.parse(body)
+      const { id: chatId } = parsed.data.params
+      const validatedData = parsed.data.body
 
-        const {
-          hasAccess,
-          chat: existingChatRecord,
-          workspaceId: chatWorkspaceId,
-        } = await checkChatAccess(chatId, session.user.id)
+      const {
+        hasAccess,
+        chat: existingChatRecord,
+        workspaceId: chatWorkspaceId,
+      } = await checkChatAccess(chatId, session.user.id)
 
-        if (!hasAccess || !existingChatRecord) {
-          return createErrorResponse('Chat not found or access denied', 404)
-        }
-
-        const existingChat = [existingChatRecord]
-
-        const {
-          workflowId,
-          identifier,
-          title,
-          description,
-          customizations,
-          authType,
-          password,
-          allowedEmails,
-          outputConfigs,
-        } = validatedData
-
-        if (identifier && identifier !== existingChat[0].identifier) {
-          const existingIdentifier = await db
-            .select()
-            .from(chat)
-            .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
-            .limit(1)
-
-          if (existingIdentifier.length > 0 && existingIdentifier[0].id !== chatId) {
-            return createErrorResponse('Identifier already in use', 400)
-          }
-        }
-
-        // Redeploy the workflow to ensure latest version is active
-        const deployResult = await deployWorkflow({
-          workflowId: existingChat[0].workflowId,
-          deployedBy: session.user.id,
-        })
-
-        if (!deployResult.success) {
-          logger.warn(
-            `Failed to redeploy workflow for chat update: ${deployResult.error}, continuing with chat update`
-          )
-        } else {
-          logger.info(
-            `Redeployed workflow ${existingChat[0].workflowId} for chat update (v${deployResult.version})`
-          )
-          await notifySocketDeploymentChanged(existingChat[0].workflowId)
-        }
-
-        let encryptedPassword
-
-        if (password) {
-          const { encrypted } = await encryptSecret(password)
-          encryptedPassword = encrypted
-          logger.info('Password provided, will be updated')
-        } else if (authType === 'password' && !password) {
-          if (existingChat[0].authType !== 'password' || !existingChat[0].password) {
-            return createErrorResponse('Password is required when using password protection', 400)
-          }
-          logger.info('Keeping existing password')
-        }
-
-        const updateData: Record<string, unknown> = {
-          updatedAt: new Date(),
-        }
-
-        if (workflowId) updateData.workflowId = workflowId
-        if (identifier) updateData.identifier = identifier
-        if (title) updateData.title = title
-        if (description !== undefined) updateData.description = description
-        if (customizations) updateData.customizations = customizations
-
-        if (authType) {
-          updateData.authType = authType
-
-          if (authType === 'public') {
-            updateData.password = null
-            updateData.allowedEmails = []
-          } else if (authType === 'password') {
-            updateData.allowedEmails = []
-          } else if (authType === 'email' || authType === 'sso') {
-            updateData.password = null
-          }
-        }
-
-        if (encryptedPassword) {
-          updateData.password = encryptedPassword
-        }
-
-        if (allowedEmails) {
-          updateData.allowedEmails = allowedEmails
-        }
-
-        if (outputConfigs) {
-          updateData.outputConfigs = outputConfigs
-        }
-
-        const emailCount = Array.isArray(updateData.allowedEmails)
-          ? updateData.allowedEmails.length
-          : undefined
-        const outputConfigsCount = Array.isArray(updateData.outputConfigs)
-          ? updateData.outputConfigs.length
-          : undefined
-
-        logger.info('Updating chat deployment with values:', {
-          chatId,
-          authType: updateData.authType,
-          hasPassword: updateData.password !== undefined,
-          emailCount,
-          outputConfigsCount,
-        })
-
-        await db.update(chat).set(updateData).where(eq(chat.id, chatId))
-
-        const updatedIdentifier = identifier || existingChat[0].identifier
-
-        const baseDomain = getEmailDomain()
-        const protocol = isDev ? 'http' : 'https'
-        const chatUrl = `${protocol}://${baseDomain}/chat/${updatedIdentifier}`
-
-        logger.info(`Chat "${chatId}" updated successfully`)
-
-        recordAudit({
-          workspaceId: chatWorkspaceId || null,
-          actorId: session.user.id,
-          actorName: session.user.name,
-          actorEmail: session.user.email,
-          action: AuditAction.CHAT_UPDATED,
-          resourceType: AuditResourceType.CHAT,
-          resourceId: chatId,
-          resourceName: title || existingChatRecord.title,
-          description: `Updated chat deployment "${title || existingChatRecord.title}"`,
-          metadata: {
-            identifier: updatedIdentifier,
-            authType: updateData.authType || existingChatRecord.authType,
-            workflowId: workflowId || existingChatRecord.workflowId,
-            chatUrl,
-          },
-          request,
-        })
-
-        return createSuccessResponse({
-          id: chatId,
-          chatUrl,
-          message: 'Chat deployment updated successfully',
-        })
-      } catch (validationError) {
-        if (isZodError(validationError)) {
-          return createErrorResponse(
-            getValidationErrorMessage(validationError),
-            400,
-            'VALIDATION_ERROR'
-          )
-        }
-        throw validationError
+      if (!hasAccess || !existingChatRecord) {
+        return createErrorResponse('Chat not found or access denied', 404)
       }
+
+      const existingChat = [existingChatRecord]
+
+      const {
+        workflowId,
+        identifier,
+        title,
+        description,
+        customizations,
+        authType,
+        password,
+        allowedEmails,
+        outputConfigs,
+      } = validatedData
+
+      if (identifier && identifier !== existingChat[0].identifier) {
+        const existingIdentifier = await db
+          .select()
+          .from(chat)
+          .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
+          .limit(1)
+
+        if (existingIdentifier.length > 0 && existingIdentifier[0].id !== chatId) {
+          return createErrorResponse('Identifier already in use', 400)
+        }
+      }
+
+      // Redeploy the workflow to ensure latest version is active
+      const deployResult = await deployWorkflow({
+        workflowId: existingChat[0].workflowId,
+        deployedBy: session.user.id,
+      })
+
+      if (!deployResult.success) {
+        logger.warn(
+          `Failed to redeploy workflow for chat update: ${deployResult.error}, continuing with chat update`
+        )
+      } else {
+        logger.info(
+          `Redeployed workflow ${existingChat[0].workflowId} for chat update (v${deployResult.version})`
+        )
+        await notifySocketDeploymentChanged(existingChat[0].workflowId)
+      }
+
+      let encryptedPassword
+
+      if (password) {
+        const { encrypted } = await encryptSecret(password)
+        encryptedPassword = encrypted
+        logger.info('Password provided, will be updated')
+      } else if (authType === 'password' && !password) {
+        if (existingChat[0].authType !== 'password' || !existingChat[0].password) {
+          return createErrorResponse('Password is required when using password protection', 400)
+        }
+        logger.info('Keeping existing password')
+      }
+
+      const updateData: Record<string, unknown> = {
+        updatedAt: new Date(),
+      }
+
+      if (workflowId) updateData.workflowId = workflowId
+      if (identifier) updateData.identifier = identifier
+      if (title) updateData.title = title
+      if (description !== undefined) updateData.description = description
+      if (customizations) updateData.customizations = customizations
+
+      if (authType) {
+        updateData.authType = authType
+
+        if (authType === 'public') {
+          updateData.password = null
+          updateData.allowedEmails = []
+        } else if (authType === 'password') {
+          updateData.allowedEmails = []
+        } else if (authType === 'email' || authType === 'sso') {
+          updateData.password = null
+        }
+      }
+
+      if (encryptedPassword) {
+        updateData.password = encryptedPassword
+      }
+
+      if (allowedEmails) {
+        updateData.allowedEmails = allowedEmails
+      }
+
+      if (outputConfigs) {
+        updateData.outputConfigs = outputConfigs
+      }
+
+      const emailCount = Array.isArray(updateData.allowedEmails)
+        ? updateData.allowedEmails.length
+        : undefined
+      const outputConfigsCount = Array.isArray(updateData.outputConfigs)
+        ? updateData.outputConfigs.length
+        : undefined
+
+      logger.info('Updating chat deployment with values:', {
+        chatId,
+        authType: updateData.authType,
+        hasPassword: updateData.password !== undefined,
+        emailCount,
+        outputConfigsCount,
+      })
+
+      await db.update(chat).set(updateData).where(eq(chat.id, chatId))
+
+      const updatedIdentifier = identifier || existingChat[0].identifier
+
+      const baseDomain = getEmailDomain()
+      const protocol = isDev ? 'http' : 'https'
+      const chatUrl = `${protocol}://${baseDomain}/chat/${updatedIdentifier}`
+
+      logger.info(`Chat "${chatId}" updated successfully`)
+
+      recordAudit({
+        workspaceId: chatWorkspaceId || null,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.CHAT_UPDATED,
+        resourceType: AuditResourceType.CHAT,
+        resourceId: chatId,
+        resourceName: title || existingChatRecord.title,
+        description: `Updated chat deployment "${title || existingChatRecord.title}"`,
+        metadata: {
+          identifier: updatedIdentifier,
+          authType: updateData.authType || existingChatRecord.authType,
+          workflowId: workflowId || existingChatRecord.workflowId,
+          chatUrl,
+        },
+        request,
+      })
+
+      return createSuccessResponse({
+        id: chatId,
+        chatUrl,
+        message: 'Chat deployment updated successfully',
+      })
     } catch (error) {
       logger.error('Error updating chat deployment:', error)
       return createErrorResponse(getErrorMessage(error, 'Failed to update chat deployment'), 500)

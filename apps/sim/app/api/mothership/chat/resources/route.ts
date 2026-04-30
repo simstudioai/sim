@@ -1,6 +1,6 @@
 import type { NextRequest, NextResponse } from 'next/server'
 import { mothershipChatResourceEnvelopeSchema } from '@/lib/api/contracts/mothership-tasks'
-import { validateSchema } from '@/lib/api/server'
+import { validationErrorResponse } from '@/lib/api/server'
 import {
   DELETE as copilotResourcesDelete,
   PATCH as copilotResourcesPatch,
@@ -13,14 +13,8 @@ async function validateResourceRequestEnvelope(request: NextRequest): Promise<Ne
     .json()
     .catch(() => undefined)
   if (body !== undefined) {
-    const validation = validateSchema(
-      mothershipChatResourceEnvelopeSchema,
-      body,
-      'Invalid request body'
-    )
-    if (!validation.success) {
-      return validation.response
-    }
+    const validation = mothershipChatResourceEnvelopeSchema.safeParse(body)
+    if (!validation.success) return validationErrorResponse(validation.error)
   }
   return null
 }

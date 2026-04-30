@@ -24,7 +24,7 @@ export const awsIamAttachUserPolicyContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/iam/attach-user-policy',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: z.object({ message: z.string() }) },
 })
 export type AwsIamAttachUserPolicyRequest = ContractBodyInput<typeof awsIamAttachUserPolicyContract>
 export type AwsIamAttachUserPolicyBody = ContractBody<typeof awsIamAttachUserPolicyContract>

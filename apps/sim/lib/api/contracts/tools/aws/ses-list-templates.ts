@@ -20,11 +20,22 @@ const ListTemplatesSchema = z.object({
   nextToken: z.string().nullish(),
 })
 
+const ListTemplatesResponseSchema = z.object({
+  templates: z.array(
+    z.object({
+      templateName: z.string(),
+      createdTimestamp: z.string().nullable(),
+    })
+  ),
+  nextToken: z.string().nullable(),
+  count: z.number(),
+})
+
 export const awsSesListTemplatesContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/ses/list-templates',
   body: ListTemplatesSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ListTemplatesResponseSchema },
 })
 export type AwsSesListTemplatesRequest = ContractBodyInput<typeof awsSesListTemplatesContract>
 export type AwsSesListTemplatesBody = ContractBody<typeof awsSesListTemplatesContract>

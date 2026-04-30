@@ -3,8 +3,6 @@ import { account, webhook as webhookTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { noInputSchema } from '@/lib/api/contracts/primitives'
-import { validateSchema } from '@/lib/api/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
@@ -38,9 +36,6 @@ async function getCredentialOwner(
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
-    const validation = validateSchema(noInputSchema, {})
-    if (!validation.success) return validation.response
-
     const authError = verifyCronAuth(request, 'Teams subscription renewal')
     if (authError) {
       return authError

@@ -5,11 +5,11 @@ import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  deleteTableRowBodySchema,
+  deleteTableRowContract,
   getTableQuerySchema,
-  updateTableRowBodySchema,
+  updateTableRowContract,
 } from '@/lib/api/contracts/tables'
-import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
+import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -97,9 +97,8 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Row
 })
 
 /** PATCH /api/table/[tableId]/rows/[rowId] - Updates a single row (supports partial updates). */
-export const PATCH = withRouteHandler(async (request: NextRequest, { params }: RowRouteParams) => {
+export const PATCH = withRouteHandler(async (request: NextRequest, context: RowRouteParams) => {
   const requestId = generateRequestId()
-  const { tableId, rowId } = await params
 
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -107,14 +106,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    let body: unknown
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-    }
+    const parsed = await parseRequest(updateTableRowContract, request, context, {
+      validationErrorResponse: (error) => validationErrorResponse(error),
+    })
+    if (!parsed.success) return parsed.response
 
-    const validated = updateTableRowBodySchema.parse(body)
+    const { tableId, rowId } = parsed.data.params
+    const validated = parsed.data.body
 
     const result = await checkAccess(tableId, authResult.userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -156,10 +154,6 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       },
     })
   } catch (error) {
-    if (isZodError(error)) {
-      return validationErrorResponse(error)
-    }
-
     const errorMessage = toError(error).message
 
     if (errorMessage === 'Row not found') {
@@ -182,9 +176,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
 })
 
 /** DELETE /api/table/[tableId]/rows/[rowId] - Deletes a single row. */
-export const DELETE = withRouteHandler(async (request: NextRequest, { params }: RowRouteParams) => {
+export const DELETE = withRouteHandler(async (request: NextRequest, context: RowRouteParams) => {
   const requestId = generateRequestId()
-  const { tableId, rowId } = await params
 
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -192,14 +185,13 @@ export const DELETE = withRouteHandler(async (request: NextRequest, { params }: 
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    let body: unknown
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-    }
+    const parsed = await parseRequest(deleteTableRowContract, request, context, {
+      validationErrorResponse: (error) => validationErrorResponse(error),
+    })
+    if (!parsed.success) return parsed.response
 
-    const validated = deleteTableRowBodySchema.parse(body)
+    const { tableId, rowId } = parsed.data.params
+    const validated = parsed.data.body
 
     const result = await checkAccess(tableId, authResult.userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -220,10 +212,6 @@ export const DELETE = withRouteHandler(async (request: NextRequest, { params }: 
       },
     })
   } catch (error) {
-    if (isZodError(error)) {
-      return validationErrorResponse(error)
-    }
-
     const errorMessage = toError(error).message
 
     if (errorMessage === 'Row not found') {

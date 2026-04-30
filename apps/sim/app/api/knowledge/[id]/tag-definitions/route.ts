@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createTagDefinitionBodySchema } from '@/lib/api/contracts/knowledge'
-import { parseJsonBody, validateSchema } from '@/lib/api/server'
+import { createTagDefinitionContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
@@ -57,9 +57,9 @@ export const GET = withRouteHandler(
 
 // POST /api/knowledge/[id]/tag-definitions - Create a new tag definition
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateId().slice(0, 8)
-    const { id: knowledgeBaseId } = await params
+    const { id: knowledgeBaseId } = await context.params
 
     try {
       logger.info(`[${requestId}] Creating tag definition for knowledge base ${knowledgeBaseId}`)
@@ -80,17 +80,10 @@ export const POST = withRouteHandler(
         }
       }
 
-      const parsedBody = await parseJsonBody(req)
-      if (!parsedBody.success) return parsedBody.response
+      const parsed = await parseRequest(createTagDefinitionContract, req, context)
+      if (!parsed.success) return parsed.response
 
-      const validation = validateSchema(
-        createTagDefinitionBodySchema,
-        parsedBody.data,
-        'Invalid request data'
-      )
-      if (!validation.success) return validation.response
-
-      const validatedData = validation.data
+      const validatedData = parsed.data.body
       if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(validatedData.fieldType)) {
         return NextResponse.json(
           { error: 'Invalid request data', details: 'Invalid field type' },

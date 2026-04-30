@@ -2,11 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { imageProxyQuerySchema } from '@/lib/api/contracts/media-tools'
-import {
-  getValidationErrorMessage,
-  searchParamsToObject,
-  validateSchema,
-} from '@/lib/api/server/validation'
+import { getValidationErrorMessage, searchParamsToObject } from '@/lib/api/server/validation'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -30,8 +26,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return new NextResponse('Unauthorized', { status: 401 })
   }
 
-  const queryResult = validateSchema(
-    imageProxyQuerySchema,
+  const queryResult = imageProxyQuerySchema.safeParse(
     searchParamsToObject(request.nextUrl.searchParams)
   )
   if (!queryResult.success) {

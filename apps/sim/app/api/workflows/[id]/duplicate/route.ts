@@ -1,8 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { duplicateWorkflowBodySchema } from '@/lib/api/contracts/workflows'
-import { validateSchema } from '@/lib/api/server'
+import { duplicateWorkflowContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -14,8 +14,8 @@ const logger = createLogger('WorkflowDuplicateAPI')
 
 // POST /api/workflows/[id]/duplicate - Duplicate a workflow with all its blocks, edges, and subflows
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: sourceWorkflowId } = await params
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const { id: sourceWorkflowId } = await context.params
     const requestId = generateRequestId()
     const startTime = Date.now()
 
@@ -29,15 +29,9 @@ export const POST = withRouteHandler(
     const userId = auth.userId
 
     try {
-      const body = await req.json()
-      const validation = validateSchema(duplicateWorkflowBodySchema, body, 'Invalid request data')
-      if (!validation.success) {
-        logger.warn(`[${requestId}] Invalid duplication request data`, {
-          errors: validation.error.issues,
-        })
-        return validation.response
-      }
-      const { name, description, color, workspaceId, folderId, newId } = validation.data
+      const parsed = await parseRequest(duplicateWorkflowContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { name, description, color, workspaceId, folderId, newId } = parsed.data.body
 
       logger.info(`[${requestId}] Duplicating workflow ${sourceWorkflowId} for user ${userId}`)
 

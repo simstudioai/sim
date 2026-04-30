@@ -2,7 +2,7 @@ import { CloudFormationClient, ValidateTemplateCommand } from '@aws-sdk/client-c
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsCloudformationValidateTemplateContract } from '@/lib/api/contracts/tools/aws/cloudformation-validate-template'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -15,7 +15,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const parsed = await parseAwsToolRequest(awsCloudformationValidateTemplateContract, request, {
+    const parsed = await parseToolRequest(awsCloudformationValidateTemplateContract, request, {
       errorFormat: 'details',
       logger,
     })

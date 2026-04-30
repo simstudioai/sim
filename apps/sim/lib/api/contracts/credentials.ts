@@ -346,7 +346,7 @@ export const createCredentialDraftContract = defineRouteContract({
 export const createWorkspaceCredentialContract = defineRouteContract({
   method: 'POST',
   path: '/api/credentials',
-  body: createWorkspaceCredentialBodySchema,
+  body: createCredentialBodySchema,
   response: {
     mode: 'json',
     schema: z.object({
@@ -359,7 +359,7 @@ export const updateWorkspaceCredentialContract = defineRouteContract({
   method: 'PUT',
   path: '/api/credentials/[id]',
   params: credentialIdParamsSchema,
-  body: updateWorkspaceCredentialBodySchema,
+  body: updateCredentialByIdBodySchema,
   response: {
     mode: 'json',
     schema: z.object({

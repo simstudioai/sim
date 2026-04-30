@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const ssoProvidersQuerySchema = z.object({
   organizationId: z.string().min(1).optional(),
@@ -65,3 +66,18 @@ export const ssoRegistrationBodySchema = z.discriminatedUnion('providerType', [
 ])
 
 export type SsoRegistrationBody = z.input<typeof ssoRegistrationBodySchema>
+
+export const ssoRegistrationContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/auth/sso/register',
+  body: ssoRegistrationBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      providerId: z.string(),
+      providerType: z.enum(['oidc', 'saml']),
+      message: z.string(),
+    }),
+  },
+})

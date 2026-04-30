@@ -69,11 +69,23 @@ const PutMetricDataSchema = z.object({
     ),
 })
 
+const PutMetricDataResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    success: z.literal(true),
+    namespace: z.string(),
+    metricName: z.string(),
+    value: z.number(),
+    unit: z.string(),
+    timestamp: z.string(),
+  }),
+})
+
 export const awsCloudwatchPutMetricDataContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/cloudwatch/put-metric-data',
   body: PutMetricDataSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: PutMetricDataResponseSchema },
 })
 export type AwsCloudwatchPutMetricDataRequest = ContractBodyInput<
   typeof awsCloudwatchPutMetricDataContract

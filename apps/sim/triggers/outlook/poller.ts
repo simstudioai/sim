@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { OutlookIcon } from '@/components/icons'
+import { requestJson } from '@/lib/api/client/request'
 import { outlookFoldersSelectorContract } from '@/lib/api/contracts/selectors/microsoft'
 import { isCredentialSetValue } from '@/executor/constants'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
 
@@ -61,7 +61,7 @@ export const outlookPollingTrigger: TriggerConfig = {
           return OUTLOOK_SYSTEM_FOLDERS
         }
         try {
-          const data = await requestSelectorContract(outlookFoldersSelectorContract, {
+          const data = await requestJson(outlookFoldersSelectorContract, {
             query: { credentialId },
           })
           return data.folders.map((folder) => ({

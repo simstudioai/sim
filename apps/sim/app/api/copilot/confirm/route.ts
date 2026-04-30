@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { copilotConfirmBodySchema } from '@/lib/api/contracts/copilot'
-import { validateSchema } from '@/lib/api/server'
+import { copilotConfirmContract } from '@/lib/api/contracts/copilot'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   ASYNC_TOOL_STATUS,
@@ -21,7 +21,6 @@ import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { publishToolConfirmation } from '@/lib/copilot/persistence/tool-confirm'
 import {
   authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createRequestTracker,
@@ -123,15 +122,25 @@ export const POST = withRouteHandler((req: NextRequest) => {
           return createUnauthorizedResponse()
         }
 
-        const body = await req.json()
-        const validation = validateSchema(copilotConfirmBodySchema, body)
-        if (!validation.success) {
-          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ValidationError)
-          return createBadRequestResponse(
-            `Invalid request data: ${validation.error.issues.map((e) => e.message).join(', ')}`
-          )
-        }
-        const { toolCallId, status, message, data } = validation.data
+        const parsed = await parseRequest(
+          copilotConfirmContract,
+          req,
+          {},
+          {
+            validationErrorResponse: (error) => {
+              span.setAttribute(
+                TraceAttr.CopilotConfirmOutcome,
+                CopilotConfirmOutcome.ValidationError
+              )
+              return validationErrorResponse(
+                error,
+                `Invalid request data: ${error.issues.map((e) => e.message).join(', ')}`
+              )
+            },
+          }
+        )
+        if (!parsed.success) return parsed.response
+        const { toolCallId, status, message, data } = parsed.data.body
         span.setAttributes({
           [TraceAttr.ToolCallId]: toolCallId,
           [TraceAttr.ToolConfirmationStatus]: status,

@@ -10,7 +10,6 @@
 
 import type { NextRequest } from 'next/server'
 import { mcpEventsQuerySchema } from '@/lib/api/contracts/mcp'
-import { validateSchema } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createWorkspaceSSE } from '@/lib/events/sse-endpoint'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
@@ -51,7 +50,7 @@ const mcpEventsHandler = createWorkspaceSSE({
 })
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const queryValidation = validateSchema(mcpEventsQuerySchema, {
+  const queryValidation = mcpEventsQuerySchema.safeParse({
     workspaceId: request.nextUrl.searchParams.get('workspaceId'),
   })
 

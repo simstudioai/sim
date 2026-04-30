@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
-import { credentialWorkflowBodySchema } from '@/lib/api/contracts/selectors/shared'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { attioListsSelectorContract } from '@/lib/api/contracts/selectors/attio'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -11,19 +11,26 @@ const logger = createLogger('AttioListsAPI')
 
 export const dynamic = 'force-dynamic'
 
-export const POST = withRouteHandler(async (request: Request) => {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   try {
-    const body = await request.json()
-    const validation = validateSchema(credentialWorkflowBodySchema, body)
-    if (!validation.success) {
-      logger.error('Missing credential in request')
-      return NextResponse.json(
-        { error: getValidationErrorMessage(validation.error, 'Invalid request') },
-        { status: 400 }
-      )
-    }
-    const { credential, workflowId } = validation.data
+    const parsed = await parseRequest(
+      attioListsSelectorContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.error('Missing credential in request')
+          return NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Invalid request') },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const { credential, workflowId } = parsed.data.body
 
     const authz = await authorizeCredentialUse(request as any, {
       credentialId: credential,

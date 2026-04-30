@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
-import { auditLogsQuerySchema } from '@/lib/api/contracts/audit-logs'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { listAuditLogsContract } from '@/lib/api/contracts/audit-logs'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
@@ -16,7 +16,7 @@ const logger = createLogger('AuditLogsAPI')
 
 export const dynamic = 'force-dynamic'
 
-export const GET = withRouteHandler(async (request: Request) => {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -30,17 +30,19 @@ export const GET = withRouteHandler(async (request: Request) => {
 
     const { orgMemberIds } = authResult.context
 
-    const { searchParams } = new URL(request.url)
-    const parsedQuery = validateSchema(
-      auditLogsQuerySchema,
-      Object.fromEntries(searchParams.entries())
+    const parsed = await parseRequest(
+      listAuditLogsContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Invalid query parameters') },
+            { status: 400 }
+          ),
+      }
     )
-    if (!parsedQuery.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(parsedQuery.error, 'Invalid query parameters') },
-        { status: 400 }
-      )
-    }
+    if (!parsed.success) return parsed.response
 
     const {
       search,
@@ -52,7 +54,7 @@ export const GET = withRouteHandler(async (request: Request) => {
       includeDeparted,
       limit,
       cursor,
-    } = parsedQuery.data
+    } = parsed.data.query
 
     const scopeCondition = await buildOrgScopeCondition(orgMemberIds, includeDeparted)
     const filterConditions = buildFilterConditions({

@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { batchPresignedUrlBodySchema, uploadTypeSchema } from '@/lib/api/contracts/storage-transfer'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import {
+  batchPresignedUploadBodyContract,
+  uploadTypeSchema,
+} from '@/lib/api/contracts/storage-transfer'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { StorageContext } from '@/lib/uploads/config'
@@ -15,7 +18,6 @@ import { createErrorResponse } from '@/app/api/files/utils'
 
 const logger = createLogger('BatchPresignedUploadAPI')
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024
 const VALID_UPLOAD_TYPES = ['knowledge-base', 'chat', 'copilot', 'profile-pictures'] as const
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
@@ -25,37 +27,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    let rawData: unknown
-    try {
-      rawData = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
-    }
+    const parsed = await parseRequest(
+      batchPresignedUploadBodyContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Invalid request data') },
+            { status: 400 }
+          ),
+        invalidJsonResponse: () =>
+          NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 }),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const validationResult = batchPresignedUrlBodySchema.safeParse(rawData)
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(validationResult.error, 'Invalid request data') },
-        { status: 400 }
-      )
-    }
-
-    const data = validationResult.data
-    const { files } = data
-
-    if (!files || !Array.isArray(files) || files.length === 0) {
-      return NextResponse.json(
-        { error: 'files array is required and cannot be empty' },
-        { status: 400 }
-      )
-    }
-
-    if (files.length > 100) {
-      return NextResponse.json(
-        { error: 'Cannot process more than 100 files at once' },
-        { status: 400 }
-      )
-    }
+    const { files } = parsed.data.body
 
     const uploadTypeParam = request.nextUrl.searchParams.get('type')
     if (!uploadTypeParam) {
@@ -72,30 +60,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const uploadType = uploadTypeResult.data as StorageContext
 
-    for (const file of files) {
-      if (!file.fileName?.trim()) {
-        return NextResponse.json({ error: 'fileName is required for all files' }, { status: 400 })
-      }
-      if (!file.contentType?.trim()) {
-        return NextResponse.json(
-          { error: 'contentType is required for all files' },
-          { status: 400 }
-        )
-      }
-      if (!file.fileSize || file.fileSize <= 0) {
-        return NextResponse.json(
-          { error: 'fileSize must be positive for all files' },
-          { status: 400 }
-        )
-      }
-      if (file.fileSize > MAX_FILE_SIZE) {
-        return NextResponse.json(
-          { error: `File ${file.fileName} exceeds maximum size of ${MAX_FILE_SIZE} bytes` },
-          { status: 400 }
-        )
-      }
-
-      if (uploadType === 'knowledge-base') {
+    if (uploadType === 'knowledge-base') {
+      for (const file of files) {
         const fileValidationError = validateFileType(file.fileName, file.contentType)
         if (fileValidationError) {
           return NextResponse.json(
@@ -109,11 +75,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
       }
     }
-    const validatedFiles = files as Array<{
-      fileName: string
-      contentType: string
-      fileSize: number
-    }>
 
     const sessionUserId = session.user.id
 
@@ -129,7 +90,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         `Local storage detected - batch presigned URLs not available, client will use API fallback`
       )
       return NextResponse.json({
-        files: validatedFiles.map((file) => ({
+        files: files.map((file) => ({
           fileName: file.fileName,
           presignedUrl: '', // Empty URL signals fallback to API upload
           fileInfo: {
@@ -150,7 +111,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const startTime = Date.now()
 
     const presignedUrls = await generateBatchPresignedUploadUrls(
-      validatedFiles.map((file) => ({
+      files.map((file) => ({
         fileName: file.fileName,
         contentType: file.contentType,
         fileSize: file.fileSize,
@@ -170,7 +131,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({
       files: presignedUrls.map((urlResponse, index) => {
         const finalPath = `/api/files/serve/${storagePrefix}/${encodeURIComponent(urlResponse.key)}?context=${uploadType}`
-        const file = validatedFiles[index]
+        const file = files[index]
 
         return {
           fileName: file.fileName,

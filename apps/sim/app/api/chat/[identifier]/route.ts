@@ -4,8 +4,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { deployedChatPostBodySchema } from '@/lib/api/contracts/chats'
-import { validateSchema } from '@/lib/api/server'
+import { deployedChatPostContract } from '@/lib/api/contracts/chats'
+import { parseRequest } from '@/lib/api/server'
 import { addCorsHeaders, validateAuthToken } from '@/lib/core/security/deployment'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -41,31 +41,24 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ identifier: string }> }) => {
-    const { identifier } = await params
+  async (request: NextRequest, context: { params: Promise<{ identifier: string }> }) => {
+    const { identifier } = await context.params
     const requestId = generateRequestId()
 
     try {
-      let parsedBody
-      try {
-        const rawBody = await request.json()
-        const validation = validateSchema(deployedChatPostBodySchema, rawBody)
-
-        if (!validation.success) {
-          const errorMessage = validation.error.issues
-            .map((err) => `${err.path.join('.')}: ${err.message}`)
-            .join(', ')
-          logger.warn(`[${requestId}] Validation error: ${errorMessage}`)
+      const parsed = await parseRequest(deployedChatPostContract, request, context, {
+        validationErrorResponse: (err) => {
+          const message = err.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ')
           return addCorsHeaders(
-            createErrorResponse(`Invalid request body: ${errorMessage}`, 400),
+            createErrorResponse(`Invalid request body: ${message}`, 400, 'VALIDATION_ERROR'),
             request
           )
-        }
-
-        parsedBody = validation.data
-      } catch (_error) {
-        return addCorsHeaders(createErrorResponse('Invalid request body', 400), request)
-      }
+        },
+        invalidJsonResponse: () =>
+          addCorsHeaders(createErrorResponse('Invalid request body', 400), request),
+      })
+      if (!parsed.success) return parsed.response
+      const parsedBody = parsed.data.body
 
       const deploymentResult = await db
         .select({

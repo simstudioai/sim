@@ -6,9 +6,10 @@ import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  removeWorkspaceEnvironmentBodySchema,
-  savePersonalEnvironmentBodySchema,
+  removeWorkspaceEnvironmentContract,
+  upsertWorkspaceEnvironmentContract,
 } from '@/lib/api/contracts/environment'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -74,9 +75,9 @@ export const GET = withRouteHandler(
 )
 
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const workspaceId = (await params).id
+    const workspaceId = (await context.params).id
 
     try {
       const session = await getSession()
@@ -91,8 +92,9 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      const body = await request.json()
-      const { variables } = savePersonalEnvironmentBodySchema.parse(body)
+      const parsed = await parseRequest(upsertWorkspaceEnvironmentContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { variables } = parsed.data.body
 
       // Read existing encrypted ws vars
       const existingRows = await db
@@ -160,9 +162,9 @@ export const PUT = withRouteHandler(
 )
 
 export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const workspaceId = (await params).id
+    const workspaceId = (await context.params).id
 
     try {
       const session = await getSession()
@@ -177,8 +179,9 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      const body = await request.json()
-      const { keys } = removeWorkspaceEnvironmentBodySchema.parse(body)
+      const parsed = await parseRequest(removeWorkspaceEnvironmentContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { keys } = parsed.data.body
 
       const wsRows = await db
         .select()

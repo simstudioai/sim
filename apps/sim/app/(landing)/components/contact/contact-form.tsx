@@ -7,14 +7,14 @@ import { useMutation } from '@tanstack/react-query'
 import Link from 'next/link'
 import { Combobox, Input, Textarea } from '@/components/emcn'
 import { Check } from '@/components/emcn/icons'
-import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
-import { getEnv } from '@/lib/core/config/env'
-import { captureClientEvent } from '@/lib/posthog/client'
 import {
   CONTACT_TOPIC_OPTIONS,
   type ContactRequestPayload,
   contactRequestSchema,
-} from '@/app/(landing)/components/contact/consts'
+} from '@/lib/api/contracts/contact'
+import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
+import { getEnv } from '@/lib/core/config/env'
+import { captureClientEvent } from '@/lib/posthog/client'
 import { LandingField } from '@/app/(landing)/components/forms/landing-field'
 
 type ContactField = keyof ContactRequestPayload

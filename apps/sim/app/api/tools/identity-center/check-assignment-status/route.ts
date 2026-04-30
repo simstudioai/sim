@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsIdentityCenterCheckAssignmentStatusContract } from '@/lib/api/contracts/tools/aws/identity-center-check-assignment-status'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkAssignmentCreationStatus, createSSOAdminClient } from '../utils'
@@ -16,14 +16,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const parsed = await parseAwsToolRequest(
-      awsIdentityCenterCheckAssignmentStatusContract,
-      request,
-      {
-        errorFormat: 'details',
-        logger,
-      }
-    )
+    const parsed = await parseToolRequest(awsIdentityCenterCheckAssignmentStatusContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 

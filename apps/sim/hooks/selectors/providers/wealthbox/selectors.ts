@@ -1,5 +1,5 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { ensureCredential, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -17,7 +17,7 @@ export const wealthboxSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'wealthbox.contacts')
-      const data = await requestSelectorContract(selectorContracts.wealthboxItemsSelectorContract, {
+      const data = await requestJson(selectorContracts.wealthboxItemsSelectorContract, {
         query: { credentialId, type: 'contact', query: search ?? '' },
         signal,
       })

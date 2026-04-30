@@ -202,6 +202,18 @@ export const batchInsertTableRowsBodySchema = z
     message: 'positions must not contain duplicates',
   })
 
+/**
+ * POST `/api/table/[tableId]/rows` body — accepts either a batch payload
+ * (`{ rows: [...] }`) or a single-row payload (`{ data: {...} }`). Branches
+ * narrow on `'rows' in body` since the discriminator is the shape, not a
+ * literal field. Order matters: the batch schema is checked first so payloads
+ * that include `rows` are routed to batch insert.
+ */
+export const insertTableRowsBodySchema = z.union([
+  batchInsertTableRowsBodySchema,
+  insertTableRowBodySchema,
+])
+
 export const updateTableRowBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   data: rowDataSchema,
@@ -495,6 +507,38 @@ export const batchCreateTableRowsContract = defineRouteContract({
         message: z.string(),
       })
     ),
+  },
+})
+
+/**
+ * Server-side contract for `POST /api/table/[tableId]/rows`. Accepts the
+ * union body so the route can handle single and batch insert in one
+ * `parseRequest` call. Clients use the resource-specific contracts above
+ * (`createTableRowContract` / `batchCreateTableRowsContract`) to get a
+ * narrow response type.
+ */
+export const insertTableRowsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/rows',
+  params: tableIdParamsSchema,
+  body: insertTableRowsBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.union([
+      successResponseSchema(
+        z.object({
+          row: tableRowSchema,
+          message: z.string(),
+        })
+      ),
+      successResponseSchema(
+        z.object({
+          rows: z.array(tableRowSchema),
+          insertedCount: z.number(),
+          message: z.string(),
+        })
+      ),
+    ]),
   },
 })
 

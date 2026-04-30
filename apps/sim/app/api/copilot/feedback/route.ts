@@ -3,11 +3,10 @@ import { copilotFeedback } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { submitCopilotFeedbackBodySchema } from '@/lib/api/contracts'
-import { isZodError } from '@/lib/api/server'
+import { submitCopilotFeedbackContract } from '@/lib/api/contracts'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import {
   authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
   createInternalServerErrorResponse,
   createRequestTracker,
   createUnauthorizedResponse,
@@ -33,9 +32,25 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const body = await req.json()
+    const parsed = await parseRequest(
+      submitCopilotFeedbackContract,
+      req,
+      {},
+      {
+        invalidJson: 'throw',
+        validationErrorResponse: (error) => {
+          logger.error(`[${tracker.requestId}] Validation error:`, {
+            duration: tracker.getDuration(),
+            errors: error.issues,
+          })
+          return validationErrorResponse(error, 'Invalid request data')
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
     const { chatId, userQuery, agentResponse, isPositiveFeedback, feedback, workflowYaml } =
-      submitCopilotFeedbackBodySchema.parse(body)
+      parsed.data.body
 
     logger.info(`[${tracker.requestId}] Processing copilot feedback submission`, {
       userId: authenticatedUserId,
@@ -86,16 +101,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     })
   } catch (error) {
     const duration = tracker.getDuration()
-
-    if (isZodError(error)) {
-      logger.error(`[${tracker.requestId}] Validation error:`, {
-        duration,
-        errors: error.issues,
-      })
-      return createBadRequestResponse(
-        `Invalid request data: ${error.issues.map((e) => e.message).join(', ')}`
-      )
-    }
 
     logger.error(`[${tracker.requestId}] Error submitting copilot feedback:`, {
       duration,

@@ -2,11 +2,11 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  bulkChunkOperationBodySchema,
+  bulkKnowledgeChunksContract,
   createChunkBodySchema,
   listKnowledgeChunksQuerySchema,
 } from '@/lib/api/contracts/knowledge'
-import { isZodError } from '@/lib/api/server'
+import { isZodError, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -293,36 +293,36 @@ export const PATCH = withRouteHandler(
         )
       }
 
-      const body = await req.json()
-
-      try {
-        const validatedData = bulkChunkOperationBodySchema.parse(body)
-        const { operation, chunkIds } = validatedData
-
-        const result = await batchChunkOperation(documentId, operation, chunkIds, requestId)
-
-        return NextResponse.json({
-          success: true,
-          data: {
-            operation,
-            successCount: result.processed,
-            errorCount: result.errors.length,
-            processed: result.processed,
-            errors: result.errors,
+      const parsed = await parseRequest(
+        bulkKnowledgeChunksContract,
+        req,
+        { params },
+        {
+          validationErrorResponse: (error) => {
+            logger.warn(`[${requestId}] Invalid batch operation data`, { errors: error.issues })
+            return NextResponse.json(
+              { error: 'Invalid request data', details: error.issues },
+              { status: 400 }
+            )
           },
-        })
-      } catch (validationError) {
-        if (isZodError(validationError)) {
-          logger.warn(`[${requestId}] Invalid batch operation data`, {
-            errors: validationError.issues,
-          })
-          return NextResponse.json(
-            { error: 'Invalid request data', details: validationError.issues },
-            { status: 400 }
-          )
         }
-        throw validationError
-      }
+      )
+      if (!parsed.success) return parsed.response
+      const validatedData = parsed.data.body
+      const { operation, chunkIds } = validatedData
+
+      const result = await batchChunkOperation(documentId, operation, chunkIds, requestId)
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          operation,
+          successCount: result.processed,
+          errorCount: result.errors.length,
+          processed: result.processed,
+          errors: result.errors,
+        },
+      })
     } catch (error) {
       logger.error(`[${requestId}] Error in batch chunk operation`, error)
       return NextResponse.json({ error: 'Failed to perform batch operation' }, { status: 500 })

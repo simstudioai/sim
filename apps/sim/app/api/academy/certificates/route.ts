@@ -6,8 +6,8 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getCourseById } from '@/lib/academy/content'
 import type { CertificateMetadata } from '@/lib/academy/types'
-import { issueAcademyCertificateBodySchema } from '@/lib/api/contracts'
-import { validateSchema } from '@/lib/api/server'
+import { issueAcademyCertificateContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -43,11 +43,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
-    const body = await req.json()
-    const parsed = validateSchema(issueAcademyCertificateBodySchema, body)
+    const parsed = await parseRequest(issueAcademyCertificateContract, req, {})
     if (!parsed.success) return parsed.response
 
-    const { courseId, completedLessonIds } = parsed.data
+    const { courseId, completedLessonIds } = parsed.data.body
 
     const course = getCourseById(courseId)
     if (!course) {

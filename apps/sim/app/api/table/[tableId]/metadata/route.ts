@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateTableMetadataBodySchema } from '@/lib/api/contracts/tables'
-import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
+import { updateTableMetadataContract } from '@/lib/api/contracts/tables'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -16,9 +16,8 @@ interface TableRouteParams {
 }
 
 /** PUT /api/table/[tableId]/metadata - Update table UI metadata (column widths, etc.) */
-export const PUT = withRouteHandler(async (request: NextRequest, { params }: TableRouteParams) => {
+export const PUT = withRouteHandler(async (request: NextRequest, context: TableRouteParams) => {
   const requestId = generateRequestId()
-  const { tableId } = await params
 
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -27,8 +26,13 @@ export const PUT = withRouteHandler(async (request: NextRequest, { params }: Tab
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validated = updateTableMetadataBodySchema.parse(body)
+    const parsed = await parseRequest(updateTableMetadataContract, request, context, {
+      validationErrorResponse: (error) => validationErrorResponse(error),
+    })
+    if (!parsed.success) return parsed.response
+
+    const { tableId } = parsed.data.params
+    const validated = parsed.data.body
 
     const result = await checkAccess(tableId, authResult.userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -47,10 +51,6 @@ export const PUT = withRouteHandler(async (request: NextRequest, { params }: Tab
 
     return NextResponse.json({ success: true, data: { metadata: updated } })
   } catch (error) {
-    if (isZodError(error)) {
-      return validationErrorResponse(error)
-    }
-
     logger.error(`[${requestId}] Error updating table metadata:`, error)
     return NextResponse.json({ error: 'Failed to update metadata' }, { status: 500 })
   }

@@ -1,5 +1,5 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { ensureCredential, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -16,7 +16,7 @@ export const linearSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'linear.teams')
-      const data = await requestSelectorContract(selectorContracts.linearTeamsSelectorContract, {
+      const data = await requestJson(selectorContracts.linearTeamsSelectorContract, {
         body: { credential: credentialId, workflowId: context.workflowId },
         signal,
       })
@@ -42,7 +42,7 @@ export const linearSelectors = {
       if (!context.teamId) {
         throw new Error('Missing team ID for linear.projects selector')
       }
-      const data = await requestSelectorContract(selectorContracts.linearProjectsSelectorContract, {
+      const data = await requestJson(selectorContracts.linearProjectsSelectorContract, {
         body: {
           credential: credentialId,
           teamId: context.teamId,

@@ -12,8 +12,8 @@ import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createTemplateBodySchema, templateListQuerySchema } from '@/lib/api/contracts/templates'
-import { validateSchema } from '@/lib/api/server'
+import { createTemplateContract, listTemplatesContract } from '@/lib/api/contracts/templates'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -43,19 +43,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const validation = validateSchema(
-      templateListQuerySchema,
-      Object.fromEntries(searchParams.entries()),
-      'Invalid query parameters'
-    )
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid query parameters`, {
-        errors: validation.error.issues,
-      })
-      return validation.response
-    }
-    const params = validation.data
+    const parsed = await parseRequest(listTemplatesContract, request, {})
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.query
 
     // Check if user is a super user
     const { effectiveSuperUser } = await verifyEffectiveSuperUser(session.user.id)
@@ -213,13 +203,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validation = validateSchema(createTemplateBodySchema, body, 'Invalid template data')
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid template data`, { errors: validation.error.issues })
-      return validation.response
-    }
-    const data = validation.data
+    const parsed = await parseRequest(createTemplateContract, request, {})
+    if (!parsed.success) return parsed.response
+    const data = parsed.data.body
 
     const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
       workflowId: data.workflowId,

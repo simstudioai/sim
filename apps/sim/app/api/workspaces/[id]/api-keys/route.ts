@@ -5,7 +5,11 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createApiKeyBodySchema, deleteWorkspaceApiKeysBodySchema } from '@/lib/api/contracts'
+import {
+  createWorkspaceApiKeyContract,
+  deleteWorkspaceApiKeysContract,
+} from '@/lib/api/contracts/api-keys'
+import { parseRequest } from '@/lib/api/server'
 import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { getSession } from '@/lib/auth'
@@ -80,9 +84,9 @@ export const GET = withRouteHandler(
 )
 
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const workspaceId = (await params).id
+    const workspaceId = (await context.params).id
 
     try {
       const session = await getSession()
@@ -98,8 +102,9 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      const body = await request.json()
-      const { name, source } = createApiKeyBodySchema.parse(body)
+      const parsed = await parseRequest(createWorkspaceApiKeyContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { name, source } = parsed.data.body
 
       const existingKey = await db
         .select()
@@ -200,9 +205,9 @@ export const POST = withRouteHandler(
 )
 
 export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const workspaceId = (await params).id
+    const workspaceId = (await context.params).id
 
     try {
       const session = await getSession()
@@ -218,8 +223,9 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      const body = await request.json()
-      const { keys } = deleteWorkspaceApiKeysBodySchema.parse(body)
+      const parsed = await parseRequest(deleteWorkspaceApiKeysContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { keys } = parsed.data.body
 
       const deletedCount = await db
         .delete(apiKey)

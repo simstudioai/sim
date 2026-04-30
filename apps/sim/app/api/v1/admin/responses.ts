@@ -6,7 +6,7 @@
 
 import { NextResponse } from 'next/server'
 import type { z } from 'zod'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
 import type {
   AdminErrorResponse,
   AdminListResponse,
@@ -72,7 +72,10 @@ export function badRequestResponse(message: string, details?: unknown): NextResp
 }
 
 export function adminValidationErrorResponse(error: z.ZodError): NextResponse {
-  return badRequestResponse(getValidationErrorMessage(error, 'Invalid request body'))
+  return badRequestResponse(
+    getValidationErrorMessage(error, 'Invalid request body'),
+    serializeZodIssues(error)
+  )
 }
 
 export function adminInvalidJsonResponse(): NextResponse {

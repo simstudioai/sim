@@ -5,13 +5,14 @@ import { toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  batchInsertTableRowsBodySchema,
+  type BatchInsertTableRowsBodyInput,
   batchUpdateTableRowsBodySchema,
   deleteTableRowsBodySchema,
-  insertTableRowBodySchema,
+  insertTableRowsContract,
   tableRowsQuerySchema,
   updateRowsByFilterBodySchema,
 } from '@/lib/api/contracts/tables'
+import { parseRequest } from '@/lib/api/server'
 import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -41,11 +42,9 @@ interface TableRowsRouteParams {
 async function handleBatchInsert(
   requestId: string,
   tableId: string,
-  body: unknown,
+  validated: BatchInsertTableRowsBodyInput,
   userId: string
 ): Promise<NextResponse> {
-  const validated = batchInsertTableRowsBodySchema.parse(body)
-
   const accessResult = await checkAccess(tableId, userId, 'write')
   if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
@@ -115,9 +114,8 @@ async function handleBatchInsert(
 
 /** POST /api/table/[tableId]/rows - Inserts row(s). Supports single or batch insert. */
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: TableRowsRouteParams) => {
+  async (request: NextRequest, context: TableRowsRouteParams) => {
     const requestId = generateRequestId()
-    const { tableId } = await params
 
     try {
       const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -125,23 +123,17 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      let body: unknown
-      try {
-        body = await request.json()
-      } catch {
-        return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-      }
+      const parsed = await parseRequest(insertTableRowsContract, request, context)
+      if (!parsed.success) return parsed.response
 
-      if (
-        typeof body === 'object' &&
-        body !== null &&
-        'rows' in body &&
-        Array.isArray((body as Record<string, unknown>).rows)
-      ) {
+      const { tableId } = parsed.data.params
+      const body = parsed.data.body
+
+      if ('rows' in body) {
         return handleBatchInsert(requestId, tableId, body, authResult.userId)
       }
 
-      const validated = insertTableRowBodySchema.parse(body)
+      const validated = body
 
       const accessResult = await checkAccess(tableId, authResult.userId, 'write')
       if (!accessResult.ok) return accessError(accessResult, requestId, tableId)

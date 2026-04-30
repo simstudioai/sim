@@ -17,11 +17,18 @@ const CreateNamedQuerySchema = z.object({
   workGroup: z.string().optional(),
 })
 
+const CreateNamedQueryResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    namedQueryId: z.string(),
+  }),
+})
+
 export const awsAthenaCreateNamedQueryContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/athena/create-named-query',
   body: CreateNamedQuerySchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: CreateNamedQueryResponseSchema },
 })
 export type AwsAthenaCreateNamedQueryRequest = ContractBodyInput<
   typeof awsAthenaCreateNamedQueryContract

@@ -19,11 +19,18 @@ const GetTemplateSchema = z.object({
   templateName: z.string().min(1, 'Template name is required'),
 })
 
+const GetTemplateResponseSchema = z.object({
+  templateName: z.string(),
+  subjectPart: z.string(),
+  textPart: z.string().nullable(),
+  htmlPart: z.string().nullable(),
+})
+
 export const awsSesGetTemplateContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/ses/get-template',
   body: GetTemplateSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: GetTemplateResponseSchema },
 })
 export type AwsSesGetTemplateRequest = ContractBodyInput<typeof awsSesGetTemplateContract>
 export type AwsSesGetTemplateBody = ContractBody<typeof awsSesGetTemplateContract>

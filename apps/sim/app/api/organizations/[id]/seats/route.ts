@@ -3,8 +3,8 @@ import { invitation, member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, gt, inArray, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateSeatsBodySchema } from '@/lib/api/contracts/organization'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { updateSeatsContract } from '@/lib/api/contracts/organization'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getPlanPricing } from '@/lib/billing/core/billing'
@@ -27,7 +27,7 @@ const logger = createLogger('OrganizationSeatsAPI')
  * This is the recommended approach for per-seat billing changes.
  */
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
       const session = await getSession()
 
@@ -39,20 +39,12 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Billing is not enabled' }, { status: 400 })
       }
 
-      const { id: organizationId } = await params
-      const body = await request.json()
+      const parsed = await parseRequest(updateSeatsContract, request, context)
+      if (!parsed.success) return parsed.response
 
-      const validation = updateSeatsBodySchema.safeParse(body)
-      if (!validation.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(validation.error) },
-          { status: 400 }
-        )
-      }
+      const { id: organizationId } = parsed.data.params
+      const { seats: newSeatCount } = parsed.data.body
 
-      const { seats: newSeatCount } = validation.data
-
-      // Verify user has admin access to this organization
       const memberEntry = await db
         .select()
         .from(member)
@@ -70,7 +62,6 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
       }
 
-      // Get the organization's subscription
       const subscriptionRecord = await db
         .select()
         .from(subscription)
@@ -92,7 +83,6 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'An active subscription is required' }, { status: 400 })
       }
 
-      // Only team plans support seat changes (not enterprise - those are handled manually)
       if (!isTeam(orgSubscription.plan)) {
         return NextResponse.json(
           { error: 'Seat changes are only available for Team plans' },
@@ -142,7 +132,6 @@ export const PUT = withRouteHandler(
 
       const currentSeats = orgSubscription.seats || 1
 
-      // If no change, return early
       if (newSeatCount === currentSeats) {
         return NextResponse.json({
           success: true,
@@ -156,7 +145,6 @@ export const PUT = withRouteHandler(
 
       const stripe = requireStripeClient()
 
-      // Get the Stripe subscription to find the subscription item ID
       const stripeSubscription = await stripe.subscriptions.retrieve(
         orgSubscription.stripeSubscriptionId
       )
@@ -165,7 +153,6 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Stripe subscription is not active' }, { status: 400 })
       }
 
-      // Find the subscription item (there should be only one for team plans)
       const subscriptionItem = stripeSubscription.items.data[0]
 
       if (!subscriptionItem) {
@@ -218,7 +205,6 @@ export const PUT = withRouteHandler(
           ? toNumber(toDecimal(orgData[0].orgUsageLimit))
           : 0
 
-      // Update if new minimum is higher than current limit
       if (newMinimumLimit > currentOrgLimit) {
         await db
           .update(organization)
@@ -259,9 +245,8 @@ export const PUT = withRouteHandler(
         },
       })
     } catch (error) {
-      const { id: organizationId } = await params
+      const { id: organizationId } = await context.params
 
-      // Handle Stripe-specific errors
       if (error instanceof Error && 'type' in error) {
         const stripeError = error as Error & { type?: unknown; code?: unknown }
         logger.error('Stripe error updating seats', {

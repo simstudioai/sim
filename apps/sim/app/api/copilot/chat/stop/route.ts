@@ -4,8 +4,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { copilotChatStopBodySchema } from '@/lib/api/contracts/copilot'
-import { validateSchema } from '@/lib/api/server'
+import { copilotChatStopContract } from '@/lib/api/contracts/copilot'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { CopilotStopOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
@@ -29,12 +29,12 @@ export const POST = withRouteHandler((req: NextRequest) =>
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const validation = validateSchema(copilotChatStopBodySchema, await req.json())
-      if (!validation.success) {
+      const parsed = await parseRequest(copilotChatStopContract, req, {})
+      if (!parsed.success) {
         span.setAttribute(TraceAttr.CopilotStopOutcome, CopilotStopOutcome.ValidationError)
-        return validation.response
+        return parsed.response
       }
-      const { chatId, streamId, content, contentBlocks, requestId } = validation.data
+      const { chatId, streamId, content, contentBlocks, requestId } = parsed.data.body
       span.setAttributes({
         [TraceAttr.ChatId]: chatId,
         [TraceAttr.StreamId]: streamId,

@@ -25,11 +25,29 @@ const ListMetricsSchema = z.object({
   ),
 })
 
+const ListMetricsResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    metrics: z.array(
+      z.object({
+        namespace: z.string(),
+        metricName: z.string(),
+        dimensions: z.array(
+          z.object({
+            name: z.string(),
+            value: z.string(),
+          })
+        ),
+      })
+    ),
+  }),
+})
+
 export const awsCloudwatchListMetricsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/cloudwatch/list-metrics',
   body: ListMetricsSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ListMetricsResponseSchema },
 })
 export type AwsCloudwatchListMetricsRequest = ContractBodyInput<
   typeof awsCloudwatchListMetricsContract

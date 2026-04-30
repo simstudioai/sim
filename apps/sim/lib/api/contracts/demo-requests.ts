@@ -1,5 +1,6 @@
 import freeEmailDomains from 'free-email-domains'
 import { z } from 'zod'
+import { defineRouteContract } from '@/lib/api/contracts/types'
 import { NO_EMAIL_HEADER_CONTROL_CHARS_REGEX } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
@@ -62,7 +63,23 @@ export const demoRequestSchema = z.object({
 })
 
 export type DemoRequestPayload = z.infer<typeof demoRequestSchema>
+export type DemoRequestBody = z.input<typeof demoRequestSchema>
 
 export function getDemoRequestCompanySizeLabel(value: DemoRequestPayload['companySize']): string {
   return DEMO_REQUEST_COMPANY_SIZE_OPTIONS.find((option) => option.value === value)?.label ?? value
 }
+
+export const demoRequestResponseSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+})
+
+export const submitDemoRequestContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/demo-requests',
+  body: demoRequestSchema,
+  response: {
+    mode: 'json',
+    schema: demoRequestResponseSchema,
+  },
+})

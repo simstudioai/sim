@@ -413,7 +413,7 @@ describe('Knowledge Search API Route', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data.error).toBe('Invalid request data')
+      expect(data.error).toBe('Validation error')
       expect(data.details).toBeDefined()
     })
 
@@ -788,7 +788,7 @@ describe('Knowledge Search API Route', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data.error).toBe('Invalid request data')
+      expect(data.error).toBe('Validation error')
       expect(data.details).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -812,7 +812,7 @@ describe('Knowledge Search API Route', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data.error).toBe('Invalid request data')
+      expect(data.error).toBe('Validation error')
     })
 
     it('should handle empty tag values gracefully', async () => {
@@ -827,7 +827,7 @@ describe('Knowledge Search API Route', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data.error).toBe('Invalid request data')
+      expect(data.error).toBe('Validation error')
       expect(data.details).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -851,7 +851,7 @@ describe('Knowledge Search API Route', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data.error).toBe('Invalid request data')
+      expect(data.error).toBe('Validation error')
       expect(data.details).toEqual(
         expect.arrayContaining([
           expect.objectContaining({

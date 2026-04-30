@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { renderHelpConfirmationEmail } from '@/components/emails'
+import {
+  contactRequestSchema,
+  getContactTopicLabel,
+  mapContactTopicToHelpType,
+} from '@/lib/api/contracts/contact'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
@@ -11,11 +16,6 @@ import { getEmailDomain, SITE_URL } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
-import {
-  contactRequestSchema,
-  getContactTopicLabel,
-  mapContactTopicToHelpType,
-} from '@/app/(landing)/components/contact/consts'
 
 const logger = createLogger('ContactAPI')
 const rateLimiter = new RateLimiter()

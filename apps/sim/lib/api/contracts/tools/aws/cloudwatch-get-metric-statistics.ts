@@ -25,11 +25,29 @@ const GetMetricStatisticsSchema = z.object({
   dimensions: z.string().optional(),
 })
 
+const GetMetricStatisticsResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    label: z.string(),
+    datapoints: z.array(
+      z.object({
+        timestamp: z.number(),
+        average: z.number().optional(),
+        sum: z.number().optional(),
+        minimum: z.number().optional(),
+        maximum: z.number().optional(),
+        sampleCount: z.number().optional(),
+        unit: z.string().optional(),
+      })
+    ),
+  }),
+})
+
 export const awsCloudwatchGetMetricStatisticsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/cloudwatch/get-metric-statistics',
   body: GetMetricStatisticsSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: GetMetricStatisticsResponseSchema },
 })
 export type AwsCloudwatchGetMetricStatisticsRequest = ContractBodyInput<
   typeof awsCloudwatchGetMetricStatisticsContract

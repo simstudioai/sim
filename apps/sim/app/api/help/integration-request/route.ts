@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { integrationRequestBodySchema } from '@/lib/api/contracts/common'
-import { validateSchema } from '@/lib/api/server'
+import { integrationRequestContract } from '@/lib/api/contracts/common'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -44,21 +44,17 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
-    const body = await req.json()
-
-    const validationResult = validateSchema(
-      integrationRequestBodySchema,
-      body,
-      'Invalid request data'
+    const parsed = await parseRequest(
+      integrationRequestContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (err) => validationErrorResponse(err, 'Invalid request data'),
+      }
     )
-    if (!validationResult.success) {
-      logger.warn(`[${requestId}] Invalid integration request data`, {
-        issues: validationResult.error.issues,
-      })
-      return validationResult.response
-    }
+    if (!parsed.success) return parsed.response
 
-    const { integrationName, email, useCase } = validationResult.data
+    const { integrationName, email, useCase } = parsed.data.body
 
     logger.info(`[${requestId}] Processing integration request`, {
       integrationName,

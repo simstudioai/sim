@@ -5,7 +5,7 @@ import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { sharepointSiteQuerySchema } from '@/lib/api/contracts/selectors/sharepoint'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -25,7 +25,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const { searchParams } = new URL(request.url)
-    const validation = validateSchema(sharepointSiteQuerySchema, {
+    const validation = sharepointSiteQuerySchema.safeParse({
       credentialId: searchParams.get('credentialId') ?? '',
       siteId: searchParams.get('siteId') ?? '',
     })

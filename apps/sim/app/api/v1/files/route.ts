@@ -5,7 +5,7 @@ import {
   v1ListFilesContract,
   v1UploadFileFormFieldsSchema,
 } from '@/lib/api/contracts/workspace-files'
-import { getValidationErrorMessage, parseRequest, validateSchema } from '@/lib/api/server'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -95,7 +95,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const rawFile = formData.get('file')
     const file = rawFile instanceof File ? rawFile : null
     const rawWorkspaceId = formData.get('workspaceId')
-    const formFieldsResult = validateSchema(v1UploadFileFormFieldsSchema, {
+    const formFieldsResult = v1UploadFileFormFieldsSchema.safeParse({
       workspaceId: typeof rawWorkspaceId === 'string' ? rawWorkspaceId : '',
     })
 

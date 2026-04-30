@@ -31,11 +31,31 @@ const DescribeAlarmsSchema = z.object({
   ),
 })
 
+const DescribeAlarmsResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    alarms: z.array(
+      z.object({
+        alarmName: z.string(),
+        alarmArn: z.string(),
+        stateValue: z.string(),
+        stateReason: z.string(),
+        metricName: z.string().optional(),
+        namespace: z.string().optional(),
+        comparisonOperator: z.string().optional(),
+        threshold: z.number().optional(),
+        evaluationPeriods: z.number().optional(),
+        stateUpdatedTimestamp: z.number().optional(),
+      })
+    ),
+  }),
+})
+
 export const awsCloudwatchDescribeAlarmsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/cloudwatch/describe-alarms',
   body: DescribeAlarmsSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: DescribeAlarmsResponseSchema },
 })
 export type AwsCloudwatchDescribeAlarmsRequest = ContractBodyInput<
   typeof awsCloudwatchDescribeAlarmsContract

@@ -21,11 +21,27 @@ const Schema = z.object({
   marker: z.string().optional().nullable(),
 })
 
+const ListUsersResponseSchema = z.object({
+  users: z.array(
+    z.object({
+      userName: z.string(),
+      userId: z.string(),
+      arn: z.string(),
+      path: z.string(),
+      createDate: z.string().nullable(),
+      passwordLastUsed: z.string().nullable(),
+    })
+  ),
+  isTruncated: z.boolean(),
+  marker: z.string().nullable(),
+  count: z.number(),
+})
+
 export const awsIamListUsersContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/iam/list-users',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ListUsersResponseSchema },
 })
 export type AwsIamListUsersRequest = ContractBodyInput<typeof awsIamListUsersContract>
 export type AwsIamListUsersBody = ContractBody<typeof awsIamListUsersContract>

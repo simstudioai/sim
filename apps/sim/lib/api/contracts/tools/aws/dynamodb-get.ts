@@ -29,11 +29,17 @@ const GetSchema = z.object({
     }),
 })
 
+const GetResponseSchema = z.object({
+  message: z.string(),
+  // untyped-response: DynamoDB Item is an arbitrary user attribute-value record
+  item: z.record(z.string(), z.unknown()).nullable(),
+})
+
 export const awsDynamodbGetContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/dynamodb/get',
   body: GetSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: GetResponseSchema },
 })
 export type AwsDynamodbGetRequest = ContractBodyInput<typeof awsDynamodbGetContract>
 export type AwsDynamodbGetBody = ContractBody<typeof awsDynamodbGetContract>

@@ -1,11 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  oauthTokenGetQuerySchema,
-  oauthTokenPostQuerySchema,
-  oauthTokenRequestBodySchema,
+  oauthTokenGetContract,
+  oauthTokenPostContract,
 } from '@/lib/api/contracts/oauth-connections'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -35,19 +34,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   logger.info(`[${requestId}] OAuth token API POST request received`)
 
   try {
-    const rawBody = await request.json()
-    const parseResult = oauthTokenRequestBodySchema.safeParse(rawBody)
-
-    if (!parseResult.success) {
-      logger.warn(`[${requestId}] Invalid token request`, {
-        errors: parseResult.error.issues,
-      })
-
-      return NextResponse.json(
-        { error: getValidationErrorMessage(parseResult.error, 'Validation failed') },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(
+      oauthTokenPostContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid token request`, { errors: error.issues })
+          return NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Validation failed') },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
 
     const {
       credentialId,
@@ -56,7 +57,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       workflowId,
       scopes,
       impersonateEmail,
-    } = parseResult.data
+    } = parsed.data.body
+    const callerUserId = parsed.data.query.userId
 
     if (credentialAccountUserId && providerId) {
       logger.info(`[${requestId}] Fetching token by credentialAccountUserId + providerId`, {
@@ -102,10 +104,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!credentialId) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
-
-    const callerUserId = oauthTokenPostQuerySchema.parse({
-      userId: new URL(request.url).searchParams.get('userId') || undefined,
-    }).userId
 
     const resolved = await resolveOAuthAccountId(credentialId)
     if (resolved?.credentialType === 'service_account' && resolved.credentialId) {
@@ -193,25 +191,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const { searchParams } = new URL(request.url)
-    const rawQuery = {
-      credentialId: searchParams.get('credentialId'),
-    }
+    const parsed = await parseRequest(
+      oauthTokenGetContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid query parameters`, { errors: error.issues })
+          return NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Validation failed') },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const parseResult = oauthTokenGetQuerySchema.safeParse(rawQuery)
-
-    if (!parseResult.success) {
-      logger.warn(`[${requestId}] Invalid query parameters`, {
-        errors: parseResult.error.issues,
-      })
-
-      return NextResponse.json(
-        { error: getValidationErrorMessage(parseResult.error, 'Validation failed') },
-        { status: 400 }
-      )
-    }
-
-    const { credentialId } = parseResult.data
+    const { credentialId } = parsed.data.query
 
     const authz = await authorizeCredentialUse(request, {
       credentialId,

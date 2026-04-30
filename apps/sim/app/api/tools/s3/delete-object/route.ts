@@ -2,7 +2,7 @@ import { DeleteObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsS3DeleteObjectContract } from '@/lib/api/contracts/tools/aws/s3-delete-object'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -35,7 +35,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
-    const parsed = await parseAwsToolRequest(awsS3DeleteObjectContract, request, {
+    const parsed = await parseToolRequest(awsS3DeleteObjectContract, request, {
       errorFormat: 'details',
       logger,
     })

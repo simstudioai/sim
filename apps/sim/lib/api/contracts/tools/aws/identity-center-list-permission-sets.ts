@@ -21,11 +21,25 @@ const Schema = z.object({
   nextToken: z.string().optional(),
 })
 
+const ResponseSchema = z.object({
+  permissionSets: z.array(
+    z.object({
+      permissionSetArn: z.string(),
+      name: z.string(),
+      description: z.string().nullable(),
+      sessionDuration: z.string().nullable(),
+      createdDate: z.string().nullable(),
+    })
+  ),
+  nextToken: z.string().nullable(),
+  count: z.number(),
+})
+
 export const awsIdentityCenterListPermissionSetsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/identity-center/list-permission-sets',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ResponseSchema },
 })
 export type AwsIdentityCenterListPermissionSetsRequest = ContractBodyInput<
   typeof awsIdentityCenterListPermissionSetsContract

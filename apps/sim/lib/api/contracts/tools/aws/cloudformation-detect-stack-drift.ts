@@ -13,11 +13,18 @@ const DetectStackDriftSchema = z.object({
   stackName: z.string().min(1, 'Stack name is required'),
 })
 
+const DetectStackDriftResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    stackDriftDetectionId: z.string(),
+  }),
+})
+
 export const awsCloudformationDetectStackDriftContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/cloudformation/detect-stack-drift',
   body: DetectStackDriftSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: DetectStackDriftResponseSchema },
 })
 export type AwsCloudformationDetectStackDriftRequest = ContractBodyInput<
   typeof awsCloudformationDetectStackDriftContract

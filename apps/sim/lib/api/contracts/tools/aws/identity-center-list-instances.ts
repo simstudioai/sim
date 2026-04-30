@@ -20,11 +20,27 @@ const Schema = z.object({
   nextToken: z.string().optional(),
 })
 
+const ResponseSchema = z.object({
+  instances: z.array(
+    z.object({
+      instanceArn: z.string(),
+      identityStoreId: z.string(),
+      name: z.string().nullable(),
+      status: z.string(),
+      statusReason: z.string().nullable(),
+      ownerAccountId: z.string().nullable(),
+      createdDate: z.string().nullable(),
+    })
+  ),
+  nextToken: z.string().nullable(),
+  count: z.number(),
+})
+
 export const awsIdentityCenterListInstancesContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/identity-center/list-instances',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ResponseSchema },
 })
 export type AwsIdentityCenterListInstancesRequest = ContractBodyInput<
   typeof awsIdentityCenterListInstancesContract

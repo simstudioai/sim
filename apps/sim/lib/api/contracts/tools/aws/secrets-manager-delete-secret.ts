@@ -15,11 +15,18 @@ const DeleteSecretSchema = z.object({
   forceDelete: z.boolean().nullish(),
 })
 
+const DeleteSecretResponseSchema = z.object({
+  message: z.string(),
+  name: z.string(),
+  arn: z.string(),
+  deletionDate: z.string().nullable(),
+})
+
 export const awsSecretsManagerDeleteSecretContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/secrets_manager/delete-secret',
   body: DeleteSecretSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: DeleteSecretResponseSchema },
 })
 export type AwsSecretsManagerDeleteSecretRequest = ContractBodyInput<
   typeof awsSecretsManagerDeleteSecretContract

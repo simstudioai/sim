@@ -615,7 +615,7 @@ export type {Service}UploadResponse = z.output<typeof {service}UploadResponseSch
 import { createLogger } from '@sim/logger'
 import { NextResponse, type NextRequest } from 'next/server'
 import { {service}UploadContract } from '@/lib/api/contracts/{service}-tools'
-import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -633,12 +633,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  let data
-  try {
-    ;({ body: data } = await parseRequest({service}UploadContract, request))
-  } catch (error) {
-    return validationErrorResponseFromError(error)
-  }
+  const parsed = await parseRequest({service}UploadContract, request, {})
+  if (!parsed.success) return parsed.response
+  const data = parsed.data.body
 
   let fileBuffer: Buffer
   let fileName: string

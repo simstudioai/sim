@@ -4,11 +4,11 @@ import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  addCopilotChatResourceBodySchema,
-  removeCopilotChatResourceBodySchema,
-  reorderCopilotChatResourcesBodySchema,
+  addCopilotChatResourceContract,
+  removeCopilotChatResourceContract,
+  reorderCopilotChatResourcesContract,
 } from '@/lib/api/contracts/copilot'
-import { validateSchema } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -38,12 +38,17 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const body = await req.json()
-    const validation = validateSchema(addCopilotChatResourceBodySchema, body)
-    if (!validation.success) {
-      return createBadRequestResponse(validation.error.issues.map((e) => e.message).join(', '))
-    }
-    const { chatId, resource } = validation.data
+    const parsed = await parseRequest(
+      addCopilotChatResourceContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          createBadRequestResponse(error.issues.map((e) => e.message).join(', ')),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const { chatId, resource } = parsed.data.body
 
     // Ephemeral UI tab (client does not POST this; guard for old clients / bugs).
     if (resource.id === 'streaming-file') {
@@ -102,12 +107,17 @@ export const PATCH = withRouteHandler(async (req: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const body = await req.json()
-    const validation = validateSchema(reorderCopilotChatResourcesBodySchema, body)
-    if (!validation.success) {
-      return createBadRequestResponse(validation.error.issues.map((e) => e.message).join(', '))
-    }
-    const { chatId, resources: newOrder } = validation.data
+    const parsed = await parseRequest(
+      reorderCopilotChatResourcesContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          createBadRequestResponse(error.issues.map((e) => e.message).join(', ')),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const { chatId, resources: newOrder } = parsed.data.body
 
     const [chat] = await db
       .select({ resources: copilotChats.resources })
@@ -148,12 +158,17 @@ export const DELETE = withRouteHandler(async (req: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const body = await req.json()
-    const validation = validateSchema(removeCopilotChatResourceBodySchema, body)
-    if (!validation.success) {
-      return createBadRequestResponse(validation.error.issues.map((e) => e.message).join(', '))
-    }
-    const { chatId, resourceType, resourceId } = validation.data
+    const parsed = await parseRequest(
+      removeCopilotChatResourceContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          createBadRequestResponse(error.issues.map((e) => e.message).join(', ')),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const { chatId, resourceType, resourceId } = parsed.data.body
 
     const [updated] = await db
       .update(copilotChats)

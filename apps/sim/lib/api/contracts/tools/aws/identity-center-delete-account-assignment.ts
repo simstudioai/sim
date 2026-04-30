@@ -23,11 +23,23 @@ const Schema = z.object({
   principalId: z.string().min(1, 'Principal ID is required'),
 })
 
+const ResponseSchema = z.object({
+  message: z.string(),
+  status: z.string(),
+  requestId: z.string(),
+  accountId: z.string().nullable(),
+  permissionSetArn: z.string().nullable(),
+  principalType: z.string().nullable(),
+  principalId: z.string().nullable(),
+  failureReason: z.string().nullable(),
+  createdDate: z.string().nullable(),
+})
+
 export const awsIdentityCenterDeleteAccountAssignmentContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/identity-center/delete-account-assignment',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ResponseSchema },
 })
 export type AwsIdentityCenterDeleteAccountAssignmentRequest = ContractBodyInput<
   typeof awsIdentityCenterDeleteAccountAssignmentContract

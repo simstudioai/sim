@@ -17,11 +17,18 @@ const StartQuerySchema = z.object({
   workGroup: z.string().optional(),
 })
 
+const StartQueryResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    queryExecutionId: z.string(),
+  }),
+})
+
 export const awsAthenaStartQueryContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/athena/start-query',
   body: StartQuerySchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: StartQueryResponseSchema },
 })
 export type AwsAthenaStartQueryRequest = ContractBodyInput<typeof awsAthenaStartQueryContract>
 export type AwsAthenaStartQueryBody = ContractBody<typeof awsAthenaStartQueryContract>

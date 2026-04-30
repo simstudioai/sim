@@ -13,11 +13,33 @@ const ListStackResourcesSchema = z.object({
   stackName: z.string().min(1, 'Stack name is required'),
 })
 
+const ListStackResourcesResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    resources: z.array(
+      z.object({
+        logicalResourceId: z.string(),
+        physicalResourceId: z.string().optional(),
+        resourceType: z.string(),
+        resourceStatus: z.string(),
+        resourceStatusReason: z.string().optional(),
+        lastUpdatedTimestamp: z.number().optional(),
+        driftInformation: z
+          .object({
+            stackResourceDriftStatus: z.string().optional(),
+            lastCheckTimestamp: z.number().optional(),
+          })
+          .nullable(),
+      })
+    ),
+  }),
+})
+
 export const awsCloudformationListStackResourcesContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/cloudformation/list-stack-resources',
   body: ListStackResourcesSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ListStackResourcesResponseSchema },
 })
 export type AwsCloudformationListStackResourcesRequest = ContractBodyInput<
   typeof awsCloudformationListStackResourcesContract

@@ -4,8 +4,8 @@ import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { forgetPasswordBodySchema } from '@/lib/api/contracts'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { forgetPasswordContract } from '@/lib/api/contracts'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -15,23 +15,23 @@ const logger = createLogger('ForgetPasswordAPI')
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    const body = await request.json()
-
-    const validationResult = forgetPasswordBodySchema.safeParse(body)
-
-    if (!validationResult.success) {
-      logger.warn('Invalid forget password request data', {
-        errors: validationResult.error.issues,
-      })
-      return NextResponse.json(
-        {
-          message: getValidationErrorMessage(validationResult.error, 'Invalid request data'),
+    const parsed = await parseRequest(
+      forgetPasswordContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn('Invalid forget password request data', { errors: error.issues })
+          return NextResponse.json(
+            { message: getValidationErrorMessage(error, 'Invalid request data') },
+            { status: 400 }
+          )
         },
-        { status: 400 }
-      )
-    }
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const { email, redirectTo } = validationResult.data
+    const { email, redirectTo } = parsed.data.body
 
     await auth.api.forgetPassword({
       body: {

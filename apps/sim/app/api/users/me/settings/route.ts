@@ -3,9 +3,9 @@ import { settings } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
-import { updateUserSettingsBodySchema } from '@/lib/api/contracts'
-import { isZodError, validationErrorResponse } from '@/lib/api/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { updateUserSettingsContract } from '@/lib/api/contracts'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -70,7 +70,7 @@ export const GET = withRouteHandler(async () => {
   }
 })
 
-export const PATCH = withRouteHandler(async (request: Request) => {
+export const PATCH = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -84,37 +84,39 @@ export const PATCH = withRouteHandler(async (request: Request) => {
     }
 
     const userId = session.user.id
-    const body = await request.json()
 
-    try {
-      const validatedData = updateUserSettingsBodySchema.parse(body)
+    const parsed = await parseRequest(
+      updateUserSettingsContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid settings data`, { errors: error.issues })
+          return validationErrorResponse(error, 'Invalid settings data')
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-      await db
-        .insert(settings)
-        .values({
-          id: generateShortId(),
-          userId,
+    const validatedData = parsed.data.body
+
+    await db
+      .insert(settings)
+      .values({
+        id: generateShortId(),
+        userId,
+        ...validatedData,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [settings.userId],
+        set: {
           ...validatedData,
           updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [settings.userId],
-          set: {
-            ...validatedData,
-            updatedAt: new Date(),
-          },
-        })
+        },
+      })
 
-      return NextResponse.json({ success: true }, { status: 200 })
-    } catch (validationError) {
-      if (isZodError(validationError)) {
-        logger.warn(`[${requestId}] Invalid settings data`, {
-          errors: validationError.issues,
-        })
-        return validationErrorResponse(validationError, 'Invalid settings data')
-      }
-      throw validationError
-    }
+    return NextResponse.json({ success: true }, { status: 200 })
   } catch (error: any) {
     logger.error(`[${requestId}] Settings update error`, error)
     return NextResponse.json({ success: true }, { status: 200 })

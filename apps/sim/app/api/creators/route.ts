@@ -6,10 +6,10 @@ import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   type CreatorProfileDetails,
-  createCreatorProfileBodySchema,
+  createCreatorProfileContract,
   listCreatorProfilesQuerySchema,
 } from '@/lib/api/contracts/creator-profile'
-import { isZodError, validationErrorResponse } from '@/lib/api/server'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -106,10 +106,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const data = createCreatorProfileBodySchema.parse(body)
+    const parsed = await parseRequest(
+      createCreatorProfileContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid profile data`, { errors: error.issues })
+          return validationErrorResponse(error, 'Invalid profile data')
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const data = parsed.data.body
 
-    // Validate permissions
     if (data.referenceType === 'user') {
       if (data.referenceId !== session.user.id) {
         logger.warn(`[${requestId}] User tried to create profile for another user`)
@@ -190,11 +200,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ data: newProfile }, { status: 201 })
   } catch (error) {
-    if (isZodError(error)) {
-      logger.warn(`[${requestId}] Invalid profile data`, { errors: error.issues })
-      return validationErrorResponse(error, 'Invalid profile data')
-    }
-
     logger.error(`[${requestId}] Error creating creator profile`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

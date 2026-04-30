@@ -18,11 +18,16 @@ const SendMessageSchema = z.object({
   }),
 })
 
+const SendMessageResponseSchema = z.object({
+  message: z.string(),
+  id: z.string().optional(),
+})
+
 export const awsSqsSendContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/sqs/send',
   body: SendMessageSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: SendMessageResponseSchema },
 })
 export type AwsSqsSendRequest = ContractBodyInput<typeof awsSqsSendContract>
 export type AwsSqsSendBody = ContractBody<typeof awsSqsSendContract>

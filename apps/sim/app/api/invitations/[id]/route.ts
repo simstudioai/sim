@@ -7,9 +7,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import {
   invitationParamsSchema,
   invitationQuerySchema,
-  updateInvitationBodySchema,
+  updateInvitationContract,
 } from '@/lib/api/contracts/invitations'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -90,20 +90,18 @@ export const GET = withRouteHandler(
 )
 
 export const PATCH = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const parsedParams = invitationParamsSchema.safeParse(await params)
-    if (!parsedParams.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(parsedParams.error) },
-        { status: 400 }
-      )
-    }
-    const { id } = parsedParams.data
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const session = await getSession()
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const parsed = await parseRequest(updateInvitationContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id } = parsed.data.params
+    const { role, grants } = parsed.data.body
 
     try {
       const inv = await getInvitationById(id)
@@ -114,17 +112,6 @@ export const PATCH = withRouteHandler(
       if (inv.status !== 'pending') {
         return NextResponse.json({ error: 'Can only modify pending invitations' }, { status: 400 })
       }
-
-      const body = await request.json().catch(() => ({}))
-      const parsed = updateInvitationBodySchema.safeParse(body)
-      if (!parsed.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(parsed.error, 'Invalid request body') },
-          { status: 400 }
-        )
-      }
-
-      const { role, grants } = parsed.data
 
       if (role !== undefined) {
         if (inv.membershipIntent === 'external') {

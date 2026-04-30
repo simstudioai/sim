@@ -5,8 +5,8 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { workflowVariablesBodySchema } from '@/lib/api/contracts/workflows'
-import { parseJsonBody, validateSchema } from '@/lib/api/server'
+import { workflowVariablesContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -15,9 +15,9 @@ import type { Variable } from '@/stores/variables/types'
 const logger = createLogger('WorkflowVariablesAPI')
 
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const workflowId = (await params).id
+    const workflowId = (await context.params).id
 
     try {
       const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
@@ -50,22 +50,9 @@ export const POST = withRouteHandler(
         )
       }
 
-      const parsedBody = await parseJsonBody(req)
-      if (!parsedBody.success) return parsedBody.response
-
-      const validation = validateSchema(
-        workflowVariablesBodySchema,
-        parsedBody.data,
-        'Invalid request data'
-      )
-      if (!validation.success) {
-        logger.warn(`[${requestId}] Invalid workflow variables data`, {
-          errors: validation.error.issues,
-        })
-        return validation.response
-      }
-
-      const { variables } = validation.data
+      const parsed = await parseRequest(workflowVariablesContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { variables } = parsed.data.body
       const mismatchedVariable = Object.values(variables).find(
         (variable) => variable.workflowId !== workflowId
       )

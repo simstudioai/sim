@@ -20,11 +20,20 @@ const Schema = z.object({
   path: z.string().optional().nullable(),
 })
 
+const CreateUserResponseSchema = z.object({
+  message: z.string(),
+  userName: z.string(),
+  userId: z.string(),
+  arn: z.string(),
+  path: z.string(),
+  createDate: z.string().nullable(),
+})
+
 export const awsIamCreateUserContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/iam/create-user',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: CreateUserResponseSchema },
 })
 export type AwsIamCreateUserRequest = ContractBodyInput<typeof awsIamCreateUserContract>
 export type AwsIamCreateUserBody = ContractBody<typeof awsIamCreateUserContract>

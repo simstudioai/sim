@@ -2,10 +2,10 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  createKnowledgeBaseBodySchema,
+  createKnowledgeBaseContract,
   listKnowledgeBasesQuerySchema,
 } from '@/lib/api/contracts/knowledge'
-import { isZodError } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -69,11 +69,25 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
+    const parsed = await parseRequest(
+      createKnowledgeBaseContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid knowledge base data`, { errors: error.issues })
+          return NextResponse.json(
+            { error: 'Invalid request data', details: error.issues },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const validatedData = parsed.data.body
 
     try {
-      const validatedData = createKnowledgeBaseBodySchema.parse(body)
-
       const createData = {
         ...validatedData,
         userId: session.user.id,
@@ -136,23 +150,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         success: true,
         data: newKnowledgeBase,
       })
-    } catch (validationError) {
-      if (isZodError(validationError)) {
-        logger.warn(`[${requestId}] Invalid knowledge base data`, {
-          errors: validationError.issues,
-        })
-        return NextResponse.json(
-          { error: 'Invalid request data', details: validationError.issues },
-          { status: 400 }
-        )
+    } catch (createError) {
+      if (createError instanceof KnowledgeBaseConflictError) {
+        return NextResponse.json({ error: createError.message }, { status: 409 })
       }
-      throw validationError
+      throw createError
     }
   } catch (error) {
-    if (error instanceof KnowledgeBaseConflictError) {
-      return NextResponse.json({ error: error.message }, { status: 409 })
-    }
-
     logger.error(`[${requestId}] Error creating knowledge base`, error)
     return NextResponse.json({ error: 'Failed to create knowledge base' }, { status: 500 })
   }

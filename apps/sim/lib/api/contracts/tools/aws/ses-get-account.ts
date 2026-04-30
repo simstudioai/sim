@@ -18,11 +18,18 @@ const GetAccountSchema = z.object({
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
 })
 
+const GetAccountResponseSchema = z.object({
+  sendingEnabled: z.boolean(),
+  max24HourSend: z.number(),
+  maxSendRate: z.number(),
+  sentLast24Hours: z.number(),
+})
+
 export const awsSesGetAccountContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/ses/get-account',
   body: GetAccountSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: GetAccountResponseSchema },
 })
 export type AwsSesGetAccountRequest = ContractBodyInput<typeof awsSesGetAccountContract>
 export type AwsSesGetAccountBody = ContractBody<typeof awsSesGetAccountContract>

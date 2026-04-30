@@ -21,11 +21,18 @@ const GetSessionTokenSchema = z.object({
   tokenCode: z.string().nullish(),
 })
 
+const GetSessionTokenResponseSchema = z.object({
+  accessKeyId: z.string(),
+  secretAccessKey: z.string(),
+  sessionToken: z.string(),
+  expiration: z.string().nullable(),
+})
+
 export const awsStsGetSessionTokenContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/sts/get-session-token',
   body: GetSessionTokenSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: GetSessionTokenResponseSchema },
 })
 export type AwsStsGetSessionTokenRequest = ContractBodyInput<typeof awsStsGetSessionTokenContract>
 export type AwsStsGetSessionTokenBody = ContractBody<typeof awsStsGetSessionTokenContract>

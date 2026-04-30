@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsIamCreateAccessKeyContract } from '@/lib/api/contracts/tools/aws/iam-create-access-key'
-import { parseAwsToolRequest } from '@/lib/api/server'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createAccessKey, createIAMClient } from '../utils'
@@ -16,7 +16,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const parsed = await parseAwsToolRequest(awsIamCreateAccessKeyContract, request, {
+    const parsed = await parseToolRequest(awsIamCreateAccessKeyContract, request, {
       errorFormat: 'details',
       logger,
     })

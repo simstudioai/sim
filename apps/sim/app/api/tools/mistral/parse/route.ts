@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { mistralParseBodySchema } from '@/lib/api/contracts/media-tools'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { mistralParseContract } from '@/lib/api/contracts/media-tools'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -39,20 +39,28 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = authResult.userId
-    const body = await request.json()
-    const validation = validateSchema(mistralParseBodySchema, body)
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: validation.error.issues })
-      return NextResponse.json(
-        {
-          success: false,
-          error: getValidationErrorMessage(validation.error, 'Invalid request data'),
-          details: validation.error.issues,
+
+    const parsed = await parseRequest(
+      mistralParseContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid request data`, { errors: error.issues })
+          return NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request data'),
+              details: error.issues,
+            },
+            { status: 400 }
+          )
         },
-        { status: 400 }
-      )
-    }
-    const validatedData = validation.data
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const validatedData = parsed.data.body
 
     const fileData = validatedData.file || validatedData.fileData
     const filePath = typeof fileData === 'string' ? fileData : validatedData.filePath

@@ -146,6 +146,11 @@ export interface NotificationServerLimits {
   maxWorkflowIds: number
 }
 
+export const NOTIFICATION_SERVER_LIMITS: NotificationServerLimits = {
+  maxEmailRecipients: 10,
+  maxWorkflowIds: 1000,
+}
+
 export function buildServerCreateNotificationSchema(limits: NotificationServerLimits) {
   return z
     .object({
@@ -226,11 +231,37 @@ export const createNotificationContract = defineRouteContract({
   },
 })
 
+export const createNotificationServerContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/notifications',
+  params: notificationWorkspaceParamsSchema,
+  body: buildServerCreateNotificationSchema(NOTIFICATION_SERVER_LIMITS),
+  response: {
+    mode: 'json',
+    schema: z.object({
+      data: notificationSubscriptionSchema,
+    }),
+  },
+})
+
 export const updateNotificationContract = defineRouteContract({
   method: 'PUT',
   path: '/api/workspaces/[id]/notifications/[notificationId]',
   params: notificationParamsSchema,
   body: updateNotificationBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      data: notificationSubscriptionSchema,
+    }),
+  },
+})
+
+export const updateNotificationServerContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/workspaces/[id]/notifications/[notificationId]',
+  params: notificationParamsSchema,
+  body: buildServerUpdateNotificationSchema(NOTIFICATION_SERVER_LIMITS),
   response: {
     mode: 'json',
     schema: z.object({

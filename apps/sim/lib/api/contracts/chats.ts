@@ -187,6 +187,17 @@ export const authenticateDeployedChatContract = defineRouteContract({
   },
 })
 
+export const deployedChatPostContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/chat/[identifier]',
+  params: chatIdentifierParamsSchema,
+  body: deployedChatPostBodySchema,
+  response: {
+    mode: 'json',
+    schema: deployedChatConfigSchema,
+  },
+})
+
 export const requestChatEmailOtpContract = defineRouteContract({
   method: 'POST',
   path: '/api/chat/[identifier]/otp',

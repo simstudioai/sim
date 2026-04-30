@@ -309,27 +309,29 @@ export const speechTokenBodySchema = z
   .passthrough()
 
 export const fileManageQuerySchema = z.object({
-  userId: z.string().min(1).nullable(),
-  workspaceId: z.string().min(1).nullable(),
+  userId: z.string().min(1).nullable().optional(),
+  workspaceId: z.string().min(1).nullable().optional(),
 })
 
-export const fileManageBaseBodySchema = z.object({
-  workspaceId: z.string().min(1).optional(),
-  operation: z.string().min(1, 'operation is required'),
-})
-
-export const fileManageWriteBodySchema = fileManageBaseBodySchema.extend({
+export const fileManageWriteBodySchema = z.object({
   operation: z.literal('write'),
+  workspaceId: z.string().min(1).optional(),
   fileName: z.string({ error: 'fileName is required for write operation' }).min(1),
   content: z.string({ error: 'content is required for write operation' }),
   contentType: z.string().optional(),
 })
 
-export const fileManageAppendBodySchema = fileManageBaseBodySchema.extend({
+export const fileManageAppendBodySchema = z.object({
   operation: z.literal('append'),
+  workspaceId: z.string().min(1).optional(),
   fileName: z.string({ error: 'fileName is required for append operation' }).min(1),
   content: z.string({ error: 'content is required for append operation' }),
 })
+
+export const fileManageBodySchema = z.discriminatedUnion('operation', [
+  fileManageWriteBodySchema,
+  fileManageAppendBodySchema,
+])
 
 const toolJsonResponseSchema = z.record(z.string(), z.unknown())
 
@@ -421,5 +423,13 @@ export const speechTokenContract = defineRouteContract({
   method: 'POST',
   path: '/api/speech/token',
   body: speechTokenBodySchema,
+  response: { mode: 'json', schema: toolJsonResponseSchema },
+})
+
+export const fileManageContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/file/manage',
+  query: fileManageQuerySchema,
+  body: fileManageBodySchema,
   response: { mode: 'json', schema: toolJsonResponseSchema },
 })

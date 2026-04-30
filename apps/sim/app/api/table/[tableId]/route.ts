@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getTableQuerySchema, renameTableBodySchema } from '@/lib/api/contracts/tables'
-import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
+import { getTableQuerySchema, renameTableContract } from '@/lib/api/contracts/tables'
+import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -83,7 +83,6 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Tab
 export const PATCH = withRouteHandler(
   async (request: NextRequest, { params }: TableRouteParams) => {
     const requestId = generateRequestId()
-    const { tableId } = await params
 
     try {
       const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -92,8 +91,18 @@ export const PATCH = withRouteHandler(
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      const body = await request.json()
-      const validated = renameTableBodySchema.parse(body)
+      const parsed = await parseRequest(
+        renameTableContract,
+        request,
+        { params },
+        {
+          validationErrorResponse: (error) => validationErrorResponse(error),
+        }
+      )
+      if (!parsed.success) return parsed.response
+
+      const { tableId } = parsed.data.params
+      const validated = parsed.data.body
 
       const result = await checkAccess(tableId, authResult.userId, 'write')
       if (!result.ok) return accessError(result, requestId, tableId)
@@ -111,10 +120,6 @@ export const PATCH = withRouteHandler(
         data: { table: updated },
       })
     } catch (error) {
-      if (isZodError(error)) {
-        return validationErrorResponse(error)
-      }
-
       if (error instanceof TableConflictError) {
         return NextResponse.json({ error: error.message }, { status: 409 })
       }

@@ -6,8 +6,8 @@ import { generateId, generateShortId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { webhooksRouteQuerySchema, webhookUpsertBodySchema } from '@/lib/api/contracts/webhooks'
-import { validateSchema } from '@/lib/api/server'
+import { listWebhooksContract, upsertWebhookContract } from '@/lib/api/contracts/webhooks'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -69,13 +69,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const queryValidation = validateSchema(webhooksRouteQuerySchema, {
-      workflowId: searchParams.get('workflowId'),
-      blockId: searchParams.get('blockId'),
-    })
-    if (!queryValidation.success) return queryValidation.response
-    const { workflowId, blockId } = queryValidation.data
+    const parsed = await parseRequest(listWebhooksContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { workflowId, blockId } = parsed.data.query
 
     if (workflowId && blockId) {
       // Collaborative-aware path: allow collaborators with read access to view webhooks
@@ -189,19 +185,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const bodyResult = validateSchema(
-      webhookUpsertBodySchema,
-      await request.json(),
-      'Invalid request data'
-    )
-    if (!bodyResult.success) {
-      logger.warn(`[${requestId}] Invalid webhook request data`, {
-        issues: bodyResult.error.issues,
-      })
-      return bodyResult.response
-    }
+    const parsed = await parseRequest(upsertWebhookContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const body = bodyResult.data
+    const body = parsed.data.body
     const { workflowId, path, providerConfig, blockId } = body
     const provider = body.provider || ''
 

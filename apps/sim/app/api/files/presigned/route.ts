@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { presignedUrlBodySchema, uploadTypeSchema } from '@/lib/api/contracts/storage-transfer'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { presignedUploadBodyContract, uploadTypeSchema } from '@/lib/api/contracts/storage-transfer'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles } from '@/lib/uploads'
@@ -14,7 +14,6 @@ import { createErrorResponse } from '@/app/api/files/utils'
 
 const logger = createLogger('PresignedUploadAPI')
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024
 const VALID_UPLOAD_TYPES = ['knowledge-base', 'chat', 'copilot', 'profile-pictures'] as const
 
 class PresignedUrlError extends Error {
@@ -41,38 +40,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    let rawData: unknown
-    try {
-      rawData = await request.json()
-    } catch {
-      throw new ValidationError('Invalid JSON in request body')
-    }
+    const parsed = await parseRequest(
+      presignedUploadBodyContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          throw new ValidationError(getValidationErrorMessage(error, 'Invalid request data'))
+        },
+        invalidJsonResponse: () => {
+          throw new ValidationError('Invalid JSON in request body')
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const validationResult = presignedUrlBodySchema.safeParse(rawData)
-    if (!validationResult.success) {
-      throw new ValidationError(
-        getValidationErrorMessage(validationResult.error, 'Invalid request data')
-      )
-    }
-
-    const data = validationResult.data
-    const { fileName, contentType, fileSize } = data
-
-    if (!fileName?.trim()) {
-      throw new ValidationError('fileName is required and cannot be empty')
-    }
-    if (!contentType?.trim()) {
-      throw new ValidationError('contentType is required and cannot be empty')
-    }
-    if (!fileSize || fileSize <= 0) {
-      throw new ValidationError('fileSize must be a positive number')
-    }
-
-    if (fileSize > MAX_FILE_SIZE) {
-      throw new ValidationError(
-        `File size (${fileSize} bytes) exceeds maximum allowed size (${MAX_FILE_SIZE} bytes)`
-      )
-    }
+    const { fileName, contentType, fileSize } = parsed.data.body
 
     const uploadTypeParam = request.nextUrl.searchParams.get('type')
     if (!uploadTypeParam) {

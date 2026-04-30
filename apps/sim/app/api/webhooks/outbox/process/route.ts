@@ -1,8 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { noInputSchema } from '@/lib/api/contracts/primitives'
-import { validateSchema } from '@/lib/api/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
 import { processOutboxEvents } from '@/lib/core/outbox/service'
@@ -22,9 +20,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const validation = validateSchema(noInputSchema, {})
-    if (!validation.success) return validation.response
-
     const authError = verifyCronAuth(request, 'Outbox processor')
     if (authError) {
       return authError

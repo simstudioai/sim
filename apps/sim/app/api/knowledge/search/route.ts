@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { knowledgeSearchBodySchema } from '@/lib/api/contracts/knowledge'
-import { parseJsonBody, validateSchema } from '@/lib/api/server'
+import { parseJsonBody, validationErrorResponse } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -55,12 +55,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
-    const validation = validateSchema(
-      knowledgeSearchBodySchema,
-      searchParams,
-      'Invalid request data'
-    )
-    if (!validation.success) return validation.response
+    const validation = knowledgeSearchBodySchema.safeParse(searchParams)
+    if (!validation.success) return validationErrorResponse(validation.error)
     const validatedData = validation.data
 
     const knowledgeBaseIds = Array.isArray(validatedData.knowledgeBaseIds)

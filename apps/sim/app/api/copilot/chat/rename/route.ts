@@ -3,8 +3,8 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { renameCopilotChatBodySchema } from '@/lib/api/contracts/copilot'
-import { validateSchema } from '@/lib/api/server'
+import { renameCopilotChatContract } from '@/lib/api/contracts/copilot'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
 import { taskPubSub } from '@/lib/copilot/tasks'
@@ -19,10 +19,16 @@ export const PATCH = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validation = validateSchema(renameCopilotChatBodySchema, body, 'Invalid request data')
-    if (!validation.success) return validation.response
-    const { chatId, title } = validation.data
+    const parsed = await parseRequest(
+      renameCopilotChatContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => validationErrorResponse(error, 'Invalid request data'),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const { chatId, title } = parsed.data.body
 
     const chat = await getAccessibleCopilotChat(chatId, session.user.id)
     if (!chat) {

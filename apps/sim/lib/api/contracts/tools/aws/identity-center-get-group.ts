@@ -20,11 +20,17 @@ const Schema = z.object({
   displayName: z.string().min(1, 'Group display name is required'),
 })
 
+const ResponseSchema = z.object({
+  groupId: z.string(),
+  displayName: z.string().nullable(),
+  description: z.string().nullable(),
+})
+
 export const awsIdentityCenterGetGroupContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/identity-center/get-group',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ResponseSchema },
 })
 export type AwsIdentityCenterGetGroupRequest = ContractBodyInput<
   typeof awsIdentityCenterGetGroupContract

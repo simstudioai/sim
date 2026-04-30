@@ -2,12 +2,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { playHtOutputFormatSchema, ttsUnifiedToolBodySchema } from '@/lib/api/contracts/media-tools'
-import {
-  getValidationErrorMessage,
-  validateSchema,
-  validationErrorResponse,
-} from '@/lib/api/server'
+import { playHtOutputFormatSchema, ttsUnifiedToolContract } from '@/lib/api/contracts/media-tools'
+import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -41,15 +37,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const validation = validateSchema(ttsUnifiedToolBodySchema, await request.json())
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid TTS unified request:`, validation.error.issues)
-      return validationErrorResponse(
-        validation.error,
-        getValidationErrorMessage(validation.error, 'Invalid request data')
-      )
-    }
-    const body = validation.data
+    const parsed = await parseRequest(
+      ttsUnifiedToolContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid TTS unified request:`, error.issues)
+          return validationErrorResponse(
+            error,
+            getValidationErrorMessage(error, 'Invalid request data')
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const body = parsed.data.body
     const { provider, text, apiKey, workspaceId, workflowId, executionId } = body
 
     const executionContext =

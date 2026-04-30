@@ -4,8 +4,8 @@ import { account, credentialSet, credentialSetMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, like, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { disconnectOAuthBodySchema } from '@/lib/api/contracts/oauth-connections'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { disconnectOAuthContract } from '@/lib/api/contracts/oauth-connections'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -29,21 +29,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
-    const rawBody = await request.json()
-    const parseResult = disconnectOAuthBodySchema.safeParse(rawBody)
+    const parsed = await parseRequest(
+      disconnectOAuthContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid disconnect request`, { errors: error.issues })
+          return NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Validation failed') },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!parseResult.success) {
-      logger.warn(`[${requestId}] Invalid disconnect request`, {
-        errors: parseResult.error.issues,
-      })
-
-      return NextResponse.json(
-        { error: getValidationErrorMessage(parseResult.error, 'Validation failed') },
-        { status: 400 }
-      )
-    }
-
-    const { provider, providerId, accountId } = parseResult.data
+    const { provider, providerId, accountId } = parsed.data.body
 
     logger.info(`[${requestId}] Processing OAuth disconnect request`, {
       provider,

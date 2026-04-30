@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { renderHelpConfirmationEmail } from '@/components/emails'
 import { helpFormBodySchema } from '@/lib/api/contracts/common'
-import { validateSchema } from '@/lib/api/server'
+import { validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -39,7 +39,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       email: `${email.substring(0, 3)}***`, // Log partial email for privacy
     })
 
-    const validationResult = validateSchema(helpFormBodySchema, {
+    const validationResult = helpFormBodySchema.safeParse({
       subject,
       message,
       type,
@@ -49,7 +49,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       logger.warn(`[${requestId}] Invalid help request data`, {
         issues: validationResult.error.issues,
       })
-      return validationResult.response
+      return validationErrorResponse(validationResult.error)
     }
 
     const images: { filename: string; content: Buffer; contentType: string }[] = []

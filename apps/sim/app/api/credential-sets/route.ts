@@ -4,12 +4,12 @@ import { credentialSet, credentialSetMember, member, organization, user } from '
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, count, desc, eq } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import {
-  createCredentialSetBodySchema,
+  createCredentialSetContract,
   listCredentialSetsQuerySchema,
 } from '@/lib/api/contracts/credential-sets'
-import { getValidationErrorMessage, isZodError } from '@/lib/api/server'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -95,7 +95,7 @@ export const GET = withRouteHandler(async (req: Request) => {
   return NextResponse.json({ credentialSets: setsWithCounts })
 })
 
-export const POST = withRouteHandler(async (req: Request) => {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const session = await getSession()
 
   if (!session?.user?.id) {
@@ -112,9 +112,18 @@ export const POST = withRouteHandler(async (req: Request) => {
   }
 
   try {
-    const body = await req.json()
-    const { organizationId, name, description, providerId } =
-      createCredentialSetBodySchema.parse(body)
+    const parsed = await parseRequest(
+      createCredentialSetContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const { organizationId, name, description, providerId } = parsed.data.body
 
     const membership = await db
       .select({ id: member.id, role: member.role })
@@ -201,9 +210,6 @@ export const POST = withRouteHandler(async (req: Request) => {
       { status: 201 }
     )
   } catch (error) {
-    if (isZodError(error)) {
-      return NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 })
-    }
     logger.error('Error creating credential set', error)
     return NextResponse.json({ error: 'Failed to create credential set' }, { status: 500 })
   }

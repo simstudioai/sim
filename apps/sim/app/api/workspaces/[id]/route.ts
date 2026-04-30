@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteWorkspaceBodySchema, updateWorkspaceContract } from '@/lib/api/contracts'
-import { parseRequest, validateSchema } from '@/lib/api/server'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
@@ -285,8 +285,8 @@ export const DELETE = withRouteHandler(
 
     const workspaceId = id
     const rawBody = await request.json().catch(() => ({}))
-    const bodyValidation = validateSchema(deleteWorkspaceBodySchema, rawBody)
-    if (!bodyValidation.success) return bodyValidation.response
+    const bodyValidation = deleteWorkspaceBodySchema.safeParse(rawBody)
+    if (!bodyValidation.success) return validationErrorResponse(bodyValidation.error)
     const { deleteTemplates } = bodyValidation.data // User's choice: false = keep templates (recommended), true = delete templates
 
     // Check if user has admin permissions to delete workspace

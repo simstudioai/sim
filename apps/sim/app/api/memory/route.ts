@@ -5,12 +5,12 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, like } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  memoryDeleteQuerySchema,
-  memoryListQuerySchema,
+  createMemoryContract,
+  deleteMemoryByQueryContract,
+  listMemoriesContract,
   memoryMessageSchema,
-  memoryPostBodySchema,
-} from '@/lib/api/contracts/primitives'
-import { validateSchema } from '@/lib/api/server'
+} from '@/lib/api/contracts/memory'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -34,13 +34,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const url = new URL(request.url)
-    const queryValidation = validateSchema(
-      memoryListQuerySchema,
-      Object.fromEntries(url.searchParams.entries())
-    )
-    if (!queryValidation.success) return queryValidation.response
-    const { workspaceId, query: searchQuery, limit } = queryValidation.data
+    const validation = await parseRequest(listMemoriesContract, request, {})
+    if (!validation.success) return validation.response
+    const { workspaceId, query: searchQuery, limit } = validation.data.query
 
     if (!workspaceId) {
       return NextResponse.json(
@@ -110,11 +106,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const bodyResult = validateSchema(memoryPostBodySchema, await request.json())
-    const body = bodyResult.success
-      ? bodyResult.data
-      : { key: undefined, data: undefined, workspaceId: undefined }
-    const { key, data, workspaceId } = body
+    const validation = await parseRequest(createMemoryContract, request, {})
+    if (!validation.success) return validation.response
+    const { key, data, workspaceId } = validation.data.body
 
     if (!key) {
       return NextResponse.json(
@@ -161,7 +155,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const dataToValidate = Array.isArray(data) ? data : [data]
 
     for (const msg of dataToValidate) {
-      const parsedMessage = validateSchema(memoryMessageSchema, msg)
+      const parsedMessage = memoryMessageSchema.safeParse(msg)
       if (!parsedMessage.success) {
         const role =
           msg && typeof msg === 'object' && 'role' in msg
@@ -258,13 +252,9 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const url = new URL(request.url)
-    const queryValidation = validateSchema(
-      memoryDeleteQuerySchema,
-      Object.fromEntries(url.searchParams.entries())
-    )
-    if (!queryValidation.success) return queryValidation.response
-    const { workspaceId, conversationId } = queryValidation.data
+    const validation = await parseRequest(deleteMemoryByQueryContract, request, {})
+    if (!validation.success) return validation.response
+    const { workspaceId, conversationId } = validation.data.query
 
     if (!workspaceId) {
       return NextResponse.json(

@@ -1,7 +1,8 @@
 import { GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { visionAnalyzeBodySchema } from '@/lib/api/contracts/media-tools'
+import { visionAnalyzeContract } from '@/lib/api/contracts/media-tools'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -42,8 +43,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     const userId = authResult.userId
-    const body = await request.json()
-    const validatedData = visionAnalyzeBodySchema.parse(body)
+
+    const parsed = await parseRequest(visionAnalyzeContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const validatedData = parsed.data.body
 
     if (!validatedData.imageUrl && !validatedData.imageFile) {
       return NextResponse.json(

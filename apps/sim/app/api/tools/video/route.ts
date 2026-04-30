@@ -2,12 +2,8 @@ import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { videoProviders, videoToolBodySchema } from '@/lib/api/contracts/media-tools'
-import {
-  getValidationErrorMessage,
-  validateSchema,
-  validationErrorResponse,
-} from '@/lib/api/server'
+import { videoProviders, videoToolContract } from '@/lib/api/contracts/media-tools'
+import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -29,15 +25,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const validation = validateSchema(videoToolBodySchema, await request.json())
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid video request:`, validation.error.issues)
-      return validationErrorResponse(
-        validation.error,
-        getValidationErrorMessage(validation.error, 'Invalid request data')
-      )
-    }
-    const body = validation.data
+    const parsed = await parseRequest(
+      videoToolContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid video request:`, error.issues)
+          return validationErrorResponse(
+            error,
+            getValidationErrorMessage(error, 'Invalid request data')
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const body = parsed.data.body
     const { provider, apiKey, model, prompt, duration, aspectRatio, resolution } = body
 
     const validProviders = videoProviders

@@ -4,9 +4,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import {
   deleteSkillQuerySchema,
   listSkillsQuerySchema,
-  upsertSkillsBodySchema,
+  upsertSkillsContract,
 } from '@/lib/api/contracts'
-import { isZodError } from '@/lib/api/server'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -67,19 +67,31 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     const userId = authResult.userId
-    const body = await req.json()
+
+    const parsed = await parseRequest(
+      upsertSkillsContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid skills data`, { errors: error.issues })
+          return validationErrorResponse(error, 'Invalid request data')
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const { skills, workspaceId, source } = parsed.data.body
+
+    const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+    if (!userPermission || (userPermission !== 'admin' && userPermission !== 'write')) {
+      logger.warn(
+        `[${requestId}] User ${userId} does not have write permission for workspace ${workspaceId}`
+      )
+      return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
+    }
 
     try {
-      const { skills, workspaceId, source } = upsertSkillsBodySchema.parse(body)
-
-      const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (!userPermission || (userPermission !== 'admin' && userPermission !== 'write')) {
-        logger.warn(
-          `[${requestId}] User ${userId} does not have write permission for workspace ${workspaceId}`
-        )
-        return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
-      }
-
       const resultSkills = await upsertSkills({
         skills,
         workspaceId,
@@ -109,20 +121,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       }
 
       return NextResponse.json({ success: true, data: resultSkills })
-    } catch (validationError) {
-      if (isZodError(validationError)) {
-        logger.warn(`[${requestId}] Invalid skills data`, {
-          errors: validationError.issues,
-        })
-        return NextResponse.json(
-          { error: 'Invalid request data', details: validationError.issues },
-          { status: 400 }
-        )
+    } catch (upsertError) {
+      if (upsertError instanceof Error && upsertError.message.includes('already exists')) {
+        return NextResponse.json({ error: upsertError.message }, { status: 409 })
       }
-      if (validationError instanceof Error && validationError.message.includes('already exists')) {
-        return NextResponse.json({ error: validationError.message }, { status: 409 })
-      }
-      throw validationError
+      throw upsertError
     }
   } catch (error) {
     logger.error(`[${requestId}] Error updating skills`, error)

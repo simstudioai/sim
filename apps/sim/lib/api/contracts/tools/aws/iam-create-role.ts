@@ -23,11 +23,20 @@ const Schema = z.object({
   maxSessionDuration: z.number().int().min(3600).max(43200).optional().nullable(),
 })
 
+const CreateRoleResponseSchema = z.object({
+  message: z.string(),
+  roleName: z.string(),
+  roleId: z.string(),
+  arn: z.string(),
+  path: z.string(),
+  createDate: z.string().nullable(),
+})
+
 export const awsIamCreateRoleContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/iam/create-role',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: CreateRoleResponseSchema },
 })
 export type AwsIamCreateRoleRequest = ContractBodyInput<typeof awsIamCreateRoleContract>
 export type AwsIamCreateRoleBody = ContractBody<typeof awsIamCreateRoleContract>

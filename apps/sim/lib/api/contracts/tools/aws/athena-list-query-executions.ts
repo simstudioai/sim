@@ -18,11 +18,19 @@ const ListQueryExecutionsSchema = z.object({
   nextToken: z.string().optional(),
 })
 
+const ListQueryExecutionsResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    queryExecutionIds: z.array(z.string()),
+    nextToken: z.string().nullable(),
+  }),
+})
+
 export const awsAthenaListQueryExecutionsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/athena/list-query-executions',
   body: ListQueryExecutionsSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ListQueryExecutionsResponseSchema },
 })
 export type AwsAthenaListQueryExecutionsRequest = ContractBodyInput<
   typeof awsAthenaListQueryExecutionsContract

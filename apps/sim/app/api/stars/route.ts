@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { noInputSchema } from '@/lib/api/contracts/primitives'
-import { validateSchema } from '@/lib/api/server'
+import { validationErrorResponse } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -15,11 +15,10 @@ function formatStarCount(num: number): string {
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
-    const queryValidation = validateSchema(
-      noInputSchema,
+    const queryValidation = noInputSchema.safeParse(
       Object.fromEntries(request.nextUrl.searchParams.entries())
     )
-    if (!queryValidation.success) return queryValidation.response
+    if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
 
     const token = env.GITHUB_TOKEN
     const response = await fetch('https://api.github.com/repos/simstudioai/sim', {

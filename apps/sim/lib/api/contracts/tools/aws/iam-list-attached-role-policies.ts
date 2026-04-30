@@ -22,11 +22,23 @@ const Schema = z.object({
   marker: z.string().optional().nullable(),
 })
 
+const ListAttachedRolePoliciesResponseSchema = z.object({
+  attachedPolicies: z.array(
+    z.object({
+      policyName: z.string(),
+      policyArn: z.string(),
+    })
+  ),
+  isTruncated: z.boolean(),
+  marker: z.string().nullable(),
+  count: z.number(),
+})
+
 export const awsIamListAttachedRolePoliciesContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/iam/list-attached-role-policies',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: ListAttachedRolePoliciesResponseSchema },
 })
 export type AwsIamListAttachedRolePoliciesRequest = ContractBodyInput<
   typeof awsIamListAttachedRolePoliciesContract

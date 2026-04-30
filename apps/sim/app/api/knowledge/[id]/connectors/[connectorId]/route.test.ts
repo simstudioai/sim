@@ -162,7 +162,7 @@ describe('Knowledge Connector By ID API Route', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data.error).toBe('Invalid request')
+      expect(data.error).toBe('Validation error')
     })
 
     it('returns 404 when connector not found during sourceConfig validation', async () => {

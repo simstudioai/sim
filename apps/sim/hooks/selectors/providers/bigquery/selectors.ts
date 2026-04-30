@@ -1,5 +1,5 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { ensureCredential, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -19,18 +19,15 @@ export const bigquerySelectors = {
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'bigquery.datasets')
       if (!context.projectId) throw new Error('Missing project ID for bigquery.datasets selector')
-      const data = await requestSelectorContract(
-        selectorContracts.bigQueryDatasetsSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-            projectId: context.projectId,
-            impersonateEmail: context.impersonateUserEmail,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.bigQueryDatasetsSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+          projectId: context.projectId,
+          impersonateEmail: context.impersonateUserEmail,
+        },
+        signal,
+      })
       return (data.datasets || []).map((ds) => ({
         id: ds.datasetReference.datasetId,
         label: ds.friendlyName || ds.datasetReference.datasetId,
@@ -39,18 +36,15 @@ export const bigquerySelectors = {
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId || !context.projectId) return null
       const credentialId = ensureCredential(context, 'bigquery.datasets')
-      const data = await requestSelectorContract(
-        selectorContracts.bigQueryDatasetsSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-            projectId: context.projectId,
-            impersonateEmail: context.impersonateUserEmail,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.bigQueryDatasetsSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+          projectId: context.projectId,
+          impersonateEmail: context.impersonateUserEmail,
+        },
+        signal,
+      })
       const ds =
         (data.datasets || []).find((d) => d.datasetReference.datasetId === detailId) ?? null
       if (!ds) return null
@@ -78,7 +72,7 @@ export const bigquerySelectors = {
       const credentialId = ensureCredential(context, 'bigquery.tables')
       if (!context.projectId) throw new Error('Missing project ID for bigquery.tables selector')
       if (!context.datasetId) throw new Error('Missing dataset ID for bigquery.tables selector')
-      const data = await requestSelectorContract(selectorContracts.bigQueryTablesSelectorContract, {
+      const data = await requestJson(selectorContracts.bigQueryTablesSelectorContract, {
         body: {
           credential: credentialId,
           workflowId: context.workflowId,
@@ -96,7 +90,7 @@ export const bigquerySelectors = {
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId || !context.projectId || !context.datasetId) return null
       const credentialId = ensureCredential(context, 'bigquery.tables')
-      const data = await requestSelectorContract(selectorContracts.bigQueryTablesSelectorContract, {
+      const data = await requestJson(selectorContracts.bigQueryTablesSelectorContract, {
         body: {
           credential: credentialId,
           workflowId: context.workflowId,

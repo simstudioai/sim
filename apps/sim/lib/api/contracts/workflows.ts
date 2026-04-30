@@ -125,6 +125,26 @@ export type WorkflowStateContractOutput = z.output<typeof workflowStateSchema>
 
 export type WorkflowStateWirePayload = WorkflowStateContractOutput
 
+/**
+ * Loose subset of {@link workflowStateSchema} emitted by the copilot
+ * checkpoint revert route. The route forwards the persisted JSONB blob
+ * verbatim without strict schema validation, so `blocks`/`edges`/`loops`/
+ * `parallels` are typed as opaque records/arrays here. Always carries
+ * `lastSaved` (set by the route to `Date.now()`) and `isDeployed`; carries
+ * `deployedAt` only when the persisted value is a valid date.
+ */
+export const cleanedWorkflowStateSchema = z.object({
+  blocks: z.record(z.string(), z.unknown()),
+  edges: z.array(z.unknown()),
+  loops: z.record(z.string(), z.unknown()),
+  parallels: z.record(z.string(), z.unknown()),
+  isDeployed: z.boolean(),
+  lastSaved: z.number(),
+  deployedAt: z.coerce.date().optional(),
+})
+
+export type CleanedWorkflowState = z.output<typeof cleanedWorkflowStateSchema>
+
 export const workflowScopeSchema = z.enum(['active', 'archived', 'all'])
 
 export const workflowIdParamsSchema = z.object({
@@ -407,6 +427,89 @@ const v1WorkflowApiResponseWithLimitsSchema = z
   })
   .passthrough()
 
+const workflowStatusResponseSchema = z.object({
+  isDeployed: z.boolean(),
+  deployedAt: z.coerce.date().nullable().optional(),
+  isPublished: z.boolean().optional(),
+  needsRedeployment: z.boolean(),
+})
+
+const workflowAutoLayoutResponseSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.object({
+    blockCount: z.number(),
+    elapsed: z.string(),
+    layoutedBlocks: z.record(z.string(), workflowBlockStateSchema),
+  }),
+})
+
+const workflowLogResponseSchema = z.object({
+  message: z.string(),
+})
+
+const workflowVariablesResponseSchema = z.object({
+  success: z.literal(true),
+})
+
+const pausedWorkflowExecutionSummarySchema = z
+  .object({
+    id: z.string(),
+    workflowId: z.string(),
+    executionId: z.string(),
+    status: z.string(),
+    totalPauseCount: z.number(),
+    resumedCount: z.number(),
+    pausedAt: z.string().nullable(),
+    updatedAt: z.string().nullable(),
+    expiresAt: z.string().nullable(),
+    metadata: z.record(z.string(), z.unknown()).nullable(),
+    triggerIds: z.array(z.string()),
+    pausePoints: z.array(z.record(z.string(), z.unknown())),
+  })
+  .passthrough()
+
+const pausedWorkflowExecutionsResponseSchema = z.object({
+  pausedExecutions: z.array(pausedWorkflowExecutionSummarySchema),
+})
+
+const pausedWorkflowExecutionDetailSchema = pausedWorkflowExecutionSummarySchema.extend({
+  executionSnapshot: z.unknown(),
+  queue: z.array(z.record(z.string(), z.unknown())),
+})
+
+const cancelWorkflowExecutionResponseSchema = z.object({
+  success: z.boolean(),
+  executionId: z.string(),
+  redisAvailable: z.boolean(),
+  durablyRecorded: z.boolean(),
+  locallyAborted: z.boolean(),
+  pausedCancelled: z.boolean(),
+  reason: z.string().optional(),
+})
+
+const resumeWorkflowExecutionContextResponseSchema = z
+  .object({
+    status: z.enum(['queued', 'started']).optional(),
+    success: z.boolean().optional(),
+    async: z.boolean().optional(),
+    executionId: z.string().optional(),
+    queuePosition: z.number().optional(),
+    jobId: z.string().optional(),
+    output: z.unknown().optional(),
+    error: z.string().optional(),
+    metadata: z
+      .object({
+        duration: z.number().optional(),
+        startTime: z.string().optional(),
+        endTime: z.string().optional(),
+      })
+      .optional(),
+    message: z.string().optional(),
+    statusUrl: z.string().optional(),
+  })
+  .passthrough()
+
 export const listWorkflowsContract = defineRouteContract({
   method: 'GET',
   path: '/api/workflows',
@@ -560,5 +663,109 @@ export const importWorkflowAsSuperuserContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: importWorkflowAsSuperuserResponseSchema,
+  },
+})
+
+export const getWorkflowStatusContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workflows/[id]/status',
+  params: workflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: workflowStatusResponseSchema,
+  },
+})
+
+export const workflowAutoLayoutContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workflows/[id]/autolayout',
+  params: workflowIdParamsSchema,
+  body: workflowAutoLayoutBodySchema,
+  response: {
+    mode: 'json',
+    schema: workflowAutoLayoutResponseSchema,
+  },
+})
+
+export const workflowLogContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workflows/[id]/log',
+  params: workflowIdParamsSchema,
+  body: workflowLogBodySchema,
+  response: {
+    mode: 'json',
+    schema: workflowLogResponseSchema,
+  },
+})
+
+export const workflowVariablesContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workflows/[id]/variables',
+  params: workflowIdParamsSchema,
+  body: workflowVariablesBodySchema,
+  response: {
+    mode: 'json',
+    schema: workflowVariablesResponseSchema,
+  },
+})
+
+export const pausedWorkflowExecutionsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workflows/[id]/paused',
+  params: workflowIdParamsSchema,
+  query: pausedWorkflowExecutionsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: pausedWorkflowExecutionsResponseSchema,
+  },
+})
+
+export const pausedWorkflowExecutionByIdContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workflows/[id]/paused/[executionId]',
+  params: workflowExecutionParamsSchema,
+  response: {
+    mode: 'json',
+    schema: pausedWorkflowExecutionDetailSchema,
+  },
+})
+
+export const cancelWorkflowExecutionContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workflows/[id]/executions/[executionId]/cancel',
+  params: workflowExecutionParamsSchema,
+  response: {
+    mode: 'json',
+    schema: cancelWorkflowExecutionResponseSchema,
+  },
+})
+
+export const streamWorkflowExecutionContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workflows/[id]/executions/[executionId]/stream',
+  params: workflowExecutionParamsSchema,
+  query: workflowExecutionStreamQuerySchema,
+  response: {
+    mode: 'stream',
+  },
+})
+
+export const resumeWorkflowExecutionContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/resume/[workflowId]/[executionId]',
+  params: resumeExecutionParamsSchema,
+  response: {
+    mode: 'json',
+    schema: pausedWorkflowExecutionDetailSchema,
+  },
+})
+
+export const resumeWorkflowExecutionContextContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/resume/[workflowId]/[executionId]/[contextId]',
+  params: resumeExecutionContextParamsSchema,
+  response: {
+    mode: 'json',
+    schema: resumeWorkflowExecutionContextResponseSchema,
   },
 })

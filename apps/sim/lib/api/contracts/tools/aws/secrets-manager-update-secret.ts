@@ -15,11 +15,18 @@ const UpdateSecretSchema = z.object({
   description: z.string().nullish(),
 })
 
+const UpdateSecretResponseSchema = z.object({
+  message: z.string(),
+  name: z.string(),
+  arn: z.string(),
+  versionId: z.string(),
+})
+
 export const awsSecretsManagerUpdateSecretContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/secrets_manager/update-secret',
   body: UpdateSecretSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: UpdateSecretResponseSchema },
 })
 export type AwsSecretsManagerUpdateSecretRequest = ContractBodyInput<
   typeof awsSecretsManagerUpdateSecretContract

@@ -27,11 +27,15 @@ const CreateTemplateSchema = z
     path: ['textPart'],
   })
 
+const CreateTemplateResponseSchema = z.object({
+  message: z.string(),
+})
+
 export const awsSesCreateTemplateContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/ses/create-template',
   body: CreateTemplateSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: CreateTemplateResponseSchema },
 })
 export type AwsSesCreateTemplateRequest = ContractBodyInput<typeof awsSesCreateTemplateContract>
 export type AwsSesCreateTemplateBody = ContractBody<typeof awsSesCreateTemplateContract>

@@ -4,8 +4,8 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { formStatusParamsSchema } from '@/lib/api/contracts/forms'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { getFormStatusContract } from '@/lib/api/contracts/forms'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -17,21 +17,16 @@ function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
         return createErrorResponse('Unauthorized', 401)
       }
 
-      const paramsValidation = validateSchema(formStatusParamsSchema, await params)
-      if (!paramsValidation.success) {
-        return createErrorResponse(
-          getValidationErrorMessage(paramsValidation.error, 'Invalid route parameters'),
-          400
-        )
-      }
-      const { id: workflowId } = paramsValidation.data
+      const parsed = await parseRequest(getFormStatusContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id: workflowId } = parsed.data.params
       const authorization = await authorizeWorkflowByWorkspacePermission({
         workflowId,
         userId: auth.userId,

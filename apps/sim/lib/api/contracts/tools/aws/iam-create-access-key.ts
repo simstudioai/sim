@@ -19,11 +19,20 @@ const Schema = z.object({
   userName: z.string().optional().nullable(),
 })
 
+const CreateAccessKeyResponseSchema = z.object({
+  message: z.string(),
+  accessKeyId: z.string(),
+  secretAccessKey: z.string(),
+  userName: z.string(),
+  status: z.string(),
+  createDate: z.string().nullable(),
+})
+
 export const awsIamCreateAccessKeyContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/iam/create-access-key',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: CreateAccessKeyResponseSchema },
 })
 export type AwsIamCreateAccessKeyRequest = ContractBodyInput<typeof awsIamCreateAccessKeyContract>
 export type AwsIamCreateAccessKeyBody = ContractBody<typeof awsIamCreateAccessKeyContract>

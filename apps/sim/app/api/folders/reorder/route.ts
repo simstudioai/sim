@@ -3,8 +3,8 @@ import { workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { reorderFoldersBodySchema } from '@/lib/api/contracts'
-import { validateSchema } from '@/lib/api/server'
+import { reorderFoldersContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -22,15 +22,9 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
   }
 
   try {
-    const body = await req.json()
-    const validation = validateSchema(reorderFoldersBodySchema, body, 'Invalid request data')
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid folder reorder data`, {
-        errors: validation.error.issues,
-      })
-      return validation.response
-    }
-    const { workspaceId, updates } = validation.data
+    const parsed = await parseRequest(reorderFoldersContract, req, {})
+    if (!parsed.success) return parsed.response
+    const { workspaceId, updates } = parsed.data.body
 
     const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
     if (!permission || permission === 'read') {

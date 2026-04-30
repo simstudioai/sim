@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { resumeExecutionParamsSchema } from '@/lib/api/contracts/workflows'
-import { validateSchema } from '@/lib/api/server'
+import { resumeWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
@@ -14,15 +14,11 @@ export const dynamic = 'force-dynamic'
 export const GET = withRouteHandler(
   async (
     request: NextRequest,
-    {
-      params,
-    }: {
-      params: Promise<{ workflowId: string; executionId: string }>
-    }
+    context: { params: Promise<{ workflowId: string; executionId: string }> }
   ) => {
-    const paramsValidation = validateSchema(resumeExecutionParamsSchema, await params)
-    if (!paramsValidation.success) return paramsValidation.response
-    const { workflowId, executionId } = paramsValidation.data
+    const parsed = await parseRequest(resumeWorkflowExecutionContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { workflowId, executionId } = parsed.data.params
 
     const access = await validateWorkflowAccess(request, workflowId, false)
     if (access.error) {

@@ -1,9 +1,10 @@
+import type { Span } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { billingUpdateCostBodySchema } from '@/lib/api/contracts/subscription'
-import { validateSchema } from '@/lib/api/server'
+import { billingUpdateCostContract } from '@/lib/api/contracts/subscription'
+import { parseRequest } from '@/lib/api/server'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { BillingRouteOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
@@ -39,10 +40,7 @@ export const POST = withRouteHandler((req: NextRequest) =>
   )
 )
 
-async function updateCostInner(
-  req: NextRequest,
-  span: import('@opentelemetry/api').Span
-): Promise<NextResponse> {
+async function updateCostInner(req: NextRequest, span: Span): Promise<NextResponse> {
   const requestId = generateRequestId()
   const startTime = Date.now()
   let claim: AtomicClaimResult | null = null
@@ -80,27 +78,41 @@ async function updateCostInner(
       )
     }
 
-    const body = await req.json()
-    const validation = validateSchema(billingUpdateCostBodySchema, body)
-
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid request body`, {
-        errors: validation.error.issues,
-      })
-      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InvalidBody)
-      span.setAttribute(TraceAttr.HttpStatusCode, 400)
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request body',
-          details: validation.error.issues,
+    const parsed = await parseRequest(
+      billingUpdateCostContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid request body`, {
+            errors: error.issues,
+          })
+          span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InvalidBody)
+          span.setAttribute(TraceAttr.HttpStatusCode, 400)
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Invalid request body',
+              details: error.issues,
+            },
+            { status: 400 }
+          )
         },
-        { status: 400 }
-      )
-    }
+        invalidJsonResponse: () => {
+          span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InvalidBody)
+          span.setAttribute(TraceAttr.HttpStatusCode, 400)
+          return NextResponse.json(
+            { success: false, error: 'Request body must be valid JSON' },
+            { status: 400 }
+          )
+        },
+      }
+    )
+
+    if (!parsed.success) return parsed.response
 
     const { userId, cost, model, inputTokens, outputTokens, source, idempotencyKey } =
-      validation.data
+      parsed.data.body
     const isMcp = source === 'mcp_copilot'
 
     span.setAttributes({

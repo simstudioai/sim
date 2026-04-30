@@ -29,10 +29,10 @@ import { createLogger } from '@sim/logger'
 import { count, eq, inArray, sql } from 'drizzle-orm'
 import {
   type AdminV1PermissionGroup,
-  adminV1AccessControlQuerySchema,
   adminV1DeleteAccessControlContract,
+  adminV1ListAccessControlContract,
 } from '@/lib/api/contracts'
-import { parseRequest, searchParamsToObject, validateSchema } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
@@ -45,11 +45,15 @@ const logger = createLogger('AdminAccessControlAPI')
 
 export const GET = withRouteHandler(
   withAdminAuth(async (request) => {
-    const queryValidation = validateSchema(
-      adminV1AccessControlQuerySchema,
-      searchParamsToObject(request.nextUrl.searchParams)
+    const parsed = await parseRequest(
+      adminV1ListAccessControlContract,
+      request,
+      {},
+      { validationErrorResponse: adminValidationErrorResponse }
     )
-    const { workspaceId, organizationId } = queryValidation.success ? queryValidation.data : {}
+    if (!parsed.success) return parsed.response
+
+    const { workspaceId, organizationId } = parsed.data.query
 
     try {
       const baseQuery = db

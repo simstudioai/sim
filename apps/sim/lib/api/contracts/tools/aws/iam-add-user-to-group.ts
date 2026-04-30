@@ -24,7 +24,7 @@ export const awsIamAddUserToGroupContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/iam/add-user-to-group',
   body: Schema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: z.object({ message: z.string() }) },
 })
 export type AwsIamAddUserToGroupRequest = ContractBodyInput<typeof awsIamAddUserToGroupContract>
 export type AwsIamAddUserToGroupBody = ContractBody<typeof awsIamAddUserToGroupContract>

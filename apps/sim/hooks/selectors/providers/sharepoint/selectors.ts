@@ -1,5 +1,5 @@
+import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { requestSelectorContract } from '@/hooks/selectors/helpers'
 import { ensureCredential, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -18,33 +18,27 @@ export const sharepointSelectors = {
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'sharepoint.lists')
       if (!context.siteId) throw new Error('Missing site ID for sharepoint.lists selector')
-      const data = await requestSelectorContract(
-        selectorContracts.sharepointListsSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-            siteId: context.siteId,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.sharepointListsSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+          siteId: context.siteId,
+        },
+        signal,
+      })
       return (data.lists || []).map((list) => ({ id: list.id, label: list.displayName }))
     },
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId || !context.siteId) return null
       const credentialId = ensureCredential(context, 'sharepoint.lists')
-      const data = await requestSelectorContract(
-        selectorContracts.sharepointListsSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-            siteId: context.siteId,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.sharepointListsSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+          siteId: context.siteId,
+        },
+        signal,
+      })
       const list = (data.lists || []).find((l) => l.id === detailId) ?? null
       if (!list) return null
       return { id: list.id, label: list.displayName }
@@ -62,16 +56,13 @@ export const sharepointSelectors = {
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'sharepoint.sites')
-      const data = await requestSelectorContract(
-        selectorContracts.sharepointSitesSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.sharepointSitesSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+        },
+        signal,
+      })
       return (data.files || []).map((file) => ({
         id: file.id,
         label: file.name,
@@ -80,16 +71,13 @@ export const sharepointSelectors = {
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'sharepoint.sites')
-      const data = await requestSelectorContract(
-        selectorContracts.sharepointSitesSelectorContract,
-        {
-          body: {
-            credential: credentialId,
-            workflowId: context.workflowId,
-          },
-          signal,
-        }
-      )
+      const data = await requestJson(selectorContracts.sharepointSitesSelectorContract, {
+        body: {
+          credential: credentialId,
+          workflowId: context.workflowId,
+        },
+        signal,
+      })
       const site = (data.files || []).find((f) => f.id === detailId) ?? null
       if (!site) return null
       return { id: site.id, label: site.name }

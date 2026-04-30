@@ -3,11 +3,8 @@ import { templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import {
-  templateIdParamsSchema,
-  updateTemplateOgImageBodySchema,
-} from '@/lib/api/contracts/templates'
-import { parseJsonBody, validateSchema } from '@/lib/api/server'
+import { updateTemplateOgImageBodySchema } from '@/lib/api/contracts/templates'
+import { parseJsonBody } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -26,9 +23,7 @@ const logger = createLogger('TemplateOGImageAPI')
 export const PUT = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const paramsValidation = validateSchema(templateIdParamsSchema, await params)
-    if (!paramsValidation.success) return paramsValidation.response
-    const { id } = paramsValidation.data
+    const { id } = await params
 
     try {
       const session = await getSession()
@@ -49,7 +44,7 @@ export const PUT = withRouteHandler(
 
       const parsedBody = await parseJsonBody(request)
       const bodyResult = parsedBody.success
-        ? validateSchema(updateTemplateOgImageBodySchema, parsedBody.data)
+        ? updateTemplateOgImageBodySchema.safeParse(parsedBody.data)
         : null
       const body = bodyResult?.success
         ? bodyResult.data
@@ -123,9 +118,7 @@ export const PUT = withRouteHandler(
 export const DELETE = withRouteHandler(
   async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const paramsValidation = validateSchema(templateIdParamsSchema, await params)
-    if (!paramsValidation.success) return paramsValidation.response
-    const { id } = paramsValidation.data
+    const { id } = await params
 
     try {
       const session = await getSession()

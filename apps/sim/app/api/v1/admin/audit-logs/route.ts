@@ -22,8 +22,8 @@ import { db } from '@sim/db'
 import { auditLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, desc } from 'drizzle-orm'
-import { v1AdminAuditLogsQuerySchema } from '@/lib/api/contracts/audit-logs'
-import { searchParamsToObject, validateSchema } from '@/lib/api/server'
+import { v1AdminListAuditLogsContract } from '@/lib/api/contracts/audit-logs'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
@@ -46,17 +46,16 @@ export const GET = withRouteHandler(
     const url = new URL(request.url)
     const { limit, offset } = parsePaginationParams(url)
 
-    const validation = validateSchema(
-      v1AdminAuditLogsQuerySchema,
-      searchParamsToObject(url.searchParams)
+    const parsed = await parseRequest(
+      v1AdminListAuditLogsContract,
+      request,
+      {},
+      { validationErrorResponse: adminValidationErrorResponse }
     )
-
-    if (!validation.success) {
-      return adminValidationErrorResponse(validation.error)
-    }
+    if (!parsed.success) return parsed.response
 
     try {
-      const query = validation.data
+      const query = parsed.data.query
       const conditions = buildFilterConditions({
         action: query.action,
         resourceType: query.resourceType,

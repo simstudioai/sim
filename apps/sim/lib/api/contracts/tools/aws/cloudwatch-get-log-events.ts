@@ -26,11 +26,24 @@ const GetLogEventsSchema = z.object({
   ),
 })
 
+const GetLogEventsResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    events: z.array(
+      z.object({
+        timestamp: z.number().optional(),
+        message: z.string().optional(),
+        ingestionTime: z.number().optional(),
+      })
+    ),
+  }),
+})
+
 export const awsCloudwatchGetLogEventsContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/cloudwatch/get-log-events',
   body: GetLogEventsSchema,
-  response: { mode: 'json', schema: z.unknown() },
+  response: { mode: 'json', schema: GetLogEventsResponseSchema },
 })
 export type AwsCloudwatchGetLogEventsRequest = ContractBodyInput<
   typeof awsCloudwatchGetLogEventsContract

@@ -193,6 +193,26 @@ export const removePermissionGroupMemberContract = defineRouteContract({
   },
 })
 
+export const addPermissionGroupMemberContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/permission-groups/[groupId]/members',
+  params: permissionGroupDetailParamsSchema,
+  body: addPermissionGroupMemberBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      member: z.object({
+        id: z.string(),
+        permissionGroupId: z.string(),
+        workspaceId: z.string(),
+        userId: z.string(),
+        assignedBy: z.string(),
+        assignedAt: z.string(),
+      }),
+    }),
+  },
+})
+
 export const bulkAddPermissionGroupMembersContract = defineRouteContract({
   method: 'POST',
   path: '/api/workspaces/[id]/permission-groups/[groupId]/members/bulk',

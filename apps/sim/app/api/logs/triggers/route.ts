@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNotNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { triggersQuerySchema } from '@/lib/api/contracts/logs'
-import { searchParamsToObject, validateSchema } from '@/lib/api/server'
+import { searchParamsToObject, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -32,14 +32,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const userId = session.user.id
 
     const { searchParams } = new URL(request.url)
-    const validation = validateSchema(
-      triggersQuerySchema,
-      searchParamsToObject(searchParams),
-      'Invalid query parameters'
-    )
+    const validation = triggersQuerySchema.safeParse(searchParamsToObject(searchParams))
     if (!validation.success) {
       logger.error(`[${requestId}] Invalid query parameters`, { error: validation.error })
-      return validation.response
+      return validationErrorResponse(validation.error)
     }
 
     const params = validation.data

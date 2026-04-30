@@ -5,17 +5,17 @@ import { toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  mothershipChatParamsSchema,
-  updateMothershipChatBodySchema,
+  deleteMothershipChatContract,
+  getMothershipChatContract,
+  updateMothershipChatContract,
 } from '@/lib/api/contracts/mothership-tasks'
-import { getValidationErrorMessage, validateSchema } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { buildEffectiveChatTranscript } from '@/lib/copilot/chat/effective-transcript'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
 import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import {
   authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
@@ -30,18 +30,16 @@ import { captureServerEvent } from '@/lib/posthog/server'
 const logger = createLogger('MothershipChatAPI')
 
 export const GET = withRouteHandler(
-  async (_request: NextRequest, { params }: { params: Promise<{ chatId: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
     try {
       const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
       if (!isAuthenticated || !userId) {
         return createUnauthorizedResponse()
       }
 
-      const paramsResult = validateSchema(mothershipChatParamsSchema, await params)
-      if (!paramsResult.success) {
-        return createBadRequestResponse(getValidationErrorMessage(paramsResult.error))
-      }
-      const { chatId } = paramsResult.data
+      const paramsResult = await parseRequest(getMothershipChatContract, request, context)
+      if (!paramsResult.success) return paramsResult.response
+      const { chatId } = paramsResult.data.params
 
       const chat = await getAccessibleCopilotChat(chatId, userId)
       if (!chat || chat.type !== 'mothership') {
@@ -127,25 +125,17 @@ export const GET = withRouteHandler(
 )
 
 export const PATCH = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ chatId: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
     try {
       const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
       if (!isAuthenticated || !userId) {
         return createUnauthorizedResponse()
       }
 
-      const paramsResult = validateSchema(mothershipChatParamsSchema, await params)
-      if (!paramsResult.success) {
-        return createBadRequestResponse(getValidationErrorMessage(paramsResult.error))
-      }
-      const { chatId } = paramsResult.data
-
-      const body = await request.json()
-      const bodyResult = validateSchema(updateMothershipChatBodySchema, body)
-      if (!bodyResult.success) {
-        return createBadRequestResponse(getValidationErrorMessage(bodyResult.error))
-      }
-      const { title, isUnread } = bodyResult.data
+      const parsed = await parseRequest(updateMothershipChatContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { chatId } = parsed.data.params
+      const { title, isUnread } = parsed.data.body
 
       const updates: Record<string, unknown> = {}
 
@@ -217,18 +207,16 @@ export const PATCH = withRouteHandler(
 )
 
 export const DELETE = withRouteHandler(
-  async (_request: NextRequest, { params }: { params: Promise<{ chatId: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
     try {
       const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
       if (!isAuthenticated || !userId) {
         return createUnauthorizedResponse()
       }
 
-      const paramsResult = validateSchema(mothershipChatParamsSchema, await params)
-      if (!paramsResult.success) {
-        return createBadRequestResponse(getValidationErrorMessage(paramsResult.error))
-      }
-      const { chatId } = paramsResult.data
+      const parsed = await parseRequest(deleteMothershipChatContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { chatId } = parsed.data.params
 
       const chat = await getAccessibleCopilotChat(chatId, userId)
       if (!chat || chat.type !== 'mothership') {

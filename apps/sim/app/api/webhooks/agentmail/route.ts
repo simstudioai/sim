@@ -18,7 +18,6 @@ import {
   agentMailMessageSchema,
   webhookSvixHeadersSchema,
 } from '@/lib/api/contracts/webhooks'
-import { validateSchema } from '@/lib/api/server'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
@@ -32,7 +31,7 @@ const MAX_EMAILS_PER_HOUR = 20
 export const POST = withRouteHandler(async (req: Request) => {
   try {
     const rawBody = await req.text()
-    const headersResult = validateSchema(webhookSvixHeadersSchema, {
+    const headersResult = webhookSvixHeadersSchema.safeParse({
       'svix-id': req.headers.get('svix-id'),
       'svix-timestamp': req.headers.get('svix-timestamp'),
       'svix-signature': req.headers.get('svix-signature'),
@@ -73,7 +72,7 @@ export const POST = withRouteHandler(async (req: Request) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const envelopeResult = validateSchema(agentMailEnvelopeSchema, JSON.parse(rawBody))
+    const envelopeResult = agentMailEnvelopeSchema.safeParse(JSON.parse(rawBody))
     if (!envelopeResult.success) {
       logger.warn('Invalid AgentMail webhook payload', {
         workspaceId: result.id,
@@ -86,7 +85,7 @@ export const POST = withRouteHandler(async (req: Request) => {
       return NextResponse.json({ ok: true })
     }
 
-    const messageResult = validateSchema(agentMailMessageSchema, envelopeResult.data.message)
+    const messageResult = agentMailMessageSchema.safeParse(envelopeResult.data.message)
     if (!messageResult.success) {
       logger.warn('Invalid AgentMail message payload', {
         workspaceId: result.id,
