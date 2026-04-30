@@ -781,7 +781,12 @@ export const Sidebar = memo(function Sidebar() {
     )
   }, [isOnWorkflowPage])
 
-  const { data: fetchedTasks = [], isLoading: tasksLoading } = useTasks(workspaceId)
+  const {
+    data: fetchedTasks = [],
+    isPending: tasksPending,
+    isError: tasksError,
+  } = useTasks(workspaceId)
+  const tasksLoading = tasksPending || tasksError
 
   useTaskEvents(workspaceId)
 
