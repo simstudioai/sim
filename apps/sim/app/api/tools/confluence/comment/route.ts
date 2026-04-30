@@ -177,23 +177,52 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
 
     const apiBase = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2`
 
-    let response = await fetch(`${apiBase}/footer-comments/${commentId}`, {
-      method: 'DELETE',
+    // Detect comment type with a non-destructive GET so a 404 from a prior
+    // deletion isn't masked by a second DELETE attempt against the wrong endpoint.
+    let commentEndpoint = 'footer-comments'
+    let detectResponse = await fetch(`${apiBase}/footer-comments/${commentId}`, {
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${accessToken}`,
       },
     })
 
-    if (response.status === 404) {
-      response = await fetch(`${apiBase}/inline-comments/${commentId}`, {
-        method: 'DELETE',
+    if (detectResponse.status === 404) {
+      commentEndpoint = 'inline-comments'
+      detectResponse = await fetch(`${apiBase}/inline-comments/${commentId}`, {
         headers: {
           Accept: 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
       })
     }
+
+    if (!detectResponse.ok) {
+      const errorText = await detectResponse.text()
+      logger.error('Confluence API error response:', {
+        status: detectResponse.status,
+        statusText: detectResponse.statusText,
+        error: errorText,
+      })
+      return NextResponse.json(
+        {
+          error: parseAtlassianErrorMessage(
+            detectResponse.status,
+            detectResponse.statusText,
+            errorText
+          ),
+        },
+        { status: detectResponse.status }
+      )
+    }
+
+    const response = await fetch(`${apiBase}/${commentEndpoint}/${commentId}`, {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
 
     if (!response.ok) {
       const errorText = await response.text()

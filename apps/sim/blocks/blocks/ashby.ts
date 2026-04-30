@@ -767,7 +767,9 @@ Output only the ISO 8601 timestamp string, nothing else.`,
         ) {
           result.includeLocationHierarchy = true
         }
-        if (params.offerApplicationId) result.applicationId = params.offerApplicationId
+        if (params.operation === 'list_offers' && params.offerApplicationId) {
+          result.applicationId = params.offerApplicationId
+        }
         if (params.alternateEmailAddresses) {
           result.alternateEmailAddresses = params.alternateEmailAddresses
         }
