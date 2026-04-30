@@ -7,7 +7,11 @@ import type {
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
-const firecrawlParseResponseSchema = z.object({}).passthrough()
+const firecrawlParseResponseSchema = z.object({
+  success: z.literal(true),
+  // untyped-response: forwards firecrawl /v2/parse response unchanged for downstream tool consumers
+  output: z.unknown(),
+})
 
 export const firecrawlParseBodySchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),

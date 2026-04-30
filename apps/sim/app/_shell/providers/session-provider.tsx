@@ -92,6 +92,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
+        // boundary-raw-fetch: GET route handler not yet contract-backed (no GET contract for /api/organizations)
         const response = await fetch('/api/organizations')
         if (!response.ok) {
           return

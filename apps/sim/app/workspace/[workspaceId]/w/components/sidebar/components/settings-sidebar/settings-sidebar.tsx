@@ -104,9 +104,7 @@ export function SettingsSidebar({
   const isSSOProviderOwner = useMemo(() => {
     if (isHosted) return null
     if (!userId || isLoadingSSO) return null
-    return (
-      ssoProvidersData?.providers?.some((p: { userId?: string }) => p.userId === userId) || false
-    )
+    return ssoProvidersData?.providers?.some((p) => p.userId === userId) || false
   }, [userId, ssoProvidersData?.providers, isLoadingSSO])
 
   const navigationItems = useMemo(() => {

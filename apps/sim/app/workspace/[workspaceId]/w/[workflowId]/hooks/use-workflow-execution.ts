@@ -6,6 +6,8 @@ import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
+import { requestJson } from '@/lib/api/client/request'
+import { cancelWorkflowExecutionContract, workflowLogContract } from '@/lib/api/contracts/workflows'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import {
@@ -363,20 +365,14 @@ export function useWorkflowExecution() {
         }
       }
 
-      const response = await fetch(`/api/workflows/${activeWorkflowId}/log`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      if (!activeWorkflowId) return executionId
+      await requestJson(workflowLogContract, {
+        params: { id: activeWorkflowId },
+        body: {
           executionId,
           result: enrichedResult,
-        }),
+        },
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to persist logs')
-      }
 
       return executionId
     } catch (error) {
@@ -461,7 +457,7 @@ export function useWorkflowExecution() {
                   formData.append('executionId', executionId)
                   formData.append('workspaceId', workspaceId)
 
-                  // Upload the file
+                  // boundary-raw-fetch: multipart/form-data file upload, requestJson only supports JSON bodies
                   const response = await fetch('/api/files/upload', {
                     method: 'POST',
                     body: formData,
@@ -1523,8 +1519,8 @@ export function useWorkflowExecution() {
 
     if (storedExecutionId) {
       setCurrentExecutionId(activeWorkflowId, null)
-      fetch(`/api/workflows/${activeWorkflowId}/executions/${storedExecutionId}/cancel`, {
-        method: 'POST',
+      requestJson(cancelWorkflowExecutionContract, {
+        params: { id: activeWorkflowId, executionId: storedExecutionId },
       }).catch(() => {})
       handleExecutionCancelledConsole({
         workflowId: activeWorkflowId,

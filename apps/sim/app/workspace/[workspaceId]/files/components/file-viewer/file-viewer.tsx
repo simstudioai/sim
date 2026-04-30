@@ -175,6 +175,7 @@ const IframePreview = memo(function IframePreview({
       try {
         setRendering(true)
 
+        // boundary-raw-fetch: route returns binary PDF (read via response.arrayBuffer()), not JSON
         const response = await fetch(`/api/workspaces/${workspaceId}/pdf/preview`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

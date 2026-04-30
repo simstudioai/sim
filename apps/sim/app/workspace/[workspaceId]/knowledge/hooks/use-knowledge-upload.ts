@@ -2,6 +2,9 @@ import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { useQueryClient } from '@tanstack/react-query'
+import { isApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import { createKnowledgeDocumentsContract } from '@/lib/api/contracts/knowledge/documents'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 
@@ -59,7 +62,7 @@ class KnowledgeUploadError extends Error {
   constructor(
     message: string,
     public code: string,
-    public details?: any
+    public details?: unknown
   ) {
     super(message)
     this.name = 'KnowledgeUploadError'
@@ -67,49 +70,75 @@ class KnowledgeUploadError extends Error {
 }
 
 class PresignedUrlError extends KnowledgeUploadError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: unknown) {
     super(message, 'PRESIGNED_URL_ERROR', details)
   }
 }
 
 class DirectUploadError extends KnowledgeUploadError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: unknown) {
     super(message, 'DIRECT_UPLOAD_ERROR', details)
   }
 }
 
 class ProcessingError extends KnowledgeUploadError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: unknown) {
     super(message, 'PROCESSING_ERROR', details)
   }
 }
 
 /**
- * Reads a failed `Response`'s JSON body and produces a user-facing error
- * string that combines the top-level `error`/`message` with any Zod
- * `details[].message` entries. Falls back to `statusText` then status code
- * when the body is unreadable.
+ * Loosely-typed shape of a failed `Response` JSON body returned by routes
+ * in this codebase. Routes generally surface `{ error?, message?, details? }`
+ * where `details` is a Zod issue array (`{ message: string }[]`). Treated
+ * as a structural read-only view; missing/undefined fields are tolerated.
  */
-async function readResponseError(
+interface ApiErrorBodyShape {
+  error?: unknown
+  message?: unknown
+  details?: unknown
+}
+
+/**
+ * Reads a failed `Response`'s JSON body into a typed shape and returns the
+ * parsed body plus a human-readable error string that combines the
+ * top-level `error`/`message` with any Zod `details[].message` entries.
+ * Falls back to `statusText` then status code when the body is unreadable.
+ */
+async function readApiResponseError(
   response: Response,
   fallback = 'Unknown error'
-): Promise<{ message: string; body: any }> {
-  let body: any = null
+): Promise<{ message: string; body: ApiErrorBodyShape | null }> {
+  let body: ApiErrorBodyShape | null = null
   try {
-    body = await response.json()
+    const parsed: unknown = await response.json()
+    if (parsed && typeof parsed === 'object') {
+      body = parsed as ApiErrorBodyShape
+    }
   } catch {
     body = null
   }
-  const base =
-    body?.error || body?.message || response.statusText || `HTTP ${response.status}` || fallback
+
+  const baseError =
+    (typeof body?.error === 'string' && body.error) ||
+    (typeof body?.message === 'string' && body.message) ||
+    response.statusText ||
+    `HTTP ${response.status}` ||
+    fallback
+
   const detailMessages = Array.isArray(body?.details)
     ? body.details
-        .map((d: any) => (typeof d?.message === 'string' ? d.message : null))
-        .filter((m: string | null): m is string => Boolean(m))
+        .map((d) =>
+          d && typeof d === 'object' && 'message' in d && typeof d.message === 'string'
+            ? d.message
+            : null
+        )
+        .filter((m): m is string => Boolean(m))
         .join(', ')
     : ''
+
   return {
-    message: detailMessages ? `${base}: ${detailMessages}` : base,
+    message: detailMessages ? `${baseError}: ${detailMessages}` : baseError,
     body,
   }
 }
@@ -309,6 +338,7 @@ const getPresignedData = async (
   const startTime = getHighResTime()
 
   try {
+    // boundary-raw-fetch: presigned URL coordination is part of the multipart-signed-url upload flow tracked together with XHR PUT progress; keeping this on raw fetch preserves a single retry/timeout AbortController shared with the direct upload XHR
     const presignedResponse = await fetch('/api/files/presigned?type=knowledge-base', {
       method: 'POST',
       headers: {
@@ -323,12 +353,18 @@ const getPresignedData = async (
     })
 
     if (!presignedResponse.ok) {
-      const { message, body } = await readResponseError(presignedResponse)
+      const { message: fullError, body: errorDetails } =
+        await readApiResponseError(presignedResponse)
+
       logger.error('Presigned URL request failed', {
         status: presignedResponse.status,
         fileSize: file.size,
       })
-      throw new PresignedUrlError(`Failed to get presigned URL for ${file.name}: ${message}`, body)
+
+      throw new PresignedUrlError(
+        `Failed to get presigned URL for ${file.name}: ${fullError}`,
+        errorDetails
+      )
     }
 
     const presignedData = await presignedResponse.json()
@@ -628,6 +664,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         throw new Error('workspaceId is required for multipart upload')
       }
 
+      // boundary-raw-fetch: multipart-signed-url initiate step coordinates the cloud multipart upload token consumed by raw-fetch PUTs to provider-issued part URLs below
       const initiateResponse = await fetch('/api/files/multipart?action=initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -650,6 +687,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       const numParts = Math.ceil(file.size / chunkSize)
       const partNumbers = Array.from({ length: numParts }, (_, i) => i + 1)
 
+      // boundary-raw-fetch: multipart-signed-url get-part-urls step issues provider-signed PUT URLs consumed by the raw-fetch PUT loop below; kept on raw fetch to preserve retry/abort coordination with the part PUTs
       const partUrlsResponse = await fetch('/api/files/multipart?action=get-part-urls', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -660,6 +698,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       })
 
       if (!partUrlsResponse.ok) {
+        // boundary-raw-fetch: multipart-signed-url abort step issued from inside the multipart upload error path; keeps cleanup on the same raw-fetch path as the rest of the multipart flow
         await fetch('/api/files/multipart?action=abort', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -743,6 +782,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         clearTimeout(multipartTimeoutId)
       }
 
+      // boundary-raw-fetch: multipart-signed-url complete step finalizes the multipart upload coordinated with raw-fetch part PUTs above
       const completeResponse = await fetch('/api/files/multipart?action=complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -799,6 +839,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         formData.append('workspaceId', options.workspaceId)
       }
 
+      // boundary-raw-fetch: multipart/form-data upload (FileUpload boundary), incompatible with requestJson which JSON-stringifies bodies
       const uploadResponse = await fetch('/api/files/upload', {
         method: 'POST',
         body: formData,
@@ -806,8 +847,8 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       })
 
       if (!uploadResponse.ok) {
-        const { message, body } = await readResponseError(uploadResponse)
-        throw new DirectUploadError(`Failed to upload ${file.name}: ${message}`, body)
+        const { message: fullError, body: errorData } = await readApiResponseError(uploadResponse)
+        throw new DirectUploadError(`Failed to upload ${file.name}: ${fullError}`, errorData)
       }
 
       const uploadResult = await uploadResponse.json()
@@ -882,6 +923,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           })),
         }
 
+        // boundary-raw-fetch: signed-URL batch coordination for direct uploads handed to raw-fetch PUTs against provider URLs; kept on raw fetch to preserve the same controller/timeout used by the multipart flow
         const batchResponse = await fetch('/api/files/presigned/batch?type=knowledge-base', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -889,13 +931,8 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         })
 
         if (!batchResponse.ok) {
-          const { message } = await readResponseError(batchResponse)
-          logger.error('Batch presigned URL generation failed', {
-            batchIndex: batchIndex + 1,
-            totalBatches: batches.length,
-            status: batchResponse.status,
-          })
-          throw new Error(message)
+          const { message: fullError } = await readApiResponseError(batchResponse)
+          throw new Error(`Batch ${batchIndex + 1} presigned URL generation failed: ${fullError}`)
         }
 
         const { files: presignedData } = await batchResponse.json()
@@ -1028,39 +1065,32 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         bulk: true,
       }
 
-      const processResponse = await fetch(`/api/knowledge/${knowledgeBaseId}/documents`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(processPayload),
-      })
-
-      if (!processResponse.ok) {
-        const { message, body } = await readResponseError(processResponse)
-        logger.error('Document processing failed:', {
-          status: processResponse.status,
-          error: body,
-          uploadedFiles: uploadedFiles.map((f) => ({
-            filename: f.filename,
-            fileUrl: f.fileUrl,
-            fileSize: f.fileSize,
-            mimeType: f.mimeType,
-          })),
+      let processResult: Awaited<
+        ReturnType<typeof requestJson<typeof createKnowledgeDocumentsContract>>
+      >
+      try {
+        processResult = await requestJson(createKnowledgeDocumentsContract, {
+          params: { id: knowledgeBaseId },
+          body: processPayload,
         })
-        throw new ProcessingError(`Failed to start document processing: ${message}`, body)
+      } catch (err) {
+        if (isApiClientError(err)) {
+          logger.error('Document processing failed:', {
+            status: err.status,
+            error: err.body,
+            uploadedFiles: uploadedFiles.map((f) => ({
+              filename: f.filename,
+              fileUrl: f.fileUrl,
+              fileSize: f.fileSize,
+              mimeType: f.mimeType,
+            })),
+          })
+          throw new ProcessingError(`Failed to start document processing: ${err.message}`, err.body)
+        }
+        throw err
       }
 
-      const processResult = await processResponse.json()
-
-      if (!processResult.success) {
-        throw new ProcessingError(
-          `Document processing failed: ${processResult.error || 'Unknown error'}`,
-          processResult
-        )
-      }
-
-      if (!processResult.data || !processResult.data.documentsCreated) {
+      if (!('documentsCreated' in processResult.data)) {
         throw new ProcessingError(
           'Invalid processing response: missing document data',
           processResult

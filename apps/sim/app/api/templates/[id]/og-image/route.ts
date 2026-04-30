@@ -3,8 +3,8 @@ import { templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateTemplateOgImageBodySchema } from '@/lib/api/contracts/templates'
-import { parseJsonBody } from '@/lib/api/server'
+import { updateTemplateOgImageContract } from '@/lib/api/contracts/templates'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -21,9 +21,9 @@ const logger = createLogger('TemplateOGImageAPI')
  * Accepts base64-encoded image data in the request body.
  */
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const { id } = await context.params
 
     try {
       const session = await getSession()
@@ -42,14 +42,9 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error }, { status: status || 403 })
       }
 
-      const parsedBody = await parseJsonBody(request)
-      const bodyResult = parsedBody.success
-        ? updateTemplateOgImageBodySchema.safeParse(parsedBody.data)
-        : null
-      const body = bodyResult?.success
-        ? bodyResult.data
-        : ({ imageData: undefined } as { imageData?: string })
-      const { imageData } = body
+      const parsed = await parseRequest(updateTemplateOgImageContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { imageData } = parsed.data.body
 
       if (!imageData || typeof imageData !== 'string') {
         return NextResponse.json(

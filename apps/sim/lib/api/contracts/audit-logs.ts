@@ -84,19 +84,34 @@ const apiResponseWithLimitsSchema = z
   })
   .passthrough()
 
+export const enterpriseAuditLogEntrySchema = z.object({
+  id: z.string(),
+  workspaceId: z.string().nullable(),
+  actorId: z.string().nullable(),
+  actorName: z.string().nullable(),
+  actorEmail: z.string().nullable(),
+  action: z.string(),
+  resourceType: z.string(),
+  resourceId: z.string().nullable(),
+  resourceName: z.string().nullable(),
+  description: z.string().nullable(),
+  metadata: z.unknown(),
+  createdAt: z.string(),
+})
+
+export const listAuditLogsResponseSchema = z.object({
+  success: z.boolean(),
+  data: z.array(enterpriseAuditLogEntrySchema),
+  nextCursor: z.string().optional(),
+})
+
 export const listAuditLogsContract = defineRouteContract({
   method: 'GET',
   path: '/api/audit-logs',
   query: auditLogsQuerySchema,
   response: {
     mode: 'json',
-    schema: z
-      .object({
-        success: z.literal(true),
-        data: z.array(z.unknown()),
-        nextCursor: z.string().nullable().optional(),
-      })
-      .passthrough(),
+    schema: listAuditLogsResponseSchema,
   },
 })
 

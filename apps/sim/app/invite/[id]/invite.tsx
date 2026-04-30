@@ -201,6 +201,7 @@ export default function Invite() {
       setIsLoading(true)
       try {
         const tokenParam = token ? `?token=${encodeURIComponent(token)}` : ''
+        // boundary-raw-fetch: GET route handler not yet contract-backed (no contract, uses safeParse)
         const response = await fetch(`/api/invitations/${inviteId}${tokenParam}`)
 
         if (!response.ok) {
@@ -230,6 +231,7 @@ export default function Invite() {
     setIsAccepting(true)
 
     try {
+      // boundary-raw-fetch: route handler not yet contract-backed (no contract, uses safeParse)
       const response = await fetch(`/api/invitations/${inviteId}/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

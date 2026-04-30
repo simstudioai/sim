@@ -1,5 +1,11 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  getWorkspaceContract,
+  listFoldersContract,
+  listWorkflowsContract,
+} from '@/lib/api/contracts'
 import {
   downloadFile,
   exportWorkspaceToZip,
@@ -32,24 +38,20 @@ export function useExportWorkspace({ onSuccess }: UseExportWorkspaceProps = {}) 
       try {
         logger.info('Exporting workspace', { workspaceId })
 
-        const workflowsResponse = await fetch(`/api/workflows?workspaceId=${workspaceId}`)
-        if (!workflowsResponse.ok) {
-          throw new Error('Failed to fetch workflows')
-        }
-        const { data: workflows } = await workflowsResponse.json()
+        const { data: workflows } = await requestJson(listWorkflowsContract, {
+          query: { workspaceId },
+        })
 
-        const foldersResponse = await fetch(`/api/folders?workspaceId=${workspaceId}`)
-        if (!foldersResponse.ok) {
-          throw new Error('Failed to fetch folders')
-        }
-        const foldersData = await foldersResponse.json()
+        const foldersData = await requestJson(listFoldersContract, {
+          query: { workspaceId },
+        })
 
         const workflowsToExport: WorkflowExportData[] = []
 
         for (const workflow of workflows) {
           const exportData = await fetchWorkflowForExport(workflow.id, {
             name: workflow.name,
-            description: workflow.description,
+            description: workflow.description ?? undefined,
             color: workflow.color,
             folderId: workflow.folderId,
           })
@@ -59,19 +61,22 @@ export function useExportWorkspace({ onSuccess }: UseExportWorkspaceProps = {}) 
           }
         }
 
-        const foldersToExport: FolderExportData[] = (foldersData.folders || []).map(
-          (folder: FolderExportData) => ({
-            id: folder.id,
-            name: folder.name,
-            parentId: folder.parentId,
-            sortOrder: folder.sortOrder,
-          })
-        )
+        const foldersToExport: FolderExportData[] = (foldersData.folders || []).map((folder) => ({
+          id: folder.id,
+          name: folder.name,
+          parentId: folder.parentId,
+          sortOrder: folder.sortOrder,
+        }))
 
-        const workspaceResponse = await fetch(`/api/workspaces/${workspaceId}`)
-        const workspaceColor = workspaceResponse.ok
-          ? ((await workspaceResponse.json()).workspace?.color as string | undefined)
-          : undefined
+        let workspaceColor: string | undefined
+        try {
+          const workspaceData = await requestJson(getWorkspaceContract, {
+            params: { id: workspaceId },
+          })
+          workspaceColor = workspaceData.workspace?.color
+        } catch {
+          workspaceColor = undefined
+        }
 
         const zipBlob = await exportWorkspaceToZip(
           workspaceName,

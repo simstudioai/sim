@@ -6,6 +6,9 @@ import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
 import { Progress } from '@/components/ui/progress'
+import { isApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import { fileDeleteContract } from '@/lib/api/contracts/storage-transfer'
 import { cn } from '@/lib/core/utils/cn'
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -315,6 +318,7 @@ export function FileUpload({
             formData.append('workspaceId', workspaceId)
           }
 
+          // boundary-raw-fetch: multipart/form-data upload (FileUpload boundary), incompatible with requestJson which JSON-stringifies bodies
           const response = await fetch('/api/files/upload', {
             method: 'POST',
             body: formData,
@@ -486,18 +490,15 @@ export function FileUpload({
         (decodedPath.includes(`/${workspaceId}/`) || decodedPath.includes(`${workspaceId}/`))
 
       if (!isWorkspaceFile) {
-        const response = await fetch('/api/files/delete', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ filePath: file.path }),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: response.statusText }))
-          const errorMessage = errorData.error || `Failed to delete file: ${response.status}`
-          throw new Error(errorMessage)
+        try {
+          await requestJson(fileDeleteContract, {
+            body: { filePath: file.path },
+          })
+        } catch (err) {
+          if (isApiClientError(err)) {
+            throw new Error(err.message || `Failed to delete file: ${err.status}`)
+          }
+          throw err
         }
       }
 

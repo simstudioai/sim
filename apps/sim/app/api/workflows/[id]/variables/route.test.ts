@@ -94,7 +94,15 @@ describe('Workflow Variables API Route', () => {
 
       expect(response.status).toBe(200)
       const data = await response.json()
-      expect(data.data).toEqual(mockWorkflow.variables)
+      expect(data.data).toEqual({
+        'var-1': {
+          id: 'var-1',
+          name: 'test',
+          type: 'string',
+          value: 'hello',
+          workflowId: 'workflow-123',
+        },
+      })
     })
 
     it('should allow access when user has workspace permissions', async () => {
@@ -126,7 +134,16 @@ describe('Workflow Variables API Route', () => {
 
       expect(response.status).toBe(200)
       const data = await response.json()
-      expect(data.data).toEqual(mockWorkflow.variables)
+      // GET stamps `workflowId` from the path param on each variable.
+      expect(data.data).toEqual({
+        'var-1': {
+          id: 'var-1',
+          name: 'test',
+          type: 'string',
+          value: 'hello',
+          workflowId: 'workflow-123',
+        },
+      })
     })
 
     it('should deny access when user has no workspace permissions', async () => {

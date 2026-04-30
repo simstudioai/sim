@@ -6,6 +6,8 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { Button } from '@/components/emcn'
 import { PanelLeft } from '@/components/emcn/icons'
+import { requestJson } from '@/lib/api/client/request'
+import { createWorkflowContract } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
 import {
   LandingPromptStorage,
@@ -54,24 +56,15 @@ export function Home({ chatId }: HomeProps = {}) {
           descriptionOverride: seed.workflowDescription || 'Imported from landing template',
           colorOverride: seed.color,
           createWorkflow: async ({ name, description, color, workspaceId }) => {
-            const response = await fetch('/api/workflows', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
+            return requestJson(createWorkflowContract, {
+              body: {
                 name,
                 description,
                 color,
                 workspaceId,
                 deduplicate: true,
-              }),
+              },
             })
-
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({}))
-              throw new Error(errorData.error || 'Failed to create workflow')
-            }
-
-            return response.json()
           },
         })
 

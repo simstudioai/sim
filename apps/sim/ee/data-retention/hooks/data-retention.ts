@@ -1,6 +1,11 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  getOrganizationDataRetentionContract,
+  updateOrganizationDataRetentionContract,
+} from '@/lib/api/contracts/organization'
 
 export interface RetentionValues {
   logRetentionHours: number | null
@@ -24,15 +29,11 @@ async function fetchDataRetention(
   orgId: string,
   signal?: AbortSignal
 ): Promise<DataRetentionResponse> {
-  const response = await fetch(`/api/organizations/${orgId}/data-retention`, { signal })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(error.error ?? 'Failed to fetch data retention settings')
-  }
-
-  const { data } = await response.json()
-  return data as DataRetentionResponse
+  const { data } = await requestJson(getOrganizationDataRetentionContract, {
+    params: { id: orgId },
+    signal,
+  })
+  return data
 }
 
 export function useOrganizationRetention(orgId: string | undefined) {
@@ -53,21 +54,11 @@ export function useUpdateOrganizationRetention() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ orgId, settings }: UpdateRetentionVariables) => {
-      const response = await fetch(`/api/organizations/${orgId}/data-retention`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
-      })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error ?? 'Failed to update data retention settings')
-      }
-
-      const { data } = await response.json()
-      return data as DataRetentionResponse
-    },
+    mutationFn: ({ orgId, settings }: UpdateRetentionVariables) =>
+      requestJson(updateOrganizationDataRetentionContract, {
+        params: { id: orgId },
+        body: settings,
+      }),
     onSettled: (_data, _error, { orgId }) => {
       queryClient.invalidateQueries({ queryKey: dataRetentionKeys.settings(orgId) })
     },

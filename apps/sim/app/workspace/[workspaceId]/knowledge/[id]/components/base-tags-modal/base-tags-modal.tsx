@@ -15,6 +15,8 @@ import {
   ModalHeader,
   Trash,
 } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import { getTagUsageContract } from '@/lib/api/contracts/knowledge'
 import { cn } from '@/lib/core/utils/cn'
 import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
@@ -107,13 +109,11 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
     if (!knowledgeBaseId) return
 
     try {
-      const response = await fetch(`/api/knowledge/${knowledgeBaseId}/tag-usage`)
-      if (!response.ok) {
-        throw new Error('Failed to fetch tag usage')
-      }
-      const result = await response.json()
+      const result = await requestJson(getTagUsageContract, {
+        params: { id: knowledgeBaseId },
+      })
       if (result.success) {
-        setTagUsageData(result.data)
+        setTagUsageData(result.data as TagUsageData[])
       }
     } catch (error) {
       logger.error('Error fetching tag usage:', error)

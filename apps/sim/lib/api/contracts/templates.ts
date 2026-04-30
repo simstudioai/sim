@@ -188,12 +188,45 @@ export const useTemplateBodySchema = z
   .passthrough()
 export type UseTemplateBody = z.input<typeof useTemplateBodySchema>
 
+export const useTemplateResponseSchema = z.object({
+  message: z.string(),
+  workflowId: z.string(),
+  workspaceId: z.string(),
+})
+
+export const useTemplateContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/templates/[id]/use',
+  params: templateIdParamsSchema,
+  body: useTemplateBodySchema,
+  response: {
+    mode: 'json',
+    schema: useTemplateResponseSchema,
+  },
+})
+
 export const updateTemplateOgImageBodySchema = z
   .object({
     imageData: z.string().optional(),
   })
   .passthrough()
 export type UpdateTemplateOgImageBody = z.input<typeof updateTemplateOgImageBodySchema>
+
+export const updateTemplateOgImageResponseSchema = z.object({
+  success: z.literal(true),
+  ogImageUrl: z.string(),
+})
+
+export const updateTemplateOgImageContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/templates/[id]/og-image',
+  params: templateIdParamsSchema,
+  body: updateTemplateOgImageBodySchema,
+  response: {
+    mode: 'json',
+    schema: updateTemplateOgImageResponseSchema,
+  },
+})
 
 export const unstarTemplateContract = defineRouteContract({
   method: 'DELETE',

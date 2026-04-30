@@ -142,6 +142,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
               formData.append('workspaceId', workspaceId)
             }
 
+            // boundary-raw-fetch: multipart/form-data upload (FileUpload boundary), incompatible with requestJson which JSON-stringifies bodies
             const uploadResponse = await fetch('/api/files/upload', {
               method: 'POST',
               body: formData,

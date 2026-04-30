@@ -275,6 +275,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
         files: payload.files ? `${payload.files.length} files` : undefined,
       })
 
+      // boundary-raw-fetch: deployed chat endpoint returns an SSE stream consumed by handleStreamedResponse via response.body.getReader()
       const response = await fetch(`/api/chat/${identifier}`, {
         method: 'POST',
         headers: {

@@ -94,21 +94,51 @@ const workflowParallelSchema = z.object({
   locked: z.boolean().optional(),
 })
 
+/**
+ * Wire schema for a workflow variable as exchanged between client and server.
+ *
+ * Intentionally omits `workflowId`: a variable is workflow-scoped and the
+ * route's `[id]` path parameter is the single source of truth. Clients
+ * typically don't carry `workflowId` on the value (the canonical
+ * `Variable` type from `@sim/workflow-types/workflow` doesn't either) and
+ * the server doesn't need a per-variable copy to persist or look up the
+ * record. The client-side variables store
+ * (`apps/sim/stores/variables/types.ts`) keeps a `workflowId` field for
+ * cross-workflow filtering inside a single global store; that field is
+ * stamped from the path param on read in route handlers and is not part
+ * of the wire contract.
+ */
 export const workflowVariableSchema = z.object({
   id: z.string(),
-  workflowId: z.string(),
   name: z.string(),
   type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
-  value: z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.record(z.string(), z.unknown()),
-    z.array(z.unknown()),
-  ]),
+  // `value` is `unknown` to match the canonical client-side `Variable`
+  // type from `@sim/workflow-types/workflow`. Variables are free-form on
+  // the editor (the user enters a string that may parse as any of the
+  // above types) and validation is done per-`type` at use-time by
+  // `validateVariable` in `apps/sim/stores/variables/store.ts`. The wire
+  // contract intentionally accepts the same union the store accepts.
+  value: z.unknown(),
   validationError: z.string().optional(),
 })
 
+/**
+ * Workflow state as it crosses the HTTP boundary.
+ *
+ * This schema intentionally mirrors the persisted/editor state shape without
+ * being a 1:1 TypeScript alias for the Zustand store's `WorkflowState` from
+ * `@sim/workflow-types/workflow`. The store type includes UI-only fields
+ * (`currentWorkflowId`, `lastUpdate`, `dragStartPosition`) and some narrower
+ * editor unions (`subBlocks.value`, block outputs) that are validated by
+ * editor/runtime code rather than the API contract.
+ *
+ * Keep this schema focused on persisted wire data. When adding or changing
+ * fields, check the full flow: normalized DB loaders, `/api/workflows/[id]`,
+ * `/api/workflows/[id]/state`, workflow import/export, realtime reloads, and
+ * deployment state. If a field only exists for client store bookkeeping, it
+ * should usually be stamped at the route boundary or omitted from the wire
+ * contract instead of being persisted redundantly.
+ */
 export const workflowStateSchema = z.object({
   blocks: z.record(z.string(), workflowBlockStateSchema),
   edges: z.array(workflowEdgeSchema),
@@ -706,6 +736,18 @@ export const workflowVariablesContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: workflowVariablesResponseSchema,
+  },
+})
+
+export const getWorkflowVariablesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workflows/[id]/variables',
+  params: workflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      data: z.record(z.string(), workflowVariableSchema),
+    }),
   },
 })
 

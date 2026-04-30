@@ -53,12 +53,26 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Workflow state not found' }, { status: 404 })
       }
 
+      // Stamp `workflowId` from the path param on each variable so the
+      // global client-side variables store can filter by workflow without
+      // requiring clients to thread the path param through. The wire
+      // contract (`workflowVariableSchema`) intentionally omits
+      // `workflowId`; the server is the single source of truth.
+      const persistedVariables =
+        (authorization.workflow?.variables as Record<string, Record<string, unknown>>) || {}
+      const variables: Record<string, Record<string, unknown>> = {}
+      for (const [variableId, variable] of Object.entries(persistedVariables)) {
+        if (variable && typeof variable === 'object') {
+          variables[variableId] = { ...variable, workflowId }
+        }
+      }
+
       return NextResponse.json({
         blocks: normalized.blocks,
         edges: normalized.edges,
         loops: normalized.loops || {},
         parallels: normalized.parallels || {},
-        variables: authorization.workflow?.variables || {},
+        variables,
       })
     } catch (error) {
       logger.error('Failed to fetch workflow state', {
@@ -116,25 +130,10 @@ export const PUT = withRouteHandler(
         )
       }
 
-      if (state.variables) {
-        const mismatchedVariable = Object.values(state.variables).find(
-          (variable) => variable.workflowId !== workflowId
-        )
-        if (mismatchedVariable) {
-          return NextResponse.json(
-            {
-              error: 'Invalid workflow state',
-              details: [
-                {
-                  path: ['variables', mismatchedVariable.id, 'workflowId'],
-                  message: 'Variable workflowId must match the workflow route parameter',
-                },
-              ],
-            },
-            { status: 400 }
-          )
-        }
-      }
+      // Note: prior versions cross-checked that each variable's `workflowId`
+      // equalled the path param. The contract no longer carries `workflowId`
+      // per variable (the path param is the source of truth), so the check
+      // is unreachable and was removed.
 
       // Sanitize custom tools in agent blocks before saving
       const { blocks: sanitizedBlocks, warnings } = sanitizeAgentToolsInBlocks(

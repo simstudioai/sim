@@ -44,6 +44,7 @@ export default function OAuthConsentPage() {
       return
     }
 
+    // boundary-raw-fetch: better-auth catch-all OAuth client lookup, no app-level contract
     fetch(`/api/auth/oauth2/client/${encodeURIComponent(clientId)}`, { credentials: 'include' })
       .then(async (res) => {
         if (!res.ok) return
@@ -65,6 +66,7 @@ export default function OAuthConsentPage() {
 
       setSubmitting(true)
       try {
+        // boundary-raw-fetch: better-auth catch-all OAuth consent submission, no app-level contract
         const res = await fetch('/api/auth/oauth2/consent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -100,6 +102,7 @@ export default function OAuthConsentPage() {
   const handleSwitchAccount = useCallback(async () => {
     if (!consentCode) return
 
+    // boundary-raw-fetch: route handler not yet contract-backed (uses safeParse, not parseRequest)
     const res = await fetch(`/api/auth/oauth2/authorize-params?consent_code=${consentCode}`, {
       credentials: 'include',
     })

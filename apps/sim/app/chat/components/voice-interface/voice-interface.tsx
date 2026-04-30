@@ -5,6 +5,8 @@ import { createLogger } from '@sim/logger'
 import { Mic, MicOff, Phone } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
+import { requestJson } from '@/lib/api/client/request'
+import { speechTokenContract } from '@/lib/api/contracts/media-tools'
 import { cn } from '@/lib/core/utils/cn'
 import { arrayBufferToBase64, floatTo16BitPCM } from '@/lib/speech/audio'
 import {
@@ -152,22 +154,21 @@ export function VoiceInterface({
 
   const connectWebSocket = useCallback(async (): Promise<boolean> => {
     try {
-      const body: Record<string, string> = {}
-      if (chatId) body.chatId = chatId
-
-      const tokenResponse = await fetch('/api/speech/token', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-
-      if (!tokenResponse.ok) {
-        logger.error('Failed to get STT token', { status: tokenResponse.status })
+      let tokenData: Awaited<ReturnType<typeof requestJson<typeof speechTokenContract>>>
+      try {
+        tokenData = await requestJson(speechTokenContract, {
+          body: chatId ? { chatId } : {},
+        })
+      } catch (err) {
+        logger.error('Failed to get STT token', err)
         return false
       }
 
-      const { token } = await tokenResponse.json()
+      const token = typeof tokenData.token === 'string' ? tokenData.token : undefined
+      if (!token) {
+        logger.error('STT token missing from response')
+        return false
+      }
 
       const params = new URLSearchParams({
         token,

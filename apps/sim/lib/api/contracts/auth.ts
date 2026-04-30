@@ -81,3 +81,27 @@ export const ssoRegistrationContract = defineRouteContract({
     }),
   },
 })
+
+const ssoProviderListEntrySchema = z.object({
+  id: z.string().optional(),
+  providerId: z.string().optional(),
+  domain: z.string().nullable(),
+  issuer: z.string().nullable().optional(),
+  oidcConfig: z.string().nullable().optional(),
+  samlConfig: z.string().nullable().optional(),
+  userId: z.string().nullable().optional(),
+  organizationId: z.string().nullable().optional(),
+  providerType: z.enum(['oidc', 'saml']).optional(),
+})
+
+export const listSsoProvidersContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/auth/sso/providers',
+  query: ssoProvidersQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      providers: z.array(ssoProviderListEntrySchema),
+    }),
+  },
+})

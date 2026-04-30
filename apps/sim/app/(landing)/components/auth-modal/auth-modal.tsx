@@ -49,6 +49,7 @@ const SOCIAL_BTN =
 
 function fetchProviderStatus(): Promise<ProviderStatus> {
   if (fetchPromise) return fetchPromise
+  // boundary-raw-fetch: /api/auth/providers route has no parseRequest contract (zero-input GET, no boundary contract exists)
   fetchPromise = fetch('/api/auth/providers')
     .then((r) => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`)

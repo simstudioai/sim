@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { isApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import { getVoiceSettingsContract } from '@/lib/api/contracts/common'
+import { speechTokenContract } from '@/lib/api/contracts/media-tools'
 import { arrayBufferToBase64, floatTo16BitPCM } from '@/lib/speech/audio'
 import {
   CHUNK_SEND_INTERVAL_MS,
@@ -73,8 +77,7 @@ export function useSpeechToText({
       return
     }
 
-    fetch('/api/settings/voice', { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : { sttAvailable: false }))
+    requestJson(getVoiceSettingsContract, {})
       .then((data) => {
         if (mountedRef.current) setIsSupported(data.sttAvailable === true)
       })
@@ -163,21 +166,19 @@ export function useSpeechToText({
     startingRef.current = true
 
     try {
-      const tokenResponse = await fetch('/api/speech/token', {
-        method: 'POST',
-        credentials: 'include',
-      })
-
-      if (!tokenResponse.ok) {
-        if (tokenResponse.status === 402) {
+      let tokenData: Awaited<ReturnType<typeof requestJson<typeof speechTokenContract>>>
+      try {
+        tokenData = await requestJson(speechTokenContract, { body: {} })
+      } catch (err) {
+        if (isApiClientError(err) && err.status === 402) {
           onUsageLimitExceededRef.current?.()
           return false
         }
-        const body = await tokenResponse.json().catch(() => ({}))
-        throw new Error(body.error || 'Failed to get speech token')
+        throw err instanceof Error ? err : new Error('Failed to get speech token')
       }
 
-      const { token } = await tokenResponse.json()
+      const token = typeof tokenData.token === 'string' ? tokenData.token : undefined
+      if (!token) throw new Error('Failed to get speech token')
       if (!mountedRef.current) return false
 
       const stream = await navigator.mediaDevices.getUserMedia({

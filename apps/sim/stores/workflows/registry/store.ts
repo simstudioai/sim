@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { requestJson } from '@/lib/api/client/request'
+import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { WorkflowDeploymentInfo } from '@/hooks/queries/deployments'
@@ -91,20 +93,33 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         }))
 
         try {
-          const response = await fetch(`/api/workflows/${workflowId}`, { method: 'GET' })
-          if (!response.ok) {
-            throw new Error(`Failed to load workflow ${workflowId}`)
+          const { data: workflowData } = await requestJson(getWorkflowStateContract, {
+            params: { id: workflowId },
+          })
+
+          // The route's `data` payload is `.passthrough()`'d in the contract: known keys
+          // (`state.blocks`, `state.edges`, `state.loops`, `state.parallels`, `state.deployedAt`,
+          // `state.isDeployed`, etc.) are validated against `workflowStateSchema`; extra
+          // top-level keys (`isDeployed`, `deployedAt`, `apiKey`, `variables`) are forwarded
+          // verbatim by the route handler and surfaced here as `unknown`.
+          const passthrough = workflowData as {
+            isDeployed?: boolean
+            deployedAt?: Date | string | null
+            apiKey?: string | null
+            variables?: Record<string, unknown>
           }
 
-          const workflowData = (await response.json()).data
+          if (passthrough.isDeployed !== undefined) {
+            const rawDeployedAt = passthrough.deployedAt
+            const deployedAt =
+              rawDeployedAt instanceof Date ? rawDeployedAt.toISOString() : (rawDeployedAt ?? null)
 
-          if (workflowData?.isDeployed !== undefined) {
             getQueryClient().setQueryData<WorkflowDeploymentInfo>(
               deploymentKeys.info(workflowId),
               (prev) => ({
-                isDeployed: workflowData.isDeployed ?? false,
-                deployedAt: workflowData.deployedAt ?? null,
-                apiKey: workflowData.apiKey ?? prev?.apiKey ?? null,
+                isDeployed: passthrough.isDeployed ?? false,
+                deployedAt,
+                apiKey: passthrough.apiKey ?? prev?.apiKey ?? null,
                 needsRedeployment: prev?.needsRedeployment ?? false,
                 isPublicApi: prev?.isPublicApi ?? false,
               })
@@ -114,12 +129,16 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           let workflowState: WorkflowState
 
           if (workflowData?.state) {
+            const wireState = workflowData.state as Pick<
+              WorkflowState,
+              'blocks' | 'edges' | 'loops' | 'parallels'
+            >
             workflowState = {
               currentWorkflowId: workflowId,
-              blocks: workflowData.state.blocks || {},
-              edges: workflowData.state.edges || [],
-              loops: workflowData.state.loops || {},
-              parallels: workflowData.state.parallels || {},
+              blocks: wireState.blocks || {},
+              edges: wireState.edges || [],
+              loops: wireState.loops || {},
+              parallels: wireState.parallels || {},
               lastSaved: Date.now(),
             }
           } else {
@@ -152,7 +171,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           useWorkflowStore.getState().replaceWorkflowState(workflowState)
           useSubBlockStore.getState().initializeFromWorkflow(workflowId, workflowState.blocks || {})
 
-          if (workflowData?.variables && typeof workflowData.variables === 'object') {
+          const wireVariables = passthrough.variables
+          if (wireVariables && typeof wireVariables === 'object') {
             useVariablesStore.setState((state) => {
               const withoutWorkflow = Object.fromEntries(
                 Object.entries(state.variables).filter(
@@ -160,7 +180,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 )
               )
               return {
-                variables: { ...withoutWorkflow, ...workflowData.variables },
+                variables: {
+                  ...withoutWorkflow,
+                  ...(wireVariables as Record<string, Variable>),
+                },
               }
             })
           }

@@ -60,6 +60,7 @@ interface SubmitContactRequestInput extends ContactRequestPayload {
 }
 
 async function submitContactRequest(payload: SubmitContactRequestInput) {
+  // boundary-raw-fetch: payload includes turnstile captcha + honeypot fields not in submitContactContract body
   const response = await fetch('/api/contact', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
