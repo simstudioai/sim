@@ -896,7 +896,7 @@ export const Sidebar = memo(function Sidebar() {
       deleteTasksMutation.mutate(taskIdsToDelete, { onSuccess: onDeleteSuccess })
     }
     setIsTaskDeleteModalOpen(false)
-  }, [pathname, workspaceId, deleteTaskMutation, deleteTasksMutation, navigateToPage])
+  }, [pathname, workspaceId, navigateToPage])
 
   const [visibleTaskCount, setVisibleTaskCount] = useState(5)
   const taskFlyoutRename = useFlyoutInlineRename({
@@ -935,13 +935,13 @@ export const Sidebar = memo(function Sidebar() {
     const { taskIds: ids } = contextMenuSelectionRef.current
     if (ids.length !== 1) return
     markTaskReadMutation.mutate(ids[0])
-  }, [markTaskReadMutation])
+  }, [])
 
   const handleMarkTaskAsUnread = useCallback(() => {
     const { taskIds: ids } = contextMenuSelectionRef.current
     if (ids.length !== 1) return
     markTaskUnreadMutation.mutate(ids[0])
-  }, [markTaskUnreadMutation])
+  }, [])
 
   const handleStartTaskRename = useCallback(() => {
     const { taskIds: ids } = contextMenuSelectionRef.current
