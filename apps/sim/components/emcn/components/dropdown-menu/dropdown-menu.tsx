@@ -87,9 +87,20 @@ const DropdownMenuSubContent = React.forwardRef<
 ))
 DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName
 
+type DropdownMenuContentProps = React.ComponentPropsWithoutRef<
+  typeof DropdownMenuPrimitive.Content
+> & {
+  /**
+   * Forwarded to Radix's internal FocusScope. The Radix primitive supports this prop at
+   * runtime but does not expose it in its public TypeScript types — surface it here so
+   * callers can opt out of the default focus-into-menu behavior on open.
+   */
+  onOpenAutoFocus?: (event: Event) => void
+}
+
 const DropdownMenuContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
+  DropdownMenuContentProps
 >(({ className, sideOffset = 6, ...props }, ref) => (
   <DropdownMenuPrimitive.Portal>
     <DropdownMenuPrimitive.Content
@@ -100,7 +111,7 @@ const DropdownMenuContent = React.forwardRef<
         'z-[var(--z-dropdown)] max-h-[240px] min-w-[8rem] max-w-[220px] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm',
         className
       )}
-      {...props}
+      {...(props as React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>)}
     />
   </DropdownMenuPrimitive.Portal>
 ))
