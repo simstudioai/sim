@@ -313,7 +313,7 @@ describe('Workflow Variables API Route', () => {
 
       expect(response.status).toBe(400)
       const data = await response.json()
-      expect(data.error).toBe('Invalid request data')
+      expect(data.error).toBe('Validation error')
     })
   })
 

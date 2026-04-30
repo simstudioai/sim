@@ -1,6 +1,12 @@
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
+function defineLinearOutputs(
+  outputs: Record<string, TriggerOutput>
+): Record<string, TriggerOutput> {
+  return outputs
+}
+
 /**
  * Shared trigger dropdown options for all Linear triggers
  */
@@ -271,7 +277,7 @@ export const stateOutputs = {
  * Build output schema for issue events
  */
 export function buildIssueOutputs(): Record<string, TriggerOutput> {
-  return {
+  return defineLinearOutputs({
     action: {
       type: 'string',
       description: 'Action performed (create, update, remove)',
@@ -447,14 +453,14 @@ export function buildIssueOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as unknown as Record<string, TriggerOutput>
+  })
 }
 
 /**
  * Build output schema for comment events
  */
 export function buildCommentOutputs(): Record<string, TriggerOutput> {
-  return {
+  return defineLinearOutputs({
     action: {
       type: 'string',
       description: 'Action performed (create, update, remove)',
@@ -542,14 +548,14 @@ export function buildCommentOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as unknown as Record<string, TriggerOutput>
+  })
 }
 
 /**
  * Build output schema for project events
  */
 export function buildProjectOutputs(): Record<string, TriggerOutput> {
-  return {
+  return defineLinearOutputs({
     action: {
       type: 'string',
       description: 'Action performed (create, update, remove)',
@@ -689,14 +695,14 @@ export function buildProjectOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as unknown as Record<string, TriggerOutput>
+  })
 }
 
 /**
  * Build output schema for cycle events
  */
 export function buildCycleOutputs(): Record<string, TriggerOutput> {
-  return {
+  return defineLinearOutputs({
     action: {
       type: 'string',
       description: 'Action performed (create, update, remove)',
@@ -796,14 +802,14 @@ export function buildCycleOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as unknown as Record<string, TriggerOutput>
+  })
 }
 
 /**
  * Build output schema for label events
  */
 export function buildLabelOutputs(): Record<string, TriggerOutput> {
-  return {
+  return defineLinearOutputs({
     action: {
       type: 'string',
       description: 'Action performed (create, update, remove)',
@@ -887,14 +893,14 @@ export function buildLabelOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as unknown as Record<string, TriggerOutput>
+  })
 }
 
 /**
  * Build output schema for project update events
  */
 export function buildProjectUpdateOutputs(): Record<string, TriggerOutput> {
-  return {
+  return defineLinearOutputs({
     action: {
       type: 'string',
       description: 'Action performed (create, update, remove)',
@@ -966,14 +972,14 @@ export function buildProjectUpdateOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as unknown as Record<string, TriggerOutput>
+  })
 }
 
 /**
  * Build output schema for customer request events
  */
 export function buildCustomerRequestOutputs(): Record<string, TriggerOutput> {
-  return {
+  return defineLinearOutputs({
     action: {
       type: 'string',
       description: 'Action performed (create, update, remove)',
@@ -1053,7 +1059,7 @@ export function buildCustomerRequestOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as unknown as Record<string, TriggerOutput>
+  })
 }
 
 /**

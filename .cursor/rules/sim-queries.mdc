@@ -37,12 +37,18 @@ Never use inline query keys — always use the factory.
 - Every `queryFn` must destructure and forward `signal` for request cancellation
 - Every query must have an explicit `staleTime`
 - Use `keepPreviousData` only on variable-key queries (where params change), never on static keys
+- Same-origin JSON calls must go through `requestJson(contract, ...)` from `@/lib/api/client/request` against the contract in `@/lib/api/contracts/**`
 
 ```typescript
-async function fetchEntities(workspaceId: string, signal?: AbortSignal) {
-  const response = await fetch(`/api/entities?workspaceId=${workspaceId}`, { signal })
-  if (!response.ok) throw new Error('Failed to fetch entities')
-  return response.json()
+import { requestJson } from '@/lib/api/client/request'
+import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'
+
+async function fetchEntities(workspaceId: string, signal?: AbortSignal): Promise<EntityList> {
+  const data = await requestJson(listEntitiesContract, {
+    query: { workspaceId },
+    signal,
+  })
+  return data.entities
 }
 
 export function useEntityList(workspaceId?: string, options?: { enabled?: boolean }) {
@@ -51,7 +57,7 @@ export function useEntityList(workspaceId?: string, options?: { enabled?: boolea
     queryFn: ({ signal }) => fetchEntities(workspaceId as string, signal),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: 60 * 1000,
-    placeholderData: keepPreviousData, // OK: workspaceId varies
+    placeholderData: keepPreviousData,
   })
 }
 ```
@@ -117,6 +123,12 @@ const handler = useCallback(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [data])
 ```
+
+## Boundary Types
+
+- Hooks must import named type aliases from `@/lib/api/contracts/**` (e.g., `import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'`). Never write `z.input<...>` or `z.output<...>` in hooks.
+- Hooks must not `import { z } from 'zod'`. Boundary types come from contract aliases; non-boundary helpers can stay in plain TypeScript.
+- For non-contract endpoints (multipart uploads, binary downloads, streaming responses, signed-URL flows, OAuth redirects, external origins), it is OK to keep raw `fetch`. Each legitimate raw `fetch(` call inside `apps/sim/hooks/queries/**` or `apps/sim/hooks/selectors/**` must be preceded by a `// boundary-raw-fetch: <reason>` annotation on the immediately preceding line (up to three non-empty preceding comment lines are tolerated). The reason must be non-empty — empty reasons fail strict mode. The audit script `scripts/check-api-validation-contracts.ts` (`bun run check:api-validation` / `bun run check:api-validation:strict`) enforces this.
 
 ## Naming
 

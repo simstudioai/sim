@@ -3,11 +3,11 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { Input, Label } from '@/components/emcn'
+import { Input, Label, Loader } from '@/components/emcn'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
@@ -530,7 +530,7 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
           <button type='submit' disabled={isLoading} className={cn('!mt-6', AUTH_SUBMIT_BTN)}>
             {isLoading ? (
               <span className='flex items-center gap-2'>
-                <Loader2 className='h-4 w-4 animate-spin' />
+                <Loader className='h-4 w-4' animate />
                 Creating account...
               </span>
             ) : (

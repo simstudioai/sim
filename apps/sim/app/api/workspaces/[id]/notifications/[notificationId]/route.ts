@@ -4,96 +4,15 @@ import { workflow, workspaceNotificationSubscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateNotificationServerContract } from '@/lib/api/contracts/notifications'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { MAX_EMAIL_RECIPIENTS, MAX_WORKFLOW_IDS } from '../constants'
 
 const logger = createLogger('WorkspaceNotificationAPI')
-
-const levelFilterSchema = z.array(z.enum(['info', 'error']))
-const triggerFilterSchema = z.array(z.string().min(1))
-
-const alertRuleSchema = z.enum([
-  'consecutive_failures',
-  'failure_rate',
-  'latency_threshold',
-  'latency_spike',
-  'cost_threshold',
-  'no_activity',
-  'error_count',
-])
-
-const alertConfigSchema = z
-  .object({
-    rule: alertRuleSchema,
-    consecutiveFailures: z.number().int().min(1).max(100).optional(),
-    failureRatePercent: z.number().int().min(1).max(100).optional(),
-    windowHours: z.number().int().min(1).max(168).optional(),
-    durationThresholdMs: z.number().int().min(1000).max(3600000).optional(),
-    latencySpikePercent: z.number().int().min(10).max(1000).optional(),
-    costThresholdDollars: z.number().min(0.01).max(1000).optional(),
-    inactivityHours: z.number().int().min(1).max(168).optional(),
-    errorCountThreshold: z.number().int().min(1).max(1000).optional(),
-  })
-  .refine(
-    (data) => {
-      switch (data.rule) {
-        case 'consecutive_failures':
-          return data.consecutiveFailures !== undefined
-        case 'failure_rate':
-          return data.failureRatePercent !== undefined && data.windowHours !== undefined
-        case 'latency_threshold':
-          return data.durationThresholdMs !== undefined
-        case 'latency_spike':
-          return data.latencySpikePercent !== undefined && data.windowHours !== undefined
-        case 'cost_threshold':
-          return data.costThresholdDollars !== undefined
-        case 'no_activity':
-          return data.inactivityHours !== undefined
-        case 'error_count':
-          return data.errorCountThreshold !== undefined && data.windowHours !== undefined
-        default:
-          return false
-      }
-    },
-    { message: 'Missing required fields for alert rule' }
-  )
-  .nullable()
-
-const webhookConfigSchema = z.object({
-  url: z.string().url(),
-  secret: z.string().optional(),
-})
-
-const slackConfigSchema = z.object({
-  channelId: z.string(),
-  channelName: z.string(),
-  accountId: z.string(),
-})
-
-const updateNotificationSchema = z
-  .object({
-    workflowIds: z.array(z.string()).max(MAX_WORKFLOW_IDS).optional(),
-    allWorkflows: z.boolean().optional(),
-    levelFilter: levelFilterSchema.optional(),
-    triggerFilter: triggerFilterSchema.optional(),
-    includeFinalOutput: z.boolean().optional(),
-    includeTraceSpans: z.boolean().optional(),
-    includeRateLimits: z.boolean().optional(),
-    includeUsageData: z.boolean().optional(),
-    alertConfig: alertConfigSchema.optional(),
-    webhookConfig: webhookConfigSchema.optional(),
-    emailRecipients: z.array(z.string().email()).max(MAX_EMAIL_RECIPIENTS).optional(),
-    slackConfig: slackConfigSchema.optional(),
-    active: z.boolean().optional(),
-  })
-  .refine((data) => !(data.allWorkflows && data.workflowIds && data.workflowIds.length > 0), {
-    message: 'Cannot specify both allWorkflows and workflowIds',
-  })
 
 type RouteParams = { params: Promise<{ id: string; notificationId: string }> }
 
@@ -167,14 +86,14 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   }
 })
 
-export const PUT = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
+export const PUT = withRouteHandler(async (request: NextRequest, context: RouteParams) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id: workspaceId, notificationId } = await params
+    const { id: workspaceId, notificationId } = await context.params
     const { hasAccess } = await checkWorkspaceWriteAccess(session.user.id, workspaceId)
 
     if (!hasAccess) {
@@ -187,17 +106,11 @@ export const PUT = withRouteHandler(async (request: NextRequest, { params }: Rou
       return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
     }
 
-    const body = await request.json()
-    const validationResult = updateNotificationSchema.safeParse(body)
-
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Invalid request', details: validationResult.error.errors },
-        { status: 400 }
-      )
-    }
-
-    const data = validationResult.data
+    const parsed = await parseRequest(updateNotificationServerContract, request, context, {
+      validationErrorResponse: (error) => validationErrorResponse(error, 'Invalid request'),
+    })
+    if (!parsed.success) return parsed.response
+    const data = parsed.data.body
 
     if (data.workflowIds && data.workflowIds.length > 0) {
       const workflowsInWorkspace = await db

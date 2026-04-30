@@ -3,30 +3,26 @@ import { member, templateCreators } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  creatorProfileParamsSchema,
+  updateCreatorProfileContract,
+} from '@/lib/api/contracts/creator-profile'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CreatorProfileByIdAPI')
 
-const CreatorProfileDetailsSchema = z.object({
-  about: z.string().max(2000, 'Max 2000 characters').optional(),
-  xUrl: z.string().url().optional().or(z.literal('')),
-  linkedinUrl: z.string().url().optional().or(z.literal('')),
-  websiteUrl: z.string().url().optional().or(z.literal('')),
-  contactEmail: z.string().email().optional().or(z.literal('')),
-})
-
-const UpdateCreatorProfileSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Max 100 characters').optional(),
-  profileImageUrl: z.string().optional().or(z.literal('')),
-  details: CreatorProfileDetailsSchema.optional(),
-  verified: z.boolean().optional(), // Verification status (super users only)
-})
+type CreatorProfileRow = typeof templateCreators.$inferSelect
+type CreatorProfileUpdate = Partial<
+  Pick<CreatorProfileRow, 'name' | 'profileImageUrl' | 'details' | 'verified'>
+> & {
+  updatedAt: Date
+}
 
 // Helper to check if user has permission to manage profile
-async function hasPermission(userId: string, profile: any): Promise<boolean> {
+async function hasPermission(userId: string, profile: CreatorProfileRow): Promise<boolean> {
   if (profile.referenceType === 'user') {
     return profile.referenceId === userId
   }
@@ -49,9 +45,13 @@ async function hasPermission(userId: string, profile: any): Promise<boolean> {
 
 // GET /api/creators/[id] - Get a specific creator profile
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const paramsResult = creatorProfileParamsSchema.safeParse(await params)
+    if (!paramsResult.success) {
+      return NextResponse.json({ error: 'Invalid route parameters' }, { status: 400 })
+    }
+    const { id } = paramsResult.data
 
     try {
       const profile = await db
@@ -67,7 +67,7 @@ export const GET = withRouteHandler(
 
       logger.info(`[${requestId}] Retrieved creator profile: ${id}`)
       return NextResponse.json({ data: profile[0] })
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`[${requestId}] Error fetching creator profile: ${id}`, error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
@@ -76,19 +76,26 @@ export const GET = withRouteHandler(
 
 // PUT /api/creators/[id] - Update a creator profile
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
 
     try {
       const session = await getSession()
       if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized update attempt for profile: ${id}`)
+        logger.warn(`[${requestId}] Unauthorized update attempt`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const body = await request.json()
-      const data = UpdateCreatorProfileSchema.parse(body)
+      const parsed = await parseRequest(updateCreatorProfileContract, request, context, {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid update data`, { errors: error.issues })
+          return validationErrorResponse(error, 'Invalid update data')
+        },
+      })
+      if (!parsed.success) return parsed.response
+
+      const { id } = parsed.data.params
+      const data = parsed.data.body
 
       // Check if profile exists
       const existing = await db
@@ -97,7 +104,8 @@ export const PUT = withRouteHandler(
         .where(eq(templateCreators.id, id))
         .limit(1)
 
-      if (existing.length === 0) {
+      const existingProfile = existing[0]
+      if (!existingProfile) {
         logger.warn(`[${requestId}] Profile not found for update: ${id}`)
         return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
       }
@@ -122,14 +130,14 @@ export const PUT = withRouteHandler(
         data.name !== undefined || data.profileImageUrl !== undefined || data.details !== undefined
 
       if (hasNonVerifiedUpdates) {
-        const canEdit = await hasPermission(session.user.id, existing[0])
+        const canEdit = await hasPermission(session.user.id, existingProfile)
         if (!canEdit) {
           logger.warn(`[${requestId}] User denied permission to update profile: ${id}`)
           return NextResponse.json({ error: 'Access denied' }, { status: 403 })
         }
       }
 
-      const updateData: any = {
+      const updateData: CreatorProfileUpdate = {
         updatedAt: new Date(),
       }
 
@@ -147,18 +155,8 @@ export const PUT = withRouteHandler(
       logger.info(`[${requestId}] Successfully updated creator profile: ${id}`)
 
       return NextResponse.json({ data: updated[0] })
-    } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid update data for profile: ${id}`, {
-          errors: error.errors,
-        })
-        return NextResponse.json(
-          { error: 'Invalid update data', details: error.errors },
-          { status: 400 }
-        )
-      }
-
-      logger.error(`[${requestId}] Error updating creator profile: ${id}`, error)
+    } catch (error) {
+      logger.error(`[${requestId}] Error updating creator profile`, error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
   }
@@ -166,9 +164,13 @@ export const PUT = withRouteHandler(
 
 // DELETE /api/creators/[id] - Delete a creator profile
 export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const paramsResult = creatorProfileParamsSchema.safeParse(await params)
+    if (!paramsResult.success) {
+      return NextResponse.json({ error: 'Invalid route parameters' }, { status: 400 })
+    }
+    const { id } = paramsResult.data
 
     try {
       const session = await getSession()
@@ -184,13 +186,14 @@ export const DELETE = withRouteHandler(
         .where(eq(templateCreators.id, id))
         .limit(1)
 
-      if (existing.length === 0) {
+      const existingProfile = existing[0]
+      if (!existingProfile) {
         logger.warn(`[${requestId}] Profile not found for delete: ${id}`)
         return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
       }
 
       // Check permissions
-      const canDelete = await hasPermission(session.user.id, existing[0])
+      const canDelete = await hasPermission(session.user.id, existingProfile)
       if (!canDelete) {
         logger.warn(`[${requestId}] User denied permission to delete profile: ${id}`)
         return NextResponse.json({ error: 'Access denied' }, { status: 403 })
@@ -200,7 +203,7 @@ export const DELETE = withRouteHandler(
 
       logger.info(`[${requestId}] Successfully deleted creator profile: ${id}`)
       return NextResponse.json({ success: true })
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`[${requestId}] Error deleting creator profile: ${id}`, error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }

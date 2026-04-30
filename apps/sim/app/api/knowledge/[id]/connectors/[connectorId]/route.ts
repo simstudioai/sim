@@ -10,7 +10,8 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateKnowledgeConnectorContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { hasLiveSyncAccess } from '@/lib/billing/core/subscription'
@@ -26,12 +27,6 @@ import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 const logger = createLogger('KnowledgeConnectorByIdAPI')
 
 type RouteParams = { params: Promise<{ id: string; connectorId: string }> }
-
-const UpdateConnectorSchema = z.object({
-  sourceConfig: z.record(z.unknown()).optional(),
-  syncIntervalMinutes: z.number().int().min(0).optional(),
-  status: z.enum(['active', 'paused']).optional(),
-})
 
 /**
  * GET /api/knowledge/[id]/connectors/[connectorId] - Get connector details with recent sync logs
@@ -93,9 +88,9 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
 /**
  * PATCH /api/knowledge/[id]/connectors/[connectorId] - Update a connector
  */
-export const PATCH = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
+export const PATCH = withRouteHandler(async (request: NextRequest, context: RouteParams) => {
   const requestId = generateRequestId()
-  const { id: knowledgeBaseId, connectorId } = await params
+  const { id: knowledgeBaseId, connectorId } = await context.params
 
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -109,19 +104,14 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       return NextResponse.json({ error: status === 404 ? 'Not found' : 'Unauthorized' }, { status })
     }
 
-    const body = await request.json()
-    const parsed = UpdateConnectorSchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid request', details: parsed.error.flatten() },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(updateKnowledgeConnectorContract, request, context)
+    if (!parsed.success) return parsed.response
+    const body = parsed.data.body
 
     if (
-      parsed.data.syncIntervalMinutes !== undefined &&
-      parsed.data.syncIntervalMinutes > 0 &&
-      parsed.data.syncIntervalMinutes < 60
+      body.syncIntervalMinutes !== undefined &&
+      body.syncIntervalMinutes > 0 &&
+      body.syncIntervalMinutes < 60
     ) {
       const canUseLiveSync = await hasLiveSyncAccess(auth.userId)
       if (!canUseLiveSync) {
@@ -132,7 +122,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       }
     }
 
-    if (parsed.data.sourceConfig !== undefined) {
+    if (body.sourceConfig !== undefined) {
       const existingRows = await db
         .select()
         .from(knowledgeConnector)
@@ -200,7 +190,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
         )
       }
 
-      const validation = await connectorConfig.validateConfig(accessToken, parsed.data.sourceConfig)
+      const validation = await connectorConfig.validateConfig(accessToken, body.sourceConfig)
       if (!validation.valid) {
         return NextResponse.json(
           { error: validation.error || 'Invalid source configuration' },
@@ -210,20 +200,20 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
     }
 
     const updates: Record<string, unknown> = { updatedAt: new Date() }
-    if (parsed.data.sourceConfig !== undefined) {
-      updates.sourceConfig = parsed.data.sourceConfig
+    if (body.sourceConfig !== undefined) {
+      updates.sourceConfig = body.sourceConfig
     }
-    if (parsed.data.syncIntervalMinutes !== undefined) {
-      updates.syncIntervalMinutes = parsed.data.syncIntervalMinutes
-      if (parsed.data.syncIntervalMinutes > 0) {
-        updates.nextSyncAt = new Date(Date.now() + parsed.data.syncIntervalMinutes * 60 * 1000)
+    if (body.syncIntervalMinutes !== undefined) {
+      updates.syncIntervalMinutes = body.syncIntervalMinutes
+      if (body.syncIntervalMinutes > 0) {
+        updates.nextSyncAt = new Date(Date.now() + body.syncIntervalMinutes * 60 * 1000)
       } else {
         updates.nextSyncAt = null
       }
     }
-    if (parsed.data.status !== undefined) {
-      updates.status = parsed.data.status
-      if (parsed.data.status === 'active') {
+    if (body.status !== undefined) {
+      updates.status = body.status
+      if (body.status === 'active') {
         updates.consecutiveFailures = 0
         updates.lastSyncError = null
         if (updates.nextSyncAt === undefined) {
@@ -274,10 +264,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
         knowledgeBaseName: writeCheck.knowledgeBase.name,
         connectorType: updatedData.connectorType,
         updatedFields: Object.keys(parsed.data),
-        ...(parsed.data.syncIntervalMinutes !== undefined && {
-          syncIntervalMinutes: parsed.data.syncIntervalMinutes,
+        ...(body.syncIntervalMinutes !== undefined && {
+          syncIntervalMinutes: body.syncIntervalMinutes,
         }),
-        ...(parsed.data.status !== undefined && { newStatus: parsed.data.status }),
+        ...(body.status !== undefined && { newStatus: body.status }),
       },
       request,
     })

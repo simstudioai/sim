@@ -4,7 +4,8 @@ import { member, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { transferOwnershipContract } from '@/lib/api/contracts/organization'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import {
@@ -15,30 +16,19 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('TransferOwnershipAPI')
 
-const transferOwnershipSchema = z.object({
-  newOwnerUserId: z.string().min(1),
-  alsoLeave: z.boolean().optional().default(false),
-})
-
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
       const session = await getSession()
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { id: organizationId } = await params
-      const body = await request.json().catch(() => ({}))
-      const validation = transferOwnershipSchema.safeParse(body)
-      if (!validation.success) {
-        return NextResponse.json(
-          { error: validation.error.errors[0]?.message ?? 'Invalid request' },
-          { status: 400 }
-        )
-      }
+      const parsed = await parseRequest(transferOwnershipContract, request, context)
+      if (!parsed.success) return parsed.response
 
-      const { newOwnerUserId, alsoLeave } = validation.data
+      const { id: organizationId } = parsed.data.params
+      const { newOwnerUserId, alsoLeave } = parsed.data.body
 
       if (newOwnerUserId === session.user.id) {
         return NextResponse.json(
@@ -218,7 +208,7 @@ export const POST = withRouteHandler(
       })
     } catch (error) {
       logger.error('Failed to transfer organization ownership', {
-        organizationId: (await params).id,
+        organizationId: (await context.params).id,
         error,
       })
       return NextResponse.json({ error: 'Failed to transfer ownership' }, { status: 500 })

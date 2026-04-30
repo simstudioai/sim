@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { requestJson } from '@/lib/api/client/request'
+import { validateFormIdentifierContract } from '@/lib/api/contracts/forms'
 
 const IDENTIFIER_PATTERN = /^[a-z0-9-]+$/
 const DEBOUNCE_MS = 500
@@ -57,15 +59,11 @@ export function useIdentifierValidation(
     setIsChecking(true)
     timeoutRef.current = setTimeout(async () => {
       try {
-        const response = await fetch(
-          `/api/form/validate?identifier=${encodeURIComponent(identifier)}`
-        )
-        const data = await response.json()
+        const data = await requestJson(validateFormIdentifierContract, {
+          query: { identifier },
+        })
 
-        if (!response.ok) {
-          setError('Error checking identifier availability')
-          setIsValid(false)
-        } else if (!data.available) {
+        if (!data.available) {
           setError(data.error || 'This identifier is already in use')
           setIsValid(false)
         } else {

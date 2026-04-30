@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  jiraIssueSelectorContract,
+  jiraIssuesSelectorContract,
+} from '@/lib/api/contracts/selectors/jira'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -14,16 +19,6 @@ const createErrorResponse = async (response: Response) => {
   return parseAtlassianErrorMessage(response.status, response.statusText, errorText)
 }
 
-const validateRequiredParams = (domain: string | null, accessToken: string | null) => {
-  if (!domain) {
-    return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
-  }
-  if (!accessToken) {
-    return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-  }
-  return null
-}
-
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
@@ -31,10 +26,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const { domain, accessToken, issueKeys = [], cloudId: providedCloudId } = await request.json()
+    const parsed = await parseRequest(jiraIssueSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const validationError = validateRequiredParams(domain || null, accessToken || null)
-    if (validationError) return validationError
+    const { domain, accessToken, issueKeys, cloudId: providedCloudId } = parsed.data.body
 
     if (issueKeys.length === 0) {
       logger.info('No issue keys provided, returning empty result')
@@ -55,7 +50,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ issues: [] })
     }
 
-    const cloudId = providedCloudId || (await getJiraCloudId(domain!, accessToken!))
+    const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
@@ -122,21 +117,21 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const url = new URL(request.url)
-    const domain = url.searchParams.get('domain')?.trim()
-    const accessToken = url.searchParams.get('accessToken')
-    const providedCloudId = url.searchParams.get('cloudId')
-    const query = url.searchParams.get('query') || ''
-    const projectId = url.searchParams.get('projectId') || ''
-    const manualProjectId = url.searchParams.get('manualProjectId') || ''
-    const all = url.searchParams.get('all')?.toLowerCase() === 'true'
-    const limitParam = Number.parseInt(url.searchParams.get('limit') || '', 10)
-    const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : 0
+    const parsed = await parseRequest(jiraIssuesSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const validationError = validateRequiredParams(domain || null, accessToken || null)
-    if (validationError) return validationError
+    const {
+      domain,
+      accessToken,
+      cloudId: providedCloudId,
+      query = '',
+      projectId = '',
+      manualProjectId = '',
+      all,
+      limit,
+    } = parsed.data.query
 
-    const cloudId = providedCloudId || (await getJiraCloudId(domain!, accessToken!))
+    const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {

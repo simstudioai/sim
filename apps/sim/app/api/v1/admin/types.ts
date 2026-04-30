@@ -53,17 +53,16 @@ export const DEFAULT_LIMIT = 50
 export const MAX_LIMIT = 250
 
 export function parsePaginationParams(url: URL): PaginationParams {
-  const limitParam = url.searchParams.get('limit')
-  const offsetParam = url.searchParams.get('offset')
+  return {
+    limit: parsePaginationNumber(url.searchParams.get('limit'), DEFAULT_LIMIT, MAX_LIMIT),
+    offset: parsePaginationNumber(url.searchParams.get('offset'), 0),
+  }
+}
 
-  let limit = limitParam ? Number.parseInt(limitParam, 10) : DEFAULT_LIMIT
-  let offset = offsetParam ? Number.parseInt(offsetParam, 10) : 0
-
-  if (Number.isNaN(limit) || limit < 1) limit = DEFAULT_LIMIT
-  if (limit > MAX_LIMIT) limit = MAX_LIMIT
-  if (Number.isNaN(offset) || offset < 0) offset = 0
-
-  return { limit, offset }
+function parsePaginationNumber(value: string | null, fallback: number, max?: number): number {
+  const parsed = value ? Number.parseInt(value, 10) : fallback
+  if (!Number.isInteger(parsed) || parsed < 1) return fallback
+  return max === undefined ? parsed : Math.min(parsed, max)
 }
 
 export function createPaginationMeta(total: number, limit: number, offset: number): PaginationMeta {

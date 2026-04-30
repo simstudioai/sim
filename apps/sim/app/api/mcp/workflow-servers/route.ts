@@ -6,6 +6,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { createWorkflowMcpServerBodySchema } from '@/lib/api/contracts/workflow-mcp-servers'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
@@ -96,21 +97,20 @@ export const POST = withRouteHandler(
   withMcpAuth('write')(
     async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
       try {
-        const body = getParsedBody(request) || (await request.json())
+        const rawBody = getParsedBody(request) ?? (await request.json())
+        const parsedBody = createWorkflowMcpServerBodySchema.safeParse(rawBody)
+
+        if (!parsedBody.success) {
+          return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
+        }
+
+        const body = parsedBody.data
 
         logger.info(`[${requestId}] Creating workflow MCP server:`, {
           name: body.name,
           workspaceId,
           workflowIds: body.workflowIds,
         })
-
-        if (!body.name) {
-          return createMcpErrorResponse(
-            new Error('Missing required field: name'),
-            'Missing required field',
-            400
-          )
-        }
 
         const serverId = generateId()
 

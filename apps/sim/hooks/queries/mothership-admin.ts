@@ -4,13 +4,22 @@ export type MothershipEnv = 'dev' | 'staging' | 'prod'
 
 const BASE = '/api/admin/mothership'
 
+/**
+ * Same-origin proxy to the mothership admin API. Both the request body and
+ * the response shape vary per upstream `endpoint` query parameter, so a
+ * single contract cannot capture the union; the proxy returns the upstream
+ * JSON verbatim. `requestJson` would force a fixed response schema, so this
+ * hook stays on raw `fetch` and surfaces upstream errors through `adminError`.
+ */
 async function mothershipPost(
   endpoint: string,
   environment: MothershipEnv,
   body?: Record<string, unknown>,
   signal?: AbortSignal
 ) {
-  const res = await fetch(`${BASE}?env=${environment}&endpoint=${endpoint}`, {
+  const qs = new URLSearchParams({ env: environment, endpoint })
+  // boundary-raw-fetch: same-origin proxy whose response shape varies per upstream endpoint
+  const res = await fetch(`${BASE}?${qs.toString()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {}),
@@ -23,6 +32,10 @@ async function mothershipPost(
   return res.json()
 }
 
+/**
+ * Same-origin proxy GET for the mothership admin API. See `mothershipPost`
+ * for the rationale on staying with raw `fetch`.
+ */
 async function mothershipGet(
   endpoint: string,
   environment: MothershipEnv,
@@ -30,6 +43,7 @@ async function mothershipGet(
   signal?: AbortSignal
 ) {
   const qs = new URLSearchParams({ env: environment, endpoint, ...params })
+  // boundary-raw-fetch: same-origin proxy whose response shape varies per upstream endpoint
   const res = await fetch(`${BASE}?${qs.toString()}`, { method: 'GET', signal })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))

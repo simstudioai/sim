@@ -5,7 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, count, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { createPermissionGroupContract } from '@/lib/api/contracts/permission-groups'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -13,18 +14,10 @@ import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
-  permissionGroupConfigSchema,
 } from '@/lib/permission-groups/types'
 import { checkWorkspaceAccess, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspacePermissionGroups')
-
-const createSchema = z.object({
-  name: z.string().trim().min(1).max(100),
-  description: z.string().max(500).optional(),
-  config: permissionGroupConfigSchema.optional(),
-  autoAddNewMembers: z.boolean().optional(),
-})
 
 export const GET = withRouteHandler(
   async (_req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -89,13 +82,13 @@ export const GET = withRouteHandler(
 )
 
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id: workspaceId } = await params
+    const { id: workspaceId } = await context.params
 
     try {
       const isWorkspaceAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
@@ -111,8 +104,12 @@ export const POST = withRouteHandler(
         )
       }
 
-      const body = await req.json()
-      const { name, description, config, autoAddNewMembers } = createSchema.parse(body)
+      const parsed = await parseRequest(createPermissionGroupContract, req, context, {
+        validationErrorResponse: (error) =>
+          NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+      })
+      if (!parsed.success) return parsed.response
+      const { name, description, config, autoAddNewMembers } = parsed.data.body
 
       const existingGroup = await db
         .select({ id: permissionGroup.id })
@@ -182,9 +179,6 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ permissionGroup: newGroup }, { status: 201 })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
-      }
       logger.error('Error creating permission group', error)
       return NextResponse.json({ error: 'Failed to create permission group' }, { status: 500 })
     }

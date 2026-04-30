@@ -1,15 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { slackDeleteMessageContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
-
-const SlackDeleteMessageSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  channel: z.string().min(1, 'Channel is required'),
-  timestamp: z.string().min(1, 'Message timestamp is required'),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -25,8 +20,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const body = await request.json()
-    const validatedData = SlackDeleteMessageSchema.parse(body)
+    const parsed = await parseRequest(slackDeleteMessageContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const slackResponse = await fetch('https://slack.com/api/chat.delete', {
       method: 'POST',
@@ -63,17 +59,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     return NextResponse.json(
       {
         success: false,

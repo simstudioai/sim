@@ -19,7 +19,7 @@ export function generateSchemaFromBlocks(blocks: Record<string, unknown>): Recor
   if (!inputFormat || inputFormat.length === 0) {
     return EMPTY_SCHEMA
   }
-  return generateToolInputSchema(inputFormat) as unknown as Record<string, unknown>
+  return { ...generateToolInputSchema(inputFormat) }
 }
 
 /**

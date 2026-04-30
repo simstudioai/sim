@@ -1765,7 +1765,7 @@ async function handleVariableOperationTx(
         ...currentVariables,
         [payload.id]: {
           id: payload.id,
-          workflowId: payload.workflowId,
+          workflowId,
           name: payload.name,
           type: payload.type,
           value: payload.value || '',

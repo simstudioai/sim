@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Input,
   Label,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
@@ -455,7 +456,7 @@ export default function LoginPage({
           <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
             {isLoading ? (
               <span className='flex items-center gap-2'>
-                <Loader2 className='h-4 w-4 animate-spin' />
+                <Loader className='h-4 w-4' animate />
                 Signing in...
               </span>
             ) : (
@@ -570,7 +571,7 @@ export default function LoginPage({
                 <button type='submit' disabled={isSubmittingReset} className={AUTH_SUBMIT_BTN}>
                   {isSubmittingReset ? (
                     <span className='flex items-center gap-2'>
-                      <Loader2 className='h-4 w-4 animate-spin' />
+                      <Loader className='h-4 w-4' animate />
                       Sending...
                     </span>
                   ) : (

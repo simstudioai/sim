@@ -191,7 +191,7 @@ export const reductoParserV2Tool: ToolConfig<ReductoParserV2Input, ReductoParser
   directExecution: undefined,
   transformResponse: reductoParserTool.transformResponse
     ? (response: Response, params?: ReductoParserV2Input) =>
-        reductoParserTool.transformResponse!(response, params as unknown as ReductoParserInput)
+        reductoParserTool.transformResponse!(response, params)
     : undefined,
   params: {
     file: {

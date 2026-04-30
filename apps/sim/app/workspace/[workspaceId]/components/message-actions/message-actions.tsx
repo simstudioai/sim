@@ -21,6 +21,7 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkTask } from '@/hooks/queries/tasks'
+import { useFolderStore } from '@/stores/folders/store'
 
 const SPECIAL_TAGS = 'thinking|options|usage_upgrade|credential|mothership-error|file'
 
@@ -72,7 +73,7 @@ export const MessageActions = memo(function MessageActions({
   const resetTimeoutRef = useRef<number | null>(null)
   const requestIdTimeoutRef = useRef<number | null>(null)
   const submitFeedback = useSubmitCopilotFeedback()
-  const forkTask = useForkTask()
+  const forkTask = useForkTask(params.workspaceId)
 
   useEffect(() => {
     return () => {
@@ -154,6 +155,7 @@ export const MessageActions = memo(function MessageActions({
     if (!chatId || !messageId || forkTask.isPending) return
     try {
       const result = await forkTask.mutateAsync({ chatId, upToMessageId: messageId })
+      useFolderStore.getState().clearTaskSelection()
       router.push(`/workspace/${params.workspaceId}/task/${result.id}`)
     } catch {
       toast.error('Failed to fork chat')

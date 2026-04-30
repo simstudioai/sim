@@ -1,5 +1,22 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  type CreateFormInput,
+  type CreateFormResponse,
+  createFormContract,
+  deleteFormContract,
+  type ExistingForm,
+  type FormAuthType,
+  type FormCustomizations,
+  type FormFieldConfig,
+  type FormStatusResponse,
+  getFormDetailContract,
+  getFormStatusContract,
+  type UpdateFormInput,
+  updateFormContract,
+} from '@/lib/api/contracts/forms'
 import { deploymentKeys } from './deployments'
 
 const logger = createLogger('FormMutations')
@@ -16,55 +33,34 @@ export const formKeys = {
 /**
  * Auth types for form access control
  */
-export type FormAuthType = 'public' | 'password' | 'email'
+export type { FormAuthType }
 
 /**
  * Field configuration for form fields
  */
-export interface FieldConfig {
-  name: string
-  type: string
-  label: string
-  description?: string
-  required?: boolean
-}
+export type FieldConfig = FormFieldConfig
 
 /**
  * Customizations for form appearance
  */
-export interface FormCustomizations {
-  primaryColor?: string
-  welcomeMessage?: string
-  thankYouTitle?: string
-  thankYouMessage?: string
-  logoUrl?: string
-  fieldConfigs?: FieldConfig[]
-}
+export type { FormCustomizations }
 
 /**
  * Existing form data returned from API
  */
-export interface ExistingForm {
-  id: string
-  identifier: string
-  title: string
-  description?: string
-  customizations: FormCustomizations
-  authType: FormAuthType
-  hasPassword?: boolean
-  allowedEmails?: string[]
-  showBranding: boolean
-  isActive: boolean
-}
+export type { ExistingForm }
 
 /**
  * Form status response from workflow form status API
  */
-interface FormStatusResponse {
-  isDeployed: boolean
-  form?: {
-    id: string
+export type { FormStatusResponse }
+
+function throwUserFriendlyIdentifierError(error: unknown): never {
+  if (error instanceof ApiClientError && error.message === 'Identifier already in use') {
+    throw new Error('This identifier is already in use', { cause: error })
   }
+
+  throw error
 }
 
 /**
@@ -74,27 +70,21 @@ async function fetchFormStatus(
   workflowId: string,
   signal?: AbortSignal
 ): Promise<FormStatusResponse> {
-  const response = await fetch(`/api/workflows/${workflowId}/form/status`, { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch form status')
-  }
-
-  return response.json()
+  return requestJson(getFormStatusContract, {
+    params: { id: workflowId },
+    signal,
+  })
 }
 
 /**
  * Fetches form detail by ID
  */
 async function fetchFormDetail(formId: string, signal?: AbortSignal): Promise<ExistingForm> {
-  const response = await fetch(`/api/form/manage/${formId}`, { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch form details')
-  }
-
-  const data = await response.json()
-  return data.form as ExistingForm
+  const data = await requestJson(getFormDetailContract, {
+    params: { id: formId },
+    signal,
+  })
+  return data.form
 }
 
 /**
@@ -130,17 +120,7 @@ export function useFormByWorkflow(workflowId: string | null) {
 /**
  * Variables for create form mutation
  */
-interface CreateFormVariables {
-  workflowId: string
-  identifier: string
-  title: string
-  description?: string
-  customizations?: FormCustomizations
-  authType?: FormAuthType
-  password?: string
-  allowedEmails?: string[]
-  showBranding?: boolean
-}
+type CreateFormVariables = CreateFormInput
 
 /**
  * Variables for update form mutation
@@ -148,17 +128,7 @@ interface CreateFormVariables {
 interface UpdateFormVariables {
   formId: string
   workflowId: string
-  data: {
-    identifier?: string
-    title?: string
-    description?: string
-    customizations?: FormCustomizations
-    authType?: FormAuthType
-    password?: string
-    allowedEmails?: string[]
-    showBranding?: boolean
-    isActive?: boolean
-  }
+  data: UpdateFormInput
 }
 
 /**
@@ -172,10 +142,7 @@ interface DeleteFormVariables {
 /**
  * Response from form create mutation
  */
-interface CreateFormResult {
-  id: string
-  formUrl: string
-}
+type CreateFormResult = CreateFormResponse
 
 /**
  * Mutation hook for creating a new form deployment.
@@ -186,26 +153,12 @@ export function useCreateForm() {
 
   return useMutation({
     mutationFn: async (params: CreateFormVariables): Promise<CreateFormResult> => {
-      const response = await fetch('/api/form', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        // Handle specific error cases
-        if (data.error === 'Identifier already in use') {
-          throw new Error('This identifier is already in use')
-        }
-        throw new Error(data.error || 'Failed to create form')
-      }
-
-      logger.info('Form created successfully:', { id: data.id })
-      return {
-        id: data.id,
-        formUrl: data.formUrl,
+      try {
+        const data = await requestJson(createFormContract, { body: params })
+        logger.info('Form created successfully:', { id: data.id })
+        return data
+      } catch (error) {
+        throwUserFriendlyIdentifierError(error)
       }
     },
     onSuccess: (_, variables) => {
@@ -234,22 +187,15 @@ export function useUpdateForm() {
 
   return useMutation({
     mutationFn: async ({ formId, data }: UpdateFormVariables): Promise<void> => {
-      const response = await fetch(`/api/form/manage/${formId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        if (result.error === 'Identifier already in use') {
-          throw new Error('This identifier is already in use')
-        }
-        throw new Error(result.error || 'Failed to update form')
+      try {
+        await requestJson(updateFormContract, {
+          params: { id: formId },
+          body: data,
+        })
+        logger.info('Form updated successfully:', { id: formId })
+      } catch (error) {
+        throwUserFriendlyIdentifierError(error)
       }
-
-      logger.info('Form updated successfully:', { id: formId })
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
@@ -274,16 +220,7 @@ export function useDeleteForm() {
 
   return useMutation({
     mutationFn: async ({ formId }: DeleteFormVariables): Promise<void> => {
-      const response = await fetch(`/api/form/manage/${formId}`, {
-        method: 'DELETE',
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete form')
-      }
-
+      await requestJson(deleteFormContract, { params: { id: formId } })
       logger.info('Form deleted successfully:', { id: formId })
     },
     onSuccess: (_, variables) => {

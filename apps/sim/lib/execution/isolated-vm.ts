@@ -883,6 +883,7 @@ function spawnWorker(): Promise<WorkerInfo> {
   const workerId = nextWorkerId++
   spawnInProgress++
   let spawnSettled = false
+  let childProcess: ChildProcess | null = null
 
   const settleSpawnInProgress = () => {
     if (spawnSettled) {
@@ -894,7 +895,12 @@ function spawnWorker(): Promise<WorkerInfo> {
   }
 
   const workerInfo: WorkerInfo = {
-    process: null as unknown as ChildProcess,
+    get process() {
+      if (!childProcess) {
+        throw new Error('Worker process is not initialized')
+      }
+      return childProcess
+    },
     ready: false,
     readyPromise: null,
     activeExecutions: 0,
@@ -939,7 +945,7 @@ function spawnWorker(): Promise<WorkerInfo> {
           stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
           serialization: 'json',
         })
-        workerInfo.process = proc
+        childProcess = proc
 
         proc.on('message', (message: unknown) => handleWorkerMessage(workerId, message))
 

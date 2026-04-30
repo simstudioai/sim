@@ -282,6 +282,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
   const hasMessages = messages.length > 0
   const showChatSkeleton = Boolean(chatId) && !hasMessages && isChatHistoryPending
+  const draftScopeKey = `${workspaceId}:${chatId ?? 'new'}`
 
   useEffect(() => {
     if (hasMessages) return
@@ -313,6 +314,7 @@ export function Home({ chatId }: HomeProps = {}) {
           <div ref={initialViewInputRef} className='w-full' data-tour='home-chat-input'>
             <UserInput
               defaultValue={initialPrompt}
+              draftScopeKey={draftScopeKey}
               onSubmit={handleSubmit}
               isSending={isSending}
               onStopGeneration={handleStopGeneration}
@@ -351,6 +353,7 @@ export function Home({ chatId }: HomeProps = {}) {
           chatId={resolvedChatId}
           onContextAdd={handleContextAdd}
           onWorkspaceResourceSelect={handleWorkspaceResourceSelect}
+          draftScopeKey={draftScopeKey}
           animateInput={isInputEntering}
           onInputAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
           initialScrollBlocked={resources.length > 0 && isResourceCollapsed}

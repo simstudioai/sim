@@ -10,6 +10,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { credentialSetInviteTokenParamsSchema } from '@/lib/api/contracts/credential-sets'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { normalizeEmail } from '@/lib/invitations/core'
@@ -19,7 +20,7 @@ const logger = createLogger('CredentialSetInviteToken')
 
 export const GET = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ token: string }> }) => {
-    const { token } = await params
+    const { token } = credentialSetInviteTokenParamsSchema.parse(await params)
 
     const [invitation] = await db
       .select({
@@ -69,7 +70,7 @@ export const GET = withRouteHandler(
 
 export const POST = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ token: string }> }) => {
-    const { token } = await params
+    const { token } = credentialSetInviteTokenParamsSchema.parse(await params)
 
     const session = await getSession()
     if (!session?.user?.id) {

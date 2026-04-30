@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { tableIdParamsSchema } from '@/lib/api/contracts/tables'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -12,7 +13,7 @@ const logger = createLogger('RestoreTableAPI')
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ tableId: string }> }) => {
     const requestId = generateRequestId()
-    const { tableId } = await params
+    const { tableId } = tableIdParamsSchema.parse(await params)
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })

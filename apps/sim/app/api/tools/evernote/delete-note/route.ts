@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { evernoteDeleteNoteContract } from '@/lib/api/contracts/tools/evernote'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteNote } from '@/app/api/tools/evernote/lib/client'
@@ -15,16 +17,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-    const { apiKey, noteGuid } = body
+    const parsed = await parseRequest(
+      evernoteDeleteNoteContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { success: false, error: getValidationErrorMessage(error, 'Invalid request') },
+            { status: 400 }
+          ),
+        invalidJsonResponse: () =>
+          NextResponse.json({ success: false, error: 'Invalid request' }, { status: 400 }),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!apiKey || !noteGuid) {
-      return NextResponse.json(
-        { success: false, error: 'apiKey and noteGuid are required' },
-        { status: 400 }
-      )
-    }
-
+    const { apiKey, noteGuid } = parsed.data.body
     await deleteNote(apiKey, noteGuid)
 
     return NextResponse.json({

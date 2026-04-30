@@ -1,6 +1,8 @@
+import type { Stagehand as StagehandType } from '@browserbasehq/stagehand'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { stagehandAgentContract } from '@/lib/api/contracts/internal-tools'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
@@ -10,21 +12,8 @@ import { ensureZodObject, normalizeUrl } from '@/app/api/tools/stagehand/utils'
 
 const logger = createLogger('StagehandAgentAPI')
 
-type StagehandType = import('@browserbasehq/stagehand').Stagehand
-
 const BROWSERBASE_API_KEY = env.BROWSERBASE_API_KEY
 const BROWSERBASE_PROJECT_ID = env.BROWSERBASE_PROJECT_ID
-
-const requestSchema = z.object({
-  task: z.string().min(1),
-  startUrl: z.string().url(),
-  outputSchema: z.any(),
-  variables: z.any(),
-  provider: z.enum(['openai', 'anthropic']).optional().default('openai'),
-  apiKey: z.string(),
-  mode: z.enum(['dom', 'hybrid', 'cua']).optional().default('dom'),
-  maxSteps: z.number().int().min(1).max(200).optional().default(20),
-})
 
 /**
  * Extracts the inner schema object from a potentially nested schema structure
@@ -104,25 +93,33 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   let stagehand: StagehandType | null = null
 
   try {
-    const body = await request.json()
+    const parsed = await parseRequest(
+      stagehandAgentContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.error('Invalid request body', { errors: error.issues })
+          return NextResponse.json(
+            {
+              error: getValidationErrorMessage(error, 'Invalid request parameters'),
+              details: error.issues,
+            },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
+
     logger.info('Received Stagehand agent request', {
-      startUrl: body.startUrl,
-      hasTask: !!body.task,
-      hasVariables: !!body.variables,
-      hasSchema: !!body.outputSchema,
+      startUrl: params.startUrl,
+      hasTask: !!params.task,
+      hasVariables: !!params.variables,
+      hasSchema: !!params.outputSchema,
     })
 
-    const validationResult = requestSchema.safeParse(body)
-
-    if (!validationResult.success) {
-      logger.error('Invalid request body', { errors: validationResult.error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request parameters', details: validationResult.error.errors },
-        { status: 400 }
-      )
-    }
-
-    const params = validationResult.data
     const { task, startUrl: rawStartUrl, outputSchema, provider, apiKey, mode, maxSteps } = params
     const variablesObject = processVariables(params.variables)
 

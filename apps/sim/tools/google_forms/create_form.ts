@@ -3,7 +3,7 @@ import type {
   GoogleFormsCreateFormParams,
   GoogleFormsCreateFormResponse,
 } from '@/tools/google_forms/types'
-import { buildCreateFormUrl } from '@/tools/google_forms/utils'
+import { buildCreateFormUrl, getGoogleFormsErrorMessage } from '@/tools/google_forms/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createFormTool: ToolConfig<
@@ -66,7 +66,6 @@ export const createFormTool: ToolConfig<
     const data = (await response.json()) as GoogleForm
 
     if (!response.ok) {
-      const errorData = data as unknown as { error?: { message?: string } }
       return {
         success: false,
         output: {
@@ -76,7 +75,7 @@ export const createFormTool: ToolConfig<
           responderUri: null,
           revisionId: null,
         },
-        error: errorData.error?.message ?? 'Failed to create form',
+        error: getGoogleFormsErrorMessage(data, 'Failed to create form'),
       }
     }
 

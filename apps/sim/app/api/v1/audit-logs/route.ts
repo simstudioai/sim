@@ -22,7 +22,8 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { v1ListAuditLogsContract } from '@/lib/api/contracts/audit-logs'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
@@ -38,27 +39,6 @@ const logger = createLogger('V1AuditLogsAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-const isoDateString = z.string().refine((val) => !Number.isNaN(Date.parse(val)), {
-  message: 'Invalid date format. Use ISO 8601.',
-})
-
-const QueryParamsSchema = z.object({
-  action: z.string().optional(),
-  resourceType: z.string().optional(),
-  resourceId: z.string().optional(),
-  workspaceId: z.string().optional(),
-  actorId: z.string().optional(),
-  startDate: isoDateString.optional(),
-  endDate: isoDateString.optional(),
-  includeDeparted: z
-    .enum(['true', 'false'])
-    .transform((val) => val === 'true')
-    .optional()
-    .default('false'),
-  limit: z.coerce.number().min(1).max(100).optional().default(50),
-  cursor: z.string().optional(),
-})
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
@@ -78,18 +58,24 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const { orgMemberIds } = authResult.context
 
-    const { searchParams } = new URL(request.url)
-    const rawParams = Object.fromEntries(searchParams.entries())
-    const validationResult = QueryParamsSchema.safeParse(rawParams)
+    const parsed = await parseRequest(
+      v1ListAuditLogsContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            {
+              error: getValidationErrorMessage(error, 'Invalid parameters'),
+              details: error.issues,
+            },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Invalid parameters', details: validationResult.error.errors },
-        { status: 400 }
-      )
-    }
-
-    const params = validationResult.data
+    const params = parsed.data.query
 
     if (params.actorId && !orgMemberIds.includes(params.actorId)) {
       return NextResponse.json(

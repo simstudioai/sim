@@ -28,6 +28,10 @@ import type { SerializedConnection } from '@/serializer/types'
 
 const logger = createLogger('HumanInTheLoopManager')
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
 interface ResumeQueueEntrySummary {
   id: string
   pausedExecutionId: string
@@ -958,8 +962,10 @@ export class PauseResumeManager {
           return
         }
 
-        const blockId = (streamingExec.execution as unknown as Record<string, unknown>)
-          .blockId as string
+        const blockIdValue = isRecord(streamingExec.execution)
+          ? streamingExec.execution.blockId
+          : undefined
+        const blockId = typeof blockIdValue === 'string' ? blockIdValue : ''
         const reader = streamingExec.stream.getReader()
         const decoder = new TextDecoder()
         try {

@@ -5,6 +5,8 @@ import { generateId } from '@sim/utils/id'
 import { getActiveWorkflowRecord } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { v1GetWorkflowContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -16,7 +18,7 @@ const logger = createLogger('V1WorkflowDetailsAPI')
 export const revalidate = 0
 
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateId().slice(0, 8)
 
     try {
@@ -26,7 +28,13 @@ export const GET = withRouteHandler(
       }
 
       const userId = rateLimit.userId!
-      const { id } = await params
+      const parsed = await parseRequest(v1GetWorkflowContract, request, context, {
+        validationErrorResponse: () =>
+          NextResponse.json({ error: 'Invalid workflow ID' }, { status: 400 }),
+      })
+      if (!parsed.success) return parsed.response
+
+      const { id } = parsed.data.params
 
       logger.info(`[${requestId}] Fetching workflow details for ${id}`, { userId })
 

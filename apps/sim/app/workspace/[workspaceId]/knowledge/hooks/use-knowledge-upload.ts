@@ -85,6 +85,36 @@ class ProcessingError extends KnowledgeUploadError {
 }
 
 /**
+ * Reads a failed `Response`'s JSON body and produces a user-facing error
+ * string that combines the top-level `error`/`message` with any Zod
+ * `details[].message` entries. Falls back to `statusText` then status code
+ * when the body is unreadable.
+ */
+async function readResponseError(
+  response: Response,
+  fallback = 'Unknown error'
+): Promise<{ message: string; body: any }> {
+  let body: any = null
+  try {
+    body = await response.json()
+  } catch {
+    body = null
+  }
+  const base =
+    body?.error || body?.message || response.statusText || `HTTP ${response.status}` || fallback
+  const detailMessages = Array.isArray(body?.details)
+    ? body.details
+        .map((d: any) => (typeof d?.message === 'string' ? d.message : null))
+        .filter((m: string | null): m is string => Boolean(m))
+        .join(', ')
+    : ''
+  return {
+    message: detailMessages ? `${base}: ${detailMessages}` : base,
+    body,
+  }
+}
+
+/**
  * Configuration constants for file upload operations
  */
 const UPLOAD_CONFIG = {
@@ -293,22 +323,12 @@ const getPresignedData = async (
     })
 
     if (!presignedResponse.ok) {
-      let errorDetails: any = null
-      try {
-        errorDetails = await presignedResponse.json()
-      } catch {
-        errorDetails = null
-      }
-
+      const { message, body } = await readResponseError(presignedResponse)
       logger.error('Presigned URL request failed', {
         status: presignedResponse.status,
         fileSize: file.size,
       })
-
-      throw new PresignedUrlError(
-        `Failed to get presigned URL for ${file.name}: ${presignedResponse.status} ${presignedResponse.statusText}`,
-        errorDetails
-      )
+      throw new PresignedUrlError(`Failed to get presigned URL for ${file.name}: ${message}`, body)
     }
 
     const presignedData = await presignedResponse.json()
@@ -786,17 +806,8 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       })
 
       if (!uploadResponse.ok) {
-        let errorData: any = null
-        try {
-          errorData = await uploadResponse.json()
-        } catch {
-          errorData = null
-        }
-
-        throw new DirectUploadError(
-          `Failed to upload ${file.name}: ${errorData?.message || errorData?.error || 'Unknown error'}`,
-          errorData
-        )
+        const { message, body } = await readResponseError(uploadResponse)
+        throw new DirectUploadError(`Failed to upload ${file.name}: ${message}`, body)
       }
 
       const uploadResult = await uploadResponse.json()
@@ -878,9 +889,13 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         })
 
         if (!batchResponse.ok) {
-          throw new Error(
-            `Batch ${batchIndex + 1} presigned URL generation failed: ${batchResponse.statusText}`
-          )
+          const { message } = await readResponseError(batchResponse)
+          logger.error('Batch presigned URL generation failed', {
+            batchIndex: batchIndex + 1,
+            totalBatches: batches.length,
+            status: batchResponse.status,
+          })
+          throw new Error(message)
         }
 
         const { files: presignedData } = await batchResponse.json()
@@ -1022,16 +1037,10 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       })
 
       if (!processResponse.ok) {
-        let errorData: any = null
-        try {
-          errorData = await processResponse.json()
-        } catch {
-          errorData = null
-        }
-
+        const { message, body } = await readResponseError(processResponse)
         logger.error('Document processing failed:', {
           status: processResponse.status,
-          error: errorData,
+          error: body,
           uploadedFiles: uploadedFiles.map((f) => ({
             filename: f.filename,
             fileUrl: f.fileUrl,
@@ -1039,11 +1048,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
             mimeType: f.mimeType,
           })),
         })
-
-        throw new ProcessingError(
-          `Failed to start document processing: ${errorData?.error || errorData?.message || 'Unknown error'}`,
-          errorData
-        )
+        throw new ProcessingError(`Failed to start document processing: ${message}`, body)
       }
 
       const processResult = await processResponse.json()

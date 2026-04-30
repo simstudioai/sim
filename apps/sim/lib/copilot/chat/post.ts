@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
@@ -54,6 +55,7 @@ const FileAttachmentSchema = z.object({
   filename: z.string(),
   media_type: z.string(),
   size: z.number(),
+  path: z.string().optional(),
 })
 
 const ResourceAttachmentSchema = z.object({
@@ -979,11 +981,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     }
     otelRoot?.finish('error', error)
 
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
+    if (isZodError(error)) {
+      return validationErrorResponse(error, 'Invalid request data')
     }
 
     logger.error(`[${requestId}] Error handling unified chat request`, {

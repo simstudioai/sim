@@ -16,6 +16,8 @@ import { workflow, workflowFolder, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { adminV1ExportWorkspaceContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { exportWorkspaceToZip, sanitizePathSegment } from '@/lib/workflows/operations/import-export'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -40,9 +42,11 @@ interface RouteParams {
 
 export const GET = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: workspaceId } = await context.params
-    const url = new URL(request.url)
-    const format = url.searchParams.get('format') || 'zip'
+    const parsed = await parseRequest(adminV1ExportWorkspaceContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id: workspaceId } = parsed.data.params
+    const { format } = parsed.data.query
 
     try {
       const [workspaceData] = await db

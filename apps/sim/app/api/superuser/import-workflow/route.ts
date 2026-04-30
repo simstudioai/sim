@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { importWorkflowAsSuperuserContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
@@ -16,11 +18,6 @@ import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 
 const logger = createLogger('SuperUserImportWorkflow')
-
-interface ImportWorkflowRequest {
-  workflowId: string
-  targetWorkspaceId: string
-}
 
 /**
  * POST /api/superuser/import-workflow
@@ -51,16 +48,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Forbidden: Superuser access required' }, { status: 403 })
     }
 
-    const body: ImportWorkflowRequest = await request.json()
-    const { workflowId, targetWorkspaceId } = body
+    const parsed = await parseRequest(
+      importWorkflowAsSuperuserContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          const missingPath = error.issues[0]?.path[0]
+          if (missingPath === 'workflowId') {
+            return NextResponse.json({ error: 'workflowId is required' }, { status: 400 })
+          }
+          if (missingPath === 'targetWorkspaceId') {
+            return NextResponse.json({ error: 'targetWorkspaceId is required' }, { status: 400 })
+          }
+          return NextResponse.json({ error: 'workflowId is required' }, { status: 400 })
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!workflowId) {
-      return NextResponse.json({ error: 'workflowId is required' }, { status: 400 })
-    }
-
-    if (!targetWorkspaceId) {
-      return NextResponse.json({ error: 'targetWorkspaceId is required' }, { status: 400 })
-    }
+    const { workflowId, targetWorkspaceId } = parsed.data.body
 
     // Verify target workspace exists
     const [targetWorkspace] = await db

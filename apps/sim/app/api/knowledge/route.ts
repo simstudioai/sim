@@ -1,11 +1,16 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  createKnowledgeBaseContract,
+  listKnowledgeBasesQuerySchema,
+} from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
 import {
   createKnowledgeBase,
   getKnowledgeBases,
@@ -15,64 +20,6 @@ import {
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('KnowledgeBaseAPI')
-
-const CreateKnowledgeBaseSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  description: z.string().optional(),
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  embeddingModel: z.literal('text-embedding-3-small').default('text-embedding-3-small'),
-  embeddingDimension: z.literal(1536).default(1536),
-  chunkingConfig: z
-    .object({
-      maxSize: z.number().min(100).max(4000).default(1024),
-      minSize: z.number().min(1).max(2000).default(100),
-      overlap: z.number().min(0).max(500).default(200),
-      strategy: z
-        .enum(['auto', 'text', 'regex', 'recursive', 'sentence', 'token'])
-        .default('auto')
-        .optional(),
-      strategyOptions: z
-        .object({
-          pattern: z.string().max(500).optional(),
-          separators: z.array(z.string()).optional(),
-          recipe: z.enum(['plain', 'markdown', 'code']).optional(),
-        })
-        .optional(),
-    })
-    .default({
-      maxSize: 1024,
-      minSize: 100,
-      overlap: 200,
-    })
-    .refine(
-      (data) => {
-        const maxSizeInChars = data.maxSize * 4
-        return data.minSize < maxSizeInChars
-      },
-      {
-        message: 'Min chunk size (characters) must be less than max chunk size (tokens × 4)',
-      }
-    )
-    .refine(
-      (data) => {
-        return data.overlap < data.maxSize
-      },
-      {
-        message: 'Overlap must be less than max chunk size',
-      }
-    )
-    .refine(
-      (data) => {
-        if (data.strategy === 'regex' && !data.strategyOptions?.pattern) {
-          return false
-        }
-        return true
-      },
-      {
-        message: 'Regex pattern is required when using the regex chunking strategy',
-      }
-    ),
-})
 
 export const GET = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
@@ -85,13 +32,23 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
     }
 
     const { searchParams } = new URL(req.url)
-    const workspaceId = searchParams.get('workspaceId')
-    const scope = (searchParams.get('scope') ?? 'active') as KnowledgeBaseScope
-    if (!['active', 'archived', 'all'].includes(scope)) {
-      return NextResponse.json({ error: 'Invalid scope' }, { status: 400 })
+    const query = listKnowledgeBasesQuerySchema.safeParse({
+      workspaceId: searchParams.get('workspaceId') ?? undefined,
+      scope: searchParams.get('scope') ?? undefined,
+    })
+    if (!query.success) {
+      return NextResponse.json(
+        { error: 'Invalid query parameters', details: query.error.issues },
+        { status: 400 }
+      )
     }
+    const { workspaceId, scope } = query.data
 
-    const knowledgeBasesWithCounts = await getKnowledgeBases(session.user.id, workspaceId, scope)
+    const knowledgeBasesWithCounts = await getKnowledgeBases(
+      session.user.id,
+      workspaceId,
+      scope as KnowledgeBaseScope
+    )
 
     return NextResponse.json({
       success: true,
@@ -113,14 +70,32 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
+    const parsed = await parseRequest(
+      createKnowledgeBaseContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid knowledge base data`, { errors: error.issues })
+          return NextResponse.json(
+            { error: 'Invalid request data', details: error.issues },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const validatedData = parsed.data.body
 
     try {
-      const validatedData = CreateKnowledgeBaseSchema.parse(body)
+      const embeddingModel = getConfiguredEmbeddingModel()
 
       const createData = {
         ...validatedData,
         userId: session.user.id,
+        embeddingModel,
+        embeddingDimension: EMBEDDING_DIMENSIONS,
       }
 
       const newKnowledgeBase = await createKnowledgeBase(createData, requestId)
@@ -166,8 +141,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         metadata: {
           name: validatedData.name,
           description: validatedData.description,
-          embeddingModel: validatedData.embeddingModel,
-          embeddingDimension: validatedData.embeddingDimension,
+          embeddingModel,
+          embeddingDimension: EMBEDDING_DIMENSIONS,
           chunkingStrategy: validatedData.chunkingConfig.strategy,
           chunkMaxSize: validatedData.chunkingConfig.maxSize,
           chunkMinSize: validatedData.chunkingConfig.minSize,
@@ -180,23 +155,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         success: true,
         data: newKnowledgeBase,
       })
-    } catch (validationError) {
-      if (validationError instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid knowledge base data`, {
-          errors: validationError.errors,
-        })
-        return NextResponse.json(
-          { error: 'Invalid request data', details: validationError.errors },
-          { status: 400 }
-        )
+    } catch (createError) {
+      if (createError instanceof KnowledgeBaseConflictError) {
+        return NextResponse.json({ error: createError.message }, { status: 409 })
       }
-      throw validationError
+      throw createError
     }
   } catch (error) {
-    if (error instanceof KnowledgeBaseConflictError) {
-      return NextResponse.json({ error: error.message }, { status: 409 })
-    }
-
     logger.error(`[${requestId}] Error creating knowledge base`, error)
     return NextResponse.json({ error: 'Failed to create knowledge base' }, { status: 500 })
   }

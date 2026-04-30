@@ -5,8 +5,12 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { getEmailSubject, renderPollingGroupInvitationEmail } from '@/components/emails'
+import {
+  cancelCredentialSetInvitationQuerySchema,
+  createCredentialSetInvitationContract,
+} from '@/lib/api/contracts/credential-sets'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -14,10 +18,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 
 const logger = createLogger('CredentialSetInvite')
-
-const createInviteSchema = z.object({
-  email: z.string().email().optional(),
-})
 
 async function getCredentialSetWithAccess(credentialSetId: string, userId: string) {
   const [set] = await db
@@ -78,7 +78,7 @@ export const GET = withRouteHandler(
 )
 
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const session = await getSession()
 
     if (!session?.user?.id) {
@@ -94,9 +94,16 @@ export const POST = withRouteHandler(
       )
     }
 
-    const { id } = await params
-
     try {
+      const parsed = await parseRequest(createCredentialSetInvitationContract, req, context, {
+        validationErrorResponse: (error) =>
+          NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+      })
+      if (!parsed.success) return parsed.response
+
+      const { id } = parsed.data.params
+      const { email } = parsed.data.body
+
       const result = await getCredentialSetWithAccess(id, session.user.id)
 
       if (!result) {
@@ -106,9 +113,6 @@ export const POST = withRouteHandler(
       if (result.role !== 'admin' && result.role !== 'owner') {
         return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
       }
-
-      const body = await req.json()
-      const { email } = createInviteSchema.parse(body)
 
       const token = generateId()
       const expiresAt = new Date()
@@ -207,9 +211,6 @@ export const POST = withRouteHandler(
         },
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
-      }
       logger.error('Error creating invitation', error)
       return NextResponse.json({ error: 'Failed to create invitation' }, { status: 500 })
     }
@@ -235,11 +236,18 @@ export const DELETE = withRouteHandler(
 
     const { id } = await params
     const { searchParams } = new URL(req.url)
-    const invitationId = searchParams.get('invitationId')
+    const validation = cancelCredentialSetInvitationQuerySchema.safeParse({
+      invitationId: searchParams.get('invitationId') ?? '',
+    })
 
-    if (!invitationId) {
-      return NextResponse.json({ error: 'invitationId is required' }, { status: 400 })
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(validation.error) },
+        { status: 400 }
+      )
     }
+
+    const { invitationId } = validation.data
 
     try {
       const result = await getCredentialSetWithAccess(id, session.user.id)

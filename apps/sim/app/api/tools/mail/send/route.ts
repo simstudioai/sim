@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
-import { z } from 'zod'
+import { mailSendContract } from '@/lib/api/contracts/tools/mail'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -9,29 +10,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('MailSendAPI')
-
-const MailSendSchema = z.object({
-  fromAddress: z.string().min(1, 'From address is required'),
-  to: z.string().min(1, 'To email is required'),
-  subject: z.string().min(1, 'Subject is required'),
-  body: z.string().min(1, 'Email body is required'),
-  contentType: z.enum(['text', 'html']).optional().nullable(),
-  resendApiKey: z.string().min(1, 'Resend API key is required'),
-  cc: z
-    .union([z.string().min(1), z.array(z.string().min(1))])
-    .optional()
-    .nullable(),
-  bcc: z
-    .union([z.string().min(1), z.array(z.string().min(1))])
-    .optional()
-    .nullable(),
-  replyTo: z
-    .union([z.string().min(1), z.array(z.string().min(1))])
-    .optional()
-    .nullable(),
-  scheduledAt: z.string().datetime().optional().nullable(),
-  tags: z.string().optional().nullable(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -54,8 +32,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = MailSendSchema.parse(body)
+    const parsed = await parseRequest(
+      mailSendContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid request data`, { errors: error.issues })
+          return NextResponse.json(
+            {
+              success: false,
+              message: getValidationErrorMessage(error, 'Invalid request data'),
+              errors: error.issues,
+            },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Sending email with user-provided Resend API key`, {
       to: validatedData.to,
@@ -67,17 +63,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const resend = new Resend(validatedData.resendApiKey)
 
     const contentType = validatedData.contentType || 'text'
-    const emailData: Record<string, unknown> = {
+    const emailBase = {
       from: validatedData.fromAddress,
       to: validatedData.to,
       subject: validatedData.subject,
     }
 
+    let emailData: Parameters<typeof resend.emails.send>[0]
     if (contentType === 'html') {
-      emailData.html = validatedData.body
-      emailData.text = validatedData.body.replace(/<[^>]*>/g, '')
+      emailData = {
+        ...emailBase,
+        html: validatedData.body,
+        text: validatedData.body.replace(/<[^>]*>/g, ''),
+      }
     } else {
-      emailData.text = validatedData.body
+      emailData = {
+        ...emailBase,
+        text: validatedData.body,
+      }
     }
 
     if (validatedData.cc) {
@@ -110,9 +113,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const { data, error } = await resend.emails.send(
-      emailData as unknown as Parameters<typeof resend.emails.send>[0]
-    )
+    const { data, error } = await resend.emails.send(emailData)
 
     if (error) {
       logger.error(`[${requestId}] Email sending failed:`, error)
@@ -138,18 +139,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(result)
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Invalid request data',
-          errors: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error sending email via API:`, error)
 
     return NextResponse.json(

@@ -4,20 +4,17 @@ import { credentialSet, credentialSetMember, member, organization, user } from '
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, count, desc, eq } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
-import { z } from 'zod'
+import { type NextRequest, NextResponse } from 'next/server'
+import {
+  createCredentialSetContract,
+  listCredentialSetsQuerySchema,
+} from '@/lib/api/contracts/credential-sets'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CredentialSets')
-
-const createCredentialSetSchema = z.object({
-  organizationId: z.string().min(1),
-  name: z.string().trim().min(1).max(100),
-  description: z.string().max(500).optional(),
-  providerId: z.enum(['google-email', 'outlook']),
-})
 
 export const GET = withRouteHandler(async (req: Request) => {
   const session = await getSession()
@@ -36,11 +33,18 @@ export const GET = withRouteHandler(async (req: Request) => {
   }
 
   const { searchParams } = new URL(req.url)
-  const organizationId = searchParams.get('organizationId')
+  const validation = listCredentialSetsQuerySchema.safeParse({
+    organizationId: searchParams.get('organizationId') ?? '',
+  })
 
-  if (!organizationId) {
-    return NextResponse.json({ error: 'organizationId is required' }, { status: 400 })
+  if (!validation.success) {
+    return NextResponse.json(
+      { error: getValidationErrorMessage(validation.error) },
+      { status: 400 }
+    )
   }
+
+  const { organizationId } = validation.data
 
   const membership = await db
     .select({ id: member.id, role: member.role })
@@ -91,7 +95,7 @@ export const GET = withRouteHandler(async (req: Request) => {
   return NextResponse.json({ credentialSets: setsWithCounts })
 })
 
-export const POST = withRouteHandler(async (req: Request) => {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const session = await getSession()
 
   if (!session?.user?.id) {
@@ -108,8 +112,18 @@ export const POST = withRouteHandler(async (req: Request) => {
   }
 
   try {
-    const body = await req.json()
-    const { organizationId, name, description, providerId } = createCredentialSetSchema.parse(body)
+    const parsed = await parseRequest(
+      createCredentialSetContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const { organizationId, name, description, providerId } = parsed.data.body
 
     const membership = await db
       .select({ id: member.id, role: member.role })
@@ -184,11 +198,18 @@ export const POST = withRouteHandler(async (req: Request) => {
       request: req,
     })
 
-    return NextResponse.json({ credentialSet: newCredentialSet }, { status: 201 })
+    return NextResponse.json(
+      {
+        credentialSet: {
+          ...newCredentialSet,
+          creatorName: session.user.name ?? null,
+          creatorEmail: session.user.email ?? null,
+          memberCount: 0,
+        },
+      },
+      { status: 201 }
+    )
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
-    }
     logger.error('Error creating credential set', error)
     return NextResponse.json({ error: 'Failed to create credential set' }, { status: 500 })
   }

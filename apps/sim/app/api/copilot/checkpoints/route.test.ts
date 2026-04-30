@@ -105,7 +105,7 @@ describe('Copilot Checkpoints API Route', () => {
       expect(responseData).toEqual({ error: 'Unauthorized' })
     })
 
-    it('should return 500 for invalid request body', async () => {
+    it('should return 400 for invalid request body', async () => {
       authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const req = createMockRequest('POST', {
@@ -114,9 +114,9 @@ describe('Copilot Checkpoints API Route', () => {
 
       const response = await POST(req)
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(400)
       const responseData = await response.json()
-      expect(responseData.error).toBe('Failed to create checkpoint')
+      expect(typeof responseData.error).toBe('string')
     })
 
     it('should return 400 when chat not found or unauthorized', async () => {

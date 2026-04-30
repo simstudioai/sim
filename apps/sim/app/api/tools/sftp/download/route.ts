@@ -1,7 +1,8 @@
 import path from 'path'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { sftpDownloadContract } from '@/lib/api/contracts/storage-transfer'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -11,17 +12,6 @@ import { createSftpConnection, getSftp, isPathSafe, sanitizePath } from '@/app/a
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SftpDownloadAPI')
-
-const DownloadSchema = z.object({
-  host: z.string().min(1, 'Host is required'),
-  port: z.coerce.number().int().positive().default(22),
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().nullish(),
-  privateKey: z.string().nullish(),
-  passphrase: z.string().nullish(),
-  remotePath: z.string().min(1, 'Remote path is required'),
-  encoding: z.enum(['utf-8', 'base64']).default('utf-8'),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -41,15 +31,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const params = DownloadSchema.parse(body)
-
-    if (!params.password && !params.privateKey) {
-      return NextResponse.json(
-        { error: 'Either password or privateKey must be provided' },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(sftpDownloadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
 
     if (!isPathSafe(params.remotePath)) {
       logger.warn(`[${requestId}] Path traversal attempt detected in remotePath`)
@@ -143,14 +127,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       client.end()
     }
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     logger.error(`[${requestId}] SFTP download failed:`, error)
 

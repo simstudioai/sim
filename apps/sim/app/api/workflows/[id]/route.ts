@@ -4,7 +4,8 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateWorkflowContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { AuthType, checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -14,14 +15,6 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/ut
 import { getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowByIdAPI')
-
-const UpdateWorkflowSchema = z.object({
-  name: z.string().min(1, 'Name is required').optional(),
-  description: z.string().optional(),
-  color: z.string().optional(),
-  folderId: z.string().nullable().optional(),
-  sortOrder: z.number().int().min(0).optional(),
-})
 
 /**
  * GET /api/workflows/[id]
@@ -250,10 +243,10 @@ export const DELETE = withRouteHandler(
  * Update workflow metadata (name, description, color, folderId)
  */
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
     const startTime = Date.now()
-    const { id: workflowId } = await params
+    const { id: workflowId } = await context.params
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -264,8 +257,9 @@ export const PUT = withRouteHandler(
 
       const userId = auth.userId
 
-      const body = await request.json()
-      const updates = UpdateWorkflowSchema.parse(body)
+      const parsed = await parseRequest(updateWorkflowContract, request, context)
+      if (!parsed.success) return parsed.response
+      const updates = parsed.data.body
 
       // Fetch the workflow to check ownership/access
       const authorization = await authorizeWorkflowByWorkspacePermission({
@@ -354,16 +348,6 @@ export const PUT = withRouteHandler(
       return NextResponse.json({ workflow: updatedWorkflow }, { status: 200 })
     } catch (error: any) {
       const elapsed = Date.now() - startTime
-      if (error instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid workflow update data for ${workflowId}`, {
-          errors: error.errors,
-        })
-        return NextResponse.json(
-          { error: 'Invalid request data', details: error.errors },
-          { status: 400 }
-        )
-      }
-
       logger.error(`[${requestId}] Error updating workflow ${workflowId} after ${elapsed}ms`, error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }

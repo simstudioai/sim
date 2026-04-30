@@ -494,6 +494,77 @@ export type NotificationDeliveryResult =
   | { status: 'success' | 'skipped' | 'failed' }
   | { status: 'retry'; retryDelayMs: number }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function formatLogDate(value: Date | string | null | undefined, fallback = ''): string {
+  if (value instanceof Date) {
+    return value.toISOString()
+  }
+  return typeof value === 'string' ? value : fallback
+}
+
+function normalizeLogCost(value: unknown): WorkflowExecutionLog['cost'] {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const tokens = isRecord(value.tokens)
+    ? {
+        input: typeof value.tokens.input === 'number' ? value.tokens.input : undefined,
+        output: typeof value.tokens.output === 'number' ? value.tokens.output : undefined,
+        total: typeof value.tokens.total === 'number' ? value.tokens.total : undefined,
+      }
+    : undefined
+
+  return {
+    input: typeof value.input === 'number' ? value.input : undefined,
+    output: typeof value.output === 'number' ? value.output : undefined,
+    total: typeof value.total === 'number' ? value.total : undefined,
+    tokens,
+  }
+}
+
+function normalizeLogFiles(value: unknown): WorkflowExecutionLog['files'] {
+  if (!Array.isArray(value)) {
+    return undefined
+  }
+
+  return value.filter(
+    (file): file is NonNullable<WorkflowExecutionLog['files']>[number] =>
+      isRecord(file) &&
+      typeof file.id === 'string' &&
+      typeof file.name === 'string' &&
+      typeof file.size === 'number' &&
+      typeof file.type === 'string' &&
+      typeof file.url === 'string' &&
+      typeof file.key === 'string'
+  )
+}
+
+function normalizeWorkflowExecutionLog(
+  row: typeof workflowExecutionLogs.$inferSelect
+): WorkflowExecutionLog {
+  const startedAt = formatLogDate(row.startedAt)
+
+  return {
+    id: row.id,
+    workflowId: row.workflowId,
+    executionId: row.executionId,
+    stateSnapshotId: row.stateSnapshotId,
+    level: row.level === 'error' ? 'error' : 'info',
+    trigger: row.trigger,
+    startedAt,
+    endedAt: formatLogDate(row.endedAt, startedAt),
+    totalDurationMs: row.totalDurationMs ?? 0,
+    files: normalizeLogFiles(row.files),
+    executionData: isRecord(row.executionData) ? row.executionData : {},
+    cost: normalizeLogCost(row.cost),
+    createdAt: formatLogDate(row.createdAt, startedAt),
+  }
+}
+
 async function buildRetryLog(params: NotificationDeliveryParams): Promise<WorkflowExecutionLog> {
   const conditions = [eq(workflowExecutionLogs.executionId, params.log.executionId)]
   if (params.log.workflowId) {
@@ -507,7 +578,7 @@ async function buildRetryLog(params: NotificationDeliveryParams): Promise<Workfl
     .limit(1)
 
   if (storedLog) {
-    return storedLog as unknown as WorkflowExecutionLog
+    return normalizeWorkflowExecutionLog(storedLog)
   }
 
   const now = new Date().toISOString()

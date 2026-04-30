@@ -5,7 +5,8 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { workflowVariablesContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -13,28 +14,10 @@ import type { Variable } from '@/stores/variables/types'
 
 const logger = createLogger('WorkflowVariablesAPI')
 
-const VariableSchema = z.object({
-  id: z.string(),
-  workflowId: z.string(),
-  name: z.string(),
-  type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
-  value: z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.record(z.unknown()),
-    z.array(z.unknown()),
-  ]),
-})
-
-const VariablesSchema = z.object({
-  variables: z.record(z.string(), VariableSchema),
-})
-
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const workflowId = (await params).id
+    const workflowId = (await context.params).id
 
     try {
       const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
@@ -67,52 +50,56 @@ export const POST = withRouteHandler(
         )
       }
 
-      const body = await req.json()
-
-      try {
-        const { variables } = VariablesSchema.parse(body)
-
-        // Variables are already in Record format - use directly
-        // The frontend is the source of truth for what variables should exist
-        await db
-          .update(workflow)
-          .set({
-            variables,
-            updatedAt: new Date(),
-          })
-          .where(eq(workflow.id, workflowId))
-
-        recordAudit({
-          workspaceId: workflowData.workspaceId ?? null,
-          actorId: userId,
-          actorName: auth.userName,
-          actorEmail: auth.userEmail,
-          action: AuditAction.WORKFLOW_VARIABLES_UPDATED,
-          resourceType: AuditResourceType.WORKFLOW,
-          resourceId: workflowId,
-          resourceName: workflowData.name ?? undefined,
-          description: `Updated workflow variables`,
-          metadata: {
-            variableCount: Object.keys(variables).length,
-            variableNames: Object.values(variables).map((v) => v.name),
-            workflowName: workflowData.name ?? undefined,
+      const parsed = await parseRequest(workflowVariablesContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { variables } = parsed.data.body
+      const mismatchedVariable = Object.values(variables).find(
+        (variable) => variable.workflowId !== workflowId
+      )
+      if (mismatchedVariable) {
+        return NextResponse.json(
+          {
+            error: 'Invalid request data',
+            details: [
+              {
+                path: ['variables', mismatchedVariable.id, 'workflowId'],
+                message: 'Variable workflowId must match the workflow route parameter',
+              },
+            ],
           },
-          request: req,
-        })
-
-        return NextResponse.json({ success: true })
-      } catch (validationError) {
-        if (validationError instanceof z.ZodError) {
-          logger.warn(`[${requestId}] Invalid workflow variables data`, {
-            errors: validationError.errors,
-          })
-          return NextResponse.json(
-            { error: 'Invalid request data', details: validationError.errors },
-            { status: 400 }
-          )
-        }
-        throw validationError
+          { status: 400 }
+        )
       }
+
+      // Variables are already in Record format - use directly
+      // The frontend is the source of truth for what variables should exist
+      await db
+        .update(workflow)
+        .set({
+          variables,
+          updatedAt: new Date(),
+        })
+        .where(eq(workflow.id, workflowId))
+
+      recordAudit({
+        workspaceId: workflowData.workspaceId ?? null,
+        actorId: userId,
+        actorName: auth.userName,
+        actorEmail: auth.userEmail,
+        action: AuditAction.WORKFLOW_VARIABLES_UPDATED,
+        resourceType: AuditResourceType.WORKFLOW,
+        resourceId: workflowId,
+        resourceName: workflowData.name ?? undefined,
+        description: `Updated workflow variables`,
+        metadata: {
+          variableCount: Object.keys(variables).length,
+          variableNames: Object.values(variables).map((v) => v.name),
+          workflowName: workflowData.name ?? undefined,
+        },
+        request: req,
+      })
+
+      return NextResponse.json({ success: true })
     } catch (error) {
       logger.error(`[${requestId}] Error updating workflow variables`, error)
       return NextResponse.json({ error: 'Failed to update workflow variables' }, { status: 500 })

@@ -87,7 +87,7 @@ export function verifyCronAuth(request: NextRequest, context?: string): NextResp
   if (!isValid) {
     const contextInfo = context ? ` for ${context}` : ''
     logger.warn(`Unauthorized CRON access attempt${contextInfo}`, {
-      providedAuth: authHeader,
+      hasAuthorizationHeader: authHeader !== null,
       ip: getClientIp(request),
       userAgent: request.headers.get('user-agent') ?? 'unknown',
       context,

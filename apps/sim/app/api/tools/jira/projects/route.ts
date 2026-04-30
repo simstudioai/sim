@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  jiraProjectSelectorContract,
+  jiraProjectsSelectorContract,
+} from '@/lib/api/contracts/selectors/jira'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -16,11 +21,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const url = new URL(request.url)
-    const domain = url.searchParams.get('domain')?.trim()
-    const accessToken = url.searchParams.get('accessToken')
-    const providedCloudId = url.searchParams.get('cloudId')
-    const query = url.searchParams.get('query') || ''
+    const parsed = await parseRequest(jiraProjectsSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const { domain, accessToken, cloudId: providedCloudId, query = '' } = parsed.data.query
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -108,7 +112,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const { domain, accessToken, projectId, cloudId: providedCloudId } = await request.json()
+    const parsed = await parseRequest(jiraProjectSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const { domain, accessToken, projectId, cloudId: providedCloudId } = parsed.data.body
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })

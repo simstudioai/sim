@@ -5,6 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { createPersonalApiKeyContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { getSession } from '@/lib/auth'
@@ -62,17 +64,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = session.user.id
-    const body = await request.json()
+    const parsed = await parseRequest(createPersonalApiKeyContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const { name: rawName } = body
-    if (!rawName || typeof rawName !== 'string') {
-      return NextResponse.json({ error: 'Invalid request. Name is required.' }, { status: 400 })
-    }
-
-    const name = rawName.trim()
-    if (!name) {
-      return NextResponse.json({ error: 'Name cannot be empty.' }, { status: 400 })
-    }
+    const { name } = parsed.data.body
 
     const existingKey = await db
       .select()

@@ -1,8 +1,8 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
+import { Loader } from '@/components/emcn'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { InviteLayout } from '@/app/invite/components'
 
@@ -127,7 +127,7 @@ function UnsubscribeContent() {
           </p>
         </div>
         <div className={'mt-8 flex w-full items-center justify-center py-8'}>
-          <Loader2 className='h-8 w-8 animate-spin text-[var(--landing-text-muted)]' />
+          <Loader className='h-8 w-8 text-[var(--landing-text-muted)]' animate />
         </div>
       </InviteLayout>
     )
@@ -218,7 +218,7 @@ function UnsubscribeContent() {
         >
           {processing ? (
             <span className='flex items-center gap-2'>
-              <Loader2 className='h-4 w-4 animate-spin' />
+              <Loader className='h-4 w-4' animate />
               Unsubscribing...
             </span>
           ) : isAlreadyUnsubscribedFromAll ? (
@@ -301,7 +301,7 @@ export default function Unsubscribe() {
             </p>
           </div>
           <div className={'mt-8 flex w-full items-center justify-center py-8'}>
-            <Loader2 className='h-8 w-8 animate-spin text-[var(--landing-text-muted)]' />
+            <Loader className='h-8 w-8 text-[var(--landing-text-muted)]' animate />
           </div>
         </InviteLayout>
       }

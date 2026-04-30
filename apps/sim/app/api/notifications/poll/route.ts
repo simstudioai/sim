@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
+import { noInputSchema } from '@/lib/api/contracts/primitives'
+import { validationErrorResponse } from '@/lib/api/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -16,6 +18,10 @@ const LOCK_TTL_SECONDS = 120
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateShortId()
   logger.info(`Inactivity alert polling triggered (${requestId})`)
+  const queryValidation = noInputSchema.safeParse(
+    Object.fromEntries(request.nextUrl.searchParams.entries())
+  )
+  if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
 
   let lockAcquired = false
 

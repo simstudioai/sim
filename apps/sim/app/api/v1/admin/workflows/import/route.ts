@@ -20,6 +20,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { adminV1ImportWorkflowContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -47,16 +49,10 @@ interface ImportSuccessResponse {
 export const POST = withRouteHandler(
   withAdminAuth(async (request) => {
     try {
-      const body = (await request.json()) as WorkflowImportRequest
+      const parsed = await parseRequest(adminV1ImportWorkflowContract, request, {})
+      if (!parsed.success) return parsed.response
 
-      if (!body.workspaceId) {
-        return badRequestResponse('workspaceId is required')
-      }
-
-      if (!body.workflow) {
-        return badRequestResponse('workflow is required')
-      }
-
+      const body = parsed.data.body as WorkflowImportRequest
       const { workspaceId, folderId, name: overrideName } = body
 
       const [workspaceData] = await db

@@ -1,5 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  type CopilotApiKey,
+  deleteCopilotApiKeyContract,
+  type GenerateCopilotApiKeyResult,
+  generateCopilotApiKeyContract,
+  listCopilotApiKeysContract,
+} from '@/lib/api/contracts'
 import { isHosted } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('CopilotKeysQuery')
@@ -13,39 +21,16 @@ export const copilotKeysKeys = {
 }
 
 /**
- * Copilot API key type
+ * Copilot API key type (re-exported from the API contract).
  */
-export interface CopilotKey {
-  id: string
-  displayKey: string // "•••••{last6}"
-  name: string | null
-  createdAt: string | null
-  lastUsed: string | null
-}
-
-/**
- * Generate key response type
- */
-export interface GenerateKeyResponse {
-  success: boolean
-  key: {
-    id: string
-    apiKey: string // Full key (only shown once)
-  }
-}
+export type CopilotKey = CopilotApiKey
 
 /**
  * Fetch Copilot API keys
  */
 async function fetchCopilotKeys(signal?: AbortSignal): Promise<CopilotKey[]> {
-  const response = await fetch('/api/copilot/api-keys', { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch Copilot API keys')
-  }
-
-  const data = await response.json()
-  return data.keys || []
+  const data = await requestJson(listCopilotApiKeysContract, { signal })
+  return data.keys
 }
 
 /**
@@ -74,21 +59,8 @@ export function useGenerateCopilotKey() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ name }: GenerateKeyParams): Promise<GenerateKeyResponse> => {
-      const response = await fetch('/api/copilot/api-keys/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to generate Copilot API key')
-      }
-
-      return response.json()
+    mutationFn: async ({ name }: GenerateKeyParams): Promise<GenerateCopilotApiKeyResult> => {
+      return requestJson(generateCopilotApiKeyContract, { body: { name } })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -113,16 +85,7 @@ export function useDeleteCopilotKey() {
 
   return useMutation({
     mutationFn: async ({ keyId }: DeleteKeyParams) => {
-      const response = await fetch(`/api/copilot/api-keys?id=${keyId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to delete Copilot API key')
-      }
-
-      return response.json()
+      return requestJson(deleteCopilotApiKeyContract, { query: { id: keyId } })
     },
     onMutate: async ({ keyId }) => {
       await queryClient.cancelQueries({ queryKey: copilotKeysKeys.keys() })
