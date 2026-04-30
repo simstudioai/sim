@@ -98,20 +98,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         : new Date(rawDeployedAt as string | number | Date)
 
     const cleanedState: CleanedWorkflowState = {
-      blocks:
-        rawBlocks && typeof rawBlocks === 'object' && !Array.isArray(rawBlocks)
-          ? (rawBlocks as Record<string, unknown>)
-          : {},
-      edges: Array.isArray(rawEdges) ? rawEdges : [],
-      loops:
-        rawLoops && typeof rawLoops === 'object' && !Array.isArray(rawLoops)
-          ? (rawLoops as Record<string, unknown>)
-          : {},
-      parallels:
-        rawParallels && typeof rawParallels === 'object' && !Array.isArray(rawParallels)
-          ? (rawParallels as Record<string, unknown>)
-          : {},
-      isDeployed: checkpointState.isDeployed === true,
+      blocks: (rawBlocks ?? {}) as Record<string, unknown>,
+      edges: (rawEdges ?? []) as unknown[],
+      loops: (rawLoops ?? {}) as Record<string, unknown>,
+      parallels: (rawParallels ?? {}) as Record<string, unknown>,
+      isDeployed: Boolean(checkpointState.isDeployed),
       lastSaved: Date.now(),
       ...(parsedDeployedAt && !Number.isNaN(parsedDeployedAt.getTime())
         ? { deployedAt: parsedDeployedAt }

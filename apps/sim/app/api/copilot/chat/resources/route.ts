@@ -38,7 +38,15 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const parsed = await parseRequest(addCopilotChatResourceContract, req, {})
+    const parsed = await parseRequest(
+      addCopilotChatResourceContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          createBadRequestResponse(error.issues.map((e) => e.message).join(', ')),
+      }
+    )
     if (!parsed.success) return parsed.response
     const { chatId, resource } = parsed.data.body
 
@@ -99,7 +107,15 @@ export const PATCH = withRouteHandler(async (req: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const parsed = await parseRequest(reorderCopilotChatResourcesContract, req, {})
+    const parsed = await parseRequest(
+      reorderCopilotChatResourcesContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          createBadRequestResponse(error.issues.map((e) => e.message).join(', ')),
+      }
+    )
     if (!parsed.success) return parsed.response
     const { chatId, resources: newOrder } = parsed.data.body
 
@@ -142,7 +158,15 @@ export const DELETE = withRouteHandler(async (req: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const parsed = await parseRequest(removeCopilotChatResourceContract, req, {})
+    const parsed = await parseRequest(
+      removeCopilotChatResourceContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          createBadRequestResponse(error.issues.map((e) => e.message).join(', ')),
+      }
+    )
     if (!parsed.success) return parsed.response
     const { chatId, resourceType, resourceId } = parsed.data.body
 
