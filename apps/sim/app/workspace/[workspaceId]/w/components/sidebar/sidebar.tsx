@@ -321,6 +321,14 @@ const SidebarNavItem = memo(function SidebarNavItem({
 /** Event name for sidebar scroll operations - centralized for consistency */
 export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
 
+const HIDDEN_STYLE = { display: 'none' } as const
+
+const WORKFLOW_ICON_STYLE: React.CSSProperties = {
+  backgroundColor: 'var(--text-icon)',
+  borderColor: 'color-mix(in srgb, var(--text-icon) 60%, transparent)',
+  backgroundClip: 'padding-box',
+}
+
 /**
  * Sidebar component with resizable width that persists across page refreshes.
  *
@@ -368,7 +376,7 @@ export const Sidebar = memo(function Sidebar() {
     isCollapsedRef.current = isCollapsed
   }, [isCollapsed])
 
-  const isMac = useMemo(() => isMacPlatform(), [])
+  const isMac = isMacPlatform()
 
   const [showCollapsedTooltips, setShowCollapsedTooltips] = useState(isCollapsed)
 
@@ -775,19 +783,20 @@ export const Sidebar = memo(function Sidebar() {
     [navigateToSettings, getSettingsHref, setSidebarWidth]
   )
 
-  const handleStartTour = useCallback(() => {
+  const handleStartTour = () => {
     window.dispatchEvent(
       new CustomEvent(isOnWorkflowPage ? START_WORKFLOW_TOUR_EVENT : START_NAV_TOUR_EVENT)
     )
-  }, [isOnWorkflowPage])
+  }
 
-  const { data: fetchedTasks = [], isLoading: tasksLoading } = useTasks(workspaceId)
+  const { data: fetchedTasks } = useTasks(workspaceId)
+  const tasksLoading = fetchedTasks === undefined
 
   useTaskEvents(workspaceId)
 
   const tasks = useMemo(
     () =>
-      fetchedTasks.length > 0
+      fetchedTasks && fetchedTasks.length > 0
         ? fetchedTasks.map((t) => ({
             ...t,
             href: `/workspace/${workspaceId}/task/${t.id}`,
@@ -874,7 +883,7 @@ export const Sidebar = memo(function Sidebar() {
     [setSidebarWidth, router]
   )
 
-  const handleConfirmDeleteTasks = useCallback(() => {
+  const handleConfirmDeleteTasks = () => {
     const { taskIds: taskIdsToDelete } = contextMenuSelectionRef.current
     if (taskIdsToDelete.length === 0) return
 
@@ -896,7 +905,7 @@ export const Sidebar = memo(function Sidebar() {
       deleteTasksMutation.mutate(taskIdsToDelete, { onSuccess: onDeleteSuccess })
     }
     setIsTaskDeleteModalOpen(false)
-  }, [pathname, workspaceId, navigateToPage])
+  }
 
   const [visibleTaskCount, setVisibleTaskCount] = useState(5)
   const taskFlyoutRename = useFlyoutInlineRename({
@@ -1033,9 +1042,9 @@ export const Sidebar = memo(function Sidebar() {
     }
   }, [createFolder])
 
-  const handleImportWorkflow = useCallback(() => {
+  const handleImportWorkflow = () => {
     fileInputRef.current?.click()
-  }, [])
+  }
 
   const handleWorkspaceSwitch = useCallback(
     async (workspace: Workspace) => {
@@ -1049,17 +1058,14 @@ export const Sidebar = memo(function Sidebar() {
     [workspaceId, switchWorkspace]
   )
 
-  const handleSidebarClick = useCallback(
-    (e: React.MouseEvent<HTMLElement>) => {
-      const target = e.target as HTMLElement
-      if (target.tagName === 'BUTTON' || target.closest('button, [role="button"], a')) {
-        return
-      }
-      const { selectOnly, clearAllSelection } = useFolderStore.getState()
-      workflowId ? selectOnly(workflowId) : clearAllSelection()
-    },
-    [workflowId]
-  )
+  const handleSidebarClick = (e: React.MouseEvent<HTMLElement>) => {
+    const target = e.target as HTMLElement
+    if (target.tagName === 'BUTTON' || target.closest('button, [role="button"], a')) {
+      return
+    }
+    const { selectOnly, clearAllSelection } = useFolderStore.getState()
+    workflowId ? selectOnly(workflowId) : clearAllSelection()
+  }
 
   const handleRenameWorkspace = useCallback(
     async (workspaceIdToRename: string, newName: string) => {
@@ -1122,32 +1128,20 @@ export const Sidebar = memo(function Sidebar() {
     workspaceFileInputRef.current?.click()
   }, [])
 
-  const handleWorkspaceFileChange = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const files = event.target.files
-      if (!files || files.length === 0) return
+  const handleWorkspaceFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) return
 
-      const zipFile = files[0]
-      await importWorkspace(zipFile)
+    const zipFile = files[0]
+    await importWorkspace(zipFile)
 
-      if (event.target) {
-        event.target.value = ''
-      }
-    },
-    [importWorkspace]
-  )
+    if (event.target) {
+      event.target.value = ''
+    }
+  }
 
   const tasksCollapsedIcon = useMemo(
     () => <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />,
-    []
-  )
-
-  const workflowIconStyle = useMemo<React.CSSProperties>(
-    () => ({
-      backgroundColor: 'var(--text-icon)',
-      borderColor: 'color-mix(in srgb, var(--text-icon) 60%, transparent)',
-      backgroundClip: 'padding-box',
-    }),
     []
   )
 
@@ -1155,10 +1149,10 @@ export const Sidebar = memo(function Sidebar() {
     () => (
       <div
         className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
-        style={workflowIconStyle}
+        style={WORKFLOW_ICON_STYLE}
       />
     ),
-    [workflowIconStyle]
+    []
   )
 
   const tasksPrimaryAction = useMemo(
@@ -1177,53 +1171,36 @@ export const Sidebar = memo(function Sidebar() {
     [handleCreateWorkflow]
   )
 
-  const handleExpandSidebar = useCallback(
-    (e: React.MouseEvent) => {
+  const handleExpandSidebar = (e: React.MouseEvent) => {
+    e.preventDefault()
+    toggleCollapsed()
+  }
+
+  const handleNewTask = () => navigateToPage(`/workspace/${workspaceId}/home`)
+
+  const handleSeeMoreTasks = () => setVisibleTaskCount((prev) => prev + 5)
+
+  const handleCloseTaskDeleteModal = () => setIsTaskDeleteModalOpen(false)
+
+  const handleEdgeKeyDown = (e: React.KeyboardEvent) => {
+    if (isCollapsed && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault()
       toggleCollapsed()
-    },
-    [toggleCollapsed]
-  )
+    }
+  }
 
-  const handleNewTask = useCallback(
-    () => navigateToPage(`/workspace/${workspaceId}/home`),
-    [navigateToPage, workspaceId]
-  )
+  const handleOpenHelpFromMenu = () => setIsHelpModalOpen(true)
 
-  const handleSeeMoreTasks = useCallback(() => setVisibleTaskCount((prev) => prev + 5), [])
-
-  const handleCloseTaskDeleteModal = useCallback(() => setIsTaskDeleteModalOpen(false), [])
-
-  const handleEdgeKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (isCollapsed && (e.key === 'Enter' || e.key === ' ')) {
-        e.preventDefault()
-        toggleCollapsed()
-      }
-    },
-    [isCollapsed, toggleCollapsed]
-  )
-
-  const handleOpenHelpFromMenu = useCallback(() => setIsHelpModalOpen(true), [])
-
-  const handleOpenDocs = useCallback(() => {
+  const handleOpenDocs = () => {
     window.open('https://docs.sim.ai', '_blank', 'noopener,noreferrer')
     captureEvent(posthog, 'docs_opened', { source: 'help_menu' })
-  }, [posthog])
+  }
 
-  const handleTaskRenameBlur = useCallback(
-    () => void taskFlyoutRename.saveRename(),
-    [taskFlyoutRename.saveRename]
-  )
+  const handleTaskRenameBlur = () => void taskFlyoutRename.saveRename()
 
-  const handleWorkflowRenameBlur = useCallback(
-    () => void workflowFlyoutRename.saveRename(),
-    [workflowFlyoutRename.saveRename]
-  )
+  const handleWorkflowRenameBlur = () => void workflowFlyoutRename.saveRename()
 
-  const hiddenStyle = useMemo(() => ({ display: 'none' }) as const, [])
-
-  const resolveWorkspaceIdFromPath = useCallback((): string | undefined => {
+  const resolveWorkspaceIdFromPath = (): string | undefined => {
     if (workspaceId) return workspaceId
     if (typeof window === 'undefined') return undefined
 
@@ -1232,7 +1209,7 @@ export const Sidebar = memo(function Sidebar() {
     if (idx === -1) return undefined
 
     return parts[idx + 1]
-  }, [workspaceId])
+  }
 
   useRegisterGlobalCommands(() =>
     createCommands([
@@ -1888,7 +1865,7 @@ export const Sidebar = memo(function Sidebar() {
         ref={workspaceFileInputRef}
         type='file'
         accept='.zip'
-        style={hiddenStyle}
+        style={HIDDEN_STYLE}
         onChange={handleWorkspaceFileChange}
       />
     </>
