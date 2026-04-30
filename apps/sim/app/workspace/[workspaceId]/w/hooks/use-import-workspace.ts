@@ -3,11 +3,11 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
-import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   createWorkflowContract,
   createWorkspaceContract,
   putWorkflowNormalizedStateContract,
+  type WorkflowStateContractInput,
   workflowVariablesContract,
 } from '@/lib/api/contracts'
 import {
@@ -186,10 +186,31 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
               continue
             }
 
+            type ContractEdgeInput = WorkflowStateContractInput['edges'][number]
+
+            const sanitizedEdges: ContractEdgeInput[] = (workflowData.edges || []).map((edge) => {
+              const { sourceHandle, targetHandle, ...rest } = edge
+              const sanitized: ContractEdgeInput = { ...rest } as ContractEdgeInput
+              if (typeof sourceHandle === 'string' && sourceHandle.length > 0) {
+                sanitized.sourceHandle = sourceHandle
+              }
+              if (typeof targetHandle === 'string' && targetHandle.length > 0) {
+                sanitized.targetHandle = targetHandle
+              }
+              return sanitized
+            })
+
+            const workflowStateBody: WorkflowStateContractInput = {
+              ...workflowData,
+              loops: workflowData.loops || {},
+              parallels: workflowData.parallels || {},
+              edges: sanitizedEdges,
+            }
+
             try {
               await requestJson(putWorkflowNormalizedStateContract, {
                 params: { id: newWorkflow.id },
-                body: workflowData as ContractBodyInput<typeof putWorkflowNormalizedStateContract>,
+                body: workflowStateBody,
               })
             } catch (error) {
               logger.error(`Failed to save workflow state for ${newWorkflow.id}`, { error })

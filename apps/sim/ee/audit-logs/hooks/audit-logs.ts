@@ -1,11 +1,6 @@
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
-import type { z } from 'zod'
 import { requestJson } from '@/lib/api/client/request'
-import type { ContractJsonResponse } from '@/lib/api/contracts'
-import {
-  type enterpriseAuditLogEntrySchema,
-  listAuditLogsContract,
-} from '@/lib/api/contracts/audit-logs'
+import { type AuditLogPage, listAuditLogsContract } from '@/lib/api/contracts/audit-logs'
 
 export const auditLogKeys = {
   all: ['audit-logs'] as const,
@@ -21,9 +16,6 @@ export interface AuditLogFilters {
   startDate?: string
   endDate?: string
 }
-
-export type EnterpriseAuditLogEntry = z.output<typeof enterpriseAuditLogEntrySchema>
-type AuditLogPage = ContractJsonResponse<typeof listAuditLogsContract>
 
 async function fetchAuditLogs(
   filters: AuditLogFilters,

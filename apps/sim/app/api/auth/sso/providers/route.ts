@@ -13,7 +13,7 @@ const logger = createLogger('SSOProvidersRoute')
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
-    const parsed = await parseRequest(listSsoProvidersContract, request, undefined)
+    const parsed = await parseRequest(listSsoProvidersContract, request, {})
     if (!parsed.success) return parsed.response
     const { organizationId } = parsed.data.query
 

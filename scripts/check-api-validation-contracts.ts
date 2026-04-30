@@ -20,6 +20,7 @@ const BOUNDARY_POLICY_BASELINE = {
   routeLocalSchemaConstructors: 0,
   routeZodErrorReferences: 0,
   clientHookZodImports: 0,
+  sourceBoundaryZodImports: 0,
   clientHookLocalSchemaFiles: 0,
   clientHookLocalSchemaConstructors: 0,
   clientHookRawFetches: 0,
@@ -192,6 +193,28 @@ const TEST_DIR_SEGMENT_PATTERN = /(?:^|\/)(?:__tests__|testing)(?:\/|$)/
  * source code for the uploads subsystem.
  */
 const USER_UPLOADS_DIR_PATTERN = /(?:^|\/)apps\/sim\/uploads(?:\/|$)/
+const CLIENT_BOUNDARY_ZOD_IMPORT_ALLOWLIST = new Map<string, string>([
+  [
+    'apps/sim/app/workspace/[workspaceId]/knowledge/components/create-base-modal/create-base-modal.tsx',
+    'legacy client form validation with react-hook-form/zodResolver',
+  ],
+  [
+    'apps/sim/app/workspace/[workspaceId]/knowledge/components/edit-knowledge-base-modal/edit-knowledge-base-modal.tsx',
+    'legacy client form validation with react-hook-form/zodResolver',
+  ],
+  [
+    'apps/sim/app/workspace/[workspaceId]/logs/components/logs-toolbar/components/notifications/notifications.tsx',
+    'legacy contract-derived UI aliases pending migration to exported contract types',
+  ],
+  [
+    'apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/help-modal/help-modal.tsx',
+    'legacy client form validation with react-hook-form/zodResolver',
+  ],
+  [
+    'apps/sim/ee/access-control/hooks/permission-groups.ts',
+    'legacy contract-derived hook aliases pending migration to exported contract types',
+  ],
+])
 const SOURCE_SKIP_DIRS = new Set([
   'node_modules',
   '.next',
@@ -234,6 +257,12 @@ interface RawJsonFinding {
 }
 
 interface UntypedResponseFinding {
+  path: string
+  line: number
+  preview: string
+}
+
+interface SourceBoundaryZodImportFinding {
   path: string
   line: number
   preview: string
@@ -600,6 +629,43 @@ function isClientHookFile(filePath: string): boolean {
   )
 }
 
+function isClientBoundarySourceFile(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/')
+  const relativePath = path.relative(ROOT, filePath).replace(/\\/g, '/')
+  const appRoot = path.join(ROOT, 'apps/sim/app').replace(/\\/g, '/')
+  const appApiRoot = path.join(ROOT, 'apps/sim/app/api').replace(/\\/g, '/')
+  const disallowedRoots = [
+    path.join(ROOT, 'apps/sim/components'),
+    path.join(ROOT, 'apps/sim/ee'),
+    path.join(ROOT, 'apps/sim/hooks'),
+    path.join(ROOT, 'apps/sim/stores'),
+  ].map((root) => root.replace(/\\/g, '/'))
+
+  if (CLIENT_BOUNDARY_ZOD_IMPORT_ALLOWLIST.has(relativePath)) return false
+  if (normalized.startsWith(`${appRoot}/`) && !normalized.startsWith(`${appApiRoot}/`)) return true
+  return disallowedRoots.some((root) => normalized.startsWith(`${root}/`))
+}
+
+function findSourceBoundaryZodImportFindings(
+  filePath: string,
+  content: string
+): SourceBoundaryZodImportFinding[] {
+  if (!isClientBoundarySourceFile(filePath)) return []
+
+  const relativePath = path.relative(ROOT, filePath)
+  const lines = content.split('\n')
+  const findings: SourceBoundaryZodImportFinding[] = []
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] ?? ''
+    if (ZOD_IMPORT_PATTERN.test(line) || ZOD_REQUIRE_PATTERN.test(line)) {
+      findings.push({ path: relativePath, line: i + 1, preview: buildPreview(line) })
+    }
+  }
+
+  return findings
+}
+
 /**
  * Identifies `apps/sim/app/api/**\/route.ts` API route handlers. Same-origin
  * `/api/` fetch scanning skips these — server-side fetches from inside a
@@ -837,6 +903,7 @@ function printAllNonZodRoutes(audits: RouteAudit[]) {
 function buildBoundaryPolicyMetrics(
   routeAudits: RouteAudit[],
   queryHookAudits: QueryHookAudit[],
+  sourceBoundaryZodImportFindings: SourceBoundaryZodImportFinding[],
   rawFetchSummary: { findings: RawFetchFinding[]; exemptions: number },
   sameOriginApiFetchSummary: {
     findings: SameOriginApiFetchFinding[]
@@ -893,6 +960,11 @@ function buildBoundaryPolicyMetrics(
         key: 'clientHookZodImports',
         label: 'client hook files importing zod',
         current: queryHookZodImports.length,
+      },
+      {
+        key: 'sourceBoundaryZodImports',
+        label: 'disallowed client/UI source files importing zod',
+        current: new Set(sourceBoundaryZodImportFindings.map((finding) => finding.path)).size,
       },
       {
         key: 'clientHookLocalSchemaFiles',
@@ -977,6 +1049,7 @@ function printBoundaryPolicyMetric(metric: BoundaryPolicyMetric) {
 }
 
 function printRawFetchAndDoubleCastMetrics(
+  sourceBoundaryZodImportFindings: SourceBoundaryZodImportFinding[],
   rawFetchFindings: RawFetchFinding[],
   sameOriginApiFetchFindings: SameOriginApiFetchFinding[],
   doubleCastFindings: DoubleCastFinding[],
@@ -990,6 +1063,12 @@ function printRawFetchAndDoubleCastMetrics(
   untypedResponseExemptions: number
 ) {
   console.log('\nRaw fetch and double-cast metrics:')
+  const sourceBoundaryZodImportFiles = new Set(
+    sourceBoundaryZodImportFindings.map((finding) => finding.path)
+  ).size
+  console.log(
+    `  disallowed client/UI source files importing zod: ${sourceBoundaryZodImportFiles} (baseline ${BOUNDARY_POLICY_BASELINE.sourceBoundaryZodImports})`
+  )
   console.log(`  client hook raw fetch() calls: ${rawFetchFindings.length}`)
   console.log(`  client hook raw fetch() exemptions (annotated): ${rawFetchExemptions}`)
   const sameOriginFiles = new Set(sameOriginApiFetchFindings.map((finding) => finding.path)).size
@@ -1064,6 +1143,17 @@ function printRawFetchAndDoubleCastMetrics(
     console.log(`    ... ${annotationsMissingReason.length - 25} more`)
   }
 
+  console.log('  disallowed client/UI zod import examples:')
+  for (const finding of sourceBoundaryZodImportFindings.slice(0, 25)) {
+    console.log(`    ${finding.path}:${finding.line} ${finding.preview}`)
+  }
+  if (sourceBoundaryZodImportFindings.length > 25) {
+    console.log(`    ... ${sourceBoundaryZodImportFindings.length - 25} more`)
+  }
+
+  console.log(
+    '  zod import policy: zod imports are disallowed in client/UI boundary source (`apps/sim/app/**` outside `app/api`, `apps/sim/hooks/**`, `apps/sim/ee/**`, `apps/sim/components/**`, and `apps/sim/stores/**`) unless explicitly allowlisted in this script.'
+  )
   console.log(
     '  annotation forms: `// boundary-raw-fetch: <reason>` (raw fetch in client hook OR same-origin /api/ fetch outside an API route handler), `// double-cast-allowed: <reason>` (double-cast), `// boundary-raw-json: <reason>` (raw request.json read), `// untyped-response: <reason>` (z.unknown() / z.object({}).passthrough() / z.record(z.string(), z.unknown()) response schema)'
   )
@@ -1072,6 +1162,7 @@ function printRawFetchAndDoubleCastMetrics(
 function printBoundaryContractDrift(
   routeAudits: RouteAudit[],
   queryHookAudits: QueryHookAudit[],
+  sourceBoundaryZodImportFindings: SourceBoundaryZodImportFinding[],
   sameOriginApiFetchFindings: SameOriginApiFetchFinding[],
   untypedResponseFindings: UntypedResponseFinding[],
   ratchetedMetrics: BoundaryPolicyMetric[],
@@ -1085,6 +1176,9 @@ function printBoundaryContractDrift(
   const adHocWireTypes = queryHookAudits.flatMap((audit) => audit.adHocWireTypes)
   const sameOriginApiFetchFiles = [
     ...new Set(sameOriginApiFetchFindings.map((finding) => finding.path)),
+  ].sort()
+  const sourceBoundaryZodImportFiles = [
+    ...new Set(sourceBoundaryZodImportFindings.map((finding) => finding.path)),
   ].sort()
 
   console.log('\nBoundary policy drift:')
@@ -1136,6 +1230,15 @@ function printBoundaryContractDrift(
 
   if (zodImportQueryHooks.length > 25) {
     console.log(`    ... ${zodImportQueryHooks.length - 25} more`)
+  }
+
+  console.log('  disallowed client/UI zod import examples:')
+  for (const filePath of sourceBoundaryZodImportFiles.slice(0, 25)) {
+    console.log(`    ${filePath}`)
+  }
+
+  if (sourceBoundaryZodImportFiles.length > 25) {
+    console.log(`    ... ${sourceBoundaryZodImportFiles.length - 25} more`)
   }
 
   console.log('  query-hook local schema constructor examples:')
@@ -1223,6 +1326,7 @@ async function main() {
   const rawFetchFindings: RawFetchFinding[] = []
   const sameOriginApiFetchFindings: SameOriginApiFetchFinding[] = []
   const doubleCastFindings: DoubleCastFinding[] = []
+  const sourceBoundaryZodImportFindings: SourceBoundaryZodImportFinding[] = []
   let rawFetchExemptions = 0
   let sameOriginApiFetchExemptions = 0
   let doubleCastExemptions = 0
@@ -1232,6 +1336,8 @@ async function main() {
   for (const filePath of sourceFiles) {
     const content = await readFile(filePath, 'utf8')
     const normalized = filePath.replace(/\\/g, '/')
+
+    sourceBoundaryZodImportFindings.push(...findSourceBoundaryZodImportFindings(filePath, content))
 
     if (isClientHookFile(filePath)) {
       const rawFetch = findRawFetchFindings(filePath, content)
@@ -1272,6 +1378,7 @@ async function main() {
   const { ratchetedMetrics, printOnlyMetrics } = buildBoundaryPolicyMetrics(
     audits,
     queryHookAudits,
+    sourceBoundaryZodImportFindings,
     { findings: rawFetchFindings, exemptions: rawFetchExemptions },
     {
       findings: sameOriginApiFetchFindings,
@@ -1301,12 +1408,14 @@ async function main() {
   printBoundaryContractDrift(
     audits,
     queryHookAudits,
+    sourceBoundaryZodImportFindings,
     sameOriginApiFetchFindings,
     untypedResponseFindings,
     ratchetedMetrics,
     printOnlyMetrics
   )
   printRawFetchAndDoubleCastMetrics(
+    sourceBoundaryZodImportFindings,
     rawFetchFindings,
     sameOriginApiFetchFindings,
     doubleCastFindings,

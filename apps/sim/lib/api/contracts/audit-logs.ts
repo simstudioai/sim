@@ -99,11 +99,15 @@ export const enterpriseAuditLogEntrySchema = z.object({
   createdAt: z.string(),
 })
 
+export type EnterpriseAuditLogEntry = z.output<typeof enterpriseAuditLogEntrySchema>
+
 export const listAuditLogsResponseSchema = z.object({
   success: z.boolean(),
   data: z.array(enterpriseAuditLogEntrySchema),
   nextCursor: z.string().optional(),
 })
+
+export type AuditLogPage = z.output<typeof listAuditLogsResponseSchema>
 
 export const listAuditLogsContract = defineRouteContract({
   method: 'GET',
