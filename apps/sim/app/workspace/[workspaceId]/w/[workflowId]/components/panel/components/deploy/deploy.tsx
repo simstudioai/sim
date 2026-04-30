@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
-import { Button, Tooltip } from '@/components/emcn'
+import { Button, Loader, Tooltip } from '@/components/emcn'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useChangeDetection,
@@ -94,7 +93,7 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
               onClick={onDeployClick}
               disabled={isRegistryLoading || isDisabled}
             >
-              {isDeploying && <Loader2 className='h-[13px] w-[13px] animate-spin' />}
+              {isDeploying && <Loader className='h-[13px] w-[13px]' animate />}
               {changeDetected ? 'Update' : isDeployed ? 'Live' : 'Deploy'}
             </Button>
           </span>

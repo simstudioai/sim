@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeftRight, Loader2 } from 'lucide-react'
+import { ArrowLeftRight } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Button } from '@/components/emcn'
+import { Button, Loader } from '@/components/emcn'
 import { signOut, useSession } from '@/lib/auth/auth-client'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 
@@ -266,7 +266,7 @@ export default function OAuthConsentPage() {
         >
           {submitting ? (
             <span className='flex items-center gap-2'>
-              <Loader2 className='h-4 w-4 animate-spin' />
+              <Loader className='h-4 w-4' animate />
               Authorizing...
             </span>
           ) : (

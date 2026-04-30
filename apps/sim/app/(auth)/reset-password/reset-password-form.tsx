@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
-import { Input, Label } from '@/components/emcn'
+import { Eye, EyeOff } from 'lucide-react'
+import { Input, Label, Loader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 
@@ -67,7 +67,7 @@ export function RequestResetForm({
       <button type='submit' disabled={isSubmitting} className={AUTH_SUBMIT_BTN}>
         {isSubmitting ? (
           <span className='flex items-center gap-2'>
-            <Loader2 className='h-4 w-4 animate-spin' />
+            <Loader className='h-4 w-4' animate />
             Sending...
           </span>
         ) : (
@@ -232,7 +232,7 @@ export function SetNewPasswordForm({
       <button type='submit' disabled={isSubmitting || !token} className={AUTH_SUBMIT_BTN}>
         {isSubmitting ? (
           <span className='flex items-center gap-2'>
-            <Loader2 className='h-4 w-4 animate-spin' />
+            <Loader className='h-4 w-4' animate />
             Resetting...
           </span>
         ) : (

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   addMothershipChatResourceContract,
+  createMothershipChatContract,
   deleteMothershipChatContract,
   forkMothershipChatContract,
   listMothershipChatsContract,
@@ -522,6 +523,35 @@ export function useMarkTaskUnread(workspaceId?: string) {
       if (context?.previousTasks) {
         queryClient.setQueryData(taskKeys.list(workspaceId), context.previousTasks)
       }
+    },
+  })
+}
+
+async function createChat(workspaceId: string): Promise<{ id: string }> {
+  const { id } = await requestJson(createMothershipChatContract, { body: { workspaceId } })
+  return { id }
+}
+
+export function useCreateTask(workspaceId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => {
+      if (!workspaceId) throw new Error('workspaceId is required')
+      return createChat(workspaceId)
+    },
+    onSuccess: (data) => {
+      const existing = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId)) ?? []
+      const newTask: TaskMetadata = {
+        id: data.id,
+        name: 'New task',
+        updatedAt: new Date(),
+        isActive: false,
+        isUnread: false,
+      }
+      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [newTask, ...existing])
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
     },
   })
 }

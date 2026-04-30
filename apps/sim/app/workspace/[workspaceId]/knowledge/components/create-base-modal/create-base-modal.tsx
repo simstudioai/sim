@@ -3,7 +3,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
-import { Loader2, RotateCcw, X } from 'lucide-react'
+import { RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -13,6 +13,7 @@ import {
   type ComboboxOption,
   Input,
   Label,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
@@ -581,7 +582,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                             </span>
                             <div className='flex flex-shrink-0 items-center gap-1'>
                               {isProcessing ? (
-                                <Loader2 className='h-4 w-4 animate-spin text-[var(--text-muted)]' />
+                                <Loader className='h-4 w-4 text-[var(--text-muted)]' animate />
                               ) : (
                                 <>
                                   {isFailed && (

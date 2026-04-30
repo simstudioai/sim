@@ -90,6 +90,7 @@ import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import {
+  useCreateTask,
   useDeleteTask,
   useDeleteTasks,
   useMarkTaskRead,
@@ -106,6 +107,7 @@ import { useTaskEvents } from '@/hooks/use-task-events'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
@@ -197,7 +199,6 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           (isCurrentRoute || isSelected || isMenuOpen) && 'bg-[var(--surface-active)]'
         )}
         onClick={(e) => {
-          if (task.id === 'new') return
           if (e.metaKey || e.ctrlKey) return
           if (e.shiftKey) {
             e.preventDefault()
@@ -206,42 +207,40 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
             useFolderStore.getState().selectTaskOnly(task.id)
           }
         }}
-        onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}
-        draggable={task.id !== 'new'}
-        onDragStart={task.id !== 'new' ? handleDragStart : undefined}
-        onDragEnd={task.id !== 'new' ? handleDragEnd : undefined}
+        onContextMenu={(e) => onContextMenu(e, task.id)}
+        draggable
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
       >
         <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
         <div className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>{task.name}</div>
-        {task.id !== 'new' && (
-          <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
-            {isActive && !isCurrentRoute && !isMenuOpen && (
-              <span className='absolute h-[7px] w-[7px] animate-ping rounded-full bg-amber-400 opacity-30 group-hover:hidden' />
+        <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
+          {isActive && !isCurrentRoute && !isMenuOpen && (
+            <span className='absolute h-[7px] w-[7px] animate-ping rounded-full bg-amber-400 opacity-30 group-hover:hidden' />
+          )}
+          {isActive && !isCurrentRoute && !isMenuOpen && (
+            <span className='absolute h-[7px] w-[7px] rounded-full bg-amber-400 group-hover:hidden' />
+          )}
+          {!isActive && isUnread && !isCurrentRoute && !isMenuOpen && (
+            <span className='absolute h-[7px] w-[7px] rounded-full bg-[var(--brand-accent)] group-hover:hidden' />
+          )}
+          <button
+            type='button'
+            aria-label='Task options'
+            onPointerDown={onMorePointerDown}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onMoreClick(e, task.id)
+            }}
+            className={cn(
+              'flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
+              isMenuOpen && 'opacity-100'
             )}
-            {isActive && !isCurrentRoute && !isMenuOpen && (
-              <span className='absolute h-[7px] w-[7px] rounded-full bg-amber-400 group-hover:hidden' />
-            )}
-            {!isActive && isUnread && !isCurrentRoute && !isMenuOpen && (
-              <span className='absolute h-[7px] w-[7px] rounded-full bg-[var(--brand-accent)] group-hover:hidden' />
-            )}
-            <button
-              type='button'
-              aria-label='Task options'
-              onPointerDown={onMorePointerDown}
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                onMoreClick(e, task.id)
-              }}
-              className={cn(
-                'flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
-                isMenuOpen && 'opacity-100'
-              )}
-            >
-              <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
-            </button>
-          </div>
-        )}
+          >
+            <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+          </button>
+        </div>
       </Link>
     </SidebarTooltip>
   )
@@ -586,6 +585,8 @@ export const Sidebar = memo(function Sidebar() {
     }
   }, [activeNavItemHref])
 
+  const createTaskMutation = useCreateTask(workspaceId)
+  const isCreatingTaskRef = useRef(false)
   const deleteTaskMutation = useDeleteTask(workspaceId)
   const deleteTasksMutation = useDeleteTasks(workspaceId)
   const markTaskReadMutation = useMarkTaskRead(workspaceId)
@@ -796,20 +797,12 @@ export const Sidebar = memo(function Sidebar() {
 
   const tasks = useMemo(
     () =>
-      fetchedTasks && fetchedTasks.length > 0
+      fetchedTasks
         ? fetchedTasks.map((t) => ({
             ...t,
             href: `/workspace/${workspaceId}/task/${t.id}`,
           }))
-        : [
-            {
-              id: 'new',
-              name: 'New task',
-              href: `/workspace/${workspaceId}/home`,
-              isActive: false,
-              isUnread: false,
-            },
-          ],
+        : [],
     [fetchedTasks, workspaceId]
   )
 
@@ -853,7 +846,7 @@ export const Sidebar = memo(function Sidebar() {
     [fetchedKnowledgeBases, workspaceId, permissionConfig.hideKnowledgeBaseTab]
   )
 
-  const taskIds = useMemo(() => tasks.map((t) => t.id).filter((id) => id !== 'new'), [tasks])
+  const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks])
 
   const { selectedTasks, handleTaskClick } = useTaskSelection({ taskIds })
 
@@ -1155,14 +1148,6 @@ export const Sidebar = memo(function Sidebar() {
     []
   )
 
-  const tasksPrimaryAction = useMemo(
-    () => ({
-      label: 'New task',
-      onSelect: () => navigateToPage(`/workspace/${workspaceId}/home`),
-    }),
-    [navigateToPage, workspaceId]
-  )
-
   const workflowsPrimaryAction = useMemo(
     () => ({
       label: 'New workflow',
@@ -1176,7 +1161,27 @@ export const Sidebar = memo(function Sidebar() {
     toggleCollapsed()
   }
 
-  const handleNewTask = () => navigateToPage(`/workspace/${workspaceId}/home`)
+  const handleNewTask = useCallback(async () => {
+    if (!workspaceId || isCreatingTaskRef.current) return
+    isCreatingTaskRef.current = true
+    try {
+      const { id } = await createTaskMutation.mutateAsync()
+      useMothershipDraftsStore.getState().clearDraft(`${workspaceId}:new`)
+      navigateToPage(`/workspace/${workspaceId}/task/${id}`)
+    } catch {
+      navigateToPage(`/workspace/${workspaceId}/home`)
+    } finally {
+      isCreatingTaskRef.current = false
+    }
+  }, [workspaceId, navigateToPage])
+
+  const tasksPrimaryAction = useMemo(
+    () => ({
+      label: 'New task',
+      onSelect: handleNewTask,
+    }),
+    [handleNewTask]
+  )
 
   const handleSeeMoreTasks = () => setVisibleTaskCount((prev) => prev + 5)
 
@@ -1462,6 +1467,7 @@ export const Sidebar = memo(function Sidebar() {
                                   variant='ghost'
                                   className='h-[18px] w-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-hover)]'
                                   onClick={handleNewTask}
+                                  disabled={createTaskMutation.isPending}
                                 >
                                   <Plus className='h-[16px] w-[16px]' />
                                 </Button>
@@ -1493,7 +1499,7 @@ export const Sidebar = memo(function Sidebar() {
                               <CollapsedTaskFlyoutItem
                                 key={task.id}
                                 task={task}
-                                isCurrentRoute={task.id !== 'new' && pathname === task.href}
+                                isCurrentRoute={pathname === task.href}
                                 isMenuOpen={menuOpenTaskId === task.id}
                                 isEditing={task.id === taskFlyoutRename.editingId}
                                 editValue={taskFlyoutRename.value}
@@ -1516,9 +1522,9 @@ export const Sidebar = memo(function Sidebar() {
                           ) : (
                             <>
                               {tasks.slice(0, visibleTaskCount).map((task) => {
-                                const isCurrentRoute = task.id !== 'new' && pathname === task.href
+                                const isCurrentRoute = pathname === task.href
                                 const isRenaming = taskFlyoutRename.editingId === task.id
-                                const isSelected = task.id !== 'new' && selectedTasks.has(task.id)
+                                const isSelected = selectedTasks.has(task.id)
 
                                 if (isRenaming) {
                                   return (

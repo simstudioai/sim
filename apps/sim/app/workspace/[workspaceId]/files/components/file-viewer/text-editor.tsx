@@ -13,6 +13,7 @@ import {
   useWorkspaceFileContent,
 } from '@/hooks/queries/workspace-files'
 import { useAutosave } from '@/hooks/use-autosave'
+import { EditorContextMenu } from './editor-context-menu'
 import type { PreviewMode } from './file-viewer'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
 import {
@@ -26,6 +27,7 @@ const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'comment', foreground: '606060', fontStyle: 'italic' },
   { token: 'string', foreground: '3ab872' },
   { token: 'string.escape', foreground: '3ab872' },
+  { token: 'string.link', foreground: '33b4ff' },
   { token: 'number', foreground: 'e8a87c' },
   { token: 'number.float', foreground: 'e8a87c' },
   { token: 'number.hex', foreground: 'e8a87c' },
@@ -36,15 +38,25 @@ const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'type.identifier', foreground: '8fc7f5' },
   { token: 'regexp', foreground: 'ff8a65' },
   { token: 'annotation', foreground: 'ffca28' },
+  { token: 'delimiter', foreground: '555555' },
+  { token: 'tag', foreground: '33b4ff' },
+  { token: 'attribute.name', foreground: '8fc7f5' },
+  { token: 'attribute.value', foreground: '3ab872' },
+  { token: 'strong', foreground: 'e6e6e6', fontStyle: 'bold' },
+  { token: 'emphasis', foreground: 'c8c8c8', fontStyle: 'italic' },
+  { token: 'variable', foreground: '3ab872' },
+  { token: 'variable.source', foreground: 'b0b0b0' },
+  { token: 'meta.separator', foreground: '404040' },
 ]
 
 const SIM_LIGHT_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'comment', foreground: '888888', fontStyle: 'italic' },
   { token: 'string', foreground: '16825d' },
   { token: 'string.escape', foreground: '16825d' },
-  { token: 'number', foreground: 'c9660c' },
-  { token: 'number.float', foreground: 'c9660c' },
-  { token: 'number.hex', foreground: 'c9660c' },
+  { token: 'string.link', foreground: '0078d4' },
+  { token: 'number', foreground: 'a85500' },
+  { token: 'number.float', foreground: 'a85500' },
+  { token: 'number.hex', foreground: 'a85500' },
   { token: 'keyword', foreground: '0078d4' },
   { token: 'keyword.control', foreground: '0078d4' },
   { token: 'storage', foreground: '0078d4' },
@@ -52,6 +64,15 @@ const SIM_LIGHT_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'type.identifier', foreground: '7c4dcc' },
   { token: 'regexp', foreground: 'd7390c' },
   { token: 'annotation', foreground: 'e67700' },
+  { token: 'delimiter', foreground: 'aaaaaa' },
+  { token: 'tag', foreground: '0078d4' },
+  { token: 'attribute.name', foreground: '7c4dcc' },
+  { token: 'attribute.value', foreground: '16825d' },
+  { token: 'strong', foreground: '1a1a1a', fontStyle: 'bold' },
+  { token: 'emphasis', foreground: '444444', fontStyle: 'italic' },
+  { token: 'variable', foreground: '16825d' },
+  { token: 'variable.source', foreground: '555555' },
+  { token: 'meta.separator', foreground: 'cccccc' },
 ]
 
 const MonacoEditor = dynamic(
@@ -147,30 +168,30 @@ const MonacoEditor = dynamic(
       colors: {
         'editor.background': '#fefefe',
         'editor.foreground': '#1a1a1a',
-        'editorLineNumber.foreground': '#cccccc',
+        'editorLineNumber.foreground': '#bbbbbb',
         'editorLineNumber.activeForeground': '#707070',
-        'editor.selectionBackground': '#33b4ff22',
-        'editor.inactiveSelectionBackground': '#33b4ff12',
+        'editor.selectionBackground': '#0078d430',
+        'editor.inactiveSelectionBackground': '#0078d418',
         'editor.lineHighlightBackground': '#f7f7f7',
         'editor.lineHighlightBorder': '#00000000',
         'editorGutter.background': '#fefefe',
         'editorWidget.background': '#ffffff',
         'editorWidget.border': '#dedede',
         'editorWidget.foreground': '#1a1a1a',
-        'editor.findMatchBackground': '#33b4ff40',
-        'editor.findMatchHighlightBackground': '#33b4ff1a',
-        'editor.findMatchBorder': '#33b4ff',
+        'editor.findMatchBackground': '#0078d428',
+        'editor.findMatchHighlightBackground': '#0078d414',
+        'editor.findMatchBorder': '#0078d4',
         'scrollbar.shadow': '#00000000',
         'scrollbarSlider.background': '#dedede80',
         'scrollbarSlider.hoverBackground': '#cccccc',
         'scrollbarSlider.activeBackground': '#b0b0b0',
-        'editorBracketMatch.background': '#33b4ff1a',
-        'editorBracketMatch.border': '#33b4ff80',
+        'editorBracketMatch.background': '#0078d418',
+        'editorBracketMatch.border': '#0078d480',
         'editorIndentGuide.background1': '#f0f0f0',
         'editorIndentGuide.activeBackground1': '#d8d8d8',
         'editorCursor.foreground': '#1a1a1a',
-        'editor.wordHighlightBackground': '#33b4ff14',
-        'editor.wordHighlightBorder': '#33b4ff40',
+        'editor.wordHighlightBackground': '#0078d414',
+        'editor.wordHighlightBorder': '#0078d450',
         'editorSuggestWidget.background': '#ffffff',
         'editorSuggestWidget.border': '#dedede',
         'editorSuggestWidget.foreground': '#1a1a1a',
@@ -181,11 +202,11 @@ const MonacoEditor = dynamic(
         'editorHoverWidget.foreground': '#1a1a1a',
         'minimap.background': '#fefefe',
         'minimapSlider.background': '#dedede80',
-        focusBorder: '#33b4ff80',
+        focusBorder: '#0078d480',
         'input.background': '#ffffff',
         'input.border': '#dedede',
         'input.foreground': '#1a1a1a',
-        'inputOption.activeBorder': '#33b4ff',
+        'inputOption.activeBorder': '#0078d4',
       },
     })
 
@@ -384,6 +405,11 @@ export const TextEditor = memo(function TextEditor({
 
   const [splitPct, setSplitPct] = useState(SPLIT_DEFAULT_PCT)
   const [isResizing, setIsResizing] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    hasSelection: boolean
+  } | null>(null)
 
   const {
     data: fetchedContent,
@@ -593,6 +619,17 @@ export const TextEditor = memo(function TextEditor({
       hasAutoFocusedRef.current = true
       editor.focus()
     }
+
+    const contextMenuDisposable = editor.onContextMenu((e) => {
+      e.event.preventDefault()
+      const sel = editor.getSelection()
+      setContextMenu({
+        x: e.event.posx,
+        y: e.event.posy,
+        hasSelection: sel !== null && !sel.isEmpty(),
+      })
+    })
+    editor.onDidDispose(() => contextMenuDisposable.dispose())
   }
 
   const handleEditorChange = useCallback(
@@ -623,6 +660,8 @@ export const TextEditor = memo(function TextEditor({
     }
   }
 
+  const closeContextMenu = () => setContextMenu(null)
+
   return (
     <div ref={containerRef} className='relative flex flex-1 overflow-hidden'>
       {showEditor && (
@@ -652,7 +691,7 @@ export const TextEditor = memo(function TextEditor({
               tabSize: 2,
               automaticLayout: true,
               renderLineHighlight: 'line',
-              occurrencesHighlight: 'off',
+              occurrencesHighlight: 'singleFile',
               overviewRulerLanes: 0,
               hideCursorInOverviewRuler: true,
               scrollbar: {
@@ -661,14 +700,19 @@ export const TextEditor = memo(function TextEditor({
               },
               quickSuggestions: false,
               suggestOnTriggerCharacters: false,
-              wordBasedSuggestions: 'off',
+              wordBasedSuggestions: 'currentDocument',
               parameterHints: { enabled: false },
-              hover: { enabled: false },
               codeLens: false,
               lightbulb: {
                 enabled: 'off' as MonacoEditorTypes.ShowLightbulbIconMode,
               },
               inlayHints: { enabled: 'off' },
+              contextmenu: false,
+              fixedOverflowWidgets: true,
+              glyphMargin: false,
+              stickyScroll: { enabled: false },
+              bracketPairColorization: { enabled: false },
+              unicodeHighlight: { ambiguousCharacters: false },
             }}
             onChange={handleEditorChange}
             onMount={handleEditorMount}
@@ -707,6 +751,55 @@ export const TextEditor = memo(function TextEditor({
             />
           </div>
         </>
+      )}
+      {contextMenu && (
+        <EditorContextMenu
+          isOpen
+          position={contextMenu}
+          onClose={closeContextMenu}
+          hasSelection={contextMenu.hasSelection}
+          canEdit={!isEditorReadOnly}
+          onCut={() => {
+            monacoEditorRef.current?.focus()
+            monacoEditorRef.current?.trigger(
+              'contextmenu',
+              'editor.action.clipboardCutAction',
+              null
+            )
+            closeContextMenu()
+          }}
+          onCopy={() => {
+            monacoEditorRef.current?.focus()
+            monacoEditorRef.current?.trigger(
+              'contextmenu',
+              'editor.action.clipboardCopyAction',
+              null
+            )
+            closeContextMenu()
+          }}
+          onCopyAll={() => {
+            navigator.clipboard.writeText(monacoEditorRef.current?.getValue() ?? '').catch(() => {})
+            closeContextMenu()
+          }}
+          onPaste={() => {
+            monacoEditorRef.current?.focus()
+            monacoEditorRef.current?.trigger(
+              'contextmenu',
+              'editor.action.clipboardPasteAction',
+              null
+            )
+            closeContextMenu()
+          }}
+          onSelectAll={() => {
+            monacoEditorRef.current?.focus()
+            monacoEditorRef.current?.trigger('contextmenu', 'editor.action.selectAll', null)
+            closeContextMenu()
+          }}
+          onFind={() => {
+            monacoEditorRef.current?.getAction('actions.find')?.run()
+            closeContextMenu()
+          }}
+        />
       )}
     </div>
   )

@@ -15,8 +15,9 @@ import {
   useState,
 } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { Check, ChevronDown, Loader2, Search } from 'lucide-react'
+import { Check, ChevronDown, Search } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
+import { Loader } from '../../icons'
 import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
@@ -689,7 +690,7 @@ const Combobox = memo(
                 <div ref={dropdownRef} role='listbox' id={listboxId}>
                   {isLoading ? (
                     <div className='flex items-center justify-center py-3.5'>
-                      <Loader2 className='h-[16px] w-[16px] animate-spin text-[var(--text-muted)]' />
+                      <Loader className='h-[16px] w-[16px] text-[var(--text-muted)]' animate />
                       <span className='ml-2 font-base text-[var(--text-muted)] text-caption'>
                         Loading options...
                       </span>

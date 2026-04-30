@@ -2,10 +2,17 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Loader2, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { Modal, ModalClose, ModalContent, ModalTitle, ModalTrigger } from '@/components/emcn'
+import {
+  Loader,
+  Modal,
+  ModalClose,
+  ModalContent,
+  ModalTitle,
+  ModalTrigger,
+} from '@/components/emcn'
 import { GithubIcon, GoogleIcon } from '@/components/icons'
 import { client } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
@@ -142,7 +149,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
 
           {!providerStatus ? (
             <div className='flex items-center justify-center py-16'>
-              <Loader2 className='h-5 w-5 animate-spin text-[var(--landing-text-muted)]' />
+              <Loader className='h-5 w-5 text-[var(--landing-text-muted)]' animate />
             </div>
           ) : (
             <>

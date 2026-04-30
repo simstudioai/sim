@@ -8,7 +8,6 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
-  Loader2,
   Lock,
   Pencil,
   Unlock,
@@ -17,7 +16,7 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { Button, Tooltip } from '@/components/emcn'
+import { Button, Loader, Tooltip } from '@/components/emcn'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   buildCanonicalIndex,
@@ -498,7 +497,7 @@ export function Editor() {
                     <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
                       {isLoadingChildWorkflow ? (
                         <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
-                          <Loader2 className='h-5 w-5 animate-spin text-[var(--text-tertiary)]' />
+                          <Loader className='h-5 w-5 text-[var(--text-tertiary)]' animate />
                         </div>
                       ) : childWorkflowState ? (
                         <>

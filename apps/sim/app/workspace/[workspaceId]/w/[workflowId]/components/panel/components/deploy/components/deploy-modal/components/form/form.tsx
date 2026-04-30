@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Check, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Check, Eye, EyeOff } from 'lucide-react'
 import {
   ButtonGroup,
   ButtonGroupItem,
   Input,
   Label,
+  Loader,
   Skeleton,
   TagInput,
   type TagItem,
@@ -378,7 +379,7 @@ export function FormDeploy({
               />
               {isCheckingIdentifier ? (
                 <div className='-translate-y-1/2 absolute top-1/2 right-2'>
-                  <Loader2 className='h-4 w-4 animate-spin text-[var(--text-tertiary)]' />
+                  <Loader className='h-4 w-4 text-[var(--text-tertiary)]' animate />
                 </div>
               ) : (
                 identifierValidationPassed &&

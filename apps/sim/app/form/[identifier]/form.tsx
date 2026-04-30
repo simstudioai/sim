@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Loader2 } from 'lucide-react'
+import { Loader } from '@/components/emcn'
 import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
@@ -326,7 +326,7 @@ export default function Form({ identifier }: { identifier: string }) {
                 <button type='submit' disabled={isSubmitting} className={AUTH_SUBMIT_BTN}>
                   {isSubmitting ? (
                     <span className='flex items-center gap-2'>
-                      <Loader2 className='h-4 w-4 animate-spin' />
+                      <Loader className='h-4 w-4' animate />
                       Submitting...
                     </span>
                   ) : (

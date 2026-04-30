@@ -2,8 +2,7 @@
 
 import type { ChangeEvent } from 'react'
 import { useCallback, useRef, useState } from 'react'
-import { Loader2 } from 'lucide-react'
-import { Button, Input, Label, Textarea } from '@/components/emcn'
+import { Button, Input, Label, Loader, Textarea } from '@/components/emcn'
 import { Upload } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { importSkillContract } from '@/lib/api/contracts'
@@ -183,7 +182,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
             className='hidden'
           />
           {fileState === 'loading' ? (
-            <Loader2 className='h-[20px] w-[20px] animate-spin text-[var(--text-tertiary)]' />
+            <Loader className='h-[20px] w-[20px] text-[var(--text-tertiary)]' animate />
           ) : (
             <Upload className='h-[20px] w-[20px] text-[var(--text-tertiary)]' />
           )}
@@ -223,11 +222,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
             onClick={handleGithubImport}
             disabled={githubState === 'loading' || !githubUrl.trim()}
           >
-            {githubState === 'loading' ? (
-              <Loader2 className='h-[14px] w-[14px] animate-spin' />
-            ) : (
-              'Fetch'
-            )}
+            {githubState === 'loading' ? <Loader className='h-[14px] w-[14px]' animate /> : 'Fetch'}
           </Button>
         </div>
         {githubError && <p className='text-[13px] text-[var(--text-error)]'>{githubError}</p>}

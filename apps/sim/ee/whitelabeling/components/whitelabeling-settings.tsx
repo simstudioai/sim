@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { Loader2, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
-import { Button, Input, Label, Skeleton, toast } from '@/components/emcn'
+import { Button, Input, Label, Loader, Skeleton, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
@@ -335,7 +335,7 @@ export function WhitelabelingSettings() {
                     className='group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
                   >
                     {logoUpload.isUploading ? (
-                      <Loader2 className='h-5 w-5 animate-spin text-[var(--text-muted)]' />
+                      <Loader className='h-5 w-5 text-[var(--text-muted)]' animate />
                     ) : logoUpload.previewUrl ? (
                       <Image
                         src={logoUpload.previewUrl}
@@ -393,7 +393,7 @@ export function WhitelabelingSettings() {
                     className='group relative flex h-16 w-40 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
                   >
                     {wordmarkUpload.isUploading ? (
-                      <Loader2 className='h-5 w-5 animate-spin text-[var(--text-muted)]' />
+                      <Loader className='h-5 w-5 text-[var(--text-muted)]' animate />
                     ) : wordmarkUpload.previewUrl ? (
                       <Image
                         src={wordmarkUpload.previewUrl}

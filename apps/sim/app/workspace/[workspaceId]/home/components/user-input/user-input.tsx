@@ -51,6 +51,7 @@ import {
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSpeechToText } from '@/hooks/use-speech-to-text'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
@@ -101,6 +102,7 @@ function getCaretAnchor(
 
 interface UserInputProps {
   defaultValue?: string
+  draftScopeKey?: string
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
@@ -123,6 +125,7 @@ export interface UserInputHandle {
 export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
   {
     defaultValue = '',
+    draftScopeKey,
     onSubmit,
     isSending,
     onStopGeneration,
@@ -139,17 +142,20 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const { navigateToSettings } = useSettingsNavigation()
   const { data: workflowsById = {} } = useWorkflowMap(workspaceId)
   const { data: session } = useSession()
-  const [value, setValue] = useState(defaultValue)
+  const [value, setValue] = useState(() => {
+    if (defaultValue) return defaultValue
+    if (!draftScopeKey) return ''
+    return useMothershipDraftsStore.getState().drafts[draftScopeKey]?.text ?? ''
+  })
   const overlayRef = useRef<HTMLDivElement>(null)
   const plusMenuRef = useRef<PlusMenuHandle>(null)
 
-  const [prevDefaultValue, setPrevDefaultValue] = useState(defaultValue)
-  if (defaultValue && defaultValue !== prevDefaultValue) {
-    setPrevDefaultValue(defaultValue)
-    setValue(defaultValue)
-  } else if (!defaultValue && prevDefaultValue) {
-    setPrevDefaultValue(defaultValue)
-  }
+  const prevDefaultValueRef = useRef(defaultValue)
+  useEffect(() => {
+    if (defaultValue === prevDefaultValueRef.current) return
+    prevDefaultValueRef.current = defaultValue
+    if (defaultValue) setValue(defaultValue)
+  }, [defaultValue])
 
   const files = useFileAttachments({
     userId: userId || session?.user?.id,
@@ -171,6 +177,62 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     },
     [addContext, onContextAdd]
   )
+
+  const draftScopeKeyRef = useRef(draftScopeKey)
+  draftScopeKeyRef.current = draftScopeKey
+
+  const hasRestoredDraftRef = useRef(false)
+  useEffect(() => {
+    if (hasRestoredDraftRef.current || !draftScopeKey) return
+    hasRestoredDraftRef.current = true
+    const draft = useMothershipDraftsStore.getState().drafts[draftScopeKey]
+    if (!draft) return
+    if (draft.contexts?.length) {
+      contextManagement.setSelectedContexts(draft.contexts)
+    }
+    if (draft.fileAttachments?.length) {
+      files.restoreAttachedFiles(
+        draft.fileAttachments.map((a) => ({
+          id: a.id,
+          name: a.filename,
+          size: a.size,
+          type: a.media_type,
+          path: a.path ?? '',
+          key: a.key,
+          uploading: false,
+        }))
+      )
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
+
+  // Skip the initial save — restore's setState calls haven't propagated yet, so
+  // files/contexts are still empty and would transiently wipe a file-only draft.
+  const isFirstSaveRef = useRef(true)
+  useEffect(() => {
+    if (isFirstSaveRef.current) {
+      isFirstSaveRef.current = false
+      return
+    }
+    if (!draftScopeKeyRef.current) return
+    const fileAttachments = files.attachedFiles
+      .filter((f) => !f.uploading && f.key)
+      .map((f) => ({
+        id: f.id,
+        key: f.key!,
+        filename: f.name,
+        media_type: f.type,
+        size: f.size,
+        ...(f.path ? { path: f.path } : {}),
+      }))
+    useMothershipDraftsStore.getState().setDraft(draftScopeKeyRef.current, {
+      text: value,
+      fileAttachments: fileAttachments.length > 0 ? fileAttachments : undefined,
+      contexts:
+        contextManagement.selectedContexts.length > 0
+          ? contextManagement.selectedContexts
+          : undefined,
+    })
+  }, [value, files.attachedFiles, contextManagement.selectedContexts])
 
   const onContextRemoveRef = useRef(onContextRemove)
   onContextRemoveRef.current = onContextRemove
@@ -485,6 +547,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     setValue('')
     valueRef.current = ''
     sttPrefixRef.current = ''
+    if (draftScopeKeyRef.current) {
+      useMothershipDraftsStore.getState().clearDraft(draftScopeKeyRef.current)
+    }
     resetTranscript()
     currentFiles.clearAttachedFiles()
     prevSelectedContextsRef.current = []
