@@ -609,6 +609,25 @@ export function useForkTask(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: forkChat,
+    onSuccess: async (data, variables) => {
+      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
+      const existing = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
+      if (existing) {
+        const sourceTask = existing.find((t) => t.id === variables.chatId)
+        const baseName = (sourceTask?.name ?? 'New task').replace(/^Fork \| /, '')
+        const optimisticTask: TaskMetadata = {
+          id: data.id,
+          name: `Fork | ${baseName}`,
+          updatedAt: new Date(),
+          isActive: false,
+          isUnread: false,
+        }
+        queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [
+          optimisticTask,
+          ...existing,
+        ])
+      }
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
     },

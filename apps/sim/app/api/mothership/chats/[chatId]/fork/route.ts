@@ -74,8 +74,8 @@ export const POST = withRouteHandler(
         : []
 
       const newId = generateId()
-      const baseTitle = (parent.title ?? 'New task').replace(/ \| Fork$/, '')
-      const title = `${baseTitle} | Fork`
+      const baseTitle = (parent.title ?? 'New task').replace(/^Fork \| /, '')
+      const title = `Fork | ${baseTitle}`
       const now = new Date()
 
       const [newChat] = await db
