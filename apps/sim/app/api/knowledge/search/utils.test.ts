@@ -282,7 +282,7 @@ describe('Knowledge Search Utils', () => {
       Object.keys(env).forEach((key) => delete (env as any)[key])
 
       await expect(generateSearchEmbedding('test query')).rejects.toThrow(
-        'Either OPENAI_API_KEY or Azure OpenAI configuration (AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT) must be configured'
+        'OPENAI_API_KEY is not configured'
       )
     })
 
@@ -354,6 +354,7 @@ describe('Knowledge Search Utils', () => {
           body: JSON.stringify({
             input: ['test query'],
             encoding_format: 'float',
+            dimensions: 1536,
           }),
         })
       )
