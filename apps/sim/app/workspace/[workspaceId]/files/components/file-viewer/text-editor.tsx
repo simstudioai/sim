@@ -446,27 +446,19 @@ export const TextEditor = memo(function TextEditor({
       if (content.startsWith(monacoValue) && monacoValue.length < content.length) {
         const lastLine = model.getLineCount()
         const lastCol = model.getLineMaxColumn(lastLine)
-        model.pushEditOperations(
-          null,
-          [
-            {
-              range: {
-                startLineNumber: lastLine,
-                startColumn: lastCol,
-                endLineNumber: lastLine,
-                endColumn: lastCol,
-              },
-              text: content.slice(monacoValue.length),
+        model.applyEdits([
+          {
+            range: {
+              startLineNumber: lastLine,
+              startColumn: lastCol,
+              endLineNumber: lastLine,
+              endColumn: lastCol,
             },
-          ],
-          () => null
-        )
+            text: content.slice(monacoValue.length),
+          },
+        ])
       } else {
-        model.pushEditOperations(
-          null,
-          [{ range: model.getFullModelRange(), text: content }],
-          () => null
-        )
+        model.applyEdits([{ range: model.getFullModelRange(), text: content }])
       }
       suppressScrollListenerRef.current = false
       lastSyncedContentRef.current = content
