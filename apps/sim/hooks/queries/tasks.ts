@@ -527,6 +527,7 @@ export function useMarkTaskUnread(workspaceId?: string) {
 }
 
 async function createChat(workspaceId: string): Promise<{ id: string }> {
+  // boundary-raw-fetch: fire-and-forget POST inside a mutation, no shared request helper for this endpoint
   const response = await fetch('/api/mothership/chats', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
