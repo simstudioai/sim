@@ -3,7 +3,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 
-const calloutVariants = cva('flex items-center gap-2 rounded-lg border px-2.5 py-2.5 text-[12px]', {
+const calloutVariants = cva('flex items-center gap-2 rounded-lg border p-2.5 text-[12px]', {
   variants: {
     variant: {
       default: 'border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)]',
@@ -51,7 +51,7 @@ function Callout({ className, variant, icon, children, ...props }: CalloutProps)
 
   return (
     <div className={cn(calloutVariants({ variant }), className)} {...props}>
-      {Icon && <Icon className='h-3.5 w-3.5 flex-shrink-0' />}
+      {Icon && <Icon className='h-[14px] w-[14px] shrink-0' />}
       <p>{children}</p>
     </div>
   )
