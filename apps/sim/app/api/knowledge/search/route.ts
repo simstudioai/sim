@@ -264,10 +264,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
       const queryEmbeddingModel = embeddingModels[0]
 
-      const queryEmbeddingPromise = hasQuery
-        ? generateSearchEmbedding(validatedData.query!, queryEmbeddingModel, workspaceId)
-        : Promise.resolve(null)
-
       // Check if any requested knowledge bases were not accessible
       const inaccessibleKbIds = knowledgeBaseIds.filter((id) => !accessibleKbIds.includes(id))
 
@@ -277,6 +273,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           { status: 404 }
         )
       }
+
+      const queryEmbeddingPromise = hasQuery
+        ? generateSearchEmbedding(validatedData.query!, queryEmbeddingModel, workspaceId)
+        : Promise.resolve(null)
 
       if (workflowId) {
         const authorization = await authorizeWorkflowByWorkspacePermission({

@@ -245,7 +245,7 @@ export const POST = withRouteHandler(
                       completion: 0,
                       total: newChunk.tokenCount,
                     },
-                    model: chunkEmbeddingModel,
+                    model: accessCheck.knowledgeBase.embeddingModel,
                     pricing: cost.pricing,
                   },
                 }

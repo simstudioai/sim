@@ -14,7 +14,7 @@ import {
   handleVectorOnlySearch,
   type SearchResult,
 } from '@/app/api/knowledge/search/utils'
-import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
+import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
 import {
   authenticateRequest,
   handleError,
@@ -84,13 +84,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const accessChecks = await Promise.all(
       knowledgeBaseIds.map((kbId) => checkKnowledgeBaseAccess(kbId, userId))
     )
-    const accessibleKbs = knowledgeBaseIds
-      .map((_, idx) => accessChecks[idx])
+    const accessibleKbs = accessChecks
       .filter(
-        (ac): ac is NonNullable<typeof ac> =>
-          Boolean(ac?.hasAccess) && ac?.knowledgeBase?.workspaceId === workspaceId
+        (ac): ac is KnowledgeBaseAccessResult =>
+          ac.hasAccess === true && ac.knowledgeBase.workspaceId === workspaceId
       )
-      .map((ac) => ac.knowledgeBase!)
+      .map((ac) => ac.knowledgeBase)
     const accessibleKbIds = accessibleKbs.map((kb) => kb.id)
 
     if (accessibleKbIds.length === 0) {
