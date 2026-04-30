@@ -193,11 +193,11 @@ When adding a new route + client surface, follow this order. Each step has one p
 
 LLMs will write contracts that compile but are sloppy. The human reviewer should optimize attention on:
 
-- `**required` vs `optional` vs `nullable` is correct**. `optional()` allows omission; `nullable()` allows `null`; chaining both creates a tri-state that's almost never what you want.
+- **`required` vs `optional` vs `nullable` is correct**. `optional()` allows omission; `nullable()` allows `null`; chaining both creates a tri-state that's almost never what you want.
 - **Response schema matches the route's actual JSON output**. The most common drift bug — route emits a field the schema doesn't declare, or omits a required field. Walk every `NextResponse.json(...)` callsite against the schema.
 - **Error messages are descriptive**. `'fileName cannot be empty'` beats `'Required'`. Use the second arg of `min(1, '...')`, `nonempty('...')`, etc. For cross-field refines, use `superRefine` with a `path` and a message that names the failing field.
 - **Bounds are set** on arrays (`.min(1)`, `.max(N)`), strings (`.min(1).max(N)` for IDs/names), and numbers (`.min().max()` for limits/sizes).
-- `**z.unknown()` is a smell** unless the data is genuinely arbitrary (provider passthrough, user-defined tool result, JSON-RPC envelope). When kept, must be annotated `// untyped-response: <specific reason>` in a `schema:` slot.
+- **`z.unknown()` is a smell** unless the data is genuinely arbitrary (provider passthrough, user-defined tool result, JSON-RPC envelope). When kept, must be annotated `// untyped-response: <specific reason>` in a `schema:` slot.
 - **Discriminated unions over plain unions** when the wire has a discriminant field — gives clients exhaustive narrowing.
 
 CI (`bun run check:api-validation:strict`) catches structural violations (Zod imports in routes, raw `request.json()`, double casts, missing annotations). It does **not** catch these schema-quality judgments — that's the human's job in PR review.
