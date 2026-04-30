@@ -107,6 +107,7 @@ import { useTaskEvents } from '@/hooks/use-task-events'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
@@ -1163,6 +1164,7 @@ export const Sidebar = memo(function Sidebar() {
     if (!workspaceId) return
     try {
       const { id } = await createTaskMutation.mutateAsync()
+      useMothershipDraftsStore.getState().clearDraft(`${workspaceId}:new`)
       navigateToPage(`/workspace/${workspaceId}/task/${id}`)
     } catch {
       navigateToPage(`/workspace/${workspaceId}/home`)
