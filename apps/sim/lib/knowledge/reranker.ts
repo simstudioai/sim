@@ -65,10 +65,12 @@ async function resolveCohereKey(
       return { apiKey: byokResult.apiKey, isBYOK: true }
     }
   }
+  if (env.COHERE_API_KEY) {
+    return { apiKey: env.COHERE_API_KEY, isBYOK: false }
+  }
   try {
     return { apiKey: getRotatingApiKey('cohere'), isBYOK: false }
   } catch {
-    if (env.COHERE_API_KEY) return { apiKey: env.COHERE_API_KEY, isBYOK: false }
     throw new Error(
       'No Cohere API key configured. Set COHERE_API_KEY_1/2/3 (rotation) or COHERE_API_KEY.'
     )
