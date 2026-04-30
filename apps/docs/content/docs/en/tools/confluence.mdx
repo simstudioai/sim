@@ -81,7 +81,6 @@ Update a Confluence page using the Confluence API.
 | `pageId` | string | Yes | Confluence page ID to update \(numeric ID from page URL or API\) |
 | `title` | string | No | New title for the page |
 | `content` | string | No | New content for the page in Confluence storage format |
-| `version` | number | No | Version number of the page \(required for preventing conflicts\) |
 | `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
@@ -1091,6 +1090,8 @@ Delete a Confluence space.
 | `ts` | string | ISO 8601 timestamp of the operation |
 | `spaceId` | string | Deleted space ID |
 | `deleted` | boolean | Deletion status |
+| `longTaskId` | string | ID of the long-running deletion task; poll Confluence long-task API to track completion |
+| `longTaskStatusLink` | string | Relative link to the long-task status endpoint |
 
 ### `confluence_list_spaces`
 

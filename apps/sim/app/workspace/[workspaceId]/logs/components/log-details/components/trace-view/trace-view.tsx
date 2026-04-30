@@ -29,16 +29,22 @@ import {
   Search as SearchIcon,
   Tooltip,
 } from '@/components/emcn'
-import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
-import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
-import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
-import { getBlock, getBlockByToolName } from '@/blocks'
+import {
+  formatCostAmount,
+  formatTokenCount,
+  formatTps,
+  formatTtft,
+  getBlockIconAndColor,
+  getDisplayName,
+  hasErrorInTree,
+  hasUnhandledErrorInTree,
+  isIterationType,
+  parseTime,
+} from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
-import { PROVIDER_DEFINITIONS } from '@/providers/models'
 
-const DEFAULT_BLOCK_COLOR = '#6b7280'
 const DEFAULT_TREE_PANE_WIDTH = 360
 const MIN_TREE_PANE_WIDTH = 200
 const MAX_TREE_PANE_WIDTH = 600
@@ -57,54 +63,11 @@ interface FlatSpanEntry {
   parentDuration?: number
 }
 
-interface BlockAppearance {
-  icon: React.ComponentType<{ className?: string }> | null
-  bgColor: string
-}
-
-/**
- * Parses a timestamp or numeric ms into milliseconds since epoch.
- */
-function parseTime(value?: string | number | null): number {
-  if (!value) return 0
-  const ms = typeof value === 'number' ? value : new Date(value).getTime()
-  return Number.isFinite(ms) ? ms : 0
-}
-
-/**
- * Whether a span type represents a loop or parallel iteration container.
- */
-function isIterationType(type: string): boolean {
-  const lower = type?.toLowerCase() || ''
-  return lower === 'loop-iteration' || lower === 'parallel-iteration'
-}
-
 /**
  * Returns the stable id for a span, synthesized when absent.
  */
 function getSpanId(span: TraceSpan): string {
   return span.id || `span-${span.name}-${span.startTime}`
-}
-
-/**
- * Walks a span's descendants to determine if any error exists in the subtree.
- */
-function hasErrorInTree(span: TraceSpan): boolean {
-  if (span.status === 'error') return true
-  if (span.children?.length) return span.children.some(hasErrorInTree)
-  if (span.toolCalls?.length) return span.toolCalls.some((tc) => tc.error)
-  return false
-}
-
-/**
- * Like `hasErrorInTree` but only counts errors that were not handled by an
- * error-handler path. Used for the root workflow status color.
- */
-function hasUnhandledErrorInTree(span: TraceSpan): boolean {
-  if (span.status === 'error' && !span.errorHandled) return true
-  if (span.children?.length) return span.children.some(hasUnhandledErrorInTree)
-  if (span.toolCalls?.length && !span.errorHandled) return span.toolCalls.some((tc) => tc.error)
-  return false
 }
 
 /**
@@ -147,33 +110,6 @@ function getDisplayChildren(span: TraceSpan): TraceSpan[] {
   return kids
 }
 
-/**
- * Resolves the block icon and accent color for a trace span type.
- */
-function getBlockAppearance(type: string, toolName?: string, provider?: string): BlockAppearance {
-  const lowerType = type.toLowerCase()
-  if (lowerType === 'tool' && toolName) {
-    if (toolName === 'load_skill') return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
-    const toolBlock = getBlockByToolName(toolName)
-    if (toolBlock) return { icon: toolBlock.icon, bgColor: toolBlock.bgColor }
-  }
-  if (lowerType === 'loop' || lowerType === 'loop-iteration')
-    return { icon: LoopTool.icon, bgColor: LoopTool.bgColor }
-  if (lowerType === 'parallel' || lowerType === 'parallel-iteration')
-    return { icon: ParallelTool.icon, bgColor: ParallelTool.bgColor }
-  if (lowerType === 'workflow') return { icon: WorkflowIcon, bgColor: '#6366F1' }
-  if (lowerType === 'model' && provider) {
-    const providerDef = PROVIDER_DEFINITIONS[provider]
-    if (providerDef?.icon) {
-      return { icon: providerDef.icon, bgColor: providerDef.color ?? DEFAULT_BLOCK_COLOR }
-    }
-  }
-  const blockType = lowerType === 'model' ? 'agent' : lowerType
-  const blockConfig = getBlock(blockType)
-  if (blockConfig) return { icon: blockConfig.icon, bgColor: blockConfig.bgColor }
-  return { icon: null, bgColor: DEFAULT_BLOCK_COLOR }
-}
-
 /** Returns 'text-white' for dark backgrounds, dark text for light ones. */
 function iconColorClass(bgColor: string): string {
   const hex = bgColor.replace('#', '')
@@ -182,30 +118,6 @@ function iconColorClass(bgColor: string): string {
   const g = Number.parseInt(hex.slice(2, 4), 16)
   const b = Number.parseInt(hex.slice(4, 6), 16)
   return r * 299 + g * 587 + b * 114 > 160_000 ? 'text-[#111111]' : 'text-white'
-}
-
-function formatTokenCount(value: number | undefined): string | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
-  return value.toLocaleString('en-US')
-}
-
-function formatCostAmount(value: number | undefined): string | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
-  if (value < 0.0001) return '<$0.0001'
-  return `$${value.toFixed(4)}`
-}
-
-function formatTtft(ms: number | undefined): string | undefined {
-  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return undefined
-  if (ms < 1000) return `${Math.round(ms)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
-}
-
-function formatTps(outputTokens: number | undefined, durationMs: number): string | undefined {
-  if (typeof outputTokens !== 'number' || !(outputTokens > 0)) return undefined
-  if (!(durationMs > 0)) return undefined
-  const tps = Math.round(outputTokens / (durationMs / 1000))
-  return tps > 0 ? `${tps.toLocaleString('en-US')} tok/s` : undefined
 }
 
 /**
@@ -294,7 +206,7 @@ function findSpan(spans: TraceSpan[], id: string | null): TraceSpan | null {
  */
 function spanMatchesQuery(span: TraceSpan, query: string): boolean {
   if (!query) return true
-  return (span.name ?? '').toLowerCase().includes(query.toLowerCase())
+  return getDisplayName(span).toLowerCase().includes(query.toLowerCase())
 }
 
 /**
@@ -356,7 +268,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
   const duration = span.duration || endMs - startMs
   const isRootWorkflow = depth === 0 && span.type?.toLowerCase() === 'workflow'
   const hasError = isRootWorkflow ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
-  const { icon: BlockIcon, bgColor } = getBlockAppearance(span.type, span.name, span.provider)
+  const { icon: BlockIcon, bgColor } = getBlockIconAndColor(span.type, span.name, span.provider)
   const nameMatches = !!matchQuery && spanMatchesQuery(span, matchQuery)
 
   const offsetMs = runStartMs > 0 ? Math.max(0, startMs - runStartMs) : 0
@@ -431,12 +343,12 @@ const TraceTreeRow = memo(function TraceTreeRow({
                 nameMatches && 'text-[var(--text-primary)]'
               )}
             >
-              {span.name}
+              {getDisplayName(span)}
             </span>
           </Tooltip.Trigger>
           <Tooltip.Content side='right' className='max-w-[320px]'>
             <div className='flex flex-col gap-0.5'>
-              <span className='font-medium'>{span.name}</span>
+              <span className='font-medium'>{getDisplayName(span)}</span>
               <span className='text-[var(--text-tertiary)] text-caption'>
                 {formatDuration(duration, { precision: 2 }) || '—'}
                 {offsetMs > 0 && ` · +${formatDuration(offsetMs, { precision: 2 })}`}
@@ -738,7 +650,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   }
 
   const duration = span.duration || parseTime(span.endTime) - parseTime(span.startTime)
-  const { icon: BlockIcon, bgColor } = getBlockAppearance(span.type, span.name, span.provider)
+  const { icon: BlockIcon, bgColor } = getBlockIconAndColor(span.type, span.name, span.provider)
   const isRootWorkflow = span.type?.toLowerCase() === 'workflow'
   const hasError = isRootWorkflow ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
   const isDirectError = span.status === 'error'
@@ -797,7 +709,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
               hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
-            {span.name}
+            {getDisplayName(span)}
           </h3>
           <div className='flex items-center gap-1.5 font-medium text-[var(--text-tertiary)] text-caption'>
             <Badge variant={hasError ? 'red' : 'green'} size='sm'>

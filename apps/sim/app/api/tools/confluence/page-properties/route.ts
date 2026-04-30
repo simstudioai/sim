@@ -28,7 +28,7 @@ const updatePropertySchema = z.object({
   propertyId: z.string().min(1, 'Property ID is required'),
   key: z.string().min(1, 'Property key is required'),
   value: z.any(),
-  versionNumber: z.number().min(1, 'Version number is required'),
+  versionNumber: z.number().min(1).optional(),
 })
 
 const deletePropertySchema = z.object({
@@ -256,6 +256,39 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
 
     const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/properties/${propertyId}`
 
+    let nextVersion = versionNumber
+    if (nextVersion === undefined) {
+      const lookupResponse = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+      if (!lookupResponse.ok) {
+        const errorText = await lookupResponse.text()
+        return NextResponse.json(
+          {
+            error: parseAtlassianErrorMessage(
+              lookupResponse.status,
+              lookupResponse.statusText,
+              errorText
+            ),
+          },
+          { status: lookupResponse.status }
+        )
+      }
+      const current = await lookupResponse.json()
+      const currentNumber = current?.version?.number
+      if (typeof currentNumber !== 'number') {
+        return NextResponse.json(
+          { error: 'Could not determine current property version' },
+          { status: 500 }
+        )
+      }
+      nextVersion = currentNumber + 1
+    }
+
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
@@ -266,7 +299,7 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       body: JSON.stringify({
         key,
         value,
-        version: { number: versionNumber },
+        version: { number: nextVersion },
       }),
     })
 

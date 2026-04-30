@@ -200,8 +200,6 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces/${spaceId}`
-
     if (!name && description === undefined) {
       return NextResponse.json(
         { error: 'At least one of name or description is required for update' },
@@ -209,39 +207,38 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const updateBody: Record<string, unknown> = {}
-
-    if (name) {
-      updateBody.name = name
-    } else {
-      const currentResponse = await fetch(url, {
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${accessToken}`,
+    const lookupUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces/${spaceId}`
+    const lookupResponse = await fetch(lookupUrl, {
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+    if (!lookupResponse.ok) {
+      const errorText = await lookupResponse.text()
+      return NextResponse.json(
+        {
+          error: parseAtlassianErrorMessage(
+            lookupResponse.status,
+            lookupResponse.statusText,
+            errorText
+          ),
         },
-      })
-      if (!currentResponse.ok) {
-        const errorText = await currentResponse.text()
-        return NextResponse.json(
-          {
-            error: parseAtlassianErrorMessage(
-              currentResponse.status,
-              currentResponse.statusText,
-              errorText
-            ),
-          },
-          { status: currentResponse.status }
-        )
-      }
-      const currentSpace = await currentResponse.json()
-      updateBody.name = currentSpace.name
+        { status: lookupResponse.status }
+      )
     }
+    const currentSpace = await lookupResponse.json()
+    const spaceKey = currentSpace.key
 
+    const updateBody: Record<string, unknown> = {
+      name: name || currentSpace.name,
+    }
     if (description !== undefined) {
-      updateBody.description = { value: description, representation: 'plain' }
+      updateBody.description = { plain: { value: description, representation: 'plain' } }
     }
 
-    logger.info(`Updating space ${spaceId}`)
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/space/${encodeURIComponent(spaceKey)}`
+    logger.info(`Updating space ${spaceKey}`)
 
     const response = await fetch(url, {
       method: 'PUT',
@@ -315,9 +312,32 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces/${spaceId}`
+    const lookupUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces/${spaceId}`
+    const lookupResponse = await fetch(lookupUrl, {
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+    if (!lookupResponse.ok) {
+      const errorText = await lookupResponse.text()
+      return NextResponse.json(
+        {
+          error: parseAtlassianErrorMessage(
+            lookupResponse.status,
+            lookupResponse.statusText,
+            errorText
+          ),
+        },
+        { status: lookupResponse.status }
+      )
+    }
+    const currentSpace = await lookupResponse.json()
+    const spaceKey = currentSpace.key
 
-    logger.info(`Deleting space ${spaceId}`)
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/space/${encodeURIComponent(spaceKey)}`
+
+    logger.info(`Deleting space ${spaceKey}`)
 
     const response = await fetch(url, {
       method: 'DELETE',
@@ -340,7 +360,26 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    return NextResponse.json({ spaceId, deleted: true })
+    let longTask: { id?: string; statusLink?: string } = {}
+    try {
+      const text = await response.text()
+      if (text) {
+        const data = JSON.parse(text)
+        longTask = {
+          id: data?.id,
+          statusLink: data?.links?.status,
+        }
+      }
+    } catch {
+      // 204 No Content or non-JSON body — ignore
+    }
+
+    return NextResponse.json({
+      spaceId,
+      deleted: true,
+      longTaskId: longTask.id,
+      longTaskStatusLink: longTask.statusLink,
+    })
   } catch (error) {
     logger.error('Error deleting Confluence space:', error)
     return NextResponse.json(

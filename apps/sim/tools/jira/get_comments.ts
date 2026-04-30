@@ -85,7 +85,7 @@ export const jiraGetCommentsTool: ToolConfig<JiraGetCommentsParams, JiraGetComme
         const startAt = params.startAt ?? 0
         const maxResults = params.maxResults ?? 50
         const orderBy = params.orderBy ?? '-created'
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey}/comment?startAt=${startAt}&maxResults=${maxResults}&orderBy=${orderBy}`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/comment?startAt=${startAt}&maxResults=${maxResults}&orderBy=${orderBy}`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -103,7 +103,7 @@ export const jiraGetCommentsTool: ToolConfig<JiraGetCommentsParams, JiraGetComme
       const startAt = params?.startAt ?? 0
       const maxResults = params?.maxResults ?? 50
       const orderBy = params?.orderBy ?? '-created'
-      const commentsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/comment?startAt=${startAt}&maxResults=${maxResults}&orderBy=${orderBy}`
+      const commentsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/comment?startAt=${startAt}&maxResults=${maxResults}&orderBy=${orderBy}`
       const commentsResponse = await fetch(commentsUrl, {
         method: 'GET',
         headers: {

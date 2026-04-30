@@ -52,8 +52,11 @@ export const deleteTool: ToolConfig<GoogleDriveDeleteParams, GoogleDriveDeleteRe
 
   transformResponse: async (response: Response, params) => {
     if (!response.ok) {
-      const data = await response.json()
-      throw new Error(data.error?.message || 'Failed to delete Google Drive file')
+      const data = await response.json().catch(() => ({}) as any)
+      throw new Error(
+        data.error?.message ||
+          `Failed to delete Google Drive file (${response.status} ${response.statusText})`
+      )
     }
 
     return {

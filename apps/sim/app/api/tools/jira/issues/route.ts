@@ -41,6 +41,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ issues: [] })
     }
 
+    const ISSUE_KEY_RE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/
+    const sanitizedKeys: string[] = []
+    for (const k of issueKeys) {
+      if (typeof k !== 'string') continue
+      const trimmed = k.trim()
+      if (!ISSUE_KEY_RE.test(trimmed)) {
+        return NextResponse.json({ error: `Invalid Jira issue key: "${trimmed}"` }, { status: 400 })
+      }
+      sanitizedKeys.push(trimmed)
+    }
+    if (sanitizedKeys.length === 0) {
+      return NextResponse.json({ issues: [] })
+    }
+
     const cloudId = providedCloudId || (await getJiraCloudId(domain!, accessToken!))
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
@@ -49,11 +63,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     // Use search/jql endpoint (GET) with URL parameters
-    const jql = `issueKey in (${issueKeys.map((k: string) => k.trim()).join(',')})`
+    const jql = `issueKey in (${sanitizedKeys.join(',')})`
     const params = new URLSearchParams({
       jql,
       fields: 'summary,status,assignee,updated,project',
-      maxResults: String(Math.min(issueKeys.length, 100)),
+      maxResults: String(Math.min(sanitizedKeys.length, 100)),
     })
     const searchUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`
 
@@ -154,14 +168,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const target = Math.min(all ? limit || SAFETY_CAP : 25, SAFETY_CAP)
       const projectKey = (projectId || manualProjectId || '').trim()
 
-      const escapeJql = (s: string) => s.replace(/"/g, '\\"')
+      const escapeJql = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 
-      const buildJql = (startAt: number) => {
+      const buildUrl = (token?: string) => {
         const jqlParts: string[] = []
-        if (projectKey) jqlParts.push(`project = ${projectKey}`)
+        if (projectKey) jqlParts.push(`project = "${escapeJql(projectKey)}"`)
         if (query) {
           const q = escapeJql(query)
-          // Match by key prefix or summary text
           jqlParts.push(`(key ~ "${q}" OR summary ~ "${q}")`)
         }
         const jql = `${jqlParts.length ? `${jqlParts.join(' AND ')} ` : ''}ORDER BY updated DESC`
@@ -170,20 +183,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           fields: 'summary,key,updated',
           maxResults: String(Math.min(PAGE_SIZE, target)),
         })
-        if (startAt > 0) {
-          params.set('startAt', String(startAt))
-        }
-        return {
-          url: `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`,
-        }
+        if (token) params.set('nextPageToken', token)
+        return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`
       }
 
-      let startAt = 0
+      let nextPageToken: string | undefined
       let collected: any[] = []
-      let total = 0
 
       do {
-        const { url: apiUrl } = buildJql(startAt)
+        const apiUrl = buildUrl(nextPageToken)
         const response = await fetch(apiUrl, {
           method: 'GET',
           headers: {
@@ -209,10 +217,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
         const page = await response.json()
         const issues = page.issues || []
-        total = page.total || issues.length
         collected = collected.concat(issues)
-        startAt += PAGE_SIZE
-      } while (all && collected.length < Math.min(total, target))
+        nextPageToken = page.nextPageToken
+        if (!nextPageToken || issues.length === 0) break
+      } while (all && collected.length < target)
 
       const issues = collected.slice(0, target).map((it: any) => ({
         key: it.key,

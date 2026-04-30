@@ -637,6 +637,7 @@ import {
   firecrawlCrawlTool,
   firecrawlExtractTool,
   firecrawlMapTool,
+  firecrawlParseTool,
   firecrawlScrapeTool,
   firecrawlSearchTool,
 } from '@/tools/firecrawl'
@@ -3114,6 +3115,7 @@ export const tools: Record<string, ToolConfig> = {
   firecrawl_map: firecrawlMapTool,
   firecrawl_extract: firecrawlExtractTool,
   firecrawl_agent: firecrawlAgentTool,
+  firecrawl_parse: firecrawlParseTool,
   fireflies_list_transcripts: firefliesListTranscriptsTool,
   fireflies_get_transcript: firefliesGetTranscriptTool,
   fireflies_get_user: firefliesGetUserTool,

@@ -265,11 +265,9 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
     if (copilotChatId) return
     if (autoSelectAttemptedForRef.current.has(activeWorkflowId)) return
+    if (copilotChatList.length === 0) return
     autoSelectAttemptedForRef.current.add(activeWorkflowId)
-
-    if (copilotChatList.length > 0) {
-      setCopilotChatId(copilotChatList[0].id)
-    }
+    setCopilotChatId(copilotChatList[0].id)
   }, [copilotChatList, copilotChatId, activeWorkflowId, setCopilotChatId])
 
   useEffect(() => {
@@ -362,15 +360,30 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('create chat failed'))))
       .then((data: { id?: string }) => {
-        if (data?.id) {
-          setCopilotChatId(data.id)
-          loadCopilotChats()
-        }
+        if (!data?.id) return
+        // Seed the new chat into the list cache before selecting it. Without this, the
+        // auto-select effect sees a selected id that isn't in the (still-stale) list and
+        // deselects it, which leaves the panel detached from the freshly created row.
+        queryClient.setQueryData<CopilotChatListItem[]>(
+          copilotChatsKeys.list(activeWorkflowId),
+          (prev) => [
+            {
+              id: data.id!,
+              title: null,
+              workflowId: activeWorkflowId,
+              updatedAt: new Date().toISOString(),
+              activeStreamId: null,
+            },
+            ...(prev ?? []),
+          ]
+        )
+        setCopilotChatId(data.id)
+        loadCopilotChats()
       })
       .catch((err) => {
         logger.error('Failed to create copilot chat', err)
       })
-  }, [activeWorkflowId, workspaceId, loadCopilotChats, setCopilotChatId])
+  }, [activeWorkflowId, workspaceId, loadCopilotChats, setCopilotChatId, queryClient])
 
   const prevResolvedRef = useRef<string | undefined>(undefined)
   useEffect(() => {

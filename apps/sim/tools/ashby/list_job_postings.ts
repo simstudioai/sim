@@ -1,7 +1,12 @@
+import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListJobPostingsParams {
   apiKey: string
+  location?: string
+  department?: string
+  listedOnly?: boolean
+  jobBoardId?: string
 }
 
 interface AshbyJobPostingSummary {
@@ -49,23 +54,52 @@ export const listJobPostingsTool: ToolConfig<
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    location: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by location name (case sensitive)',
+    },
+    department: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by department name (case sensitive)',
+    },
+    listedOnly: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When true, only returns listed (publicly visible) job postings (default false)',
+    },
+    jobBoardId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'UUID of a specific job board to filter postings to. If omitted, returns postings on the primary external job board.',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/jobPosting.list',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
-    body: () => ({}),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    body: (params) => {
+      const body: Record<string, unknown> = {}
+      if (params.location) body.location = params.location
+      if (params.department) body.department = params.department
+      if (params.listedOnly !== undefined) body.listedOnly = params.listedOnly
+      if (params.jobBoardId) body.jobBoardId = params.jobBoardId.trim()
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to list job postings')
+      throw new Error(ashbyErrorMessage(data, 'Failed to list job postings'))
     }
 
     return {
