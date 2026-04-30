@@ -51,8 +51,13 @@ interface ResolvedProvider {
   isBYOK: boolean
   /** Tokenizer used to estimate tokens when the API does not return a usage field. */
   tokenizerProvider: TokenizerProviderId
+  /** Hard per-request item cap enforced by the provider (e.g. Gemini caps at 100). */
+  maxItemsPerRequest?: number
   buildRequest: (inputs: string[], inputType: EmbeddingInputType) => ProviderRequest
 }
+
+/** Gemini's `batchEmbedContents` rejects requests with more than 100 items. */
+const GEMINI_MAX_ITEMS_PER_REQUEST = 100
 
 async function resolveOpenAIKey(workspaceId?: string | null): Promise<{
   apiKey: string
@@ -86,11 +91,14 @@ async function resolveGeminiKey(workspaceId?: string | null): Promise<{
       return { apiKey: byokResult.apiKey, isBYOK: true }
     }
   }
+  if (env.GEMINI_API_KEY) {
+    return { apiKey: env.GEMINI_API_KEY, isBYOK: false }
+  }
   try {
     return { apiKey: getRotatingApiKey('gemini'), isBYOK: false }
   } catch {
     throw new Error(
-      'GEMINI_API_KEY_1, GEMINI_API_KEY_2, or GEMINI_API_KEY_3 must be configured for Gemini embeddings'
+      'GEMINI_API_KEY (or GEMINI_API_KEY_1/2/3 for rotation) must be configured for Gemini embeddings'
     )
   }
 }
@@ -243,6 +251,7 @@ async function resolveProvider(
       pricingId: info.pricingId,
       isBYOK,
       tokenizerProvider: info.tokenizerProvider,
+      maxItemsPerRequest: GEMINI_MAX_ITEMS_PER_REQUEST,
       buildRequest: buildGeminiProvider(embeddingModel, apiKey),
     }
   }
@@ -304,6 +313,15 @@ async function callEmbeddingAPI(
   )
 }
 
+function splitByItemLimit<T>(items: T[], limit: number): T[][] {
+  if (items.length <= limit) return [items]
+  const result: T[][] = []
+  for (let i = 0; i < items.length; i += limit) {
+    result.push(items.slice(i, i + limit))
+  }
+  return result
+}
+
 async function processWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
@@ -342,7 +360,10 @@ export async function generateEmbeddings(
 ): Promise<GenerateEmbeddingsResult> {
   const provider = await resolveProvider(embeddingModel, workspaceId)
 
-  const batches = batchByTokenLimit(texts, MAX_TOKENS_PER_REQUEST, embeddingModel)
+  const tokenBatches = batchByTokenLimit(texts, MAX_TOKENS_PER_REQUEST, embeddingModel)
+  const batches = provider.maxItemsPerRequest
+    ? tokenBatches.flatMap((batch) => splitByItemLimit(batch, provider.maxItemsPerRequest!))
+    : tokenBatches
 
   const batchResults = await processWithConcurrency(
     batches,
