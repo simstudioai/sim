@@ -154,9 +154,10 @@ function l2Normalize(vector: number[]): number[] {
 
 function buildGeminiProvider(modelName: string, apiKey: string): ResolvedProvider['buildRequest'] {
   return (inputs, inputType) => ({
-    apiUrl: `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:batchEmbedContents?key=${encodeURIComponent(apiKey)}`,
+    apiUrl: `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:batchEmbedContents`,
     headers: {
       'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
     },
     body: {
       requests: inputs.map((text) => ({
