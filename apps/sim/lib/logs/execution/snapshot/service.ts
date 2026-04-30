@@ -120,7 +120,17 @@ export class SnapshotService implements ISnapshotService {
       const ids = candidates.map((c) => c.id)
       const deleted = await db
         .delete(workflowExecutionSnapshots)
-        .where(inArray(workflowExecutionSnapshots.id, ids))
+        .where(
+          and(
+            inArray(workflowExecutionSnapshots.id, ids),
+            notExists(
+              db
+                .select({ one: sql`1` })
+                .from(workflowExecutionLogs)
+                .where(eq(workflowExecutionLogs.stateSnapshotId, workflowExecutionSnapshots.id))
+            )
+          )
+        )
         .returning({ id: workflowExecutionSnapshots.id })
 
       totalDeleted += deleted.length
