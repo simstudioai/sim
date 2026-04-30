@@ -155,7 +155,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .from(templates)
       .where(whereCondition)
 
-    const total = totalCount[0]?.count || 0
+    const total = Number(totalCount[0]?.count ?? 0)
 
     const visibleResults =
       params.workflowId && !isSuperUser
