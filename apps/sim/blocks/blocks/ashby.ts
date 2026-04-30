@@ -719,7 +719,9 @@ Output only the ISO 8601 timestamp string, nothing else.`,
         if (params.searchEmail) result.email = params.searchEmail
         if (params.filterStatus) result.status = params.filterStatus
         if (params.filterJobId) result.jobId = params.filterJobId
-        if (params.filterCandidateId) result.candidateId = params.filterCandidateId
+        if (params.operation === 'list_applications' && params.filterCandidateId) {
+          result.candidateId = params.filterCandidateId
+        }
         if (params.jobStatus) result.status = params.jobStatus
         if (params.sendNotifications === 'true' || params.sendNotifications === true) {
           result.sendNotifications = true
@@ -739,10 +741,21 @@ Output only the ISO 8601 timestamp string, nothing else.`,
         if (params.expandJob === 'true' || params.expandJob === true) {
           result.expandJob = true
         }
-        if (params.appCandidateId) result.candidateId = params.appCandidateId
-        if (params.appCreatedAt) result.createdAt = params.appCreatedAt
-        if (params.candidateCreatedAt) result.createdAt = params.candidateCreatedAt
-        if (params.noteCreatedAt) result.createdAt = params.noteCreatedAt
+        if (params.operation === 'create_application' && params.appCandidateId) {
+          result.candidateId = params.appCandidateId
+        }
+        if (params.operation === 'create_application' && params.appCreatedAt) {
+          result.createdAt = params.appCreatedAt
+        }
+        if (
+          (params.operation === 'create_candidate' || params.operation === 'update_candidate') &&
+          params.candidateCreatedAt
+        ) {
+          result.createdAt = params.candidateCreatedAt
+        }
+        if (params.operation === 'create_note' && params.noteCreatedAt) {
+          result.createdAt = params.noteCreatedAt
+        }
         if (params.updateName) result.name = params.updateName
         if (params.website) result.website = params.website
         if (params.alternateEmail) result.alternateEmail = params.alternateEmail
