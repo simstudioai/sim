@@ -890,7 +890,12 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
         if (!batchResponse.ok) {
           const { message } = await readResponseError(batchResponse)
-          throw new Error(`Batch ${batchIndex + 1} presigned URL generation failed: ${message}`)
+          logger.error('Batch presigned URL generation failed', {
+            batchIndex: batchIndex + 1,
+            totalBatches: batches.length,
+            status: batchResponse.status,
+          })
+          throw new Error(message)
         }
 
         const { files: presignedData } = await batchResponse.json()
