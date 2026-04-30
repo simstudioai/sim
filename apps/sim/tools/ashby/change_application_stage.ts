@@ -1,5 +1,10 @@
 import type { AshbyApplication } from '@/tools/ashby/types'
-import { APPLICATION_OUTPUTS, mapApplication } from '@/tools/ashby/utils'
+import {
+  APPLICATION_OUTPUTS,
+  ashbyAuthHeaders,
+  ashbyErrorMessage,
+  mapApplication,
+} from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyChangeApplicationStageParams {
@@ -54,10 +59,7 @@ export const changeApplicationStageTool: ToolConfig<
   request: {
     url: 'https://api.ashbyhq.com/application.changeStage',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {
         applicationId: params.applicationId.trim(),
@@ -72,7 +74,7 @@ export const changeApplicationStageTool: ToolConfig<
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to change application stage')
+      throw new Error(ashbyErrorMessage(data, 'Failed to change application stage'))
     }
 
     return {

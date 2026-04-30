@@ -91,7 +91,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (parent !== undefined && parent !== null && parent !== '') {
-      fields.parent = parent
+      if (typeof parent === 'string') {
+        fields.parent = /^\d+$/.test(parent) ? { id: parent } : { key: parent }
+      } else if (typeof parent === 'object') {
+        fields.parent = parent
+      }
     }
 
     if (priority !== undefined && priority !== null && priority !== '') {

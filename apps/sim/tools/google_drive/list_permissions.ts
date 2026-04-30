@@ -3,6 +3,7 @@ import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface GoogleDriveListPermissionsParams extends GoogleDriveToolParams {
   fileId: string
+  pageToken?: string
 }
 
 interface GoogleDriveListPermissionsResponse extends ToolResponse {
@@ -39,6 +40,12 @@ export const listPermissionsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The ID of the file to list permissions for',
     },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'The page token to use for pagination',
+    },
   },
 
   request: {
@@ -51,6 +58,9 @@ export const listPermissionsTool: ToolConfig<
         'fields',
         'nextPageToken,permissions(id,type,role,emailAddress,displayName,photoLink,domain,expirationTime,deleted,allowFileDiscovery,pendingOwner,permissionDetails)'
       )
+      if (params.pageToken) {
+        url.searchParams.append('pageToken', params.pageToken)
+      }
       return url.toString()
     },
     method: 'GET',

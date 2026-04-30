@@ -130,6 +130,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json({ error: organizationIdValidation.error }, { status: 400 })
       }
 
+      const orgIdNumeric = Number.parseInt(String(organizationId).trim(), 10)
+      if (!Number.isFinite(orgIdNumeric) || orgIdNumeric <= 0) {
+        return NextResponse.json(
+          { error: 'organizationId must be a positive integer' },
+          { status: 400 }
+        )
+      }
+
       const url = `${baseUrl}/servicedesk/${serviceDeskId}/organization`
 
       logger.info('Adding organization to service desk:', { serviceDeskId, organizationId })
@@ -137,7 +145,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const response = await fetch(url, {
         method: 'POST',
         headers: getJsmHeaders(accessToken),
-        body: JSON.stringify({ organizationId: Number.parseInt(organizationId, 10) }),
+        body: JSON.stringify({ organizationId: orgIdNumeric }),
       })
 
       if (response.status === 204 || response.ok) {

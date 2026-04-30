@@ -94,6 +94,7 @@ export interface AshbyCandidate {
 export interface AshbyListCandidatesParams extends AshbyBaseParams {
   cursor?: string
   perPage?: number
+  createdAfter?: string
 }
 
 export interface AshbyGetCandidateParams extends AshbyBaseParams {
@@ -106,7 +107,11 @@ export interface AshbyCreateCandidateParams extends AshbyBaseParams {
   phoneNumber?: string
   linkedInUrl?: string
   githubUrl?: string
+  website?: string
   sourceId?: string
+  creditedToUserId?: string
+  createdAt?: string
+  alternateEmailAddresses?: string[]
 }
 
 export interface AshbySearchCandidatesParams extends AshbyBaseParams {
@@ -118,6 +123,11 @@ export interface AshbyListJobsParams extends AshbyBaseParams {
   cursor?: string
   perPage?: number
   status?: string
+  createdAfter?: string
+  openedAfter?: string
+  openedBefore?: string
+  closedAfter?: string
+  closedBefore?: string
 }
 
 export interface AshbyGetJobParams extends AshbyBaseParams {
@@ -129,6 +139,8 @@ export interface AshbyCreateNoteParams extends AshbyBaseParams {
   note: string
   noteType?: string
   sendNotifications?: boolean
+  isPrivate?: boolean
+  createdAt?: string
 }
 
 export interface AshbyListApplicationsParams extends AshbyBaseParams {
@@ -136,6 +148,7 @@ export interface AshbyListApplicationsParams extends AshbyBaseParams {
   perPage?: number
   status?: string
   jobId?: string
+  candidateId?: string
   createdAfter?: string
 }
 
@@ -309,6 +322,15 @@ export interface AshbyApplicationArchiveReason {
   customFields: AshbyCustomField[]
 }
 
+export interface AshbyApplicationHistoryEntry {
+  id: string
+  stageId: string | null
+  stageNumber: number | null
+  title: string | null
+  enteredStageAt: string | null
+  actorId: string | null
+}
+
 export interface AshbyApplication {
   id: string
   createdAt: string | null
@@ -326,6 +348,7 @@ export interface AshbyApplication {
   appliedViaJobPostingId: string | null
   submitterClientIp: string | null
   submitterUserAgent: string | null
+  applicationHistory: AshbyApplicationHistoryEntry[]
 }
 
 export interface AshbyListApplicationsResponse extends ToolResponse {

@@ -494,6 +494,18 @@ Do not include any explanations, markdown formatting, or other text outside the 
         value: 'list_users',
       },
     },
+    // Pagination cursor (shared across list_channels, list_members, list_users)
+    {
+      id: 'paginationCursor',
+      title: 'Pagination Cursor',
+      type: 'short-input',
+      placeholder: 'next_cursor from a previous response',
+      condition: {
+        field: 'operation',
+        value: ['list_channels', 'list_members', 'list_users'],
+      },
+      mode: 'advanced',
+    },
     // Get User specific fields
     {
       id: 'userId',
@@ -1331,6 +1343,9 @@ Do not include any explanations, markdown formatting, or other text outside the 
           viewHash,
           publishUserId,
           viewPayload,
+          fileId,
+          fileName,
+          paginationCursor,
           ...rest
         } = params
 
@@ -1421,17 +1436,26 @@ Do not include any explanations, markdown formatting, or other text outside the 
             baseParams.includePrivate = includePrivate !== 'false'
             baseParams.excludeArchived = true
             baseParams.limit = channelLimit ? Number.parseInt(channelLimit, 10) : 100
+            if (paginationCursor) {
+              baseParams.cursor = String(paginationCursor).trim()
+            }
             break
           }
 
           case 'list_members': {
             baseParams.limit = memberLimit ? Number.parseInt(memberLimit, 10) : 100
+            if (paginationCursor) {
+              baseParams.cursor = String(paginationCursor).trim()
+            }
             break
           }
 
           case 'list_users': {
             baseParams.includeDeleted = includeDeleted === 'true'
             baseParams.limit = userLimit ? Number.parseInt(userLimit, 10) : 100
+            if (paginationCursor) {
+              baseParams.cursor = String(paginationCursor).trim()
+            }
             break
           }
 
@@ -1440,8 +1464,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
             break
 
           case 'download': {
-            const fileId = (rest as any).fileId
-            const fileName = (rest as any).fileName
             baseParams.fileId = fileId
             if (fileName) {
               baseParams.fileName = fileName
@@ -1561,18 +1583,24 @@ Do not include any explanations, markdown formatting, or other text outside the 
             baseParams.view = viewPayload
             break
 
-          case 'update_view':
-            if (viewId) {
-              baseParams.viewId = viewId
+          case 'update_view': {
+            const trimmedViewId = viewId ? String(viewId).trim() : ''
+            const trimmedExternalId = viewExternalId ? String(viewExternalId).trim() : ''
+            if (!trimmedViewId && !trimmedExternalId) {
+              throw new Error('update_view requires either View ID or External ID')
             }
-            if (viewExternalId) {
-              baseParams.externalId = viewExternalId
+            if (trimmedViewId) {
+              baseParams.viewId = trimmedViewId
+            }
+            if (trimmedExternalId) {
+              baseParams.externalId = trimmedExternalId
             }
             if (viewHash) {
               baseParams.hash = viewHash
             }
             baseParams.view = viewPayload
             break
+          }
 
           case 'push_view':
             baseParams.triggerId = viewTriggerId
@@ -1630,6 +1658,11 @@ Do not include any explanations, markdown formatting, or other text outside the 
     // List Users inputs
     includeDeleted: { type: 'string', description: 'Include deactivated users (true/false)' },
     userLimit: { type: 'string', description: 'Maximum number of users to return' },
+    // Shared pagination input
+    paginationCursor: {
+      type: 'string',
+      description: 'Pagination cursor (next_cursor) for list_channels/list_members/list_users',
+    },
     // Ephemeral message inputs
     ephemeralUser: { type: 'string', description: 'User ID who will see the ephemeral message' },
     blocks: { type: 'json', description: 'Block Kit layout blocks as a JSON array' },
@@ -1778,6 +1811,10 @@ Do not include any explanations, markdown formatting, or other text outside the 
     count: {
       type: 'number',
       description: 'Total number of items returned (channels, members, or users)',
+    },
+    nextCursor: {
+      type: 'string',
+      description: 'Cursor for the next page (null when there are no more pages)',
     },
 
     // slack_list_members outputs (list_members operation)
