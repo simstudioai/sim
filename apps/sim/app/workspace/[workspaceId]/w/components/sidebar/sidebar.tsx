@@ -789,18 +789,14 @@ export const Sidebar = memo(function Sidebar() {
     )
   }
 
-  const {
-    data: fetchedTasks = [],
-    isPending: tasksPending,
-    isError: tasksError,
-  } = useTasks(workspaceId)
-  const tasksLoading = tasksPending || tasksError
+  const { data: fetchedTasks } = useTasks(workspaceId)
+  const tasksLoading = fetchedTasks === undefined
 
   useTaskEvents(workspaceId)
 
   const tasks = useMemo(
     () =>
-      fetchedTasks.length > 0
+      fetchedTasks && fetchedTasks.length > 0
         ? fetchedTasks.map((t) => ({
             ...t,
             href: `/workspace/${workspaceId}/task/${t.id}`,
