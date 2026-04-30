@@ -251,8 +251,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const useReranker = validatedData.rerankerEnabled && Boolean(validatedData.query?.trim())
       const rerankerModel = useReranker ? validatedData.rerankerModel : null
 
+      const hasQuery = validatedData.query && validatedData.query.trim().length > 0
       const embeddingModels = Array.from(new Set(accessibleKbs.map((kb) => kb.embeddingModel)))
-      if (embeddingModels.length > 1) {
+      if (hasQuery && embeddingModels.length > 1) {
         return NextResponse.json(
           {
             error:
@@ -263,7 +264,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
       const queryEmbeddingModel = embeddingModels[0]
 
-      const hasQuery = validatedData.query && validatedData.query.trim().length > 0
       const queryEmbeddingPromise = hasQuery
         ? generateSearchEmbedding(validatedData.query!, queryEmbeddingModel, workspaceId)
         : Promise.resolve(null)
