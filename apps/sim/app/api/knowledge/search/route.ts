@@ -7,6 +7,7 @@ import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
+import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { DEFAULT_RERANKER_MODEL, rerank, SUPPORTED_RERANKER_MODELS } from '@/lib/knowledge/reranker'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
@@ -355,9 +356,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       // Optional Cohere rerank pass on top of vector results.
       const rerankedScores = new Map<string, number>()
       // `rerankBilled` = Cohere was successfully called (even with 0 results) and we owe the search unit.
-      // `rerankApplied` = result ordering was actually replaced by the reranker output.
       let rerankBilled = false
-      let rerankApplied = false
       let rerankIsBYOK = false
       if (useReranker && rerankerModel && results.length > 0) {
         const candidateCount = results.length
@@ -381,7 +380,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               .map((r) => idToResult.get(r.item.id))
               .filter((r): r is SearchResult => Boolean(r))
             for (const r of ranked) rerankedScores.set(r.item.id, r.relevanceScore)
-            rerankApplied = true
             logger.info(`[${requestId}] Reranked ${candidateCount} → ${results.length} results`, {
               model: rerankerModel,
             })
@@ -404,7 +402,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       let tokenCount = null
       if (hasQuery) {
         try {
-          tokenCount = estimateTokenCount(validatedData.query!, 'openai')
+          // Use the tokenizer matching the actual embedding provider so token counts
+          // (and the input cost derived from them) reflect how the provider tokenizes.
+          const tokenizerProvider =
+            getEmbeddingModelInfo(queryEmbeddingModel).provider === 'gemini' ? 'google' : 'openai'
+          tokenCount = estimateTokenCount(validatedData.query!, tokenizerProvider)
           cost = calculateCost(queryEmbeddingModel, tokenCount.count, 0, false)
         } catch (error) {
           logger.warn(`[${requestId}] Failed to calculate cost for search query`, {

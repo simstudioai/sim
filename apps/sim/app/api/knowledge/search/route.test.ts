@@ -432,6 +432,7 @@ describe('Knowledge Search API Route', () => {
           userId: 'user-123',
           name: 'Test KB',
           deletedAt: null,
+          embeddingModel: 'text-embedding-3-small',
         },
       })
 
@@ -697,6 +698,7 @@ describe('Knowledge Search API Route', () => {
           userId: 'user-123',
           name: 'Test KB',
           deletedAt: null,
+          embeddingModel: 'text-embedding-3-small',
         },
       })
 
@@ -742,6 +744,7 @@ describe('Knowledge Search API Route', () => {
           userId: 'user-123',
           name: 'Test KB',
           deletedAt: null,
+          embeddingModel: 'text-embedding-3-small',
         },
       })
 
@@ -880,6 +883,7 @@ describe('Knowledge Search API Route', () => {
           userId: 'user-123',
           name: 'Test KB',
           deletedAt: null,
+          embeddingModel: 'text-embedding-3-small',
         },
       })
 
