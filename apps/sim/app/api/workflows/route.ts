@@ -102,7 +102,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   } catch (error: any) {
     const elapsed = Date.now() - startTime
     logger.error(`[${requestId}] Workflow fetch error after ${elapsed}ms`, error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })
 

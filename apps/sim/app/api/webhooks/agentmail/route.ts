@@ -78,7 +78,10 @@ export const POST = withRouteHandler(async (req: Request) => {
         workspaceId: result.id,
         issues: envelopeResult.error.issues,
       })
-      return NextResponse.json({ ok: true })
+      return NextResponse.json(
+        { error: 'Invalid envelope payload', details: envelopeResult.error.issues },
+        { status: 400 }
+      )
     }
 
     if (envelopeResult.data.event_type !== 'message.received') {
@@ -91,7 +94,10 @@ export const POST = withRouteHandler(async (req: Request) => {
         workspaceId: result.id,
         issues: messageResult.error.issues,
       })
-      return NextResponse.json({ ok: true })
+      return NextResponse.json(
+        { error: 'Invalid message payload', details: messageResult.error.issues },
+        { status: 400 }
+      )
     }
 
     const message: AgentMailWebhookPayload['message'] = messageResult.data

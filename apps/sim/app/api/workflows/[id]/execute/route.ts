@@ -211,10 +211,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
     )
   } catch (error: any) {
     asyncLogger.error('Failed to queue async execution', error)
-    return NextResponse.json(
-      { error: `Failed to queue async execution: ${error.message}` },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to queue async execution' }, { status: 500 })
   }
 }
 
@@ -304,13 +301,14 @@ async function handleExecutePost(
     }
 
     let body: any = {}
-    try {
-      const text = await req.text()
-      if (text) {
+    const text = await req.text()
+    if (text) {
+      try {
         body = JSON.parse(text)
+      } catch (error) {
+        reqLogger.warn('Failed to parse request body', { error: toError(error).message })
+        return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
       }
-    } catch (error) {
-      reqLogger.warn('Failed to parse request body, using defaults')
     }
 
     const validation = executeWorkflowBodySchema.safeParse(body)

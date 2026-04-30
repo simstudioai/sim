@@ -233,7 +233,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     logger.error(`[${requestId}] Error creating memory`, { error })
     return NextResponse.json(
-      { success: false, error: { message: error.message || 'Failed to create memory' } },
+      { success: false, error: { message: 'Failed to create memory' } },
       { status: 500 }
     )
   }

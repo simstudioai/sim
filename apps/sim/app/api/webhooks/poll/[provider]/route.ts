@@ -18,14 +18,16 @@ export const maxDuration = 180
 
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ provider: string }> }) => {
-    const parsed = await parseRequest(webhookPollingContract, request, context)
-    if (!parsed.success) return parsed.response
-    const { provider } = parsed.data.params
     const requestId = generateShortId()
+    let provider: string | undefined
 
     try {
-      const authError = verifyCronAuth(request, `${provider} webhook polling`)
+      const authError = verifyCronAuth(request, 'webhook polling')
       if (authError) return authError
+
+      const parsed = await parseRequest(webhookPollingContract, request, context)
+      if (!parsed.success) return parsed.response
+      provider = parsed.data.params.provider
 
       if (!VALID_POLLING_PROVIDERS.has(provider)) {
         return NextResponse.json(
@@ -67,11 +69,12 @@ export const GET = withRouteHandler(
         }
       }
     } catch (error) {
-      logger.error(`Error during ${provider} polling (${requestId}):`, error)
+      const providerLabel = provider ?? 'webhook'
+      logger.error(`Error during ${providerLabel} polling (${requestId}):`, error)
       return NextResponse.json(
         {
           success: false,
-          message: `${provider} polling failed`,
+          message: `${providerLabel} polling failed`,
           error: error instanceof Error ? error.message : 'Unknown error',
           requestId,
         },

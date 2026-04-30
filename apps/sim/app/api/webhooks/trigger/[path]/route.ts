@@ -29,7 +29,7 @@ export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ path: string }> }) => {
     const requestId = generateRequestId()
     const parsed = await parseRequest(webhookTriggerGetContract, request, context)
-    if (!parsed.success) return new NextResponse('Not Found', { status: 404 })
+    if (!parsed.success) return parsed.response
     const { path } = parsed.data.params
 
     // Handle provider-specific GET verifications (Microsoft Graph, WhatsApp, etc.)
@@ -66,7 +66,7 @@ async function handleWebhookPost(
 ): Promise<NextResponse> {
   const requestId = generateRequestId()
   const parsed = await parseRequest(webhookTriggerPostContract, request, context)
-  if (!parsed.success) return new NextResponse('Not Found', { status: 404 })
+  if (!parsed.success) return parsed.response
   const { path } = parsed.data.params
 
   const earlyChallenge = await handleProviderChallenges({}, request, requestId, path)
