@@ -586,6 +586,7 @@ export const Sidebar = memo(function Sidebar() {
   }, [activeNavItemHref])
 
   const createTaskMutation = useCreateTask(workspaceId)
+  const isCreatingTaskRef = useRef(false)
   const deleteTaskMutation = useDeleteTask(workspaceId)
   const deleteTasksMutation = useDeleteTasks(workspaceId)
   const markTaskReadMutation = useMarkTaskRead(workspaceId)
@@ -1161,13 +1162,16 @@ export const Sidebar = memo(function Sidebar() {
   }
 
   const handleNewTask = useCallback(async () => {
-    if (!workspaceId) return
+    if (!workspaceId || isCreatingTaskRef.current) return
+    isCreatingTaskRef.current = true
     try {
       const { id } = await createTaskMutation.mutateAsync()
       useMothershipDraftsStore.getState().clearDraft(`${workspaceId}:new`)
       navigateToPage(`/workspace/${workspaceId}/task/${id}`)
     } catch {
       navigateToPage(`/workspace/${workspaceId}/home`)
+    } finally {
+      isCreatingTaskRef.current = false
     }
   }, [workspaceId, navigateToPage])
 
