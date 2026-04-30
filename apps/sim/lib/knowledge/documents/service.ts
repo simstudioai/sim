@@ -545,7 +545,7 @@ export async function processDocumentAsync(
           chunkHash: sha256Hex(chunk.text),
           content: chunk.text,
           contentLength: chunk.text.length,
-          tokenCount: estimateTokenCount(chunk.text, tokenizerProvider),
+          tokenCount: estimateTokenCount(chunk.text, tokenizerProvider).count,
           embedding: embeddings[chunkIndex] || null,
           embeddingModel: kbEmbeddingModel,
           startOffset: chunk.metadata.startIndex,
