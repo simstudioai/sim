@@ -55,7 +55,7 @@ import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowI
 import type { BlockLog, ExecutionResult } from '@/executor/types'
 import { useChatStore } from '@/stores/chat/store'
 import { getChatPosition } from '@/stores/chat/utils'
-import { useCurrentWorkflowExecution } from '@/stores/execution'
+import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
 import { useOperationQueue } from '@/stores/operation-queue/store'
 import { useTerminalConsoleStore, useWorkflowConsoleEntries } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -269,7 +269,7 @@ export function Chat() {
   const entries = useWorkflowConsoleEntries(
     hasConsoleHydrated && typeof activeWorkflowId === 'string' ? activeWorkflowId : undefined
   )
-  const { isExecuting } = useCurrentWorkflowExecution()
+  const isExecuting = useIsCurrentWorkflowExecuting()
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const { data: session } = useSession()
   const { addToQueue } = useOperationQueue()

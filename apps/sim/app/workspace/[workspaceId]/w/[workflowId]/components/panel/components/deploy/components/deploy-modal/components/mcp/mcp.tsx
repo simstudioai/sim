@@ -27,7 +27,7 @@ import {
   type WorkflowMcpServer,
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('McpToolDeploy')
@@ -120,8 +120,8 @@ export function McpDeploy({
     return null
   }, [blocks])
 
-  const subBlockValues = useSubBlockStore((state) =>
-    workflowId ? (state.workflowValues[workflowId] ?? {}) : {}
+  const subBlockValues = useSubBlockStore(
+    (state) => (workflowId ? state.workflowValues[workflowId] : undefined) ?? EMPTY_SUBBLOCK_VALUES
   )
 
   const inputFormat = useMemo((): NormalizedField[] => {

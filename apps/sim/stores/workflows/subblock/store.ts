@@ -6,10 +6,17 @@ import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import { populateTriggerFieldsFromConfig } from '@/hooks/use-trigger-config-aggregation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import type { SubBlockStore } from '@/stores/workflows/subblock/types'
+import type { SubBlockStore, SubBlockValue } from '@/stores/workflows/subblock/types'
 import { isTriggerValid } from '@/triggers'
 
 const logger = createLogger('SubBlockStore')
+
+/**
+ * Stable empty fallback for `state.workflowValues[workflowId]` selectors.
+ * Using a module-level constant avoids returning a fresh `{}` on every
+ * selector call, which would defeat Zustand's `Object.is` equality.
+ */
+export const EMPTY_SUBBLOCK_VALUES: Record<string, Record<string, SubBlockValue>> = {}
 
 /**
  * SubBlockState stores values for all subblocks in workflows

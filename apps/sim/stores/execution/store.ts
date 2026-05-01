@@ -181,6 +181,20 @@ export function useCurrentWorkflowExecution(): WorkflowExecutionState {
 }
 
 /**
+ * Returns whether the active workflow is currently executing.
+ * More granular than useCurrentWorkflowExecution — only re-renders when
+ * the isExecuting boolean changes, not on every iteration update during
+ * parallel-loop runs.
+ */
+export function useIsCurrentWorkflowExecuting(): boolean {
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  return useExecutionStore((state) => {
+    if (!activeWorkflowId) return false
+    return state.workflowExecutions.get(activeWorkflowId)?.isExecuting ?? false
+  })
+}
+
+/**
  * Returns whether a specific block is currently active (executing) in the current workflow.
  * More granular than useCurrentWorkflowExecution — only re-renders when
  * the boolean result changes for this specific block.
