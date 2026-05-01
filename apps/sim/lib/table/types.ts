@@ -384,6 +384,10 @@ export interface AddWorkflowGroupData {
   tableId: string
   group: WorkflowGroup
   outputColumns: ColumnDefinition[]
+  /** When `false`, the post-add row-scheduling pass is skipped. Defaults to
+   *  `true` (UI behavior). Mothership passes `false` so groups can be staged
+   *  without firing every dep-satisfied row. */
+  autoRun?: boolean
 }
 
 /** Payload for `updateWorkflowGroup` — diffs outputs and writes columns. */

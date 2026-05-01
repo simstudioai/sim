@@ -133,6 +133,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       table,
       requestId
     )
+    // Only `null` when a `cancellationGuard` is supplied and the SQL guard
+    // rejects the write — this route doesn't pass one, so reaching null is a bug.
+    if (!updatedRow) throw new Error('updateRow returned null without a cancellationGuard')
 
     return NextResponse.json({
       success: true,

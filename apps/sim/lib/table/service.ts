@@ -2632,27 +2632,31 @@ export async function addWorkflowGroup(
 
   const updatedTable: TableDefinition = { ...table, schema: updatedSchema, updatedAt: now }
 
-  // Schedule existing rows so already-filled deps trigger immediately.
-  void (async () => {
-    try {
-      const rowRecords = await db
-        .select()
-        .from(userTableRows)
-        .where(eq(userTableRows.tableId, data.tableId))
-      if (rowRecords.length === 0) return
-      const rows: TableRow[] = rowRecords.map((r) => ({
-        id: r.id,
-        data: r.data as RowData,
-        executions: (r.executions as RowExecutions) ?? {},
-        position: r.position,
-        createdAt: r.createdAt,
-        updatedAt: r.updatedAt,
-      }))
-      await scheduleWorkflowGroupRuns(updatedTable, rows)
-    } catch (err) {
-      logger.error(`[${requestId}] Failed to schedule runs after group add:`, err)
-    }
-  })()
+  // Schedule existing rows so already-filled deps trigger immediately. Skipped
+  // when the caller opted out (Mothership stages groups silently — `autoRun:
+  // false` — so the AI can compose multiple changes without firing rows mid-edit).
+  if (data.autoRun !== false) {
+    void (async () => {
+      try {
+        const rowRecords = await db
+          .select()
+          .from(userTableRows)
+          .where(eq(userTableRows.tableId, data.tableId))
+        if (rowRecords.length === 0) return
+        const rows: TableRow[] = rowRecords.map((r) => ({
+          id: r.id,
+          data: r.data as RowData,
+          executions: (r.executions as RowExecutions) ?? {},
+          position: r.position,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        }))
+        await scheduleWorkflowGroupRuns(updatedTable, rows)
+      } catch (err) {
+        logger.error(`[${requestId}] Failed to schedule runs after group add:`, err)
+      }
+    })()
+  }
 
   return updatedTable
 }

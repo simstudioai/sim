@@ -710,6 +710,10 @@ export const addWorkflowGroupBodySchema = z.object({
     outputs: z.array(workflowGroupOutputSchema).min(1),
   }),
   outputColumns: z.array(workflowGroupOutputColumnSchema).min(1),
+  /** When false, skip auto-scheduling existing rows after the group is added.
+   *  Defaults to true so UI adds populate cells immediately; the Mothership
+   *  tool sends `false` so the AI can stage groups without firing runs. */
+  autoRun: z.boolean().optional(),
 })
 
 export const updateWorkflowGroupBodySchema = z.object({

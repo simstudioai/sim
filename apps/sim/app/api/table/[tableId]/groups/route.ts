@@ -62,7 +62,12 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
     const updatedTable = await addWorkflowGroup(
-      { tableId, group: validated.group, outputColumns: validated.outputColumns },
+      {
+        tableId,
+        group: validated.group,
+        outputColumns: validated.outputColumns,
+        autoRun: validated.autoRun,
+      },
       requestId
     )
     return NextResponse.json({
