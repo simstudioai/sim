@@ -38,7 +38,7 @@ import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { isExecutionStreamHttpError, useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
-import { useCurrentWorkflowExecution, useExecutionStore } from '@/stores/execution'
+import { defaultWorkflowExecutionState, useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
 import {
   clearExecutionPointer,
@@ -136,8 +136,20 @@ export function useWorkflowExecution() {
       variables: s.variables,
     }))
   )
-  const { isExecuting, isDebugging, pendingBlocks, executor, debugContext } =
-    useCurrentWorkflowExecution()
+  const { isExecuting, isDebugging, pendingBlocks, executor, debugContext } = useExecutionStore(
+    useShallow((state) => {
+      const exec = activeWorkflowId
+        ? (state.workflowExecutions.get(activeWorkflowId) ?? defaultWorkflowExecutionState)
+        : defaultWorkflowExecutionState
+      return {
+        isExecuting: exec.isExecuting,
+        isDebugging: exec.isDebugging,
+        pendingBlocks: exec.pendingBlocks,
+        executor: exec.executor,
+        debugContext: exec.debugContext,
+      }
+    })
+  )
   const setCurrentExecutionId = useExecutionStore((s) => s.setCurrentExecutionId)
   const getCurrentExecutionId = useExecutionStore((s) => s.getCurrentExecutionId)
   const rawSetIsExecuting = useExecutionStore((s) => s.setIsExecuting)

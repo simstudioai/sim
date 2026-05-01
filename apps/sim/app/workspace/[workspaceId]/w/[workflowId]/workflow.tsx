@@ -6,10 +6,8 @@ import ReactFlow, {
   applyNodeChanges,
   ConnectionLineType,
   type Edge,
-  type EdgeTypes,
   type Node,
   type NodeChange,
-  type NodeTypes,
   ReactFlowProvider,
   SelectionMode,
   useReactFlow,
@@ -31,18 +29,14 @@ import {
   DiffControls,
   Notifications,
   Panel,
-  SubflowNodeComponent,
   Terminal,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { BlockMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/block-menu'
 import { CanvasMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/canvas-menu'
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
-import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
 import type { SubflowNodeData } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
-import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
-import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import {
   useAutoLayout,
   useCanvasContextMenu,
@@ -70,6 +64,16 @@ import {
   resolveSelectionConflicts,
   validateTriggerPaste,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
+import {
+  defaultEdgeOptions,
+  edgeTypes,
+  embeddedFitViewOptions,
+  embeddedResizeFitViewOptions,
+  nodeTypes,
+  reactFlowFitViewOptions,
+  reactFlowProOptions,
+  reactFlowStyles,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow-constants'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
@@ -179,35 +183,6 @@ function syncPanelWithSelection(selectedIds: string[]) {
     }
   }
 }
-
-/** Custom node types for ReactFlow. */
-const nodeTypes: NodeTypes = {
-  workflowBlock: WorkflowBlock,
-  noteBlock: NoteBlock,
-  subflowNode: SubflowNodeComponent,
-}
-
-/** Custom edge types for ReactFlow. */
-const edgeTypes: EdgeTypes = {
-  default: WorkflowEdge,
-  workflowEdge: WorkflowEdge,
-}
-
-/** ReactFlow configuration constants. */
-const defaultEdgeOptions = { type: 'custom' }
-
-const reactFlowStyles = [
-  '[&_.react-flow__handle]:!z-[30]',
-  '[&_.react-flow__edge-labels]:!z-[1001]',
-  '[&_.react-flow__pane]:select-none',
-  '[&_.react-flow__selectionpane]:select-none',
-  '[&_.react-flow__background]:hidden',
-  '[&_.react-flow__node-subflowNode.selected]:!shadow-none',
-].join(' ')
-const reactFlowFitViewOptions = { padding: 0.6, maxZoom: 1.0 } as const
-const embeddedFitViewOptions = { padding: 0.15, maxZoom: 0.85, minZoom: 0.1 } as const
-const embeddedResizeFitViewOptions = { ...embeddedFitViewOptions, duration: 0 } as const
-const reactFlowProOptions = { hideAttribution: true } as const
 
 /**
  * Map from edge contextId to edge id.

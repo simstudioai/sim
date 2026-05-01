@@ -71,6 +71,7 @@ vi.mock('@/stores/execution/store', () => ({
     lastRunEdges: new Map(),
   }),
   useIsBlockActive: vi.fn().mockReturnValue(false),
+  useIsCurrentWorkflowExecuting: vi.fn().mockReturnValue(false),
   useLastRunPath: vi.fn().mockReturnValue(new Map()),
   useLastRunEdges: vi.fn().mockReturnValue(new Map()),
 }))

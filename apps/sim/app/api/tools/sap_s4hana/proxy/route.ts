@@ -6,7 +6,7 @@ import {
   assertSafeSapExternalUrl,
   type SapS4HanaProxyRequest,
   sapS4HanaProxyContract,
-} from '@/lib/api/contracts/tools/internal/sap'
+} from '@/lib/api/contracts/tools/sap'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'

@@ -100,14 +100,8 @@ export function InviteModal({
   const hasSeatData = !!organizationId && totalSeats > 0
   const exceedsSeatCapacity =
     hasSeatData && userPerms.canAdmin && validEmails.length > availableSeats
-  const isAtSeatCapacity = hasSeatData && userPerms.canAdmin && availableSeats === 0
-  const isOutOfSeats = exceedsSeatCapacity || isAtSeatCapacity
-  const seatLimitReason = hasSeatData
-    ? availableSeats === 0
-      ? `Internal invites may fail: using ${usedSeats} of ${totalSeats} seats. External workspace invites do not require seats.`
-      : exceedsSeatCapacity
-        ? `Only ${availableSeats} internal seat${availableSeats === 1 ? '' : 's'} available. External workspace invites do not require seats.`
-        : null
+  const seatLimitReason = exceedsSeatCapacity
+    ? `Only ${availableSeats} internal seat${availableSeats === 1 ? '' : 's'} available. External workspace invites do not require seats.`
     : null
 
   const isSubmitting = batchSendInvitations.isPending
@@ -576,7 +570,7 @@ export function InviteModal({
               {inviteDisabledReason && (
                 <p className='mt-1 text-[var(--text-muted)] text-caption'>{inviteDisabledReason}</p>
               )}
-              {isOutOfSeats && seatLimitReason && (
+              {seatLimitReason && (
                 <p className='mt-1 text-[var(--text-muted)] text-caption'>{seatLimitReason}</p>
               )}
               {errorMessage && (
