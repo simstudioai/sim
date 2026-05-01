@@ -349,22 +349,14 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
         query: { workspaceId, limit: 50, details: 'full' },
       })
       const items = data.data
-      const mapped = items.map((l) => {
-        const workflowName =
-          (l.workflow &&
-            ((l.workflow.name as string | null | undefined) ||
-              (l.workflow as Record<string, unknown>).title)) ||
-          (l as Record<string, unknown>).workflowName ||
-          'Untitled Workflow'
-        return {
-          id: l.id,
-          executionId: l.executionId || l.id,
-          level: l.level,
-          trigger: l.trigger || null,
-          createdAt: l.createdAt,
-          workflowName: typeof workflowName === 'string' ? workflowName : 'Untitled Workflow',
-        }
-      })
+      const mapped = items.map((l) => ({
+        id: l.id,
+        executionId: l.executionId || l.id,
+        level: l.level,
+        trigger: l.trigger || null,
+        createdAt: l.createdAt,
+        workflowName: l.workflow?.name ?? 'Untitled Workflow',
+      }))
       setLogsList(mapped)
     } catch {
     } finally {
