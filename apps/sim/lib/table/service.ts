@@ -849,7 +849,12 @@ export async function batchInsertRowsWithTx(
 
   const uniqueColumns = getUniqueColumns(table.schema)
   if (uniqueColumns.length > 0) {
-    const uniqueResult = await checkBatchUniqueConstraintsDb(data.tableId, data.rows, table.schema)
+    const uniqueResult = await checkBatchUniqueConstraintsDb(
+      data.tableId,
+      data.rows,
+      table.schema,
+      trx
+    )
     if (!uniqueResult.valid) {
       const errorMessages = uniqueResult.errors
         .map((e) => `Row ${e.row + 1}: ${e.errors.join(', ')}`)
