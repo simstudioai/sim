@@ -33,6 +33,10 @@ export const gmailMailBodySchema = z.object({
   attachments: RawFileInputArraySchema.optional().nullable(),
 })
 
+export const gmailEditDraftBodySchema = gmailMailBodySchema.extend({
+  draftId: z.string().min(1, 'Draft ID is required'),
+})
+
 export const googleDriveUploadBodySchema = z.object({
   accessToken: googleAccessTokenSchema,
   fileName: z.string().min(1, 'File name is required'),
@@ -83,6 +87,13 @@ export const gmailDraftContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/gmail/draft',
   body: gmailMailBodySchema,
+  response: { mode: 'json', schema: toolJsonResponseSchema },
+})
+
+export const gmailEditDraftContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/gmail/edit-draft',
+  body: gmailEditDraftBodySchema,
   response: { mode: 'json', schema: toolJsonResponseSchema },
 })
 
@@ -153,6 +164,7 @@ export type GmailAddLabelBody = ContractBodyInput<typeof gmailAddLabelContract>
 export type GmailArchiveBody = ContractBodyInput<typeof gmailArchiveContract>
 export type GmailDeleteBody = ContractBodyInput<typeof gmailDeleteContract>
 export type GmailDraftBody = ContractBodyInput<typeof gmailDraftContract>
+export type GmailEditDraftBody = ContractBodyInput<typeof gmailEditDraftContract>
 export type GmailMarkReadBody = ContractBodyInput<typeof gmailMarkReadContract>
 export type GmailMarkUnreadBody = ContractBodyInput<typeof gmailMarkUnreadContract>
 export type GmailMoveBody = ContractBodyInput<typeof gmailMoveContract>
@@ -169,6 +181,7 @@ export type GmailAddLabelResponse = ContractJsonResponse<typeof gmailAddLabelCon
 export type GmailArchiveResponse = ContractJsonResponse<typeof gmailArchiveContract>
 export type GmailDeleteResponse = ContractJsonResponse<typeof gmailDeleteContract>
 export type GmailDraftResponse = ContractJsonResponse<typeof gmailDraftContract>
+export type GmailEditDraftResponse = ContractJsonResponse<typeof gmailEditDraftContract>
 export type GmailMarkReadResponse = ContractJsonResponse<typeof gmailMarkReadContract>
 export type GmailMarkUnreadResponse = ContractJsonResponse<typeof gmailMarkUnreadContract>
 export type GmailMoveResponse = ContractJsonResponse<typeof gmailMoveContract>
