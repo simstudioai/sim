@@ -220,6 +220,7 @@ export function MothershipChat({
                         userQuery={precedingUserContent}
                         requestId={msg.requestId}
                         messageId={msg.id}
+                        isStreamActive={isStreamActive}
                       />
                     </div>
                   )}

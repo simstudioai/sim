@@ -60,6 +60,10 @@ export const POST = withRouteHandler(
         await assertActiveWorkspaceAccess(parent.workspaceId, userId)
       }
 
+      if (parent.conversationId) {
+        return createBadRequestResponse('Cannot fork a chat with an active stream')
+      }
+
       // Find the fork point in the Sim-side messages array.
       const messages = Array.isArray(parent.messages) ? (parent.messages as PersistedMessage[]) : []
       const forkIdx = messages.findIndex((m) => m.id === upToMessageId)
@@ -84,6 +88,7 @@ export const POST = withRouteHandler(
           id: newId,
           userId,
           workspaceId: parent.workspaceId,
+          workflowId: parent.workflowId,
           type: parent.type,
           title,
           model: parent.model,
@@ -103,19 +108,19 @@ export const POST = withRouteHandler(
       }
 
       // Clone copilot-service conversation state (messages, active_messages, memory files).
-      // Best-effort: if the copilot service doesn't have a row for the source chat yet, skip.
+      const copilotHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (env.COPILOT_API_KEY) {
+        copilotHeaders['x-api-key'] = env.COPILOT_API_KEY
+      }
+      let copilotFailed = false
       try {
-        const copilotHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
-        if (env.COPILOT_API_KEY) {
-          copilotHeaders['x-api-key'] = env.COPILOT_API_KEY
-        }
         const copilotRes = await fetchGo(`${SIM_AGENT_API_URL}/api/chats/fork`, {
           method: 'POST',
           headers: copilotHeaders,
           body: JSON.stringify({
             sourceChatId: chatId,
             newChatId: newId,
-            upToMessageId,
+            keepCount: forkedMessages.length,
             userId,
           }),
           spanName: 'sim → go /api/chats/fork',
@@ -123,12 +128,25 @@ export const POST = withRouteHandler(
         })
         if (!copilotRes.ok) {
           const text = await copilotRes.text().catch(() => '')
-          logger.warn('Copilot fork returned non-OK', { status: copilotRes.status, body: text })
+          logger.error('Copilot fork returned non-OK', { status: copilotRes.status, body: text })
+          copilotFailed = true
         }
       } catch (err) {
-        // The copilot service may not have a row for this chat if no messages
-        // have been sent yet, or if it's unreachable. Log and continue.
-        logger.warn('Failed to fork copilot-service conversation, skipping', { err })
+        logger.error('Failed to call copilot fork endpoint', { err })
+        copilotFailed = true
+      }
+
+      if (copilotFailed) {
+        // Compensating delete — remove the orphaned Sim row.
+        await db
+          .delete(copilotChats)
+          .where(eq(copilotChats.id, newId))
+          .catch((e: unknown) => {
+            logger.error('Failed to delete orphaned forked chat after copilot failure', {
+              error: e,
+            })
+          })
+        return createInternalServerErrorResponse('Failed to fork chat')
       }
 
       if (newChat.workspaceId) {
