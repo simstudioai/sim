@@ -50,6 +50,13 @@ export async function executeWorkflowGroupCellJob(
     // surface partial errors in the terminal-error state.
     const blockErrors: Record<string, string> = {}
     let writeChain: Promise<void> = Promise.resolve()
+    // Set right before the terminal `completed`/`error` write fires. The
+    // executor fires `onBlockComplete` callbacks fire-and-forget, so some can
+    // still be in the microtask queue after `executeWorkflow` resolves; they
+    // would otherwise enqueue a `running` partial-write that lands after the
+    // terminal state and clobber it. Once this flag is set, `schedulePartialWrite`
+    // becomes a no-op.
+    let terminalWritten = false
 
     try {
       const table = await getTableById(tableId)
@@ -147,12 +154,17 @@ export async function executeWorkflowGroupCellJob(
 
       /** Snapshot the current state and append a partial write to the chain. */
       const schedulePartialWrite = () => {
+        if (terminalWritten) return
         const dataSnapshot: RowData = { ...accumulatedData }
         const blockErrorsSnapshot = { ...blockErrors }
         const runningSnapshot = Array.from(runningBlockIds)
         writeChain = writeChain
           .then(async () => {
             if (signal?.aborted) return
+            // Re-check inside the chain — a write enqueued before the
+            // terminal flag flipped should still bail if the chain runs
+            // after the terminal write.
+            if (terminalWritten) return
             await writeState(
               {
                 status: 'running',
@@ -245,7 +257,11 @@ export async function executeWorkflowGroupCellJob(
       )
 
       // Drain queued partial writes before the terminal write so a late
-      // `running` partial doesn't clobber it.
+      // `running` partial doesn't clobber it. Setting `terminalWritten`
+      // before draining means any onBlockComplete callbacks still in the
+      // microtask queue (the executor fires them fire-and-forget) become
+      // no-ops the moment they try to enqueue.
+      terminalWritten = true
       await writeChain.catch(() => {})
 
       await writeState(
@@ -270,6 +286,7 @@ export async function executeWorkflowGroupCellJob(
       // `running` partial doesn't clobber it — same reason as the success
       // path above. Reset `runningBlockIds`/`blockErrors` explicitly so the
       // renderer sees a clean terminal state (otherwise stale spinners stay).
+      terminalWritten = true
       await writeChain.catch(() => {})
       try {
         await writeState({

@@ -283,8 +283,10 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
     const executionsPatch: Record<string, RowExecutionMetadata> = {}
     const jobIds: string[] = []
     let cancelledCount = 0
+    const seenStates: Record<string, string> = {}
     for (const [gid, exec] of Object.entries(executions)) {
       if (!groupIds.has(gid)) continue
+      seenStates[gid] = exec.status
       // `pending` covers the post-reset, pre-dispatch window — a stop click
       // there must still stick once the scheduler picks the row up.
       if (exec.status !== 'running' && exec.status !== 'pending') continue
@@ -295,6 +297,9 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
     if (cancelledCount > 0) {
       mutations.push({ rowId: row.id, executionsPatch, jobIds, cancelledCount })
     }
+    logger.info(
+      `[STOP-DEBUG] cancel scan row=${row.id} seen=${JSON.stringify(seenStates)} willCancel=${Object.keys(executionsPatch).length} jobs=${JSON.stringify(jobIds)}`
+    )
   }
 
   // Cancel jobs and write rows in parallel — no ordering dependency, so

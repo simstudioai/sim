@@ -288,13 +288,48 @@ export function ColumnSidebar({
     return allColumns.slice(0, idx)
   }, [configState, allColumns])
 
+  /**
+   * Split `otherColumns` into the two dep buckets:
+   * - `scalarDepColumns` — plain columns; tickable into `dependencies.columns`.
+   * - `groupDepOptions` — producing workflow groups whose outputs land left of the
+   *   current column; tickable into `dependencies.workflowGroups`. A group only
+   *   shows up here when at least one of its output columns is left-of-current.
+   *   The current group itself is excluded so we never depend on ourselves.
+   */
+  const scalarDepColumns = useMemo(
+    () => otherColumns.filter((c) => !c.workflowGroupId),
+    [otherColumns]
+  )
+  const groupDepOptions = useMemo<WorkflowGroup[]>(() => {
+    const seen = new Set<string>()
+    const result: WorkflowGroup[] = []
+    for (const c of otherColumns) {
+      if (!c.workflowGroupId) continue
+      if (seen.has(c.workflowGroupId)) continue
+      if (existingGroup && c.workflowGroupId === existingGroup.id) continue
+      const g = workflowGroups.find((gg) => gg.id === c.workflowGroupId)
+      if (!g) continue
+      seen.add(c.workflowGroupId)
+      result.push(g)
+    }
+    return result
+  }, [otherColumns, workflowGroups, existingGroup])
+
   const [uniqueInput, setUniqueInput] = useState<boolean>(false)
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>('')
+  /** Plain (non-workflow-output) column names this group waits on. */
   const [deps, setDeps] = useState<string[]>([])
+  /** Producing workflow group ids this group waits on. Workflow-output columns are
+   *  represented by their parent group, since the schema validator forbids depending
+   *  on a workflow-output column directly (`workflow-columns.ts` enforces this). */
+  const [groupDeps, setGroupDeps] = useState<string[]>([])
   /** Encoded `${blockId}::${path}` values — disambiguates duplicate paths in the picker. */
   const [selectedOutputs, setSelectedOutputs] = useState<string[]>([])
   /** Surfaces required-field errors only after a save attempt, matching the workflow editor's deploy flow. */
   const [showValidation, setShowValidation] = useState(false)
+  /** Save-time error (network/validation thrown by the mutation). Rendered inline next to the footer
+   *  buttons so it isn't covered by the toaster, which sits over the bottom-right of the panel. */
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const existingColumnRef = useRef(existingColumn)
   existingColumnRef.current = existingColumn
@@ -304,6 +339,7 @@ export function ColumnSidebar({
   useEffect(() => {
     if (!open || !configState) return
     setShowValidation(false)
+    setSaveError(null)
     const existing = existingColumnRef.current
     const cols = allColumnsRef.current
     const leftOfCurrent = (() => {
@@ -311,6 +347,16 @@ export function ColumnSidebar({
       const idx = cols.findIndex((c) => c.name === configState.columnName)
       if (idx === -1) return cols.filter((c) => c.name !== configState.columnName)
       return cols.slice(0, idx)
+    })()
+    // Default deps when there's no persisted group yet: tick every left-of-current
+    // scalar column + every left-of-current producing group.
+    const defaultScalarDeps = leftOfCurrent.filter((c) => !c.workflowGroupId).map((c) => c.name)
+    const defaultGroupDeps = (() => {
+      const seen = new Set<string>()
+      for (const c of leftOfCurrent) {
+        if (c.workflowGroupId) seen.add(c.workflowGroupId)
+      }
+      return Array.from(seen)
     })()
     if (configState.mode === 'edit') {
       const group = existing?.workflowGroupId
@@ -323,11 +369,31 @@ export function ColumnSidebar({
       setNameInput(existing?.name ?? configState.columnName)
       if (group) {
         setSelectedWorkflowId(group.workflowId)
-        setDeps(group.dependencies?.columns ?? leftOfCurrent.map((c) => c.name))
+        // Sanitize legacy persisted deps: any workflow-output column names that
+        // sneaked into `dependencies.columns` (writes from before the schema
+        // validator forbade them) are lifted into `workflowGroups` here so the
+        // sidebar surfaces a re-saveable state.
+        const persistedCols = group.dependencies?.columns
+        const persistedGroups = group.dependencies?.workflowGroups
+        if (persistedCols !== undefined || persistedGroups !== undefined) {
+          const liftedGroupIds = new Set(persistedGroups ?? [])
+          const cleanCols: string[] = []
+          for (const colName of persistedCols ?? []) {
+            const c = cols.find((cc) => cc.name === colName)
+            if (c?.workflowGroupId) liftedGroupIds.add(c.workflowGroupId)
+            else cleanCols.push(colName)
+          }
+          setDeps(cleanCols)
+          setGroupDeps(Array.from(liftedGroupIds))
+        } else {
+          setDeps(defaultScalarDeps)
+          setGroupDeps(defaultGroupDeps)
+        }
         setSelectedOutputs([]) // re-encoded against current workflow blocks below
       } else {
         setSelectedWorkflowId('')
         setDeps([])
+        setGroupDeps([])
         setSelectedOutputs([])
       }
     } else {
@@ -337,7 +403,8 @@ export function ColumnSidebar({
       setUniqueInput(false)
       setNameInput(configState.proposedName)
       setSelectedWorkflowId(workflowId)
-      setDeps(leftOfCurrent.map((c) => c.name))
+      setDeps(defaultScalarDeps)
+      setGroupDeps(defaultGroupDeps)
       setSelectedOutputs([])
     }
   }, [open, configState, workflowGroups])
@@ -521,6 +588,12 @@ export function ColumnSidebar({
     setDeps((prev) => (prev.includes(name) ? prev.filter((d) => d !== name) : [...prev, name]))
   }
 
+  const toggleGroupDep = (groupId: string) => {
+    setGroupDeps((prev) =>
+      prev.includes(groupId) ? prev.filter((d) => d !== groupId) : [...prev, groupId]
+    )
+  }
+
   const toggleOutput = (encoded: string) => {
     setSelectedOutputs((prev) =>
       prev.includes(encoded) ? prev.filter((v) => v !== encoded) : [...prev, encoded]
@@ -597,6 +670,7 @@ export function ColumnSidebar({
 
   const handleSave = async () => {
     if (!configState) return
+    setSaveError(null)
     const trimmedName = nameInput.trim()
     if (!trimmedName || (isWorkflow && (!selectedWorkflowId || selectedOutputs.length === 0))) {
       setShowValidation(true)
@@ -606,7 +680,10 @@ export function ColumnSidebar({
     try {
       if (isWorkflow) {
         const orderedOutputs = buildOrderedPickedOutputs()
-        const dependencies: WorkflowGroupDependencies = { columns: deps }
+        const dependencies: WorkflowGroupDependencies = {
+          columns: deps,
+          ...(groupDeps.length > 0 ? { workflowGroups: groupDeps } : {}),
+        }
 
         if (existingGroup) {
           // Update path: diff outputs, derive new column names for added entries,
@@ -716,7 +793,7 @@ export function ColumnSidebar({
 
       onClose()
     } catch (err) {
-      toast.error(toError(err).message)
+      setSaveError(toError(err).message)
     }
   }
 
@@ -904,43 +981,94 @@ export function ColumnSidebar({
               <FieldDivider />
 
               <div className='flex flex-col gap-[9.5px]'>
-                <Label className='pl-0.5'>Trigger when these columns are filled</Label>
+                <Label className='pl-0.5'>Trigger when these are ready</Label>
                 <div className='flex max-h-[240px] min-w-0 flex-col overflow-y-auto rounded-md border border-[var(--border)]'>
-                  {otherColumns.length === 0 ? (
+                  {scalarDepColumns.length === 0 && groupDepOptions.length === 0 ? (
                     <div className='px-2 py-3 text-[var(--text-tertiary)] text-small'>
-                      No other columns.
+                      No upstream columns or groups.
                     </div>
                   ) : (
-                    otherColumns.map((c, idx) => {
-                      const checked = deps.includes(c.name)
-                      return (
-                        <div
-                          key={c.name}
-                          role='checkbox'
-                          aria-checked={checked}
-                          tabIndex={0}
-                          onClick={() => toggleDep(c.name)}
-                          onKeyDown={(e) => {
-                            if (e.key === ' ' || e.key === 'Enter') {
-                              e.preventDefault()
-                              toggleDep(c.name)
-                            }
-                          }}
-                          className={cn(
-                            'flex h-[36px] flex-shrink-0 cursor-pointer items-center gap-2.5 px-2.5 hover:bg-[var(--surface-2)]',
-                            idx < otherColumns.length - 1 && 'border-[var(--border)] border-b'
-                          )}
-                        >
-                          <Checkbox size='sm' checked={checked} className='pointer-events-none' />
-                          <span className='font-medium text-[var(--text-secondary)] text-small'>
-                            {c.name}
-                          </span>
-                          <span className='ml-auto text-[var(--text-tertiary)] text-caption'>
-                            {c.type}
-                          </span>
-                        </div>
-                      )
-                    })
+                    <>
+                      {scalarDepColumns.map((c, idx) => {
+                        const checked = deps.includes(c.name)
+                        const isLast =
+                          idx === scalarDepColumns.length - 1 && groupDepOptions.length === 0
+                        return (
+                          <div
+                            key={`col:${c.name}`}
+                            role='checkbox'
+                            aria-checked={checked}
+                            tabIndex={0}
+                            onClick={() => toggleDep(c.name)}
+                            onKeyDown={(e) => {
+                              if (e.key === ' ' || e.key === 'Enter') {
+                                e.preventDefault()
+                                toggleDep(c.name)
+                              }
+                            }}
+                            className={cn(
+                              'flex h-[36px] flex-shrink-0 cursor-pointer items-center gap-2.5 px-2.5 hover:bg-[var(--surface-2)]',
+                              !isLast && 'border-[var(--border)] border-b'
+                            )}
+                          >
+                            <Checkbox
+                              size='sm'
+                              checked={checked}
+                              className='pointer-events-none'
+                            />
+                            <span className='font-medium text-[var(--text-secondary)] text-small'>
+                              {c.name}
+                            </span>
+                            <span className='ml-auto text-[var(--text-tertiary)] text-caption'>
+                              {c.type}
+                            </span>
+                          </div>
+                        )
+                      })}
+                      {groupDepOptions.map((g, idx) => {
+                        const checked = groupDeps.includes(g.id)
+                        const isLast = idx === groupDepOptions.length - 1
+                        const wf = workflows?.find((w) => w.id === g.workflowId)
+                        const color = wf?.color ?? 'var(--text-muted)'
+                        const label = g.name ?? wf?.name ?? 'Workflow'
+                        return (
+                          <div
+                            key={`group:${g.id}`}
+                            role='checkbox'
+                            aria-checked={checked}
+                            tabIndex={0}
+                            onClick={() => toggleGroupDep(g.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === ' ' || e.key === 'Enter') {
+                                e.preventDefault()
+                                toggleGroupDep(g.id)
+                              }
+                            }}
+                            className={cn(
+                              'flex h-[36px] flex-shrink-0 cursor-pointer items-center gap-2.5 px-2.5 hover:bg-[var(--surface-2)]',
+                              !isLast && 'border-[var(--border)] border-b'
+                            )}
+                          >
+                            <Checkbox
+                              size='sm'
+                              checked={checked}
+                              className='pointer-events-none'
+                            />
+                            <span
+                              className='h-[10px] w-[10px] shrink-0 rounded-sm'
+                              style={{ backgroundColor: color }}
+                              aria-hidden='true'
+                            />
+                            <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-small'>
+                              {label}
+                            </span>
+                            <span className='ml-auto text-[var(--text-tertiary)] text-caption'>
+                              workflow
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </>
                   )}
                 </div>
               </div>
@@ -1019,7 +1147,17 @@ export function ColumnSidebar({
           )}
         </div>
 
-        <div className='flex items-center justify-end gap-2 border-[var(--border)] border-t px-2 py-3'>
+        <div className='flex items-center gap-2 border-[var(--border)] border-t px-2 py-3'>
+          {saveError ? (
+            <p
+              role='alert'
+              className='min-w-0 flex-1 break-words pl-0.5 text-destructive text-caption'
+            >
+              {saveError}
+            </p>
+          ) : (
+            <span className='flex-1' />
+          )}
           <Button variant='default' size='sm' onClick={onClose}>
             Cancel
           </Button>

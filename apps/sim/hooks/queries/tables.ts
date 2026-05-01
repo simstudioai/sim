@@ -166,6 +166,15 @@ async function fetchTableRows({
     signal,
   })
   const { rows, totalCount } = response.data
+  if (rows.length > 0 && rows.length <= 10) {
+    const summary = rows.map((r) => ({
+      id: r.id,
+      exec: Object.fromEntries(
+        Object.entries(r.executions ?? {}).map(([gid, e]) => [gid, e?.status ?? null])
+      ),
+    }))
+    logger.info(`[STOP-DEBUG] fetch /rows returned ${JSON.stringify(summary)}`)
+  }
   return { rows, totalCount }
 }
 
@@ -258,9 +267,17 @@ export function useTableRows({
 
     onTableRowUpdated((event) => {
       if (event.tableId !== tableId) return
+      const incomingExec = Object.fromEntries(
+        Object.entries(
+          (event.executions as Record<string, { status?: string }> | undefined) ?? {}
+        ).map(([gid, e]) => [gid, e?.status ?? null])
+      )
       // While an optimistic mutation is in flight, applying the socket delta
       // could clobber the optimistic state — defer to onSettled invalidate.
       if (queryClient.isMutating() > 0) {
+        logger.info(
+          `[STOP-DEBUG] socket row=${event.rowId} (mutation in flight → invalidate) incoming=${JSON.stringify(incomingExec)}`
+        )
         queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
         return
       }
@@ -286,6 +303,15 @@ export function useTableRows({
               totalCount: current.totalCount === null ? null : current.totalCount + 1,
             }
           }
+          const prevExec = Object.fromEntries(
+            Object.entries(current.rows[idx].executions ?? {}).map(([gid, e]) => [
+              gid,
+              e?.status ?? null,
+            ])
+          )
+          logger.info(
+            `[STOP-DEBUG] socket merge row=${event.rowId} prev=${JSON.stringify(prevExec)} incoming=${JSON.stringify(incomingExec)}`
+          )
           const merged = {
             ...current.rows[idx],
             data: incoming.data,
@@ -773,9 +799,13 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
       return res.json() as Promise<{ success: true; data: { cancelled: number } }>
     },
     onMutate: async ({ scope, rowId }) => {
+      logger.info(`[STOP-DEBUG] cancel onMutate scope=${scope} rowId=${rowId ?? 'all'}`)
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
         if (scope === 'row' && r.id !== rowId) return null
         const executions = (r.executions ?? {}) as RowExecutions
+        const before = Object.fromEntries(
+          Object.entries(executions).map(([gid, e]) => [gid, e?.status ?? null])
+        )
         let rowTouched = false
         const nextExecutions: RowExecutions = { ...executions }
         for (const gid in executions) {
@@ -793,6 +823,14 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
             ...(exec.blockErrors ? { blockErrors: exec.blockErrors } : {}),
           }
           rowTouched = true
+        }
+        if (rowTouched) {
+          const after = Object.fromEntries(
+            Object.entries(nextExecutions).map(([gid, e]) => [gid, e?.status ?? null])
+          )
+          logger.info(
+            `[STOP-DEBUG] cancel optimistic row=${r.id} before=${JSON.stringify(before)} after=${JSON.stringify(after)}`
+          )
         }
         return rowTouched ? { ...r, executions: nextExecutions } : null
       })

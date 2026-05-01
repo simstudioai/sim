@@ -78,6 +78,12 @@ const logger = createLogger('TableService')
  * server can broadcast to subscribed clients in the table room.
  */
 function notifyTableRowUpdated(tableId: string, row: TableRow): void {
+  const execStates = Object.fromEntries(
+    Object.entries(row.executions ?? {}).map(([gid, e]) => [gid, e?.status ?? null])
+  )
+  logger.info(
+    `[STOP-DEBUG] notify row=${row.id} exec=${JSON.stringify(execStates)}`
+  )
   void fetch(`${getSocketServerUrl()}/api/table-row-updated`, {
     method: 'POST',
     headers: {
@@ -1560,7 +1566,15 @@ export async function updateRow(
 
   if (updated.length === 0) {
     // Guard rejected — DB already shows the cancelled state for this run.
+    logger.info(
+      `[STOP-DEBUG] guard REJECTED row=${data.rowId} group=${guard?.groupId} executionId=${guard?.executionId} attemptedStatus=${data.executionsPatch?.[guard?.groupId ?? '']?.status}`
+    )
     return null
+  }
+  if (guard) {
+    logger.info(
+      `[STOP-DEBUG] guard PASSED row=${data.rowId} group=${guard.groupId} executionId=${guard.executionId} wroteStatus=${data.executionsPatch?.[guard.groupId]?.status}`
+    )
   }
 
   logger.info(`[${requestId}] Updated row ${data.rowId} in table ${data.tableId}`)
