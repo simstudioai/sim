@@ -1,6 +1,14 @@
 import { z } from 'zod'
-import { internalToolResponseSchema } from '@/lib/api/contracts/tools/internal/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+
+const internalToolResponseSchema = z
+  .object({
+    success: z.boolean().optional(),
+    output: z.unknown().optional(),
+    error: z.string().optional(),
+    details: z.array(z.unknown()).optional(),
+  })
+  .passthrough()
 
 const sapHttpMethodSchema = z.enum(['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'MERGE'])
 const sapDeploymentTypeSchema = z.enum(['cloud_public', 'cloud_private', 'on_premise'])

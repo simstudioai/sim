@@ -1,6 +1,14 @@
 import { z } from 'zod'
-import { internalToolResponseSchema } from '@/lib/api/contracts/tools/internal/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+
+const internalToolResponseSchema = z
+  .object({
+    success: z.boolean().optional(),
+    output: z.unknown().optional(),
+    error: z.string().optional(),
+    details: z.array(z.unknown()).optional(),
+  })
+  .passthrough()
 
 const a2aBaseBodySchema = z.object({
   agentUrl: z.string().min(1, 'Agent URL is required'),

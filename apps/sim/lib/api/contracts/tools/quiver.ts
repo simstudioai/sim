@@ -1,7 +1,15 @@
 import { z } from 'zod'
-import { internalToolResponseSchema } from '@/lib/api/contracts/tools/internal/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
+
+const internalToolResponseSchema = z
+  .object({
+    success: z.boolean().optional(),
+    output: z.unknown().optional(),
+    error: z.string().optional(),
+    details: z.array(z.unknown()).optional(),
+  })
+  .passthrough()
 
 const quiverCommonBodySchema = z.object({
   apiKey: z.string().min(1),
