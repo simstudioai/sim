@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
   Button,
+  Checkbox,
   Combobox,
   type ComboboxOption,
   Input,
@@ -75,6 +76,7 @@ const FormSchema = z
       .max(500, 'Overlap must be less than 500 tokens'),
     strategy: z.enum(['auto', 'text', 'regex', 'recursive', 'sentence', 'token']).default('auto'),
     regexPattern: z.string().optional(),
+    regexStrictBoundaries: z.boolean().default(false),
     customSeparators: z.string().optional(),
   })
   .refine(
@@ -175,6 +177,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
       overlapSize: 200,
       strategy: 'auto',
       regexPattern: '',
+      regexStrictBoundaries: false,
       customSeparators: '',
     },
     mode: 'onSubmit',
@@ -182,6 +185,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
 
   const nameValue = watch('name')
   const strategyValue = watch('strategy')
+  const regexStrictBoundariesValue = watch('regexStrictBoundaries')
 
   useEffect(() => {
     if (open) {
@@ -199,6 +203,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
         overlapSize: 200,
         strategy: 'auto',
         regexPattern: '',
+        regexStrictBoundaries: false,
         customSeparators: '',
       })
     }
@@ -304,7 +309,10 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     try {
       const strategyOptions: StrategyOptions | undefined =
         data.strategy === 'regex' && data.regexPattern
-          ? { pattern: data.regexPattern }
+          ? {
+              pattern: data.regexPattern,
+              ...(data.regexStrictBoundaries && { strictBoundaries: true }),
+            }
           : data.strategy === 'recursive' && data.customSeparators?.trim()
             ? {
                 separators: data.customSeparators
@@ -495,6 +503,28 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                     <p className='text-[var(--text-muted)] text-xs'>
                       Text will be split at each match of this regex pattern.
                     </p>
+                    <label
+                      htmlFor='regexStrictBoundaries'
+                      className='mt-1 flex cursor-pointer items-start gap-2'
+                    >
+                      <Checkbox
+                        id='regexStrictBoundaries'
+                        checked={regexStrictBoundariesValue}
+                        onCheckedChange={(checked) =>
+                          setValue('regexStrictBoundaries', checked === true)
+                        }
+                        className='mt-0.5'
+                      />
+                      <div className='flex flex-col gap-0.5'>
+                        <span className='text-[var(--text-primary)] text-sm'>
+                          Each match is its own chunk (don&apos;t merge)
+                        </span>
+                        <span className='text-[var(--text-muted)] text-xs'>
+                          Preserve boundaries exactly. Recommended when each match is a discrete
+                          record (e.g. one QA pair per chunk).
+                        </span>
+                      </div>
+                    </label>
                   </div>
                 )}
 

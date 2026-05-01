@@ -54,6 +54,7 @@ export interface StrategyOptions {
   pattern?: string
   separators?: string[]
   recipe?: RecursiveRecipe
+  strictBoundaries?: boolean
 }
 
 export interface SentenceChunkerOptions extends ChunkerOptions {
@@ -67,4 +68,11 @@ export interface RecursiveChunkerOptions extends ChunkerOptions {
 
 export interface RegexChunkerOptions extends ChunkerOptions {
   pattern: string
+  /**
+   * When true, each regex match becomes its own chunk and small adjacent
+   * segments are not merged together. Overlap is also disabled. Useful for
+   * structural inputs where boundaries (e.g. one record per match) must be
+   * preserved exactly.
+   */
+  strictBoundaries?: boolean
 }

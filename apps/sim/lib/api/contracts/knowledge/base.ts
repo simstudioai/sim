@@ -21,6 +21,7 @@ export const chunkingStrategyOptionsSchema = z
     pattern: z.string().max(500).optional(),
     separators: z.array(z.string()).optional(),
     recipe: z.enum(['plain', 'markdown', 'code']).optional(),
+    strictBoundaries: z.boolean().optional(),
   })
   .strict() satisfies z.ZodType<StrategyOptions>
 
