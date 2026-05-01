@@ -380,13 +380,25 @@ export async function checkUniqueConstraintsDb(
 }
 
 /**
+ * Minimal executor surface needed by unique-constraint checks. Both `db` and a
+ * drizzle transaction (`trx`) satisfy this, letting callers run the lookup
+ * inside an open transaction so it observes uncommitted prior-batch inserts.
+ */
+type UniqueCheckExecutor = Pick<typeof db, 'select'>
+
+/**
  * Checks unique constraints for a batch of rows using targeted database queries.
  * Validates both against existing database rows and within the batch itself.
+ *
+ * Pass a transaction as `executor` when running inside an open tx so the lookup
+ * sees rows inserted by earlier batches in the same transaction; otherwise the
+ * default `db` connection only observes committed state.
  */
 export async function checkBatchUniqueConstraintsDb(
   tableId: string,
   rows: RowData[],
-  schema: TableSchema
+  schema: TableSchema,
+  executor: UniqueCheckExecutor = db
 ): Promise<{ valid: boolean; errors: Array<{ row: number; errors: string[] }> }> {
   const uniqueColumns = getUniqueColumns(schema)
   const rowErrors: Array<{ row: number; errors: string[] }> = []
@@ -458,7 +470,7 @@ export async function checkBatchUniqueConstraintsDb(
       return sql`(${userTableRows.data}->${sql.raw(`'${columnName}'`)})::jsonb = ${normalizedValue}::jsonb`
     })
 
-    const conflictingRows = await db
+    const conflictingRows = await executor
       .select({
         id: userTableRows.id,
         data: userTableRows.data,

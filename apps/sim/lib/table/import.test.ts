@@ -12,10 +12,10 @@ import {
   parseCsvBuffer,
   sanitizeName,
   validateMapping,
-} from '@/lib/table/csv-import'
+} from '@/lib/table/import'
 import type { TableSchema } from '@/lib/table/types'
 
-describe('csv-import', () => {
+describe('import', () => {
   describe('parseCsvBuffer', () => {
     it('parses a CSV string and extracts headers', async () => {
       const { headers, rows } = await parseCsvBuffer('a,b\n1,2\n3,4')

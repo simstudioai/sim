@@ -1,26 +1,34 @@
+import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   csvExtensionSchema,
+  csvImportCreateColumnsSchema,
   csvImportFormSchema,
   csvImportMappingSchema,
   csvImportModeSchema,
+  tableIdParamsSchema,
 } from '@/lib/api/contracts/tables'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  batchInsertRows,
+  addTableColumnsWithTx,
+  batchInsertRowsWithTx,
   buildAutoMapping,
   CSV_MAX_BATCH_SIZE,
   type CsvHeaderMapping,
   CsvImportValidationError,
   coerceRowsForTable,
+  inferColumnType,
   parseCsvBuffer,
-  replaceTableRows,
+  replaceTableRowsWithTx,
+  sanitizeName,
+  type TableDefinition,
+  type TableSchema,
   validateMapping,
 } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
@@ -33,7 +41,7 @@ interface RouteParams {
 
 export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
-  const { tableId } = await params
+  const { tableId } = tableIdParamsSchema.parse(await params)
 
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -48,6 +56,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     })
     const rawMode = formData.get('mode') ?? 'append'
     const rawMapping = formData.get('mapping')
+    const rawCreateColumns = formData.get('createColumns')
 
     if (!formValidation.success) {
       return NextResponse.json(
@@ -61,7 +70,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     const modeValidation = csvImportModeSchema.safeParse(rawMode)
     if (!modeValidation.success) {
       return NextResponse.json(
-        { error: `Invalid mode "${rawMode}". Must be "append" or "replace".` },
+        { error: `Invalid mode "${String(rawMode)}". Must be "append" or "replace".` },
         { status: 400 }
       )
     }
@@ -104,18 +113,75 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       mapping = mappingValidation.data
     }
 
+    let createColumns: string[] | undefined
+    if (rawCreateColumns) {
+      const createColumnsValidation = csvImportCreateColumnsSchema.safeParse(rawCreateColumns)
+      if (!createColumnsValidation.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(createColumnsValidation.error) },
+          { status: 400 }
+        )
+      }
+      createColumns = createColumnsValidation.data
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer())
     const delimiter = extensionValidation.data === 'tsv' ? '\t' : ','
     const { headers, rows } = await parseCsvBuffer(buffer, delimiter)
 
-    const effectiveMapping = mapping ?? buildAutoMapping(headers, table.schema)
+    let effectiveMapping = mapping ?? buildAutoMapping(headers, table.schema)
+    let prospectiveTable: TableDefinition = table
+    const additions: { name: string; type: string }[] = []
+
+    if (createColumns && createColumns.length > 0) {
+      const headerSet = new Set(headers)
+      const unknownHeaders = createColumns.filter((h) => !headerSet.has(h))
+      if (unknownHeaders.length > 0) {
+        return NextResponse.json(
+          {
+            error: `createColumns references unknown CSV headers: ${unknownHeaders.join(', ')}`,
+          },
+          { status: 400 }
+        )
+      }
+
+      const usedNames = new Set(table.schema.columns.map((c) => c.name.toLowerCase()))
+      const updatedMapping: CsvHeaderMapping = { ...effectiveMapping }
+      const newColumns: TableSchema['columns'] = []
+
+      for (const header of createColumns) {
+        const base = sanitizeName(header)
+        let columnName = base
+        let suffix = 2
+        while (usedNames.has(columnName.toLowerCase())) {
+          columnName = `${base}_${suffix}`
+          suffix++
+        }
+        usedNames.add(columnName.toLowerCase())
+        const inferredType = inferColumnType(rows.map((r) => r[header]))
+        additions.push({ name: columnName, type: inferredType })
+        newColumns.push({
+          name: columnName,
+          type: inferredType as TableSchema['columns'][number]['type'],
+          required: false,
+          unique: false,
+        })
+        updatedMapping[header] = columnName
+      }
+
+      prospectiveTable = {
+        ...table,
+        schema: { columns: [...table.schema.columns, ...newColumns] },
+      }
+      effectiveMapping = updatedMapping
+    }
 
     let validation: ReturnType<typeof validateMapping>
     try {
       validation = validateMapping({
         csvHeaders: headers,
         mapping: effectiveMapping,
-        tableSchema: table.schema,
+        tableSchema: prospectiveTable.schema,
       })
     } catch (err) {
       if (err instanceof CsvImportValidationError) {
@@ -127,47 +193,79 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     if (validation.mappedHeaders.length === 0) {
       return NextResponse.json(
         {
-          error: `No CSV headers map to columns on the table. CSV headers: ${headers.join(', ')}. Table columns: ${table.schema.columns.map((c) => c.name).join(', ')}`,
+          error: `No CSV headers map to columns on the table. CSV headers: ${headers.join(', ')}. Table columns: ${prospectiveTable.schema.columns.map((c) => c.name).join(', ')}`,
         },
         { status: 400 }
       )
     }
 
-    const coerced = coerceRowsForTable(rows, table.schema, validation.effectiveMap)
+    const coerced = coerceRowsForTable(rows, prospectiveTable.schema, validation.effectiveMap)
 
     if (mode === 'append') {
-      if (table.rowCount + coerced.length > table.maxRows) {
-        const deficit = table.rowCount + coerced.length - table.maxRows
+      if (prospectiveTable.rowCount + coerced.length > prospectiveTable.maxRows) {
+        const deficit = prospectiveTable.rowCount + coerced.length - prospectiveTable.maxRows
         return NextResponse.json(
           {
-            error: `Append would exceed table row limit (${table.maxRows}). Currently ${table.rowCount} rows, ${coerced.length} new rows, ${deficit} over.`,
+            error: `Append would exceed table row limit (${prospectiveTable.maxRows}). Currently ${prospectiveTable.rowCount} rows, ${coerced.length} new rows, ${deficit} over.`,
           },
           { status: 400 }
         )
       }
 
-      let inserted = 0
       try {
-        for (let i = 0; i < coerced.length; i += CSV_MAX_BATCH_SIZE) {
-          const batch = coerced.slice(i, i + CSV_MAX_BATCH_SIZE)
-          const batchRequestId = generateId().slice(0, 8)
-          const result = await batchInsertRows(
-            {
-              tableId: table.id,
-              rows: batch,
-              workspaceId,
-              userId: authResult.userId,
-            },
-            table,
-            batchRequestId
-          )
-          inserted += result.length
-        }
+        const inserted = await db.transaction(async (trx) => {
+          let working = table
+          if (additions.length > 0) {
+            working = await addTableColumnsWithTx(trx, table, additions, requestId)
+          }
+
+          let total = 0
+          for (let i = 0; i < coerced.length; i += CSV_MAX_BATCH_SIZE) {
+            const batch = coerced.slice(i, i + CSV_MAX_BATCH_SIZE)
+            const batchRequestId = generateId().slice(0, 8)
+            const result = await batchInsertRowsWithTx(
+              trx,
+              {
+                tableId: working.id,
+                rows: batch,
+                workspaceId,
+                userId: authResult.userId,
+              },
+              working,
+              batchRequestId
+            )
+            total += result.length
+          }
+          return total
+        })
+
+        logger.info(`[${requestId}] Append CSV imported`, {
+          tableId: table.id,
+          fileName: file.name,
+          mode,
+          inserted,
+          createdColumns: additions.length,
+          mappedColumns: validation.mappedHeaders.length,
+          skippedHeaders: validation.skippedHeaders.length,
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            tableId: table.id,
+            mode,
+            insertedCount: inserted,
+            mappedColumns: validation.mappedHeaders,
+            skippedHeaders: validation.skippedHeaders,
+            unmappedColumns: validation.unmappedColumns,
+            sourceFile: file.name,
+          },
+        })
       } catch (err) {
         const message = toError(err).message
-        logger.warn(`[${requestId}] Append failed mid-import for table ${tableId}`, {
-          inserted,
+        logger.warn(`[${requestId}] Append failed for table ${tableId}`, {
           total: coerced.length,
+          createdColumns: additions.length,
           error: message,
         })
         const isClientError =
@@ -176,45 +274,32 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
           message.includes('Schema validation') ||
           message.includes('must be unique') ||
           message.includes('Row size exceeds') ||
+          message.includes('already exists') ||
+          message.includes('Invalid column name') ||
           /^Row \d+:/.test(message)
         return NextResponse.json(
           {
             error: isClientError ? message : 'Failed to import CSV',
-            data: { insertedCount: inserted },
+            data: { insertedCount: 0 },
           },
           { status: isClientError ? 400 : 500 }
         )
       }
-
-      logger.info(`[${requestId}] Append CSV imported`, {
-        tableId: table.id,
-        fileName: file.name,
-        mode,
-        inserted,
-        mappedColumns: validation.mappedHeaders.length,
-        skippedHeaders: validation.skippedHeaders.length,
-      })
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          tableId: table.id,
-          mode,
-          insertedCount: inserted,
-          mappedColumns: validation.mappedHeaders,
-          skippedHeaders: validation.skippedHeaders,
-          unmappedColumns: validation.unmappedColumns,
-          sourceFile: file.name,
-        },
-      })
     }
 
     try {
-      const result = await replaceTableRows(
-        { tableId: table.id, rows: coerced, workspaceId, userId: authResult.userId },
-        table,
-        requestId
-      )
+      const result = await db.transaction(async (trx) => {
+        let working = table
+        if (additions.length > 0) {
+          working = await addTableColumnsWithTx(trx, table, additions, requestId)
+        }
+        return replaceTableRowsWithTx(
+          trx,
+          { tableId: working.id, rows: coerced, workspaceId, userId: authResult.userId },
+          working,
+          requestId
+        )
+      })
 
       logger.info(`[${requestId}] Replace CSV imported`, {
         tableId: table.id,
@@ -222,6 +307,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
         mode,
         deleted: result.deletedCount,
         inserted: result.insertedCount,
+        createdColumns: additions.length,
         mappedColumns: validation.mappedHeaders.length,
       })
 
@@ -245,6 +331,8 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
         message.includes('Schema validation') ||
         message.includes('must be unique') ||
         message.includes('Row size exceeds') ||
+        message.includes('already exists') ||
+        message.includes('Invalid column name') ||
         /^Row \d+:/.test(message)
       if (isClientError) {
         return NextResponse.json({ error: message }, { status: 400 })

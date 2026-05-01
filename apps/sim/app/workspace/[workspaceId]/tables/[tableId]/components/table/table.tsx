@@ -1,12 +1,14 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
   Button,
   Checkbox,
   DatePicker,
+  Download,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -21,6 +23,7 @@ import {
   ModalFooter,
   ModalHeader,
   Skeleton,
+  toast,
   Upload,
 } from '@/components/emcn'
 import {
@@ -47,6 +50,7 @@ import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import {
+  downloadTableExport,
   useAddTableColumn,
   useBatchCreateTableRows,
   useBatchUpdateTableRows,
@@ -86,6 +90,8 @@ interface NormalizedSelection {
   anchorRow: number
   anchorCol: number
 }
+
+const logger = createLogger('TableView')
 
 const EMPTY_COLUMNS: never[] = []
 const EMPTY_CHECKED_ROWS = new Set<number>()
@@ -226,11 +232,27 @@ export function Table({
   const scrollRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
 
-  const { tableData, isLoadingTable, rows, isLoadingRows } = useTableData({
+  const {
+    tableData,
+    isLoadingTable,
+    rows,
+    isLoadingRows,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useTableData({
     workspaceId,
     tableId,
     queryOptions,
   })
+
+  const fetchNextPageRef = useRef(fetchNextPage)
+  fetchNextPageRef.current = fetchNextPage
+  const hasNextPageRef = useRef(hasNextPage)
+  hasNextPageRef.current = hasNextPage
+  const isFetchingNextPageRef = useRef(isFetchingNextPage)
+  isFetchingNextPageRef.current = isFetchingNextPage
+  const isAppendingRowRef = useRef(false)
 
   const userPermissions = useUserPermissionsContext()
   const canEditRef = useRef(userPermissions.canEdit)
@@ -577,7 +599,21 @@ export function Table({
     )
   }, [contextMenu.row, closeContextMenu])
 
-  const handleAppendRow = useCallback(() => {
+  const handleAppendRow = useCallback(async () => {
+    if (isAppendingRowRef.current) return
+    isAppendingRowRef.current = true
+    try {
+      while (hasNextPageRef.current) {
+        const result = await fetchNextPageRef.current()
+        if (!result.hasNextPage) break
+      }
+    } catch (error) {
+      isAppendingRowRef.current = false
+      logger.error('Failed to load remaining rows before appending', { error })
+      toast.error('Failed to load all rows. Try again.', { duration: 5000 })
+      return
+    }
+
     createRef.current(
       { data: {} },
       {
@@ -590,6 +626,9 @@ export function Table({
               position: maxPositionRef.current + 1,
             })
           }
+        },
+        onSettled: () => {
+          isAppendingRowRef.current = false
         },
       }
     )
@@ -888,6 +927,30 @@ export function Table({
   function handleScrollDrop(e: React.DragEvent) {
     e.preventDefault()
   }
+
+  useEffect(() => {
+    const scrollEl = scrollRef.current
+    if (!scrollEl) return
+
+    const SCROLL_PREFETCH_PX = 600
+
+    function maybeFetchNext() {
+      if (!hasNextPageRef.current || isFetchingNextPageRef.current) return
+      if (!scrollEl) return
+      const distanceFromBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight
+      if (distanceFromBottom <= SCROLL_PREFETCH_PX) {
+        fetchNextPageRef.current().catch((error) => {
+          logger.error('Failed to fetch next page of rows', { error })
+        })
+      }
+    }
+
+    maybeFetchNext()
+    scrollEl.addEventListener('scroll', maybeFetchNext, { passive: true })
+    return () => {
+      scrollEl.removeEventListener('scroll', maybeFetchNext)
+    }
+  }, [tableData?.id])
 
   useEffect(() => {
     if (!tableData?.metadata || metadataSeededRef.current) return
@@ -1954,6 +2017,16 @@ export function Table({
     [handleAddColumn, addColumnMutation.isPending]
   )
 
+  const handleExportCsv = useCallback(async () => {
+    if (!tableData) return
+    try {
+      await downloadTableExport(tableData.id, tableData.name)
+    } catch (err) {
+      logger.error('Failed to export table:', err)
+      toast.error('Failed to export table')
+    }
+  }, [tableData])
+
   const headerActions = useMemo(
     () =>
       tableData
@@ -1964,9 +2037,15 @@ export function Table({
               onClick: () => setIsImportCsvOpen(true),
               disabled: userPermissions.canEdit !== true,
             },
+            {
+              label: 'Export CSV',
+              icon: Download,
+              onClick: () => void handleExportCsv(),
+              disabled: tableData.rowCount === 0,
+            },
           ]
         : undefined,
-    [tableData, userPermissions.canEdit]
+    [tableData, userPermissions.canEdit, handleExportCsv]
   )
 
   const activeSortState = useMemo(() => {
