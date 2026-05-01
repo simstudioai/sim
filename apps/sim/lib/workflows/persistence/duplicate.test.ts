@@ -277,4 +277,109 @@ describe('duplicateWorkflow ordering', () => {
     expect(copiedSubBlocks.variables.value[0].variableName).toBe('customerName')
     expect(insertedBlocks?.[0].locked).toBe(false)
   })
+
+  it('remaps variable assignments when duplicating an already-duplicated source (array value)', async () => {
+    let insertedBlocks: Array<Record<string, unknown>> | null = null
+    let insertedWorkflowValues: Record<string, unknown> | null = null
+    const tx = createMockTx(
+      [
+        [
+          {
+            id: 'first-copy-workflow-id',
+            workspaceId: 'workspace-123',
+            folderId: null,
+            description: 'first copy',
+            color: '#000000',
+            variables: {
+              'first-copy-var-id': {
+                id: 'first-copy-var-id',
+                workflowId: 'first-copy-workflow-id',
+                name: 'customerName',
+                type: 'string',
+                value: 'Ada',
+              },
+            },
+          },
+        ],
+        [],
+        [],
+        [
+          {
+            id: 'first-copy-block-id',
+            workflowId: 'first-copy-workflow-id',
+            type: 'agent',
+            name: 'Agent',
+            parentId: null,
+            extent: null,
+            data: {},
+            subBlocks: {
+              variables: {
+                id: 'variables',
+                type: 'variables-input',
+                value: [
+                  {
+                    id: 'assignment-1',
+                    variableId: 'first-copy-var-id',
+                    variableName: 'customerName',
+                    type: 'string',
+                    value: 'Grace',
+                    isExisting: true,
+                  },
+                ],
+              },
+            },
+            position: { x: 0, y: 0 },
+            enabled: true,
+            horizontalHandles: true,
+            isWide: false,
+            height: 0,
+            advancedMode: false,
+            triggerMode: false,
+            locked: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+        [],
+        [],
+      ],
+      (values) => {
+        if (!insertedWorkflowValues && !Array.isArray(values)) {
+          insertedWorkflowValues = values
+        }
+      },
+      (values) => {
+        if (Array.isArray(values)) {
+          insertedBlocks = values as Array<Record<string, unknown>>
+        }
+      }
+    )
+
+    mockDb.transaction.mockImplementation(async (callback: (txArg: unknown) => Promise<unknown>) =>
+      callback(tx)
+    )
+
+    await duplicateWorkflow({
+      sourceWorkflowId: 'first-copy-workflow-id',
+      userId: 'user-123',
+      name: 'Duplicated Again',
+      workspaceId: 'workspace-123',
+      folderId: null,
+      requestId: 'req-second-copy',
+    })
+
+    expect(insertedBlocks).toHaveLength(1)
+    const copiedSubBlocks = insertedBlocks?.[0].subBlocks as Record<string, any>
+    expect(Array.isArray(copiedSubBlocks.variables.value)).toBe(true)
+    expect(copiedSubBlocks.variables.value).toHaveLength(1)
+
+    const newVarIds = Object.keys(
+      (insertedWorkflowValues?.variables as Record<string, unknown>) || {}
+    )
+    expect(newVarIds).toHaveLength(1)
+    const remappedVarId = copiedSubBlocks.variables.value[0].variableId
+    expect(remappedVarId).not.toBe('first-copy-var-id')
+    expect(remappedVarId).toBe(newVarIds[0])
+    expect(copiedSubBlocks.variables.value[0].variableName).toBe('customerName')
+  })
 })
