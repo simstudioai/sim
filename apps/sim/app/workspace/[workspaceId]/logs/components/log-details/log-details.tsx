@@ -269,10 +269,7 @@ interface LogDetailsContentProps {
  * embedded directly inside the Mothership resource panel — keep the two in
  * sync by editing this component, not by re-implementing it elsewhere.
  */
-export const LogDetailsContent = memo(function LogDetailsContent({
-  log,
-  onActiveTabChange,
-}: LogDetailsContentProps) {
+export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentProps) {
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<LogDetailsTab>('overview')
   const [prevLogId, setPrevLogId] = useState(log.id)
@@ -619,7 +616,7 @@ export const LogDetailsContent = memo(function LogDetailsContent({
       )}
     </>
   )
-})
+}
 
 interface LogDetailsProps {
   /** The log to display details for */
