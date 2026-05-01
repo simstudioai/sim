@@ -208,9 +208,9 @@ export const useTemplateContract = defineRouteContract({
 
 export const updateTemplateOgImageBodySchema = z
   .object({
-    imageData: z.string().optional(),
+    imageData: z.string().min(1, 'imageData is required (base64-encoded PNG)'),
   })
-  .passthrough()
+  .strict()
 export type UpdateTemplateOgImageBody = z.input<typeof updateTemplateOgImageBodySchema>
 
 export const updateTemplateOgImageResponseSchema = z.object({

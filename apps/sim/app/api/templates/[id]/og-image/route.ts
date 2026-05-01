@@ -23,14 +23,18 @@ const logger = createLogger('TemplateOGImageAPI')
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await context.params
 
     try {
       const session = await getSession()
       if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized OG image upload attempt for template: ${id}`)
+        logger.warn(`[${requestId}] Unauthorized OG image upload attempt`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
+
+      const parsed = await parseRequest(updateTemplateOgImageContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id } = parsed.data.params
+      const { imageData } = parsed.data.body
 
       const { authorized, error, status } = await verifyTemplateOwnership(
         id,
@@ -40,17 +44,6 @@ export const PUT = withRouteHandler(
       if (!authorized) {
         logger.warn(`[${requestId}] User denied permission to upload OG image for template ${id}`)
         return NextResponse.json({ error }, { status: status || 403 })
-      }
-
-      const parsed = await parseRequest(updateTemplateOgImageContract, request, context)
-      if (!parsed.success) return parsed.response
-      const { imageData } = parsed.data.body
-
-      if (!imageData || typeof imageData !== 'string') {
-        return NextResponse.json(
-          { error: 'Missing or invalid imageData (expected base64 string)' },
-          { status: 400 }
-        )
       }
 
       const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData
@@ -100,7 +93,7 @@ export const PUT = withRouteHandler(
         ogImageUrl,
       })
     } catch (error: unknown) {
-      logger.error(`[${requestId}] Error uploading OG image for template ${id}:`, error)
+      logger.error(`[${requestId}] Error uploading OG image:`, error)
       return NextResponse.json({ error: 'Failed to upload OG image' }, { status: 500 })
     }
   }

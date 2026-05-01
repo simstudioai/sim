@@ -33,17 +33,17 @@ interface TemplateDetails {
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await context.params
 
     try {
       const session = await getSession()
       if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized use attempt for template: ${id}`)
+        logger.warn(`[${requestId}] Unauthorized template use attempt`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
       const parsed = await parseRequest(useTemplateContract, request, context)
       if (!parsed.success) return parsed.response
+      const { id } = parsed.data.params
       const { workspaceId, connectToTemplate = false } = parsed.data.body
 
       if (!workspaceId) {
@@ -228,7 +228,7 @@ export const POST = withRouteHandler(
         { status: 201 }
       )
     } catch (error: any) {
-      logger.error(`[${requestId}] Error using template: ${id}`, error)
+      logger.error(`[${requestId}] Error using template`, error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
   }
