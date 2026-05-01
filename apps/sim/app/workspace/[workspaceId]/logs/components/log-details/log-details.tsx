@@ -315,7 +315,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
   const prevResolvedTabRef = useRef<LogDetailsTab>(resolvedTab)
   if (prevResolvedTabRef.current !== resolvedTab) {
     prevResolvedTabRef.current = resolvedTab
-    if (resolvedTab !== activeTab) onActiveTabChange?.(resolvedTab)
+    onActiveTabChange?.(resolvedTab)
   }
 
   const workflowOutput = useMemo(() => {
