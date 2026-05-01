@@ -90,7 +90,7 @@ export function useWebhookInfo(blockId: string, workflowId: string): UseWebhookI
 
       if (webhooks.length > 0) {
         const webhook = webhooks[0].webhook
-        const isActive = (webhook as { isActive?: boolean }).isActive !== false
+        const isActive = webhook.isActive !== false
         setWebhookStatus({
           isDisabled: !isActive,
           webhookId: webhook.id,

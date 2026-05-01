@@ -18,6 +18,7 @@ export const webhookDataSchema = z
     id: z.string(),
     path: z.string().optional(),
     providerConfig: webhookProviderConfigSchema.optional(),
+    isActive: z.boolean().optional(),
   })
   .passthrough()
 
