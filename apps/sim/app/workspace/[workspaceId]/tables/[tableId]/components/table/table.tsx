@@ -282,6 +282,13 @@ const CELL_CONTENT =
   'relative min-h-[20px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-small'
 const SELECTION_OVERLAY =
   'pointer-events-none absolute -top-px -right-px -bottom-px -left-px z-[5] border-[2px] border-[var(--selection)]'
+/**
+ * Soft tint applied to selected rows / group / cell bands. Uses brand blue at
+ * 6% so it reads as a subtle highlight on top of the table background. Kept
+ * here as a constant since `--selection-tint` isn't in the global tokens yet
+ * and updating globals is out of scope per project rules.
+ */
+const SELECTION_TINT_BG = 'bg-[rgba(37,99,235,0.06)]'
 
 function moveCell(
   anchor: CellCoord,
@@ -2867,7 +2874,10 @@ export function Table({
             {dropColumnBounds !== null && (
               <>
                 <div
-                  className='pointer-events-none absolute top-0 z-[15] h-full bg-[rgba(37,99,235,0.06)]'
+                  className={cn(
+                    'pointer-events-none absolute top-0 z-[15] h-full',
+                    SELECTION_TINT_BG
+                  )}
                   style={{ left: dropColumnBounds.left, width: dropColumnBounds.width }}
                 />
                 <div
@@ -3148,7 +3158,8 @@ const PositionGapRows = React.memo(
                     {isHighlighted && (isMultiCell || isGapChecked) && (
                       <div
                         className={cn(
-                          '-top-px -right-px -bottom-px -left-px pointer-events-none absolute z-[4] bg-[rgba(37,99,235,0.06)]',
+                          '-top-px -right-px -bottom-px -left-px pointer-events-none absolute z-[4]',
+                          SELECTION_TINT_BG,
                           belowHeader && isTopEdge && 'top-0',
                           isTopEdge && 'border-t border-t-[var(--selection)]',
                           isBottomEdge && 'border-b border-b-[var(--selection)]',
@@ -3433,7 +3444,8 @@ const DataRow = React.memo(function DataRow({
             {isHighlighted && (isMultiCell || isRowChecked) && (
               <div
                 className={cn(
-                  '-top-px -right-px -bottom-px -left-px pointer-events-none absolute z-[4] bg-[rgba(37,99,235,0.06)]',
+                  '-top-px -right-px -bottom-px -left-px pointer-events-none absolute z-[4]',
+                  SELECTION_TINT_BG,
                   isFirstRow && isTopEdge && 'top-0',
                   isTopEdge && 'border-t border-t-[var(--selection)]',
                   isBottomEdge && 'border-b border-b-[var(--selection)]',
@@ -4059,7 +4071,7 @@ function WorkflowGroupMetaCell({
       onContextMenu={handleContextMenu}
       className={cn(
         'group relative cursor-pointer border-[var(--border)] border-r border-b border-l bg-[var(--bg)] px-2 py-[5px] text-left align-middle',
-        isGroupSelected && 'bg-[rgba(37,99,235,0.06)]'
+        isGroupSelected && SELECTION_TINT_BG
       )}
     >
       <div
@@ -4351,7 +4363,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     <th
       className={cn(
         'group relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle',
-        isColumnSelected && 'bg-[rgba(37,99,235,0.06)]'
+        isColumnSelected && SELECTION_TINT_BG
       )}
       draggable={!readOnly && !isRenaming}
       onDragStart={handleDragStart}

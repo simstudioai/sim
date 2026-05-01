@@ -5,8 +5,28 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, Loader2, Plus, RepeatIcon, SplitIcon, X } from 'lucide-react'
-import { Button, Checkbox, Combobox, Input, Label, Switch, Tooltip, toast } from '@/components/emcn'
+import {
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  Loader2,
+  Plus,
+  RepeatIcon,
+  SplitIcon,
+  X,
+} from 'lucide-react'
+import {
+  Button,
+  Checkbox,
+  Combobox,
+  Expandable,
+  ExpandableContent,
+  Input,
+  Label,
+  Switch,
+  Tooltip,
+  toast,
+} from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import type {
   AddWorkflowGroupBodyInput,
@@ -86,18 +106,16 @@ function slugifyColumnName(value: string): string {
 }
 
 function deriveOutputColumnName(blockName: string, path: string, taken: Set<string>): string {
-  // Try the bare path first — short and reads as the source field. Only escalate
-  // to longer names on collision so the common case stays clean.
-  const candidates = [slugifyColumnName(path), slugifyColumnName(`${blockName}_${path}`)]
-  for (const c of candidates) {
-    if (!taken.has(c)) return c
-  }
-  const last = candidates[candidates.length - 1]
-  for (let i = 2; i < 1000; i++) {
-    const candidate = `${last}_${i}`
+  // Use the bare path as the column name. On collision, append `_0`, `_1`, …
+  // so duplicate output paths read as a numbered series rather than the longer
+  // `${blockName}_${path}` form (which leaked block ids into column headers).
+  const base = slugifyColumnName(path)
+  if (!taken.has(base)) return base
+  for (let i = 0; i < 1000; i++) {
+    const candidate = `${base}_${i}`
     if (!taken.has(candidate)) return candidate
   }
-  return `${last}_${Date.now()}`
+  return `${base}_${Date.now()}`
 }
 
 const OUTPUT_VALUE_SEPARATOR = '::'
@@ -251,20 +269,161 @@ function WarningRow({
       className={cn(
         'flex items-center gap-2 rounded-md border px-2.5 py-2',
         tone === 'red'
-          ? 'border-destructive/40 bg-destructive/5'
-          : 'border-amber-500/40 bg-amber-500/5'
+          ? 'border-[color-mix(in_srgb,var(--text-error)_40%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)]'
+          : 'border-[var(--terminal-status-warning-border)] bg-[var(--terminal-status-warning-bg)]'
       )}
       role='status'
     >
       <span
         className={cn(
           'min-w-0 flex-1 text-caption',
-          tone === 'red' ? 'text-destructive' : 'text-amber-700 dark:text-amber-400'
+          tone === 'red'
+            ? 'text-[var(--text-error)]'
+            : 'text-[var(--terminal-status-warning-color)]'
         )}
       >
         {message}
       </span>
       <div className='shrink-0'>{action}</div>
+    </div>
+  )
+}
+
+/**
+ * Collapsible "Run settings" section. Collapsed by default since outputs are
+ * the primary focus of the workflow flow — most users never need to touch
+ * the trigger conditions. The header shows a one-line summary of when the
+ * group will fire so the current state is visible without expanding.
+ */
+function RunSettingsSection({
+  open,
+  onOpenChange,
+  summary,
+  scalarDepColumns,
+  groupDepOptions,
+  deps,
+  groupDeps,
+  workflows,
+  onToggleDep,
+  onToggleGroupDep,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  summary: string
+  scalarDepColumns: ColumnDefinition[]
+  groupDepOptions: WorkflowGroup[]
+  deps: string[]
+  groupDeps: string[]
+  workflows: WorkflowMetadata[] | undefined
+  onToggleDep: (name: string) => void
+  onToggleGroupDep: (groupId: string) => void
+}) {
+  return (
+    <div className='flex flex-col gap-[9.5px]'>
+      <button
+        type='button'
+        onClick={() => onOpenChange(!open)}
+        className='flex min-w-0 cursor-pointer flex-col items-start gap-0.5 rounded-md pl-0.5 text-left transition-colors hover:bg-[var(--surface-2)]'
+        aria-expanded={open}
+      >
+        <span className='flex items-center gap-1.5'>
+          {open ? (
+            <ChevronDown className='h-[12px] w-[12px] shrink-0 text-[var(--text-muted)]' />
+          ) : (
+            <ChevronRight className='h-[12px] w-[12px] shrink-0 text-[var(--text-muted)]' />
+          )}
+          <span className='font-medium text-[var(--text-primary)] text-small'>Run settings</span>
+        </span>
+        {!open && (
+          <span className='break-words pl-[18px] text-[var(--text-tertiary)] text-caption'>
+            {summary}
+          </span>
+        )}
+      </button>
+      <Expandable expanded={open}>
+        <ExpandableContent>
+          <div className='flex max-h-[240px] min-w-0 flex-col overflow-y-auto rounded-md border border-[var(--border)]'>
+            {scalarDepColumns.length === 0 && groupDepOptions.length === 0 ? (
+              <div className='px-2 py-3 text-[var(--text-tertiary)] text-small'>
+                No upstream columns or groups.
+              </div>
+            ) : (
+              <>
+                {scalarDepColumns.map((c, idx) => {
+                  const checked = deps.includes(c.name)
+                  const isLast = idx === scalarDepColumns.length - 1 && groupDepOptions.length === 0
+                  return (
+                    <div
+                      key={`col:${c.name}`}
+                      role='checkbox'
+                      aria-checked={checked}
+                      tabIndex={0}
+                      onClick={() => onToggleDep(c.name)}
+                      onKeyDown={(e) => {
+                        if (e.key === ' ' || e.key === 'Enter') {
+                          e.preventDefault()
+                          onToggleDep(c.name)
+                        }
+                      }}
+                      className={cn(
+                        'flex h-[36px] flex-shrink-0 cursor-pointer items-center gap-2.5 px-2.5 hover:bg-[var(--surface-2)]',
+                        !isLast && 'border-[var(--border)] border-b'
+                      )}
+                    >
+                      <Checkbox size='sm' checked={checked} className='pointer-events-none' />
+                      <span className='font-medium text-[var(--text-secondary)] text-small'>
+                        {c.name}
+                      </span>
+                      <span className='ml-auto text-[var(--text-tertiary)] text-caption'>
+                        {c.type}
+                      </span>
+                    </div>
+                  )
+                })}
+                {groupDepOptions.map((g, idx) => {
+                  const checked = groupDeps.includes(g.id)
+                  const isLast = idx === groupDepOptions.length - 1
+                  const wf = workflows?.find((w) => w.id === g.workflowId)
+                  const color = wf?.color ?? 'var(--text-muted)'
+                  const label = g.name ?? wf?.name ?? 'Workflow'
+                  return (
+                    <div
+                      key={`group:${g.id}`}
+                      role='checkbox'
+                      aria-checked={checked}
+                      tabIndex={0}
+                      onClick={() => onToggleGroupDep(g.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === ' ' || e.key === 'Enter') {
+                          e.preventDefault()
+                          onToggleGroupDep(g.id)
+                        }
+                      }}
+                      className={cn(
+                        'flex h-[36px] flex-shrink-0 cursor-pointer items-center gap-2.5 px-2.5 hover:bg-[var(--surface-2)]',
+                        !isLast && 'border-[var(--border)] border-b'
+                      )}
+                    >
+                      <Checkbox size='sm' checked={checked} className='pointer-events-none' />
+                      <span
+                        className='h-[10px] w-[10px] shrink-0 rounded-sm'
+                        style={{ backgroundColor: color }}
+                        aria-hidden='true'
+                      />
+                      <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-small'>
+                        {label}
+                      </span>
+                      <span className='ml-auto text-[var(--text-tertiary)] text-caption'>
+                        workflow
+                      </span>
+                    </div>
+                  )
+                })}
+              </>
+            )}
+          </div>
+        </ExpandableContent>
+      </Expandable>
     </div>
   )
 }
@@ -383,6 +542,9 @@ export function ColumnSidebar({
   /** Save-time error (network/validation thrown by the mutation). Rendered inline next to the footer
    *  buttons so it isn't covered by the toaster, which sits over the bottom-right of the panel. */
   const [saveError, setSaveError] = useState<string | null>(null)
+  /** Run settings (the trigger-deps picker) starts collapsed — outputs are the
+   *  primary task; configuring run timing is rare. */
+  const [runSettingsOpen, setRunSettingsOpen] = useState(false)
 
   const existingColumnRef = useRef(existingColumn)
   existingColumnRef.current = existingColumn
@@ -393,6 +555,7 @@ export function ColumnSidebar({
     if (!open || !configState) return
     setShowValidation(false)
     setSaveError(null)
+    setRunSettingsOpen(false)
     const existing = existingColumnRef.current
     const cols = allColumnsRef.current
     const leftOfCurrent = (() => {
@@ -676,6 +839,23 @@ export function ColumnSidebar({
   )
 
   /**
+   * One-line summary of the trigger picker shown when Run settings is collapsed.
+   * Lists the dep names ("Run when X, Y, are filled") so the user can see at a
+   * glance whether anything's gating the group without expanding the section.
+   */
+  const runSettingsSummary = useMemo(() => {
+    const names: string[] = [...deps]
+    for (const gid of groupDeps) {
+      const g = workflowGroups.find((gg) => gg.id === gid)
+      const wf = workflows?.find((w) => w.id === g?.workflowId)
+      const label = g?.name ?? wf?.name ?? 'workflow'
+      names.push(label)
+    }
+    if (names.length === 0) return 'Runs as soon as the group is added'
+    return `Runs when ${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} filled`
+  }, [deps, groupDeps, workflowGroups, workflows])
+
+  /**
    * Builds the ordered, deduplicated `(blockId, path)` list from the picker
    * state, sorted by execution order. Empty array if the user hasn't picked
    * anything.
@@ -745,11 +925,17 @@ export function ColumnSidebar({
     // Name is required iff the field is shown — when configuring a whole
     // workflow group at creation time, per-output column names are auto-derived
     // and the field is hidden, so don't gate save on it.
-    if (
-      (showColumnNameField && !trimmedName) ||
-      (isWorkflow && (!selectedWorkflowId || selectedOutputs.length === 0))
-    ) {
+    const missing: string[] = []
+    if (showColumnNameField && !trimmedName) missing.push('a column name')
+    if (isWorkflow && !selectedWorkflowId) missing.push('a workflow')
+    if (isWorkflow && selectedWorkflowId && selectedOutputs.length === 0) {
+      missing.push('at least one output column')
+    }
+    if (missing.length > 0) {
       setShowValidation(true)
+      // Surface a short summary near the Save button too — the inline FieldError
+      // can be scrolled out of view when the panel content is tall.
+      setSaveError(`Add ${missing.join(' and ')} before saving.`)
       return
     }
 
@@ -930,8 +1116,7 @@ export function ColumnSidebar({
               value={typeInput}
               onChange={(v) => setTypeInput(v as SidebarColumnType)}
               placeholder='Select type'
-              searchable
-              searchPlaceholder='Search types...'
+              maxHeight={260}
             />
           </div>
 
@@ -1128,94 +1313,11 @@ export function ColumnSidebar({
               <FieldDivider />
 
               <div className='flex flex-col gap-[9.5px]'>
-                <Label className='pl-0.5'>Trigger when these are ready</Label>
-                <div className='flex max-h-[240px] min-w-0 flex-col overflow-y-auto rounded-md border border-[var(--border)]'>
-                  {scalarDepColumns.length === 0 && groupDepOptions.length === 0 ? (
-                    <div className='px-2 py-3 text-[var(--text-tertiary)] text-small'>
-                      No upstream columns or groups.
-                    </div>
-                  ) : (
-                    <>
-                      {scalarDepColumns.map((c, idx) => {
-                        const checked = deps.includes(c.name)
-                        const isLast =
-                          idx === scalarDepColumns.length - 1 && groupDepOptions.length === 0
-                        return (
-                          <div
-                            key={`col:${c.name}`}
-                            role='checkbox'
-                            aria-checked={checked}
-                            tabIndex={0}
-                            onClick={() => toggleDep(c.name)}
-                            onKeyDown={(e) => {
-                              if (e.key === ' ' || e.key === 'Enter') {
-                                e.preventDefault()
-                                toggleDep(c.name)
-                              }
-                            }}
-                            className={cn(
-                              'flex h-[36px] flex-shrink-0 cursor-pointer items-center gap-2.5 px-2.5 hover:bg-[var(--surface-2)]',
-                              !isLast && 'border-[var(--border)] border-b'
-                            )}
-                          >
-                            <Checkbox size='sm' checked={checked} className='pointer-events-none' />
-                            <span className='font-medium text-[var(--text-secondary)] text-small'>
-                              {c.name}
-                            </span>
-                            <span className='ml-auto text-[var(--text-tertiary)] text-caption'>
-                              {c.type}
-                            </span>
-                          </div>
-                        )
-                      })}
-                      {groupDepOptions.map((g, idx) => {
-                        const checked = groupDeps.includes(g.id)
-                        const isLast = idx === groupDepOptions.length - 1
-                        const wf = workflows?.find((w) => w.id === g.workflowId)
-                        const color = wf?.color ?? 'var(--text-muted)'
-                        const label = g.name ?? wf?.name ?? 'Workflow'
-                        return (
-                          <div
-                            key={`group:${g.id}`}
-                            role='checkbox'
-                            aria-checked={checked}
-                            tabIndex={0}
-                            onClick={() => toggleGroupDep(g.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === ' ' || e.key === 'Enter') {
-                                e.preventDefault()
-                                toggleGroupDep(g.id)
-                              }
-                            }}
-                            className={cn(
-                              'flex h-[36px] flex-shrink-0 cursor-pointer items-center gap-2.5 px-2.5 hover:bg-[var(--surface-2)]',
-                              !isLast && 'border-[var(--border)] border-b'
-                            )}
-                          >
-                            <Checkbox size='sm' checked={checked} className='pointer-events-none' />
-                            <span
-                              className='h-[10px] w-[10px] shrink-0 rounded-sm'
-                              style={{ backgroundColor: color }}
-                              aria-hidden='true'
-                            />
-                            <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-small'>
-                              {label}
-                            </span>
-                            <span className='ml-auto text-[var(--text-tertiary)] text-caption'>
-                              workflow
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <FieldDivider />
-
-              <div className='flex flex-col gap-[9.5px]'>
                 <FieldLabel required>Output columns</FieldLabel>
+                <p className='pl-0.5 text-[var(--text-tertiary)] text-caption'>
+                  Each picked output becomes a column filled with the workflow's value for that
+                  field.
+                </p>
                 <div className='flex max-h-[280px] min-w-0 flex-col overflow-y-auto rounded-md border border-[var(--border)]'>
                   {workflowState.isLoading ? (
                     <div className='px-2 py-3 text-[var(--text-tertiary)] text-small'>
@@ -1275,11 +1377,22 @@ export function ColumnSidebar({
                 {showValidation && selectedWorkflowId && selectedOutputs.length === 0 && (
                   <FieldError message='Pick at least one output column' />
                 )}
-                <p className='pl-0.5 text-[var(--text-tertiary)] text-caption'>
-                  Each picked field becomes its own column. Cells in the group select and delete
-                  together — they share one workflow run.
-                </p>
               </div>
+
+              <FieldDivider />
+
+              <RunSettingsSection
+                open={runSettingsOpen}
+                onOpenChange={setRunSettingsOpen}
+                summary={runSettingsSummary}
+                scalarDepColumns={scalarDepColumns}
+                groupDepOptions={groupDepOptions}
+                deps={deps}
+                groupDeps={groupDeps}
+                workflows={workflows}
+                onToggleDep={toggleDep}
+                onToggleGroupDep={toggleGroupDep}
+              />
             </>
           )}
         </div>
