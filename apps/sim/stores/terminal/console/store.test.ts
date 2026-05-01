@@ -1,7 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.unmock('@/stores/terminal')
+vi.unmock('@/stores/terminal/console/store')
+
 import { useTerminalConsoleStore } from '@/stores/terminal/console/store'
 
 describe('terminal console store', () => {
@@ -111,5 +115,26 @@ describe('terminal console store', () => {
 
     expect(after.workflowEntries['wf-2']).toBe(workflowTwoEntries)
     expect(after.getWorkflowEntries('wf-1')[0].output).toMatchObject({ status: 'updated' })
+  })
+
+  describe('cancelRunningEntries', () => {
+    it('flips a plain running entry to canceled', () => {
+      useTerminalConsoleStore.getState().addConsole({
+        workflowId: 'wf-1',
+        blockId: 'block-1',
+        blockName: 'Function',
+        blockType: 'function',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        isRunning: true,
+        startedAt: new Date(Date.now() - 1000).toISOString(),
+      })
+
+      useTerminalConsoleStore.getState().cancelRunningEntries('wf-1')
+
+      const [entry] = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
+      expect(entry.isCanceled).toBe(true)
+      expect(entry.isRunning).toBe(false)
+    })
   })
 })

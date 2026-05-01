@@ -218,25 +218,31 @@ export function useWorkflowExecution() {
       durationMs?: number
       blockLogs: BlockLog[]
       isPreExecutionError?: boolean
+      finalBlockLogs?: BlockLog[]
     }) => {
       if (!params.workflowId) return
-      sharedHandleExecutionErrorConsole(addConsole, cancelRunningEntries, {
-        ...params,
-        workflowId: params.workflowId,
-      })
+      sharedHandleExecutionErrorConsole(
+        { addConsole, updateConsole, cancelRunningEntries },
+        { ...params, workflowId: params.workflowId }
+      )
     },
-    [addConsole, cancelRunningEntries]
+    [addConsole, cancelRunningEntries, updateConsole]
   )
 
   const handleExecutionCancelledConsole = useCallback(
-    (params: { workflowId?: string; executionId?: string; durationMs?: number }) => {
+    (params: {
+      workflowId?: string
+      executionId?: string
+      durationMs?: number
+      finalBlockLogs?: BlockLog[]
+    }) => {
       if (!params.workflowId) return
-      sharedHandleExecutionCancelledConsole(addConsole, cancelRunningEntries, {
-        ...params,
-        workflowId: params.workflowId,
-      })
+      sharedHandleExecutionCancelledConsole(
+        { addConsole, updateConsole, cancelRunningEntries },
+        { ...params, workflowId: params.workflowId }
+      )
     },
-    [addConsole, cancelRunningEntries]
+    [addConsole, cancelRunningEntries, updateConsole]
   )
 
   const buildBlockEventHandlers = useCallback(
@@ -1222,6 +1228,7 @@ export function useWorkflowExecution() {
                 durationMs: data.duration,
                 blockLogs: accumulatedBlockLogs,
                 isPreExecutionError,
+                finalBlockLogs: data.finalBlockLogs,
               })
 
               if (activeWorkflowId && !isExecutingFromChat) {
@@ -1248,6 +1255,7 @@ export function useWorkflowExecution() {
                 workflowId: activeWorkflowId,
                 executionId: executionIdRef.current,
                 durationMs: data?.duration,
+                finalBlockLogs: data?.finalBlockLogs,
               })
 
               if (activeWorkflowId && !isExecutingFromChat) {
@@ -1735,6 +1743,7 @@ export function useWorkflowExecution() {
                 error: data.error,
                 durationMs: data.duration,
                 blockLogs: accumulatedBlockLogs,
+                finalBlockLogs: data.finalBlockLogs,
               })
 
               setCurrentExecutionId(workflowId, null)
@@ -1747,6 +1756,7 @@ export function useWorkflowExecution() {
                 workflowId,
                 executionId: executionIdRef.current,
                 durationMs: data?.duration,
+                finalBlockLogs: data?.finalBlockLogs,
               })
 
               setCurrentExecutionId(workflowId, null)
@@ -1995,9 +2005,10 @@ export function useWorkflowExecution() {
                   executionId: capturedExecutionId,
                   error: data.error,
                   blockLogs: accumulatedBlockLogs,
+                  finalBlockLogs: data.finalBlockLogs,
                 })
               },
-              onExecutionCancelled: () => {
+              onExecutionCancelled: (data) => {
                 reconnectionComplete = true
                 activeReconnections.delete(reconnectWorkflowId)
                 if (!activated) {
@@ -2014,6 +2025,8 @@ export function useWorkflowExecution() {
                 handleExecutionCancelledConsole({
                   workflowId: reconnectWorkflowId,
                   executionId: capturedExecutionId,
+                  durationMs: data?.duration,
+                  finalBlockLogs: data?.finalBlockLogs,
                 })
               },
             },

@@ -3,6 +3,7 @@ import type {
   IterationContext,
   ParentIteration,
 } from '@/executor/execution/types'
+import type { BlockLog } from '@/executor/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export type ExecutionEventType =
@@ -77,6 +78,8 @@ export interface ExecutionErrorEvent extends BaseExecutionEvent {
   data: {
     error: string
     duration: number
+    /** Authoritative per-block terminal states from the server's blockLogs. */
+    finalBlockLogs?: BlockLog[]
   }
 }
 
@@ -85,6 +88,8 @@ export interface ExecutionCancelledEvent extends BaseExecutionEvent {
   workflowId: string
   data: {
     duration: number
+    /** Authoritative per-block terminal states from the server's blockLogs. */
+    finalBlockLogs?: BlockLog[]
   }
 }
 
