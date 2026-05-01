@@ -112,6 +112,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,
+      'x-exa-integration': 'sim',
     }),
     body: (params) => {
       const body: Record<string, any> = {
