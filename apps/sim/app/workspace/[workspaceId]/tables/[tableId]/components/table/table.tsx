@@ -4039,10 +4039,18 @@ function WorkflowGroupMetaCell({
     [column]
   )
 
-  const handleClick = useCallback(() => {
-    onSelectGroup(startColIndex, size)
-    if (columnName) onOpenConfig(columnName)
-  }, [columnName, onOpenConfig, onSelectGroup, size, startColIndex])
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLTableCellElement>) => {
+      // Ignore clicks that landed on an interactive child (badge, play button,
+      // dropdown items rendered via portal). Only the bare meta-cell area
+      // should select the group + open the config sidebar.
+      const target = e.target as HTMLElement
+      if (target.closest('button, [role="menuitem"], [role="menu"]')) return
+      onSelectGroup(startColIndex, size)
+      if (columnName) onOpenConfig(columnName)
+    },
+    [columnName, onOpenConfig, onSelectGroup, size, startColIndex]
+  )
 
   return (
     <th
@@ -4055,7 +4063,7 @@ function WorkflowGroupMetaCell({
       )}
     >
       <div
-        className='-z-[1] pointer-events-none absolute inset-0'
+        className='pointer-events-none absolute inset-0'
         style={{ background: `${color}${WORKFLOW_META_BG_ALPHA.toString(16).padStart(2, '0')}` }}
       />
       <div
