@@ -3,10 +3,10 @@
 // This script is intentionally self-contained for execution in the migrations image.
 // Do not import from the main app code; duplicate minimal schema and DB setup here.
 
+import { generateId } from '@sim/utils/id'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { v4 as uuidv4 } from 'uuid'
 
 // ---------- Minimal env helpers ----------
 function getEnv(name: string): string | undefined {
@@ -293,7 +293,7 @@ async function migrateWorkflows() {
 
         if (state) {
           deploymentVersions.push({
-            id: uuidv4(),
+            id: generateId(),
             workflowId: wf.id,
             version: 1,
             state,
