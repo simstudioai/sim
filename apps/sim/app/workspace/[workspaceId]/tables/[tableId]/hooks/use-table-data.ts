@@ -63,6 +63,9 @@ export function useTableData({
 
   const fetchNextPageWrapped = useCallback(async () => {
     const result = await fetchNextPage()
+    if (result.status === 'error') {
+      throw result.error ?? new Error('Failed to fetch next page')
+    }
     return { hasNextPage: Boolean(result.hasNextPage) }
   }, [fetchNextPage])
 
