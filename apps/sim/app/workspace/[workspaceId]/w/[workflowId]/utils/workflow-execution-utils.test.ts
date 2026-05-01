@@ -95,7 +95,7 @@ describe('workflow-execution-utils', () => {
       const addConsole = vi.fn()
       addExecutionErrorConsoleEntry(addConsole, {
         workflowId: 'wf-1',
-        executionId: 'exec-2',
+        executionId: 'exec-1',
         error: 'New run failed',
         blockLogs: [],
       })

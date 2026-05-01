@@ -814,7 +814,7 @@ export async function executeWorkflowWithFullLogging(
           }
         },
 
-        onExecutionCancelled: () => {
+        onExecutionCancelled: (data) => {
           setCurrentExecutionId(wfId, null)
           executionResult = {
             success: false,
@@ -822,6 +822,16 @@ export async function executeWorkflowWithFullLogging(
             error: 'Run was cancelled',
             logs: accumulatedBlockLogs,
           }
+
+          handleExecutionCancelledConsole(
+            { addConsole, updateConsole, cancelRunningEntries },
+            {
+              workflowId: wfId,
+              executionId: executionIdRef.current,
+              durationMs: data?.duration,
+              finalBlockLogs: data?.finalBlockLogs,
+            }
+          )
         },
 
         onExecutionError: (data) => {
