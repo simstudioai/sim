@@ -621,8 +621,12 @@ export function Table({
       const col = cols[i]
       const w = columnWidths[col.key] ?? COL_WIDTH
       if (i === targetGroupStart) {
+        // Clamp `targetGroupSize` to remaining columns — the memo's deps may not
+        // have settled in lockstep when a group shrinks (column removed) and we
+        // can briefly read past the end of `cols`.
+        const safeGroupSize = Math.min(targetGroupSize, cols.length - i)
         let groupWidth = 0
-        for (let j = 0; j < targetGroupSize; j++) {
+        for (let j = 0; j < safeGroupSize; j++) {
           groupWidth += columnWidths[cols[i + j].key] ?? COL_WIDTH
         }
         const lineLeft = dropSide === 'left' ? left : left + groupWidth
@@ -1107,6 +1111,19 @@ export function Table({
   }, [])
 
   const handleColumnDragOver = useCallback((columnName: string, side: 'left' | 'right') => {
+    // Suppress drop targeting while hovering siblings of the dragged column's
+    // own group: reordering inside a group is meaningless (the group renders
+    // as a unit) and the chasing indicator just flickers.
+    const dragged = dragColumnNameRef.current
+    if (dragged) {
+      const cols = schemaColumnsRef.current
+      const draggedGid = cols.find((c) => c.name === dragged)?.workflowGroupId
+      const targetGid = cols.find((c) => c.name === columnName)?.workflowGroupId
+      if (draggedGid && draggedGid === targetGid) {
+        if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
+        return
+      }
+    }
     if (columnName === dropTargetColumnNameRef.current && side === dropSideRef.current) return
     setDropTargetColumnName(columnName)
     setDropSide(side)
@@ -1124,28 +1141,107 @@ export function Table({
     const target = dropTargetColumnNameRef.current
     const side = dropSideRef.current
     if (target && dragged !== target) {
-      const cols = columnsRef.current
-      const currentOrder = columnOrderRef.current ?? cols.map((c) => c.name)
-      const fromIndex = currentOrder.indexOf(dragged)
-      const toIndex = currentOrder.indexOf(target)
-      if (fromIndex !== -1 && toIndex !== -1) {
-        const newOrder = currentOrder.filter((n) => n !== dragged)
-        let insertIndex = newOrder.indexOf(target)
-        if (side === 'right') insertIndex += 1
-        newOrder.splice(insertIndex, 0, dragged)
-        const orderChanged = newOrder.some((name, i) => currentOrder[i] !== name)
-        if (orderChanged) {
-          pushUndoRef.current({
-            type: 'reorder-columns',
-            previousOrder: currentOrder,
-            newOrder,
-          })
-          setColumnOrder(newOrder)
-          updateMetadataRef.current({
-            columnWidths: columnWidthsRef.current,
-            columnOrder: newOrder,
-          })
+      const schemaCols = schemaColumnsRef.current
+      const currentOrder = columnOrderRef.current ?? schemaCols.map((c) => c.name)
+
+      // Group-aware reorder: a workflow group's outputs must stay contiguous in
+      // the persisted column order (`workflow-columns.ts` validates this on
+      // save). So we treat the entire group as the unit being moved when the
+      // dragged column belongs to one, and snap the drop position to the
+      // outside edge of any group the target belongs to.
+      const colByName = new Map(schemaCols.map((c) => [c.name, c]))
+      const draggedGid = colByName.get(dragged)?.workflowGroupId
+
+      const orderIndex = new Map<string, number>()
+      currentOrder.forEach((n, i) => orderIndex.set(n, i))
+
+      // Compute the contiguous run covering the dragged column. For a plain
+      // column this is just [fromIndex, fromIndex]. For a group member it spans
+      // every sibling sharing the same workflowGroupId.
+      const fromIndex = orderIndex.get(dragged) ?? -1
+      if (fromIndex === -1) {
+        setDragColumnName(null)
+        setDropTargetColumnName(null)
+        setDropSide('left')
+        return
+      }
+      let runStart = fromIndex
+      let runEnd = fromIndex
+      if (draggedGid) {
+        while (
+          runStart > 0 &&
+          colByName.get(currentOrder[runStart - 1])?.workflowGroupId === draggedGid
+        ) {
+          runStart--
         }
+        while (
+          runEnd < currentOrder.length - 1 &&
+          colByName.get(currentOrder[runEnd + 1])?.workflowGroupId === draggedGid
+        ) {
+          runEnd++
+        }
+      }
+      const movedNames = currentOrder.slice(runStart, runEnd + 1)
+
+      // Resolve the *anchor* index in `currentOrder` to drop next to. If the
+      // target belongs to a group (and not the dragged group), snap to that
+      // group's outer edge so we never split it.
+      const targetIdx = orderIndex.get(target) ?? -1
+      if (targetIdx === -1) {
+        setDragColumnName(null)
+        setDropTargetColumnName(null)
+        setDropSide('left')
+        return
+      }
+      const targetGid = colByName.get(target)?.workflowGroupId
+      let anchorStart = targetIdx
+      let anchorEnd = targetIdx
+      if (targetGid && targetGid !== draggedGid) {
+        while (
+          anchorStart > 0 &&
+          colByName.get(currentOrder[anchorStart - 1])?.workflowGroupId === targetGid
+        ) {
+          anchorStart--
+        }
+        while (
+          anchorEnd < currentOrder.length - 1 &&
+          colByName.get(currentOrder[anchorEnd + 1])?.workflowGroupId === targetGid
+        ) {
+          anchorEnd++
+        }
+      }
+      // No-op if dropping the dragged run onto itself.
+      if (anchorStart >= runStart && anchorEnd <= runEnd) {
+        setDragColumnName(null)
+        setDropTargetColumnName(null)
+        setDropSide('left')
+        return
+      }
+
+      const remaining = currentOrder.filter((_, i) => i < runStart || i > runEnd)
+      // After removing the moved run, recompute the anchor's name-based index.
+      const anchorName = side === 'left' ? currentOrder[anchorStart] : currentOrder[anchorEnd]
+      let insertIndex = remaining.indexOf(anchorName)
+      if (insertIndex === -1) insertIndex = remaining.length
+      if (side === 'right') insertIndex += 1
+      const newOrder = [
+        ...remaining.slice(0, insertIndex),
+        ...movedNames,
+        ...remaining.slice(insertIndex),
+      ]
+
+      const orderChanged = newOrder.some((name, i) => currentOrder[i] !== name)
+      if (orderChanged) {
+        pushUndoRef.current({
+          type: 'reorder-columns',
+          previousOrder: currentOrder,
+          newOrder,
+        })
+        setColumnOrder(newOrder)
+        updateMetadataRef.current({
+          columnWidths: columnWidthsRef.current,
+          columnOrder: newOrder,
+        })
       }
     }
     setDragColumnName(null)
@@ -1169,17 +1265,25 @@ export function Table({
     const cursorX = e.clientX - scrollRect.left + scrollEl.scrollLeft
 
     const cols = columnsRef.current
+    const draggedGid = cols.find((c) => c.name === dragColumnNameRef.current)?.workflowGroupId
     let left = CHECKBOX_COL_WIDTH
     let i = 0
     while (i < cols.length) {
       const col = cols[i]
       // Treat fanned-out groups as monolithic drop targets; accumulate across siblings.
-      const groupSize = col.groupSize
+      // Clamp `groupSize` to remaining columns: dragover fires constantly and can
+      // race a column removal where the cached `groupSize` outpaces `cols.length`.
+      const groupSize = Math.min(col.groupSize, cols.length - i)
       let groupWidth = 0
       for (let j = 0; j < groupSize; j++) {
         groupWidth += columnWidthsRef.current[cols[i + j].key] ?? COL_WIDTH
       }
       if (cursorX < left + groupWidth) {
+        // Inside the dragged column's own group → no-op drop, no indicator.
+        if (draggedGid && col.workflowGroupId === draggedGid) {
+          if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
+          return
+        }
         const midX = left + groupWidth / 2
         const side = cursorX < midX ? 'left' : 'right'
         if (col.name !== dropTargetColumnNameRef.current || side !== dropSideRef.current) {
@@ -4243,13 +4347,13 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             blockIconInfo={blockIconInfo}
           />
           {column.workflowGroupId ? (
-            <div className='ml-1.5 flex min-w-0 flex-col'>
+            <div className='ml-1.5 flex min-w-0 flex-1 flex-col text-left'>
               {blockName && (
-                <span className='truncate text-[var(--text-tertiary)] text-caption leading-tight'>
+                <span className='block w-full min-w-0 truncate text-[var(--text-tertiary)] text-caption leading-tight'>
                   {blockName}
                 </span>
               )}
-              <span className='truncate font-medium text-[13px] text-[var(--text-primary)] leading-tight'>
+              <span className='block w-full min-w-0 truncate font-medium text-[13px] text-[var(--text-primary)] leading-tight'>
                 {column.headerLabel}
               </span>
             </div>
@@ -4273,13 +4377,13 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               blockIconInfo={blockIconInfo}
             />
             {column.workflowGroupId ? (
-              <div className='ml-1.5 flex min-w-0 flex-col items-start'>
+              <div className='ml-1.5 flex min-w-0 flex-1 flex-col items-start text-left'>
                 {blockName && (
-                  <span className='truncate text-[10px] text-[var(--text-tertiary)] leading-tight'>
+                  <span className='block w-full min-w-0 truncate text-[10px] text-[var(--text-tertiary)] leading-tight'>
                     {blockName}
                   </span>
                 )}
-                <span className='truncate font-medium text-[var(--text-primary)] text-small leading-tight'>
+                <span className='block w-full min-w-0 truncate font-medium text-[var(--text-primary)] text-small leading-tight'>
                   {column.headerLabel}
                 </span>
               </div>
