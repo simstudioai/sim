@@ -490,9 +490,8 @@ export function useMarkTaskRead(workspaceId?: string) {
       if (!previousTasks) return { previousTasks: undefined }
 
       await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
-      queryClient.setQueryData<TaskMetadata[]>(
-        taskKeys.list(workspaceId),
-        previousTasks.map((task) => (task.id === chatId ? { ...task, isUnread: false } : task))
+      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), (old) =>
+        old?.map((task) => (task.id === chatId ? { ...task, isUnread: false } : task))
       )
 
       return { previousTasks }
@@ -520,9 +519,8 @@ export function useMarkTaskUnread(workspaceId?: string) {
       if (!previousTasks) return { previousTasks: undefined }
 
       await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
-      queryClient.setQueryData<TaskMetadata[]>(
-        taskKeys.list(workspaceId),
-        previousTasks.map((task) => (task.id === chatId ? { ...task, isUnread: true } : task))
+      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), (old) =>
+        old?.map((task) => (task.id === chatId ? { ...task, isUnread: true } : task))
       )
 
       return { previousTasks }
