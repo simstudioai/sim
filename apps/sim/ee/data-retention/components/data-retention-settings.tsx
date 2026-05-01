@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { Button, Combobox, toast } from '@/components/emcn'
+import { Button, Callout, Combobox, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
@@ -169,10 +169,8 @@ export function DataRetentionSettings() {
 
   return (
     <div className='flex flex-col gap-8'>
+      <Callout>Applies organization-wide</Callout>
       <section>
-        <h3 className='mb-4 font-medium text-[15px] text-[var(--text-primary)]'>
-          Retention Periods
-        </h3>
         <div className='flex flex-col gap-5'>
           <SettingRow
             label='Log retention'

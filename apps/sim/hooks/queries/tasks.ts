@@ -1,4 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -212,8 +218,8 @@ export async function fetchTasks(
 export function useTasks(workspaceId?: string) {
   return useQuery({
     queryKey: taskKeys.list(workspaceId),
-    queryFn: ({ signal }) => fetchTasks(workspaceId as string, signal),
-    enabled: Boolean(workspaceId),
+    queryFn: workspaceId ? ({ signal }) => fetchTasks(workspaceId, signal) : skipToken,
+    placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
   })
 }
