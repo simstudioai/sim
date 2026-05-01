@@ -311,13 +311,12 @@ export function useRenameTask(workspaceId?: string) {
   return useMutation({
     mutationFn: renameTask,
     onMutate: async ({ chatId, title }) => {
-      const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
-      if (!previousTasks) return { previousTasks: undefined }
-
       await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
-      queryClient.setQueryData<TaskMetadata[]>(
-        taskKeys.list(workspaceId),
-        previousTasks.map((task) => (task.id === chatId ? { ...task, name: title } : task))
+
+      const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
+
+      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), (old) =>
+        old?.map((task) => (task.id === chatId ? { ...task, name: title } : task))
       )
 
       return { previousTasks }
