@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { VARIABLE_OPERATIONS } from '@sim/realtime-protocol/constants'
+import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { checkRolePermission } from '@/middleware/permissions'
@@ -140,6 +141,28 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
         return
       }
 
+      try {
+        await assertWorkflowMutable(workflowId)
+      } catch (error) {
+        if (error instanceof WorkflowLockedError) {
+          socket.emit('operation-forbidden', {
+            type: 'WORKFLOW_LOCKED',
+            message: error.message,
+            operation: VARIABLE_OPERATIONS.UPDATE,
+            target: 'variable',
+          })
+          if (operationId) {
+            socket.emit('operation-failed', {
+              operationId,
+              error: error.message,
+              retryable: false,
+            })
+          }
+          return
+        }
+        throw error
+      }
+
       // Update user activity
       await roomManager.updateUserActivity(workflowId, socket.id, { lastActivity: Date.now() })
 
@@ -216,6 +239,22 @@ async function flushVariableUpdate(
         })
       })
       return
+    }
+
+    try {
+      await assertWorkflowMutable(workflowId)
+    } catch (error) {
+      if (error instanceof WorkflowLockedError) {
+        pending.opToSocket.forEach((socketId, opId) => {
+          io.to(socketId).emit('operation-failed', {
+            operationId: opId,
+            error: error.message,
+            retryable: false,
+          })
+        })
+        return
+      }
+      throw error
     }
 
     let updateSuccessful = false

@@ -8,13 +8,14 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import { authorizeWorkflowByWorkspacePermission, FolderLockedError } from '@sim/workflow-authz'
 import { and, eq, isNull, min } from 'drizzle-orm'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import type { Variable } from '@/stores/variables/types'
 import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
+import { SYSTEM_SUBBLOCK_IDS, TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('WorkflowDuplicateHelper')
 
@@ -28,6 +29,8 @@ interface DuplicateWorkflowOptions {
   folderId?: string | null
   requestId?: string
   newWorkflowId?: string
+  tx?: WorkflowDuplicateTransaction
+  workflowIdMap?: Map<string, string>
 }
 
 interface DuplicateWorkflowResult {
@@ -38,9 +41,124 @@ interface DuplicateWorkflowResult {
   workspaceId: string
   folderId: string | null
   sortOrder: number
+  locked: boolean
   blocksCount: number
   edgesCount: number
   subflowsCount: number
+}
+
+type WorkflowDuplicateTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
+type SubBlockRecord = Record<string, { type?: unknown; value?: unknown; [key: string]: unknown }>
+type VariableAssignment = Record<string, unknown> & { variableId?: unknown }
+const DUPLICATE_STRIPPED_SYSTEM_SUBBLOCK_IDS = new Set(
+  SYSTEM_SUBBLOCK_IDS.filter((id) => id !== 'triggerCredentials')
+)
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function isSystemSubBlockKey(key: string, ids: Set<string> | string[]): boolean {
+  const idList = Array.isArray(ids) ? ids : Array.from(ids)
+  return idList.some((id) => key === id || key.startsWith(`${id}_`))
+}
+
+function sanitizeSubBlocksForDuplicate(subBlocks: SubBlockRecord): SubBlockRecord {
+  const sanitized: SubBlockRecord = {}
+
+  for (const [key, subBlock] of Object.entries(subBlocks)) {
+    if (isSystemSubBlockKey(key, TRIGGER_RUNTIME_SUBBLOCK_IDS)) continue
+    if (isSystemSubBlockKey(key, DUPLICATE_STRIPPED_SYSTEM_SUBBLOCK_IDS)) continue
+    sanitized[key] = subBlock
+  }
+
+  return sanitized
+}
+
+async function assertTargetFolderMutable(
+  tx: WorkflowDuplicateTransaction,
+  folderId: string | null,
+  targetWorkspaceId: string
+): Promise<void> {
+  let currentFolderId = folderId
+  const visited = new Set<string>()
+
+  while (currentFolderId && !visited.has(currentFolderId)) {
+    visited.add(currentFolderId)
+    const [folder] = await tx
+      .select({
+        id: workflowFolder.id,
+        parentId: workflowFolder.parentId,
+        workspaceId: workflowFolder.workspaceId,
+        locked: workflowFolder.locked,
+        archivedAt: workflowFolder.archivedAt,
+      })
+      .from(workflowFolder)
+      .where(eq(workflowFolder.id, currentFolderId))
+      .limit(1)
+
+    if (!folder || folder.workspaceId !== targetWorkspaceId || folder.archivedAt) {
+      throw new Error('Target folder not found')
+    }
+    if (folder.locked) {
+      throw new FolderLockedError()
+    }
+    currentFolderId = folder.parentId
+  }
+}
+
+function remapVariableAssignment(value: unknown, varIdMap: Map<string, string>): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => remapVariableAssignment(item, varIdMap))
+  }
+
+  if (!isRecord(value)) {
+    return value
+  }
+
+  const assignment = value as VariableAssignment
+  const next: Record<string, unknown> = {}
+  for (const [key, nestedValue] of Object.entries(assignment)) {
+    next[key] = remapVariableAssignment(nestedValue, varIdMap)
+  }
+
+  if (typeof assignment.variableId === 'string') {
+    const newVarId = varIdMap.get(assignment.variableId)
+    if (!newVarId) {
+      throw new Error(`Variable reference ${assignment.variableId} could not be remapped`)
+    }
+    next.variableId = newVarId
+  }
+
+  return next
+}
+
+function remapVariableInputValue(value: unknown, varIdMap: Map<string, string>): unknown {
+  if (value == null) {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    return remapVariableAssignment(value, varIdMap)
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return value
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      throw new Error('Variables input assignments could not be parsed for duplication')
+    }
+    if (Array.isArray(parsed)) {
+      return remapVariableAssignment(parsed, varIdMap)
+    }
+    throw new Error('Variables input assignments must be an array')
+  }
+
+  throw new Error('Variables input assignments must be an array')
 }
 
 /**
@@ -49,33 +167,47 @@ interface DuplicateWorkflowResult {
  * of variable assignments containing a `variableId` field.
  */
 function remapVariableIdsInSubBlocks(
-  subBlocks: Record<string, any>,
+  subBlocks: SubBlockRecord,
   varIdMap: Map<string, string>
-): Record<string, any> {
-  const updated: Record<string, any> = {}
+): SubBlockRecord {
+  const updated: SubBlockRecord = {}
 
   for (const [key, subBlock] of Object.entries(subBlocks)) {
-    if (
-      subBlock &&
-      typeof subBlock === 'object' &&
-      subBlock.type === 'variables-input' &&
-      Array.isArray(subBlock.value)
-    ) {
+    if (subBlock && typeof subBlock === 'object' && subBlock.type === 'variables-input') {
       updated[key] = {
         ...subBlock,
-        value: subBlock.value.map((assignment: any) => {
-          if (assignment && typeof assignment === 'object' && assignment.variableId) {
-            const newVarId = varIdMap.get(assignment.variableId)
-            if (newVarId) {
-              return { ...assignment, variableId: newVarId }
-            }
-          }
-          return assignment
-        }),
+        value: remapVariableInputValue(subBlock.value, varIdMap),
       }
     } else {
       updated[key] = subBlock
     }
+  }
+
+  return updated
+}
+
+function remapWorkflowReferencesInSubBlocks(
+  subBlocks: SubBlockRecord,
+  workflowIdMap: Map<string, string> | undefined
+): SubBlockRecord {
+  if (!workflowIdMap?.size) return subBlocks
+
+  const updated: SubBlockRecord = {}
+  for (const [key, subBlock] of Object.entries(subBlocks)) {
+    if (
+      subBlock &&
+      typeof subBlock === 'object' &&
+      subBlock.type === 'workflow-selector' &&
+      typeof subBlock.value === 'string'
+    ) {
+      updated[key] = {
+        ...subBlock,
+        value: workflowIdMap.get(subBlock.value) ?? subBlock.value,
+      }
+      continue
+    }
+
+    updated[key] = subBlock
   }
 
   return updated
@@ -132,13 +264,14 @@ export async function duplicateWorkflow(
     folderId,
     requestId = 'unknown',
     newWorkflowId: clientNewWorkflowId,
+    tx: providedTx,
+    workflowIdMap,
   } = options
 
-  const newWorkflowId = clientNewWorkflowId || generateId()
+  const newWorkflowId = clientNewWorkflowId || workflowIdMap?.get(sourceWorkflowId) || generateId()
   const now = new Date()
 
-  // Duplicate workflow and all related data in a transaction
-  const result = await db.transaction(async (tx) => {
+  const duplicateWithinTransaction = async (tx: WorkflowDuplicateTransaction) => {
     // First verify the source workflow exists
     const sourceWorkflowRow = await tx
       .select()
@@ -167,6 +300,10 @@ export async function duplicateWorkflow(
     }
 
     const targetWorkspaceId = workspaceId || source.workspaceId
+    if (targetWorkspaceId !== source.workspaceId) {
+      throw new Error('Cross-workspace workflow duplication is not supported')
+    }
+
     const targetWorkspacePermission = await getUserEntityPermissions(
       userId,
       'workspace',
@@ -176,6 +313,8 @@ export async function duplicateWorkflow(
       throw new Error('Write or admin access required for target workspace')
     }
     const targetFolderId = folderId !== undefined ? folderId : source.folderId
+    await assertTargetFolderMutable(tx, targetFolderId, targetWorkspaceId)
+
     const workflowParentCondition = targetFolderId
       ? eq(workflow.folderId, targetFolderId)
       : isNull(workflow.folderId)
@@ -221,6 +360,7 @@ export async function duplicateWorkflow(
       updatedAt: now,
       isDeployed: false,
       runCount: 0,
+      locked: false,
       // Duplicate variables with new IDs and new workflowId
       variables: (() => {
         const sourceVars = (source.variables as Record<string, Variable>) || {}
@@ -287,14 +427,31 @@ export async function duplicateWorkflow(
         // Update variable references in subBlocks (e.g. variables-input assignments)
         let updatedSubBlocks = block.subBlocks
         if (
+          updatedSubBlocks &&
+          typeof updatedSubBlocks === 'object' &&
+          !Array.isArray(updatedSubBlocks)
+        ) {
+          updatedSubBlocks = sanitizeSubBlocksForDuplicate(updatedSubBlocks as SubBlockRecord)
+        }
+        if (
           varIdMapping.size > 0 &&
-          block.subBlocks &&
-          typeof block.subBlocks === 'object' &&
-          !Array.isArray(block.subBlocks)
+          updatedSubBlocks &&
+          typeof updatedSubBlocks === 'object' &&
+          !Array.isArray(updatedSubBlocks)
         ) {
           updatedSubBlocks = remapVariableIdsInSubBlocks(
-            block.subBlocks as Record<string, any>,
+            updatedSubBlocks as SubBlockRecord,
             varIdMapping
+          )
+        }
+        if (
+          updatedSubBlocks &&
+          typeof updatedSubBlocks === 'object' &&
+          !Array.isArray(updatedSubBlocks)
+        ) {
+          updatedSubBlocks = remapWorkflowReferencesInSubBlocks(
+            updatedSubBlocks as SubBlockRecord,
+            workflowIdMap
           )
         }
 
@@ -335,7 +492,11 @@ export async function duplicateWorkflow(
 
     if (sourceEdges.length > 0) {
       const newEdges = sourceEdges.map((edge) => {
-        const newSourceBlockId = blockIdMapping.get(edge.sourceBlockId) || edge.sourceBlockId
+        const newSourceBlockId = blockIdMapping.get(edge.sourceBlockId)
+        const newTargetBlockId = blockIdMapping.get(edge.targetBlockId)
+        if (!newSourceBlockId || !newTargetBlockId) {
+          throw new Error(`Edge ${edge.id} references a block that could not be remapped`)
+        }
         const newSourceHandle =
           edge.sourceHandle && blockIdMapping.has(edge.sourceBlockId)
             ? remapConditionEdgeHandle(edge.sourceHandle, edge.sourceBlockId, newSourceBlockId)
@@ -346,7 +507,7 @@ export async function duplicateWorkflow(
           id: generateId(),
           workflowId: newWorkflowId,
           sourceBlockId: newSourceBlockId,
-          targetBlockId: blockIdMapping.get(edge.targetBlockId) || edge.targetBlockId,
+          targetBlockId: newTargetBlockId,
           sourceHandle: newSourceHandle,
           createdAt: now,
           updatedAt: now,
@@ -395,9 +556,15 @@ export async function duplicateWorkflow(
 
             // Update node references in config if they exist
             if ('nodes' in updatedConfig && Array.isArray(updatedConfig.nodes)) {
-              updatedConfig.nodes = updatedConfig.nodes.map(
-                (nodeId: string) => blockIdMapping.get(nodeId) || nodeId
-              )
+              updatedConfig.nodes = updatedConfig.nodes.map((nodeId: string) => {
+                const newNodeId = blockIdMapping.get(nodeId)
+                if (!newNodeId) {
+                  throw new Error(
+                    `Subflow ${subflow.id} references node ${nodeId} that could not be remapped`
+                  )
+                }
+                return newNodeId
+              })
             }
           }
 
@@ -442,11 +609,16 @@ export async function duplicateWorkflow(
       workspaceId: finalWorkspaceId,
       folderId: targetFolderId,
       sortOrder,
+      locked: false,
       blocksCount: sourceBlocks.length,
       edgesCount: sourceEdges.length,
       subflowsCount: sourceSubflows.length,
     }
-  })
+  }
+
+  const result = providedTx
+    ? await duplicateWithinTransaction(providedTx)
+    : await db.transaction(duplicateWithinTransaction)
 
   return result
 }

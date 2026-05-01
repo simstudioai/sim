@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { assertFolderMutable, FolderLockedError, WorkflowLockedError } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { restoreWorkflowContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
@@ -44,6 +45,11 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
+      if (workflowData.locked) {
+        throw new WorkflowLockedError('Workflow is locked')
+      }
+      await assertFolderMutable(workflowData.folderId)
+
       const result = await restoreWorkflow(workflowId, { requestId })
 
       if (!result.restored) {
@@ -78,6 +84,10 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ success: true })
     } catch (error) {
+      if (error instanceof WorkflowLockedError || error instanceof FolderLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
+
       logger.error(`[${requestId}] Error restoring workflow ${workflowId}`, error)
       return NextResponse.json(
         { error: error instanceof Error ? error.message : 'Internal server error' },

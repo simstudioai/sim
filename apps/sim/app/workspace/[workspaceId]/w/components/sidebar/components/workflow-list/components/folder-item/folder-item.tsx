@@ -144,6 +144,7 @@ export function FolderItem({
   const dragGhostRef = useRef<HTMLElement | null>(null)
 
   const handleCreateWorkflowInFolder = useCallback(() => {
+    if (folder.locked) return
     const name = generateCreativeWorkflowName()
     const color = getNextWorkflowColor()
     const id = generateId()
@@ -160,9 +161,10 @@ export function FolderItem({
     expandFolder()
     router.push(`/workspace/${workspaceId}/w/${id}`)
     window.dispatchEvent(new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: id } }))
-  }, [createWorkflowMutation, workspaceId, folder.id, router, expandFolder])
+  }, [createWorkflowMutation, workspaceId, folder.id, folder.locked, router, expandFolder])
 
   const handleCreateFolderInFolder = useCallback(async () => {
+    if (folder.locked) return
     try {
       const result = await createFolderMutation.mutateAsync({
         workspaceId,
@@ -179,7 +181,15 @@ export function FolderItem({
     } catch (error) {
       logger.error('Failed to create folder:', error)
     }
-  }, [createFolderMutation, workspaceId, folder.id, expandFolder])
+  }, [createFolderMutation, workspaceId, folder.id, folder.locked, expandFolder])
+
+  const handleToggleLock = useCallback(() => {
+    updateFolderMutation.mutate({
+      workspaceId,
+      id: folder.id,
+      updates: { locked: !folder.locked },
+    })
+  }, [folder.id, folder.locked, updateFolderMutation, workspaceId])
 
   const onDragStart = useCallback(
     (e: React.DragEvent) => {
@@ -327,9 +337,11 @@ export function FolderItem({
     (e: React.MouseEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      handleStartEdit()
+      if (!folder.locked) {
+        handleStartEdit()
+      }
     },
-    [handleStartEdit]
+    [folder.locked, handleStartEdit]
   )
 
   const handleClick = useCallback(
@@ -479,7 +491,7 @@ export function FolderItem({
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
-        draggable={!isEditing && !dragDisabled}
+        draggable={!isEditing && !dragDisabled && !folder.locked}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         {...hoverHandlers}
@@ -562,14 +574,22 @@ export function FolderItem({
         showRename={!isMixedSelection && selectedFolders.size <= 1}
         showDuplicate={true}
         showExport={true}
-        disableRename={!userPermissions.canEdit}
-        disableCreate={!userPermissions.canEdit || createWorkflowMutation.isPending}
-        disableCreateFolder={!userPermissions.canEdit || createFolderMutation.isPending}
+        disableRename={!userPermissions.canEdit || folder.locked}
+        disableCreate={
+          !userPermissions.canEdit || folder.locked || createWorkflowMutation.isPending
+        }
+        disableCreateFolder={
+          !userPermissions.canEdit || folder.locked || createFolderMutation.isPending
+        }
         disableDuplicate={
           !userPermissions.canEdit || isDuplicatingSelection || !hasExportableContent
         }
         disableExport={!userPermissions.canEdit || isExporting || !hasExportableContent}
-        disableDelete={!userPermissions.canEdit || !canDeleteSelection}
+        disableDelete={!userPermissions.canEdit || folder.locked || !canDeleteSelection}
+        onToggleLock={handleToggleLock}
+        showLock={!isMixedSelection && selectedFolders.size <= 1}
+        disableLock={!userPermissions.canAdmin}
+        isLocked={folder.locked}
       />
 
       <DeleteModal

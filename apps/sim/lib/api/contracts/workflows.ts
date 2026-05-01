@@ -213,6 +213,7 @@ export const workflowListItemSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   archivedAt: z.string().nullable(),
+  locked: z.boolean(),
 })
 
 export const createWorkflowBodySchema = z.object({
@@ -263,6 +264,7 @@ export const duplicateWorkflowResponseSchema = z.object({
   workspaceId: z.string(),
   folderId: z.string().nullable(),
   sortOrder: z.number(),
+  locked: z.boolean(),
   blocksCount: z.number(),
   edgesCount: z.number(),
   subflowsCount: z.number(),
@@ -277,6 +279,7 @@ export const updateWorkflowBodySchema = z.object({
   color: z.string().optional(),
   folderId: z.string().nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
+  locked: z.boolean().optional(),
 })
 
 export type UpdateWorkflowBody = z.input<typeof updateWorkflowBodySchema>
@@ -574,6 +577,7 @@ export const getWorkflowResponseDataSchema = z.object({
   isDeployed: z.boolean(),
   deployedAt: z.coerce.date().nullable(),
   isPublicApi: z.boolean(),
+  locked: z.boolean(),
   runCount: z.number(),
   lastRunAt: z.coerce.date().nullable(),
   archivedAt: z.coerce.date().nullable(),

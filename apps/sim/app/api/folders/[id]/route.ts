@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { assertFolderMutable, FolderLockedError } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateFolderContract } from '@/lib/api/contracts'
@@ -38,7 +39,7 @@ export const PUT = withRouteHandler(
       if (!parsed.success) return parsed.response
 
       const { id } = parsed.data.params
-      const { name, color, isExpanded, parentId, sortOrder } = parsed.data.body
+      const { name, color, isExpanded, locked, parentId, sortOrder } = parsed.data.body
 
       // Verify the folder exists
       const existingFolder = await db
@@ -65,6 +66,21 @@ export const PUT = withRouteHandler(
         )
       }
 
+      if (locked !== undefined && workspacePermission !== 'admin') {
+        return NextResponse.json(
+          { error: 'Admin access required to lock folders' },
+          { status: 403 }
+        )
+      }
+
+      const hasNonLockUpdate = Object.keys(parsed.data.body).some((key) => key !== 'locked')
+      if (hasNonLockUpdate) {
+        await assertFolderMutable(id)
+      }
+      if (parentId !== undefined) {
+        await assertFolderMutable(parentId)
+      }
+
       // Prevent setting a folder as its own parent or creating circular references
       if (parentId && parentId === id) {
         return NextResponse.json({ error: 'Folder cannot be its own parent' }, { status: 400 })
@@ -85,6 +101,7 @@ export const PUT = withRouteHandler(
       if (name !== undefined) updates.name = name.trim()
       if (color !== undefined) updates.color = color
       if (isExpanded !== undefined) updates.isExpanded = isExpanded
+      if (locked !== undefined) updates.locked = locked
       if (parentId !== undefined) updates.parentId = parentId || null
       if (sortOrder !== undefined) updates.sortOrder = sortOrder
 
@@ -98,6 +115,10 @@ export const PUT = withRouteHandler(
 
       return NextResponse.json({ folder: updatedFolder })
     } catch (error) {
+      if (error instanceof FolderLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
+
       logger.error('Error updating folder:', { error })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
@@ -139,6 +160,8 @@ export const DELETE = withRouteHandler(
         )
       }
 
+      await assertFolderMutable(id)
+
       const result = await performDeleteFolder({
         folderId: id,
         workspaceId: existingFolder.workspaceId,
@@ -164,6 +187,10 @@ export const DELETE = withRouteHandler(
         deletedItems: result.deletedItems,
       })
     } catch (error) {
+      if (error instanceof FolderLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
+
       logger.error('Error deleting folder:', { error })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }

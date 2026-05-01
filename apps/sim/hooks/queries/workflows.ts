@@ -204,6 +204,7 @@ export function useCreateWorkflow() {
         workspaceId: variables.workspaceId,
         folderId: variables.folderId || null,
         sortOrder,
+        locked: false,
       }
 
       queryClient.setQueryData<WorkflowMetadata[]>(
@@ -374,6 +375,7 @@ export function useDuplicateWorkflowMutation() {
           variables.workspaceId,
           targetFolderId
         ),
+        locked: false,
       }
 
       queryClient.setQueryData<WorkflowMetadata[]>(
@@ -403,6 +405,7 @@ export function useDuplicateWorkflowMutation() {
                   workspaceId: data.workspaceId,
                   folderId: data.folderId,
                   sortOrder: data.sortOrder,
+                  locked: false,
                 }
               : w
           )
@@ -417,18 +420,6 @@ export function useDuplicateWorkflowMutation() {
           }
           return { selectedWorkflows }
         })
-      }
-
-      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-      if (variables.sourceId === activeWorkflowId) {
-        const sourceSubblockValues =
-          useSubBlockStore.getState().workflowValues[variables.sourceId] || {}
-        useSubBlockStore.setState((state) => ({
-          workflowValues: {
-            ...state.workflowValues,
-            [data.id]: { ...sourceSubblockValues },
-          },
-        }))
       }
 
       logger.info(`[DuplicateWorkflow] Success, replaced temp entry ${tempId}`)

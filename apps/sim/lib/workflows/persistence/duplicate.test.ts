@@ -37,7 +37,8 @@ import { duplicateWorkflow } from './duplicate'
 
 function createMockTx(
   selectResults: unknown[],
-  onWorkflowInsert?: (values: Record<string, unknown>) => void
+  onWorkflowInsert?: (values: Record<string, unknown>) => void,
+  onInsert?: (values: unknown) => void
 ) {
   let selectCallCount = 0
 
@@ -58,6 +59,7 @@ function createMockTx(
   const insert = vi.fn().mockReturnValue({
     values: vi.fn().mockImplementation((values: Record<string, unknown>) => {
       onWorkflowInsert?.(values)
+      onInsert?.(values)
       return Promise.resolve(undefined)
     }),
   })
@@ -172,5 +174,107 @@ describe('duplicateWorkflow ordering', () => {
 
     expect(result.sortOrder).toBe(0)
     expect(insertedWorkflowValues?.sortOrder).toBe(0)
+  })
+
+  it('strips copied webhook runtime subblocks and remaps variable assignments', async () => {
+    let insertedBlocks: Array<Record<string, unknown>> | null = null
+    const tx = createMockTx(
+      [
+        [
+          {
+            id: 'source-workflow-id',
+            workspaceId: 'workspace-123',
+            folderId: null,
+            description: 'source',
+            color: '#000000',
+            variables: {
+              'old-var-id': {
+                id: 'old-var-id',
+                workflowId: 'source-workflow-id',
+                name: 'customerName',
+                type: 'string',
+                value: 'Ada',
+              },
+            },
+          },
+        ],
+        [],
+        [],
+        [
+          {
+            id: 'source-block-id',
+            workflowId: 'source-workflow-id',
+            type: 'generic_webhook',
+            name: 'Webhook',
+            parentId: null,
+            extent: null,
+            data: {},
+            subBlocks: {
+              triggerPath: { id: 'triggerPath', type: 'short-input', value: 'old-webhook-path' },
+              webhookId: { id: 'webhookId', type: 'short-input', value: 'old-webhook-id' },
+              webhookUrlDisplay: {
+                id: 'webhookUrlDisplay',
+                type: 'short-input',
+                value: 'https://example.test/api/webhooks/trigger/old-webhook-path',
+              },
+              variables: {
+                id: 'variables',
+                type: 'variables-input',
+                value: JSON.stringify([
+                  {
+                    id: 'assignment-1',
+                    variableId: 'old-var-id',
+                    variableName: 'customerName',
+                    type: 'string',
+                    value: 'Grace',
+                    isExisting: true,
+                  },
+                ]),
+              },
+            },
+            position: { x: 0, y: 0 },
+            enabled: true,
+            horizontalHandles: true,
+            isWide: false,
+            height: 0,
+            advancedMode: false,
+            triggerMode: true,
+            locked: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+        [],
+        [],
+      ],
+      undefined,
+      (values) => {
+        if (Array.isArray(values)) {
+          insertedBlocks = values as Array<Record<string, unknown>>
+        }
+      }
+    )
+
+    mockDb.transaction.mockImplementation(async (callback: (txArg: unknown) => Promise<unknown>) =>
+      callback(tx)
+    )
+
+    await duplicateWorkflow({
+      sourceWorkflowId: 'source-workflow-id',
+      userId: 'user-123',
+      name: 'Duplicated',
+      workspaceId: 'workspace-123',
+      folderId: null,
+      requestId: 'req-3',
+    })
+
+    expect(insertedBlocks).toHaveLength(1)
+    const copiedSubBlocks = insertedBlocks?.[0].subBlocks as Record<string, any>
+    expect(copiedSubBlocks.triggerPath).toBeUndefined()
+    expect(copiedSubBlocks.webhookId).toBeUndefined()
+    expect(copiedSubBlocks.webhookUrlDisplay).toBeUndefined()
+    expect(copiedSubBlocks.variables.value[0].variableId).not.toBe('old-var-id')
+    expect(copiedSubBlocks.variables.value[0].variableName).toBe('customerName')
+    expect(insertedBlocks?.[0].locked).toBe(false)
   })
 })

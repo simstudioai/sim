@@ -21,6 +21,7 @@ export interface WorkflowMetadata {
   folderId?: string | null
   sortOrder: number
   archivedAt?: Date | null
+  locked?: boolean
   /** True for sandbox exercises (Sim Academy). Skips real API calls. */
   isSandbox?: boolean
 }

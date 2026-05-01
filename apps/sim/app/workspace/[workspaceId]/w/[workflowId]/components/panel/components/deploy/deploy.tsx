@@ -16,9 +16,15 @@ interface DeployProps {
   activeWorkflowId: string | null
   userPermissions: WorkspaceUserPermissions
   className?: string
+  disabled?: boolean
 }
 
-export function Deploy({ activeWorkflowId, userPermissions, className }: DeployProps) {
+export function Deploy({
+  activeWorkflowId,
+  userPermissions,
+  className,
+  disabled = false,
+}: DeployProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
   const isRegistryLoading = hydrationPhase === 'idle' || hydrationPhase === 'state-loading'
@@ -50,10 +56,10 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
 
   const isEmpty = !hasBlocks()
   const canDeploy = userPermissions.canAdmin
-  const isDisabled = isDeploying || !canDeploy || isEmpty
+  const isDisabled = disabled || isDeploying || !canDeploy || isEmpty
 
   const onDeployClick = async () => {
-    if (!canDeploy || !activeWorkflowId) return
+    if (disabled || !canDeploy || !activeWorkflowId) return
 
     const result = await handleDeployClick()
     if (result.shouldOpenModal) {
@@ -67,6 +73,9 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
     }
     if (!canDeploy) {
       return 'Admin permissions required'
+    }
+    if (disabled) {
+      return 'Workflow is locked'
     }
     if (isDeploying) {
       return 'Deploying...'

@@ -34,6 +34,7 @@ function mapFolder(folder: FolderApi): WorkflowFolder {
     parentId: folder.parentId,
     color: folder.color ?? '#6B7280',
     isExpanded: folder.isExpanded,
+    locked: folder.locked,
     sortOrder: folder.sortOrder,
     createdAt: new Date(folder.createdAt),
     updatedAt: new Date(folder.updatedAt),
@@ -90,7 +91,7 @@ interface CreateFolderVariables {
 interface UpdateFolderVariables {
   workspaceId: string
   id: string
-  updates: Partial<Pick<WorkflowFolder, 'name' | 'parentId' | 'color' | 'sortOrder'>>
+  updates: Partial<Pick<WorkflowFolder, 'name' | 'parentId' | 'color' | 'sortOrder' | 'locked'>>
 }
 
 interface DeleteFolderVariables {
@@ -165,6 +166,7 @@ export function useCreateFolder() {
         parentId: variables.parentId || null,
         color: variables.color || '#808080',
         isExpanded: false,
+        locked: false,
         sortOrder:
           variables.sortOrder ??
           getTopInsertionSortOrder(
@@ -266,6 +268,7 @@ export function useDuplicateFolderMutation() {
         parentId: targetParentId,
         color: variables.color || sourceFolder?.color || '#808080',
         isExpanded: false,
+        locked: false,
         sortOrder: getTopInsertionSortOrder(
           currentWorkflows,
           previousFolders,
