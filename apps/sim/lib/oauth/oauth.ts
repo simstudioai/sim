@@ -495,6 +495,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'write:jira-work',
           'read:me',
           'offline_access',
+          'read:issue.vote:jira',
           'delete:issue:jira',
           'delete:comment:jira',
           'delete:attachment:jira',
