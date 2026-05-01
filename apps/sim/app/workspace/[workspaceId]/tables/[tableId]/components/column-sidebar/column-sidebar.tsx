@@ -25,6 +25,7 @@ import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import { getBlock } from '@/blocks'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
 import {
   useAddTableColumn,
   useAddWorkflowGroup,
@@ -32,6 +33,7 @@ import {
   useUpdateWorkflowGroup,
 } from '@/hooks/queries/tables'
 import { useWorkflowState, workflowKeys } from '@/hooks/queries/workflows'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { COLUMN_TYPE_OPTIONS, type SidebarColumnType } from './column-types'
 
@@ -225,6 +227,44 @@ function FieldError({ message }: { message: string }) {
 }
 
 /**
+ * Tinted inline warning row with a message on the left and an action button
+ * on the right. Stacks naturally — render multiple in sequence and they line
+ * up. Color mirrors the group-header deploy badge: `red` for blocking states,
+ * `amber` for soft warnings.
+ */
+function WarningRow({
+  tone,
+  message,
+  action,
+}: {
+  tone: 'red' | 'amber'
+  message: string
+  action: React.ReactNode
+}) {
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-2 rounded-md border px-2.5 py-2',
+        tone === 'red'
+          ? 'border-destructive/40 bg-destructive/5'
+          : 'border-amber-500/40 bg-amber-500/5'
+      )}
+      role='status'
+    >
+      <span
+        className={cn(
+          'min-w-0 flex-1 text-caption',
+          tone === 'red' ? 'text-destructive' : 'text-amber-700 dark:text-amber-400'
+        )}
+      >
+        {message}
+      </span>
+      <div className='shrink-0'>{action}</div>
+    </div>
+  )
+}
+
+/**
  * Right-edge configuration panel for any column.
  *
  * Shows name / type / unique for every column, plus workflow-specific fields
@@ -273,6 +313,15 @@ export function ColumnSidebar({
 
   const isWorkflow =
     !!existingGroup || configState?.mode === 'new' || typeInput === 'workflow'
+
+  /**
+   * Show the Column name field whenever a *specific* column is open: scalar
+   * columns (create or edit) and per-output workflow columns (edit only). Hide
+   * it when the surface is the workflow-group as a whole — i.e. creating a
+   * brand-new workflow column where individual output names are auto-derived.
+   */
+  const showColumnNameField =
+    !isWorkflow || configState?.mode === 'edit' || configState?.mode === 'new'
 
   /**
    * Columns to the left of the current column — these are the only valid trigger
@@ -412,6 +461,26 @@ export function ColumnSidebar({
   const workflowState = useWorkflowState(
     open && isWorkflow && selectedWorkflowId ? selectedWorkflowId : undefined
   )
+
+  /**
+   * Deployment status of the picked workflow. The sidebar surfaces an inline
+   * warning row offering one-click (re)deploy, mirroring the badge in the
+   * group's column header so the user sees the same signal where they're
+   * configuring the column.
+   */
+  const deploymentInfo = useDeploymentInfo(
+    open && isWorkflow && selectedWorkflowId ? selectedWorkflowId : null,
+    { refetchOnMount: 'always' }
+  )
+  const deployState: 'undeployed' | 'redeploy' | null = deploymentInfo.data
+    ? !deploymentInfo.data.isDeployed
+      ? 'undeployed'
+      : deploymentInfo.data.needsRedeployment
+        ? 'redeploy'
+        : null
+    : null
+  const { mutate: deployWorkflow, isPending: isDeploying } = useDeployWorkflow()
+  const userPermissions = useUserPermissionsContext()
 
   /**
    * Resolves the unified Start block id and its current `inputFormat` field
@@ -672,7 +741,13 @@ export function ColumnSidebar({
     if (!configState) return
     setSaveError(null)
     const trimmedName = nameInput.trim()
-    if (!trimmedName || (isWorkflow && (!selectedWorkflowId || selectedOutputs.length === 0))) {
+    // Name is required iff the field is shown — when configuring a whole
+    // workflow group at creation time, per-output column names are auto-derived
+    // and the field is hidden, so don't gate save on it.
+    if (
+      (showColumnNameField && !trimmedName) ||
+      (isWorkflow && (!selectedWorkflowId || selectedOutputs.length === 0))
+    ) {
       setShowValidation(true)
       return
     }
@@ -688,8 +763,23 @@ export function ColumnSidebar({
         if (existingGroup) {
           // Update path: diff outputs, derive new column names for added entries,
           // call updateWorkflowGroup so service handles add/remove transactionally.
+          // If the sidebar was opened on a *specific* workflow-output column and
+          // the user renamed it, propagate that into the group's `outputs` ref
+          // (the column rename itself goes through `updateColumn` below, which
+          // server-side cascades into outputs/deps — but our outgoing payload
+          // also has to use the new name so the group update doesn't undo it).
+          const editedColumnName =
+            configState.mode === 'edit' ? configState.columnName : null
+          const renamedColumn =
+            editedColumnName && trimmedName && trimmedName !== editedColumnName
+              ? { from: editedColumnName, to: trimmedName }
+              : null
           const oldKeys = new Set(existingGroup.outputs.map((o) => `${o.blockId}::${o.path}`))
-          const taken = new Set(allColumns.map((c) => c.name))
+          const taken = new Set(
+            allColumns.map((c) =>
+              renamedColumn && c.name === renamedColumn.from ? renamedColumn.to : c.name
+            )
+          )
           const fullOutputs: WorkflowGroupOutput[] = []
           const newOutputColumns: ColumnDefinition[] = []
           for (const o of orderedOutputs) {
@@ -698,7 +788,11 @@ export function ColumnSidebar({
               (e) => e.blockId === o.blockId && e.path === o.path
             )
             if (existing) {
-              fullOutputs.push(existing)
+              fullOutputs.push(
+                renamedColumn && existing.columnName === renamedColumn.from
+                  ? { ...existing, columnName: renamedColumn.to }
+                  : existing
+              )
             } else {
               const blockName = blockNameByBlockId.get(o.blockId) ?? 'output'
               const colName = deriveOutputColumnName(blockName, o.path, taken)
@@ -713,6 +807,12 @@ export function ColumnSidebar({
               })
             }
             oldKeys.delete(key)
+          }
+          if (renamedColumn) {
+            await updateColumn.mutateAsync({
+              columnName: renamedColumn.from,
+              updates: { name: renamedColumn.to },
+            })
           }
           await updateWorkflowGroup.mutateAsync({
             groupId: existingGroup.id,
@@ -835,24 +935,28 @@ export function ColumnSidebar({
             />
           </div>
 
-          <FieldDivider />
+          {showColumnNameField && (
+            <>
+              <FieldDivider />
 
-          <div className='flex flex-col gap-[9.5px]'>
-            <FieldLabel htmlFor='column-sidebar-name' required>
-              Column name
-            </FieldLabel>
-            <Input
-              id='column-sidebar-name'
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              spellCheck={false}
-              autoComplete='off'
-              aria-invalid={showValidation && !nameInput.trim() ? true : undefined}
-            />
-            {showValidation && !nameInput.trim() && (
-              <FieldError message='Column name is required' />
-            )}
-          </div>
+              <div className='flex flex-col gap-[9.5px]'>
+                <FieldLabel htmlFor='column-sidebar-name' required>
+                  Column name
+                </FieldLabel>
+                <Input
+                  id='column-sidebar-name'
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  spellCheck={false}
+                  autoComplete='off'
+                  aria-invalid={showValidation && !nameInput.trim() ? true : undefined}
+                />
+                {showValidation && !nameInput.trim() && (
+                  <FieldError message='Column name is required' />
+                )}
+              </div>
+            </>
+          )}
 
           {!isWorkflow && (
             <>
@@ -955,27 +1059,70 @@ export function ColumnSidebar({
                 {selectedWorkflowId &&
                   startBlockInputs.blockId &&
                   missingInputColumnNames.length > 0 && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          type='button'
-                          variant='default'
-                          size='sm'
-                          onClick={() => addInputsMutation.mutate()}
-                          disabled={addInputsMutation.isPending}
-                          className='self-start'
-                        >
-                          <Plus className='h-[14px] w-[14px]' />
-                          {addInputsMutation.isPending
-                            ? 'Adding…'
-                            : `Add inputs (${missingInputColumnNames.length})`}
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content side='top'>
-                        Adds {missingInputColumnNames.join(', ')} to the workflow's Start block
-                      </Tooltip.Content>
-                    </Tooltip.Root>
+                    <WarningRow
+                      tone='amber'
+                      message={`Start block missing ${missingInputColumnNames.length} table input${
+                        missingInputColumnNames.length === 1 ? '' : 's'
+                      }`}
+                      action={
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <Button
+                              type='button'
+                              variant='default'
+                              size='sm'
+                              onClick={() => addInputsMutation.mutate()}
+                              disabled={addInputsMutation.isPending}
+                            >
+                              <Plus className='h-[14px] w-[14px]' />
+                              {addInputsMutation.isPending
+                                ? 'Adding…'
+                                : `Add inputs (${missingInputColumnNames.length})`}
+                            </Button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content side='top'>
+                            Adds {missingInputColumnNames.join(', ')} to the workflow's Start block
+                          </Tooltip.Content>
+                        </Tooltip.Root>
+                      }
+                    />
                   )}
+                {selectedWorkflowId && deployState && (
+                  <WarningRow
+                    tone={deployState === 'undeployed' ? 'red' : 'amber'}
+                    message={
+                      deployState === 'undeployed'
+                        ? 'Workflow is not deployed'
+                        : 'Workflow has changes since last deploy'
+                    }
+                    action={
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            type='button'
+                            variant='default'
+                            size='sm'
+                            onClick={() => deployWorkflow({ workflowId: selectedWorkflowId })}
+                            disabled={isDeploying || !userPermissions.canAdmin}
+                          >
+                            {isDeploying
+                              ? 'Deploying…'
+                              : deployState === 'undeployed'
+                                ? 'Deploy'
+                                : 'Redeploy'}
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top'>
+                          {!userPermissions.canAdmin
+                            ? 'Admin permission required to deploy'
+                            : deployState === 'undeployed'
+                              ? 'Deploy this workflow'
+                              : 'Redeploy with the latest changes'}
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                    }
+                  />
+                )}
               </div>
 
               <FieldDivider />

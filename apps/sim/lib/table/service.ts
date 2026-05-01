@@ -2224,25 +2224,55 @@ export async function deleteColumn(
     throw new Error('Cannot delete the last column in a table')
   }
 
-  const actualName = schema.columns[columnIndex].name
-  if (schema.columns[columnIndex].workflowGroupId) {
-    throw new Error(
-      `Cannot delete workflow-output column "${actualName}" directly. Remove or update the parent workflow group.`
-    )
-  }
-  const updatedGroups = (schema.workflowGroups ?? []).map((group) => {
-    const filtered = group.dependencies?.columns?.filter((d) => d !== actualName)
-    if (!filtered) return group
-    return {
-      ...group,
-      dependencies: {
-        ...(filtered.length > 0 ? { columns: filtered } : {}),
-        ...(group.dependencies?.workflowGroups
-          ? { workflowGroups: group.dependencies.workflowGroups }
-          : {}),
-      },
+  const targetColumn = schema.columns[columnIndex]
+  const actualName = targetColumn.name
+  const ownerGroupId = targetColumn.workflowGroupId
+
+  // Drop this column's reference from every group's outputs and `columns`
+  // dependency. If the column is the last output of its parent group, the
+  // group itself is also removed (a group with zero outputs is invalid),
+  // and any OTHER group depending on this group has the dep cleared too.
+  let groupRemovedId: string | null = null
+  let updatedGroups = (schema.workflowGroups ?? []).map((group) => {
+    let next = group
+    if (ownerGroupId && group.id === ownerGroupId) {
+      const remaining = group.outputs.filter((o) => o.columnName !== actualName)
+      if (remaining.length === 0) {
+        groupRemovedId = group.id
+      }
+      next = { ...next, outputs: remaining }
     }
+    const filtered = next.dependencies?.columns?.filter((d) => d !== actualName)
+    if (filtered && filtered.length !== (next.dependencies?.columns?.length ?? 0)) {
+      next = {
+        ...next,
+        dependencies: {
+          ...(filtered.length > 0 ? { columns: filtered } : {}),
+          ...(next.dependencies?.workflowGroups
+            ? { workflowGroups: next.dependencies.workflowGroups }
+            : {}),
+        },
+      }
+    }
+    return next
   })
+  if (groupRemovedId) {
+    const removed = groupRemovedId
+    updatedGroups = updatedGroups
+      .filter((g) => g.id !== removed)
+      .map((g) =>
+        g.dependencies?.workflowGroups
+          ? {
+              ...g,
+              dependencies: {
+                ...(g.dependencies.columns ? { columns: g.dependencies.columns } : {}),
+                workflowGroups: g.dependencies.workflowGroups.filter((id) => id !== removed),
+              },
+            }
+          : g
+      )
+  }
+
   const updatedSchema: TableSchema = {
     ...schema,
     columns: schema.columns.filter((_, i) => i !== columnIndex),
@@ -2315,29 +2345,39 @@ export async function deleteColumns(
     throw new Error('Cannot delete all columns from a table')
   }
 
-  // Block deletion of any workflow-output column — they belong to a group.
-  const blocked = [...namesToDelete].filter((n) => {
-    const col = schema.columns.find((c) => c.name === n)
-    return !!col?.workflowGroupId
-  })
-  if (blocked.length > 0) {
-    throw new Error(
-      `Cannot delete workflow-output columns directly: ${blocked.join(', ')}. Remove or update the parent workflow group.`
-    )
-  }
-  const updatedGroups = (schema.workflowGroups ?? []).map((group) => {
-    const filtered = group.dependencies?.columns?.filter((d) => !namesToDelete.has(d))
-    if (!filtered) return group
-    return {
-      ...group,
-      dependencies: {
-        ...(filtered.length > 0 ? { columns: filtered } : {}),
-        ...(group.dependencies?.workflowGroups
-          ? { workflowGroups: group.dependencies.workflowGroups }
-          : {}),
-      },
+  // For each group, drop outputs whose column is being deleted. Groups that
+  // end up with zero outputs are removed entirely (they'd be invalid). Then
+  // any remaining group's dependencies referencing a removed group or
+  // deleted column are cleaned up.
+  const removedGroupIds = new Set<string>()
+  let updatedGroups = (schema.workflowGroups ?? []).map((group) => {
+    const remainingOutputs = group.outputs.filter((o) => !namesToDelete.has(o.columnName))
+    if (remainingOutputs.length === 0) {
+      removedGroupIds.add(group.id)
     }
+    return remainingOutputs.length === group.outputs.length
+      ? group
+      : { ...group, outputs: remainingOutputs }
   })
+  updatedGroups = updatedGroups
+    .filter((g) => !removedGroupIds.has(g.id))
+    .map((group) => {
+      const depCols = group.dependencies?.columns?.filter((d) => !namesToDelete.has(d))
+      const depGroups = group.dependencies?.workflowGroups?.filter(
+        (id) => !removedGroupIds.has(id)
+      )
+      const colsChanged = depCols && depCols.length !== (group.dependencies?.columns?.length ?? 0)
+      const groupsChanged =
+        depGroups && depGroups.length !== (group.dependencies?.workflowGroups?.length ?? 0)
+      if (!colsChanged && !groupsChanged) return group
+      return {
+        ...group,
+        dependencies: {
+          ...(depCols && depCols.length > 0 ? { columns: depCols } : {}),
+          ...(depGroups && depGroups.length > 0 ? { workflowGroups: depGroups } : {}),
+        },
+      }
+    })
   const updatedSchema: TableSchema = {
     ...schema,
     columns: remaining,

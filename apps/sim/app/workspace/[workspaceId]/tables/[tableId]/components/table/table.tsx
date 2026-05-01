@@ -13,6 +13,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Modal,
   ModalBody,
@@ -2099,6 +2102,13 @@ export function Table({
     setConfigState({ mode: 'edit', columnName })
   }, [])
 
+  const handleDeleteWorkflowGroup = useCallback(
+    (groupId: string) => {
+      deleteWorkflowGroupMutation.mutate({ groupId })
+    },
+    [deleteWorkflowGroupMutation]
+  )
+
   const handleDeleteColumn = useCallback((columnName: string) => {
     const cols = columnsRef.current
     if (isColumnSelectionRef.current && selectionAnchorRef.current) {
@@ -2572,6 +2582,9 @@ export function Table({
                               }
                               onDeleteColumn={
                                 userPermissions.canEdit ? handleDeleteColumn : undefined
+                              }
+                              onDeleteGroup={
+                                userPermissions.canEdit ? handleDeleteWorkflowGroup : undefined
                               }
                             />
                           ) : (
@@ -3724,6 +3737,7 @@ function ColumnOptionsMenu({
   onInsertLeft,
   onInsertRight,
   onDeleteColumn,
+  onDeleteGroup,
   onRunGroupAll,
   onRunGroupIncomplete,
 }: {
@@ -3735,6 +3749,10 @@ function ColumnOptionsMenu({
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
   onDeleteColumn: (columnName: string) => void
+  /** When provided (i.e. menu opened from a workflow-group meta header), the
+   *  "Delete" item deletes the entire workflow group rather than the single
+   *  column. Wins over `onDeleteColumn` for the destructive action. */
+  onDeleteGroup?: () => void
   /** When provided, the menu is being opened from a workflow-group header and
    *  exposes group-level run actions above the column actions. */
   onRunGroupAll?: () => void
@@ -3766,10 +3784,20 @@ function ColumnOptionsMenu({
       >
         {showRunActions && (
           <>
-            <DropdownMenuItem onSelect={() => onRunGroupAll?.()}>Run all rows</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onRunGroupIncomplete?.()}>
-              Run empty rows
-            </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <PlayOutline />
+                Run
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onSelect={() => onRunGroupAll?.()}>
+                  Run all rows
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onRunGroupIncomplete?.()}>
+                  Run empty rows
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             <DropdownMenuSeparator />
           </>
         )}
@@ -3787,9 +3815,11 @@ function ColumnOptionsMenu({
           Insert column right
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => onDeleteColumn(column.name)}>
+        <DropdownMenuItem
+          onSelect={() => (onDeleteGroup ? onDeleteGroup() : onDeleteColumn(column.name))}
+        >
           <Trash />
-          Delete column
+          {onDeleteGroup ? 'Delete workflow' : 'Delete column'}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -3816,6 +3846,7 @@ function WorkflowGroupMetaCell({
   onInsertLeft,
   onInsertRight,
   onDeleteColumn,
+  onDeleteGroup,
 }: {
   workflowId: string
   groupId: string
@@ -3832,6 +3863,8 @@ function WorkflowGroupMetaCell({
   onInsertLeft?: (columnName: string) => void
   onInsertRight?: (columnName: string) => void
   onDeleteColumn?: (columnName: string) => void
+  /** Right-click delete on the group header drops the entire workflow group. */
+  onDeleteGroup?: (groupId: string) => void
 }) {
   const wf = workflows?.find((w) => w.id === workflowId)
   const color = wf?.color ?? 'var(--text-muted)'
@@ -3972,6 +4005,7 @@ function WorkflowGroupMetaCell({
           onInsertLeft={onInsertLeft}
           onInsertRight={onInsertRight}
           onDeleteColumn={onDeleteColumn}
+          onDeleteGroup={onDeleteGroup ? () => onDeleteGroup(groupId) : undefined}
           onRunGroupAll={onRunGroup ? handleRunAll : undefined}
           onRunGroupIncomplete={onRunGroup ? handleRunIncomplete : undefined}
         />
