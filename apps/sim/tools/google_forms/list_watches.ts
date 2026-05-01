@@ -3,7 +3,7 @@ import type {
   GoogleFormsListWatchesResponse,
   GoogleFormsWatch,
 } from '@/tools/google_forms/types'
-import { buildListWatchesUrl } from '@/tools/google_forms/utils'
+import { buildListWatchesUrl, getGoogleFormsErrorMessage } from '@/tools/google_forms/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface ListWatchesApiResponse {
@@ -52,13 +52,12 @@ export const listWatchesTool: ToolConfig<
     const data = (await response.json()) as ListWatchesApiResponse
 
     if (!response.ok) {
-      const errorData = data as unknown as { error?: { message?: string } }
       return {
         success: false,
         output: {
           watches: [],
         },
-        error: errorData.error?.message ?? 'Failed to list watches',
+        error: getGoogleFormsErrorMessage(data, 'Failed to list watches'),
       }
     }
 

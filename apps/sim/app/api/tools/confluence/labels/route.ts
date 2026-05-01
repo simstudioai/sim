@@ -1,5 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  confluenceDeleteLabelContract,
+  confluenceLabelMutationContract,
+  confluenceListLabelsContract,
+} from '@/lib/api/contracts/selectors/confluence'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -18,6 +24,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
+    const parsed = await parseRequest(confluenceLabelMutationContract, request, {})
+    if (!parsed.success) return parsed.response
+
     const {
       domain,
       accessToken,
@@ -25,7 +34,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       pageId,
       labelName,
       prefix: labelPrefix,
-    } = await request.json()
+    } = parsed.data.body
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -113,13 +122,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const domain = searchParams.get('domain')
-    const accessToken = searchParams.get('accessToken')
-    const pageId = searchParams.get('pageId')
-    const providedCloudId = searchParams.get('cloudId')
-    const limit = searchParams.get('limit') || '25'
-    const cursor = searchParams.get('cursor')
+    const parsed = await parseRequest(confluenceListLabelsContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const {
+      domain,
+      accessToken,
+      pageId,
+      cloudId: providedCloudId,
+      limit,
+      cursor,
+    } = parsed.data.query
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -204,13 +217,10 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const {
-      domain,
-      accessToken,
-      cloudId: providedCloudId,
-      pageId,
-      labelName,
-    } = await request.json()
+    const parsed = await parseRequest(confluenceDeleteLabelContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const { domain, accessToken, cloudId: providedCloudId, pageId, labelName } = parsed.data.body
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })

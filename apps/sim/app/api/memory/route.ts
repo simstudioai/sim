@@ -4,6 +4,13 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, like } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  createMemoryContract,
+  deleteMemoryByQueryContract,
+  listMemoriesContract,
+  memoryMessageSchema,
+} from '@/lib/api/contracts/memory'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -27,10 +34,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const url = new URL(request.url)
-    const workspaceId = url.searchParams.get('workspaceId')
-    const searchQuery = url.searchParams.get('query')
-    const limit = Number.parseInt(url.searchParams.get('limit') || '50')
+    const validation = await parseRequest(listMemoriesContract, request, {})
+    if (!validation.success) return validation.response
+    const { workspaceId, query: searchQuery, limit } = validation.data.query
 
     if (!workspaceId) {
       return NextResponse.json(
@@ -100,8 +106,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const body = await request.json()
-    const { key, data, workspaceId } = body
+    const validation = await parseRequest(createMemoryContract, request, {})
+    if (!validation.success) return validation.response
+    const { key, data, workspaceId } = validation.data.body
 
     if (!key) {
       return NextResponse.json(
@@ -148,16 +155,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const dataToValidate = Array.isArray(data) ? data : [data]
 
     for (const msg of dataToValidate) {
-      if (!msg || typeof msg !== 'object' || !msg.role || !msg.content) {
+      const parsedMessage = memoryMessageSchema.safeParse(msg)
+      if (!parsedMessage.success) {
+        const role =
+          msg && typeof msg === 'object' && 'role' in msg
+            ? (msg as { role?: unknown }).role
+            : undefined
+        const invalidRole = Boolean(role) && !['user', 'assistant', 'system'].includes(String(role))
         return NextResponse.json(
-          { success: false, error: { message: 'Memory requires messages with role and content' } },
-          { status: 400 }
-        )
-      }
-
-      if (!['user', 'assistant', 'system'].includes(msg.role)) {
-        return NextResponse.json(
-          { success: false, error: { message: 'Message role must be user, assistant, or system' } },
+          {
+            success: false,
+            error: {
+              message: invalidRole
+                ? 'Message role must be user, assistant, or system'
+                : 'Memory requires messages with role and content',
+            },
+          },
           { status: 400 }
         )
       }
@@ -220,7 +233,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     logger.error(`[${requestId}] Error creating memory`, { error })
     return NextResponse.json(
-      { success: false, error: { message: error.message || 'Failed to create memory' } },
+      { success: false, error: { message: 'Failed to create memory' } },
       { status: 500 }
     )
   }
@@ -239,9 +252,9 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const url = new URL(request.url)
-    const workspaceId = url.searchParams.get('workspaceId')
-    const conversationId = url.searchParams.get('conversationId')
+    const validation = await parseRequest(deleteMemoryByQueryContract, request, {})
+    if (!validation.success) return validation.response
+    const { workspaceId, conversationId } = validation.data.query
 
     if (!workspaceId) {
       return NextResponse.json(

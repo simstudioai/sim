@@ -34,7 +34,7 @@ interface SetEnvironmentVariablesResult {
   workspaceUpdatedVariables: string[]
 }
 
-const EnvVarSchema = z.object({ variables: z.record(z.string()) })
+const EnvVarSchema = z.object({ variables: z.record(z.string(), z.string()) })
 
 function normalizeVariables(
   input: Record<string, EnvironmentVariableInputValue> | EnvironmentVariableInput[]

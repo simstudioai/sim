@@ -223,6 +223,7 @@ export interface TraceSpan {
     input?: number
     output?: number
     total?: number
+    toolCost?: number
   }
   providerTiming?: ProviderTiming
   loopId?: string

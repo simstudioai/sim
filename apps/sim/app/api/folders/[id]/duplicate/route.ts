@@ -5,7 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { duplicateFolderContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -14,18 +15,10 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FolderDuplicateAPI')
 
-const DuplicateRequestSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  workspaceId: z.string().optional(),
-  parentId: z.string().nullable().optional(),
-  color: z.string().optional(),
-  newId: z.string().uuid().optional(),
-})
-
 // POST /api/folders/[id]/duplicate - Duplicate a folder with all its child folders and workflows
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: sourceFolderId } = await params
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const { id: sourceFolderId } = await context.params
     const requestId = generateRequestId()
     const startTime = Date.now()
 
@@ -36,14 +29,9 @@ export const POST = withRouteHandler(
     }
 
     try {
-      const body = await req.json()
-      const {
-        name,
-        workspaceId,
-        parentId,
-        color,
-        newId: clientNewId,
-      } = DuplicateRequestSchema.parse(body)
+      const parsed = await parseRequest(duplicateFolderContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { name, workspaceId, parentId, color, newId: clientNewId } = parsed.data.body
 
       logger.info(`[${requestId}] Duplicating folder ${sourceFolderId} for user ${session.user.id}`)
 
@@ -165,18 +153,13 @@ export const POST = withRouteHandler(
         request: req,
       })
 
-      return NextResponse.json(
-        {
-          id: newFolderId,
-          name,
-          color: color || sourceFolder.color,
-          workspaceId: targetWorkspaceId,
-          parentId: parentId || sourceFolder.parentId,
-          foldersCount: folderMapping.size,
-          workflowsCount: workflowStats.succeeded,
-        },
-        { status: 201 }
-      )
+      const duplicatedFolder = await db
+        .select()
+        .from(workflowFolder)
+        .where(eq(workflowFolder.id, newFolderId))
+        .then((rows) => rows[0])
+
+      return NextResponse.json({ folder: duplicatedFolder }, { status: 201 })
     } catch (error) {
       if (error instanceof Error) {
         if (error.message === 'Source folder not found') {
@@ -190,14 +173,6 @@ export const POST = withRouteHandler(
           )
           return NextResponse.json({ error: 'Access denied' }, { status: 403 })
         }
-      }
-
-      if (error instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid duplication request data`, { errors: error.errors })
-        return NextResponse.json(
-          { error: 'Invalid request data', details: error.errors },
-          { status: 400 }
-        )
       }
 
       const elapsed = Date.now() - startTime

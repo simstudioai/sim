@@ -6,6 +6,8 @@ import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
+import { requestJson } from '@/lib/api/client/request'
+import { cancelWorkflowExecutionContract, workflowLogContract } from '@/lib/api/contracts/workflows'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import {
@@ -216,25 +218,31 @@ export function useWorkflowExecution() {
       durationMs?: number
       blockLogs: BlockLog[]
       isPreExecutionError?: boolean
+      finalBlockLogs?: BlockLog[]
     }) => {
       if (!params.workflowId) return
-      sharedHandleExecutionErrorConsole(addConsole, cancelRunningEntries, {
-        ...params,
-        workflowId: params.workflowId,
-      })
+      sharedHandleExecutionErrorConsole(
+        { addConsole, updateConsole, cancelRunningEntries },
+        { ...params, workflowId: params.workflowId }
+      )
     },
-    [addConsole, cancelRunningEntries]
+    [addConsole, cancelRunningEntries, updateConsole]
   )
 
   const handleExecutionCancelledConsole = useCallback(
-    (params: { workflowId?: string; executionId?: string; durationMs?: number }) => {
+    (params: {
+      workflowId?: string
+      executionId?: string
+      durationMs?: number
+      finalBlockLogs?: BlockLog[]
+    }) => {
       if (!params.workflowId) return
-      sharedHandleExecutionCancelledConsole(addConsole, cancelRunningEntries, {
-        ...params,
-        workflowId: params.workflowId,
-      })
+      sharedHandleExecutionCancelledConsole(
+        { addConsole, updateConsole, cancelRunningEntries },
+        { ...params, workflowId: params.workflowId }
+      )
     },
-    [addConsole, cancelRunningEntries]
+    [addConsole, cancelRunningEntries, updateConsole]
   )
 
   const buildBlockEventHandlers = useCallback(
@@ -363,20 +371,14 @@ export function useWorkflowExecution() {
         }
       }
 
-      const response = await fetch(`/api/workflows/${activeWorkflowId}/log`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      if (!activeWorkflowId) return executionId
+      await requestJson(workflowLogContract, {
+        params: { id: activeWorkflowId },
+        body: {
           executionId,
           result: enrichedResult,
-        }),
+        },
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to persist logs')
-      }
 
       return executionId
     } catch (error) {
@@ -461,7 +463,7 @@ export function useWorkflowExecution() {
                   formData.append('executionId', executionId)
                   formData.append('workspaceId', workspaceId)
 
-                  // Upload the file
+                  // boundary-raw-fetch: multipart/form-data file upload, requestJson only supports JSON bodies
                   const response = await fetch('/api/files/upload', {
                     method: 'POST',
                     body: formData,
@@ -1226,6 +1228,7 @@ export function useWorkflowExecution() {
                 durationMs: data.duration,
                 blockLogs: accumulatedBlockLogs,
                 isPreExecutionError,
+                finalBlockLogs: data.finalBlockLogs,
               })
 
               if (activeWorkflowId && !isExecutingFromChat) {
@@ -1252,6 +1255,7 @@ export function useWorkflowExecution() {
                 workflowId: activeWorkflowId,
                 executionId: executionIdRef.current,
                 durationMs: data?.duration,
+                finalBlockLogs: data?.finalBlockLogs,
               })
 
               if (activeWorkflowId && !isExecutingFromChat) {
@@ -1523,8 +1527,8 @@ export function useWorkflowExecution() {
 
     if (storedExecutionId) {
       setCurrentExecutionId(activeWorkflowId, null)
-      fetch(`/api/workflows/${activeWorkflowId}/executions/${storedExecutionId}/cancel`, {
-        method: 'POST',
+      requestJson(cancelWorkflowExecutionContract, {
+        params: { id: activeWorkflowId, executionId: storedExecutionId },
       }).catch(() => {})
       handleExecutionCancelledConsole({
         workflowId: activeWorkflowId,
@@ -1739,6 +1743,7 @@ export function useWorkflowExecution() {
                 error: data.error,
                 durationMs: data.duration,
                 blockLogs: accumulatedBlockLogs,
+                finalBlockLogs: data.finalBlockLogs,
               })
 
               setCurrentExecutionId(workflowId, null)
@@ -1751,6 +1756,7 @@ export function useWorkflowExecution() {
                 workflowId,
                 executionId: executionIdRef.current,
                 durationMs: data?.duration,
+                finalBlockLogs: data?.finalBlockLogs,
               })
 
               setCurrentExecutionId(workflowId, null)
@@ -1999,9 +2005,10 @@ export function useWorkflowExecution() {
                   executionId: capturedExecutionId,
                   error: data.error,
                   blockLogs: accumulatedBlockLogs,
+                  finalBlockLogs: data.finalBlockLogs,
                 })
               },
-              onExecutionCancelled: () => {
+              onExecutionCancelled: (data) => {
                 reconnectionComplete = true
                 activeReconnections.delete(reconnectWorkflowId)
                 if (!activated) {
@@ -2018,6 +2025,8 @@ export function useWorkflowExecution() {
                 handleExecutionCancelledConsole({
                   workflowId: reconnectWorkflowId,
                   executionId: capturedExecutionId,
+                  durationMs: data?.duration,
+                  finalBlockLogs: data?.finalBlockLogs,
                 })
               },
             },

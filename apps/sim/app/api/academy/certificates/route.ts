@@ -4,9 +4,10 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { getCourseById } from '@/lib/academy/content'
 import type { CertificateMetadata } from '@/lib/academy/types'
+import { issueAcademyCertificateContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -20,11 +21,6 @@ const CERT_RATE_LIMIT: TokenBucketConfig = {
   refillRate: 1,
   refillIntervalMs: 60 * 60_000, // 1 per hour refill
 }
-
-const IssueCertificateSchema = z.object({
-  courseId: z.string(),
-  completedLessonIds: z.array(z.string()),
-})
 
 /**
  * POST /api/academy/certificates
@@ -47,13 +43,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
-    const body = await req.json()
-    const parsed = IssueCertificateSchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
-    }
+    const parsed = await parseRequest(issueAcademyCertificateContract, req, {})
+    if (!parsed.success) return parsed.response
 
-    const { courseId, completedLessonIds } = parsed.data
+    const { courseId, completedLessonIds } = parsed.data.body
 
     const course = getCourseById(courseId)
     if (!course) {

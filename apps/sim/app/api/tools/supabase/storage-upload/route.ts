@@ -1,31 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { supabaseStorageUploadContract } from '@/lib/api/contracts/tools/databases/supabase'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateSupabaseProjectId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SupabaseStorageUploadAPI')
-
-const SupabaseStorageUploadSchema = z.object({
-  projectId: z
-    .string()
-    .min(1, 'Project ID is required')
-    .regex(/^[a-z0-9]+$/, 'Project ID must contain only lowercase alphanumeric characters'),
-  apiKey: z.string().min(1, 'API key is required'),
-  bucket: z.string().min(1, 'Bucket name is required'),
-  fileName: z.string().min(1, 'File name is required'),
-  path: z.string().optional().nullable(),
-  fileData: FileInputSchema,
-  contentType: z.string().optional().nullable(),
-  upsert: z.boolean().optional().default(false),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -53,8 +39,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
-    const body = await request.json()
-    const validatedData = SupabaseStorageUploadSchema.parse(body)
+    const parsed = await parseToolRequest(supabaseStorageUploadContract, request, {
+      errorFormat: 'toolDetails',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const fileData = validatedData.fileData
     const isStringInput = typeof fileData === 'string'
@@ -243,18 +233,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error uploading to Supabase Storage:`, error)
 
     return NextResponse.json(

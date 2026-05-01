@@ -106,8 +106,7 @@ async function fetchWithDNSPinning(
 async function formatTeamsGraphNotification(
   body: Record<string, unknown>,
   foundWebhook: Record<string, unknown>,
-  foundWorkflow: { id: string; userId: string },
-  request: { headers: Map<string, string> }
+  foundWorkflow: { id: string; userId: string }
 ): Promise<unknown> {
   const notification = (body.value as unknown[])?.[0] as Record<string, unknown> | undefined
   if (!notification) {
@@ -737,22 +736,13 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     body,
     webhook,
     workflow,
-    headers,
     requestId,
   }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
     const value = b?.value as unknown[] | undefined
 
     if (value && Array.isArray(value) && value.length > 0) {
-      const mockRequest = {
-        headers: new Map(Object.entries(headers)),
-      } as unknown as import('next/server').NextRequest
-      const result = await formatTeamsGraphNotification(
-        b,
-        webhook,
-        workflow,
-        mockRequest as unknown as { headers: Map<string, string> }
-      )
+      const result = await formatTeamsGraphNotification(b, webhook, workflow)
       return { input: result }
     }
 

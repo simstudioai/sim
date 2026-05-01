@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
@@ -18,11 +20,10 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export const POST = withRouteHandler(
-  async (
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string; executionId: string }> }
-  ) => {
-    const { id: workflowId, executionId } = await params
+  async (req: NextRequest, context: { params: Promise<{ id: string; executionId: string }> }) => {
+    const parsed = await parseRequest(cancelWorkflowExecutionContract, req, context)
+    if (!parsed.success) return parsed.response
+    const { id: workflowId, executionId } = parsed.data.params
 
     try {
       const auth = await checkHybridAuth(req, { requireWorkflowId: false })

@@ -164,10 +164,12 @@ describe('Folders API Route', () => {
     it('should return folders for a valid workspace', async () => {
       mockAuthenticatedUser()
 
-      const mockRequest = createMockRequest('GET')
-      Object.defineProperty(mockRequest, 'url', {
-        value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
-      })
+      const mockRequest = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/folders?workspaceId=workspace-123'
+      )
 
       const response = await GET(mockRequest)
 
@@ -186,10 +188,12 @@ describe('Folders API Route', () => {
     it('should return 401 for unauthenticated requests', async () => {
       mockUnauthenticated()
 
-      const mockRequest = createMockRequest('GET')
-      Object.defineProperty(mockRequest, 'url', {
-        value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
-      })
+      const mockRequest = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/folders?workspaceId=workspace-123'
+      )
 
       const response = await GET(mockRequest)
 
@@ -202,27 +206,32 @@ describe('Folders API Route', () => {
     it('should return 400 when workspaceId is missing', async () => {
       mockAuthenticatedUser()
 
-      const mockRequest = createMockRequest('GET')
-      Object.defineProperty(mockRequest, 'url', {
-        value: 'http://localhost:3000/api/folders',
-      })
+      const mockRequest = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/folders'
+      )
 
       const response = await GET(mockRequest)
 
       expect(response.status).toBe(400)
 
       const data = await response.json()
-      expect(data).toHaveProperty('error', 'Workspace ID is required')
+      expect(data).toHaveProperty('error', 'Validation error')
+      expect(data.details?.[0]?.message).toBe('Workspace ID is required')
     })
 
     it('should return 403 when user has no workspace permissions', async () => {
       mockAuthenticatedUser()
       mockGetUserEntityPermissions.mockResolvedValue(null)
 
-      const mockRequest = createMockRequest('GET')
-      Object.defineProperty(mockRequest, 'url', {
-        value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
-      })
+      const mockRequest = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/folders?workspaceId=workspace-123'
+      )
 
       const response = await GET(mockRequest)
 
@@ -236,10 +245,12 @@ describe('Folders API Route', () => {
       mockAuthenticatedUser()
       mockGetUserEntityPermissions.mockResolvedValue('read')
 
-      const mockRequest = createMockRequest('GET')
-      Object.defineProperty(mockRequest, 'url', {
-        value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
-      })
+      const mockRequest = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/folders?workspaceId=workspace-123'
+      )
 
       const response = await GET(mockRequest)
 
@@ -256,10 +267,12 @@ describe('Folders API Route', () => {
         throw new Error('Database connection failed')
       })
 
-      const mockRequest = createMockRequest('GET')
-      Object.defineProperty(mockRequest, 'url', {
-        value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
-      })
+      const mockRequest = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/folders?workspaceId=workspace-123'
+      )
 
       const response = await GET(mockRequest)
 
@@ -458,7 +471,7 @@ describe('Folders API Route', () => {
         expect(response.status).toBe(400)
 
         const data = await response.json()
-        expect(data).toHaveProperty('error', 'Invalid request data')
+        expect(data).toHaveProperty('error', 'Validation error')
       }
     })
 

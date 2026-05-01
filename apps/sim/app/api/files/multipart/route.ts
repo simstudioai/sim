@@ -1,5 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  abortMultipartUploadContract,
+  type CompleteMultipartBody,
+  completeMultipartUploadContract,
+  getMultipartPartUrlsContract,
+  initiateMultipartUploadContract,
+  multipartActionSchema,
+} from '@/lib/api/contracts/storage-transfer'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -30,30 +39,6 @@ const ALLOWED_UPLOAD_CONTEXTS = new Set<StorageContext>([
   'workspace-logos',
 ])
 
-interface InitiateMultipartRequest {
-  fileName: string
-  contentType: string
-  fileSize: number
-  workspaceId: string
-  context?: StorageContext
-}
-
-interface TokenBoundRequest {
-  uploadToken: string
-}
-
-interface GetPartUrlsRequest extends TokenBoundRequest {
-  partNumbers: number[]
-}
-
-interface CompleteSingleRequest extends TokenBoundRequest {
-  parts: unknown
-}
-
-interface CompleteBatchRequest {
-  uploads: Array<TokenBoundRequest & { parts: unknown }>
-}
-
 const verifyTokenForUser = (token: string | undefined, userId: string) => {
   if (!token || typeof token !== 'string') {
     return null
@@ -73,7 +58,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
     const userId = session.user.id
 
-    const action = request.nextUrl.searchParams.get('action')
+    const actionParam = request.nextUrl.searchParams.get('action')
+    const actionResult = multipartActionSchema.safeParse(actionParam)
+    const action = actionResult.success ? actionResult.data : null
 
     if (!isUsingCloudStorage()) {
       return NextResponse.json(
@@ -86,23 +73,35 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     switch (action) {
       case 'initiate': {
-        const data = (await request.json()) as InitiateMultipartRequest
+        const parsed = await parseRequest(
+          initiateMultipartUploadContract,
+          request,
+          {},
+          {
+            validationErrorResponse: (error) =>
+              NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+          }
+        )
+        if (!parsed.success) return parsed.response
+
+        const data = parsed.data.body
         const { fileName, contentType, fileSize, workspaceId, context = 'knowledge-base' } = data
 
         if (!workspaceId || typeof workspaceId !== 'string') {
           return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 })
         }
 
-        if (!ALLOWED_UPLOAD_CONTEXTS.has(context)) {
+        if (!ALLOWED_UPLOAD_CONTEXTS.has(context as StorageContext)) {
           return NextResponse.json({ error: 'Invalid storage context' }, { status: 400 })
         }
+        const storageContext = context as StorageContext
 
         const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
         if (permission !== 'write' && permission !== 'admin') {
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
         }
 
-        const config = getStorageConfig(context)
+        const config = getStorageConfig(storageContext)
 
         let uploadId: string
         let key: string
@@ -139,18 +138,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           key,
           userId,
           workspaceId,
-          context,
+          context: storageContext,
         })
 
         logger.info(
-          `Initiated ${storageProvider} multipart upload for ${fileName} (context: ${context}, workspace: ${workspaceId}): ${uploadId}`
+          `Initiated ${storageProvider} multipart upload for ${fileName} (context: ${storageContext}, workspace: ${workspaceId}): ${uploadId}`
         )
 
         return NextResponse.json({ uploadId, key, uploadToken })
       }
 
       case 'get-part-urls': {
-        const data = (await request.json()) as GetPartUrlsRequest
+        const parsed = await parseRequest(
+          getMultipartPartUrlsContract,
+          request,
+          {},
+          {
+            validationErrorResponse: (error) =>
+              NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+          }
+        )
+        if (!parsed.success) return parsed.response
+
+        const data = parsed.data.body
         const { partNumbers } = data
 
         const tokenPayload = verifyTokenForUser(data.uploadToken, userId)
@@ -184,7 +194,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       case 'complete': {
-        const data = (await request.json()) as CompleteSingleRequest | CompleteBatchRequest
+        const parsed = await parseRequest(
+          completeMultipartUploadContract,
+          request,
+          {},
+          {
+            validationErrorResponse: (error) =>
+              NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+          }
+        )
+        if (!parsed.success) return parsed.response
+
+        const data: CompleteMultipartBody = parsed.data.body
 
         if ('uploads' in data && Array.isArray(data.uploads)) {
           const verified = data.uploads.map((upload) => {
@@ -243,7 +264,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           return NextResponse.json({ results })
         }
 
-        const single = data as CompleteSingleRequest
+        const single = data
         const tokenPayload = verifyTokenForUser(single.uploadToken, userId)
         if (!tokenPayload) {
           return NextResponse.json({ error: 'Invalid or expired upload token' }, { status: 403 })
@@ -287,7 +308,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       case 'abort': {
-        const data = (await request.json()) as TokenBoundRequest
+        const parsed = await parseRequest(
+          abortMultipartUploadContract,
+          request,
+          {},
+          {
+            validationErrorResponse: (error) =>
+              NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+          }
+        )
+        if (!parsed.success) return parsed.response
+
+        const data = parsed.data.body
         const tokenPayload = verifyTokenForUser(data.uploadToken, userId)
         if (!tokenPayload) {
           return NextResponse.json({ error: 'Invalid or expired upload token' }, { status: 403 })

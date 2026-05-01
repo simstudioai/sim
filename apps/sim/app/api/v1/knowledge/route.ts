@@ -1,40 +1,18 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
 import {
-  authenticateRequest,
-  formatKnowledgeBase,
-  handleError,
-  parseJsonBody,
-  validateSchema,
-  validateWorkspaceAccess,
-} from '@/app/api/v1/knowledge/utils'
+  v1CreateKnowledgeBaseContract,
+  v1ListKnowledgeBasesContract,
+} from '@/lib/api/contracts/v1/knowledge'
+import { parseRequest } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
+import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
+import { formatKnowledgeBase, handleError } from '@/app/api/v1/knowledge/utils'
+import { authenticateRequest, validateWorkspaceAccess } from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-const ListKBSchema = z.object({
-  workspaceId: z.string().min(1, 'workspaceId query parameter is required'),
-})
-
-const ChunkingConfigSchema = z.object({
-  maxSize: z.number().min(100).max(4000).default(1024),
-  minSize: z.number().min(1).max(2000).default(100),
-  overlap: z.number().min(0).max(500).default(200),
-})
-
-const CreateKBSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  name: z.string().min(1, 'Name is required').max(255, 'Name must be 255 characters or less'),
-  description: z.string().max(1000, 'Description must be 1000 characters or less').optional(),
-  chunkingConfig: ChunkingConfigSchema.optional().default({
-    maxSize: 1024,
-    minSize: 100,
-    overlap: 200,
-  }),
-})
 
 /** GET /api/v1/knowledge — List knowledge bases in a workspace. */
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -43,13 +21,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const { requestId, userId, rateLimit } = auth
 
   try {
-    const { searchParams } = new URL(request.url)
-    const validation = validateSchema(ListKBSchema, {
-      workspaceId: searchParams.get('workspaceId'),
-    })
-    if (!validation.success) return validation.response
+    const parsed = await parseRequest(v1ListKnowledgeBasesContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const { workspaceId } = validation.data
+    const { workspaceId } = parsed.data.query
 
     const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId)
     if (accessError) return accessError
@@ -75,13 +50,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const { requestId, userId, rateLimit } = auth
 
   try {
-    const body = await parseJsonBody(request)
-    if (!body.success) return body.response
+    const parsed = await parseRequest(v1CreateKnowledgeBaseContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const validation = validateSchema(CreateKBSchema, body.data)
-    if (!validation.success) return validation.response
-
-    const { workspaceId, name, description, chunkingConfig } = validation.data
+    const { workspaceId, name, description, chunkingConfig } = parsed.data.body
 
     const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (accessError) return accessError
@@ -92,8 +64,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         description,
         workspaceId,
         userId,
-        embeddingModel: 'text-embedding-3-small',
-        embeddingDimension: 1536,
+        embeddingModel: getConfiguredEmbeddingModel(),
+        embeddingDimension: EMBEDDING_DIMENSIONS,
         chunkingConfig: chunkingConfig ?? { maxSize: 1024, minSize: 100, overlap: 200 },
       },
       requestId

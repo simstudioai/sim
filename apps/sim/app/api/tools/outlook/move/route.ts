@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { outlookMoveContract } from '@/lib/api/contracts/tools/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -8,12 +9,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OutlookMoveAPI')
-
-const OutlookMoveSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  messageId: z.string().min(1, 'Message ID is required'),
-  destinationId: z.string().min(1, 'Destination folder ID is required'),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -36,8 +31,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = OutlookMoveSchema.parse(body)
+    const parsed = await parseRequest(outlookMoveContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Moving Outlook email`, {
       messageId: validatedData.messageId,
@@ -87,18 +83,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error moving Outlook email:`, error)
     return NextResponse.json(
       {

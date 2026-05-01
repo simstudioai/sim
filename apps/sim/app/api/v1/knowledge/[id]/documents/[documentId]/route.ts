@@ -3,16 +3,15 @@ import { db } from '@sim/db'
 import { document, knowledgeConnector } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  v1DeleteKnowledgeDocumentContract,
+  v1GetKnowledgeDocumentContract,
+} from '@/lib/api/contracts/v1/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteDocument } from '@/lib/knowledge/documents/service'
-import {
-  authenticateRequest,
-  handleError,
-  resolveKnowledgeBase,
-  serializeDate,
-  validateSchema,
-} from '@/app/api/v1/knowledge/utils'
+import { handleError, resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
+import { authenticateRequest } from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -21,29 +20,21 @@ interface DocumentDetailRouteParams {
   params: Promise<{ id: string; documentId: string }>
 }
 
-const WorkspaceIdSchema = z.object({
-  workspaceId: z.string().min(1, 'workspaceId query parameter is required'),
-})
-
 /** GET /api/v1/knowledge/[id]/documents/[documentId] — Get document details. */
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: DocumentDetailRouteParams) => {
+  async (request: NextRequest, context: DocumentDetailRouteParams) => {
     const auth = await authenticateRequest(request, 'knowledge-detail')
     if (auth instanceof NextResponse) return auth
     const { requestId, userId, rateLimit } = auth
 
     try {
-      const { id: knowledgeBaseId, documentId } = await params
-      const { searchParams } = new URL(request.url)
-
-      const validation = validateSchema(WorkspaceIdSchema, {
-        workspaceId: searchParams.get('workspaceId'),
-      })
-      if (!validation.success) return validation.response
+      const parsed = await parseRequest(v1GetKnowledgeDocumentContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id: knowledgeBaseId, documentId } = parsed.data.params
 
       const result = await resolveKnowledgeBase(
         knowledgeBaseId,
-        validation.data.workspaceId,
+        parsed.data.query.workspaceId,
         userId,
         rateLimit
       )
@@ -120,23 +111,19 @@ export const GET = withRouteHandler(
 
 /** DELETE /api/v1/knowledge/[id]/documents/[documentId] — Delete a document. */
 export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: DocumentDetailRouteParams) => {
+  async (request: NextRequest, context: DocumentDetailRouteParams) => {
     const auth = await authenticateRequest(request, 'knowledge-detail')
     if (auth instanceof NextResponse) return auth
     const { requestId, userId, rateLimit } = auth
 
     try {
-      const { id: knowledgeBaseId, documentId } = await params
-      const { searchParams } = new URL(request.url)
-
-      const validation = validateSchema(WorkspaceIdSchema, {
-        workspaceId: searchParams.get('workspaceId'),
-      })
-      if (!validation.success) return validation.response
+      const parsed = await parseRequest(v1DeleteKnowledgeDocumentContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id: knowledgeBaseId, documentId } = parsed.data.params
 
       const result = await resolveKnowledgeBase(
         knowledgeBaseId,
-        validation.data.workspaceId,
+        parsed.data.query.workspaceId,
         userId,
         rateLimit,
         'write'
@@ -164,7 +151,7 @@ export const DELETE = withRouteHandler(
       await deleteDocument(documentId, requestId)
 
       recordAudit({
-        workspaceId: validation.data.workspaceId,
+        workspaceId: parsed.data.query.workspaceId,
         actorId: userId,
         action: AuditAction.DOCUMENT_DELETED,
         resourceType: AuditResourceType.DOCUMENT,

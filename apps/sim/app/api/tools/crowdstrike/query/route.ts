@@ -1,101 +1,22 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { crowdstrikeQueryContract } from '@/lib/api/contracts/tools/crowdstrike'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type {
   CrowdStrikeAggregateQuery,
+  CrowdStrikeBaseParams,
   CrowdStrikeCloud,
+  CrowdStrikeQuerySensorsParams,
   CrowdStrikeSensorAggregateBucket,
   CrowdStrikeSensorAggregateResult,
 } from '@/tools/crowdstrike/types'
 
 const logger = createLogger('CrowdStrikeIdentityProtectionAPI')
 
-const CROWDSTRIKE_CLOUDS = ['us-1', 'us-2', 'eu-1', 'us-gov-1', 'us-gov-2'] as const
-
 type JsonRecord = Record<string, unknown>
-
-const BaseRequestSchema = z.object({
-  clientId: z.string().min(1, 'Client ID is required'),
-  clientSecret: z.string().min(1, 'Client Secret is required'),
-  cloud: z.enum(CROWDSTRIKE_CLOUDS),
-})
-
-const DateRangeSchema = z.object({
-  from: z.string(),
-  to: z.string(),
-})
-
-const ExtendedBoundsSchema = z.object({
-  max: z.string(),
-  min: z.string(),
-})
-
-const RangeSpecSchema = z.object({
-  from: z.number(),
-  to: z.number(),
-})
-
-const AggregateQuerySchema: z.ZodType<CrowdStrikeAggregateQuery> = z.lazy(() =>
-  z.object({
-    date_ranges: z.array(DateRangeSchema).optional(),
-    exclude: z.string().optional(),
-    extended_bounds: ExtendedBoundsSchema.optional(),
-    field: z.string().optional(),
-    filter: z.string().optional(),
-    from: z.number().int().nonnegative().optional(),
-    include: z.string().optional(),
-    interval: z.string().optional(),
-    max_doc_count: z.number().int().nonnegative().optional(),
-    min_doc_count: z.number().int().nonnegative().optional(),
-    missing: z.string().optional(),
-    name: z.string().optional(),
-    q: z.string().optional(),
-    ranges: z.array(RangeSpecSchema).optional(),
-    size: z.number().int().nonnegative().optional(),
-    sort: z.string().optional(),
-    sub_aggregates: z.array(AggregateQuerySchema).optional(),
-    time_zone: z.string().optional(),
-    type: z.string().optional(),
-  })
-)
-
-const QuerySensorsSchema = BaseRequestSchema.extend({
-  operation: z.literal('crowdstrike_query_sensors'),
-  filter: z.string().optional(),
-  limit: z
-    .number()
-    .int()
-    .min(1, 'Limit must be at least 1')
-    .max(200, 'Limit must be at most 200')
-    .optional(),
-  offset: z.number().int().nonnegative('Offset must be 0 or greater').optional(),
-  sort: z.string().optional(),
-})
-
-const GetSensorDetailsSchema = BaseRequestSchema.extend({
-  operation: z.literal('crowdstrike_get_sensor_details'),
-  ids: z
-    .array(z.string().trim().min(1, 'Sensor IDs must not be empty'))
-    .min(1, 'At least one sensor ID is required')
-    .max(5000, 'CrowdStrike supports up to 5000 sensor IDs per request'),
-})
-
-const GetSensorAggregatesSchema = BaseRequestSchema.extend({
-  operation: z.literal('crowdstrike_get_sensor_aggregates'),
-  aggregateQuery: AggregateQuerySchema,
-})
-
-const RequestSchema = z.discriminatedUnion('operation', [
-  QuerySensorsSchema,
-  GetSensorDetailsSchema,
-  GetSensorAggregatesSchema,
-])
-
-type CrowdStrikeAuthRequest = z.infer<typeof BaseRequestSchema>
-type CrowdStrikeQuerySensorsRequest = z.infer<typeof QuerySensorsSchema>
 
 function getCloudBaseUrl(cloud: CrowdStrikeCloud): string {
   const cloudMap: Record<CrowdStrikeCloud, string> = {
@@ -201,7 +122,7 @@ function getErrorMessage(data: unknown, fallback: string): string {
   )
 }
 
-function buildQueryUrl(baseUrl: string, params: CrowdStrikeQuerySensorsRequest): string {
+function buildQueryUrl(baseUrl: string, params: CrowdStrikeQuerySensorsParams): string {
   const url = new URL(baseUrl)
   url.pathname = '/identity-protection/queries/devices/v1'
 
@@ -236,7 +157,7 @@ function buildSensorAggregatesUrl(baseUrl: string): string {
   return url.toString()
 }
 
-async function getAccessToken(params: CrowdStrikeAuthRequest): Promise<string> {
+async function getAccessToken(params: CrowdStrikeBaseParams): Promise<string> {
   const baseUrl = getCloudBaseUrl(params.cloud)
   const response = await fetch(`${baseUrl}/oauth2/token`, {
     method: 'POST',
@@ -360,8 +281,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const rawBody: unknown = await request.json()
-    const params = RequestSchema.parse(rawBody)
+    const parsed = await parseRequest(
+      crowdstrikeQueryContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request data'),
+              details: error.issues,
+            },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
     const baseUrl = getCloudBaseUrl(params.cloud)
     const accessToken = await getAccessToken(params)
 
@@ -468,17 +405,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       output: normalizeAggregatesOutput(aggregateData),
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: error.errors[0]?.message ?? 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     const message = error instanceof Error ? error.message : 'Unknown error'
     logger.error(`[${requestId}] CrowdStrike request failed`, { error: message })
     return NextResponse.json({ success: false, error: message }, { status: 500 })

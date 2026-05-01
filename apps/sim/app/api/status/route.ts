@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { noInputSchema } from '@/lib/api/contracts/primitives'
+import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { IncidentIOWidgetResponse, StatusResponse, StatusType } from '@/app/api/status/types'
 
@@ -31,8 +33,13 @@ function determineStatus(data: IncidentIOWidgetResponse): {
   return { status: 'operational', message: 'All Systems Operational' }
 }
 
-export const GET = withRouteHandler(async () => {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
+    const queryValidation = noInputSchema.safeParse(
+      Object.fromEntries(request.nextUrl.searchParams.entries())
+    )
+    if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
+
     const now = Date.now()
 
     if (cachedResponse && now - cachedResponse.timestamp < CACHE_TTL) {

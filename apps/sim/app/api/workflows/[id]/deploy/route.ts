@@ -2,6 +2,8 @@ import { db, workflow } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { updatePublicApiContract } from '@/lib/api/contracts/deployments'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -136,11 +138,19 @@ export const POST = withRouteHandler(
 )
 
 export const PATCH = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
 
     try {
+      const parsed = await parseRequest(updatePublicApiContract, request, context, {
+        validationErrorResponse: () =>
+          createErrorResponse('Invalid request body: isPublicApi must be a boolean', 400),
+      })
+      if (!parsed.success) return parsed.response
+
+      const { id } = parsed.data.params
+      const { isPublicApi } = parsed.data.body
+
       const {
         error,
         session,
@@ -148,13 +158,6 @@ export const PATCH = withRouteHandler(
       } = await validateWorkflowPermissions(id, requestId, 'admin')
       if (error) {
         return createErrorResponse(error.message, error.status)
-      }
-
-      const body = await request.json()
-      const { isPublicApi } = body
-
-      if (typeof isPublicApi !== 'boolean') {
-        return createErrorResponse('Invalid request body: isPublicApi must be a boolean', 400)
       }
 
       if (isPublicApi) {
@@ -184,7 +187,7 @@ export const PATCH = withRouteHandler(
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : 'Failed to update deployment settings'
-      logger.error(`[${requestId}] Error updating deployment settings: ${id}`, { error })
+      logger.error(`[${requestId}] Error updating deployment settings`, { error })
       return createErrorResponse(message, 500)
     }
   }

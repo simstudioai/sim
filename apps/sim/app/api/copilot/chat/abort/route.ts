@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { copilotChatAbortBodySchema } from '@/lib/api/contracts/copilot'
+import { validationErrorResponse } from '@/lib/api/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { CopilotAbortOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
@@ -38,8 +40,13 @@ export const POST = withRouteHandler((request: NextRequest) =>
         })
         return {}
       })
-      const streamId = typeof body.streamId === 'string' ? body.streamId : ''
-      let chatId = typeof body.chatId === 'string' ? body.chatId : ''
+      const validation = copilotChatAbortBodySchema.safeParse(body)
+      if (!validation.success) {
+        rootSpan.setAttribute(TraceAttr.CopilotAbortOutcome, CopilotAbortOutcome.MissingStreamId)
+        return validationErrorResponse(validation.error, 'Invalid request body')
+      }
+      const { streamId, chatId: parsedChatId } = validation.data
+      let chatId = parsedChatId
 
       if (!streamId) {
         rootSpan.setAttribute(TraceAttr.CopilotAbortOutcome, CopilotAbortOutcome.MissingStreamId)

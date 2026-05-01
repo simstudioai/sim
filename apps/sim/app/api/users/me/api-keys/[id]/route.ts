@@ -4,6 +4,8 @@ import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { apiKeyIdParamsSchema } from '@/lib/api/contracts'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -14,7 +16,14 @@ const logger = createLogger('ApiKeyAPI')
 export const DELETE = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const parsedParams = apiKeyIdParamsSchema.safeParse(await params)
+    if (!parsedParams.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(parsedParams.error) },
+        { status: 400 }
+      )
+    }
+    const { id } = parsedParams.data
 
     try {
       const session = await getSession()
@@ -24,10 +33,6 @@ export const DELETE = withRouteHandler(
 
       const userId = session.user.id
       const keyId = id
-
-      if (!keyId) {
-        return NextResponse.json({ error: 'API key ID is required' }, { status: 400 })
-      }
 
       // Delete the API key, ensuring it belongs to the current user
       const result = await db

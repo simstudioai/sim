@@ -3,7 +3,8 @@ import { workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateFolderContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -13,38 +14,31 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersIDAPI')
 
-const updateFolderSchema = z.object({
-  name: z.string().optional(),
-  color: z.string().optional(),
-  isExpanded: z.boolean().optional(),
-  parentId: z.string().nullable().optional(),
-  sortOrder: z.number().int().min(0).optional(),
-})
-
 // PUT - Update a folder
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
       const session = await getSession()
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { id } = await params
-      const body = await request.json()
+      const parsed = await parseRequest(updateFolderContract, request, context, {
+        validationErrorResponse: (error) => {
+          logger.error('Folder update validation failed:', { errors: error.issues })
+          const errorMessages = error.issues
+            .map((err) => `${err.path.join('.')}: ${err.message}`)
+            .join(', ')
+          return NextResponse.json(
+            { error: `Validation failed: ${errorMessages}` },
+            { status: 400 }
+          )
+        },
+      })
+      if (!parsed.success) return parsed.response
 
-      const validationResult = updateFolderSchema.safeParse(body)
-      if (!validationResult.success) {
-        logger.error('Folder update validation failed:', {
-          errors: validationResult.error.errors,
-        })
-        const errorMessages = validationResult.error.errors
-          .map((err) => `${err.path.join('.')}: ${err.message}`)
-          .join(', ')
-        return NextResponse.json({ error: `Validation failed: ${errorMessages}` }, { status: 400 })
-      }
-
-      const { name, color, isExpanded, parentId, sortOrder } = validationResult.data
+      const { id } = parsed.data.params
+      const { name, color, isExpanded, parentId, sortOrder } = parsed.data.body
 
       // Verify the folder exists
       const existingFolder = await db

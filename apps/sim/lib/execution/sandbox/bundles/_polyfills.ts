@@ -14,7 +14,7 @@
  * implementations — no hand-rolled polyfill logic lives in the isolate.
  */
 
-const g = globalThis as unknown as Record<string, unknown>
+const g: typeof globalThis & { global?: typeof globalThis } = globalThis
 
 if (typeof g.global === 'undefined') g.global = globalThis
 

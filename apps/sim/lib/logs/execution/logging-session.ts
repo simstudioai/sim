@@ -839,12 +839,13 @@ export class LoggingSession {
           variables
         )
         // Minimal workflow state when normalized/deployed data is unavailable
-        this.workflowState = {
+        const minimalWorkflowState: WorkflowState = {
           blocks: {},
           edges: [],
           loops: {},
           parallels: {},
-        } as unknown as WorkflowState
+        }
+        this.workflowState = minimalWorkflowState
 
         await executionLogger.startWorkflowExecution({
           workflowId: this.workflowId,

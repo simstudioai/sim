@@ -1,6 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  confluenceCreatePagePropertyContract,
+  confluenceDeletePagePropertyContract,
+  confluenceListPagePropertiesContract,
+  confluenceUpdatePagePropertyContract,
+} from '@/lib/api/contracts/selectors/confluence'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -10,34 +16,6 @@ import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 const logger = createLogger('ConfluencePagePropertiesAPI')
 
 export const dynamic = 'force-dynamic'
-
-const createPropertySchema = z.object({
-  domain: z.string().min(1, 'Domain is required'),
-  accessToken: z.string().min(1, 'Access token is required'),
-  cloudId: z.string().optional(),
-  pageId: z.string().min(1, 'Page ID is required'),
-  key: z.string().min(1, 'Property key is required'),
-  value: z.any(),
-})
-
-const updatePropertySchema = z.object({
-  domain: z.string().min(1, 'Domain is required'),
-  accessToken: z.string().min(1, 'Access token is required'),
-  cloudId: z.string().optional(),
-  pageId: z.string().min(1, 'Page ID is required'),
-  propertyId: z.string().min(1, 'Property ID is required'),
-  key: z.string().min(1, 'Property key is required'),
-  value: z.any(),
-  versionNumber: z.number().min(1).optional(),
-})
-
-const deletePropertySchema = z.object({
-  domain: z.string().min(1, 'Domain is required'),
-  accessToken: z.string().min(1, 'Access token is required'),
-  cloudId: z.string().optional(),
-  pageId: z.string().min(1, 'Page ID is required'),
-  propertyId: z.string().min(1, 'Property ID is required'),
-})
 
 /**
  * List all content properties on a page.
@@ -49,13 +27,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const domain = searchParams.get('domain')
-    const accessToken = searchParams.get('accessToken')
-    const pageId = searchParams.get('pageId')
-    const providedCloudId = searchParams.get('cloudId')
-    const limit = searchParams.get('limit') || '50'
-    const cursor = searchParams.get('cursor')
+    const parsed = await parseRequest(confluenceListPagePropertiesContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const {
+      domain,
+      accessToken,
+      pageId,
+      cloudId: providedCloudId,
+      limit,
+      cursor,
+    } = parsed.data.query
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -144,15 +126,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
+    const parsed = await parseRequest(confluenceCreatePagePropertyContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const validation = createPropertySchema.safeParse(body)
-    if (!validation.success) {
-      const firstError = validation.error.errors[0]
-      return NextResponse.json({ error: firstError.message }, { status: 400 })
-    }
-
-    const { domain, accessToken, cloudId: providedCloudId, pageId, key, value } = validation.data
+    const { domain, accessToken, cloudId: providedCloudId, pageId, key, value } = parsed.data.body
 
     const pageIdValidation = validateAlphanumericId(pageId, 'pageId', 255)
     if (!pageIdValidation.isValid) {
@@ -218,13 +195,8 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-
-    const validation = updatePropertySchema.safeParse(body)
-    if (!validation.success) {
-      const firstError = validation.error.errors[0]
-      return NextResponse.json({ error: firstError.message }, { status: 400 })
-    }
+    const parsed = await parseRequest(confluenceUpdatePagePropertyContract, request, {})
+    if (!parsed.success) return parsed.response
 
     const {
       domain,
@@ -235,7 +207,7 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       key,
       value,
       versionNumber,
-    } = validation.data
+    } = parsed.data.body
 
     const pageIdValidation = validateAlphanumericId(pageId, 'pageId', 255)
     if (!pageIdValidation.isValid) {
@@ -343,15 +315,10 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
+    const parsed = await parseRequest(confluenceDeletePagePropertyContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const validation = deletePropertySchema.safeParse(body)
-    if (!validation.success) {
-      const firstError = validation.error.errors[0]
-      return NextResponse.json({ error: firstError.message }, { status: 400 })
-    }
-
-    const { domain, accessToken, cloudId: providedCloudId, pageId, propertyId } = validation.data
+    const { domain, accessToken, cloudId: providedCloudId, pageId, propertyId } = parsed.data.body
 
     const pageIdValidation = validateAlphanumericId(pageId, 'pageId', 255)
     if (!pageIdValidation.isValid) {

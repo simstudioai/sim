@@ -64,6 +64,7 @@ import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/com
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
 import { useLogDetail } from '@/hooks/queries/logs'
+import { downloadTableExport } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -222,6 +223,14 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
       return (
         <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
       )
+    case 'table':
+      return (
+        <EmbeddedTableActions
+          workspaceId={workspaceId}
+          tableId={resource.id}
+          tableName={resource.title}
+        />
+      )
     case 'log':
       return <EmbeddedLogActions workspaceId={workspaceId} logId={resource.id} />
     case 'folder':
@@ -350,6 +359,65 @@ export function EmbeddedKnowledgeBaseActions({
         <p>Open knowledge base</p>
       </Tooltip.Content>
     </Tooltip.Root>
+  )
+}
+
+const tableLogger = createLogger('EmbeddedTableActions')
+
+interface EmbeddedTableActionsProps {
+  workspaceId: string
+  tableId: string
+  tableName: string
+}
+
+function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTableActionsProps) {
+  const router = useRouter()
+
+  const handleOpenTable = () => {
+    router.push(`/workspace/${workspaceId}/tables/${tableId}`)
+  }
+
+  const handleExport = async () => {
+    try {
+      await downloadTableExport(tableId, tableName)
+    } catch (err) {
+      tableLogger.error('Failed to export table:', err)
+    }
+  }
+
+  return (
+    <>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='subtle'
+            onClick={handleOpenTable}
+            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+            aria-label='Open table'
+          >
+            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Open table</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='subtle'
+            onClick={() => void handleExport()}
+            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+            aria-label='Export table as CSV'
+          >
+            <Download className={RESOURCE_TAB_ICON_CLASS} />
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Export CSV</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </>
   )
 }
 

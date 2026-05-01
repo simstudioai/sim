@@ -16,6 +16,8 @@ import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { adminV1ExportFolderContract } from '@/lib/api/contracts/v1/admin'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { exportFolderToZip, sanitizePathSegment } from '@/lib/workflows/operations/import-export'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -97,9 +99,11 @@ function collectSubfolders(
 
 export const GET = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: folderId } = await context.params
-    const url = new URL(request.url)
-    const format = url.searchParams.get('format') || 'zip'
+    const parsed = await parseRequest(adminV1ExportFolderContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id: folderId } = parsed.data.params
+    const { format } = parsed.data.query
 
     try {
       const [folderData] = await db

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { gmailDeleteContract } from '@/lib/api/contracts/tools/google'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -10,11 +11,6 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('GmailDeleteAPI')
 
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
-
-const GmailDeleteSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  messageId: z.string().min(1, 'Message ID is required'),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -37,8 +33,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = GmailDeleteSchema.parse(body)
+    const parsed = await parseRequest(gmailDeleteContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Deleting Gmail email`, {
       messageId: validatedData.messageId,
@@ -83,18 +80,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error deleting Gmail email:`, error)
 
     return NextResponse.json(

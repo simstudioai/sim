@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowLeftRight, Loader2, Plus, Search } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -12,6 +12,7 @@ import {
   type ComboboxOption,
   Input,
   Label,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
@@ -456,7 +457,7 @@ export function AddConnectorModal({
               <Button variant='primary' onClick={handleSubmit} disabled={!canSubmit || isCreating}>
                 {isCreating ? (
                   <>
-                    <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                    <Loader className='mr-1.5 h-3.5 w-3.5' animate />
                     Connecting...
                   </>
                 ) : (

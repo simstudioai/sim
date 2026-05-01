@@ -19,7 +19,7 @@ const EnvSchema = z.object({
 function parseEnv() {
   const parsed = EnvSchema.safeParse(process.env)
   if (!parsed.success) {
-    const formatted = parsed.error.format()
+    const formatted = z.treeifyError(parsed.error)
     throw new Error(`Invalid realtime server environment: ${JSON.stringify(formatted, null, 2)}`)
   }
   return parsed.data

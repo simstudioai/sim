@@ -4,7 +4,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, gt, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { v1ListWorkflowsContract } from '@/lib/api/contracts/v1/workflows'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
@@ -14,14 +15,6 @@ const logger = createLogger('V1WorkflowsAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-const QueryParamsSchema = z.object({
-  workspaceId: z.string(),
-  folderId: z.string().optional(),
-  deployedOnly: z.coerce.boolean().optional().default(false),
-  limit: z.coerce.number().min(1).max(100).optional().default(50),
-  cursor: z.string().optional(),
-})
 
 interface CursorData {
   sortOrder: number
@@ -51,18 +44,24 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = rateLimit.userId!
-    const { searchParams } = new URL(request.url)
-    const rawParams = Object.fromEntries(searchParams.entries())
+    const parsed = await parseRequest(
+      v1ListWorkflowsContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            {
+              error: getValidationErrorMessage(error, 'Invalid parameters'),
+              details: error.issues,
+            },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const validationResult = QueryParamsSchema.safeParse(rawParams)
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Invalid parameters', details: validationResult.error.errors },
-        { status: 400 }
-      )
-    }
-
-    const params = validationResult.data
+    const params = parsed.data.query
 
     logger.info(`[${requestId}] Fetching workflows for workspace ${params.workspaceId}`, {
       userId,

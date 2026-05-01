@@ -3,7 +3,7 @@ import type {
   GoogleFormsBatchUpdateParams,
   GoogleFormsBatchUpdateResponse,
 } from '@/tools/google_forms/types'
-import { buildBatchUpdateUrl } from '@/tools/google_forms/utils'
+import { buildBatchUpdateUrl, getGoogleFormsErrorMessage } from '@/tools/google_forms/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface BatchUpdateApiResponse {
@@ -74,7 +74,6 @@ export const batchUpdateTool: ToolConfig<
     const data = (await response.json()) as BatchUpdateApiResponse
 
     if (!response.ok) {
-      const errorData = data as unknown as { error?: { message?: string } }
       return {
         success: false,
         output: {
@@ -82,7 +81,7 @@ export const batchUpdateTool: ToolConfig<
           writeControl: null,
           form: null,
         },
-        error: errorData.error?.message ?? 'Failed to batch update form',
+        error: getGoogleFormsErrorMessage(data, 'Failed to batch update form'),
       }
     }
 

@@ -470,6 +470,81 @@ export async function addTableColumn(
 }
 
 /**
+ * Adds multiple columns to an existing table inside a caller-provided
+ * transaction. This is atomic with respect to the surrounding `trx`: either
+ * all columns are added or none are. Validates each column the same way
+ * `addTableColumn` does and rejects if any name collides with an existing
+ * column or another entry in `columns`.
+ *
+ * Use this when composing a column addition with other writes (e.g., row
+ * inserts) that must succeed or roll back together.
+ */
+export async function addTableColumnsWithTx(
+  trx: DbTransaction,
+  table: TableDefinition,
+  columns: { name: string; type: string; required?: boolean; unique?: boolean }[],
+  requestId: string
+): Promise<TableDefinition> {
+  if (columns.length === 0) return table
+
+  const usedNames = new Set(table.schema.columns.map((c) => c.name.toLowerCase()))
+  const additions: TableSchema['columns'] = []
+
+  for (const column of columns) {
+    if (!NAME_PATTERN.test(column.name)) {
+      throw new Error(
+        `Invalid column name "${column.name}". Must start with a letter or underscore and contain only alphanumeric characters and underscores.`
+      )
+    }
+    if (column.name.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
+      throw new Error(
+        `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
+      )
+    }
+    if (!COLUMN_TYPES.includes(column.type as (typeof COLUMN_TYPES)[number])) {
+      throw new Error(
+        `Invalid column type "${column.type}". Must be one of: ${COLUMN_TYPES.join(', ')}`
+      )
+    }
+    const lower = column.name.toLowerCase()
+    if (usedNames.has(lower)) {
+      throw new Error(`Column "${column.name}" already exists`)
+    }
+    usedNames.add(lower)
+    additions.push({
+      name: column.name,
+      type: column.type as TableSchema['columns'][number]['type'],
+      required: column.required ?? false,
+      unique: column.unique ?? false,
+    })
+  }
+
+  if (table.schema.columns.length + additions.length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
+    throw new Error(
+      `Adding ${additions.length} column(s) would exceed maximum column limit (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE})`
+    )
+  }
+
+  const updatedSchema: TableSchema = { columns: [...table.schema.columns, ...additions] }
+  const now = new Date()
+
+  await trx
+    .update(userTableDefinitions)
+    .set({ schema: updatedSchema, updatedAt: now })
+    .where(eq(userTableDefinitions.id, table.id))
+
+  logger.info(
+    `[${requestId}] Added ${additions.length} column(s) to table ${table.id}: ${additions.map((c) => c.name).join(', ')}`
+  )
+
+  return {
+    ...table,
+    schema: updatedSchema,
+    updatedAt: now,
+  }
+}
+
+/**
  * Renames a table.
  *
  * @param tableId - Table ID to rename
@@ -739,7 +814,25 @@ export async function batchInsertRows(
   table: TableDefinition,
   requestId: string
 ): Promise<TableRow[]> {
-  // Validate all rows
+  return db.transaction((trx) => batchInsertRowsWithTx(trx, data, table, requestId))
+}
+
+/**
+ * Transaction-bound variant of `batchInsertRows`. Validates rows and unique
+ * constraints, then performs INSERTs inside the provided transaction. Caller
+ * is responsible for opening the transaction. Use when row inserts must be
+ * atomic with other writes (e.g., schema mutations) on the same tx.
+ *
+ * Capacity enforcement lives in the `increment_user_table_row_count` trigger
+ * (migration 0198) — fires per row and raises `Maximum row limit (%) reached ...`
+ * if the cap is hit mid-batch.
+ */
+export async function batchInsertRowsWithTx(
+  trx: DbTransaction,
+  data: BatchInsertData,
+  table: TableDefinition,
+  requestId: string
+): Promise<TableRow[]> {
   for (let i = 0; i < data.rows.length; i++) {
     const row = data.rows[i]
 
@@ -754,10 +847,14 @@ export async function batchInsertRows(
     }
   }
 
-  // Check unique constraints across all rows using optimized database query
   const uniqueColumns = getUniqueColumns(table.schema)
   if (uniqueColumns.length > 0) {
-    const uniqueResult = await checkBatchUniqueConstraintsDb(data.tableId, data.rows, table.schema)
+    const uniqueResult = await checkBatchUniqueConstraintsDb(
+      data.tableId,
+      data.rows,
+      table.schema,
+      trx
+    )
     if (!uniqueResult.valid) {
       const errorMessages = uniqueResult.errors
         .map((e) => `Row ${e.row + 1}: ${e.errors.join(', ')}`)
@@ -768,52 +865,41 @@ export async function batchInsertRows(
 
   const now = new Date()
 
-  // Capacity enforcement lives in the `increment_user_table_row_count` trigger
-  // (migration 0198) — fires per row and raises `Maximum row limit (%) reached ...`
-  // if the cap is hit mid-batch. The outer transaction means a partial batch
-  // rolls back cleanly.
-  const insertedRows = await db.transaction(async (trx) => {
-    await setTableTxTimeouts(trx, { statementMs: 60_000 })
+  await setTableTxTimeouts(trx, { statementMs: 60_000 })
 
-    const buildRow = (rowData: RowData, position: number) => ({
-      id: `row_${generateId().replace(/-/g, '')}`,
-      tableId: data.tableId,
-      workspaceId: data.workspaceId,
-      data: rowData,
-      position,
-      createdAt: now,
-      updatedAt: now,
-      ...(data.userId ? { createdBy: data.userId } : {}),
-    })
+  const buildRow = (rowData: RowData, position: number) => ({
+    id: `row_${generateId().replace(/-/g, '')}`,
+    tableId: data.tableId,
+    workspaceId: data.workspaceId,
+    data: rowData,
+    position,
+    createdAt: now,
+    updatedAt: now,
+    ...(data.userId ? { createdBy: data.userId } : {}),
+  })
 
-    // Serialize position-aware writes per-table. See `acquireTablePositionLock`
-    // for why both explicit- and auto-position paths take this lock.
-    await acquireTablePositionLock(trx, data.tableId)
+  await acquireTablePositionLock(trx, data.tableId)
 
-    if (data.positions && data.positions.length > 0) {
-      // Position-aware insert: shift existing rows to create gaps, then insert.
-      // Process positions ascending so each shift preserves gaps created by prior shifts.
-      // (Descending would cause lower shifts to push higher gaps out of position.)
-      const sortedPositions = [...data.positions].sort((a, b) => a - b)
+  let insertedRows
+  if (data.positions && data.positions.length > 0) {
+    // Position-aware insert: shift existing rows to create gaps, then insert.
+    // Process positions ascending so each shift preserves gaps created by prior shifts.
+    const sortedPositions = [...data.positions].sort((a, b) => a - b)
 
-      for (const pos of sortedPositions) {
-        await trx
-          .update(userTableRows)
-          .set({ position: sql`position + 1` })
-          .where(and(eq(userTableRows.tableId, data.tableId), gte(userTableRows.position, pos)))
-      }
-
-      // Build rows in original input order so RETURNING preserves caller's index correlation
-      const rowsToInsert = data.rows.map((rowData, i) => buildRow(rowData, data.positions![i]))
-
-      return trx.insert(userTableRows).values(rowsToInsert).returning()
+    for (const pos of sortedPositions) {
+      await trx
+        .update(userTableRows)
+        .set({ position: sql`position + 1` })
+        .where(and(eq(userTableRows.tableId, data.tableId), gte(userTableRows.position, pos)))
     }
 
+    const rowsToInsert = data.rows.map((rowData, i) => buildRow(rowData, data.positions![i]))
+    insertedRows = await trx.insert(userTableRows).values(rowsToInsert).returning()
+  } else {
     const startPos = await nextAutoPosition(trx, data.tableId)
     const rowsToInsert = data.rows.map((rowData, i) => buildRow(rowData, startPos + i))
-
-    return trx.insert(userTableRows).values(rowsToInsert).returning()
-  })
+    insertedRows = await trx.insert(userTableRows).values(rowsToInsert).returning()
+  }
 
   logger.info(`[${requestId}] Batch inserted ${data.rows.length} rows into table ${data.tableId}`)
 
@@ -842,6 +928,19 @@ export async function batchInsertRows(
  * @throws Error if validation fails or capacity exceeded
  */
 export async function replaceTableRows(
+  data: ReplaceRowsData,
+  table: TableDefinition,
+  requestId: string
+): Promise<ReplaceRowsResult> {
+  return db.transaction((trx) => replaceTableRowsWithTx(trx, data, table, requestId))
+}
+
+/**
+ * Transaction-bound variant of `replaceTableRows`. Caller opens the transaction.
+ * Use when the replace must be atomic with other writes (e.g., schema mutations).
+ */
+export async function replaceTableRowsWithTx(
+  trx: DbTransaction,
   data: ReplaceRowsData,
   table: TableDefinition,
   requestId: string
@@ -903,52 +1002,48 @@ export async function replaceTableRows(
     perRowMs: 3,
   })
 
-  const result = await db.transaction(async (trx) => {
-    await setTableTxTimeouts(trx, { statementMs })
+  await setTableTxTimeouts(trx, { statementMs })
 
-    // Serialize concurrent replaces (and concurrent auto-position inserts) on the
-    // same table. Without this, two concurrent replaces each see their own MVCC
-    // snapshot for the DELETE; the second's DELETE would not observe rows the
-    // first inserted, so both transactions commit and the table ends up with
-    // the union of both row sets instead of only the last caller's rows.
-    await acquireTablePositionLock(trx, data.tableId)
+  // Serialize concurrent replaces (and concurrent auto-position inserts) on the
+  // same table. Without this, two concurrent replaces each see their own MVCC
+  // snapshot for the DELETE; the second's DELETE would not observe rows the
+  // first inserted, so both transactions commit and the table ends up with
+  // the union of both row sets instead of only the last caller's rows.
+  await acquireTablePositionLock(trx, data.tableId)
 
-    const deletedRows = await trx
-      .delete(userTableRows)
-      .where(eq(userTableRows.tableId, data.tableId))
-      .returning({ id: userTableRows.id })
+  const deletedRows = await trx
+    .delete(userTableRows)
+    .where(eq(userTableRows.tableId, data.tableId))
+    .returning({ id: userTableRows.id })
 
-    let insertedCount = 0
-    if (data.rows.length > 0) {
-      const rowsToInsert = data.rows.map((rowData, i) => ({
-        id: `row_${generateId().replace(/-/g, '')}`,
-        tableId: data.tableId,
-        workspaceId: data.workspaceId,
-        data: rowData,
-        position: i,
-        createdAt: now,
-        updatedAt: now,
-        ...(data.userId ? { createdBy: data.userId } : {}),
-      }))
+  let insertedCount = 0
+  if (data.rows.length > 0) {
+    const rowsToInsert = data.rows.map((rowData, i) => ({
+      id: `row_${generateId().replace(/-/g, '')}`,
+      tableId: data.tableId,
+      workspaceId: data.workspaceId,
+      data: rowData,
+      position: i,
+      createdAt: now,
+      updatedAt: now,
+      ...(data.userId ? { createdBy: data.userId } : {}),
+    }))
 
-      const batchSize = TABLE_LIMITS.MAX_BATCH_INSERT_SIZE
-      for (let i = 0; i < rowsToInsert.length; i += batchSize) {
-        const chunk = rowsToInsert.slice(i, i + batchSize)
-        const inserted = await trx.insert(userTableRows).values(chunk).returning({
-          id: userTableRows.id,
-        })
-        insertedCount += inserted.length
-      }
+    const batchSize = TABLE_LIMITS.MAX_BATCH_INSERT_SIZE
+    for (let i = 0; i < rowsToInsert.length; i += batchSize) {
+      const chunk = rowsToInsert.slice(i, i + batchSize)
+      const inserted = await trx.insert(userTableRows).values(chunk).returning({
+        id: userTableRows.id,
+      })
+      insertedCount += inserted.length
     }
-
-    return { deletedCount: deletedRows.length, insertedCount }
-  })
+  }
 
   logger.info(
-    `[${requestId}] Replaced rows in table ${data.tableId}: deleted ${result.deletedCount}, inserted ${result.insertedCount}`
+    `[${requestId}] Replaced rows in table ${data.tableId}: deleted ${deletedRows.length}, inserted ${insertedCount}`
   )
 
-  return result
+  return { deletedCount: deletedRows.length, insertedCount }
 }
 
 /**

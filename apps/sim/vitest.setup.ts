@@ -8,6 +8,7 @@ import {
   schemaMock,
   setupGlobalFetchMock,
   setupGlobalStorageMocks,
+  terminalConsoleMock,
   workflowAuthzMock,
 } from '@sim/testing'
 import { afterAll, vi } from 'vitest'
@@ -33,14 +34,8 @@ vi.mock('@/stores/console/store', () => ({
   },
 }))
 
-vi.mock('@/stores/terminal', () => ({
-  useTerminalConsoleStore: {
-    getState: vi.fn().mockReturnValue({
-      addConsole: vi.fn(),
-      updateConsole: vi.fn(),
-    }),
-  },
-}))
+vi.mock('@/stores/terminal', () => terminalConsoleMock)
+vi.mock('@/stores/terminal/console/store', () => terminalConsoleMock)
 
 vi.mock('@/stores/execution/store', () => ({
   useExecutionStore: {

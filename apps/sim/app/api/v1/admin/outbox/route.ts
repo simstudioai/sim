@@ -4,12 +4,17 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { adminV1ListOutboxContract } from '@/lib/api/contracts/v1/admin'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 
 const logger = createLogger('AdminOutboxAPI')
 
 export const dynamic = 'force-dynamic'
+
+const invalidOutboxQueryResponse = (message: string) =>
+  NextResponse.json({ success: false, error: message }, { status: 400 })
 
 /**
  * GET /api/v1/admin/outbox?status=dead_letter&eventType=...&limit=100
@@ -29,27 +34,18 @@ export const dynamic = 'force-dynamic'
 export const GET = withRouteHandler(
   withAdminAuth(async (request: NextRequest) => {
     try {
-      const { searchParams } = new URL(request.url)
-      const validStatuses = ['pending', 'processing', 'completed', 'dead_letter'] as const
-      const status = (searchParams.get('status') ?? 'dead_letter') as (typeof validStatuses)[number]
-      if (!validStatuses.includes(status)) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
-          },
-          { status: 400 }
-        )
-      }
+      const parsed = await parseRequest(
+        adminV1ListOutboxContract,
+        request,
+        {},
+        {
+          validationErrorResponse: (error) =>
+            invalidOutboxQueryResponse(getValidationErrorMessage(error, 'Invalid outbox query')),
+        }
+      )
+      if (!parsed.success) return parsed.response
 
-      const eventType = searchParams.get('eventType')
-
-      const rawLimit = searchParams.get('limit')
-      const parsedLimit = rawLimit === null ? 100 : Number.parseInt(rawLimit, 10)
-      const limit =
-        Number.isFinite(parsedLimit) && parsedLimit > 0
-          ? Math.min(500, Math.max(1, parsedLimit))
-          : 100
+      const { status, eventType, limit } = parsed.data.query
 
       const whereConditions = [eq(outboxEvent.status, status)]
       if (eventType) {

@@ -3,7 +3,12 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  bulkKnowledgeDocumentsContract,
+  createKnowledgeDocumentsContract,
+  listKnowledgeDocumentsQuerySchema,
+} from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -17,54 +22,10 @@ import {
   processDocumentsWithQueue,
   type TagFilterCondition,
 } from '@/lib/knowledge/documents/service'
-import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('DocumentsAPI')
-
-const CreateDocumentSchema = z.object({
-  filename: z.string().min(1, 'Filename is required'),
-  fileUrl: z.string().url('File URL must be valid'),
-  fileSize: z.number().min(1, 'File size must be greater than 0'),
-  mimeType: z.string().min(1, 'MIME type is required'),
-  // Document tags for filtering (legacy format)
-  tag1: z.string().optional(),
-  tag2: z.string().optional(),
-  tag3: z.string().optional(),
-  tag4: z.string().optional(),
-  tag5: z.string().optional(),
-  tag6: z.string().optional(),
-  tag7: z.string().optional(),
-  // Structured tag data (new format)
-  documentTagsData: z.string().optional(),
-})
-
-const BulkCreateDocumentsSchema = z.object({
-  documents: z.array(CreateDocumentSchema),
-  processingOptions: z
-    .object({
-      recipe: z.string().optional(),
-      lang: z.string().optional(),
-    })
-    .optional(),
-  bulk: z.literal(true),
-})
-
-const BulkUpdateDocumentsSchema = z
-  .object({
-    operation: z.enum(['enable', 'disable', 'delete']),
-    documentIds: z
-      .array(z.string())
-      .min(1, 'At least one document ID is required')
-      .max(100, 'Cannot operate on more than 100 documents at once')
-      .optional(),
-    selectAll: z.boolean().optional(),
-    enabledFilter: z.enum(['all', 'enabled', 'disabled']).optional(),
-  })
-  .refine((data) => data.selectAll || (data.documentIds && data.documentIds.length > 0), {
-    message: 'Either selectAll must be true or documentIds must be provided',
-  })
 
 export const GET = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -91,52 +52,17 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const url = new URL(req.url)
-      const enabledFilter = url.searchParams.get('enabledFilter') as
-        | 'all'
-        | 'enabled'
-        | 'disabled'
-        | null
-      const search = url.searchParams.get('search') || undefined
-      const limit = Number.parseInt(url.searchParams.get('limit') || '50')
-      const offset = Number.parseInt(url.searchParams.get('offset') || '0')
-      const sortByParam = url.searchParams.get('sortBy')
-      const sortOrderParam = url.searchParams.get('sortOrder')
-
-      const validSortFields: DocumentSortField[] = [
-        'filename',
-        'fileSize',
-        'tokenCount',
-        'chunkCount',
-        'uploadedAt',
-        'processingStatus',
-        'enabled',
-      ]
-      const validSortOrders: SortOrder[] = ['asc', 'desc']
-
-      const sortBy =
-        sortByParam && validSortFields.includes(sortByParam as DocumentSortField)
-          ? (sortByParam as DocumentSortField)
-          : undefined
-      const sortOrder =
-        sortOrderParam && validSortOrders.includes(sortOrderParam as SortOrder)
-          ? (sortOrderParam as SortOrder)
-          : undefined
-
-      let tagFilters: TagFilterCondition[] | undefined
-      const tagFiltersParam = url.searchParams.get('tagFilters')
-      if (tagFiltersParam) {
-        try {
-          const parsed = JSON.parse(tagFiltersParam)
-          if (Array.isArray(parsed)) {
-            tagFilters = parsed.filter(
-              (f: TagFilterCondition) => f.tagSlot && f.operator && f.value !== undefined
-            )
-          }
-        } catch {
-          logger.warn(`[${requestId}] Invalid tagFilters param`)
-        }
+      const queryResult = listKnowledgeDocumentsQuerySchema.safeParse(
+        Object.fromEntries(new URL(req.url).searchParams.entries())
+      )
+      if (!queryResult.success) {
+        return NextResponse.json(
+          { error: 'Invalid query parameters', details: queryResult.error.issues },
+          { status: 400 }
+        )
       }
+      const { enabledFilter, search, limit, offset, sortBy, sortOrder, tagFilters } =
+        queryResult.data
 
       const result = await getDocuments(
         knowledgeBaseId,
@@ -147,7 +73,7 @@ export const GET = withRouteHandler(
           offset,
           ...(sortBy && { sortBy }),
           ...(sortOrder && { sortOrder }),
-          tagFilters,
+          tagFilters: tagFilters as TagFilterCondition[] | undefined,
         },
         requestId
       )
@@ -172,25 +98,39 @@ export const POST = withRouteHandler(
     const { id: knowledgeBaseId } = await params
 
     try {
-      const body = await req.json()
-      const { workflowId } = body
+      const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+      if (!auth.success || !auth.userId) {
+        logger.warn(`[${requestId}] Authentication failed: ${auth.error || 'Unauthorized'}`)
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      const userId = auth.userId
+
+      const parsed = await parseRequest(
+        createKnowledgeDocumentsContract,
+        req,
+        { params },
+        {
+          validationErrorResponse: (error) => {
+            logger.warn(`[${requestId}] Invalid document creation request`, {
+              errors: error.issues,
+            })
+            return NextResponse.json(
+              { error: 'Invalid request data', details: error.issues },
+              { status: 400 }
+            )
+          },
+        }
+      )
+      if (!parsed.success) return parsed.response
+      const body = parsed.data.body
+      const workflowId = body.workflowId
 
       logger.info(`[${requestId}] Knowledge base document creation request`, {
         knowledgeBaseId,
         workflowId,
         hasWorkflowId: !!workflowId,
-        bodyKeys: Object.keys(body),
+        bulk: body.bulk === true,
       })
-
-      const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Authentication failed: ${auth.error || 'Unauthorized'}`, {
-          workflowId,
-          hasWorkflowId: !!workflowId,
-        })
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-      const userId = auth.userId
 
       if (workflowId) {
         const authorization = await authorizeWorkflowByWorkspacePermission({
@@ -222,171 +162,142 @@ export const POST = withRouteHandler(
       const kbWorkspaceId = accessCheck.knowledgeBase?.workspaceId
 
       if (body.bulk === true) {
+        const createdDocuments = await createDocumentRecords(
+          body.documents,
+          knowledgeBaseId,
+          requestId
+        )
+
+        logger.info(
+          `[${requestId}] Starting controlled async processing of ${createdDocuments.length} documents`
+        )
+
         try {
-          const validatedData = BulkCreateDocumentsSchema.parse(body)
-
-          const createdDocuments = await createDocumentRecords(
-            validatedData.documents,
+          const { PlatformEvents } = await import('@/lib/core/telemetry')
+          PlatformEvents.knowledgeBaseDocumentsUploaded({
             knowledgeBaseId,
-            requestId
-          )
-
-          logger.info(
-            `[${requestId}] Starting controlled async processing of ${createdDocuments.length} documents`
-          )
-
-          try {
-            const { PlatformEvents } = await import('@/lib/core/telemetry')
-            PlatformEvents.knowledgeBaseDocumentsUploaded({
-              knowledgeBaseId,
-              documentsCount: createdDocuments.length,
-              uploadType: 'bulk',
-              recipe: validatedData.processingOptions?.recipe,
-            })
-          } catch (_e) {
-            // Silently fail
-          }
-
-          captureServerEvent(
-            userId,
-            'knowledge_base_document_uploaded',
-            {
-              knowledge_base_id: knowledgeBaseId,
-              workspace_id: kbWorkspaceId ?? '',
-              document_count: createdDocuments.length,
-              upload_type: 'bulk',
-            },
-            {
-              ...(kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : {}),
-              setOnce: { first_document_uploaded_at: new Date().toISOString() },
-            }
-          )
-
-          processDocumentsWithQueue(
-            createdDocuments,
-            knowledgeBaseId,
-            validatedData.processingOptions ?? {},
-            requestId
-          ).catch((error: unknown) => {
-            logger.error(`[${requestId}] Critical error in document processing pipeline:`, error)
+            documentsCount: createdDocuments.length,
+            uploadType: 'bulk',
+            recipe: body.processingOptions?.recipe,
           })
-
-          recordAudit({
-            workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
-            actorId: userId,
-            actorName: auth.userName,
-            actorEmail: auth.userEmail,
-            action: AuditAction.DOCUMENT_UPLOADED,
-            resourceType: AuditResourceType.DOCUMENT,
-            resourceId: knowledgeBaseId,
-            resourceName: `${createdDocuments.length} document(s)`,
-            description: `Uploaded ${createdDocuments.length} document(s) to knowledge base "${knowledgeBaseId}"`,
-            metadata: {
-              knowledgeBaseName: accessCheck.knowledgeBase?.name,
-              fileCount: createdDocuments.length,
-            },
-            request: req,
-          })
-
-          return NextResponse.json({
-            success: true,
-            data: {
-              total: createdDocuments.length,
-              documentsCreated: createdDocuments.map((doc) => ({
-                documentId: doc.documentId,
-                filename: doc.filename,
-                status: 'pending',
-              })),
-              processingMethod: 'background',
-              processingConfig: {
-                maxConcurrentDocuments: getProcessingConfig().maxConcurrentDocuments,
-                batchSize: getProcessingConfig().batchSize,
-                totalBatches: Math.ceil(createdDocuments.length / getProcessingConfig().batchSize),
-              },
-            },
-          })
-        } catch (validationError) {
-          if (validationError instanceof z.ZodError) {
-            logger.warn(`[${requestId}] Invalid bulk processing request data`, {
-              errors: validationError.errors,
-            })
-            return NextResponse.json(
-              { error: 'Invalid request data', details: validationError.errors },
-              { status: 400 }
-            )
-          }
-          throw validationError
+        } catch (_e) {
+          // Silently fail
         }
-      } else {
-        try {
-          const validatedData = CreateDocumentSchema.parse(body)
 
-          const newDocument = await createSingleDocument(validatedData, knowledgeBaseId, requestId)
-
-          try {
-            const { PlatformEvents } = await import('@/lib/core/telemetry')
-            PlatformEvents.knowledgeBaseDocumentsUploaded({
-              knowledgeBaseId,
-              documentsCount: 1,
-              uploadType: 'single',
-              mimeType: validatedData.mimeType,
-              fileSize: validatedData.fileSize,
-            })
-          } catch (_e) {
-            // Silently fail
+        captureServerEvent(
+          userId,
+          'knowledge_base_document_uploaded',
+          {
+            knowledge_base_id: knowledgeBaseId,
+            workspace_id: kbWorkspaceId ?? '',
+            document_count: createdDocuments.length,
+            upload_type: 'bulk',
+          },
+          {
+            ...(kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : {}),
+            setOnce: { first_document_uploaded_at: new Date().toISOString() },
           }
+        )
 
-          captureServerEvent(
-            userId,
-            'knowledge_base_document_uploaded',
-            {
-              knowledge_base_id: knowledgeBaseId,
-              workspace_id: kbWorkspaceId ?? '',
-              document_count: 1,
-              upload_type: 'single',
+        processDocumentsWithQueue(
+          createdDocuments,
+          knowledgeBaseId,
+          body.processingOptions ?? {},
+          requestId
+        ).catch((error: unknown) => {
+          logger.error(`[${requestId}] Critical error in document processing pipeline:`, error)
+        })
+
+        recordAudit({
+          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
+          actorId: userId,
+          actorName: auth.userName,
+          actorEmail: auth.userEmail,
+          action: AuditAction.DOCUMENT_UPLOADED,
+          resourceType: AuditResourceType.DOCUMENT,
+          resourceId: knowledgeBaseId,
+          resourceName: `${createdDocuments.length} document(s)`,
+          description: `Uploaded ${createdDocuments.length} document(s) to knowledge base "${knowledgeBaseId}"`,
+          metadata: {
+            knowledgeBaseName: accessCheck.knowledgeBase?.name,
+            fileCount: createdDocuments.length,
+          },
+          request: req,
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            total: createdDocuments.length,
+            documentsCreated: createdDocuments.map((doc) => ({
+              documentId: doc.documentId,
+              filename: doc.filename,
+              status: 'pending',
+            })),
+            processingMethod: 'background',
+            processingConfig: {
+              maxConcurrentDocuments: getProcessingConfig().maxConcurrentDocuments,
+              batchSize: getProcessingConfig().batchSize,
+              totalBatches: Math.ceil(createdDocuments.length / getProcessingConfig().batchSize),
             },
-            {
-              ...(kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : {}),
-              setOnce: { first_document_uploaded_at: new Date().toISOString() },
-            }
-          )
-
-          recordAudit({
-            workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
-            actorId: userId,
-            actorName: auth.userName,
-            actorEmail: auth.userEmail,
-            action: AuditAction.DOCUMENT_UPLOADED,
-            resourceType: AuditResourceType.DOCUMENT,
-            resourceId: knowledgeBaseId,
-            resourceName: validatedData.filename,
-            description: `Uploaded document "${validatedData.filename}" to knowledge base "${knowledgeBaseId}"`,
-            metadata: {
-              knowledgeBaseName: accessCheck.knowledgeBase?.name,
-              fileName: validatedData.filename,
-              fileType: validatedData.mimeType,
-              fileSize: validatedData.fileSize,
-            },
-            request: req,
-          })
-
-          return NextResponse.json({
-            success: true,
-            data: newDocument,
-          })
-        } catch (validationError) {
-          if (validationError instanceof z.ZodError) {
-            logger.warn(`[${requestId}] Invalid document data`, {
-              errors: validationError.errors,
-            })
-            return NextResponse.json(
-              { error: 'Invalid request data', details: validationError.errors },
-              { status: 400 }
-            )
-          }
-          throw validationError
-        }
+          },
+        })
       }
+
+      const { bulk: _bulk, workflowId: _workflowId, ...singleDocumentData } = body
+      const newDocument = await createSingleDocument(singleDocumentData, knowledgeBaseId, requestId)
+
+      try {
+        const { PlatformEvents } = await import('@/lib/core/telemetry')
+        PlatformEvents.knowledgeBaseDocumentsUploaded({
+          knowledgeBaseId,
+          documentsCount: 1,
+          uploadType: 'single',
+          mimeType: singleDocumentData.mimeType,
+          fileSize: singleDocumentData.fileSize,
+        })
+      } catch (_e) {
+        // Silently fail
+      }
+
+      captureServerEvent(
+        userId,
+        'knowledge_base_document_uploaded',
+        {
+          knowledge_base_id: knowledgeBaseId,
+          workspace_id: kbWorkspaceId ?? '',
+          document_count: 1,
+          upload_type: 'single',
+        },
+        {
+          ...(kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : {}),
+          setOnce: { first_document_uploaded_at: new Date().toISOString() },
+        }
+      )
+
+      recordAudit({
+        workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
+        actorId: userId,
+        actorName: auth.userName,
+        actorEmail: auth.userEmail,
+        action: AuditAction.DOCUMENT_UPLOADED,
+        resourceType: AuditResourceType.DOCUMENT,
+        resourceId: knowledgeBaseId,
+        resourceName: singleDocumentData.filename,
+        description: `Uploaded document "${singleDocumentData.filename}" to knowledge base "${knowledgeBaseId}"`,
+        metadata: {
+          knowledgeBaseName: accessCheck.knowledgeBase?.name,
+          fileName: singleDocumentData.filename,
+          fileType: singleDocumentData.mimeType,
+          fileSize: singleDocumentData.fileSize,
+        },
+        request: req,
+      })
+
+      return NextResponse.json({
+        success: true,
+        data: newDocument,
+      })
     } catch (error) {
       logger.error(`[${requestId}] Error creating document`, error)
 
@@ -428,55 +339,52 @@ export const PATCH = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const body = await req.json()
+      const parsed = await parseRequest(
+        bulkKnowledgeDocumentsContract,
+        req,
+        { params },
+        {
+          validationErrorResponse: (error) => {
+            logger.warn(`[${requestId}] Invalid bulk operation data`, { errors: error.issues })
+            return NextResponse.json(
+              { error: 'Invalid request data', details: error.issues },
+              { status: 400 }
+            )
+          },
+        }
+      )
+      if (!parsed.success) return parsed.response
+      const validatedData = parsed.data.body
+      const { operation, documentIds, selectAll, enabledFilter } = validatedData
 
       try {
-        const validatedData = BulkUpdateDocumentsSchema.parse(body)
-        const { operation, documentIds, selectAll, enabledFilter } = validatedData
-
-        try {
-          let result
-          if (selectAll) {
-            result = await bulkDocumentOperationByFilter(
-              knowledgeBaseId,
-              operation,
-              enabledFilter,
-              requestId
-            )
-          } else if (documentIds && documentIds.length > 0) {
-            result = await bulkDocumentOperation(knowledgeBaseId, operation, documentIds, requestId)
-          } else {
-            return NextResponse.json({ error: 'No documents specified' }, { status: 400 })
-          }
-
-          return NextResponse.json({
-            success: true,
-            data: {
-              operation,
-              successCount: result.successCount,
-              updatedDocuments: result.updatedDocuments,
-            },
-          })
-        } catch (error) {
-          if (error instanceof Error && error.message === 'No valid documents found to update') {
-            return NextResponse.json(
-              { error: 'No valid documents found to update' },
-              { status: 404 }
-            )
-          }
-          throw error
-        }
-      } catch (validationError) {
-        if (validationError instanceof z.ZodError) {
-          logger.warn(`[${requestId}] Invalid bulk operation data`, {
-            errors: validationError.errors,
-          })
-          return NextResponse.json(
-            { error: 'Invalid request data', details: validationError.errors },
-            { status: 400 }
+        let result
+        if (selectAll) {
+          result = await bulkDocumentOperationByFilter(
+            knowledgeBaseId,
+            operation,
+            enabledFilter,
+            requestId
           )
+        } else if (documentIds && documentIds.length > 0) {
+          result = await bulkDocumentOperation(knowledgeBaseId, operation, documentIds, requestId)
+        } else {
+          return NextResponse.json({ error: 'No documents specified' }, { status: 400 })
         }
-        throw validationError
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            operation,
+            successCount: result.successCount,
+            updatedDocuments: result.updatedDocuments,
+          },
+        })
+      } catch (error) {
+        if (error instanceof Error && error.message === 'No valid documents found to update') {
+          return NextResponse.json({ error: 'No valid documents found to update' }, { status: 404 })
+        }
+        throw error
       }
     } catch (error) {
       logger.error(`[${requestId}] Error in bulk document operation`, error)

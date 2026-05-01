@@ -1,5 +1,6 @@
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
-import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'
+import { requestJson } from '@/lib/api/client/request'
+import { type AuditLogPage, listAuditLogsContract } from '@/lib/api/contracts/audit-logs'
 
 export const auditLogKeys = {
   all: ['audit-logs'] as const,
@@ -16,33 +17,24 @@ export interface AuditLogFilters {
   endDate?: string
 }
 
-interface AuditLogPage {
-  success: boolean
-  data: EnterpriseAuditLogEntry[]
-  nextCursor?: string
-}
-
 async function fetchAuditLogs(
   filters: AuditLogFilters,
   cursor?: string,
   signal?: AbortSignal
 ): Promise<AuditLogPage> {
-  const params = new URLSearchParams()
-  params.set('limit', '50')
-  if (filters.search) params.set('search', filters.search)
-  if (filters.action) params.set('action', filters.action)
-  if (filters.resourceType) params.set('resourceType', filters.resourceType)
-  if (filters.actorId) params.set('actorId', filters.actorId)
-  if (filters.startDate) params.set('startDate', filters.startDate)
-  if (filters.endDate) params.set('endDate', filters.endDate)
-  if (cursor) params.set('cursor', cursor)
-
-  const response = await fetch(`/api/audit-logs?${params.toString()}`, { signal })
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}))
-    throw new Error(body.error || `Failed to fetch audit logs: ${response.status}`)
-  }
-  return response.json()
+  return requestJson(listAuditLogsContract, {
+    query: {
+      limit: '50',
+      search: filters.search,
+      action: filters.action,
+      resourceType: filters.resourceType,
+      actorId: filters.actorId,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      cursor,
+    },
+    signal,
+  })
 }
 
 export function useAuditLogs(filters: AuditLogFilters, enabled = true) {

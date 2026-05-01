@@ -1,7 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { duplicateWorkflowContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -11,19 +12,10 @@ import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 
 const logger = createLogger('WorkflowDuplicateAPI')
 
-const DuplicateRequestSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  description: z.string().optional(),
-  color: z.string().optional(),
-  workspaceId: z.string().optional(),
-  folderId: z.string().nullable().optional(),
-  newId: z.string().uuid().optional(),
-})
-
 // POST /api/workflows/[id]/duplicate - Duplicate a workflow with all its blocks, edges, and subflows
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: sourceWorkflowId } = await params
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const { id: sourceWorkflowId } = await context.params
     const requestId = generateRequestId()
     const startTime = Date.now()
 
@@ -37,9 +29,9 @@ export const POST = withRouteHandler(
     const userId = auth.userId
 
     try {
-      const body = await req.json()
-      const { name, description, color, workspaceId, folderId, newId } =
-        DuplicateRequestSchema.parse(body)
+      const parsed = await parseRequest(duplicateWorkflowContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { name, description, color, workspaceId, folderId, newId } = parsed.data.body
 
       logger.info(`[${requestId}] Duplicating workflow ${sourceWorkflowId} for user ${userId}`)
 
@@ -113,14 +105,6 @@ export const POST = withRouteHandler(
           )
           return NextResponse.json({ error: 'Access denied' }, { status: 403 })
         }
-      }
-
-      if (error instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid duplication request data`, { errors: error.errors })
-        return NextResponse.json(
-          { error: 'Invalid request data', details: error.errors },
-          { status: 400 }
-        )
       }
 
       const elapsed = Date.now() - startTime

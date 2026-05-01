@@ -39,15 +39,29 @@ const URL_SAFE_ALPHABET = 'useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghj
  * contexts including non-secure (HTTP) browsers.
  *
  * @param size - Length of the generated ID (default: 21)
- * @returns A URL-safe random string
+ * @param alphabet - Optional custom alphabet (replaces nanoid's `customAlphabet`).
+ *                   Length must be in [2, 256].
+ * @returns A random string drawn from the alphabet
  */
-export function generateShortId(size = 21): string {
-  const bytes = new Uint8Array(size)
-  crypto.getRandomValues(bytes)
+export function generateShortId(size = 21, alphabet: string = URL_SAFE_ALPHABET): string {
+  const alphabetLength = alphabet.length
+  if (alphabetLength < 2 || alphabetLength > 256) {
+    throw new Error('generateShortId alphabet length must be between 2 and 256')
+  }
+
+  const mask = (2 << (31 - Math.clz32((alphabetLength - 1) | 1))) - 1
+  const step = Math.ceil((1.6 * mask * size) / alphabetLength)
 
   let id = ''
-  for (let i = 0; i < size; i++) {
-    id += URL_SAFE_ALPHABET[bytes[i] & 63]
+  while (id.length < size) {
+    const bytes = new Uint8Array(step)
+    crypto.getRandomValues(bytes)
+    for (let i = 0; i < step && id.length < size; i++) {
+      const index = bytes[i] & mask
+      if (index < alphabetLength) {
+        id += alphabet[index]
+      }
+    }
   }
   return id
 }

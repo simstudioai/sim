@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { environmentKeys } from '@/hooks/queries/environment'
 import { useExecutionStore } from '@/stores/execution'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { consolePersistence, useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -37,6 +38,7 @@ export const resetAllStores = () => {
     isOpen: false,
   })
   consolePersistence.persist()
+  useMothershipDraftsStore.setState({ drafts: {} })
 }
 
 /**

@@ -2,6 +2,8 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { updateWorkspaceFileContentContract } from '@/lib/api/contracts/workspace-files'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace'
@@ -16,14 +18,17 @@ const logger = createLogger('WorkspaceFileContentAPI')
  * Update a workspace file's text content (requires write permission)
  */
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) => {
-    const { id: workspaceId, fileId } = await params
-
+  async (request: NextRequest, context: { params: Promise<{ id: string; fileId: string }> }) => {
     try {
       const session = await getSession()
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
+
+      const parsed = await parseRequest(updateWorkspaceFileContentContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id: workspaceId, fileId } = parsed.data.params
+      const { content, encoding } = parsed.data.body
 
       const userPermission = await getUserEntityPermissions(
         session.user.id,
@@ -33,13 +38,6 @@ export const PUT = withRouteHandler(
       if (userPermission !== 'admin' && userPermission !== 'write') {
         logger.warn(`User ${session.user.id} lacks write permission for workspace ${workspaceId}`)
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-      }
-
-      const body = await request.json()
-      const { content, encoding } = body as { content: string; encoding?: 'base64' | 'utf-8' }
-
-      if (typeof content !== 'string') {
-        return NextResponse.json({ error: 'Content must be a string' }, { status: 400 })
       }
 
       const buffer =

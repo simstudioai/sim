@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { ttsToolContract } from '@/lib/api/contracts/tools/media/tts'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
@@ -18,20 +20,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const {
-      text,
-      voiceId,
-      apiKey,
-      modelId = 'eleven_monolingual_v1',
-      workspaceId,
-      workflowId,
-      executionId,
-    } = body
+    const parsed = await parseRequest(
+      ttsToolContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Missing required parameters') },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!text || !voiceId || !apiKey) {
-      return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 })
-    }
+    const { text, voiceId, apiKey, modelId, workspaceId, workflowId, executionId } =
+      parsed.data.body
 
     const voiceIdValidation = validateAlphanumericId(voiceId, 'voiceId', 255)
     if (!voiceIdValidation.isValid) {
@@ -40,10 +44,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     // Check if this is an execution context (from workflow tool execution)
-    const hasExecutionContext = workspaceId && workflowId && executionId
+    const executionContext =
+      workspaceId && workflowId && executionId ? { workspaceId, workflowId, executionId } : null
     logger.info('Proxying TTS request for voice:', {
       voiceId,
-      hasExecutionContext,
+      hasExecutionContext: Boolean(executionContext),
       workspaceId,
       workflowId,
       executionId,
@@ -85,16 +90,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const timestamp = Date.now()
 
     // Use execution storage for workflow tool calls, copilot for chat UI
-    if (hasExecutionContext) {
+    if (executionContext) {
       const { uploadExecutionFile } = await import('@/lib/uploads/contexts/execution')
       const fileName = `tts-${timestamp}.mp3`
 
       const userFile = await uploadExecutionFile(
-        {
-          workspaceId,
-          workflowId,
-          executionId,
-        },
+        executionContext,
         audioBuffer,
         fileName,
         'audio/mpeg',

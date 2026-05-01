@@ -2,6 +2,8 @@ import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
+import { sttToolContract } from '@/lib/api/contracts/tools/media/stt'
+import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { extractAudioFromVideo, isVideoFile } from '@/lib/audio/extractor'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
@@ -15,37 +17,12 @@ import {
   downloadFileFromStorage,
   resolveInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils.server'
-import type { UserFile } from '@/executor/types'
 import type { TranscriptSegment } from '@/tools/stt/types'
 
 const logger = createLogger('SttProxyAPI')
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes for large files
-
-interface SttRequestBody {
-  provider: 'whisper' | 'deepgram' | 'elevenlabs' | 'assemblyai' | 'gemini'
-  apiKey: string
-  model?: string
-  audioFile?: UserFile | UserFile[]
-  audioFileReference?: UserFile | UserFile[]
-  audioUrl?: string
-  language?: string
-  timestamps?: 'none' | 'sentence' | 'word'
-  diarization?: boolean
-  translateToEnglish?: boolean
-  // Whisper-specific options
-  prompt?: string
-  temperature?: number
-  // AssemblyAI-specific options
-  sentiment?: boolean
-  entityDetection?: boolean
-  piiRedaction?: boolean
-  summarization?: boolean
-  workspaceId?: string
-  workflowId?: string
-  executionId?: string
-}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId()
@@ -58,7 +35,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = authResult.userId
-    const body: SttRequestBody = await request.json()
+
+    const parsed = await parseRequest(
+      sttToolContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid STT request:`, error.issues)
+          return validationErrorResponse(
+            error,
+            getValidationErrorMessage(error, 'Invalid request data')
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const body = parsed.data.body
     const {
       provider,
       apiKey,
@@ -72,13 +66,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       piiRedaction,
       summarization,
     } = body
-
-    if (!provider || !apiKey) {
-      return NextResponse.json(
-        { error: 'Missing required fields: provider and apiKey' },
-        { status: 400 }
-      )
-    }
 
     let audioBuffer: Buffer
     let audioFileName: string

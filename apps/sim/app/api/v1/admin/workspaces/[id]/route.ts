@@ -10,6 +10,8 @@ import { db } from '@sim/db'
 import { workflow, workflowFolder, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
+import { adminV1GetWorkspaceContract } from '@/lib/api/contracts/v1/admin'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -27,7 +29,10 @@ interface RouteParams {
 
 export const GET = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: workspaceId } = await context.params
+    const parsed = await parseRequest(adminV1GetWorkspaceContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id: workspaceId } = parsed.data.params
 
     try {
       const [workspaceData] = await db

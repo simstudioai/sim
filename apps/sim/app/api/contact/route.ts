@@ -1,6 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { renderHelpConfirmationEmail } from '@/components/emails'
+import {
+  getContactTopicLabel,
+  mapContactTopicToHelpType,
+  submitContactBodySchema,
+} from '@/lib/api/contracts/contact'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -10,11 +16,6 @@ import { getEmailDomain, SITE_URL } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
-import {
-  contactRequestSchema,
-  getContactTopicLabel,
-  mapContactTopicToHelpType,
-} from '@/app/(landing)/components/contact/consts'
 
 const logger = createLogger('ContactAPI')
 const rateLimiter = new RateLimiter()
@@ -57,15 +58,16 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
-    const body = (await req.json()) as Record<string, unknown>
+    const body = await req.json()
+    const bodyRecord = body && typeof body === 'object' ? (body as Record<string, unknown>) : {}
 
-    const honeypot = body?.website
+    const honeypot = bodyRecord.website
     if (typeof honeypot === 'string' && honeypot.trim().length > 0) {
       logger.warn(`[${requestId}] Honeypot triggered, discarding`, { ip })
       return NextResponse.json(SUCCESS_RESPONSE, { status: 201 })
     }
 
-    const captchaUnavailable = body?.captchaUnavailable === true
+    const captchaUnavailable = bodyRecord.captchaUnavailable === true
 
     if (captchaUnavailable) {
       const nocaptchaKey = `public:contact:nocaptcha:${ip}`
@@ -83,7 +85,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     if (isTurnstileConfigured() && !captchaUnavailable) {
-      const token = typeof body?.captchaToken === 'string' ? body.captchaToken : null
+      const token = typeof bodyRecord.captchaToken === 'string' ? bodyRecord.captchaToken : null
       const verification = await verifyTurnstileToken({
         token,
         remoteIp: ip,
@@ -118,13 +120,16 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       }
     }
 
-    const validationResult = contactRequestSchema.safeParse(body)
+    const validationResult = submitContactBodySchema.safeParse(body)
 
     if (!validationResult.success) {
       logger.warn(`[${requestId}] Invalid contact request data`, {
-        errors: validationResult.error.format(),
+        issues: validationResult.error.issues,
       })
-      return NextResponse.json({ error: 'Invalid request data' }, { status: 400 })
+      return NextResponse.json(
+        { error: getValidationErrorMessage(validationResult.error, 'Invalid request data') },
+        { status: 400 }
+      )
     }
 
     const { name, email, company, topic, subject, message } = validationResult.data

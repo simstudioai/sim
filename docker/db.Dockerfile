@@ -11,9 +11,10 @@ WORKDIR /app
 
 # Copy only package files needed for migrations (these change less frequently)
 COPY package.json bun.lock turbo.json ./
-RUN mkdir -p packages/db packages/tsconfig
+RUN mkdir -p packages/db packages/tsconfig packages/utils
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
+COPY packages/utils/package.json ./packages/utils/package.json
 
 # Install dependencies with cache mount for faster builds
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
@@ -40,6 +41,9 @@ COPY --chown=nextjs:nodejs packages/db/drizzle.config.ts ./packages/db/drizzle.c
 
 # Copy tsconfig package (needed for workspace symlink resolution)
 COPY --chown=nextjs:nodejs packages/tsconfig ./packages/tsconfig
+
+# Copy utils package (needed by db scripts that import @sim/utils)
+COPY --chown=nextjs:nodejs packages/utils ./packages/utils
 
 # Copy database package source code (changes most frequently - placed last)
 COPY --chown=nextjs:nodejs packages/db ./packages/db

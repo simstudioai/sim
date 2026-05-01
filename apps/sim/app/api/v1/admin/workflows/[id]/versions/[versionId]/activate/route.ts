@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getActiveWorkflowRecord } from '@sim/workflow-authz'
+import { adminV1ActivateWorkflowVersionContract } from '@/lib/api/contracts/v1/admin'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performActivateVersion } from '@/lib/workflows/orchestration'
@@ -21,18 +23,16 @@ interface RouteParams {
 export const POST = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
     const requestId = generateRequestId()
-    const { id: workflowId, versionId } = await context.params
+    const parsed = await parseRequest(adminV1ActivateWorkflowVersionContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id: workflowId, versionId: versionNum } = parsed.data.params
 
     try {
       const workflowRecord = await getActiveWorkflowRecord(workflowId)
 
       if (!workflowRecord) {
         return notFoundResponse('Workflow')
-      }
-
-      const versionNum = Number(versionId)
-      if (!Number.isFinite(versionNum) || versionNum < 1) {
-        return badRequestResponse('Invalid version number')
       }
 
       const result = await performActivateVersion({

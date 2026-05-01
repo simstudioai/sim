@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { OutlookIcon } from '@/components/icons'
+import { requestJson } from '@/lib/api/client/request'
+import { outlookFoldersSelectorContract } from '@/lib/api/contracts/selectors/microsoft'
 import { isCredentialSetValue } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
@@ -59,18 +61,13 @@ export const outlookPollingTrigger: TriggerConfig = {
           return OUTLOOK_SYSTEM_FOLDERS
         }
         try {
-          const response = await fetch(`/api/tools/outlook/folders?credentialId=${credentialId}`)
-          if (!response.ok) {
-            throw new Error('Failed to fetch Outlook folders')
-          }
-          const data = await response.json()
-          if (data.folders && Array.isArray(data.folders)) {
-            return data.folders.map((folder: { id: string; name: string }) => ({
-              id: folder.id,
-              label: folder.name,
-            }))
-          }
-          return []
+          const data = await requestJson(outlookFoldersSelectorContract, {
+            query: { credentialId },
+          })
+          return data.folders.map((folder) => ({
+            id: folder.id,
+            label: folder.name,
+          }))
         } catch (error) {
           logger.error('Error fetching Outlook folders:', error)
           throw error

@@ -21,16 +21,16 @@ import { workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import {
+  adminV1DeleteWorkspaceWorkflowsContract,
+  adminV1ListWorkspaceWorkflowsContract,
+} from '@/lib/api/contracts/v1/admin'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { archiveWorkflowsForWorkspace } from '@/lib/workflows/lifecycle'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import { internalErrorResponse, listResponse, notFoundResponse } from '@/app/api/v1/admin/responses'
-import {
-  type AdminWorkflow,
-  createPaginationMeta,
-  parsePaginationParams,
-  toAdminWorkflow,
-} from '@/app/api/v1/admin/types'
+import { type AdminWorkflow, createPaginationMeta, toAdminWorkflow } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminWorkspaceWorkflowsAPI')
 
@@ -40,9 +40,11 @@ interface RouteParams {
 
 export const GET = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: workspaceId } = await context.params
-    const url = new URL(request.url)
-    const { limit, offset } = parsePaginationParams(url)
+    const parsed = await parseRequest(adminV1ListWorkspaceWorkflowsContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id: workspaceId } = parsed.data.params
+    const { limit, offset } = parsed.data.query
 
     try {
       const [workspaceData] = await db
@@ -87,7 +89,10 @@ export const GET = withRouteHandler(
 
 export const DELETE = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: workspaceId } = await context.params
+    const parsed = await parseRequest(adminV1DeleteWorkspaceWorkflowsContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id: workspaceId } = parsed.data.params
 
     try {
       const [workspaceData] = await db

@@ -4663,6 +4663,10 @@
         "description": "Draft emails using Gmail"
       },
       {
+        "name": "Edit Draft",
+        "description": "Update an existing Gmail draft in place without deleting and recreating it."
+      },
+      {
         "name": "Search Email",
         "description": "Search emails in Gmail"
       },
@@ -4699,7 +4703,7 @@
         "description": "Remove label(s) from a Gmail message"
       }
     ],
-    "operationCount": 12,
+    "operationCount": 13,
     "triggers": [
       {
         "id": "gmail_poller",

@@ -1,23 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { firecrawlParseContract } from '@/lib/api/contracts/tools'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('FirecrawlParseAPI')
-
-const FirecrawlParseSchema = z.object({
-  apiKey: z.string().min(1, 'API key is required'),
-  file: RawFileInputSchema,
-  options: z.record(z.unknown()).optional(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -35,8 +29,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const body = await request.json()
-    const validatedData = FirecrawlParseSchema.parse(body)
+    const parsed = await parseRequest(firecrawlParseContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const [userFile] = processFilesToUserFiles([validatedData.file], requestId, logger)
     if (!userFile) {
@@ -89,16 +84,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       output: firecrawlData.data ?? firecrawlData,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        { success: false, error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error in Firecrawl parse:`, error)
-
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
   }
 })

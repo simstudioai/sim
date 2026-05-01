@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { copilotTrainingExampleContract } from '@/lib/api/contracts/copilot'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalApiKey, createUnauthorizedResponse } from '@/lib/copilot/request/http'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -9,13 +10,6 @@ const logger = createLogger('CopilotTrainingExamplesAPI')
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const TrainingExampleSchema = z.object({
-  json: z.string().min(1, 'JSON string is required'),
-  title: z.string().min(1, 'Title is required'),
-  tags: z.array(z.string()).optional(),
-  metadata: z.record(z.unknown()).optional(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = checkInternalApiKey(request)
@@ -36,22 +30,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-
-    const validationResult = TrainingExampleSchema.safeParse(body)
-
-    if (!validationResult.success) {
-      logger.warn('Invalid training example format', { errors: validationResult.error.errors })
-      return NextResponse.json(
-        {
-          error: 'Invalid training example format',
-          details: validationResult.error.errors,
+    const parsed = await parseRequest(
+      copilotTrainingExampleContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn('Invalid training example format', { errors: error.issues })
+          return validationErrorResponse(error, 'Invalid training example format')
         },
-        { status: 400 }
-      )
-    }
-
-    const validatedData = validationResult.data
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info('Sending workflow example to agent indexer', {
       hasJsonField: typeof validatedData.json === 'string',

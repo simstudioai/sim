@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { googleVaultDownloadExportFileContract } from '@/lib/api/contracts/tools/google'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -13,13 +14,6 @@ import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GoogleVaultDownloadExportFileAPI')
-
-const GoogleVaultDownloadExportFileSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  bucketName: z.string().min(1, 'Bucket name is required'),
-  objectName: z.string().min(1, 'Object name is required'),
-  fileName: z.string().optional().nullable(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -38,8 +32,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const body = await request.json()
-    const validatedData = GoogleVaultDownloadExportFileSchema.parse(body)
+    const parsed = await parseRequest(googleVaultDownloadExportFileContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const { accessToken, bucketName, objectName, fileName } = validatedData
 

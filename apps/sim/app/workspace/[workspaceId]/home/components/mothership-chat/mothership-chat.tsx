@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
@@ -46,6 +46,7 @@ interface MothershipChatProps {
   onContextAdd?: (context: ChatContext) => void
   onContextRemove?: (context: ChatContext) => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+  draftScopeKey?: string
   layout?: 'mothership-view' | 'copilot-view'
   initialScrollBlocked?: boolean
   animateInput?: boolean
@@ -93,6 +94,7 @@ export function MothershipChat({
   onContextAdd,
   onContextRemove,
   onWorkspaceResourceSelect,
+  draftScopeKey,
   layout = 'mothership-view',
   initialScrollBlocked = false,
   animateInput = false,
@@ -122,23 +124,23 @@ export function MothershipChat({
   }, [messages])
   const initialScrollDoneRef = useRef(false)
   const userInputRef = useRef<UserInputHandle>(null)
-  const handleSendQueuedHead = useCallback(() => {
+
+  function handleSendQueuedHead() {
     const topMessage = messageQueue[0]
     if (!topMessage) return
     void onSendQueuedMessage(topMessage.id)
-  }, [messageQueue, onSendQueuedMessage])
-  const handleEditQueued = useCallback(
-    (id: string) => {
-      const msg = onEditQueuedMessage(id)
-      if (msg) userInputRef.current?.loadQueuedMessage(msg)
-    },
-    [onEditQueuedMessage]
-  )
-  const handleEditQueuedTail = useCallback(() => {
+  }
+
+  function handleEditQueued(id: string) {
+    const msg = onEditQueuedMessage(id)
+    if (msg) userInputRef.current?.loadQueuedMessage(msg)
+  }
+
+  function handleEditQueuedTail() {
     const tail = messageQueue[messageQueue.length - 1]
     if (!tail) return
     handleEditQueued(tail.id)
-  }, [messageQueue, handleEditQueued])
+  }
 
   useLayoutEffect(() => {
     if (!hasMessages) {
@@ -250,6 +252,7 @@ export function MothershipChat({
             onContextRemove={onContextRemove}
             onSendQueuedHead={handleSendQueuedHead}
             onEditQueuedTail={handleEditQueuedTail}
+            draftScopeKey={draftScopeKey}
           />
         </div>
       </div>

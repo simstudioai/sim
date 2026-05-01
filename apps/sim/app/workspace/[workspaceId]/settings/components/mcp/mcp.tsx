@@ -15,6 +15,8 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
+import { requestJson } from '@/lib/api/client/request'
+import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
 import { cn } from '@/lib/core/utils/cn'
 import {
   getIssueBadgeLabel,
@@ -24,6 +26,8 @@ import {
 } from '@/lib/mcp/tool-validation'
 import type { McpTransport } from '@/lib/mcp/types'
 import {
+  type McpServer,
+  type McpTool,
   useAllowedMcpDomains,
   useCreateMcpServer,
   useDeleteMcpServer,
@@ -37,34 +41,10 @@ import {
 import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 import { McpServerFormModal, McpServerSkeleton } from './components'
 
 const logger = createLogger('McpSettings')
-
-interface McpToolSchema {
-  type: 'object'
-  properties?: Record<string, unknown>
-  required?: string[]
-}
-
-interface McpTool {
-  name: string
-  description?: string
-  serverId: string
-  inputSchema?: McpToolSchema
-}
-
-interface McpServer {
-  id: string
-  name?: string
-  transport?: string
-  url?: string
-  headers?: Record<string, string>
-  enabled?: boolean
-  connectionStatus?: 'connected' | 'disconnected' | 'error'
-  lastError?: string | null
-  lastConnected?: string
-}
 
 function formatTransportLabel(transport: string): string {
   return transport
@@ -295,14 +275,16 @@ export function MCP({ initialServerId }: MCPProps) {
         if (activeWorkflowId && result.updatedWorkflowIds?.includes(activeWorkflowId)) {
           logger.info(`Active workflow ${activeWorkflowId} was updated, reloading subblock values`)
           try {
-            const response = await fetch(`/api/workflows/${activeWorkflowId}`)
-            if (response.ok) {
-              const { data: workflowData } = await response.json()
-              if (workflowData?.state?.blocks) {
-                useSubBlockStore
-                  .getState()
-                  .initializeFromWorkflow(activeWorkflowId, workflowData.state.blocks)
-              }
+            const { data: workflowData } = await requestJson(getWorkflowStateContract, {
+              params: { id: activeWorkflowId },
+            })
+            if (workflowData?.state?.blocks) {
+              useSubBlockStore
+                .getState()
+                .initializeFromWorkflow(
+                  activeWorkflowId,
+                  workflowData.state.blocks as Record<string, BlockState>
+                )
             }
           } catch (reloadError) {
             logger.warn('Failed to reload workflow subblock values:', reloadError)

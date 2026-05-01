@@ -4,7 +4,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { copilotChatStopContract } from '@/lib/api/contracts/copilot'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { CopilotStopOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
@@ -15,56 +16,6 @@ import { taskPubSub } from '@/lib/copilot/tasks'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatStopAPI')
-
-const StoredToolCallSchema = z
-  .object({
-    id: z.string().optional(),
-    name: z.string().optional(),
-    state: z.string().optional(),
-    params: z.record(z.unknown()).optional(),
-    result: z
-      .object({
-        success: z.boolean(),
-        output: z.unknown().optional(),
-        error: z.string().optional(),
-      })
-      .optional(),
-    display: z
-      .object({
-        text: z.string().optional(),
-        title: z.string().optional(),
-        phaseLabel: z.string().optional(),
-      })
-      .optional(),
-    calledBy: z.string().optional(),
-    durationMs: z.number().optional(),
-    error: z.string().optional(),
-  })
-  .nullable()
-
-const ContentBlockSchema = z.object({
-  type: z.string(),
-  lane: z.enum(['main', 'subagent']).optional(),
-  content: z.string().optional(),
-  channel: z.enum(['assistant', 'thinking']).optional(),
-  phase: z.enum(['call', 'args_delta', 'result']).optional(),
-  kind: z.enum(['subagent', 'structured_result', 'subagent_result']).optional(),
-  lifecycle: z.enum(['start', 'end']).optional(),
-  status: z.enum(['complete', 'error', 'cancelled']).optional(),
-  toolCall: StoredToolCallSchema.optional(),
-  timestamp: z.number().optional(),
-  endedAt: z.number().optional(),
-})
-
-const StopSchema = z.object({
-  chatId: z.string(),
-  streamId: z.string(),
-  content: z.string(),
-  contentBlocks: z.array(ContentBlockSchema).optional(),
-  // Optional for older clients; when present, flows into msg.requestId
-  // so the UI's copy-request-ID button survives a stopped turn.
-  requestId: z.string().optional(),
-})
 
 // POST /api/copilot/chat/stop — persists partial assistant content
 // when the user stops mid-stream. Lock release is handled by the
@@ -78,9 +29,12 @@ export const POST = withRouteHandler((req: NextRequest) =>
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { chatId, streamId, content, contentBlocks, requestId } = StopSchema.parse(
-        await req.json()
-      )
+      const parsed = await parseRequest(copilotChatStopContract, req, {})
+      if (!parsed.success) {
+        span.setAttribute(TraceAttr.CopilotStopOutcome, CopilotStopOutcome.ValidationError)
+        return parsed.response
+      }
+      const { chatId, streamId, content, contentBlocks, requestId } = parsed.data.body
       span.setAttributes({
         [TraceAttr.ChatId]: chatId,
         [TraceAttr.StreamId]: streamId,
@@ -166,13 +120,6 @@ export const POST = withRouteHandler((req: NextRequest) =>
       )
       return NextResponse.json({ success: true })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        span.setAttribute(TraceAttr.CopilotStopOutcome, CopilotStopOutcome.ValidationError)
-        return NextResponse.json(
-          { error: 'Invalid request data', details: error.errors },
-          { status: 400 }
-        )
-      }
       logger.error('Error stopping chat stream:', error)
       span.setAttribute(TraceAttr.CopilotStopOutcome, CopilotStopOutcome.InternalError)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import { useRef, useState } from 'react'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
   Copy,
@@ -10,6 +10,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
@@ -94,7 +95,7 @@ export function ExecutionSnapshot({
           style={{ height, width }}
         >
           <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
-            <Loader2 className='h-[16px] w-[16px] animate-spin' />
+            <Loader className='h-[16px] w-[16px]' animate />
             <span className='text-small'>Loading run snapshot...</span>
           </div>
         </div>
@@ -122,7 +123,7 @@ export function ExecutionSnapshot({
           style={{ height, width }}
         >
           <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
-            <Loader2 className='h-[16px] w-[16px] animate-spin' />
+            <Loader className='h-[16px] w-[16px]' animate />
             <span className='text-small'>Loading run snapshot...</span>
           </div>
         </div>

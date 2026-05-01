@@ -1,7 +1,8 @@
 import { CopyObjectCommand, type ObjectCannedACL, S3Client } from '@aws-sdk/client-s3'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { awsS3CopyObjectContract } from '@/lib/api/contracts/tools/aws/s3-copy-object'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -9,17 +10,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('S3CopyObjectAPI')
-
-const S3CopyObjectSchema = z.object({
-  accessKeyId: z.string().min(1, 'Access Key ID is required'),
-  secretAccessKey: z.string().min(1, 'Secret Access Key is required'),
-  region: z.string().min(1, 'Region is required'),
-  sourceBucket: z.string().min(1, 'Source bucket name is required'),
-  sourceKey: z.string().min(1, 'Source object key is required'),
-  destinationBucket: z.string().min(1, 'Destination bucket name is required'),
-  destinationKey: z.string().min(1, 'Destination object key is required'),
-  acl: z.string().optional().nullable(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -42,8 +32,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = S3CopyObjectSchema.parse(body)
+    const parsed = await parseToolRequest(awsS3CopyObjectContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Copying S3 object`, {
       source: `${validatedData.sourceBucket}/${validatedData.sourceKey}`,
@@ -93,18 +87,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error copying S3 object:`, error)
 
     return NextResponse.json(

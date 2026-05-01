@@ -4,16 +4,17 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { onedriveFoldersQuerySchema } from '@/lib/api/contracts/selectors/microsoft'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
+import type { MicrosoftGraphDriveItem } from '@/tools/onedrive/types'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OneDriveFoldersAPI')
-
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { MicrosoftGraphDriveItem } from '@/tools/onedrive/types'
 
 /**
  * Get folders from Microsoft OneDrive
@@ -28,12 +29,21 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-    const query = searchParams.get('query') || ''
-
-    if (!credentialId) {
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
+    const validation = onedriveFoldersQuerySchema.safeParse({
+      credentialId: searchParams.get('credentialId') ?? '',
+      query: searchParams.get('query') ?? undefined,
+    })
+    if (!validation.success) {
+      logger.warn(`[${requestId}] Invalid folders request data`, {
+        errors: validation.error.issues,
+      })
+      return NextResponse.json(
+        { error: getValidationErrorMessage(validation.error, 'Invalid request') },
+        { status: 400 }
+      )
     }
+    const { credentialId } = validation.data
+    const query = validation.data.query ?? ''
 
     const credentialIdValidation = validateMicrosoftGraphId(credentialId, 'credentialId')
     if (!credentialIdValidation.isValid) {

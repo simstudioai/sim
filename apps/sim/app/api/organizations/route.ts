@@ -3,7 +3,11 @@ import { db } from '@sim/db'
 import { member, organization, subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, or } from 'drizzle-orm'
+import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { listCreatorOrganizationsContract } from '@/lib/api/contracts/creator-profile'
+import { createOrganizationBodySchema } from '@/lib/api/contracts/organization'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import {
@@ -24,13 +28,16 @@ import {
 
 const logger = createLogger('OrganizationsAPI')
 
-export const GET = withRouteHandler(async () => {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const parsed = await parseRequest(listCreatorOrganizationsContract, request, {})
+    if (!parsed.success) return parsed.response
 
     const userOrganizations = await db
       .select({
@@ -77,20 +84,22 @@ export const POST = withRouteHandler(async (request: Request) => {
 
     const user = session.user
 
-    // Parse request body for optional name and slug
     let organizationName = user.name
     let organizationSlug: string | undefined
 
-    try {
-      const body = await request.json()
-      if (body.name && typeof body.name === 'string') {
-        organizationName = body.name
-      }
-      if (body.slug && typeof body.slug === 'string') {
-        organizationSlug = body.slug
-      }
-    } catch {
-      // If no body or invalid JSON, use defaults
+    const rawBody = await request.json().catch(() => ({}))
+    const parsedBody = createOrganizationBodySchema.safeParse(rawBody)
+    if (!parsedBody.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(parsedBody.error, 'Invalid request body') },
+        { status: 400 }
+      )
+    }
+    if (parsedBody.data.name) {
+      organizationName = parsedBody.data.name
+    }
+    if (parsedBody.data.slug) {
+      organizationSlug = parsedBody.data.slug
     }
 
     const existingOrgMembership = await db

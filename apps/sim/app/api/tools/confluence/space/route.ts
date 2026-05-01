@@ -1,5 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  confluenceCreateSpaceContract,
+  confluenceDeleteSpaceContract,
+  confluenceGetSpaceContract,
+  confluenceUpdateSpaceContract,
+} from '@/lib/api/contracts/selectors/confluence'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -18,11 +25,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const domain = searchParams.get('domain')
-    const accessToken = searchParams.get('accessToken')
-    const spaceId = searchParams.get('spaceId')
-    const providedCloudId = searchParams.get('cloudId')
+    const parsed = await parseRequest(confluenceGetSpaceContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const { domain, accessToken, spaceId, cloudId: providedCloudId } = parsed.data.query
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -93,8 +99,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { domain, accessToken, name, key, description, cloudId: providedCloudId } = body
+    const parsed = await parseRequest(confluenceCreateSpaceContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const {
+      domain,
+      accessToken,
+      name,
+      key,
+      description,
+      cloudId: providedCloudId,
+    } = parsed.data.body
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -173,8 +188,17 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { domain, accessToken, spaceId, name, description, cloudId: providedCloudId } = body
+    const parsed = await parseRequest(confluenceUpdateSpaceContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const {
+      domain,
+      accessToken,
+      spaceId,
+      name,
+      description,
+      cloudId: providedCloudId,
+    } = parsed.data.body
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -285,8 +309,10 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { domain, accessToken, spaceId, cloudId: providedCloudId } = body
+    const parsed = await parseRequest(confluenceDeleteSpaceContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const { domain, accessToken, spaceId, cloudId: providedCloudId } = parsed.data.body
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })

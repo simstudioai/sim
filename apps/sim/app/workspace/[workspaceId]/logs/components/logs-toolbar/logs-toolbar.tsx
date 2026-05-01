@@ -670,7 +670,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     Time Range
                   </span>
                   <Combobox
-                    options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
+                    options={TIME_RANGE_OPTIONS}
                     value={timeRange}
                     onChange={handleTimeRangeChange}
                     placeholder='All time'
@@ -786,7 +786,7 @@ export const LogsToolbar = memo(function LogsToolbar({
             {/* Timeline Filter */}
             <div className='relative'>
               <Combobox
-                options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
+                options={TIME_RANGE_OPTIONS}
                 value={timeRange}
                 onChange={handleTimeRangeChange}
                 placeholder='Time'

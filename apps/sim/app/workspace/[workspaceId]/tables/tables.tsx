@@ -34,6 +34,7 @@ import {
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
+  downloadTableExport,
   useCreateTable,
   useDeleteTable,
   useTablesList,
@@ -530,6 +531,15 @@ export function Tables() {
         }}
         onDelete={() => setIsDeleteDialogOpen(true)}
         onImportCsv={() => setIsImportDialogOpen(true)}
+        onExportCsv={async () => {
+          if (!activeTable) return
+          try {
+            await downloadTableExport(activeTable.id, activeTable.name)
+          } catch (err) {
+            logger.error('Failed to export table:', err)
+            toast.error('Failed to export table')
+          }
+        }}
         disableDelete={userPermissions.canEdit !== true}
         disableRename={userPermissions.canEdit !== true}
         disableImport={userPermissions.canEdit !== true}

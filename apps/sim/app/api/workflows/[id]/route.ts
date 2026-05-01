@@ -4,7 +4,8 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateWorkflowContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { AuthType, checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -14,14 +15,6 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/ut
 import { getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowByIdAPI')
-
-const UpdateWorkflowSchema = z.object({
-  name: z.string().min(1, 'Name is required').optional(),
-  description: z.string().optional(),
-  color: z.string().optional(),
-  folderId: z.string().nullable().optional(),
-  sortOrder: z.number().int().min(0).optional(),
-})
 
 /**
  * GET /api/workflows/[id]
@@ -88,6 +81,20 @@ export const GET = withRouteHandler(
 
       const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
 
+      // Stamp `workflowId` from the path param on each variable so the
+      // global client-side variables store can filter by workflow without
+      // requiring persisted variables to carry a redundant `workflowId`.
+      // The persisted blob may or may not include `workflowId` depending on
+      // when the variable was last written; the path param is authoritative.
+      const persistedVariables =
+        (workflowData.variables as Record<string, Record<string, unknown>>) || {}
+      const stampedVariables: Record<string, Record<string, unknown>> = {}
+      for (const [variableId, variable] of Object.entries(persistedVariables)) {
+        if (variable && typeof variable === 'object') {
+          stampedVariables[variableId] = { ...variable, workflowId }
+        }
+      }
+
       if (normalizedData) {
         const finalWorkflowData = {
           ...workflowData,
@@ -104,7 +111,7 @@ export const GET = withRouteHandler(
               description: workflowData.description,
             },
           },
-          variables: workflowData.variables || {},
+          variables: stampedVariables,
         }
 
         logger.info(`[${requestId}] Loaded workflow ${workflowId} from normalized tables`)
@@ -129,7 +136,7 @@ export const GET = withRouteHandler(
             description: workflowData.description,
           },
         },
-        variables: workflowData.variables || {},
+        variables: stampedVariables,
       }
 
       return NextResponse.json({ data: emptyWorkflowData }, { status: 200 })
@@ -250,10 +257,10 @@ export const DELETE = withRouteHandler(
  * Update workflow metadata (name, description, color, folderId)
  */
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
     const startTime = Date.now()
-    const { id: workflowId } = await params
+    const { id: workflowId } = await context.params
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -264,8 +271,9 @@ export const PUT = withRouteHandler(
 
       const userId = auth.userId
 
-      const body = await request.json()
-      const updates = UpdateWorkflowSchema.parse(body)
+      const parsed = await parseRequest(updateWorkflowContract, request, context)
+      if (!parsed.success) return parsed.response
+      const updates = parsed.data.body
 
       // Fetch the workflow to check ownership/access
       const authorization = await authorizeWorkflowByWorkspacePermission({
@@ -339,12 +347,22 @@ export const PUT = withRouteHandler(
         }
       }
 
-      // Update the workflow
       const [updatedWorkflow] = await db
         .update(workflow)
         .set(updateData)
         .where(eq(workflow.id, workflowId))
-        .returning()
+        .returning({
+          id: workflow.id,
+          name: workflow.name,
+          description: workflow.description,
+          color: workflow.color,
+          workspaceId: workflow.workspaceId,
+          folderId: workflow.folderId,
+          sortOrder: workflow.sortOrder,
+          createdAt: workflow.createdAt,
+          updatedAt: workflow.updatedAt,
+          archivedAt: workflow.archivedAt,
+        })
 
       const elapsed = Date.now() - startTime
       logger.info(`[${requestId}] Successfully updated workflow ${workflowId} in ${elapsed}ms`, {
@@ -354,16 +372,6 @@ export const PUT = withRouteHandler(
       return NextResponse.json({ workflow: updatedWorkflow }, { status: 200 })
     } catch (error: any) {
       const elapsed = Date.now() - startTime
-      if (error instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid workflow update data for ${workflowId}`, {
-          errors: error.errors,
-        })
-        return NextResponse.json(
-          { error: 'Invalid request data', details: error.errors },
-          { status: 400 }
-        )
-      }
-
       logger.error(`[${requestId}] Error updating workflow ${workflowId} after ${elapsed}ms`, error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
