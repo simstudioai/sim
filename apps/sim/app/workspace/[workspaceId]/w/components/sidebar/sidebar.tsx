@@ -790,8 +790,7 @@ export const Sidebar = memo(function Sidebar() {
     )
   }
 
-  const { data: fetchedTasks } = useTasks(workspaceId)
-  const tasksLoading = fetchedTasks === undefined
+  const { data: fetchedTasks, isLoading: tasksLoading } = useTasks(workspaceId)
 
   useTaskEvents(workspaceId)
 
