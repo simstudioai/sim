@@ -17,7 +17,7 @@ function selectGmailToolId(params: Record<string, any>): string {
     case 'draft_gmail':
       return 'gmail_draft'
     case 'edit_draft_gmail':
-      return 'gmail_edit_draft'
+      return 'gmail_edit_draft_v2'
     case 'search_gmail':
       return 'gmail_search'
     case 'read_gmail':
@@ -432,6 +432,7 @@ Return ONLY the search query - no explanations, no extra text.`,
       'gmail_delete',
       'gmail_add_label',
       'gmail_remove_label',
+      'gmail_edit_draft_v2',
     ],
     config: {
       tool: selectGmailToolId,

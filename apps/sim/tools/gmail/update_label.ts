@@ -1,6 +1,13 @@
 import { GMAIL_API_BASE } from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Tool-only (not exposed in the Gmail block UI). Mirrors the existing
+ * `gmail_create_label_v2` / `gmail_delete_label_v2` / `gmail_list_labels_v2`
+ * pattern — these are programmatic/agent-facing tools used by Mothership
+ * and MCP, not visual workflow operations.
+ */
+
 interface GmailUpdateLabelParams {
   accessToken: string
   labelId: string
