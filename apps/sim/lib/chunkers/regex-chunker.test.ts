@@ -206,6 +206,27 @@ describe('RegexChunker', () => {
       }
     )
 
+    it.concurrent(
+      'should not include delimiter text when pattern uses named capture groups',
+      async () => {
+        const chunker = new RegexChunker({
+          pattern: '(?<sep>---)',
+          chunkSize: 1024,
+          strictBoundaries: true,
+        })
+        const text = 'Section one content.---Section two content.---Section three content.'
+        const chunks = await chunker.chunk(text)
+
+        expect(chunks).toHaveLength(3)
+        expect(chunks[0].text).toBe('Section one content.')
+        expect(chunks[1].text).toBe('Section two content.')
+        expect(chunks[2].text).toBe('Section three content.')
+        for (const chunk of chunks) {
+          expect(chunk.text).not.toBe('---')
+        }
+      }
+    )
+
     it.concurrent('should leave non-capturing groups and lookarounds intact', async () => {
       const chunker = new RegexChunker({
         pattern: '(?=\\n\\s*\\{\\s*"id"\\s*:)',

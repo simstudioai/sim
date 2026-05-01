@@ -15,11 +15,14 @@ const logger = createLogger('RegexChunker')
 
 const MAX_PATTERN_LENGTH = 500
 
+const NAMED_GROUP_PREFIX = /^\(\?<[^>]+>/
+
 /**
- * Converts unescaped capturing groups `(...)` into non-capturing groups `(?:...)`.
- * `String.prototype.split()` interleaves captured groups into the result array,
- * which would surface delimiter text as spurious chunks. Lookarounds, named
- * groups, and other `(?...)` constructs are left untouched.
+ * Converts unescaped capturing groups `(...)` and named capturing groups
+ * `(?<name>...)` into non-capturing groups `(?:...)`. `String.prototype.split()`
+ * interleaves captured text (named or otherwise) into the result array, which
+ * would surface delimiter text as spurious chunks. Lookarounds (`(?=`, `(?!`,
+ * `(?<=`, `(?<!`) and other `(?...)` constructs are left untouched.
  */
 function toNonCapturing(pattern: string): string {
   let result = ''
@@ -33,9 +36,17 @@ function toNonCapturing(pattern: string): string {
     }
     if (c === '[') inClass = true
     else if (c === ']') inClass = false
-    if (!inClass && c === '(' && pattern[i + 1] !== '?') {
-      result += '(?:'
-      continue
+    if (!inClass && c === '(') {
+      if (pattern[i + 1] !== '?') {
+        result += '(?:'
+        continue
+      }
+      const namedMatch = pattern.slice(i).match(NAMED_GROUP_PREFIX)
+      if (namedMatch) {
+        result += '(?:'
+        i += namedMatch[0].length - 1
+        continue
+      }
     }
     result += c
   }
