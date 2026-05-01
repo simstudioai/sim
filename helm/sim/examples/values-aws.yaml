@@ -84,7 +84,6 @@ realtime:
   env:
     NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
     BETTER_AUTH_URL: "https://simstudio.acme.com"
-    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
     BETTER_AUTH_SECRET: "your-secure-production-auth-secret-here"
     ALLOWED_ORIGINS: "https://simstudio.acme.com"
     NODE_ENV: "production"

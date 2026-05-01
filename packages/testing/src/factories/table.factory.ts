@@ -1,4 +1,6 @@
-import { customAlphabet, nanoid } from 'nanoid'
+import { generateShortId } from '@sim/utils/id'
+
+const COLUMN_SUFFIX_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789_'
 
 export type TableColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
 
@@ -32,14 +34,12 @@ export interface TableRowFactoryOptions {
   updatedAt?: string
 }
 
-const createTableColumnSuffix = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789_', 6)
-
 /**
  * Creates a table column fixture with sensible defaults.
  */
 export function createTableColumn(options: TableColumnFactoryOptions = {}): TableColumnFixture {
   return {
-    name: options.name ?? `column_${createTableColumnSuffix()}`,
+    name: options.name ?? `column_${generateShortId(6, COLUMN_SUFFIX_ALPHABET)}`,
     type: options.type ?? 'string',
     required: options.required,
     unique: options.unique,
@@ -53,7 +53,7 @@ export function createTableRow(options: TableRowFactoryOptions = {}): TableRowFi
   const timestamp = new Date().toISOString()
 
   return {
-    id: options.id ?? `row_${nanoid(8)}`,
+    id: options.id ?? `row_${generateShortId(8)}`,
     data: options.data ?? {},
     position: options.position ?? 0,
     createdAt: options.createdAt ?? timestamp,

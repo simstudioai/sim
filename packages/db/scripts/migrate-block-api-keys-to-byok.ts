@@ -22,11 +22,11 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import { appendFileSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
+import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import { index, json, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { v4 as uuidv4 } from 'uuid'
 
 // ---------- CLI ----------
 const DRY_RUN = process.argv.includes('--dry-run')
@@ -573,7 +573,7 @@ async function processWorkspace(
         const result = await db
           .insert(workspaceBYOKKeys)
           .values({
-            id: uuidv4(),
+            id: generateId(),
             workspaceId,
             providerId,
             encryptedApiKey: encrypted,
