@@ -311,12 +311,13 @@ export function useRenameTask(workspaceId?: string) {
   return useMutation({
     mutationFn: renameTask,
     onMutate: async ({ chatId, title }) => {
-      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
-
       const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
+      if (!previousTasks) return { previousTasks: undefined }
 
-      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), (old) =>
-        old?.map((task) => (task.id === chatId ? { ...task, name: title } : task))
+      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
+      queryClient.setQueryData<TaskMetadata[]>(
+        taskKeys.list(workspaceId),
+        previousTasks.map((task) => (task.id === chatId ? { ...task, name: title } : task))
       )
 
       return { previousTasks }
@@ -486,12 +487,13 @@ export function useMarkTaskRead(workspaceId?: string) {
   return useMutation({
     mutationFn: markTaskRead,
     onMutate: async (chatId) => {
-      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
-
       const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
+      if (!previousTasks) return { previousTasks: undefined }
 
-      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), (old) =>
-        old?.map((task) => (task.id === chatId ? { ...task, isUnread: false } : task))
+      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
+      queryClient.setQueryData<TaskMetadata[]>(
+        taskKeys.list(workspaceId),
+        previousTasks.map((task) => (task.id === chatId ? { ...task, isUnread: false } : task))
       )
 
       return { previousTasks }
@@ -515,12 +517,13 @@ export function useMarkTaskUnread(workspaceId?: string) {
   return useMutation({
     mutationFn: markTaskUnread,
     onMutate: async (chatId) => {
-      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
-
       const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
+      if (!previousTasks) return { previousTasks: undefined }
 
-      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), (old) =>
-        old?.map((task) => (task.id === chatId ? { ...task, isUnread: true } : task))
+      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
+      queryClient.setQueryData<TaskMetadata[]>(
+        taskKeys.list(workspaceId),
+        previousTasks.map((task) => (task.id === chatId ? { ...task, isUnread: true } : task))
       )
 
       return { previousTasks }
