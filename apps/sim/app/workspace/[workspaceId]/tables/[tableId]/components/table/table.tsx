@@ -603,35 +603,35 @@ export function Table({
     if (isAppendingRowRef.current) return
     isAppendingRowRef.current = true
     try {
-      try {
-        while (hasNextPageRef.current) {
-          const result = await fetchNextPageRef.current()
-          if (!result.hasNextPage) break
-        }
-      } catch (error) {
-        logger.error('Failed to load remaining rows before appending', { error })
-        toast.error('Failed to load all rows. Try again.', { duration: 5000 })
-        return
+      while (hasNextPageRef.current) {
+        const result = await fetchNextPageRef.current()
+        if (!result.hasNextPage) break
       }
-
-      createRef.current(
-        { data: {} },
-        {
-          onSuccess: (response: Record<string, unknown>) => {
-            const newRowId = extractCreatedRowId(response)
-            if (newRowId) {
-              pushUndoRef.current({
-                type: 'create-row',
-                rowId: newRowId,
-                position: maxPositionRef.current + 1,
-              })
-            }
-          },
-        }
-      )
-    } finally {
+    } catch (error) {
       isAppendingRowRef.current = false
+      logger.error('Failed to load remaining rows before appending', { error })
+      toast.error('Failed to load all rows. Try again.', { duration: 5000 })
+      return
     }
+
+    createRef.current(
+      { data: {} },
+      {
+        onSuccess: (response: Record<string, unknown>) => {
+          const newRowId = extractCreatedRowId(response)
+          if (newRowId) {
+            pushUndoRef.current({
+              type: 'create-row',
+              rowId: newRowId,
+              position: maxPositionRef.current + 1,
+            })
+          }
+        },
+        onSettled: () => {
+          isAppendingRowRef.current = false
+        },
+      }
+    )
   }, [])
 
   const handleRowContextMenu = useCallback(

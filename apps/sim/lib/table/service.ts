@@ -470,35 +470,11 @@ export async function addTableColumn(
 }
 
 /**
- * Adds multiple columns to an existing table in a single schema update. This is
- * atomic: either all columns are added or none are. Validates each column the
- * same way `addTableColumn` does and rejects if any name collides with an
- * existing column or another entry in `columns`.
- *
- * @param tableId - Table ID to update
- * @param columns - Column definitions to add (appended in order)
- * @param requestId - Request ID for logging
- * @returns Updated table definition
- * @throws Error if table not found, column invalid, or name collides
- */
-export async function addTableColumns(
-  tableId: string,
-  columns: { name: string; type: string; required?: boolean; unique?: boolean }[],
-  requestId: string
-): Promise<TableDefinition> {
-  const table = await getTableById(tableId)
-  if (!table) {
-    throw new Error('Table not found')
-  }
-  if (columns.length === 0) return table
-
-  return db.transaction((trx) => addTableColumnsWithTx(trx, table, columns, requestId))
-}
-
-/**
- * Transaction-bound variant of `addTableColumns`. Caller passes the current
- * `table` definition (read by caller) and an open `trx`; this function performs
- * the schema UPDATE inside that transaction and returns the new definition.
+ * Adds multiple columns to an existing table inside a caller-provided
+ * transaction. This is atomic with respect to the surrounding `trx`: either
+ * all columns are added or none are. Validates each column the same way
+ * `addTableColumn` does and rejects if any name collides with an existing
+ * column or another entry in `columns`.
  *
  * Use this when composing a column addition with other writes (e.g., row
  * inserts) that must succeed or roll back together.
