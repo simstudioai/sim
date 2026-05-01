@@ -81,6 +81,20 @@ export const GET = withRouteHandler(
 
       const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
 
+      // Stamp `workflowId` from the path param on each variable so the
+      // global client-side variables store can filter by workflow without
+      // requiring persisted variables to carry a redundant `workflowId`.
+      // The persisted blob may or may not include `workflowId` depending on
+      // when the variable was last written; the path param is authoritative.
+      const persistedVariables =
+        (workflowData.variables as Record<string, Record<string, unknown>>) || {}
+      const stampedVariables: Record<string, Record<string, unknown>> = {}
+      for (const [variableId, variable] of Object.entries(persistedVariables)) {
+        if (variable && typeof variable === 'object') {
+          stampedVariables[variableId] = { ...variable, workflowId }
+        }
+      }
+
       if (normalizedData) {
         const finalWorkflowData = {
           ...workflowData,
@@ -97,7 +111,7 @@ export const GET = withRouteHandler(
               description: workflowData.description,
             },
           },
-          variables: workflowData.variables || {},
+          variables: stampedVariables,
         }
 
         logger.info(`[${requestId}] Loaded workflow ${workflowId} from normalized tables`)
@@ -122,7 +136,7 @@ export const GET = withRouteHandler(
             description: workflowData.description,
           },
         },
-        variables: workflowData.variables || {},
+        variables: stampedVariables,
       }
 
       return NextResponse.json({ data: emptyWorkflowData }, { status: 200 })
@@ -333,12 +347,22 @@ export const PUT = withRouteHandler(
         }
       }
 
-      // Update the workflow
       const [updatedWorkflow] = await db
         .update(workflow)
         .set(updateData)
         .where(eq(workflow.id, workflowId))
-        .returning()
+        .returning({
+          id: workflow.id,
+          name: workflow.name,
+          description: workflow.description,
+          color: workflow.color,
+          workspaceId: workflow.workspaceId,
+          folderId: workflow.folderId,
+          sortOrder: workflow.sortOrder,
+          createdAt: workflow.createdAt,
+          updatedAt: workflow.updatedAt,
+          archivedAt: workflow.archivedAt,
+        })
 
       const elapsed = Date.now() - startTime
       logger.info(`[${requestId}] Successfully updated workflow ${workflowId} in ${elapsed}ms`, {

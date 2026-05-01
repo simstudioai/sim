@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { Badge, Skeleton } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import { createBillingPortalContract } from '@/lib/api/contracts'
 import { USAGE_PILL_COLORS, USAGE_THRESHOLDS } from '@/lib/billing/client/consts'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
 import {
@@ -444,18 +446,12 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
           const context = isOrgScoped ? 'organization' : 'user'
           const organizationId = subscriptionData?.data?.organization?.id
 
-          const response = await fetch('/api/billing/portal', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ context, organizationId }),
+          const { url } = await requestJson(createBillingPortalContract, {
+            body: { context, organizationId },
           })
-
-          if (response.ok) {
-            const { url } = await response.json()
-            window.open(url, '_blank')
-            logger.info('Opened billing portal for blocked account', { context, organizationId })
-            return
-          }
+          window.open(url, '_blank')
+          logger.info('Opened billing portal for blocked account', { context, organizationId })
+          return
         } catch (portalError) {
           logger.warn('Failed to open billing portal, falling back to settings', {
             error: portalError,

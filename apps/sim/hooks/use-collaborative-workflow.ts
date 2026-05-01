@@ -14,6 +14,8 @@ import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Edge } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
+import { requestJson } from '@/lib/api/client/request'
+import { getWorkflowStateContract } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
@@ -30,7 +32,13 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { filterNewEdges, filterValidEdges, mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import type { BlockState, Loop, Parallel, Position } from '@/stores/workflows/workflow/types'
+import type {
+  BlockState,
+  Loop,
+  Parallel,
+  Position,
+  WorkflowState,
+} from '@/stores/workflows/workflow/types'
 import { findAllDescendantNodes, isBlockProtected } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('CollaborativeWorkflow')
@@ -554,40 +562,52 @@ export function useCollaborativeWorkflow() {
     }
 
     const reloadWorkflowFromApi = async (workflowId: string, reason: string): Promise<boolean> => {
-      const response = await fetch(`/api/workflows/${workflowId}`)
-      if (!response.ok) {
-        logger.error(`Failed to fetch workflow data after ${reason}: ${response.statusText}`)
+      // The contract's `state` is `workflowStateSchema` (loose at the wire
+      // level — `subBlocks.value` is `unknown`, optional flags omitted),
+      // but downstream consumers (replaceWorkflowState, the undo/redo
+      // graph) operate on the store's narrower `WorkflowState`. The
+      // server-of-record persists store-shaped values, so the runtime
+      // shape is the store type; we narrow once here at the trust
+      // boundary instead of sprinkling per-field casts.
+      let workflowState: WorkflowState | null = null
+      try {
+        const responseData = await requestJson(getWorkflowStateContract, {
+          params: { id: workflowId },
+        })
+        const wireState = responseData.data?.state
+        if (wireState) {
+          // double-cast-allowed: workflowStateSchema is structurally a supertype of the store's WorkflowState (subBlocks.value is `unknown`, optional booleans, etc.); the server persists store-shaped values so the runtime shape matches
+          workflowState = wireState as unknown as WorkflowState
+        }
+      } catch (error) {
+        logger.error(`Failed to fetch workflow data after ${reason}`, { error })
         return false
       }
 
-      const responseData = await response.json()
-      const workflowData = responseData.data
-
-      if (!workflowData?.state) {
-        logger.error(`No state found in workflow data after ${reason}`, { workflowData })
+      if (!workflowState) {
+        logger.error(`No state found in workflow data after ${reason}`, { workflowId })
         return false
       }
 
       isApplyingRemoteChange.current = true
       try {
         useWorkflowStore.getState().replaceWorkflowState({
-          blocks: workflowData.state.blocks || {},
-          edges: workflowData.state.edges || [],
-          loops: workflowData.state.loops || {},
-          parallels: workflowData.state.parallels || {},
-          lastSaved: workflowData.state.lastSaved || Date.now(),
+          blocks: workflowState.blocks || {},
+          edges: workflowState.edges || [],
+          loops: workflowState.loops || {},
+          parallels: workflowState.parallels || {},
+          lastSaved: workflowState.lastSaved || Date.now(),
         })
 
-        const subblockValues: Record<string, Record<string, any>> = {}
-        Object.entries(workflowData.state.blocks || {}).forEach(([blockId, block]) => {
-          const blockState = block as any
+        const subblockValues: Record<string, Record<string, unknown>> = {}
+        Object.entries(workflowState.blocks || {}).forEach(([blockId, block]) => {
           subblockValues[blockId] = {}
-          Object.entries(blockState.subBlocks || {}).forEach(([subblockId, subblock]) => {
-            subblockValues[blockId][subblockId] = (subblock as any).value
+          Object.entries(block.subBlocks || {}).forEach(([subblockId, subblock]) => {
+            subblockValues[blockId][subblockId] = subblock?.value
           })
         })
 
-        useSubBlockStore.setState((state: any) => ({
+        useSubBlockStore.setState((state) => ({
           workflowValues: {
             ...state.workflowValues,
             [workflowId]: subblockValues,
@@ -595,10 +615,8 @@ export function useCollaborativeWorkflow() {
         }))
 
         const graph = {
-          blocksById: workflowData.state.blocks || {},
-          edgesById: Object.fromEntries(
-            (workflowData.state.edges || []).map((e: any) => [e.id, e])
-          ),
+          blocksById: workflowState.blocks || {},
+          edgesById: Object.fromEntries((workflowState.edges || []).map((e) => [e.id, e])),
         }
 
         const undoRedoStore = useUndoRedoStore.getState()

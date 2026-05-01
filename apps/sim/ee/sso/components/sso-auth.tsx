@@ -4,6 +4,9 @@ import { type KeyboardEvent, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { Input, Label, Loader } from '@/components/emcn'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import { authenticateDeployedChatContract } from '@/lib/api/contracts/chats'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import AuthBackground from '@/app/(auth)/components/auth-background'
@@ -66,28 +69,21 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
     setIsLoading(true)
 
     try {
-      const checkResponse = await fetch(`/api/chat/${identifier}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: JSON.stringify({ email, checkSSOAccess: true }),
+      await requestJson(authenticateDeployedChatContract, {
+        params: { identifier },
+        body: { email, checkSSOAccess: true },
       })
-
-      if (!checkResponse.ok) {
-        const errorData = await checkResponse.json()
-        setEmailErrors([errorData.error || 'Email not authorized for this chat'])
-        setShowEmailValidationError(true)
-        setIsLoading(false)
-        return
-      }
 
       const callbackUrl = `/chat/${identifier}`
       const ssoUrl = `/sso?email=${encodeURIComponent(email)}&callbackUrl=${encodeURIComponent(callbackUrl)}`
       router.push(ssoUrl)
     } catch (error) {
+      if (error instanceof ApiClientError) {
+        setEmailErrors([error.message || 'Email not authorized for this chat'])
+        setShowEmailValidationError(true)
+        setIsLoading(false)
+        return
+      }
       logger.error('SSO authentication error:', error)
       setEmailErrors(['An error occurred during authentication'])
       setShowEmailValidationError(true)

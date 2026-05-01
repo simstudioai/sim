@@ -7,7 +7,29 @@ import type {
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
-const agiloftToolResponseSchema = z.object({}).passthrough()
+const agiloftFileOutputSchema = z.object({
+  name: z.string(),
+  mimeType: z.string(),
+  data: z.string(),
+  size: z.number(),
+})
+
+export const agiloftRetrieveResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    file: agiloftFileOutputSchema,
+  }),
+})
+
+export const agiloftAttachResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    recordId: z.string(),
+    fieldName: z.string(),
+    fileName: z.string(),
+    totalAttachments: z.number(),
+  }),
+})
 
 export const agiloftRetrieveBodySchema = z.object({
   instanceUrl: z.string().min(1, 'Instance URL is required'),
@@ -36,14 +58,14 @@ export const agiloftRetrieveContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/agiloft/retrieve',
   body: agiloftRetrieveBodySchema,
-  response: { mode: 'json', schema: agiloftToolResponseSchema },
+  response: { mode: 'json', schema: agiloftRetrieveResponseSchema },
 })
 
 export const agiloftAttachContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/agiloft/attach',
   body: agiloftAttachBodySchema,
-  response: { mode: 'json', schema: agiloftToolResponseSchema },
+  response: { mode: 'json', schema: agiloftAttachResponseSchema },
 })
 
 export type AgiloftRetrieveBody = ContractBody<typeof agiloftRetrieveContract>

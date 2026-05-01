@@ -69,6 +69,39 @@ export const invitationActionBodySchema = z.object({
   token: z.string().min(1).optional(),
 })
 
+export const invitationDetailsSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['organization', 'workspace']),
+  email: z.string(),
+  organizationId: z.string().nullable(),
+  organizationName: z.string().nullable(),
+  membershipIntent: z.enum(['internal', 'external']),
+  role: z.string(),
+  status: z.string(),
+  expiresAt: z.string(),
+  createdAt: z.string(),
+  inviterName: z.string().nullable(),
+  inviterEmail: z.string().nullable(),
+  grants: z.array(
+    z.object({
+      workspaceId: z.string(),
+      workspaceName: z.string().nullable(),
+      permission: workspacePermissionSchema,
+    })
+  ),
+})
+
+export const acceptInvitationResponseSchema = z.object({
+  success: z.literal(true),
+  redirectPath: z.string(),
+  invitation: z.object({
+    id: z.string(),
+    kind: z.enum(['organization', 'workspace']),
+    organizationId: z.string().nullable(),
+    acceptedWorkspaceIds: z.array(z.string()),
+  }),
+})
+
 const successResponseSchema = z
   .object({
     success: z.boolean(),
@@ -101,6 +134,41 @@ export const updateInvitationContract = defineRouteContract({
   path: '/api/invitations/[id]',
   params: invitationParamsSchema,
   body: updateInvitationBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema,
+  },
+})
+
+export const getInvitationContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/invitations/[id]',
+  params: invitationParamsSchema,
+  query: invitationQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      invitation: invitationDetailsSchema,
+    }),
+  },
+})
+
+export const acceptInvitationContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/invitations/[id]/accept',
+  params: invitationActionParamsSchema,
+  body: invitationActionBodySchema,
+  response: {
+    mode: 'json',
+    schema: acceptInvitationResponseSchema,
+  },
+})
+
+export const rejectInvitationContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/invitations/[id]/reject',
+  params: invitationActionParamsSchema,
+  body: invitationActionBodySchema,
   response: {
     mode: 'json',
     schema: successResponseSchema,
@@ -140,3 +208,4 @@ export const removeWorkspaceMemberContract = defineRouteContract({
 
 export type PendingInvitationRow = z.infer<typeof pendingWorkspaceInvitationSchema>
 export type BatchInvitationResult = z.infer<typeof batchInvitationResultSchema>
+export type InvitationDetails = z.infer<typeof invitationDetailsSchema>

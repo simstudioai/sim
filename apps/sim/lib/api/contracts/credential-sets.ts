@@ -63,6 +63,13 @@ export const credentialSetInvitationDetailSchema = z.object({
   invitedBy: z.string(),
 })
 
+export const credentialSetInvitePreviewSchema = z.object({
+  credentialSetName: z.string(),
+  organizationName: z.string(),
+  providerId: z.string().nullable(),
+  email: z.string().nullable(),
+})
+
 export const credentialSetMemberSchema = z.object({
   id: z.string(),
   userId: z.string(),
@@ -85,6 +92,7 @@ export type CredentialSetMembership = z.output<typeof credentialSetMembershipSch
 export type CredentialSetInvitation = z.output<typeof credentialSetInvitationSchema>
 export type CredentialSetMember = z.output<typeof credentialSetMemberSchema>
 export type CredentialSetInvitationDetail = z.output<typeof credentialSetInvitationDetailSchema>
+export type CredentialSetInvitePreview = z.output<typeof credentialSetInvitePreviewSchema>
 
 export const listCredentialSetsQuerySchema = z.object({
   organizationId: z.string().min(1),
@@ -238,6 +246,18 @@ export const listCredentialSetInvitationDetailsContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       invitations: z.array(credentialSetInvitationDetailSchema).optional(),
+    }),
+  },
+})
+
+export const getCredentialSetInvitationContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/credential-sets/invite/[token]',
+  params: credentialSetInviteTokenParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      invitation: credentialSetInvitePreviewSchema,
     }),
   },
 })

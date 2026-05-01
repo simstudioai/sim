@@ -23,8 +23,9 @@ const BOUNDARY_POLICY_BASELINE = {
   clientHookLocalSchemaFiles: 0,
   clientHookLocalSchemaConstructors: 0,
   clientHookRawFetches: 0,
+  clientSameOriginApiFetches: 0,
   doubleCasts: 8,
-  rawJsonReads: 23,
+  rawJsonReads: 21,
   untypedResponses: 0,
   annotationsMissingReason: 0,
 } as const
@@ -78,6 +79,56 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/mcp/tools/stored/route.ts',
 ])
 
+/**
+ * Routes baseline-allowed to use `await request.json()` / `await req.json()`
+ * directly (without an inline `// boundary-raw-json:` annotation).
+ *
+ * These are legitimately partial: tolerant body parses (`.catch(() => ({}))`),
+ * JSON-RPC envelopes that need their own dispatch, multi-stage MCP routes that
+ * read pre-parsed bodies, and routes whose Zod-backed migration is queued
+ * behind a separate contract / schema authoring step. New routes must NOT
+ * introduce raw `await request.json()` reads — annotate the call with
+ * `// boundary-raw-json: <reason>` instead.
+ */
+const RAW_JSON_BASELINE_ROUTES = new Set([
+  'apps/sim/app/api/a2a/serve/[agentId]/route.ts',
+  'apps/sim/app/api/billing/portal/route.ts',
+  'apps/sim/app/api/contact/route.ts',
+  'apps/sim/app/api/copilot/api-keys/generate/route.ts',
+  'apps/sim/app/api/copilot/api-keys/validate/route.ts',
+  'apps/sim/app/api/copilot/chat/abort/route.ts',
+  'apps/sim/app/api/copilot/stats/route.ts',
+  'apps/sim/app/api/folders/[id]/restore/route.ts',
+  'apps/sim/app/api/invitations/[id]/accept/route.ts',
+  'apps/sim/app/api/invitations/[id]/reject/route.ts',
+  'apps/sim/app/api/invitations/[id]/route.ts',
+  'apps/sim/app/api/knowledge/[id]/documents/route.ts',
+  'apps/sim/app/api/knowledge/[id]/documents/[documentId]/chunks/route.ts',
+  'apps/sim/app/api/mcp/copilot/route.ts',
+  'apps/sim/app/api/mcp/serve/[serverId]/route.ts',
+  'apps/sim/app/api/mcp/servers/route.ts',
+  'apps/sim/app/api/mcp/servers/[id]/route.ts',
+  'apps/sim/app/api/mcp/servers/test-connection/route.ts',
+  'apps/sim/app/api/mcp/tools/discover/route.ts',
+  'apps/sim/app/api/mcp/tools/execute/route.ts',
+  'apps/sim/app/api/mcp/workflow-servers/route.ts',
+  'apps/sim/app/api/mcp/workflow-servers/[id]/route.ts',
+  'apps/sim/app/api/mcp/workflow-servers/[id]/tools/route.ts',
+  'apps/sim/app/api/mcp/workflow-servers/[id]/tools/[toolId]/route.ts',
+  'apps/sim/app/api/organizations/route.ts',
+  'apps/sim/app/api/organizations/[id]/invitations/route.ts',
+  'apps/sim/app/api/organizations/[id]/members/route.ts',
+  'apps/sim/app/api/organizations/[id]/transfer-ownership/route.ts',
+  'apps/sim/app/api/resume/[workflowId]/[executionId]/[contextId]/route.ts',
+  'apps/sim/app/api/speech/token/route.ts',
+  'apps/sim/app/api/table/[tableId]/rows/route.ts',
+  'apps/sim/app/api/tools/file/manage/route.ts',
+  'apps/sim/app/api/workspaces/invitations/batch/route.ts',
+  'apps/sim/app/api/workspaces/[id]/route.ts',
+  'apps/sim/app/api/workspaces/[id]/files/[fileId]/route.ts',
+  'apps/sim/app/api/workspaces/[id]/files/[fileId]/content/route.ts',
+])
+
 const CONTRACT_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/contracts(?:\/[^'"]*)?['"]/
 const SERVER_VALIDATION_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/server(?:\/validation)?['"]/
 const SCHEMA_PARSE_PATTERN = /\b\w+Schema\.(?:safeParse|parse)\(/
@@ -86,8 +137,13 @@ const CANONICAL_HELPER_USAGE_PATTERN =
   /\b(?:isZodError|validationErrorResponse|validationErrorResponseFromError|getValidationErrorMessage)\s*\(/
 const CONTRACT_MAP_PARSE_PATTERN =
   /\b\w+ContractsByPath[\s\S]{0,600}\.(?:body|query|params)!?\.(?:safeParse|parse)\(/
-const ZOD_IMPORT_PATTERN = /\bfrom\s+['"]zod['"]/
-const ZOD_REQUIRE_PATTERN = /\brequire\(['"]zod['"]\)/
+/**
+ * Matches `from 'zod'` and any zod subpath import like `from 'zod/v4'` or
+ * `from 'zod/mini'`. The capturing-group-free alternation keeps this safe to
+ * use with `.test(...)` and `.replace(...)` callers.
+ */
+const ZOD_IMPORT_PATTERN = /\bfrom\s+['"]zod(?:\/[^'"]+)?['"]/
+const ZOD_REQUIRE_PATTERN = /\brequire\(['"]zod(?:\/[^'"]+)?['"]\)/
 const ZOD_SCHEMA_CONSTRUCTOR_PATTERN =
   /\bz\.(?:object|string|number|boolean|array|enum|nativeEnum|union|discriminatedUnion|record|literal|tuple|preprocess|coerce|date|unknown|any|instanceof|custom|lazy)\s*\(/g
 const ZOD_ERROR_PATTERN = /\bZodError\b|\bz\.ZodError\b/
@@ -99,9 +155,44 @@ const CONTRACT_DERIVED_WIRE_TYPE_PATTERN =
 
 const RAW_FETCH_PATTERN = /\bfetch\(/g
 const RAW_FETCH_HELPER_GUARD_PATTERN = /(?:requestJson|requestRaw|prefetchJson|preFetchJson)$/
+/**
+ * Matches `fetch(` (with optional whitespace, including newlines) followed by
+ * a string literal — single quote, double quote, or template literal —
+ * whose first character is `/api/`. This catches same-origin internal API
+ * fetches in any non-test source file under `apps/sim/**` that aren't an
+ * `app/api/**\/route.ts` server handler. Template literals with leading
+ * interpolations (e.g. `${base}/api/foo`) are intentionally NOT matched
+ * because they're rare and could trigger false positives on non-`/api/` URLs.
+ */
+const SAME_ORIGIN_API_FETCH_PATTERN = /\bfetch\(\s*[`'"]\/api\//g
 const DOUBLE_CAST_PATTERN = /\bas unknown as\b/g
-const RAW_JSON_READ_PATTERN = /\bawait\s+(?:request|req)\.json\s*\(\s*\)/g
-const UNTYPED_RESPONSE_PATTERN = /\bschema\s*:\s*z\.unknown\s*\(\s*\)/g
+/**
+ * Matches `await request.json()` / `await req.json()` and the multi-line
+ * `await request.clone().json()` clone-then-read variant. Both forms read
+ * the request body without going through `parseRequest(...)` / a contract
+ * and count toward the `rawJsonReads` ratchet.
+ *
+ * `\s` is multi-line (handles common Prettier/Biome formatting where the
+ * `.clone()` and `.json()` calls land on separate lines).
+ */
+const RAW_JSON_READ_PATTERN =
+  /\bawait\s+(?:request|req)\s*(?:\.\s*clone\s*\(\s*\))?\s*\.\s*json\s*\(\s*\)/g
+/**
+ * Matches `schema:` followed directly by a "validates nothing" zod construct.
+ * Three forms are treated equivalently:
+ *   1. `schema: z.unknown()` — no validation at all.
+ *   2. `schema: z.object({}).passthrough()` — validates only that the value
+ *      is an object; allows any keys/values.
+ *   3. `schema: z.record(z.string(), z.unknown())` — validates only that the
+ *      value is a string-keyed object; values are arbitrary.
+ *
+ * Anchored on the literal `schema:` token so that nested `z.unknown()` /
+ * `z.object({}).passthrough()` uses inside an otherwise-typed object schema
+ * are NOT flagged — only the top-level response declaration in
+ * `defineRouteContract({ ..., response: { mode: 'json', schema: ... } })`.
+ */
+const UNTYPED_RESPONSE_PATTERN =
+  /\bschema\s*:\s*(?:z\.unknown\s*\(\s*\)|z\.object\s*\(\s*\{\s*\}\s*\)\s*\.passthrough\s*\(\s*\)|z\.record\s*\(\s*z\.string\s*\(\s*\)\s*,\s*z\.unknown\s*\(\s*\)\s*\))/g
 const RAW_FETCH_ANNOTATION_PREFIX = '// boundary-raw-fetch:'
 const DOUBLE_CAST_ANNOTATION_PREFIX = '// double-cast-allowed:'
 const RAW_JSON_ANNOTATION_PREFIX = '// boundary-raw-json:'
@@ -110,6 +201,12 @@ const SOURCE_FILE_EXTENSIONS = /\.(?:ts|tsx)$/
 const TEST_FILE_PATTERN = /(?:\.test|\.spec)\.(?:ts|tsx)$/
 const TEST_HELPER_FILE_PATTERN = /(?:^|\/)test-[^/]+\.ts$/
 const TEST_DIR_SEGMENT_PATTERN = /(?:^|\/)(?:__tests__|testing)(?:\/|$)/
+/**
+ * Skips user-uploaded content stored under `apps/sim/uploads/...` (workspace
+ * file uploads, etc.). Does NOT match `apps/sim/lib/uploads/...`, which is
+ * source code for the uploads subsystem.
+ */
+const USER_UPLOADS_DIR_PATTERN = /(?:^|\/)apps\/sim\/uploads(?:\/|$)/
 const SOURCE_SKIP_DIRS = new Set([
   'node_modules',
   '.next',
@@ -118,7 +215,6 @@ const SOURCE_SKIP_DIRS = new Set([
   'dist',
   '__tests__',
   'testing',
-  'uploads',
 ])
 
 type AnnotationKind = 'raw-fetch' | 'double-cast' | 'raw-json' | 'untyped-response'
@@ -129,6 +225,12 @@ interface AnnotationResult {
 }
 
 interface RawFetchFinding {
+  path: string
+  line: number
+  preview: string
+}
+
+interface SameOriginApiFetchFinding {
   path: string
   line: number
   preview: string
@@ -316,6 +418,7 @@ async function walkSourceTree(dir: string, results: string[]): Promise<void> {
     if (TEST_FILE_PATTERN.test(entry.name)) continue
     if (TEST_HELPER_FILE_PATTERN.test(entry.name)) continue
     if (TEST_DIR_SEGMENT_PATTERN.test(fullPath)) continue
+    if (USER_UPLOADS_DIR_PATTERN.test(fullPath)) continue
 
     results.push(fullPath)
   }
@@ -406,16 +509,18 @@ function findDoubleCastFindings(
 /**
  * Inspect a route file for `await request.json()` / `await req.json()` reads.
  *
+ * Returns one finding per unannotated read. Routes in
+ * `RAW_JSON_BASELINE_ROUTES` are baseline-allowed: their reads still appear
+ * in `findings` so the `rawJsonReads` ratcheted metric counts them, but they
+ * are NOT required to carry per-line `// boundary-raw-json: <reason>`
+ * annotations. The ratchet's enforcement is by file count
+ * (see `buildBoundaryPolicyMetrics`): adding a raw read in a route outside
+ * the baseline pushes the unique-file count above `BOUNDARY_POLICY_BASELINE.rawJsonReads`.
+ *
  * Annotated reads (`// boundary-raw-json: <reason>` on one of the three
  * preceding non-empty lines) are treated as exemptions and excluded from
  * `findings`. An annotation with the prefix but an empty reason is flagged
  * via `missingReasons` and still counts as a finding.
- *
- * Every other raw read becomes a finding and contributes to the
- * `rawJsonReads` ratcheted metric (counted by unique route file in
- * `buildBoundaryPolicyMetrics`). Adding a new unannotated raw read pushes
- * the file count above `BOUNDARY_POLICY_BASELINE.rawJsonReads` and fails
- * the audit.
  */
 function findRawJsonFindings(
   filePath: string,
@@ -453,8 +558,15 @@ function findRawJsonFindings(
 }
 
 /**
- * Inspect a contracts file for `schema: z.unknown()` response declarations.
+ * Inspect a contracts file for "validates nothing" response schema
+ * declarations. Three forms are treated equivalently and all count toward
+ * the `untypedResponses` ratchet:
+ *   - `schema: z.unknown()`
+ *   - `schema: z.object({}).passthrough()`
+ *   - `schema: z.record(z.string(), z.unknown())`
  *
+ * Anchored on `schema:` so nested uses inside an otherwise-typed object
+ * (e.g. `output: z.unknown()` inside `z.object({ ... })`) are NOT flagged.
  * Each callsite must carry a `// untyped-response: <reason>` annotation on
  * one of the three preceding non-empty lines. Annotated callsites become
  * exemptions; un-annotated callsites become findings that count toward the
@@ -501,6 +613,71 @@ function isClientHookFile(filePath: string): boolean {
   return (
     normalized.startsWith(`${QUERY_HOOKS_DIR}/`) || normalized.startsWith(`${SELECTOR_HOOKS_DIR}/`)
   )
+}
+
+/**
+ * Identifies `apps/sim/app/api/**\/route.ts` API route handlers. Same-origin
+ * `/api/` fetch scanning skips these — server-side fetches from inside a
+ * route handler are a different concern and are not what this ratchet is
+ * trying to catch.
+ */
+function isApiRouteHandler(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/')
+  if (!normalized.startsWith(`${API_DIR}/`)) return false
+  return normalized.endsWith('/route.ts')
+}
+
+/**
+ * Inspect a non-API-route source file under `apps/sim/**` for raw
+ * `fetch('/api/...')`, `fetch("/api/...")`, or ``fetch(`/api/...`)`` calls.
+ *
+ * Each callsite is either an exemption (annotated with
+ * `// boundary-raw-fetch: <reason>` on one of the three preceding non-empty
+ * lines) or a finding. The ratchet's enforcement is by unique-file count:
+ * introducing a same-origin `/api/` fetch without an annotation pushes the
+ * unique-file count above `BOUNDARY_POLICY_BASELINE.clientSameOriginApiFetches`
+ * and fails the audit.
+ *
+ * Scanning runs over the entire file content (not line-by-line) so that
+ * multi-line constructs like `fetch(\n  \`/api/...\`)` are still caught.
+ * An annotation with the prefix but an empty reason is flagged via
+ * `missingReasons` and still counts as a finding.
+ */
+function findSameOriginApiFetchFindings(
+  filePath: string,
+  content: string
+): {
+  findings: SameOriginApiFetchFinding[]
+  exemptions: number
+  missingReasons: AnnotationMissingReasonFinding[]
+} {
+  const relativePath = path.relative(ROOT, filePath)
+  const lines = content.split('\n')
+  const findings: SameOriginApiFetchFinding[] = []
+  const missingReasons: AnnotationMissingReasonFinding[] = []
+  let exemptions = 0
+
+  SAME_ORIGIN_API_FETCH_PATTERN.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = SAME_ORIGIN_API_FETCH_PATTERN.exec(content)) !== null) {
+    const lineNumber = lineNumberForIndex(content, match.index)
+    const lineIndex = lineNumber - 1
+    const line = lines[lineIndex] ?? ''
+
+    const annotation = extractAnnotation(content, lineIndex, 'raw-fetch')
+    if (annotation.missingReason) {
+      missingReasons.push({ path: relativePath, line: lineNumber, kind: 'raw-fetch' })
+      findings.push({ path: relativePath, line: lineNumber, preview: buildPreview(line) })
+      continue
+    }
+    if (annotation.allowed) {
+      exemptions += 1
+      continue
+    }
+    findings.push({ path: relativePath, line: lineNumber, preview: buildPreview(line) })
+  }
+
+  return { findings, exemptions, missingReasons }
 }
 
 function routeFamily(routePath: string): string {
@@ -676,6 +853,10 @@ function buildBoundaryPolicyMetrics(
   routeAudits: RouteAudit[],
   queryHookAudits: QueryHookAudit[],
   rawFetchSummary: { findings: RawFetchFinding[]; exemptions: number },
+  sameOriginApiFetchSummary: {
+    findings: SameOriginApiFetchFinding[]
+    exemptions: number
+  },
   doubleCastSummary: { findings: DoubleCastFinding[]; exemptions: number },
   rawJsonSummary: { findings: RawJsonFinding[]; exemptions: number },
   untypedResponseSummary: { findings: UntypedResponseFinding[]; exemptions: number },
@@ -744,6 +925,11 @@ function buildBoundaryPolicyMetrics(
         current: rawFetchSummary.findings.length,
       },
       {
+        key: 'clientSameOriginApiFetches',
+        label: 'apps/sim files with raw same-origin /api/ fetch() calls',
+        current: new Set(sameOriginApiFetchSummary.findings.map((finding) => finding.path)).size,
+      },
+      {
         key: 'doubleCasts',
         label: 'as unknown as double-casts (non-test)',
         current: doubleCastSummary.findings.length,
@@ -755,7 +941,8 @@ function buildBoundaryPolicyMetrics(
       },
       {
         key: 'untypedResponses',
-        label: 'contract untyped (z.unknown) response schemas',
+        label:
+          'contract untyped response schemas (z.unknown / z.object({}).passthrough / z.record)',
         current: untypedResponseSummary.findings.length,
       },
       {
@@ -772,6 +959,14 @@ function buildBoundaryPolicyMetrics(
       {
         label: 'client hook raw fetch() exemptions (annotated)',
         current: rawFetchSummary.exemptions,
+      },
+      {
+        label: 'apps/sim raw same-origin /api/ fetch() callsites',
+        current: sameOriginApiFetchSummary.findings.length,
+      },
+      {
+        label: 'apps/sim raw same-origin /api/ fetch() exemptions (annotated)',
+        current: sameOriginApiFetchSummary.exemptions,
       },
       {
         label: 'as unknown as double-cast exemptions (annotated)',
@@ -798,16 +993,30 @@ function printBoundaryPolicyMetric(metric: BoundaryPolicyMetric) {
 
 function printRawFetchAndDoubleCastMetrics(
   rawFetchFindings: RawFetchFinding[],
+  sameOriginApiFetchFindings: SameOriginApiFetchFinding[],
   doubleCastFindings: DoubleCastFinding[],
   rawJsonFindings: RawJsonFinding[],
+  untypedResponseFindings: UntypedResponseFinding[],
   annotationsMissingReason: AnnotationMissingReasonFinding[],
   rawFetchExemptions: number,
+  sameOriginApiFetchExemptions: number,
   doubleCastExemptions: number,
-  rawJsonExemptions: number
+  rawJsonExemptions: number,
+  untypedResponseExemptions: number
 ) {
   console.log('\nRaw fetch and double-cast metrics:')
   console.log(`  client hook raw fetch() calls: ${rawFetchFindings.length}`)
   console.log(`  client hook raw fetch() exemptions (annotated): ${rawFetchExemptions}`)
+  const sameOriginFiles = new Set(sameOriginApiFetchFindings.map((finding) => finding.path)).size
+  console.log(
+    `  apps/sim files with raw same-origin /api/ fetch() calls: ${sameOriginFiles} (baseline ${BOUNDARY_POLICY_BASELINE.clientSameOriginApiFetches})`
+  )
+  console.log(
+    `  apps/sim raw same-origin /api/ fetch() callsites: ${sameOriginApiFetchFindings.length}`
+  )
+  console.log(
+    `  apps/sim raw same-origin /api/ fetch() exemptions (annotated): ${sameOriginApiFetchExemptions}`
+  )
   console.log(`  as unknown as double-casts (non-test): ${doubleCastFindings.length}`)
   console.log(`  as unknown as double-cast exemptions (annotated): ${doubleCastExemptions}`)
   const rawJsonFiles = new Set(rawJsonFindings.map((finding) => finding.path)).size
@@ -816,6 +1025,10 @@ function printRawFetchAndDoubleCastMetrics(
   )
   console.log(`  route raw await request.json() reads (callsites): ${rawJsonFindings.length}`)
   console.log(`  route raw await request.json() annotated exemptions: ${rawJsonExemptions}`)
+  console.log(
+    `  contract untyped response schemas (z.unknown / z.object({}).passthrough / z.record): ${untypedResponseFindings.length}`
+  )
+  console.log(`  contract untyped response annotated exemptions: ${untypedResponseExemptions}`)
   console.log(`  audit annotations missing reason: ${annotationsMissingReason.length}`)
 
   console.log('  raw fetch examples:')
@@ -824,6 +1037,14 @@ function printRawFetchAndDoubleCastMetrics(
   }
   if (rawFetchFindings.length > 25) {
     console.log(`    ... ${rawFetchFindings.length - 25} more`)
+  }
+
+  console.log('  same-origin /api/ fetch examples:')
+  for (const finding of sameOriginApiFetchFindings.slice(0, 25)) {
+    console.log(`    ${finding.path}:${finding.line} ${finding.preview}`)
+  }
+  if (sameOriginApiFetchFindings.length > 25) {
+    console.log(`    ... ${sameOriginApiFetchFindings.length - 25} more`)
   }
 
   console.log('  double-cast examples:')
@@ -842,6 +1063,14 @@ function printRawFetchAndDoubleCastMetrics(
     console.log(`    ... ${rawJsonFindings.length - 25} more`)
   }
 
+  console.log('  untyped response schema examples:')
+  for (const finding of untypedResponseFindings.slice(0, 25)) {
+    console.log(`    ${finding.path}:${finding.line} ${finding.preview}`)
+  }
+  if (untypedResponseFindings.length > 25) {
+    console.log(`    ... ${untypedResponseFindings.length - 25} more`)
+  }
+
   console.log('  annotations missing reason (must be 0 for --enforce-boundary-baseline):')
   for (const finding of annotationsMissingReason.slice(0, 25)) {
     console.log(`    ${finding.path}:${finding.line} (${finding.kind})`)
@@ -851,13 +1080,15 @@ function printRawFetchAndDoubleCastMetrics(
   }
 
   console.log(
-    '  annotation forms: `// boundary-raw-fetch: <reason>` (raw fetch), `// double-cast-allowed: <reason>` (double-cast), `// boundary-raw-json: <reason>` (raw request.json read), `// untyped-response: <reason>` (z.unknown() response schema)'
+    '  annotation forms: `// boundary-raw-fetch: <reason>` (raw fetch in client hook OR same-origin /api/ fetch outside an API route handler), `// double-cast-allowed: <reason>` (double-cast), `// boundary-raw-json: <reason>` (raw request.json read), `// untyped-response: <reason>` (z.unknown() / z.object({}).passthrough() / z.record(z.string(), z.unknown()) response schema)'
   )
 }
 
 function printBoundaryContractDrift(
   routeAudits: RouteAudit[],
   queryHookAudits: QueryHookAudit[],
+  sameOriginApiFetchFindings: SameOriginApiFetchFinding[],
+  untypedResponseFindings: UntypedResponseFinding[],
   ratchetedMetrics: BoundaryPolicyMetric[],
   printOnlyMetrics: PrintOnlyBoundaryPolicyMetric[]
 ) {
@@ -867,6 +1098,9 @@ function printBoundaryContractDrift(
   const zodImportQueryHooks = queryHookAudits.filter((audit) => audit.hasZodImport)
   const localSchemaQueryHooks = queryHookAudits.filter((audit) => audit.schemaConstructorCount > 0)
   const adHocWireTypes = queryHookAudits.flatMap((audit) => audit.adHocWireTypes)
+  const sameOriginApiFetchFiles = [
+    ...new Set(sameOriginApiFetchFindings.map((finding) => finding.path)),
+  ].sort()
 
   console.log('\nBoundary policy drift:')
   console.log('  ratcheted metrics:')
@@ -936,6 +1170,24 @@ function printBoundaryContractDrift(
   if (adHocWireTypes.length > 25) {
     console.log(`    ... ${adHocWireTypes.length - 25} more`)
   }
+
+  console.log('  apps/sim same-origin /api/ fetch file examples:')
+  for (const filePath of sameOriginApiFetchFiles.slice(0, 25)) {
+    console.log(`    ${filePath}`)
+  }
+
+  if (sameOriginApiFetchFiles.length > 25) {
+    console.log(`    ... ${sameOriginApiFetchFiles.length - 25} more`)
+  }
+
+  console.log('  contract untyped response schema examples:')
+  for (const finding of untypedResponseFindings.slice(0, 25)) {
+    console.log(`    ${finding.path}:${finding.line} ${finding.preview}`)
+  }
+
+  if (untypedResponseFindings.length > 25) {
+    console.log(`    ... ${untypedResponseFindings.length - 25} more`)
+  }
 }
 
 function boundaryPolicyFailures(metrics: BoundaryPolicyMetric[]): string[] {
@@ -984,18 +1236,34 @@ async function main() {
 
   const sourceFiles = await walkAllSourceFiles(ROOT, true)
   const rawFetchFindings: RawFetchFinding[] = []
+  const sameOriginApiFetchFindings: SameOriginApiFetchFinding[] = []
   const doubleCastFindings: DoubleCastFinding[] = []
   let rawFetchExemptions = 0
+  let sameOriginApiFetchExemptions = 0
   let doubleCastExemptions = 0
+
+  const appsSimRoot = path.join(ROOT, 'apps/sim')
 
   for (const filePath of sourceFiles) {
     const content = await readFile(filePath, 'utf8')
+    const normalized = filePath.replace(/\\/g, '/')
 
     if (isClientHookFile(filePath)) {
       const rawFetch = findRawFetchFindings(filePath, content)
       rawFetchFindings.push(...rawFetch.findings)
       rawFetchExemptions += rawFetch.exemptions
       annotationsMissingReason.push(...rawFetch.missingReasons)
+    }
+
+    if (
+      normalized.startsWith(`${appsSimRoot}/`) &&
+      !isApiRouteHandler(filePath) &&
+      filePath !== path.join(ROOT, 'scripts', 'check-api-validation-contracts.ts')
+    ) {
+      const sameOrigin = findSameOriginApiFetchFindings(filePath, content)
+      sameOriginApiFetchFindings.push(...sameOrigin.findings)
+      sameOriginApiFetchExemptions += sameOrigin.exemptions
+      annotationsMissingReason.push(...sameOrigin.missingReasons)
     }
 
     const doubleCast = findDoubleCastFindings(filePath, content)
@@ -1020,6 +1288,10 @@ async function main() {
     audits,
     queryHookAudits,
     { findings: rawFetchFindings, exemptions: rawFetchExemptions },
+    {
+      findings: sameOriginApiFetchFindings,
+      exemptions: sameOriginApiFetchExemptions,
+    },
     { findings: doubleCastFindings, exemptions: doubleCastExemptions },
     { findings: rawJsonFindings, exemptions: rawJsonExemptions },
     { findings: untypedResponseFindings, exemptions: untypedResponseExemptions },
@@ -1041,15 +1313,26 @@ async function main() {
   printFamilyStats(audits)
   printRiskyNonZodRoutes(audits)
   printAllNonZodRoutes(audits)
-  printBoundaryContractDrift(audits, queryHookAudits, ratchetedMetrics, printOnlyMetrics)
+  printBoundaryContractDrift(
+    audits,
+    queryHookAudits,
+    sameOriginApiFetchFindings,
+    untypedResponseFindings,
+    ratchetedMetrics,
+    printOnlyMetrics
+  )
   printRawFetchAndDoubleCastMetrics(
     rawFetchFindings,
+    sameOriginApiFetchFindings,
     doubleCastFindings,
     rawJsonFindings,
+    untypedResponseFindings,
     annotationsMissingReason,
     rawFetchExemptions,
+    sameOriginApiFetchExemptions,
     doubleCastExemptions,
-    rawJsonExemptions
+    rawJsonExemptions,
+    untypedResponseExemptions
   )
 
   if (!checkOnly) return

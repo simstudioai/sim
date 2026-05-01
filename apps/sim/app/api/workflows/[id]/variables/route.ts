@@ -53,23 +53,10 @@ export const POST = withRouteHandler(
       const parsed = await parseRequest(workflowVariablesContract, req, context)
       if (!parsed.success) return parsed.response
       const { variables } = parsed.data.body
-      const mismatchedVariable = Object.values(variables).find(
-        (variable) => variable.workflowId !== workflowId
-      )
-      if (mismatchedVariable) {
-        return NextResponse.json(
-          {
-            error: 'Invalid request data',
-            details: [
-              {
-                path: ['variables', mismatchedVariable.id, 'workflowId'],
-                message: 'Variable workflowId must match the workflow route parameter',
-              },
-            ],
-          },
-          { status: 400 }
-        )
-      }
+      // Note: prior versions cross-checked that each variable's `workflowId`
+      // equalled the path param. The write contract does not carry `workflowId`
+      // per variable (the path param is the source of truth), so the check
+      // is unreachable and was removed.
 
       // Variables are already in Record format - use directly
       // The frontend is the source of truth for what variables should exist
@@ -143,8 +130,17 @@ export const GET = withRouteHandler(
         )
       }
 
-      // Return variables if they exist
-      const variables = (workflowData.variables as Record<string, Variable>) || {}
+      // Return variables if they exist. Stamp `workflowId` from the path
+      // param on each entry so the global client-side variables store can
+      // filter by workflow; the read contract requires this stamped field.
+      const persistedVariables =
+        (workflowData.variables as Record<string, Record<string, unknown>>) || {}
+      const variables: Record<string, Variable> = {}
+      for (const [variableId, variable] of Object.entries(persistedVariables)) {
+        if (variable && typeof variable === 'object') {
+          variables[variableId] = { ...variable, workflowId } as Variable
+        }
+      }
 
       // Add cache headers to prevent frequent reloading
       const variableHash = JSON.stringify(variables).length

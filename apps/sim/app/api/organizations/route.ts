@@ -3,9 +3,11 @@ import { db } from '@sim/db'
 import { member, organization, subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, or } from 'drizzle-orm'
+import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { listCreatorOrganizationsContract } from '@/lib/api/contracts/creator-profile'
 import { createOrganizationBodySchema } from '@/lib/api/contracts/organization'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import {
@@ -26,13 +28,16 @@ import {
 
 const logger = createLogger('OrganizationsAPI')
 
-export const GET = withRouteHandler(async () => {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const parsed = await parseRequest(listCreatorOrganizationsContract, request, {})
+    if (!parsed.success) return parsed.response
 
     const userOrganizations = await db
       .select({

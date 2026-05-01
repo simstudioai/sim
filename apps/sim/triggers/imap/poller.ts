@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { MailServerIcon } from '@/components/icons'
+import { requestJson } from '@/lib/api/client/request'
+import { imapMailboxesContract } from '@/lib/api/contracts/tools/imap'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
 
@@ -88,31 +90,20 @@ export const imapPollingTrigger: TriggerConfig = {
         }
 
         try {
-          const response = await fetch('/api/tools/imap/mailboxes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          const data = await requestJson(imapMailboxesContract, {
+            body: {
               host,
-              port: port ? Number.parseInt(port, 10) : 993,
-              secure: secure ?? true,
+              port: port ?? undefined,
+              secure: secure ?? undefined,
               username,
               password,
-            }),
+            },
           })
 
-          if (!response.ok) {
-            const error = await response.json()
-            throw new Error(error.message || 'Failed to fetch mailboxes')
-          }
-
-          const data = await response.json()
-          if (data.mailboxes && Array.isArray(data.mailboxes)) {
-            return data.mailboxes.map((mailbox: { path: string; name: string }) => ({
-              id: mailbox.path,
-              label: mailbox.name,
-            }))
-          }
-          return []
+          return data.mailboxes.map((mailbox) => ({
+            id: mailbox.path,
+            label: mailbox.name,
+          }))
         } catch (error) {
           logger.error('Error fetching IMAP mailboxes:', error)
           throw error

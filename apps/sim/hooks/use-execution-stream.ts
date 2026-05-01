@@ -208,6 +208,7 @@ export function useExecutionStream() {
     sharedAbortControllers.set(workflowId, abortController)
 
     try {
+      // boundary-raw-fetch: workflow execute endpoint returns an SSE stream consumed via response.body.getReader() and processSSEStream; also reads the X-Execution-Id response header
       const response = await fetch(`/api/workflows/${workflowId}/execute`, {
         method: 'POST',
         headers: {
@@ -285,6 +286,7 @@ export function useExecutionStream() {
     sharedAbortControllers.set(workflowId, abortController)
 
     try {
+      // boundary-raw-fetch: run-from-block endpoint returns an SSE stream consumed via response.body.getReader() and processSSEStream; also reads the X-Execution-Id response header
       const response = await fetch(`/api/workflows/${workflowId}/execute`, {
         method: 'POST',
         headers: {
@@ -358,6 +360,7 @@ export function useExecutionStream() {
     const abortController = new AbortController()
     sharedAbortControllers.set(workflowId, abortController)
     try {
+      // boundary-raw-fetch: execution reconnect endpoint returns an SSE stream consumed via response.body.getReader() and processSSEStream
       const response = await fetch(
         `/api/workflows/${workflowId}/executions/${executionId}/stream?from=${fromEventId}`,
         { signal: abortController.signal }

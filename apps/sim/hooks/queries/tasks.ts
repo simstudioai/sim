@@ -5,12 +5,14 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   addMothershipChatResourceContract,
   createMothershipChatContract,
   deleteMothershipChatContract,
   forkMothershipChatContract,
+  getMothershipChatContract,
   listMothershipChatsContract,
   type MothershipTask,
   removeMothershipChatResourceContract,
@@ -226,14 +228,21 @@ export async function fetchChatHistory(
   chatId: string,
   signal?: AbortSignal
 ): Promise<TaskChatHistory> {
-  // boundary-raw-fetch: mothership chat GET returns variable shape with optional stream snapshots
-  const mothershipRes = await fetch(`/api/mothership/chats/${chatId}`, { signal })
-
-  if (mothershipRes.ok) {
-    return parseChatHistory(await mothershipRes.json(), 'mothership')
+  try {
+    const data = await requestJson(getMothershipChatContract, {
+      params: { chatId },
+      signal,
+    })
+    return parseChatHistory(data, 'mothership')
+  } catch (error) {
+    if (!isApiClientError(error)) throw error
+    // Fall through to the legacy copilot-shape alias on any HTTP error (typically 404
+    // when the chat lives in the older copilot table and isn't a mothership-typed row).
   }
 
-  // boundary-raw-fetch: copilot chat fallback returns a different mothership/copilot lifecycle shape
+  // boundary-raw-fetch: legacy alias path /api/mothership/chat?chatId=... returns the
+  // copilot lifecycle shape (activeStreamId, not conversationId) for chats stored under
+  // the older copilot table; no contract exists for this alias path
   const copilotRes = await fetch(`/api/mothership/chat?chatId=${encodeURIComponent(chatId)}`, {
     signal,
   })
@@ -546,6 +555,7 @@ export function useCreateTask(workspaceId?: string) {
       return createChat(workspaceId)
     },
     onSuccess: (data) => {
+      if (!workspaceId) return
       const existing = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId)) ?? []
       const newTask: TaskMetadata = {
         id: data.id,
@@ -557,6 +567,7 @@ export function useCreateTask(workspaceId?: string) {
       queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [newTask, ...existing])
     },
     onSettled: () => {
+      if (!workspaceId) return
       queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
     },
   })
@@ -578,6 +589,7 @@ export function useForkTask(workspaceId?: string) {
   return useMutation({
     mutationFn: forkChat,
     onSuccess: async (data, variables) => {
+      if (!workspaceId) return
       await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
       const existing = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
       if (existing) {
@@ -597,6 +609,7 @@ export function useForkTask(workspaceId?: string) {
       }
     },
     onSettled: () => {
+      if (!workspaceId) return
       queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
     },
   })

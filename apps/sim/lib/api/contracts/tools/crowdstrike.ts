@@ -7,7 +7,75 @@ import type {
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import type { CrowdStrikeAggregateQuery } from '@/tools/crowdstrike/types'
 
-const crowdstrikeToolResponseSchema = z.object({}).passthrough()
+const crowdstrikeNullableStringSchema = z.string().nullable()
+const crowdstrikeNullableNumberSchema = z.number().nullable()
+
+const crowdstrikePaginationSchema = z
+  .object({
+    limit: crowdstrikeNullableNumberSchema,
+    offset: crowdstrikeNullableNumberSchema,
+    total: crowdstrikeNullableNumberSchema,
+  })
+  .nullable()
+
+const crowdstrikeSensorSchema = z.object({
+  agentVersion: crowdstrikeNullableStringSchema,
+  cid: crowdstrikeNullableStringSchema,
+  deviceId: crowdstrikeNullableStringSchema,
+  heartbeatTime: crowdstrikeNullableNumberSchema,
+  hostname: crowdstrikeNullableStringSchema,
+  idpPolicyId: crowdstrikeNullableStringSchema,
+  idpPolicyName: crowdstrikeNullableStringSchema,
+  ipAddress: crowdstrikeNullableStringSchema,
+  kerberosConfig: crowdstrikeNullableStringSchema,
+  ldapConfig: crowdstrikeNullableStringSchema,
+  ldapsConfig: crowdstrikeNullableStringSchema,
+  machineDomain: crowdstrikeNullableStringSchema,
+  ntlmConfig: crowdstrikeNullableStringSchema,
+  osVersion: crowdstrikeNullableStringSchema,
+  rdpToDcConfig: crowdstrikeNullableStringSchema,
+  smbToDcConfig: crowdstrikeNullableStringSchema,
+  status: crowdstrikeNullableStringSchema,
+  statusCauses: z.array(z.string()),
+  tiEnabled: crowdstrikeNullableStringSchema,
+})
+
+const crowdstrikeAggregateBucketSchema = z.object({
+  count: crowdstrikeNullableNumberSchema,
+  from: crowdstrikeNullableNumberSchema,
+  keyAsString: crowdstrikeNullableStringSchema,
+  label: z.unknown().nullable(),
+  stringFrom: crowdstrikeNullableStringSchema,
+  stringTo: crowdstrikeNullableStringSchema,
+  subAggregates: z.array(z.unknown()),
+  to: crowdstrikeNullableNumberSchema,
+  value: crowdstrikeNullableNumberSchema,
+  valueAsString: crowdstrikeNullableStringSchema,
+})
+
+const crowdstrikeAggregateResultSchema = z.object({
+  buckets: z.array(crowdstrikeAggregateBucketSchema),
+  docCountErrorUpperBound: crowdstrikeNullableNumberSchema,
+  name: crowdstrikeNullableStringSchema,
+  sumOtherDocCount: crowdstrikeNullableNumberSchema,
+})
+
+const crowdstrikeSensorsResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    count: z.number(),
+    pagination: crowdstrikePaginationSchema,
+    sensors: z.array(crowdstrikeSensorSchema),
+  }),
+})
+
+const crowdstrikeAggregatesResponseSchema = z.object({
+  success: z.literal(true),
+  output: z.object({
+    aggregates: z.array(crowdstrikeAggregateResultSchema),
+    count: z.number(),
+  }),
+})
 
 const CROWDSTRIKE_CLOUDS = ['us-1', 'us-2', 'eu-1', 'us-gov-1', 'us-gov-2'] as const
 
@@ -92,7 +160,10 @@ export const crowdstrikeQueryContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/crowdstrike/query',
   body: crowdstrikeQueryBodySchema,
-  response: { mode: 'json', schema: crowdstrikeToolResponseSchema },
+  response: {
+    mode: 'json',
+    schema: z.union([crowdstrikeSensorsResponseSchema, crowdstrikeAggregatesResponseSchema]),
+  },
 })
 
 export type CrowdstrikeQueryBody = ContractBody<typeof crowdstrikeQueryContract>

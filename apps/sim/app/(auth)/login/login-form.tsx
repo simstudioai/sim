@@ -15,6 +15,8 @@ import {
   ModalDescription,
   ModalHeader,
 } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import { forgetPasswordContract } from '@/lib/api/contracts'
 import { client } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
@@ -282,20 +284,16 @@ export default function LoginPage({
       setIsSubmittingReset(true)
       setResetStatus({ type: null, message: '' })
 
-      const response = await fetch('/api/auth/forget-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: forgotPasswordEmail,
-          redirectTo: `${getBaseUrl()}/reset-password`,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        let errorMessage = errorData.message || 'Failed to request password reset'
+      try {
+        await requestJson(forgetPasswordContract, {
+          body: {
+            email: forgotPasswordEmail,
+            redirectTo: `${getBaseUrl()}/reset-password`,
+          },
+        })
+      } catch (requestError) {
+        let errorMessage =
+          requestError instanceof Error ? requestError.message : 'Failed to request password reset'
 
         if (
           errorMessage.includes('Invalid body parameters') ||

@@ -5,8 +5,8 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
+  getInvitationContract,
   invitationParamsSchema,
-  invitationQuerySchema,
   updateInvitationContract,
 } from '@/lib/api/contracts/invitations'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -19,20 +19,18 @@ import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 const logger = createLogger('InvitationsAPI')
 
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const parsedParams = invitationParamsSchema.safeParse(await params)
-    if (!parsedParams.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(parsedParams.error) },
-        { status: 400 }
-      )
-    }
-    const { id } = parsedParams.data
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const session = await getSession()
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const parsed = await parseRequest(getInvitationContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id } = parsed.data.params
+    const { token } = parsed.data.query
 
     try {
       const inv = await getInvitationById(id)
@@ -40,9 +38,6 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
       }
 
-      const { token } = invitationQuerySchema.parse({
-        token: request.nextUrl.searchParams.get('token') || undefined,
-      })
       const isInvitee = normalizeEmail(session.user.email || '') === normalizeEmail(inv.email)
       const tokenMatches = !!token && token === inv.token
 

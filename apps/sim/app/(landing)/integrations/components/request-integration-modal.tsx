@@ -12,6 +12,8 @@ import {
   ModalHeader,
   Textarea,
 } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import { integrationRequestContract } from '@/lib/api/contracts/common'
 
 type SubmitStatus = 'idle' | 'submitting' | 'success' | 'error'
 
@@ -46,17 +48,13 @@ export function RequestIntegrationModal() {
       setStatus('submitting')
 
       try {
-        const res = await fetch('/api/help/integration-request', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        await requestJson(integrationRequestContract, {
+          body: {
             integrationName: integrationName.trim(),
             email: email.trim(),
             useCase: useCase.trim() || undefined,
-          }),
+          },
         })
-
-        if (!res.ok) throw new Error('Request failed')
 
         setStatus('success')
         setTimeout(() => setOpen(false), 1500)

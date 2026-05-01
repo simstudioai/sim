@@ -6,6 +6,8 @@ import { Layout, Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { Input } from '@/components/ui/input'
+import { requestJson } from '@/lib/api/client/request'
+import { listWorkspacesContract } from '@/lib/api/contracts/workspaces'
 import type { CredentialRequirement } from '@/lib/workflows/credentials/credential-extractor'
 import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
 import { TemplateCard, TemplateCardSkeleton } from '@/app/templates/components/template-card'
@@ -66,13 +68,10 @@ export default function Templates({
     if (currentUserId) {
       const redirectToWorkspace = async () => {
         try {
-          const response = await fetch('/api/workspaces')
-          if (response.ok) {
-            const data = await response.json()
-            const defaultWorkspace = data.workspaces?.[0]
-            if (defaultWorkspace) {
-              router.push(`/workspace/${defaultWorkspace.id}/templates`)
-            }
+          const data = await requestJson(listWorkspacesContract, { query: { scope: 'active' } })
+          const defaultWorkspace = data.workspaces[0]
+          if (defaultWorkspace) {
+            router.push(`/workspace/${defaultWorkspace.id}/templates`)
           }
         } catch (error) {
           logger.error('Error redirecting to workspace:', error)

@@ -3,6 +3,8 @@
 import { useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { toast } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import { listWorkspaceCredentialsContract } from '@/lib/api/contracts'
 import {
   ADD_CONNECTOR_SEARCH_PARAM,
   consumeOAuthReturnContext,
@@ -21,14 +23,10 @@ async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<string> {
   }
 
   try {
-    const response = await fetch(
-      `/api/credentials?workspaceId=${encodeURIComponent(ctx.workspaceId)}&type=oauth`
-    )
-    const data = response.ok ? await response.json() : { credentials: [] }
-    const oauthCredentials = (data.credentials ?? []) as Array<{
-      displayName: string
-      providerId: string | null
-    }>
+    const data = await requestJson(listWorkspaceCredentialsContract, {
+      query: { workspaceId: ctx.workspaceId, type: 'oauth' },
+    })
+    const oauthCredentials = data.credentials ?? []
 
     const forProvider = oauthCredentials.filter((c) => c.providerId === ctx.providerId)
     if (forProvider.length > ctx.preCount) {

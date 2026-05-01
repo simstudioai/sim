@@ -10,7 +10,12 @@ import type {
   EmptySchemaOutput,
 } from '@/lib/api/contracts'
 
-type MaybeField<Key extends string, Value> = Value extends undefined
+// Tuple-wrapped to suppress distributive conditionals: when `Value` is a
+// union (e.g. a discriminated union body), naked `Value extends undefined`
+// distributes and produces `{ body: A } | { body: B }` instead of
+// `{ body: A | B }`. The `[Value] extends [undefined]` form preserves the
+// union as-is. See request.test.ts for repro and rationale.
+type MaybeField<Key extends string, Value> = [Value] extends [undefined]
   ? { [K in Key]?: never }
   : { [K in Key]: Value }
 

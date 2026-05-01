@@ -1,8 +1,15 @@
 import { z } from 'zod'
+import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const ssoProvidersQuerySchema = z.object({
   organizationId: z.string().min(1).optional(),
+})
+
+export const authProviderStatusResponseSchema = z.object({
+  githubAvailable: z.boolean(),
+  googleAvailable: z.boolean(),
+  registrationDisabled: z.boolean(),
 })
 
 const ssoMappingSchema = z
@@ -81,3 +88,38 @@ export const ssoRegistrationContract = defineRouteContract({
     }),
   },
 })
+
+const ssoProviderListEntrySchema = z.object({
+  id: z.string().optional(),
+  providerId: z.string().optional(),
+  domain: z.string().nullable(),
+  issuer: z.string().nullable().optional(),
+  oidcConfig: z.string().nullable().optional(),
+  samlConfig: z.string().nullable().optional(),
+  userId: z.string().nullable().optional(),
+  organizationId: z.string().nullable().optional(),
+  providerType: z.enum(['oidc', 'saml']).optional(),
+})
+
+export const listSsoProvidersContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/auth/sso/providers',
+  query: ssoProvidersQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      providers: z.array(ssoProviderListEntrySchema),
+    }),
+  },
+})
+
+export const getAuthProvidersContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/auth/providers',
+  response: {
+    mode: 'json',
+    schema: authProviderStatusResponseSchema,
+  },
+})
+
+export type AuthProviderStatusResponse = ContractJsonResponse<typeof getAuthProvidersContract>

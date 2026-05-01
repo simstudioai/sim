@@ -92,6 +92,7 @@ export function useAudioStreaming(sharedAudioContextRef?: RefObject<AudioContext
       if (audioContext.state === 'suspended') {
         await audioContext.resume()
       }
+      // boundary-raw-fetch: TTS proxy returns raw audio bytes consumed via response.arrayBuffer() and decoded by AudioContext.decodeAudioData
       const response = await fetch('/api/proxy/tts/stream', {
         method: 'POST',
         headers: {

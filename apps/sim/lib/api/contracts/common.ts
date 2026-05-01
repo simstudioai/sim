@@ -57,6 +57,19 @@ export const getAllowedProvidersContract = defineRouteContract({
   },
 })
 
+export const getAllowedIntegrationsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/settings/allowed-integrations',
+  response: {
+    mode: 'json',
+    schema: z.object({
+      // `null` means "no env-derived allowlist" (unrestricted); a non-null
+      // array narrows the visible integrations.
+      allowedIntegrations: z.array(z.string()).nullable(),
+    }),
+  },
+})
+
 export const getVoiceSettingsContract = defineRouteContract({
   method: 'GET',
   path: '/api/settings/voice',

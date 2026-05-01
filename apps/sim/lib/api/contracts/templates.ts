@@ -1,7 +1,8 @@
 import { z } from 'zod'
+import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const booleanQuerySchema = z.coerce.boolean().optional().default(false)
+const booleanQuerySchema = booleanQueryFlagSchema.optional().default(false)
 
 export const templateStatusSchema = z.enum(['pending', 'approved', 'rejected'])
 
@@ -188,12 +189,45 @@ export const useTemplateBodySchema = z
   .passthrough()
 export type UseTemplateBody = z.input<typeof useTemplateBodySchema>
 
+export const useTemplateResponseSchema = z.object({
+  message: z.string(),
+  workflowId: z.string(),
+  workspaceId: z.string(),
+})
+
+export const useTemplateContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/templates/[id]/use',
+  params: templateIdParamsSchema,
+  body: useTemplateBodySchema,
+  response: {
+    mode: 'json',
+    schema: useTemplateResponseSchema,
+  },
+})
+
 export const updateTemplateOgImageBodySchema = z
   .object({
-    imageData: z.string().optional(),
+    imageData: z.string().min(1, 'imageData is required (base64-encoded PNG)'),
   })
-  .passthrough()
+  .strict()
 export type UpdateTemplateOgImageBody = z.input<typeof updateTemplateOgImageBodySchema>
+
+export const updateTemplateOgImageResponseSchema = z.object({
+  success: z.literal(true),
+  ogImageUrl: z.string(),
+})
+
+export const updateTemplateOgImageContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/templates/[id]/og-image',
+  params: templateIdParamsSchema,
+  body: updateTemplateOgImageBodySchema,
+  response: {
+    mode: 'json',
+    schema: updateTemplateOgImageResponseSchema,
+  },
+})
 
 export const unstarTemplateContract = defineRouteContract({
   method: 'DELETE',

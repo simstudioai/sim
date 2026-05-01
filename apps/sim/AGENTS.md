@@ -5,6 +5,7 @@ These rules apply to files under `apps/sim/` in addition to the repository root 
 ## Architecture
 
 ### Core Principles
+
 1. **Single Responsibility**: Each component, hook, store has one clear purpose
 2. **Composition Over Complexity**: Break down complex logic into smaller pieces
 3. **Type Safety First**: TypeScript interfaces for all props, state, return types
@@ -47,6 +48,7 @@ feature/
 ```
 
 ### Naming Conventions
+
 - **Components**: PascalCase (`WorkflowList`)
 - **Hooks**: `use` prefix (`useWorkflowOperations`)
 - **Files**: kebab-case (`workflow-list.tsx`)
@@ -71,7 +73,7 @@ feature/
 
 ## API Contracts
 
-Boundary HTTP request and response shapes for all routes under `apps/sim/app/api/**` live in `apps/sim/lib/api/contracts/**` (one file per resource family). Routes never define route-local boundary Zod schemas, and clients never define ad-hoc wire types — both sides consume the same contract.
+Boundary HTTP request and response shapes for all routes under `apps/sim/app/api/`** live in `apps/sim/lib/api/contracts/**` (one file per resource family). Routes never define route-local boundary Zod schemas, and clients never define ad-hoc wire types — both sides consume the same contract.
 
 - Each contract is built with `defineRouteContract({ method, path, params?, query?, body?, headers?, response: { mode: 'json', schema } })` from `@/lib/api/contracts`.
 - Contracts export named schemas AND named TypeScript type aliases (e.g., `export type CreateFolderBody = z.input<typeof createFolderBodySchema>`). Clients import the named aliases — never `z.input<...>` / `z.output<...>` in hooks.
@@ -83,10 +85,10 @@ Boundary HTTP request and response shapes for all routes under `apps/sim/app/api
 
 A small number of legitimate exceptions to the boundary rules are tolerated when annotated. The audit script recognizes four annotation forms:
 
-- `// boundary-raw-fetch: <reason>` — placed on the line directly above a raw `fetch(` call inside `apps/sim/hooks/queries/**` or `apps/sim/hooks/selectors/**`. Use only for documented exceptions: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests.
+- `// boundary-raw-fetch: <reason>` — placed on the line directly above a raw `fetch(` call inside `apps/sim/hooks/queries/**`, `apps/sim/hooks/selectors/**`, or any other client/UI source under `apps/sim/**` that targets a same-origin `/api/...` URL. Use only for documented exceptions: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests.
 - `// double-cast-allowed: <reason>` — placed on the line directly above an `as unknown as X` cast outside test files.
-- `// boundary-raw-json: <reason>` — placed on the line directly above a raw `await request.json()` / `await req.json()` read in a route handler. Use only when the body is a JSON-RPC envelope, a tolerant `.catch(() => ({}))` parse, or otherwise cannot go through `parseRequest`.
-- `// untyped-response: <reason>` — placed on the line directly above a `schema: z.unknown()` response declaration in a contract file. Use only when the response body is genuinely opaque (user-supplied data, third-party passthrough).
+- `// boundary-raw-json: <reason>` — placed on the line directly above a raw `await request.json()` / `await req.json()` read (or the multi-line `await request.clone().json()` shim variant) in a route handler. Use only when the body is a JSON-RPC envelope, a tolerant `.catch(() => ({}))` parse, or otherwise cannot go through `parseRequest`.
+- `// untyped-response: <reason>` — placed on the line directly above a `schema: z.unknown()` / `schema: z.object({}).passthrough()` / `schema: z.record(z.string(), z.unknown())` response declaration (or a simple alias to one of those) in a contract file. Use only when the response body is genuinely opaque (user-supplied data, third-party passthrough).
 
 Placement rule: the annotation must immediately precede the call or cast. Up to three non-empty preceding comment lines are tolerated, so additional context comments above the annotation are fine. The reason must be non-empty after trimming — annotations with empty reasons fail strict mode (`annotationsMissingReason`).
 
@@ -102,6 +104,19 @@ const response = await fetch(`/api/copilot/chat/stream?chatId=${chatId}`, { sign
 ```ts
 // double-cast-allowed: legacy provider type lacks the discriminator field we need
 const provider = config as unknown as LegacyProvider
+```
+
+```ts
+// boundary-raw-json: shim pre-validates the mothership envelope before delegating to the copilot handler that consumes the body
+const body = await request
+  .clone()
+  .json()
+  .catch(() => undefined)
+```
+
+```ts
+// untyped-response: forwards firecrawl /v2/parse response unchanged for downstream tool consumers
+output: z.unknown(),
 ```
 
 ## API Route Pattern
@@ -149,18 +164,18 @@ When adding a new route + client surface, follow this order. Each step has one p
 
 LLMs will write contracts that compile but are sloppy. The human reviewer should optimize attention on:
 
-- **`required` vs `optional` vs `nullable` is correct**. `optional()` allows omission; `nullable()` allows `null`; chaining both creates a tri-state that's almost never what you want.
+- `**required` vs `optional` vs `nullable` is correct**. `optional()` allows omission; `nullable()` allows `null`; chaining both creates a tri-state that's almost never what you want.
 - **Response schema matches the route's actual JSON output**. The most common drift bug — route emits a field the schema doesn't declare, or omits a required field. Walk every `NextResponse.json(...)` callsite against the schema.
 - **Error messages are descriptive**. `'fileName cannot be empty'` beats `'Required'`. Use the second arg of `min(1, '...')`, `nonempty('...')`, etc. For cross-field refines, use `superRefine` with a `path` and a message that names the failing field.
 - **Bounds are set** on arrays (`.min(1)`, `.max(N)`), strings (`.min(1).max(N)` for IDs/names), and numbers (`.min().max()` for limits/sizes).
-- **`z.unknown()` is a smell** unless the data is genuinely arbitrary (provider passthrough, user-defined tool result, JSON-RPC envelope). When kept, must be annotated `// untyped-response: <specific reason>` in a `schema:` slot.
+- `**z.unknown()` is a smell** unless the data is genuinely arbitrary (provider passthrough, user-defined tool result, JSON-RPC envelope). When kept, must be annotated `// untyped-response: <specific reason>` in a `schema:` slot.
 - **Discriminated unions over plain unions** when the wire has a discriminant field — gives clients exhaustive narrowing.
 
 CI (`bun run check:api-validation:strict`) catches structural violations (Zod imports in routes, raw `request.json()`, double casts, missing annotations). It does **not** catch these schema-quality judgments — that's the human's job in PR review.
 
 ## React Query Client Boundary
 
-Hooks in `apps/sim/hooks/queries/**` consume contracts the same way routes do. Every same-origin JSON call must go through `requestJson(contract, ...)` from `@/lib/api/client/request` instead of raw `fetch`:
+Hooks in `apps/sim/hooks/queries/`** consume contracts the same way routes do. Every same-origin JSON call must go through `requestJson(contract, ...)` from `@/lib/api/client/request` instead of raw `fetch`:
 
 - Hooks import named type aliases from `@/lib/api/contracts/**`. Never write `z.input<...>` / `z.output<...>` in hooks, and never `import { z } from 'zod'` in client code.
 - `requestJson` parses params, query, body, and headers against the contract on the way out and validates the JSON response on the way back. Hooks always forward `signal` for cancellation.
@@ -204,3 +219,4 @@ export function useEntityList(workspaceId?: string) {
 - **Create `utils.ts` when** 2+ files need the same helper
 - **Check existing sources** before duplicating (`lib/` has many utilities)
 - **Location**: `lib/` (app-wide) → `feature/utils/` (feature-scoped) → inline (single-use)
+

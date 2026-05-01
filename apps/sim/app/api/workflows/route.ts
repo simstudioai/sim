@@ -13,7 +13,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { deduplicateWorkflowName, listWorkflows } from '@/lib/workflows/utils'
+import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
@@ -69,10 +69,39 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     let workflows
 
+    /**
+     * Project only the columns declared in `workflowListItemSchema` so the
+     * wire response matches the contract shape exactly. The full row is
+     * larger (`state`, `variables`, `apiKey`, `runCount`, etc.) and would
+     * be dropped client-side by Zod parse anyway — narrowing here saves
+     * bytes over the wire. Keep this list aligned with the contract.
+     */
+    const listColumns = {
+      id: workflow.id,
+      name: workflow.name,
+      description: workflow.description,
+      color: workflow.color,
+      workspaceId: workflow.workspaceId,
+      folderId: workflow.folderId,
+      sortOrder: workflow.sortOrder,
+      createdAt: workflow.createdAt,
+      updatedAt: workflow.updatedAt,
+      archivedAt: workflow.archivedAt,
+    } as const
     const orderByClause = [asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id)]
 
     if (workspaceId) {
-      workflows = await listWorkflows(workspaceId, { scope })
+      workflows = await db
+        .select(listColumns)
+        .from(workflow)
+        .where(
+          scope === 'all'
+            ? eq(workflow.workspaceId, workspaceId)
+            : scope === 'archived'
+              ? and(eq(workflow.workspaceId, workspaceId), sql`${workflow.archivedAt} IS NOT NULL`)
+              : and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt))
+        )
+        .orderBy(...orderByClause)
     } else {
       const workspacePermissionRows = await db
         .select({ workspaceId: permissions.entityId })
@@ -83,7 +112,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json({ data: [] }, { status: 200 })
       }
       workflows = await db
-        .select()
+        .select(listColumns)
         .from(workflow)
         .where(
           scope === 'all'

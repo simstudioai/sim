@@ -47,6 +47,7 @@ import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
+import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
 import { calculateCost } from '@/providers/utils'
 
@@ -433,6 +434,13 @@ export async function processDocumentAsync(
     }
 
     const kbEmbeddingModel = kb[0].embeddingModel
+    if (!kb[0].workspaceId) {
+      throw new Error(`Knowledge base ${knowledgeBaseId} is missing workspace billing context`)
+    }
+    const billingUserId = await getWorkspaceBilledAccountUserId(kb[0].workspaceId)
+    if (!billingUserId) {
+      throw new Error(`Workspace ${kb[0].workspaceId} is missing billed account`)
+    }
     let totalEmbeddingTokens = 0
     let embeddingIsBYOK = false
     let embeddingModelName = kbEmbeddingModel
@@ -625,7 +633,7 @@ export async function processDocumentAsync(
     const processingTime = Date.now() - startTime
     logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
 
-    if (!embeddingIsBYOK && totalEmbeddingTokens > 0 && kb[0].userId) {
+    if (!embeddingIsBYOK && totalEmbeddingTokens > 0 && billingUserId) {
       try {
         const costMultiplier = getCostMultiplier()
         const { total: cost } = calculateCost(
@@ -637,7 +645,7 @@ export async function processDocumentAsync(
         )
         if (cost > 0) {
           await recordUsage({
-            userId: kb[0].userId,
+            userId: billingUserId,
             workspaceId: kb[0].workspaceId ?? undefined,
             entries: [
               {
@@ -652,7 +660,7 @@ export async function processDocumentAsync(
               totalTokensUsed: sql`total_tokens_used + ${totalEmbeddingTokens}`,
             },
           })
-          await checkAndBillOverageThreshold(kb[0].userId)
+          await checkAndBillOverageThreshold(billingUserId)
         } else {
           logger.warn(
             `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,

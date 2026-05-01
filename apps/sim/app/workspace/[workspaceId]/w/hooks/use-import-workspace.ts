@@ -2,6 +2,14 @@ import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  createWorkflowContract,
+  createWorkspaceContract,
+  putWorkflowNormalizedStateContract,
+  type WorkflowStateContractInput,
+  workflowVariablesContract,
+} from '@/lib/api/contracts'
 import {
   extractWorkflowName,
   extractWorkflowsFromZip,
@@ -58,21 +66,13 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
         }
 
         const workspaceName = metadata?.workspaceName || zipFile.name.replace(/\.zip$/i, '')
-        const createResponse = await fetch('/api/workspaces', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        const { workspace: newWorkspace } = await requestJson(createWorkspaceContract, {
+          body: {
             name: workspaceName,
             ...(metadata?.workspaceColor && { color: metadata.workspaceColor }),
             skipDefaultWorkflow: true,
-          }),
+          },
         })
-
-        if (!createResponse.ok) {
-          throw new Error('Failed to create workspace')
-        }
-
-        const { workspace: newWorkspace } = await createResponse.json()
         logger.info('Created new workspace:', newWorkspace)
 
         const folderMap = new Map<string, string>()
@@ -168,34 +168,52 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
             const workflowColor =
               (workflowData.metadata as { color?: string } | undefined)?.color || '#3972F6'
 
-            const createWorkflowResponse = await fetch('/api/workflows', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                name: workflowName,
-                description: workflowData.metadata?.description || 'Imported from workspace export',
-                color: workflowColor,
-                workspaceId: newWorkspace.id,
-                folderId: targetFolderId,
-                deduplicate: true,
-              }),
-            })
-
-            if (!createWorkflowResponse.ok) {
-              logger.error(`Failed to create workflow ${workflowName}`)
+            let newWorkflow: Awaited<ReturnType<typeof requestJson<typeof createWorkflowContract>>>
+            try {
+              newWorkflow = await requestJson(createWorkflowContract, {
+                body: {
+                  name: workflowName,
+                  description:
+                    workflowData.metadata?.description || 'Imported from workspace export',
+                  color: workflowColor,
+                  workspaceId: newWorkspace.id,
+                  folderId: targetFolderId,
+                  deduplicate: true,
+                },
+              })
+            } catch (error) {
+              logger.error(`Failed to create workflow ${workflowName}`, { error })
               continue
             }
 
-            const newWorkflow = await createWorkflowResponse.json()
+            type ContractEdgeInput = WorkflowStateContractInput['edges'][number]
 
-            const stateResponse = await fetch(`/api/workflows/${newWorkflow.id}/state`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(workflowData),
+            const sanitizedEdges: ContractEdgeInput[] = (workflowData.edges || []).map((edge) => {
+              const { sourceHandle, targetHandle, ...rest } = edge
+              const sanitized: ContractEdgeInput = { ...rest } as ContractEdgeInput
+              if (typeof sourceHandle === 'string' && sourceHandle.length > 0) {
+                sanitized.sourceHandle = sourceHandle
+              }
+              if (typeof targetHandle === 'string' && targetHandle.length > 0) {
+                sanitized.targetHandle = targetHandle
+              }
+              return sanitized
             })
 
-            if (!stateResponse.ok) {
-              logger.error(`Failed to save workflow state for ${newWorkflow.id}`)
+            const workflowStateBody: WorkflowStateContractInput = {
+              ...workflowData,
+              loops: workflowData.loops || {},
+              parallels: workflowData.parallels || {},
+              edges: sanitizedEdges,
+            }
+
+            try {
+              await requestJson(putWorkflowNormalizedStateContract, {
+                params: { id: newWorkflow.id },
+                body: workflowStateBody,
+              })
+            } catch (error) {
+              logger.error(`Failed to save workflow state for ${newWorkflow.id}`, { error })
               continue
             }
 
@@ -205,33 +223,29 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
                 : Object.values(workflowData.variables)
 
               if (variablesArray.length > 0) {
-                const variablesRecord: Record<
-                  string,
-                  { id: string; workflowId: string; name: string; type: string; value: unknown }
-                > = {}
+                type WorkflowVariablesBodyInput = NonNullable<
+                  Parameters<typeof requestJson<typeof workflowVariablesContract>>[1]['body']
+                >
+
+                const variablesRecord: WorkflowVariablesBodyInput['variables'] = {}
 
                 for (const v of variablesArray) {
                   const id = typeof v.id === 'string' && v.id.trim() ? v.id : generateId()
                   variablesRecord[id] = {
                     id,
-                    workflowId: newWorkflow.id,
                     name: v.name,
                     type: v.type,
                     value: v.value,
                   }
                 }
 
-                const variablesResponse = await fetch(
-                  `/api/workflows/${newWorkflow.id}/variables`,
-                  {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ variables: variablesRecord }),
-                  }
-                )
-
-                if (!variablesResponse.ok) {
-                  logger.error(`Failed to save variables for ${newWorkflow.id}`)
+                try {
+                  await requestJson(workflowVariablesContract, {
+                    params: { id: newWorkflow.id },
+                    body: { variables: variablesRecord },
+                  })
+                } catch (error) {
+                  logger.error(`Failed to save variables for ${newWorkflow.id}`, { error })
                 }
               }
             }

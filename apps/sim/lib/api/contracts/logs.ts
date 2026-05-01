@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const comparisonOperatorSchema = z.enum(['=', '>', '<', '>=', '<=', '!='])
@@ -131,8 +132,8 @@ export const v1ListLogsQuerySchema = z.object({
   maxCost: z.coerce.number().optional(),
   model: z.string().optional(),
   details: z.enum(['basic', 'full']).optional().default('basic'),
-  includeTraceSpans: z.coerce.boolean().optional().default(false),
-  includeFinalOutput: z.coerce.boolean().optional().default(false),
+  includeTraceSpans: booleanQueryFlagSchema.optional().default(false),
+  includeFinalOutput: booleanQueryFlagSchema.optional().default(false),
   limit: z.coerce.number().optional().default(100),
   cursor: z.string().optional(),
   order: z.enum(['desc', 'asc']).optional().default('desc'),

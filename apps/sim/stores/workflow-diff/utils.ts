@@ -1,4 +1,11 @@
 import { createLogger } from '@sim/logger'
+import type { Edge } from 'reactflow'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  putWorkflowNormalizedStateContract,
+  type WorkflowStateContractInput,
+} from '@/lib/api/contracts/workflows'
 import { stripWorkflowDiffMarkers } from '@/lib/workflows/diff'
 import { useWorkflowRegistry } from '../workflows/registry/store'
 import { useSubBlockStore } from '../workflows/subblock/store'
@@ -77,21 +84,38 @@ export async function persistWorkflowStateToServer(
 ): Promise<boolean> {
   try {
     const cleanState = stripWorkflowDiffMarkers(cloneWorkflowState(workflowState))
-    const response = await fetch(`/api/workflows/${workflowId}/state`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        ...cleanState,
-        lastSaved: Date.now(),
-      }),
+    const { dragStartPosition: _dropDragStart, ...stateToSave } = cleanState
+
+    type ContractEdgeInput = WorkflowStateContractInput['edges'][number]
+
+    // Mirror auto-layout-utils sanitization: schema rejects nullable
+    // sourceHandle/targetHandle (input type is `string | undefined`), but the
+    // store's Edge type carries `string | null | undefined`. Drop nulls before
+    // sending so the contract input parses cleanly.
+    const sanitizedEdges: ContractEdgeInput[] = (stateToSave.edges || []).map((edge: Edge) => {
+      const { sourceHandle, targetHandle, ...rest } = edge
+      const sanitized: ContractEdgeInput = { ...rest } as ContractEdgeInput
+      if (typeof sourceHandle === 'string' && sourceHandle.length > 0) {
+        sanitized.sourceHandle = sourceHandle
+      }
+      if (typeof targetHandle === 'string' && targetHandle.length > 0) {
+        sanitized.targetHandle = targetHandle
+      }
+      return sanitized
     })
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '')
-      throw new Error(errorText || 'Failed to persist workflow state')
+    const cleanedWorkflowState: WorkflowStateContractInput = {
+      ...stateToSave,
+      loops: stateToSave.loops || {},
+      parallels: stateToSave.parallels || {},
+      edges: sanitizedEdges,
+      lastSaved: Date.now(),
     }
+
+    await requestJson(putWorkflowNormalizedStateContract, {
+      params: { id: workflowId },
+      body: cleanedWorkflowState,
+    })
 
     const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
     if (activeWorkflowId === workflowId) {
@@ -100,7 +124,14 @@ export async function persistWorkflowStateToServer(
 
     return true
   } catch (error) {
-    logger.error('Failed to persist workflow state after copilot edit', error)
+    if (error instanceof ApiClientError) {
+      logger.error('Failed to persist workflow state after copilot edit', {
+        status: error.status,
+        message: error.message,
+      })
+    } else {
+      logger.error('Failed to persist workflow state after copilot edit', error)
+    }
     return false
   }
 }

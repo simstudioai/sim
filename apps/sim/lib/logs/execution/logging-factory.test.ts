@@ -400,4 +400,70 @@ describe('calculateCostSummary', () => {
     expect(result.totalInputCost).toBe(0)
     expect(result.totalOutputCost).toBe(0)
   })
+
+  test('BYOK regression: parent block cost is authoritative; model children are not double-counted', () => {
+    // Reproduces the BYOK billing leak: provider sets parent agent span's
+    // block-level cost to zero (BYOK suppression), but trace enrichers still
+    // wrote gross hosted cost into time-segment children. Before the fix this
+    // test would expect 0.03; after the fix the parent's zero is authoritative.
+    const traceSpans = [
+      {
+        id: 'agent-span',
+        type: 'agent',
+        model: 'claude-opus-4-6',
+        cost: { input: 0, output: 0, total: 0 },
+        tokens: { input: 68057, output: 1548, total: 69605 },
+        children: [
+          {
+            id: 'agent-span-segment-0',
+            type: 'model',
+            model: 'claude-opus-4-6',
+            cost: { input: 0.340285, output: 0.0387, total: 0.378985 },
+            tokens: { input: 68057, output: 1548, total: 69605 },
+          },
+        ],
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(result.modelCost).toBe(0)
+    expect(result.totalCost).toBe(BASE_EXECUTION_CHARGE)
+    // Model is still tracked for token-usage display, but cost must be zero.
+    expect(result.models['claude-opus-4-6'].total).toBe(0)
+    expect(result.models['claude-opus-4-6'].input).toBe(0)
+    expect(result.models['claude-opus-4-6'].output).toBe(0)
+    expect(result.models['claude-opus-4-6'].tokens.input).toBe(68057)
+    expect(result.models['claude-opus-4-6'].tokens.output).toBe(1548)
+  })
+
+  test('non-BYOK still aggregates parent block cost correctly with model children present', () => {
+    // Same shape as the BYOK case but the parent carries the gross cost
+    // (typical hosted-key path). The parent's cost is counted once; model
+    // children are skipped to avoid double-counting.
+    const traceSpans = [
+      {
+        id: 'agent-span',
+        type: 'agent',
+        model: 'gpt-4o',
+        cost: { input: 0.01, output: 0.02, total: 0.03 },
+        tokens: { input: 1000, output: 2000, total: 3000 },
+        children: [
+          {
+            id: 'agent-span-segment-0',
+            type: 'model',
+            model: 'gpt-4o',
+            cost: { input: 0.01, output: 0.02, total: 0.03 },
+            tokens: { input: 1000, output: 2000, total: 3000 },
+          },
+        ],
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(result.modelCost).toBe(0.03)
+    expect(result.totalCost).toBe(0.03 + BASE_EXECUTION_CHARGE)
+    expect(result.models['gpt-4o'].total).toBe(0.03)
+  })
 })

@@ -641,6 +641,7 @@ export async function executeWorkflowWithFullLogging(
       : {}),
   }
 
+  // boundary-raw-fetch: workflow execute returns an SSE stream consumed via response.body.getReader() in processSSEStream
   const response = await fetch(`/api/workflows/${targetWorkflowId}/execute`, {
     method: 'POST',
     headers: {

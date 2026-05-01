@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { requestJson } from '@/lib/api/client/request'
+import { duplicateWorkspaceContract } from '@/lib/api/contracts'
 
 const logger = createLogger('useDuplicateWorkspace')
 
@@ -36,19 +38,10 @@ export function useDuplicateWorkspace({ workspaceId, onSuccess }: UseDuplicateWo
 
       setIsDuplicating(true)
       try {
-        const response = await fetch(`/api/workspaces/${workspaceId}/duplicate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: `${workspaceName} (Copy)`,
-          }),
+        const duplicatedWorkspace = await requestJson(duplicateWorkspaceContract, {
+          params: { id: workspaceId },
+          body: { name: `${workspaceName} (Copy)` },
         })
-
-        if (!response.ok) {
-          throw new Error(`Failed to duplicate workspace: ${response.statusText}`)
-        }
-
-        const duplicatedWorkspace = await response.json()
 
         logger.info('Workspace duplicated successfully', {
           sourceWorkspaceId: workspaceId,
