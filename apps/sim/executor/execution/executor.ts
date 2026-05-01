@@ -53,6 +53,7 @@ export class DAGExecutor {
   private contextExtensions: ContextExtensions
   private dagBuilder: DAGBuilder
   private execLogger: Logger
+  private blockExecutor: BlockExecutor | null = null
 
   constructor(options: DAGExecutorOptions) {
     this.workflow = options.workflow
@@ -80,7 +81,11 @@ export class DAGExecutor {
     context.subflowParentMap = this.buildSubflowParentMap(dag)
 
     const engine = this.buildExecutionPipeline(context, dag, state)
-    return await engine.run(triggerBlockId)
+    try {
+      return await engine.run(triggerBlockId)
+    } finally {
+      await this.blockExecutor?.awaitPendingCallbacks()
+    }
   }
 
   async continueExecution(
@@ -207,13 +212,18 @@ export class DAGExecutor {
     context.subflowParentMap = this.buildSubflowParentMap(dag)
 
     const engine = this.buildExecutionPipeline(context, dag, state)
-    return await engine.run()
+    try {
+      return await engine.run()
+    } finally {
+      await this.blockExecutor?.awaitPendingCallbacks()
+    }
   }
 
   private buildExecutionPipeline(context: ExecutionContext, dag: DAG, state: ExecutionState) {
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     const allHandlers = createBlockHandlers()
     const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions, state)
+    this.blockExecutor = blockExecutor
     const edgeManager = new EdgeManager(dag)
     const loopOrchestrator = new LoopOrchestrator(
       dag,
