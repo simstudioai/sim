@@ -18,6 +18,32 @@ interface RouteParams {
   params: Promise<{ tableId: string }>
 }
 
+/**
+ * Maps known service-layer error messages onto HTTP responses; falls through
+ * to a 500 with a generic message for anything unrecognized. The three
+ * group-route handlers all surface the same error shapes from
+ * `addWorkflowGroup` / `updateWorkflowGroup` / `deleteWorkflowGroup`, so they
+ * share this mapper instead of repeating the if-chain three times.
+ */
+function mapWorkflowGroupError(error: unknown, fallbackMessage: string): NextResponse {
+  if (error instanceof Error) {
+    const msg = error.message
+    if (msg === 'Table not found' || msg.includes('not found')) {
+      return NextResponse.json({ error: msg }, { status: 404 })
+    }
+    if (
+      msg.includes('Schema validation') ||
+      msg.includes('Missing column definition') ||
+      msg.includes('already exists') ||
+      msg.includes('exceed')
+    ) {
+      return NextResponse.json({ error: msg }, { status: 400 })
+    }
+  }
+  logger.error(fallbackMessage, error)
+  return NextResponse.json({ error: fallbackMessage }, { status: 500 })
+}
+
 /** POST /api/table/[tableId]/groups — create a workflow group + its output columns. */
 export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
@@ -47,19 +73,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       },
     })
   } catch (error) {
-    if (error instanceof Error) {
-      const msg = error.message
-      if (msg === 'Table not found') return NextResponse.json({ error: msg }, { status: 404 })
-      if (
-        msg.includes('already exists') ||
-        msg.includes('Schema validation') ||
-        msg.includes('exceed')
-      ) {
-        return NextResponse.json({ error: msg }, { status: 400 })
-      }
-    }
-    logger.error(`POST groups failed:`, error)
-    return NextResponse.json({ error: 'Failed to add workflow group' }, { status: 500 })
+    return mapWorkflowGroupError(error, 'Failed to add workflow group')
   }
 })
 
@@ -102,19 +116,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       },
     })
   } catch (error) {
-    if (error instanceof Error) {
-      const msg = error.message
-      if (msg.includes('not found')) return NextResponse.json({ error: msg }, { status: 404 })
-      if (
-        msg.includes('Schema validation') ||
-        msg.includes('Missing column definition') ||
-        msg.includes('already exists')
-      ) {
-        return NextResponse.json({ error: msg }, { status: 400 })
-      }
-    }
-    logger.error(`PATCH groups failed:`, error)
-    return NextResponse.json({ error: 'Failed to update workflow group' }, { status: 500 })
+    return mapWorkflowGroupError(error, 'Failed to update workflow group')
   }
 })
 
@@ -147,10 +149,6 @@ export const DELETE = withRouteHandler(async (request: NextRequest, { params }: 
       },
     })
   } catch (error) {
-    if (error instanceof Error && error.message.includes('not found')) {
-      return NextResponse.json({ error: error.message }, { status: 404 })
-    }
-    logger.error(`DELETE groups failed:`, error)
-    return NextResponse.json({ error: 'Failed to delete workflow group' }, { status: 500 })
+    return mapWorkflowGroupError(error, 'Failed to delete workflow group')
   }
 })

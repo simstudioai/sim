@@ -64,7 +64,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
      * new run writes new ones (or doesn't, on error/router-skip).
      */
     const clearedData = Object.fromEntries(group.outputs.map((o) => [o.columnName, null]))
-    await updateRow(
+    const updated = await updateRow(
       {
         tableId,
         rowId,
@@ -75,6 +75,16 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       table,
       requestId
     )
+    if (updated === null) {
+      // The cell-task cancellation guard rejected the write — typically a
+      // racing stop click that already wrote `cancelled` for this run.
+      // Surface 409 so the caller doesn't poll indefinitely for a run that
+      // was never enqueued.
+      return NextResponse.json(
+        { error: 'Run was cancelled before it could be scheduled' },
+        { status: 409 }
+      )
+    }
 
     return NextResponse.json({ success: true, data: { executionId } })
   } catch (error) {

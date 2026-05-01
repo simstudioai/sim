@@ -53,6 +53,10 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
+import {
+  columnTypeForLeaf,
+  deriveOutputColumnName,
+} from '@/lib/table/column-naming'
 import { cancelWorkflowGroupRuns, triggerWorkflowGroupRun } from '@/lib/table/workflow-columns'
 import {
   downloadWorkspaceFile,
@@ -155,47 +159,6 @@ async function parseFileRows(
     return parseCsvBuffer(buffer, delimiter)
   }
   throw new Error(`Unsupported file format: "${ext}". Supported: csv, tsv, json`)
-}
-
-/**
- * Mirror of `column-sidebar.tsx`'s `slugifyColumnName`: lowercase, collapse
- * non-alphanum runs to `_`, prefix `c_` on leading digits, fall back to
- * `output` for empty results. Used to auto-name workflow-output columns when
- * the AI omits an explicit `columnName`.
- */
-function slugifyOutputName(value: string): string {
-  let slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-  if (!slug) slug = 'output'
-  if (/^[0-9]/.test(slug)) slug = `c_${slug}`
-  return slug
-}
-
-/** Map a block-output leaf type onto a column type (mirror of the sidebar). */
-function columnTypeForLeaf(leafType: string | undefined): ColumnDefinition['type'] {
-  switch (leafType) {
-    case 'string':
-    case 'number':
-    case 'boolean':
-    case 'date':
-    case 'json':
-      return leafType
-    default:
-      return 'json'
-  }
-}
-
-/** Pick a non-colliding column name, escalating on conflict. */
-function deriveOutputColumnName(path: string, taken: Set<string>): string {
-  const base = slugifyOutputName(path)
-  if (!taken.has(base)) return base
-  for (let i = 2; i < 1000; i++) {
-    const candidate = `${base}_${i}`
-    if (!taken.has(candidate)) return candidate
-  }
-  return `${base}_${Date.now()}`
 }
 
 async function batchInsertAll(

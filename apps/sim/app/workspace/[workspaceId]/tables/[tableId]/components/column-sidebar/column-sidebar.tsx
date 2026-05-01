@@ -64,6 +64,7 @@ import {
 } from '@/hooks/queries/tables'
 import { useWorkflowState, workflowKeys } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
 import { COLUMN_TYPE_OPTIONS, type SidebarColumnType } from './column-types'
 
 export type ColumnConfigState =
@@ -90,55 +91,7 @@ interface ColumnSidebarProps {
   tableId: string
 }
 
-/**
- * Slugifies a string into a `NAME_PATTERN`-safe column name. Lowercase,
- * non-alphanum runs collapse to `_`, leading digits get a `c_` prefix, empty
- * results fall back to `output`.
- */
-function slugifyColumnName(value: string): string {
-  let slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-  if (!slug) slug = 'output'
-  if (/^[0-9]/.test(slug)) slug = `c_${slug}`
-  return slug
-}
-
-function deriveOutputColumnName(blockName: string, path: string, taken: Set<string>): string {
-  // Use the bare path as the column name. On collision, append `_0`, `_1`, …
-  // so duplicate output paths read as a numbered series rather than the longer
-  // `${blockName}_${path}` form (which leaked block ids into column headers).
-  const base = slugifyColumnName(path)
-  if (!taken.has(base)) return base
-  for (let i = 0; i < 1000; i++) {
-    const candidate = `${base}_${i}`
-    if (!taken.has(candidate)) return candidate
-  }
-  return `${base}_${Date.now()}`
-}
-
 const OUTPUT_VALUE_SEPARATOR = '::'
-
-type ColumnType = ColumnDefinition['type']
-
-/**
- * Map a block-output leaf type onto a table column type. Block schemas use a
- * superset (`array`, `object`, etc.); anything outside the column-type union
- * falls back to `json`, the most permissive shape that still validates.
- */
-function columnTypeForLeaf(leafType: string | undefined): ColumnType {
-  switch (leafType) {
-    case 'string':
-    case 'number':
-    case 'boolean':
-    case 'date':
-    case 'json':
-      return leafType
-    default:
-      return 'json'
-  }
-}
 
 /** Shared dashed-divider style — mirrors the workflow editor's subblock divider. */
 const DASHED_DIVIDER_STYLE = {
@@ -911,13 +864,6 @@ export function ColumnSidebar({
     return outputs
   }
 
-  /** Maps blockId → blockName from the loaded workflow state. */
-  const blockNameByBlockId = useMemo<Map<string, string>>(() => {
-    const m = new Map<string, string>()
-    for (const g of blockOutputGroups) m.set(g.blockId, g.blockName)
-    return m
-  }, [blockOutputGroups])
-
   const handleSave = async () => {
     if (!configState) return
     setSaveError(null)
@@ -980,8 +926,7 @@ export function ColumnSidebar({
                   : existing
               )
             } else {
-              const blockName = blockNameByBlockId.get(o.blockId) ?? 'output'
-              const colName = deriveOutputColumnName(blockName, o.path, taken)
+              const colName = deriveOutputColumnName(o.path, taken)
               taken.add(colName)
               fullOutputs.push({ blockId: o.blockId, path: o.path, columnName: colName })
               newOutputColumns.push({
@@ -1016,8 +961,7 @@ export function ColumnSidebar({
           const newOutputColumns: AddWorkflowGroupBodyInput['outputColumns'] = []
           const groupOutputs: WorkflowGroupOutput[] = []
           for (const o of orderedOutputs) {
-            const blockName = blockNameByBlockId.get(o.blockId) ?? 'output'
-            const colName = deriveOutputColumnName(blockName, o.path, taken)
+            const colName = deriveOutputColumnName(o.path, taken)
             taken.add(colName)
             newOutputColumns.push({
               name: colName,

@@ -10,7 +10,7 @@ import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 import { buildCancelledExecution, writeWorkflowGroupState } from '@/lib/table/cell-write'
 import type {
   RowData,
@@ -265,10 +265,18 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
   if (groups.length === 0) return 0
   const groupIds = new Set(groups.map((g) => g.id))
 
-  const rowQuery = rowId
-    ? db.select().from(userTableRows).where(eq(userTableRows.id, rowId))
-    : db.select().from(userTableRows).where(eq(userTableRows.tableId, tableId))
-  const rows = await rowQuery
+  // Always filter by tableId — for the per-row case this prevents a
+  // cross-table rowId from doing a wasted DB round-trip and silently
+  // under-counting in the response. For the table-wide case it's the
+  // primary filter.
+  const rows = await db
+    .select()
+    .from(userTableRows)
+    .where(
+      rowId
+        ? and(eq(userTableRows.id, rowId), eq(userTableRows.tableId, tableId))
+        : eq(userTableRows.tableId, tableId)
+    )
 
   const queue = await getJobQueue()
 
@@ -281,15 +289,12 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
   const mutations: RowMutation[] = []
 
   for (const row of rows) {
-    if (row.tableId !== tableId) continue
     const executions = (row.executions ?? {}) as RowExecutions
     const executionsPatch: Record<string, RowExecutionMetadata> = {}
     const jobIds: string[] = []
     let cancelledCount = 0
-    const seenStates: Record<string, string> = {}
     for (const [gid, exec] of Object.entries(executions)) {
       if (!groupIds.has(gid)) continue
-      seenStates[gid] = exec.status
       // `pending` covers the post-reset, pre-dispatch window — a stop click
       // there must still stick once the scheduler picks the row up.
       if (exec.status !== 'running' && exec.status !== 'pending') continue
@@ -300,9 +305,6 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
     if (cancelledCount > 0) {
       mutations.push({ rowId: row.id, executionsPatch, jobIds, cancelledCount })
     }
-    logger.info(
-      `[STOP-DEBUG] cancel scan row=${row.id} seen=${JSON.stringify(seenStates)} willCancel=${Object.keys(executionsPatch).length} jobs=${JSON.stringify(jobIds)}`
-    )
   }
 
   // Cancel jobs and write rows in parallel — no ordering dependency, so
@@ -363,7 +365,20 @@ export async function triggerWorkflowGroupRun(opts: {
   const group = (table.schema.workflowGroups ?? []).find((g) => g.id === groupId)
   if (!group) throw new Error('Workflow group not found')
 
-  const allRows = await db
+  // Push the in-flight / terminal-state filters into SQL so we don't pull
+  // every row in the table into Node just to discard most of them. Dependency
+  // satisfaction is still checked in JS afterwards (it can span multiple
+  // columns and other groups' statuses, so it's awkward to express in JSONB).
+  const filters = [
+    eq(userTableRows.tableId, tableId),
+    eq(userTableRows.workspaceId, workspaceId),
+    sql`(executions->${groupId}->>'status') IS DISTINCT FROM 'running'`,
+    sql`((executions->${groupId}->>'status') IS DISTINCT FROM 'pending' OR (executions->${groupId}->>'jobId') IS NULL)`,
+  ]
+  if (mode === 'incomplete') {
+    filters.push(sql`(executions->${groupId}->>'status') IS DISTINCT FROM 'completed'`)
+  }
+  const candidateRows = await db
     .select({
       id: userTableRows.id,
       position: userTableRows.position,
@@ -373,12 +388,12 @@ export async function triggerWorkflowGroupRun(opts: {
       updatedAt: userTableRows.updatedAt,
     })
     .from(userTableRows)
-    .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.workspaceId, workspaceId)))
+    .where(and(...filters))
     .orderBy(asc(userTableRows.position))
 
-  if (allRows.length === 0) return { triggered: 0 }
+  if (candidateRows.length === 0) return { triggered: 0 }
 
-  const eligibleRows = allRows.filter((r) => {
+  const eligibleRows = candidateRows.filter((r) => {
     const tableRow: TableRow = {
       id: r.id,
       data: r.data as RowData,
@@ -387,10 +402,6 @@ export async function triggerWorkflowGroupRun(opts: {
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     }
-    const exec = tableRow.executions[groupId]
-    if (exec?.status === 'running') return false
-    if (exec?.status === 'pending' && exec?.jobId) return false
-    if (mode === 'incomplete' && exec?.status === 'completed') return false
     try {
       return areGroupDepsSatisfied(group, tableRow)
     } catch {
