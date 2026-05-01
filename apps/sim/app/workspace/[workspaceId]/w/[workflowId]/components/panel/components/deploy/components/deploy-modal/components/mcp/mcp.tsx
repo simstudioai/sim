@@ -27,15 +27,13 @@ import {
   type WorkflowMcpServer,
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('McpToolDeploy')
 
 /** InputFormatField with guaranteed name (after normalization) */
 type NormalizedField = InputFormatField & { name: string }
-
-const EMPTY_SUBBLOCK_VALUES: Record<string, Record<string, unknown>> = {}
 
 interface McpDeployProps {
   workflowId: string

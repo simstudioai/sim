@@ -23,12 +23,10 @@ import { useDeploymentInfo, useUpdatePublicApi } from '@/hooks/queries/deploymen
 import { useUpdateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 type NormalizedField = InputFormatField & { name: string }
-
-const EMPTY_SUBBLOCK_VALUES: Record<string, Record<string, unknown>> = {}
 
 interface ApiInfoModalProps {
   open: boolean

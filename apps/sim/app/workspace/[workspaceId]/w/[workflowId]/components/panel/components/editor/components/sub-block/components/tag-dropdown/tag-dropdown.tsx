@@ -33,7 +33,7 @@ import { normalizeName } from '@/executor/constants'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { Variable } from '@/stores/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -166,8 +166,6 @@ const BLOCK_COLORS = {
 const TAG_PREFIXES = {
   VARIABLE: 'variable.',
 } as const
-
-const EMPTY_SUBBLOCK_VALUES: Record<string, Record<string, unknown>> = {}
 
 /**
  * Ensures the root tag is present in the tags array
