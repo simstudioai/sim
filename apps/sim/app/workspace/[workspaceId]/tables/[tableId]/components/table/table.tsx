@@ -29,6 +29,7 @@ import {
   ArrowRight,
   Calendar as CalendarIcon,
   ChevronDown,
+  EyeOff,
   Pencil,
   PlayOutline,
   Plus,
@@ -79,6 +80,7 @@ import {
 import { useWorkflowStates, useWorkflows } from '@/hooks/queries/workflows'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
+import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useContextMenu, useRowExecution, useTableData } from '../../hooks'
@@ -264,6 +266,8 @@ const COL_WIDTH = 160
 const COL_WIDTH_MIN = 80
 const CHECKBOX_COL_WIDTH = 56
 const ADD_COL_WIDTH = 120
+/** Width of the column-config slideout (matches `column-sidebar.tsx`'s `w-[400px]`). */
+const COLUMN_SIDEBAR_WIDTH = 400
 const SKELETON_COL_COUNT = 4
 const SKELETON_ROW_COUNT = 10
 const ROW_HEIGHT_ESTIMATE = 35
@@ -2226,6 +2230,18 @@ export function Table({
   const [configState, setConfigState] = useState<ColumnConfigState>(null)
   /** Execution id whose run details are open in the slideout. */
   const [executionDetailsId, setExecutionDetailsId] = useState<string | null>(null)
+  /**
+   * Right padding added to the table's scroll content while a slideout panel
+   * is open, equal to the panel's width. Without it, the rightmost columns are
+   * clipped under the panel and there's no way to scroll them into view.
+   * The two panels are mutually exclusive (each opener closes the other).
+   */
+  const logPanelWidth = useLogDetailsUIStore((state) => state.panelWidth)
+  const sidebarReservedPx = configState
+    ? COLUMN_SIDEBAR_WIDTH
+    : executionDetailsId
+      ? logPanelWidth
+      : 0
 
   const handleConfigureColumn = useCallback((columnName: string) => {
     setExecutionDetailsId(null)
@@ -2239,7 +2255,13 @@ export function Table({
     [deleteWorkflowGroupMutation]
   )
 
-  const handleDeleteColumn = useCallback((columnName: string) => {
+  /**
+   * Computes the names slated for deletion given a click on `columnName` and
+   * the current column selection. If the click landed inside a multi-column
+   * selection, the entire selection is the target; otherwise it's just the
+   * clicked column.
+   */
+  const resolveDeletionNames = useCallback((columnName: string): string[] => {
     const cols = columnsRef.current
     if (isColumnSelectionRef.current && selectionAnchorRef.current) {
       const sel = computeNormalizedSelection(selectionAnchorRef.current, selectionFocusRef.current)
@@ -2250,15 +2272,62 @@ export function Table({
           for (let c = sel.startCol; c <= sel.endCol; c++) {
             if (c < cols.length) names.push(cols[c].name)
           }
-          if (names.length > 0) {
-            setDeletingColumns(names)
-            return
-          }
+          if (names.length > 0) return names
         }
       }
     }
-    setDeletingColumns([columnName])
+    return [columnName]
   }, [])
+
+  /**
+   * Hide a workflow-output column by removing it from its group's `outputs`
+   * via `updateWorkflowGroup`. Server-side this drops the schema column AND
+   * wipes the cell data on every row. The user can re-add the output from
+   * the sidebar's picker; the existing backfill repopulates from execution
+   * logs. Only valid when removing the columns leaves every affected group
+   * with at least one surviving output — caller must check first.
+   */
+  const hideWorkflowOutputColumns = useCallback(
+    (names: string[]) => {
+      const schemaCols = schemaColumnsRef.current
+      const groups = workflowGroupsRef.current
+      const removalsByGroup = new Map<string, Set<string>>()
+      for (const name of names) {
+        const def = schemaCols.find((c) => c.name === name)
+        if (!def?.workflowGroupId) return false
+        const set = removalsByGroup.get(def.workflowGroupId) ?? new Set<string>()
+        set.add(name)
+        removalsByGroup.set(def.workflowGroupId, set)
+      }
+      for (const [groupId, removed] of removalsByGroup) {
+        const group = groups.find((g) => g.id === groupId)
+        if (!group) return false
+        const remaining = group.outputs.filter((o) => !removed.has(o.columnName))
+        if (remaining.length === 0) return false
+        updateWorkflowGroupMutation.mutate({
+          groupId: group.id,
+          workflowId: group.workflowId,
+          name: group.name,
+          dependencies: group.dependencies,
+          outputs: remaining,
+        })
+      }
+      return true
+    },
+    [updateWorkflowGroupMutation]
+  )
+
+  const handleDeleteColumn = useCallback(
+    (columnName: string) => {
+      const names = resolveDeletionNames(columnName)
+      // If every target is a workflow output AND removing them all leaves each
+      // group with ≥1 output, hide them directly — no destructive-confirm
+      // modal, since the workflow can re-produce the value any time.
+      if (hideWorkflowOutputColumns(names)) return
+      setDeletingColumns(names)
+    },
+    [resolveDeletionNames, hideWorkflowOutputColumns]
+  )
 
   const handleDeleteColumnConfirm = useCallback(() => {
     if (!deletingColumns || deletingColumns.length === 0) return
@@ -2658,7 +2727,13 @@ export function Table({
           onDragOver={handleScrollDragOver}
           onDrop={handleScrollDrop}
         >
-          <div className='relative h-fit' style={{ width: `${tableWidth}px` }}>
+          <div
+            className='relative h-fit'
+            style={{
+              width: `${tableWidth + sidebarReservedPx}px`,
+              paddingRight: sidebarReservedPx,
+            }}
+          >
             <table
               className='table-fixed border-separate border-spacing-0 text-small'
               style={{ width: `${tableWidth}px` }}
@@ -3880,6 +3955,7 @@ function ColumnOptionsMenu({
   onOpenChange,
   position,
   column,
+  deleteLabel,
   onOpenConfig,
   onInsertLeft,
   onInsertRight,
@@ -3892,6 +3968,11 @@ function ColumnOptionsMenu({
   onOpenChange: (open: boolean) => void
   position: { x: number; y: number }
   column: DisplayColumn
+  /** Override for the destructive item's label. Defaults to "Delete column"
+   *  (or "Delete workflow" when `onDeleteGroup` is set). Use "Hide column"
+   *  when the destructive action is non-lossy (workflow-output column where
+   *  removing it leaves the group with siblings). */
+  deleteLabel?: string
   onOpenConfig: (columnName: string) => void
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
@@ -3963,8 +4044,8 @@ function ColumnOptionsMenu({
         <DropdownMenuItem
           onSelect={() => (onDeleteGroup ? onDeleteGroup() : onDeleteColumn(column.name))}
         >
-          <Trash />
-          {onDeleteGroup ? 'Delete workflow' : 'Delete column'}
+          {deleteLabel === 'Hide column' ? <EyeOff /> : <Trash />}
+          {deleteLabel ?? (onDeleteGroup ? 'Delete workflow' : 'Delete column')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -4189,6 +4270,14 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       : undefined
   const configuredWorkflow = ownGroup
     ? workflows?.find((w) => w.id === ownGroup.workflowId)
+    : undefined
+  // Workflow-output column with siblings → "Hide column" (non-destructive,
+  // re-addable from sidebar). Last output of a group → "Delete workflow"
+  // (removes the entire group). Plain column → undefined (default "Delete column").
+  const deleteLabel = ownGroup
+    ? ownGroup.outputs.length > 1
+      ? 'Hide column'
+      : 'Delete workflow'
     : undefined
   const workflowColor = configuredWorkflow?.color
   const blockIconInfo = sourceInfo?.blockIconInfo
@@ -4416,6 +4505,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             onOpenChange={setMenuOpen}
             position={menuPosition}
             column={column}
+            deleteLabel={deleteLabel}
             onOpenConfig={onOpenConfig}
             onInsertLeft={onInsertLeft}
             onInsertRight={onInsertRight}
