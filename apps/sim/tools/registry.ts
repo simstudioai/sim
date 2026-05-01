@@ -862,6 +862,7 @@ import {
   gmailDeleteV2Tool,
   gmailDraftTool,
   gmailDraftV2Tool,
+  gmailEditDraftV2Tool,
   gmailGetDraftV2Tool,
   gmailGetThreadV2Tool,
   gmailListDraftsV2Tool,
@@ -885,6 +886,7 @@ import {
   gmailUnarchiveTool,
   gmailUnarchiveV2Tool,
   gmailUntrashThreadV2Tool,
+  gmailUpdateLabelV2Tool,
 } from '@/tools/gmail'
 import {
   gongAggregateActivityTool,
@@ -3612,6 +3614,7 @@ export const tools: Record<string, ToolConfig> = {
   gmail_create_label_v2: gmailCreateLabelV2Tool,
   gmail_delete_draft_v2: gmailDeleteDraftV2Tool,
   gmail_delete_label_v2: gmailDeleteLabelV2Tool,
+  gmail_edit_draft_v2: gmailEditDraftV2Tool,
   gmail_get_draft_v2: gmailGetDraftV2Tool,
   gmail_get_thread_v2: gmailGetThreadV2Tool,
   gmail_list_drafts_v2: gmailListDraftsV2Tool,
@@ -3619,6 +3622,7 @@ export const tools: Record<string, ToolConfig> = {
   gmail_list_threads_v2: gmailListThreadsV2Tool,
   gmail_trash_thread_v2: gmailTrashThreadV2Tool,
   gmail_untrash_thread_v2: gmailUntrashThreadV2Tool,
+  gmail_update_label_v2: gmailUpdateLabelV2Tool,
   whatsapp_send_message: whatsappSendMessageTool,
   x_write: xWriteTool,
   x_read: xReadTool,

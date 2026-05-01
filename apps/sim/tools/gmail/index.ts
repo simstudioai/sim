@@ -5,6 +5,7 @@ import { gmailDeleteTool, gmailDeleteV2Tool } from '@/tools/gmail/delete'
 import { gmailDeleteDraftV2Tool } from '@/tools/gmail/delete_draft'
 import { gmailDeleteLabelV2Tool } from '@/tools/gmail/delete_label'
 import { gmailDraftTool, gmailDraftV2Tool } from '@/tools/gmail/draft'
+import { gmailEditDraftV2Tool } from '@/tools/gmail/edit_draft'
 import { gmailGetDraftV2Tool } from '@/tools/gmail/get_draft'
 import { gmailGetThreadV2Tool } from '@/tools/gmail/get_thread'
 import { gmailListDraftsV2Tool } from '@/tools/gmail/list_drafts'
@@ -20,6 +21,7 @@ import { gmailSendTool, gmailSendV2Tool } from '@/tools/gmail/send'
 import { gmailTrashThreadV2Tool } from '@/tools/gmail/trash_thread'
 import { gmailUnarchiveTool, gmailUnarchiveV2Tool } from '@/tools/gmail/unarchive'
 import { gmailUntrashThreadV2Tool } from '@/tools/gmail/untrash_thread'
+import { gmailUpdateLabelV2Tool } from '@/tools/gmail/update_label'
 
 export {
   gmailSendTool,
@@ -48,6 +50,7 @@ export {
   gmailRemoveLabelV2Tool,
   gmailListDraftsV2Tool,
   gmailGetDraftV2Tool,
+  gmailEditDraftV2Tool,
   gmailDeleteDraftV2Tool,
   gmailCreateLabelV2Tool,
   gmailDeleteLabelV2Tool,
@@ -56,4 +59,5 @@ export {
   gmailListThreadsV2Tool,
   gmailTrashThreadV2Tool,
   gmailUntrashThreadV2Tool,
+  gmailUpdateLabelV2Tool,
 }
