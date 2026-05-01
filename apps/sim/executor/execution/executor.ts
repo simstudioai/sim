@@ -53,7 +53,6 @@ export class DAGExecutor {
   private contextExtensions: ContextExtensions
   private dagBuilder: DAGBuilder
   private execLogger: Logger
-  private blockExecutor: BlockExecutor | null = null
 
   constructor(options: DAGExecutorOptions) {
     this.workflow = options.workflow
@@ -80,11 +79,11 @@ export class DAGExecutor {
     const { context, state } = this.createExecutionContext(workflowId, triggerBlockId)
     context.subflowParentMap = this.buildSubflowParentMap(dag)
 
-    const engine = this.buildExecutionPipeline(context, dag, state)
+    const { engine, blockExecutor } = this.buildExecutionPipeline(context, dag, state)
     try {
       return await engine.run(triggerBlockId)
     } finally {
-      await this.blockExecutor?.awaitPendingCallbacks()
+      await blockExecutor.awaitPendingCallbacks()
     }
   }
 
@@ -211,11 +210,11 @@ export class DAGExecutor {
     })
     context.subflowParentMap = this.buildSubflowParentMap(dag)
 
-    const engine = this.buildExecutionPipeline(context, dag, state)
+    const { engine, blockExecutor } = this.buildExecutionPipeline(context, dag, state)
     try {
       return await engine.run()
     } finally {
-      await this.blockExecutor?.awaitPendingCallbacks()
+      await blockExecutor.awaitPendingCallbacks()
     }
   }
 
@@ -223,7 +222,6 @@ export class DAGExecutor {
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     const allHandlers = createBlockHandlers()
     const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions, state)
-    this.blockExecutor = blockExecutor
     const edgeManager = new EdgeManager(dag)
     const loopOrchestrator = new LoopOrchestrator(
       dag,
@@ -245,7 +243,8 @@ export class DAGExecutor {
       loopOrchestrator,
       parallelOrchestrator
     )
-    return new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+    const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+    return { engine, blockExecutor }
   }
 
   private createExecutionContext(
