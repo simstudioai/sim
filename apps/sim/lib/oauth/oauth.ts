@@ -500,6 +500,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'offline_access',
           'read:issue-meta:jira',
           'read:issue.changelog:jira',
+          'read:issue.vote:jira',
           'read:avatar:jira',
           'read:issue:jira',
           'read:status:jira',
