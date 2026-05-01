@@ -466,4 +466,37 @@ describe('calculateCostSummary', () => {
     expect(result.totalCost).toBe(0.03 + BASE_EXECUTION_CHARGE)
     expect(result.models['gpt-4o'].total).toBe(0.03)
   })
+
+  test('preserves parent toolCost while skipping model breakdown children', () => {
+    const traceSpans = [
+      {
+        id: 'agent-span',
+        type: 'agent',
+        model: 'gpt-4o',
+        cost: { input: 0.01, output: 0.02, toolCost: 0.015, total: 0.045 },
+        tokens: { input: 1000, output: 2000, total: 3000 },
+        children: [
+          {
+            id: 'agent-span-model-segment',
+            type: 'model',
+            model: 'gpt-4o',
+            cost: { input: 0.01, output: 0.02, total: 0.03 },
+            tokens: { input: 1000, output: 2000, total: 3000 },
+          },
+          {
+            id: 'agent-span-tool-segment',
+            type: 'tool',
+            name: 'firecrawl_scrape',
+          },
+        ],
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(result.modelCost).toBe(0.045)
+    expect(result.totalCost).toBe(0.045 + BASE_EXECUTION_CHARGE)
+    expect(result.models['gpt-4o'].total).toBe(0.045)
+    expect(result.models['gpt-4o'].toolCost).toBe(0.015)
+  })
 })
