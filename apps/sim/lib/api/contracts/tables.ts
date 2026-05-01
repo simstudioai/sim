@@ -10,7 +10,7 @@ import type {
   TableRow,
 } from '@/lib/table'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
-import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/csv-import'
+import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)

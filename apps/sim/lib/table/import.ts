@@ -3,7 +3,7 @@
  *
  * Used by:
  * - `POST /api/table/import-csv` (create new table from CSV)
- * - `POST /api/table/[tableId]/import-csv` (append/replace into existing table)
+ * - `POST /api/table/[tableId]/import` (append/replace into existing table)
  * - Copilot `user-table` tool (`create_from_file`, `import_file`)
  *
  * Keeping a single implementation avoids drift between HTTP and agent code paths.
