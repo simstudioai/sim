@@ -97,6 +97,7 @@ const EMPTY_COLUMNS: never[] = []
 const EMPTY_CHECKED_ROWS = new Set<number>()
 const COL_WIDTH = 160
 const COL_WIDTH_MIN = 80
+const COL_WIDTH_AUTO_FIT_MAX = 1000
 const CHECKBOX_COL_WIDTH = 40
 const ADD_COL_WIDTH = 120
 const SKELETON_COL_COUNT = 4
@@ -830,7 +831,7 @@ export function Table({
       host.removeChild(measure)
     }
 
-    const newWidth = Math.min(Math.ceil(maxWidth), 600)
+    const newWidth = Math.min(Math.ceil(maxWidth), COL_WIDTH_AUTO_FIT_MAX)
     setColumnWidths((prev) => ({ ...prev, [columnName]: newWidth }))
     const updated = { ...columnWidthsRef.current, [columnName]: newWidth }
     columnWidthsRef.current = updated
