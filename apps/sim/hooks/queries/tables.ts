@@ -781,12 +781,16 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
         for (const gid in executions) {
           const exec = executions[gid]
           if (exec.status !== 'running' && exec.status !== 'pending') continue
+          // Preserve blockErrors so cells that already errored keep their
+          // Error rendering after the stop — only cells without a value or
+          // error should flip to "Cancelled".
           nextExecutions[gid] = {
             status: 'cancelled',
             executionId: exec.executionId ?? null,
             jobId: null,
             workflowId: exec.workflowId,
             error: 'Cancelled',
+            ...(exec.blockErrors ? { blockErrors: exec.blockErrors } : {}),
           }
           rowTouched = true
         }

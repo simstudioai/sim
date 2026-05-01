@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Square } from 'lucide-react'
+import { Circle, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
@@ -12,11 +12,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSearchInput,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Modal,
   ModalBody,
@@ -93,7 +89,6 @@ import {
 } from '../../utils'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { type ColumnConfigState, ColumnSidebar } from '../column-sidebar/column-sidebar'
-import { COLUMN_TYPE_OPTIONS } from '../column-sidebar/column-types'
 import { ContextMenu } from '../context-menu'
 import { RowModal } from '../row-modal'
 import { TableFilter } from '../table-filter'
@@ -2001,31 +1996,14 @@ export function Table({
     return name
   }, [])
 
-  const handleAddColumn = useCallback(
-    (type: ColumnDefinition['type'] = 'string', workflowId?: string) => {
-      const name = generateColumnName()
-      // Workflow group flow: don't persist columns until the user picks outputs.
-      // The sidebar's Save calls `addWorkflowGroup` to create N columns + 1 group
-      // atomically.
-      if (workflowId) {
-        const wf = workflowsRef.current?.find((w) => w.id === workflowId)
-        const proposedName = wf ? sanitizeWorkflowNameAsColumnRef.current(wf.name, name) : name
-        setExecutionDetailsId(null)
-        setConfigState({ mode: 'create', columnName: name, workflowId, proposedName })
-        return
-      }
-      const position = schemaColumnsRef.current.length
-      addColumnMutation.mutate(
-        { name, type },
-        {
-          onSuccess: () => {
-            pushUndoRef.current({ type: 'create-column', columnName: name, position })
-          },
-        }
-      )
-    },
-    [generateColumnName]
-  )
+  const handleAddColumn = useCallback(() => {
+    // Open the sidebar in `'create'` mode — nothing is persisted until the
+    // user fills in name/type and hits Save. The sidebar's save flow handles
+    // both scalar (`addColumn`) and workflow-group (`addWorkflowGroup`) paths.
+    const name = generateColumnName()
+    setExecutionDetailsId(null)
+    setConfigState({ mode: 'create', columnName: name, proposedName: name })
+  }, [generateColumnName])
 
   const handleChangeType = useCallback((columnName: string, newType: ColumnDefinition['type']) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
@@ -2104,30 +2082,7 @@ export function Table({
     [generateColumnName, insertColumnInOrder]
   )
 
-  const sanitizeWorkflowNameAsColumn = useCallback(
-    (workflowName: string, currentColumnName: string) => {
-      const base = workflowName
-        .toLowerCase()
-        .replace(/[^a-z0-9_]+/g, '_')
-        .replace(/^_+|_+$/g, '')
-        .replace(/^([0-9])/, '_$1')
-      const candidate = base || 'workflow'
-      const taken = new Set(
-        schemaColumnsRef.current
-          .filter((c) => c.name.toLowerCase() !== currentColumnName.toLowerCase())
-          .map((c) => c.name.toLowerCase())
-      )
-      if (!taken.has(candidate.toLowerCase())) return candidate
-      let i = 2
-      while (taken.has(`${candidate}_${i}`.toLowerCase())) i++
-      return `${candidate}_${i}`
-    },
-    []
-  )
-  const sanitizeWorkflowNameAsColumnRef = useRef(sanitizeWorkflowNameAsColumn)
-  sanitizeWorkflowNameAsColumnRef.current = sanitizeWorkflowNameAsColumn
-
-  /**
+/**
    * Config state for the side panel:
    * - `null` → closed.
    * - `{ mode: 'edit' }` → configuring an existing column (any type).
@@ -2331,12 +2286,11 @@ export function Table({
     () =>
       userPermissions.canEdit ? (
         <HeaderAddColumnTrigger
-          onSelect={handleAddColumn}
+          onClick={handleAddColumn}
           disabled={addColumnMutation.isPending}
-          workflows={workflows}
         />
       ) : null,
-    [handleAddColumn, addColumnMutation.isPending, workflows, userPermissions.canEdit]
+    [handleAddColumn, addColumnMutation.isPending, userPermissions.canEdit]
   )
 
   const headerActions = useMemo(
@@ -2681,9 +2635,8 @@ export function Table({
                     ))}
                       {userPermissions.canEdit && (
                         <AddColumnButton
-                          onSelect={handleAddColumn}
+                          onClick={handleAddColumn}
                           disabled={addColumnMutation.isPending}
-                          workflows={workflows}
                         />
                       )}
                     </tr>
@@ -3394,6 +3347,13 @@ function CellContent({
           ? ''
           : JSON.stringify(value)
 
+    // Once any block in the group has reported an error, downstream cells
+    // that haven't started won't run on this attempt — collapse them to dash
+    // instead of leaving a stale "Waiting" spinner if the cell task didn't
+    // reach a clean terminal state.
+    const groupHasBlockErrors = !!(
+      exec?.blockErrors && Object.keys(exec.blockErrors).length > 0
+    )
     if (blockError) {
       displayContent = (
         <span
@@ -3409,19 +3369,33 @@ function CellContent({
           {valueText}
         </span>
       )
-    } else if (exec?.status === 'running' || exec?.status === 'pending') {
-      // Pending = scheduled, awaiting dispatch. Running = group is live; this
-      // block may be active (`blockRunning`) or queued behind upstream blocks.
-      // Both deserve a live spinner so users see motion the moment they click.
-      const label = exec.status === 'pending' ? 'Pending' : blockRunning ? 'Running' : 'Waiting'
-      displayContent = (
-        <div className='flex min-h-[20px] min-w-0 items-center gap-1.5'>
-          <Loader animate className='h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]' />
-          <span className='min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-tertiary)]'>
-            {label}
-          </span>
-        </div>
-      )
+    } else if (
+      (exec?.status === 'running' || exec?.status === 'pending') &&
+      !(groupHasBlockErrors && !blockRunning)
+    ) {
+      // Motion only when this cell's own block is in flight. Pending and
+      // upstream-blocked Waiting render as static dots — the moving spinner
+      // is reserved for "right now, actually running".
+      if (blockRunning) {
+        displayContent = (
+          <div className='flex min-h-[20px] min-w-0 items-center gap-1.5'>
+            <Loader animate className='h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]' />
+            <span className='min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-tertiary)]'>
+              Running
+            </span>
+          </div>
+        )
+      } else {
+        const label = exec.status === 'pending' ? 'Pending' : 'Waiting'
+        displayContent = (
+          <div className='flex min-h-[20px] min-w-0 items-center gap-1.5'>
+            <Circle className='h-[10px] w-[10px] shrink-0 text-[var(--text-tertiary)]' />
+            <span className='min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-tertiary)]'>
+              {label}
+            </span>
+          </div>
+        )
+      }
     } else if (exec?.status === 'cancelled') {
       displayContent = (
         <span className='block overflow-clip text-ellipsis text-[var(--text-tertiary)]'>
@@ -4566,118 +4540,24 @@ const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
   )
 })
 
-/**
- * Filterable list of workspace workflows shown inside a `DropdownMenuSubContent`.
- *
- * Owns its own search query so the input keeps state across re-renders of the
- * parent menu. Stops keydown propagation so the parent dropdown's typeahead /
- * arrow navigation doesn't hijack typing.
- */
-function WorkflowPickerSubContent({
-  workflows,
-  onPick,
-  disabledWorkflowId,
-}: {
-  workflows: WorkflowMetadata[] | undefined
-  onPick: (workflowId: string) => void
-  disabledWorkflowId?: string
-}) {
-  const [query, setQuery] = useState('')
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    const list = workflows ?? []
-    if (!q) return list
-    return list.filter((wf) => wf.name.toLowerCase().includes(q))
-  }, [workflows, query])
-
-  const isEmpty = !workflows || workflows.length === 0
-
-  return (
-    <DropdownMenuSubContent className='flex flex-col overflow-hidden'>
-      <DropdownMenuSearchInput
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder='Search workflows'
-      />
-      <div className='min-h-0 flex-1 overflow-y-auto'>
-        {isEmpty ? (
-          <DropdownMenuItem disabled>No workflows yet</DropdownMenuItem>
-        ) : filtered.length === 0 ? (
-          <DropdownMenuItem disabled>No workflows match</DropdownMenuItem>
-        ) : (
-          filtered.map((wf) => (
-            <DropdownMenuItem
-              key={wf.id}
-              disabled={disabledWorkflowId === wf.id}
-              onSelect={() => onPick(wf.id)}
-            >
-              <ColumnTypeIcon type='workflow' workflowColor={wf.color} />
-              {wf.name}
-            </DropdownMenuItem>
-          ))
-        )}
-      </div>
-    </DropdownMenuSubContent>
-  )
-}
-
-function AddColumnTypeMenuItems({
-  onSelect,
-  workflows,
-}: {
-  onSelect: (type: ColumnDefinition['type'], workflowId?: string) => void
-  workflows?: WorkflowMetadata[]
-}) {
-  return (
-    <>
-      {COLUMN_TYPE_OPTIONS.map((option) => {
-        return (
-          <DropdownMenuItem key={option.type} onSelect={() => onSelect(option.type)}>
-            <option.icon />
-            {option.label}
-          </DropdownMenuItem>
-        )
-      })}
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger>
-          <PlayOutline />
-          Workflow
-        </DropdownMenuSubTrigger>
-        <WorkflowPickerSubContent
-          workflows={workflows}
-          onPick={(workflowId) => onSelect('string', workflowId)}
-        />
-      </DropdownMenuSub>
-    </>
-  )
-}
-
 const AddColumnButton = React.memo(function AddColumnButton({
-  onSelect,
+  onClick,
   disabled,
-  workflows,
 }: {
-  onSelect: (type: ColumnDefinition['type'], workflowId?: string) => void
+  onClick: () => void
   disabled: boolean
-  workflows?: WorkflowMetadata[]
 }) {
   return (
     <th className={CELL_HEADER}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type='button'
-            className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
-            disabled={disabled}
-          >
-            <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-            <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='start'>
-          <AddColumnTypeMenuItems onSelect={onSelect} workflows={workflows} />
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <button
+        type='button'
+        className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
+        disabled={disabled}
+        onClick={onClick}
+      >
+        <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+        <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
+      </button>
     </th>
   )
 })
@@ -4685,26 +4565,22 @@ const AddColumnButton = React.memo(function AddColumnButton({
 const HEADER_ADD_COLUMN_ICON = <Plus className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
 
 function HeaderAddColumnTrigger({
-  onSelect,
+  onClick,
   disabled,
-  workflows,
 }: {
-  onSelect: (type: ColumnDefinition['type'], workflowId?: string) => void
+  onClick: () => void
   disabled: boolean
-  workflows?: WorkflowMetadata[]
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant='subtle' className='px-2 py-1 text-caption' disabled={disabled}>
-          {HEADER_ADD_COLUMN_ICON}
-          New column
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end'>
-        <AddColumnTypeMenuItems onSelect={onSelect} workflows={workflows} />
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button
+      variant='subtle'
+      className='px-2 py-1 text-caption'
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {HEADER_ADD_COLUMN_ICON}
+      New column
+    </Button>
   )
 }
 

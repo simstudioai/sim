@@ -1498,7 +1498,7 @@ export async function updateRow(
   data: UpdateRowData,
   table: TableDefinition,
   requestId: string
-): Promise<TableRow> {
+): Promise<TableRow | null> {
   // Get existing row
   const existingRow = await getRowById(data.tableId, data.rowId, data.workspaceId)
   if (!existingRow) {
@@ -1540,10 +1540,28 @@ export async function updateRow(
 
   const now = new Date()
 
-  await db
+  // Cell-task partial writes pass `cancellationGuard` so the SQL update is a
+  // no-op when a stop click already wrote `cancelled` for this run between
+  // the in-process read and now. Without this, an in-flight `running`
+  // partial-write can land after `cancelled` and clobber it.
+  const guard = data.cancellationGuard
+  const whereClause = guard
+    ? and(
+        eq(userTableRows.id, data.rowId),
+        sql`NOT (executions->${guard.groupId}->>'status' = 'cancelled' AND executions->${guard.groupId}->>'executionId' = ${guard.executionId})`
+      )
+    : eq(userTableRows.id, data.rowId)
+
+  const updated = await db
     .update(userTableRows)
     .set({ data: mergedData, executions: mergedExecutions, updatedAt: now })
-    .where(eq(userTableRows.id, data.rowId))
+    .where(whereClause)
+    .returning({ id: userTableRows.id })
+
+  if (updated.length === 0) {
+    // Guard rejected — DB already shows the cancelled state for this run.
+    return null
+  }
 
   logger.info(`[${requestId}] Updated row ${data.rowId} in table ${data.tableId}`)
 

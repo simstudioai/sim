@@ -70,23 +70,41 @@ export async function writeWorkflowGroupState(
     )
     return 'skipped'
   }
-  await updateRow(
+  // Skip writing `cancelled` state with the guard — that's an authoritative
+  // write from `cancelWorkflowGroupRuns` and must always land. Cell-task
+  // writes (running/completed/error) get the SQL guard so an in-flight
+  // partial can't clobber a stop click that already committed.
+  const cancellationGuard =
+    payload.executionState.status === 'cancelled'
+      ? undefined
+      : { groupId, executionId }
+  const result = await updateRow(
     {
       tableId,
       rowId,
       data: payload.dataPatch ?? {},
       workspaceId,
       executionsPatch: { [groupId]: payload.executionState },
+      cancellationGuard,
     },
     table,
     requestId
   )
+  if (result === null) {
+    logger.info(
+      `Skipping group write — SQL guard saw cancelled (table=${tableId} row=${rowId} group=${groupId} executionId=${executionId})`
+    )
+    return 'skipped'
+  }
   return 'wrote'
 }
 
-/** Builds the canonical `cancelled` execution state used by every cancel path. */
+/** Builds the canonical `cancelled` execution state used by every cancel path.
+ *  Preserves `blockErrors` from the prior state so errored cells keep
+ *  rendering Error after a stop click — only cells that hadn't yet produced
+ *  a value or an error should flip to "Cancelled". */
 export function buildCancelledExecution(
-  prev: Pick<RowExecutionMetadata, 'executionId' | 'workflowId'>
+  prev: Pick<RowExecutionMetadata, 'executionId' | 'workflowId' | 'blockErrors'>
 ): RowExecutionMetadata {
   return {
     status: 'cancelled',
@@ -94,6 +112,7 @@ export function buildCancelledExecution(
     jobId: null,
     workflowId: prev.workflowId,
     error: 'Cancelled',
+    ...(prev.blockErrors ? { blockErrors: prev.blockErrors } : {}),
   }
 }
 

@@ -33,12 +33,18 @@ import {
 } from '@/hooks/queries/tables'
 import { useWorkflowState, workflowKeys } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { COLUMN_TYPE_OPTIONS } from './column-types'
+import { COLUMN_TYPE_OPTIONS, type SidebarColumnType } from './column-types'
 
 export type ColumnConfigState =
   | { mode: 'edit'; columnName: string }
   | { mode: 'new'; columnName: string; workflowId: string; proposedName: string }
-  | { mode: 'create'; columnName: string; workflowId: string; proposedName: string }
+  | {
+      mode: 'create'
+      columnName: string
+      proposedName: string
+      /** When present, the sidebar opens with the workflow type pre-selected. */
+      workflowId?: string
+    }
   | null
 
 interface ColumnSidebarProps {
@@ -262,10 +268,11 @@ export function ColumnSidebar({
     return workflowGroups.find((g) => g.id === existingColumn.workflowGroupId)
   }, [existingColumn, workflowGroups])
 
+  const [nameInput, setNameInput] = useState<string>('')
+  const [typeInput, setTypeInput] = useState<SidebarColumnType>('string')
+
   const isWorkflow =
-    !!existingGroup ||
-    configState?.mode === 'new' ||
-    (configState?.mode === 'create' && 'workflowId' in configState && !!configState.workflowId)
+    !!existingGroup || configState?.mode === 'new' || typeInput === 'workflow'
 
   /**
    * Columns to the left of the current column — these are the only valid trigger
@@ -281,8 +288,6 @@ export function ColumnSidebar({
     return allColumns.slice(0, idx)
   }, [configState, allColumns])
 
-  const [nameInput, setNameInput] = useState<string>('')
-  const [typeInput, setTypeInput] = useState<ColumnDefinition['type']>('string')
   const [uniqueInput, setUniqueInput] = useState<boolean>(false)
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>('')
   const [deps, setDeps] = useState<string[]>([])
@@ -308,13 +313,14 @@ export function ColumnSidebar({
       return cols.slice(0, idx)
     })()
     if (configState.mode === 'edit') {
-      const type = existing?.type ?? 'string'
-      setTypeInput(type)
-      setUniqueInput(!!existing?.unique)
-      setNameInput(existing?.name ?? configState.columnName)
       const group = existing?.workflowGroupId
         ? workflowGroups.find((g) => g.id === existing.workflowGroupId)
         : undefined
+      // Surface workflow-typed columns as `'workflow'` in the combobox even
+      // though they're stored as scalar columns under the hood.
+      setTypeInput(group ? 'workflow' : (existing?.type ?? 'string'))
+      setUniqueInput(!!existing?.unique)
+      setNameInput(existing?.name ?? configState.columnName)
       if (group) {
         setSelectedWorkflowId(group.workflowId)
         setDeps(group.dependencies?.columns ?? leftOfCurrent.map((c) => c.name))
@@ -325,10 +331,12 @@ export function ColumnSidebar({
         setSelectedOutputs([])
       }
     } else {
-      setTypeInput('string')
+      const workflowId =
+        'workflowId' in configState && configState.workflowId ? configState.workflowId : ''
+      setTypeInput(workflowId ? 'workflow' : 'string')
       setUniqueInput(false)
       setNameInput(configState.proposedName)
-      setSelectedWorkflowId(configState.workflowId)
+      setSelectedWorkflowId(workflowId)
       setDeps(leftOfCurrent.map((c) => c.name))
       setSelectedOutputs([])
     }
@@ -670,15 +678,18 @@ export function ColumnSidebar({
           toast.success(`Added "${workflowName}"`)
         }
       } else if (configState.mode === 'create') {
+        // `isWorkflow` is false here, so `typeInput` is a real ColumnDefinition type.
+        const scalarType = typeInput as ColumnDefinition['type']
         await addColumn.mutateAsync({
           name: trimmedName,
-          type: typeInput,
+          type: scalarType,
         })
         toast.success(`Added "${trimmedName}"`)
       } else {
         const existing = existingColumnRef.current
+        const scalarType = typeInput as ColumnDefinition['type']
         const renamed = trimmedName !== configState.columnName
-        const typeChanged = !!existing && existing.type !== typeInput
+        const typeChanged = !!existing && existing.type !== scalarType
         const uniqueChanged = !!existing && !!existing.unique !== uniqueInput
 
         const updates: {
@@ -687,7 +698,7 @@ export function ColumnSidebar({
           unique?: boolean
         } = {
           ...(renamed ? { name: trimmedName } : {}),
-          ...(typeChanged ? { type: typeInput } : {}),
+          ...(typeChanged ? { type: scalarType } : {}),
           ...(uniqueChanged ? { unique: uniqueInput } : {}),
         }
 
@@ -709,11 +720,7 @@ export function ColumnSidebar({
     }
   }
 
-  const saveDisabled =
-    updateColumn.isPending ||
-    addColumn.isPending ||
-    !nameInput.trim() ||
-    (isWorkflow && (!selectedWorkflowId || selectedOutputs.length === 0))
+  const saveDisabled = updateColumn.isPending || addColumn.isPending
 
   return (
     <aside
@@ -740,6 +747,20 @@ export function ColumnSidebar({
 
         <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
           <div className='flex flex-col gap-[9.5px]'>
+            <FieldLabel required>Type</FieldLabel>
+            <Combobox
+              options={typeOptions}
+              value={typeInput}
+              onChange={(v) => setTypeInput(v as SidebarColumnType)}
+              placeholder='Select type'
+              searchable
+              searchPlaceholder='Search types...'
+            />
+          </div>
+
+          <FieldDivider />
+
+          <div className='flex flex-col gap-[9.5px]'>
             <FieldLabel htmlFor='column-sidebar-name' required>
               Column name
             </FieldLabel>
@@ -754,18 +775,6 @@ export function ColumnSidebar({
             {showValidation && !nameInput.trim() && (
               <FieldError message='Column name is required' />
             )}
-          </div>
-
-          <FieldDivider />
-
-          <div className='flex flex-col gap-[9.5px]'>
-            <FieldLabel required>Type</FieldLabel>
-            <Combobox
-              options={typeOptions}
-              value={typeInput}
-              onChange={(v) => setTypeInput(v as ColumnDefinition['type'])}
-              placeholder='Select type'
-            />
           </div>
 
           {!isWorkflow && (
@@ -859,6 +868,8 @@ export function ColumnSidebar({
                   disabled={!workflows || workflows.length === 0}
                   emptyMessage='No manual triggers configured'
                   maxHeight={260}
+                  searchable
+                  searchPlaceholder='Search workflows...'
                   error={showValidation && !selectedWorkflowId ? 'Select a workflow' : null}
                 />
                 {showValidation && !selectedWorkflowId && (

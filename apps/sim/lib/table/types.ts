@@ -295,6 +295,14 @@ export interface UpdateRowData {
    * execution state. Used by the cell task and cancel paths.
    */
   executionsPatch?: Record<string, RowExecutionMetadata | null>
+  /**
+   * Optional SQL-level guard: the update is a no-op if the row's
+   * `executions[groupId]` already shows `cancelled` for the same
+   * `executionId`. The cell task passes this so a `running` partial-write
+   * landing after a stop click can't clobber the authoritative `cancelled`
+   * state. `updateRow` returns `null` when the guard rejects the write.
+   */
+  cancellationGuard?: { groupId: string; executionId: string }
 }
 
 export interface BulkUpdateData {
