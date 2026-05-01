@@ -25,131 +25,126 @@ import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('ForkChatAPI')
 
-/**
- * POST /api/mothership/chats/[chatId]/fork
- * Creates a new chat branched from the given chat, keeping messages up to and
- * including the specified message. Resources and copilot-side state are copied.
- */
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
+    const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+    if (!isAuthenticated || !userId) {
+      return createUnauthorizedResponse()
+    }
+
+    const parsed = await parseRequest(forkMothershipChatContract, request, context, {
+      validationErrorResponse: () => createBadRequestResponse('upToMessageId is required'),
+    })
+    if (!parsed.success) return parsed.response
+    const { chatId } = parsed.data.params
+    const { upToMessageId } = parsed.data.body
+
+    const [parent] = await db
+      .select()
+      .from(copilotChats)
+      .where(eq(copilotChats.id, chatId))
+      .limit(1)
+
+    if (!parent || parent.userId !== userId || parent.type !== 'mothership') {
+      return createNotFoundResponse('Chat not found')
+    }
+
+    if (parent.workspaceId) {
+      await assertActiveWorkspaceAccess(parent.workspaceId, userId)
+    }
+
+    if (parent.conversationId) {
+      return createBadRequestResponse('Cannot fork a chat with an active stream')
+    }
+
+    const messages = Array.isArray(parent.messages) ? (parent.messages as PersistedMessage[]) : []
+    const forkIdx = messages.findIndex((m) => m.id === upToMessageId)
+    if (forkIdx < 0) {
+      return createBadRequestResponse('Message not found in chat')
+    }
+    const forkedMessages = messages.slice(0, forkIdx + 1)
+
+    const parentResources = Array.isArray(parent.resources)
+      ? (parent.resources as MothershipResource[])
+      : []
+
+    const newId = generateId()
+    const baseTitle = (parent.title ?? 'New task').replace(/^Fork \| /, '')
+    const now = new Date()
+
+    // Clone copilot-service conversation state first. If this fails we never
+    // insert the Sim row, so there is no orphaned UI entry to clean up.
+    const copilotHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (env.COPILOT_API_KEY) {
+      copilotHeaders['x-api-key'] = env.COPILOT_API_KEY
+    }
     try {
-      const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
-      if (!isAuthenticated || !userId) {
-        return createUnauthorizedResponse()
-      }
-
-      const parsed = await parseRequest(forkMothershipChatContract, request, context, {
-        validationErrorResponse: () => createBadRequestResponse('upToMessageId is required'),
-      })
-      if (!parsed.success) return parsed.response
-      const { chatId } = parsed.data.params
-      const { upToMessageId } = parsed.data.body
-
-      // Load parent chat and verify ownership.
-      const [parent] = await db
-        .select()
-        .from(copilotChats)
-        .where(eq(copilotChats.id, chatId))
-        .limit(1)
-
-      if (!parent || parent.userId !== userId || parent.type !== 'mothership') {
-        return createNotFoundResponse('Chat not found')
-      }
-
-      if (parent.workspaceId) {
-        await assertActiveWorkspaceAccess(parent.workspaceId, userId)
-      }
-
-      // Find the fork point in the Sim-side messages array.
-      const messages = Array.isArray(parent.messages) ? (parent.messages as PersistedMessage[]) : []
-      const forkIdx = messages.findIndex((m) => m.id === upToMessageId)
-      if (forkIdx < 0) {
-        return createBadRequestResponse('Message not found in chat')
-      }
-      const forkedMessages = messages.slice(0, forkIdx + 1)
-
-      // Resources are stored as a jsonb array on the chat row — copy them directly.
-      const parentResources = Array.isArray(parent.resources)
-        ? (parent.resources as MothershipResource[])
-        : []
-
-      const newId = generateId()
-      const baseTitle = (parent.title ?? 'New task').replace(/^Fork \| /, '')
-      const title = `Fork | ${baseTitle}`
-      const now = new Date()
-
-      const [newChat] = await db
-        .insert(copilotChats)
-        .values({
-          id: newId,
+      const copilotRes = await fetchGo(`${SIM_AGENT_API_URL}/api/chats/fork`, {
+        method: 'POST',
+        headers: copilotHeaders,
+        body: JSON.stringify({
+          sourceChatId: chatId,
+          newChatId: newId,
+          keepCount: forkedMessages.length,
           userId,
-          workspaceId: parent.workspaceId,
-          type: parent.type,
-          title,
-          model: parent.model,
-          messages: forkedMessages,
-          resources: parentResources,
-          previewYaml: parent.previewYaml,
-          planArtifact: parent.planArtifact,
-          config: parent.config,
-          conversationId: null,
-          updatedAt: now,
-          lastSeenAt: now,
-        })
-        .returning({ id: copilotChats.id, workspaceId: copilotChats.workspaceId })
-
-      if (!newChat) {
-        return createInternalServerErrorResponse('Failed to create forked chat')
+        }),
+        spanName: 'sim → go /api/chats/fork',
+        operation: 'fork_chat',
+      })
+      if (!copilotRes.ok) {
+        const text = await copilotRes.text().catch(() => '')
+        logger.error('Copilot fork returned non-OK', { status: copilotRes.status, body: text })
+        return createInternalServerErrorResponse('Failed to fork chat')
       }
-
-      // Clone copilot-service conversation state (messages, active_messages, memory files).
-      // Best-effort: if the copilot service doesn't have a row for the source chat yet, skip.
-      try {
-        const copilotHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
-        if (env.COPILOT_API_KEY) {
-          copilotHeaders['x-api-key'] = env.COPILOT_API_KEY
-        }
-        const copilotRes = await fetchGo(`${SIM_AGENT_API_URL}/api/chats/fork`, {
-          method: 'POST',
-          headers: copilotHeaders,
-          body: JSON.stringify({
-            sourceChatId: chatId,
-            newChatId: newId,
-            upToMessageId,
-            userId,
-          }),
-          spanName: 'sim → go /api/chats/fork',
-          operation: 'fork_chat',
-        })
-        if (!copilotRes.ok) {
-          const text = await copilotRes.text().catch(() => '')
-          logger.warn('Copilot fork returned non-OK', { status: copilotRes.status, body: text })
-        }
-      } catch (err) {
-        // The copilot service may not have a row for this chat if no messages
-        // have been sent yet, or if it's unreachable. Log and continue.
-        logger.warn('Failed to fork copilot-service conversation, skipping', { err })
-      }
-
-      if (newChat.workspaceId) {
-        taskPubSub?.publishStatusChanged({
-          workspaceId: newChat.workspaceId,
-          chatId: newId,
-          type: 'created',
-        })
-      }
-
-      captureServerEvent(
-        userId,
-        'task_forked',
-        { workspace_id: parent.workspaceId ?? '', source_chat_id: chatId },
-        { groups: { workspace: parent.workspaceId ?? '' } }
-      )
-
-      return NextResponse.json({ success: true, id: newId })
-    } catch (error) {
-      logger.error('Error forking chat:', error)
+    } catch (err) {
+      logger.error('Failed to call copilot fork endpoint', { err })
       return createInternalServerErrorResponse('Failed to fork chat')
     }
+
+    // Go state is ready — now persist the Sim metadata row. If this insert
+    // fails the Go conversation is orphaned but permanently inaccessible
+    // (no Sim row = no UI entry), which is harmless.
+    const [newChat] = await db
+      .insert(copilotChats)
+      .values({
+        id: newId,
+        userId,
+        workspaceId: parent.workspaceId,
+        workflowId: parent.workflowId,
+        type: parent.type,
+        title: `Fork | ${baseTitle}`,
+        model: parent.model,
+        messages: forkedMessages,
+        resources: parentResources,
+        previewYaml: parent.previewYaml,
+        planArtifact: parent.planArtifact,
+        config: parent.config,
+        conversationId: null,
+        updatedAt: now,
+        lastSeenAt: now,
+      })
+      .returning({ id: copilotChats.id, workspaceId: copilotChats.workspaceId })
+
+    if (!newChat) {
+      logger.error('Failed to insert forked chat row after successful Go fork', { newId, chatId })
+      return createInternalServerErrorResponse('Failed to create forked chat')
+    }
+
+    if (newChat.workspaceId) {
+      taskPubSub?.publishStatusChanged({
+        workspaceId: newChat.workspaceId,
+        chatId: newId,
+        type: 'created',
+      })
+    }
+
+    captureServerEvent(
+      userId,
+      'task_forked',
+      { workspace_id: parent.workspaceId ?? '', source_chat_id: chatId },
+      { groups: { workspace: parent.workspaceId ?? '' } }
+    )
+
+    return NextResponse.json({ success: true, id: newId })
   }
 )

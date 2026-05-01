@@ -55,6 +55,7 @@ interface MessageActionsProps {
   userQuery?: string
   requestId?: string
   messageId?: string
+  isStreamActive?: boolean
 }
 
 export const MessageActions = memo(function MessageActions({
@@ -63,6 +64,7 @@ export const MessageActions = memo(function MessageActions({
   userQuery,
   requestId,
   messageId,
+  isStreamActive,
 }: MessageActionsProps) {
   const router = useRouter()
   const params = useParams<{ workspaceId: string }>()
@@ -164,7 +166,7 @@ export const MessageActions = memo(function MessageActions({
 
   const hasContent = Boolean(content)
   const canSubmitFeedback = Boolean(chatId && userQuery)
-  const canFork = false
+  const canFork = Boolean(chatId && messageId && !isStreamActive)
   if (!hasContent && !canSubmitFeedback && !canFork) return null
 
   return (
