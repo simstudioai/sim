@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
-import { TABLE_LIMITS, type TableDefinition, type TableRow } from '@/lib/table'
+import type { TableDefinition, TableRow } from '@/lib/table'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useInfiniteTableRows, useTable } from '@/hooks/queries/tables'
 import type { QueryOptions } from '../types'
 
