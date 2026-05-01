@@ -2979,7 +2979,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             "rowIds": {
               "type": "array",
-              "description": "Array of row IDs to delete (for batch_delete_rows)"
+              "description": "Array of row IDs. Used by batch_delete_rows (rows to delete) and run_workflow_group (optional row scope: when omitted, runs across the whole table; when provided, only these rows are candidates and the eligibility predicate still applies — mid-run rows or rows with unmet deps are silently skipped).",
+              "items": {
+                "type": "string"
+              }
             },
             "rows": {
               "type": "array",

@@ -10,7 +10,7 @@ import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { buildCancelledExecution, writeWorkflowGroupState } from '@/lib/table/cell-write'
 import type {
   RowData,
@@ -342,12 +342,14 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
 /**
  * Manually triggers a workflow group for every dep-satisfied row in a table.
  * `mode: 'all'` re-runs every eligible row; `mode: 'incomplete'` skips rows
- * whose group is already `completed`. Eligible rows have their output cells
- * cleared and their `executions[groupId]` reset to `pending`; the scheduler
- * picks them up and enqueues per-cell jobs from there. Returns the number of
- * rows that were marked for re-run. Used by the `groups/[groupId]/run` HTTP
- * route and the Copilot/Mothership `run_workflow_group` op so both share one
- * eligibility predicate.
+ * whose group is already `completed`. When `rowIds` is provided, only those
+ * rows are candidates — the same eligibility predicate still applies, so a
+ * mid-run row or one with unmet deps is silently skipped. Eligible rows have
+ * their output cells cleared and their `executions[groupId]` reset to
+ * `pending`; the scheduler picks them up and enqueues per-cell jobs. Returns
+ * the number of rows that were marked for re-run. Used by the
+ * `groups/[groupId]/run` HTTP route and the Copilot/Mothership
+ * `run_workflow_group` op so both share one eligibility predicate.
  */
 export async function triggerWorkflowGroupRun(opts: {
   tableId: string
@@ -355,8 +357,9 @@ export async function triggerWorkflowGroupRun(opts: {
   workspaceId: string
   mode: 'all' | 'incomplete'
   requestId: string
+  rowIds?: string[]
 }): Promise<{ triggered: number }> {
-  const { tableId, groupId, workspaceId, mode, requestId } = opts
+  const { tableId, groupId, workspaceId, mode, requestId, rowIds } = opts
   const { getTableById, batchUpdateRows } = await import('./service')
   const table = await getTableById(tableId)
   if (!table) throw new Error('Table not found')
@@ -375,6 +378,9 @@ export async function triggerWorkflowGroupRun(opts: {
     sql`(executions->${groupId}->>'status') IS DISTINCT FROM 'running'`,
     sql`((executions->${groupId}->>'status') IS DISTINCT FROM 'pending' OR (executions->${groupId}->>'jobId') IS NULL)`,
   ]
+  if (rowIds && rowIds.length > 0) {
+    filters.push(inArray(userTableRows.id, rowIds))
+  }
   if (mode === 'incomplete') {
     filters.push(sql`(executions->${groupId}->>'status') IS DISTINCT FROM 'completed'`)
   }

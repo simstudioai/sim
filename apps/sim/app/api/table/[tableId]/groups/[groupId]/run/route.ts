@@ -34,7 +34,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     const parsed = await parseRequest(runWorkflowGroupContract, request, { params })
     if (!parsed.success) return parsed.response
     const { tableId, groupId } = parsed.data.params
-    const { workspaceId, mode } = parsed.data.body
+    const { workspaceId, mode, rowIds } = parsed.data.body
 
     const result = await checkAccess(tableId, authResult.userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -50,6 +50,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       workspaceId,
       mode,
       requestId,
+      rowIds,
     })
 
     return NextResponse.json({ success: true, data: { triggered } })

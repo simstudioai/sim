@@ -1326,6 +1326,21 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               message: `Invalid mode "${mode}". Must be "all" or "incomplete"`,
             }
           }
+          const rawRowIds = args.rowIds as unknown
+          let rowIds: string[] | undefined
+          if (rawRowIds !== undefined) {
+            if (
+              !Array.isArray(rawRowIds) ||
+              rawRowIds.length === 0 ||
+              rawRowIds.some((id) => typeof id !== 'string' || id.length === 0)
+            ) {
+              return {
+                success: false,
+                message: 'rowIds must be a non-empty array of row id strings',
+              }
+            }
+            rowIds = rawRowIds as string[]
+          }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const { triggered } = await triggerWorkflowGroupRun({
@@ -1334,10 +1349,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             workspaceId,
             mode,
             requestId,
+            rowIds,
           })
+          const scopeLabel = rowIds ? `${rowIds.length} row(s) by id` : `${mode}`
           return {
             success: true,
-            message: `Triggered ${triggered} row(s) for workflow group ${groupId} (${mode})`,
+            message: `Triggered ${triggered} row(s) for workflow group ${groupId} (${scopeLabel})`,
             data: { triggered },
           }
         }

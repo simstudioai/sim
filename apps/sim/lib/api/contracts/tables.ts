@@ -812,6 +812,11 @@ export const cancelTableRunsContract = defineRouteContract({
 export const runWorkflowGroupBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   mode: z.enum(['all', 'incomplete']).default('all'),
+  /** Optional row scope. When provided, only these rows are candidates — the
+   *  same eligibility predicate (deps satisfied, not in-flight, mode filter)
+   *  still applies, so a passed-in row that's mid-run or has unmet deps is
+   *  silently skipped. Omit to run across the entire table. */
+  rowIds: z.array(z.string().min(1)).min(1).optional(),
 })
 
 export const runWorkflowGroupContract = defineRouteContract({
