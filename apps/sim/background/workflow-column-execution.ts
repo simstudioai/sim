@@ -80,13 +80,13 @@ export async function executeWorkflowGroupCellJob(
         .where(eq(workflowTable.id, workflowId))
         .limit(1)
 
-      if (!workflowRecord || !workflowRecord.isDeployed) {
+      if (!workflowRecord) {
         await writeState({
           status: 'error',
           executionId,
           jobId: null,
           workflowId,
-          error: !workflowRecord ? 'Workflow not found' : 'Workflow is not deployed',
+          error: 'Workflow not found',
         })
         return
       }
@@ -247,6 +247,11 @@ export async function executeWorkflowGroupCellJob(
           executionMode: 'sync',
           workflowTriggerType: 'table',
           triggerBlockId: startBlock.id,
+          // Always run the live workflow state — table cells track the
+          // current editor state rather than the most recent deploy, so
+          // every save lands in the next row run without forcing the user
+          // to re-deploy.
+          useDraftState: true,
           abortSignal: signal,
           onBlockStart,
           onBlockComplete,

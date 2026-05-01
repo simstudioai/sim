@@ -5,7 +5,6 @@ import { Circle, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
-  Badge,
   Button,
   Checkbox,
   DatePicker,
@@ -23,7 +22,6 @@ import {
   ModalFooter,
   ModalHeader,
   Skeleton,
-  Tooltip,
   Upload,
 } from '@/components/emcn'
 import {
@@ -61,7 +59,6 @@ import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import { getBlock } from '@/blocks'
-import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
 import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
   useAddTableColumn,
@@ -3976,8 +3973,8 @@ function ColumnOptionsMenu({
 
 /**
  * Spans a fanned-out workflow column group in the table's meta header row.
- * Renders the workflow's color chip + name and a deploy badge so the grouping
- * across N sibling columns reads as one unit.
+ * Renders the workflow's color chip + name so the grouping across N sibling
+ * columns reads as one unit.
  */
 function WorkflowGroupMetaCell({
   workflowId,
@@ -4017,16 +4014,6 @@ function WorkflowGroupMetaCell({
   const wf = workflows?.find((w) => w.id === workflowId)
   const color = wf?.color ?? 'var(--text-muted)'
   const name = wf?.name ?? 'Workflow'
-  const deploymentInfo = useDeploymentInfo(workflowId, { refetchOnMount: 'always' })
-  const deployState: 'undeployed' | 'redeploy' | null = deploymentInfo.data
-    ? !deploymentInfo.data.isDeployed
-      ? 'undeployed'
-      : deploymentInfo.data.needsRedeployment
-        ? 'redeploy'
-        : null
-    : null
-  const { mutate: deployWorkflow, isPending: isDeploying } = useDeployWorkflow()
-  const userPermissions = useUserPermissionsContext()
 
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false)
   const [optionsMenuPosition, setOptionsMenuPosition] = useState({ x: 0, y: 0 })
@@ -4094,38 +4081,6 @@ function WorkflowGroupMetaCell({
         <span className='min-w-0 truncate font-medium text-[11px] text-[var(--text-secondary)]'>
           {name}
         </span>
-        {deployState && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Badge
-                variant={deployState === 'undeployed' ? 'red' : 'amber'}
-                size='sm'
-                className={cn(
-                  'shrink-0 py-0 text-[10px] leading-[14px]',
-                  userPermissions.canAdmin ? 'cursor-pointer' : 'cursor-not-allowed'
-                )}
-                dot
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (workflowId && !isDeploying && userPermissions.canAdmin) {
-                    deployWorkflow({ workflowId })
-                  }
-                }}
-              >
-                {isDeploying ? 'Deploying...' : deployState}
-              </Badge>
-            </Tooltip.Trigger>
-            <Tooltip.Content>
-              <span className='text-sm'>
-                {!userPermissions.canAdmin
-                  ? 'Admin permission required to deploy'
-                  : deployState === 'undeployed'
-                    ? 'Click to deploy'
-                    : 'Click to redeploy'}
-              </span>
-            </Tooltip.Content>
-          </Tooltip.Root>
-        )}
         {onRunGroup && (
           <DropdownMenu open={runMenuOpen} onOpenChange={setRunMenuOpen}>
             <DropdownMenuTrigger asChild>

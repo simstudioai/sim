@@ -43,6 +43,7 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
 } from '@/lib/table'
+import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
 import {
   type FlattenOutputsBlockInput,
   type FlattenOutputsEdgeInput,
@@ -52,10 +53,8 @@ import {
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks'
-import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
 import {
   useAddTableColumn,
   useAddWorkflowGroup,
@@ -64,7 +63,6 @@ import {
 } from '@/hooks/queries/tables'
 import { useWorkflowState, workflowKeys } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
 import { COLUMN_TYPE_OPTIONS, type SidebarColumnType } from './column-types'
 
 export type ColumnConfigState =
@@ -581,26 +579,6 @@ export function ColumnSidebar({
   const workflowState = useWorkflowState(
     open && isWorkflow && selectedWorkflowId ? selectedWorkflowId : undefined
   )
-
-  /**
-   * Deployment status of the picked workflow. The sidebar surfaces an inline
-   * warning row offering one-click (re)deploy, mirroring the badge in the
-   * group's column header so the user sees the same signal where they're
-   * configuring the column.
-   */
-  const deploymentInfo = useDeploymentInfo(
-    open && isWorkflow && selectedWorkflowId ? selectedWorkflowId : null,
-    { refetchOnMount: 'always' }
-  )
-  const deployState: 'undeployed' | 'redeploy' | null = deploymentInfo.data
-    ? !deploymentInfo.data.isDeployed
-      ? 'undeployed'
-      : deploymentInfo.data.needsRedeployment
-        ? 'redeploy'
-        : null
-    : null
-  const { mutate: deployWorkflow, isPending: isDeploying } = useDeployWorkflow()
-  const userPermissions = useUserPermissionsContext()
 
   /**
    * Resolves the unified Start block id and its current `inputFormat` field
@@ -1216,42 +1194,6 @@ export function ColumnSidebar({
                       }
                     />
                   )}
-                {selectedWorkflowId && deployState && (
-                  <WarningRow
-                    tone={deployState === 'undeployed' ? 'red' : 'amber'}
-                    message={
-                      deployState === 'undeployed'
-                        ? 'Workflow is not deployed'
-                        : 'Workflow has changes since last deploy'
-                    }
-                    action={
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            type='button'
-                            variant='default'
-                            size='sm'
-                            onClick={() => deployWorkflow({ workflowId: selectedWorkflowId })}
-                            disabled={isDeploying || !userPermissions.canAdmin}
-                          >
-                            {isDeploying
-                              ? 'Deploying…'
-                              : deployState === 'undeployed'
-                                ? 'Deploy'
-                                : 'Redeploy'}
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content side='top'>
-                          {!userPermissions.canAdmin
-                            ? 'Admin permission required to deploy'
-                            : deployState === 'undeployed'
-                              ? 'Deploy this workflow'
-                              : 'Redeploy with the latest changes'}
-                        </Tooltip.Content>
-                      </Tooltip.Root>
-                    }
-                  />
-                )}
               </div>
 
               <FieldDivider />

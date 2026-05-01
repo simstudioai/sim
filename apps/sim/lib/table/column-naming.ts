@@ -42,9 +42,7 @@ export function deriveOutputColumnName(path: string, taken: Set<string>): string
  * a superset (`array`, `object`, etc.); anything outside the column-type
  * union falls back to `json`, the most permissive shape that still validates.
  */
-export function columnTypeForLeaf(
-  leafType: string | undefined
-): ColumnDefinition['type'] {
+export function columnTypeForLeaf(leafType: string | undefined): ColumnDefinition['type'] {
   switch (leafType) {
     case 'string':
     case 'number':

@@ -19,6 +19,7 @@ import {
   sanitizeName,
   validateMapping,
 } from '@/lib/table'
+import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
 import {
   addTableColumn,
   addWorkflowGroup,
@@ -53,10 +54,6 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
-import {
-  columnTypeForLeaf,
-  deriveOutputColumnName,
-} from '@/lib/table/column-naming'
 import { cancelWorkflowGroupRuns, triggerWorkflowGroupRun } from '@/lib/table/workflow-columns'
 import {
   downloadWorkspaceFile,
