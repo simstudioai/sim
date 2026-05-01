@@ -15,7 +15,7 @@ const logger = createLogger('RegexChunker')
 
 const MAX_PATTERN_LENGTH = 500
 
-const NAMED_GROUP_PREFIX = /^\(\?<[^>]+>/
+const NAMED_GROUP_PREFIX = /^\(\?<(?![=!])[^>]+>/
 
 /**
  * Converts unescaped capturing groups `(...)` and named capturing groups

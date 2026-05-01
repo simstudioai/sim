@@ -227,6 +227,21 @@ describe('RegexChunker', () => {
       }
     )
 
+    it.concurrent('should preserve lookbehind whose body contains a > character', async () => {
+      const chunker = new RegexChunker({
+        pattern: '(?<=</section>)',
+        chunkSize: 1024,
+        strictBoundaries: true,
+      })
+      const text = '<section>one</section><section>two</section><section>three</section>'
+      const chunks = await chunker.chunk(text)
+
+      expect(chunks).toHaveLength(3)
+      expect(chunks[0].text).toBe('<section>one</section>')
+      expect(chunks[1].text).toBe('<section>two</section>')
+      expect(chunks[2].text).toBe('<section>three</section>')
+    })
+
     it.concurrent('should leave non-capturing groups and lookarounds intact', async () => {
       const chunker = new RegexChunker({
         pattern: '(?=\\n\\s*\\{\\s*"id"\\s*:)',
