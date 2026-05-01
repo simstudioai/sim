@@ -35,6 +35,8 @@ const logger = createLogger('McpToolDeploy')
 /** InputFormatField with guaranteed name (after normalization) */
 type NormalizedField = InputFormatField & { name: string }
 
+const EMPTY_SUBBLOCK_VALUES: Record<string, Record<string, unknown>> = {}
+
 interface McpDeployProps {
   workflowId: string
   workflowName: string
@@ -120,8 +122,8 @@ export function McpDeploy({
     return null
   }, [blocks])
 
-  const subBlockValues = useSubBlockStore((state) =>
-    workflowId ? (state.workflowValues[workflowId] ?? {}) : {}
+  const subBlockValues = useSubBlockStore(
+    (state) => (workflowId ? state.workflowValues[workflowId] : undefined) ?? EMPTY_SUBBLOCK_VALUES
   )
 
   const inputFormat = useMemo((): NormalizedField[] => {

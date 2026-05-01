@@ -28,6 +28,8 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 type NormalizedField = InputFormatField & { name: string }
 
+const EMPTY_SUBBLOCK_VALUES: Record<string, Record<string, unknown>> = {}
+
 interface ApiInfoModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -38,8 +40,8 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const blocks = useWorkflowStore((state) => state.blocks)
   const setValue = useSubBlockStore((state) => state.setValue)
-  const subBlockValues = useSubBlockStore((state) =>
-    workflowId ? (state.workflowValues[workflowId] ?? {}) : {}
+  const subBlockValues = useSubBlockStore(
+    (state) => (workflowId ? state.workflowValues[workflowId] : undefined) ?? EMPTY_SUBBLOCK_VALUES
   )
 
   const { data: workflows = {} } = useWorkflowMap(workspaceId)

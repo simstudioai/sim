@@ -167,6 +167,8 @@ const TAG_PREFIXES = {
   VARIABLE: 'variable.',
 } as const
 
+const EMPTY_SUBBLOCK_VALUES: Record<string, Record<string, unknown>> = {}
+
 /**
  * Ensures the root tag is present in the tags array
  */
@@ -980,8 +982,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     return new Set<string>(rawAccessiblePrefixes)
   }, [rawAccessiblePrefixes])
 
-  const workflowSubBlockValues = useSubBlockStore((state) =>
-    workflowId ? (state.workflowValues[workflowId] ?? {}) : {}
+  const workflowSubBlockValues = useSubBlockStore(
+    (state) => (workflowId ? state.workflowValues[workflowId] : undefined) ?? EMPTY_SUBBLOCK_VALUES
   )
 
   const getMergedSubBlocks = useCallback(
