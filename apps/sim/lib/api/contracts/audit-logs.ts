@@ -77,6 +77,17 @@ export const v1AdminAuditLogsQuerySchema = z.object({
   endDate: z.preprocess((value) => (value === '' ? undefined : value), isoDateString.optional()),
 })
 
+/**
+ * Generic wrapper used by v1 admin audit-log responses. The `data` and
+ * `limits` halves are intentionally `z.unknown()` because this proxy returns
+ * provider-shaped payloads that vary per route family; tightening here would
+ * require a discriminated union per route, which is tracked as a follow-up.
+ *
+ * boundary-policy: this is the "validates nothing" alias form that the audit
+ * script's `untyped-response` regex doesn't currently catch. Treat any new
+ * wrapper of this shape the same way and either annotate at the contract use
+ * site with `// untyped-response: <reason>` or replace with a concrete schema.
+ */
 const apiResponseWithLimitsSchema = z
   .object({
     data: z.unknown(),

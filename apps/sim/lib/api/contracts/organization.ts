@@ -113,14 +113,20 @@ const organizationRetentionValuesSchema = z.object({
   taskCleanupHours: z.number().int().nullable(),
 })
 
+export type OrganizationRetentionValues = z.output<typeof organizationRetentionValuesSchema>
+
+const organizationDataRetentionDataSchema = z.object({
+  isEnterprise: z.boolean(),
+  defaults: organizationRetentionValuesSchema,
+  configured: organizationRetentionValuesSchema,
+  effective: organizationRetentionValuesSchema,
+})
+
+export type OrganizationDataRetention = z.output<typeof organizationDataRetentionDataSchema>
+
 export const organizationDataRetentionResponseSchema = z.object({
   success: z.boolean(),
-  data: z.object({
-    isEnterprise: z.boolean(),
-    defaults: organizationRetentionValuesSchema,
-    configured: organizationRetentionValuesSchema,
-    effective: organizationRetentionValuesSchema,
-  }),
+  data: organizationDataRetentionDataSchema,
 })
 
 export const updateOrganizationWhitelabelBodySchema = z.object({

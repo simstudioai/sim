@@ -95,20 +95,13 @@ const workflowParallelSchema = z.object({
 })
 
 /**
- * Wire schema for a workflow variable as exchanged between client and server.
+ * Workflow variable write schema.
  *
- * Intentionally omits `workflowId`: a variable is workflow-scoped and the
- * route's `[id]` path parameter is the single source of truth. Clients
- * typically don't carry `workflowId` on the value (the canonical
- * `Variable` type from `@sim/workflow-types/workflow` doesn't either) and
- * the server doesn't need a per-variable copy to persist or look up the
- * record. The client-side variables store
- * (`apps/sim/stores/variables/types.ts`) keeps a `workflowId` field for
- * cross-workflow filtering inside a single global store; that field is
- * stamped from the path param on read in route handlers and is not part
- * of the wire contract.
+ * Intentionally omits `workflowId`: variables are workflow-scoped and the
+ * route's `[id]` path parameter is the source of truth for writes and
+ * persisted workflow state.
  */
-export const workflowVariableSchema = z.object({
+export const workflowVariableWriteSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
@@ -120,6 +113,16 @@ export const workflowVariableSchema = z.object({
   // contract intentionally accepts the same union the store accepts.
   value: z.unknown(),
   validationError: z.string().optional(),
+})
+
+/**
+ * Workflow variable read schema.
+ *
+ * GET routes stamp `workflowId` from the path parameter before returning
+ * variables so the global client-side variables store can filter by workflow.
+ */
+export const workflowVariableReadSchema = workflowVariableWriteSchema.extend({
+  workflowId: z.string(),
 })
 
 /**
@@ -136,8 +139,8 @@ export const workflowVariableSchema = z.object({
  * fields, check the full flow: normalized DB loaders, `/api/workflows/[id]`,
  * `/api/workflows/[id]/state`, workflow import/export, realtime reloads, and
  * deployment state. If a field only exists for client store bookkeeping, it
- * should usually be stamped at the route boundary or omitted from the wire
- * contract instead of being persisted redundantly.
+ * should usually be stamped at the route boundary or omitted from persisted
+ * writes instead of being stored redundantly.
  */
 export const workflowStateSchema = z.object({
   blocks: z.record(z.string(), workflowBlockStateSchema),
@@ -147,11 +150,24 @@ export const workflowStateSchema = z.object({
   lastSaved: z.number().optional(),
   isDeployed: z.boolean().optional(),
   deployedAt: z.coerce.date().nullable().optional(),
-  variables: z.record(z.string(), workflowVariableSchema).optional(),
+  variables: z.record(z.string(), workflowVariableWriteSchema).optional(),
+  metadata: z
+    .object({
+      name: z.string().optional(),
+      description: z.string().optional(),
+    })
+    .optional(),
 })
 
+export const workflowStateReadSchema = workflowStateSchema.extend({
+  variables: z.record(z.string(), workflowVariableReadSchema).optional(),
+})
+
+export type WorkflowVariableWrite = z.output<typeof workflowVariableWriteSchema>
+export type WorkflowVariableRead = z.output<typeof workflowVariableReadSchema>
 export type WorkflowStateContractInput = z.input<typeof workflowStateSchema>
 export type WorkflowStateContractOutput = z.output<typeof workflowStateSchema>
+export type WorkflowStateRead = z.output<typeof workflowStateReadSchema>
 
 export type WorkflowStateWirePayload = WorkflowStateContractOutput
 
@@ -341,7 +357,7 @@ export const executeWorkflowBodySchema = z.object({
 export type ExecuteWorkflowBody = z.input<typeof executeWorkflowBodySchema>
 
 export const workflowVariablesBodySchema = z.object({
-  variables: z.record(z.string(), workflowVariableSchema),
+  variables: z.record(z.string(), workflowVariableWriteSchema),
 })
 export type WorkflowVariablesBody = z.input<typeof workflowVariablesBodySchema>
 
@@ -581,7 +597,8 @@ export const getWorkflowStateContract = defineRouteContract({
     schema: z.object({
       data: z
         .object({
-          state: workflowStateSchema,
+          state: workflowStateReadSchema,
+          variables: z.record(z.string(), workflowVariableReadSchema),
         })
         .passthrough(),
     }),
@@ -593,7 +610,7 @@ export const workflowStateResponseSchema = z.object({
   edges: z.array(workflowEdgeSchema),
   loops: z.record(z.string(), workflowLoopSchema),
   parallels: z.record(z.string(), workflowParallelSchema),
-  variables: z.record(z.string(), workflowVariableSchema),
+  variables: z.record(z.string(), workflowVariableReadSchema),
 })
 
 export const getWorkflowNormalizedStateContract = defineRouteContract({
@@ -746,7 +763,7 @@ export const getWorkflowVariablesContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({
-      data: z.record(z.string(), workflowVariableSchema),
+      data: z.record(z.string(), workflowVariableReadSchema),
     }),
   },
 })

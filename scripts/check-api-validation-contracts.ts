@@ -137,8 +137,13 @@ const CANONICAL_HELPER_USAGE_PATTERN =
   /\b(?:isZodError|validationErrorResponse|validationErrorResponseFromError|getValidationErrorMessage)\s*\(/
 const CONTRACT_MAP_PARSE_PATTERN =
   /\b\w+ContractsByPath[\s\S]{0,600}\.(?:body|query|params)!?\.(?:safeParse|parse)\(/
-const ZOD_IMPORT_PATTERN = /\bfrom\s+['"]zod['"]/
-const ZOD_REQUIRE_PATTERN = /\brequire\(['"]zod['"]\)/
+/**
+ * Matches `from 'zod'` and any zod subpath import like `from 'zod/v4'` or
+ * `from 'zod/mini'`. The capturing-group-free alternation keeps this safe to
+ * use with `.test(...)` and `.replace(...)` callers.
+ */
+const ZOD_IMPORT_PATTERN = /\bfrom\s+['"]zod(?:\/[^'"]+)?['"]/
+const ZOD_REQUIRE_PATTERN = /\brequire\(['"]zod(?:\/[^'"]+)?['"]\)/
 const ZOD_SCHEMA_CONSTRUCTOR_PATTERN =
   /\bz\.(?:object|string|number|boolean|array|enum|nativeEnum|union|discriminatedUnion|record|literal|tuple|preprocess|coerce|date|unknown|any|instanceof|custom|lazy)\s*\(/g
 const ZOD_ERROR_PATTERN = /\bZodError\b|\bz\.ZodError\b/

@@ -4,21 +4,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   getOrganizationDataRetentionContract,
+  type OrganizationDataRetention,
+  type OrganizationRetentionValues,
   updateOrganizationDataRetentionContract,
 } from '@/lib/api/contracts/organization'
 
-export interface RetentionValues {
-  logRetentionHours: number | null
-  softDeleteRetentionHours: number | null
-  taskCleanupHours: number | null
-}
-
-export interface DataRetentionResponse {
-  isEnterprise: boolean
-  defaults: RetentionValues
-  configured: RetentionValues
-  effective: RetentionValues
-}
+export type RetentionValues = OrganizationRetentionValues
+export type DataRetentionResponse = OrganizationDataRetention
 
 export const dataRetentionKeys = {
   all: ['dataRetention'] as const,

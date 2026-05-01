@@ -55,9 +55,8 @@ export const GET = withRouteHandler(
 
       // Stamp `workflowId` from the path param on each variable so the
       // global client-side variables store can filter by workflow without
-      // requiring clients to thread the path param through. The wire
-      // contract (`workflowVariableSchema`) intentionally omits
-      // `workflowId`; the server is the single source of truth.
+      // requiring clients to thread the path param through. The read
+      // contract requires this server-stamped field.
       const persistedVariables =
         (authorization.workflow?.variables as Record<string, Record<string, unknown>>) || {}
       const variables: Record<string, Record<string, unknown>> = {}
@@ -131,7 +130,7 @@ export const PUT = withRouteHandler(
       }
 
       // Note: prior versions cross-checked that each variable's `workflowId`
-      // equalled the path param. The contract no longer carries `workflowId`
+      // equalled the path param. The write contract does not carry `workflowId`
       // per variable (the path param is the source of truth), so the check
       // is unreachable and was removed.
 

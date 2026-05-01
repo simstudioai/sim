@@ -12,6 +12,7 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getWorkflowVariablesContract } from '@/lib/api/contracts/workflows'
 
 vi.mock('@sim/audit', () => auditMock)
 
@@ -103,6 +104,8 @@ describe('Workflow Variables API Route', () => {
           workflowId: 'workflow-123',
         },
       })
+      const parsed = getWorkflowVariablesContract.response.schema.parse(data)
+      expect(parsed.data['var-1'].workflowId).toBe('workflow-123')
     })
 
     it('should allow access when user has workspace permissions', async () => {

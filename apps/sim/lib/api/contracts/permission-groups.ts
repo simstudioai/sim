@@ -52,6 +52,7 @@ export const permissionGroupSchema = z.object({
   memberCount: z.number(),
   autoAddNewMembers: z.boolean(),
 })
+export type PermissionGroup = z.output<typeof permissionGroupSchema>
 
 export const permissionGroupWriteSchema = z.object({
   id: z.string(),
@@ -64,6 +65,7 @@ export const permissionGroupWriteSchema = z.object({
   updatedAt: z.string(),
   autoAddNewMembers: z.boolean(),
 })
+export type PermissionGroupWrite = z.output<typeof permissionGroupWriteSchema>
 
 export const permissionGroupMemberSchema = z.object({
   id: z.string(),
@@ -73,6 +75,7 @@ export const permissionGroupMemberSchema = z.object({
   userEmail: z.string().nullable(),
   userImage: z.string().nullable(),
 })
+export type PermissionGroupMember = z.output<typeof permissionGroupMemberSchema>
 
 export const userPermissionConfigQuerySchema = z.object({
   workspaceId: z.string().min(1),
@@ -84,6 +87,7 @@ export const userPermissionConfigSchema = z.object({
   config: permissionGroupFullConfigSchema.nullable(),
   entitled: z.boolean(),
 })
+export type UserPermissionConfig = z.output<typeof userPermissionConfigSchema>
 
 export const createPermissionGroupBodySchema = z.object({
   name: z.string().trim().min(1).max(100),

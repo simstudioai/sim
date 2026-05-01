@@ -83,7 +83,7 @@ export const GET = withRouteHandler(
 
       // Stamp `workflowId` from the path param on each variable so the
       // global client-side variables store can filter by workflow without
-      // requiring the wire contract to carry a redundant `workflowId`.
+      // requiring persisted variables to carry a redundant `workflowId`.
       // The persisted blob may or may not include `workflowId` depending on
       // when the variable was last written; the path param is authoritative.
       const persistedVariables =

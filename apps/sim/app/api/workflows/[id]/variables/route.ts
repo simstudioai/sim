@@ -54,7 +54,7 @@ export const POST = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { variables } = parsed.data.body
       // Note: prior versions cross-checked that each variable's `workflowId`
-      // equalled the path param. The contract no longer carries `workflowId`
+      // equalled the path param. The write contract does not carry `workflowId`
       // per variable (the path param is the source of truth), so the check
       // is unreachable and was removed.
 
@@ -132,8 +132,7 @@ export const GET = withRouteHandler(
 
       // Return variables if they exist. Stamp `workflowId` from the path
       // param on each entry so the global client-side variables store can
-      // filter by workflow without requiring the wire contract to carry a
-      // redundant `workflowId` field.
+      // filter by workflow; the read contract requires this stamped field.
       const persistedVariables =
         (workflowData.variables as Record<string, Record<string, unknown>>) || {}
       const variables: Record<string, Variable> = {}

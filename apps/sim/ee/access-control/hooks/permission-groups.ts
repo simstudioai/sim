@@ -1,7 +1,6 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { z } from 'zod'
 import { requestJson } from '@/lib/api/client/request'
 import {
   bulkAddPermissionGroupMembersContract,
@@ -10,17 +9,15 @@ import {
   getUserPermissionConfigContract,
   listPermissionGroupMembersContract,
   listPermissionGroupsContract,
-  type permissionGroupMemberSchema,
-  type permissionGroupSchema,
+  type PermissionGroup,
+  type PermissionGroupMember,
   removePermissionGroupMemberContract,
+  type UserPermissionConfig,
   updatePermissionGroupContract,
-  type userPermissionConfigSchema,
 } from '@/lib/api/contracts'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 
-export type PermissionGroup = z.output<typeof permissionGroupSchema>
-export type PermissionGroupMember = z.output<typeof permissionGroupMemberSchema>
-export type UserPermissionConfig = z.output<typeof userPermissionConfigSchema>
+export type { PermissionGroup, PermissionGroupMember, UserPermissionConfig }
 
 export const permissionGroupKeys = {
   all: ['permissionGroups'] as const,

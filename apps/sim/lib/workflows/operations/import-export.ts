@@ -97,7 +97,7 @@ export async function fetchWorkflowForExport(
       const response = await requestJson(getWorkflowStateContract, {
         params: { id: workflowId },
       })
-      workflowData = response.data as { state?: WorkflowState }
+      workflowData = { state: response.data.state as WorkflowState }
     } catch {
       logger.error(`Failed to fetch workflow ${workflowId}`)
       return null
@@ -113,13 +113,7 @@ export async function fetchWorkflowForExport(
       const { data } = await requestJson(getWorkflowVariablesContract, {
         params: { id: workflowId },
       })
-      // The wire schema strips `workflowId` per variable; stamp it back on
-      // for the local store-shaped `Variable` type used by export consumers.
-      const stamped: Record<string, Variable> = {}
-      for (const [variableId, variable] of Object.entries(data)) {
-        stamped[variableId] = { ...variable, workflowId } as Variable
-      }
-      workflowVariables = stamped
+      workflowVariables = data
     } catch (error) {
       if (error instanceof ApiClientError) {
         logger.warn(`Failed to fetch workflow ${workflowId} variables for export`, {
