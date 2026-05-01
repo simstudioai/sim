@@ -30,7 +30,7 @@ import { eq } from 'drizzle-orm'
 import {
   adminV1CancelSubscriptionContract,
   adminV1GetSubscriptionContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'

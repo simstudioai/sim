@@ -12,7 +12,7 @@ import {
   adminV1QueryStringSchema,
   adminV1SingleResponseSchema,
   lastQueryValue,
-} from '@/lib/api/contracts/v1-admin/shared'
+} from '@/lib/api/contracts/v1/admin/shared'
 
 const adminV1ReferralCampaignDurations = ['once', 'repeating', 'forever'] as const
 const adminV1ReferralCampaignAppliesTo = [

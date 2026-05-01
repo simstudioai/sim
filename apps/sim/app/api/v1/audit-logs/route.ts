@@ -22,7 +22,7 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v1ListAuditLogsContract } from '@/lib/api/contracts/audit-logs'
+import { v1ListAuditLogsContract } from '@/lib/api/contracts/v1/audit-logs'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'

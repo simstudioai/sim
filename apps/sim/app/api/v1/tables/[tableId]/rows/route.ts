@@ -10,7 +10,7 @@ import {
   v1DeleteTableRowsContract,
   v1ListTableRowsContract,
   v1UpdateRowsByFilterContract,
-} from '@/lib/api/contracts/tables'
+} from '@/lib/api/contracts/v1/tables'
 import {
   parseRequest,
   validationErrorResponse,

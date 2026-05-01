@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import Redis from 'ioredis'
 import { type NextRequest, NextResponse } from 'next/server'
-import { redisExecuteContract } from '@/lib/api/contracts/database-tools'
+import { redisExecuteContract } from '@/lib/api/contracts/tools/databases/redis'
 import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'

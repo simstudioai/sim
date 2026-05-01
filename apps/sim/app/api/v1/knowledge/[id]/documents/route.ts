@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import {
   v1ListKnowledgeDocumentsContract,
   v1UploadKnowledgeDocumentContract,
-} from '@/lib/api/contracts/knowledge'
+} from '@/lib/api/contracts/v1/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {

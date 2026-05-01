@@ -22,7 +22,7 @@ import { count, eq } from 'drizzle-orm'
 import {
   adminV1GetOrganizationBillingContract,
   adminV1UpdateOrganizationBillingContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { getOrganizationBillingData } from '@/lib/billing/core/organization'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'

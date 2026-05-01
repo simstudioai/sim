@@ -11,4 +11,3 @@ export {
   knowledgeTagParamsSchema,
 } from '@/lib/api/contracts/knowledge/shared'
 export * from '@/lib/api/contracts/knowledge/tags'
-export * from '@/lib/api/contracts/knowledge/v1'

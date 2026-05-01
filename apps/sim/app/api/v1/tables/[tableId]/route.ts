@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v1DeleteTableContract, v1GetTableContract } from '@/lib/api/contracts/tables'
+import { v1DeleteTableContract, v1GetTableContract } from '@/lib/api/contracts/v1/tables'
 import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'

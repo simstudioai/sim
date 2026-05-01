@@ -24,7 +24,7 @@ import { NextResponse } from 'next/server'
 import {
   adminV1DeleteWorkspaceWorkflowsContract,
   adminV1ListWorkspaceWorkflowsContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { archiveWorkflowsForWorkspace } from '@/lib/workflows/lifecycle'

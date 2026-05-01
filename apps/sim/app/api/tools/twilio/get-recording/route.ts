@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { twilioGetRecordingContract } from '@/lib/api/contracts'
+import { twilioGetRecordingContract } from '@/lib/api/contracts/tools/communication/messaging'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {

@@ -18,7 +18,10 @@ import { createLogger } from '@sim/logger'
 import { getActiveWorkflowRecord } from '@sim/workflow-authz'
 import { count, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { adminV1DeleteWorkflowContract, adminV1GetWorkflowContract } from '@/lib/api/contracts'
+import {
+  adminV1DeleteWorkflowContract,
+  adminV1GetWorkflowContract,
+} from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performDeleteWorkflow } from '@/lib/workflows/orchestration'

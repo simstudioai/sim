@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import {
   v1CreateKnowledgeBaseContract,
   v1ListKnowledgeBasesContract,
-} from '@/lib/api/contracts/knowledge'
+} from '@/lib/api/contracts/v1/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'

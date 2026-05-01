@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { visionAnalyzeContract } from '@/lib/api/contracts/media-tools'
+import { visionAnalyzeContract } from '@/lib/api/contracts/tools/media/vision'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {

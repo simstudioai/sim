@@ -23,7 +23,7 @@ import { and, count, eq, inArray } from 'drizzle-orm'
 import {
   adminV1GetOrganizationContract,
   adminV1UpdateOrganizationContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import {
   ensureOrganizationSlugAvailable,

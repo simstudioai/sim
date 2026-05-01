@@ -7,7 +7,7 @@ import {
   adminV1PaginationQuerySchema,
   adminV1SingleResponseSchema,
   adminV1SubscriptionSchema,
-} from '@/lib/api/contracts/v1-admin/shared'
+} from '@/lib/api/contracts/v1/admin/shared'
 
 export const adminV1OrganizationMemberParamsSchema = adminV1IdParamsSchema.extend({
   memberId: z.string().min(1),

@@ -6,7 +6,7 @@ import {
   adminV1PaginationQuerySchema,
   adminV1SingleResponseSchema,
   adminV1SubscriptionSchema,
-} from '@/lib/api/contracts/v1-admin/shared'
+} from '@/lib/api/contracts/v1/admin/shared'
 
 export const adminV1UserSchema = z.object({
   id: z.string(),

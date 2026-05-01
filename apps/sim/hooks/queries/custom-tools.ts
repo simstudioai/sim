@@ -5,7 +5,7 @@ import {
   deleteCustomToolContract,
   listCustomToolsContract,
   upsertCustomToolsContract,
-} from '@/lib/api/contracts/custom-tools'
+} from '@/lib/api/contracts/tools/custom'
 import { customToolsKeys } from '@/hooks/queries/utils/custom-tool-keys'
 
 const logger = createLogger('CustomToolsQueries')

@@ -4,7 +4,7 @@ import {
   v1DeleteKnowledgeBaseContract,
   v1GetKnowledgeBaseContract,
   v1UpdateKnowledgeBaseContract,
-} from '@/lib/api/contracts/knowledge'
+} from '@/lib/api/contracts/v1/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteKnowledgeBase, updateKnowledgeBase } from '@/lib/knowledge/service'
