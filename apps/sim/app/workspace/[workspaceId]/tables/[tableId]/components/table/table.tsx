@@ -74,6 +74,7 @@ import {
   useUpdateColumn,
   useUpdateTableMetadata,
   useUpdateTableRow,
+  useUpdateWorkflowGroup,
 } from '@/hooks/queries/tables'
 import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
 import { useLogByExecutionId } from '@/hooks/queries/logs'
@@ -432,6 +433,7 @@ export function Table({
   const cancelRunsMutation = useCancelTableRuns({ workspaceId, tableId })
   const runGroupMutation = useRunGroup({ workspaceId, tableId })
   const deleteWorkflowGroupMutation = useDeleteWorkflowGroup({ workspaceId, tableId })
+  const updateWorkflowGroupMutation = useUpdateWorkflowGroup({ workspaceId, tableId })
 
   const handleRunGroup = useCallback(
     (groupId: string, workflowId: string, mode: 'all' | 'incomplete' = 'all') => {
@@ -659,6 +661,7 @@ export function Table({
 
   const columnsRef = useRef(displayColumns)
   const schemaColumnsRef = useRef(columns)
+  const workflowGroupsRef = useRef(tableWorkflowGroups)
   const rowsRef = useRef(rows)
   const selectionAnchorRef = useRef(selectionAnchor)
   const selectionFocusRef = useRef(selectionFocus)
@@ -668,6 +671,7 @@ export function Table({
 
   columnsRef.current = displayColumns
   schemaColumnsRef.current = columns
+  workflowGroupsRef.current = tableWorkflowGroups
   rowsRef.current = rows
   selectionAnchorRef.current = selectionAnchor
   selectionFocusRef.current = selectionFocus
@@ -1302,14 +1306,35 @@ export function Table({
   }
 
   useEffect(() => {
-    if (!tableData?.metadata || metadataSeededRef.current) return
+    if (!tableData?.metadata) return
     if (!tableData.metadata.columnWidths && !tableData.metadata.columnOrder) return
-    metadataSeededRef.current = true
-    if (tableData.metadata.columnWidths) {
-      setColumnWidths(tableData.metadata.columnWidths)
+    // First load: seed both from the server and remember we've seeded.
+    if (!metadataSeededRef.current) {
+      metadataSeededRef.current = true
+      if (tableData.metadata.columnWidths) {
+        setColumnWidths(tableData.metadata.columnWidths)
+      }
+      if (tableData.metadata.columnOrder) {
+        setColumnOrder(tableData.metadata.columnOrder)
+      }
+      return
     }
-    if (tableData.metadata.columnOrder) {
-      setColumnOrder(tableData.metadata.columnOrder)
+    // After first load: only re-seed `columnOrder` when the *set of columns*
+    // changes (e.g. a workflow group adds/removes outputs server-side). Pure
+    // reorders are left alone so an in-flight optimistic drag isn't clobbered
+    // by a refetch returning the pre-drag order.
+    const serverOrder = tableData.metadata.columnOrder
+    if (serverOrder) {
+      const localOrder = columnOrderRef.current
+      const serverSet = new Set(serverOrder)
+      const localSet = new Set(localOrder ?? [])
+      const setChanged =
+        !localOrder ||
+        serverSet.size !== localSet.size ||
+        serverOrder.some((n) => !localSet.has(n))
+      if (setChanged) {
+        setColumnOrder(serverOrder)
+      }
     }
   }, [tableData?.metadata])
 
@@ -2264,39 +2289,70 @@ export function Table({
       const previousWidth = columnWidthsRef.current[columnToDelete] ?? null
       const orderSnapshot = currentOrder ? [...currentOrder] : null
 
-      deleteColumnMutation.mutate(columnToDelete, {
-        onSuccess: () => {
-          deletedOriginalPositions.push(entry.position)
-          pushUndoRef.current({
-            type: 'delete-column',
-            columnName: columnToDelete,
-            columnType: entry.def?.type ?? 'string',
-            columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
-            columnUnique: entry.def?.unique ?? false,
-            columnRequired: entry.def?.required ?? false,
-            cellData,
-            previousOrder: orderSnapshot,
-            previousWidth,
+      const onDeleted = () => {
+        deletedOriginalPositions.push(entry.position)
+        pushUndoRef.current({
+          type: 'delete-column',
+          columnName: columnToDelete,
+          columnType: entry.def?.type ?? 'string',
+          columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
+          columnUnique: entry.def?.unique ?? false,
+          columnRequired: entry.def?.required ?? false,
+          cellData,
+          previousOrder: orderSnapshot,
+          previousWidth,
+        })
+
+        const { [columnToDelete]: _removedWidth, ...cleanedWidths } = columnWidthsRef.current
+        setColumnWidths(cleanedWidths)
+        columnWidthsRef.current = cleanedWidths
+
+        if (currentOrder) {
+          currentOrder = currentOrder.filter((n) => n !== columnToDelete)
+          setColumnOrder(currentOrder)
+          updateMetadataRef.current({
+            columnWidths: cleanedWidths,
+            columnOrder: currentOrder,
           })
+        } else {
+          updateMetadataRef.current({ columnWidths: cleanedWidths })
+        }
 
-          const { [columnToDelete]: _removedWidth, ...cleanedWidths } = columnWidthsRef.current
-          setColumnWidths(cleanedWidths)
-          columnWidthsRef.current = cleanedWidths
+        deleteNext(index + 1)
+      }
 
-          if (currentOrder) {
-            currentOrder = currentOrder.filter((n) => n !== columnToDelete)
-            setColumnOrder(currentOrder)
-            updateMetadataRef.current({
-              columnWidths: cleanedWidths,
-              columnOrder: currentOrder,
-            })
-          } else {
-            updateMetadataRef.current({ columnWidths: cleanedWidths })
-          }
+      // Workflow-output columns are owned by a group: route the delete through
+      // `updateWorkflowGroup` so the same code path fires whether the user
+      // deselects the output in the sidebar or right-clicks Delete column.
+      // Falls back to deleting the whole group when this is its last output,
+      // since a group with zero outputs is invalid.
+      const groupId = entry.def?.workflowGroupId
+      const group = groupId
+        ? workflowGroupsRef.current.find((g) => g.id === groupId)
+        : undefined
+      if (group) {
+        const remainingOutputs = group.outputs.filter((o) => o.columnName !== columnToDelete)
+        if (remainingOutputs.length === 0) {
+          deleteWorkflowGroupMutation.mutate(
+            { groupId: group.id },
+            { onSuccess: onDeleted }
+          )
+        } else {
+          updateWorkflowGroupMutation.mutate(
+            {
+              groupId: group.id,
+              workflowId: group.workflowId,
+              name: group.name,
+              dependencies: group.dependencies,
+              outputs: remainingOutputs,
+            },
+            { onSuccess: onDeleted }
+          )
+        }
+        return
+      }
 
-          deleteNext(index + 1)
-        },
-      })
+      deleteColumnMutation.mutate(columnToDelete, { onSuccess: onDeleted })
     }
 
     setSelectionAnchor(null)

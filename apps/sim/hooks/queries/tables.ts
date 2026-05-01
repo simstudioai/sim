@@ -274,11 +274,14 @@ export function useTableRows({
       )
       // While an optimistic mutation is in flight, applying the socket delta
       // could clobber the optimistic state — defer to onSettled invalidate.
+      // Mark stale without triggering a refetch (refetchType: 'none') so the
+      // refetch races neither the in-flight optimistic update nor any
+      // server-side post-response work the mutation is awaiting (e.g. backfill).
       if (queryClient.isMutating() > 0) {
-        logger.info(
-          `[STOP-DEBUG] socket row=${event.rowId} (mutation in flight → invalidate) incoming=${JSON.stringify(incomingExec)}`
-        )
-        queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+        queryClient.invalidateQueries({
+          queryKey: tableKeys.rowsRoot(tableId),
+          refetchType: 'none',
+        })
         return
       }
       queryClient.setQueriesData<TableRowsResponse>(
@@ -328,7 +331,10 @@ export function useTableRows({
     onTableRowDeleted((event) => {
       if (event.tableId !== tableId) return
       if (queryClient.isMutating() > 0) {
-        queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+        queryClient.invalidateQueries({
+          queryKey: tableKeys.rowsRoot(tableId),
+          refetchType: 'none',
+        })
         return
       }
       queryClient.setQueriesData<TableRowsResponse>(

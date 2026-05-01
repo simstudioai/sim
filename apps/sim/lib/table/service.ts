@@ -32,6 +32,7 @@ import type {
   BulkDeleteData,
   BulkOperationResult,
   BulkUpdateData,
+  ColumnDefinition,
   CreateTableData,
   DeleteColumnData,
   DeleteWorkflowGroupData,
@@ -2725,7 +2726,33 @@ export async function updateWorkflowGroup(
         throw new Error(`Column "${col.name}" already exists`)
       }
     }
-    nextColumns = [...nextColumns, ...newColDefs]
+    // Splice the new column defs into the group's contiguous run rather than
+    // appending at the end. The desired in-group order is `newOutputs` (the
+    // sidebar's BFS-of-the-workflow ordering); we walk it, anchor at the first
+    // surviving sibling's index in `nextColumns`, and emit each output's
+    // column def in turn.
+    const groupColNames = new Set(newOutputs.map((o) => o.columnName))
+    const firstGroupIdx = nextColumns.findIndex((c) => groupColNames.has(c.name))
+    const anchorIdx = firstGroupIdx === -1 ? nextColumns.length : firstGroupIdx
+    const newColByLowerName = new Map(newColDefs.map((c) => [c.name.toLowerCase(), c]))
+    const orderedGroupCols: ColumnDefinition[] = []
+    for (const out of newOutputs) {
+      const fresh = newColByLowerName.get(out.columnName.toLowerCase())
+      if (fresh) {
+        orderedGroupCols.push(fresh)
+      } else {
+        const existing = nextColumns.find(
+          (c) => c.name.toLowerCase() === out.columnName.toLowerCase()
+        )
+        if (existing) orderedGroupCols.push(existing)
+      }
+    }
+    const remaining = nextColumns.filter((c) => !groupColNames.has(c.name))
+    nextColumns = [
+      ...remaining.slice(0, anchorIdx),
+      ...orderedGroupCols,
+      ...remaining.slice(anchorIdx),
+    ]
   }
 
   const updatedGroup: WorkflowGroup = {
@@ -2742,9 +2769,27 @@ export async function updateWorkflowGroup(
     workflowGroups: nextGroups,
   }
 
-  const updatedColumnOrder = table.metadata?.columnOrder?.filter(
+  // `columnOrder` mirrors the schema layout. Drop removed columns, then splice
+  // the new ones in at the same anchor as `nextColumns` so the table renders
+  // them inside the group's contiguous run instead of at the tail.
+  let updatedColumnOrder = table.metadata?.columnOrder?.filter(
     (n) => !removedColumnNames.has(n)
   )
+  if (updatedColumnOrder && newColDefs.length > 0) {
+    const newColNamesLower = new Set(newColDefs.map((c) => c.name.toLowerCase()))
+    const orderWithoutNew = updatedColumnOrder.filter((n) => !newColNamesLower.has(n.toLowerCase()))
+    const groupColNames = new Set(newOutputs.map((o) => o.columnName))
+    const orderedGroupNames = newOutputs.map((o) => o.columnName)
+    const firstGroupOrderIdx = orderWithoutNew.findIndex((n) => groupColNames.has(n))
+    const anchorOrderIdx =
+      firstGroupOrderIdx === -1 ? orderWithoutNew.length : firstGroupOrderIdx
+    const remainingOrder = orderWithoutNew.filter((n) => !groupColNames.has(n))
+    updatedColumnOrder = [
+      ...remainingOrder.slice(0, anchorOrderIdx),
+      ...orderedGroupNames,
+      ...remainingOrder.slice(anchorOrderIdx),
+    ]
+  }
   assertValidSchema(updatedSchema, updatedColumnOrder)
 
   const updatedMetadata: TableMetadata | null =
@@ -2781,18 +2826,24 @@ export async function updateWorkflowGroup(
 
   // Backfill the new outputs from execution logs so already-completed group
   // runs surface the just-added columns without re-running the workflow.
+  // Awaited so the response only returns once row data is consistent — the
+  // client then refetches and sees the backfilled values immediately. A failed
+  // backfill is logged but doesn't fail the whole request, since the schema
+  // change has already committed.
   if (added.length > 0) {
-    void backfillAddedGroupOutputs({
-      table: updatedTable,
-      groupId: data.groupId,
-      addedOutputs: added,
-      requestId,
-    }).catch((err) => {
+    try {
+      await backfillAddedGroupOutputs({
+        table: updatedTable,
+        groupId: data.groupId,
+        addedOutputs: added,
+        requestId,
+      })
+    } catch (err) {
       logger.warn(
         `[${requestId}] Backfill from execution logs failed for ${data.tableId} group ${data.groupId}:`,
         err
       )
-    })
+    }
   }
 
   return updatedTable
