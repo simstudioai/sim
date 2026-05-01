@@ -1,4 +1,4 @@
-import { DEFAULT_RERANKER_MODEL, SUPPORTED_RERANKER_MODELS } from '@/lib/knowledge/reranker-models'
+import { DEFAULT_RERANKER_MODEL } from '@/lib/knowledge/reranker-models'
 import type { KnowledgeSearchResponse } from '@/tools/knowledge/types'
 import { enrichKBTagFiltersSchema } from '@/tools/schema-enrichers'
 import { parseTagFilters } from '@/tools/shared/tags'
@@ -52,7 +52,8 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: `Cohere rerank model to use (one of: ${SUPPORTED_RERANKER_MODELS.join(', ')})`,
+      description:
+        'Cohere rerank model to use (one of: rerank-v4.0-pro, rerank-v4.0-fast, rerank-v3.5)',
     },
   },
 
