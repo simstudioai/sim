@@ -70,6 +70,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'read:hierarchical-content:confluence': 'View page hierarchy (children and ancestors)',
   'read:content.metadata:confluence': 'View content metadata (required for ancestors)',
   'read:user:confluence': 'View Confluence user profiles',
+  'read:confluence-user': 'View Confluence user profiles (v1 API)',
   'read:task:confluence': 'View Confluence inline tasks',
   'write:task:confluence': 'Update Confluence inline tasks',
   'delete:blogpost:confluence': 'Delete Confluence blog posts',
