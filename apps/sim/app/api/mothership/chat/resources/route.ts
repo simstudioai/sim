@@ -1,6 +1,7 @@
 import type { NextRequest, NextResponse } from 'next/server'
 import { mothershipChatResourceEnvelopeSchema } from '@/lib/api/contracts/mothership-tasks'
 import { validationErrorResponse } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   DELETE as copilotResourcesDelete,
   PATCH as copilotResourcesPatch,
@@ -8,6 +9,7 @@ import {
 } from '@/app/api/copilot/chat/resources/route'
 
 async function validateResourceRequestEnvelope(request: NextRequest): Promise<NextResponse | null> {
+  // boundary-raw-json: shim pre-validates the mothership envelope before delegating to the copilot handler that consumes the body
   const body = await request
     .clone()
     .json()
@@ -19,23 +21,23 @@ async function validateResourceRequestEnvelope(request: NextRequest): Promise<Ne
   return null
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const validationResponse = await validateResourceRequestEnvelope(request)
   if (validationResponse) return validationResponse
 
   return copilotResourcesPost(request, undefined)
-}
+})
 
-export async function PATCH(request: NextRequest) {
+export const PATCH = withRouteHandler(async (request: NextRequest) => {
   const validationResponse = await validateResourceRequestEnvelope(request)
   if (validationResponse) return validationResponse
 
   return copilotResourcesPatch(request, undefined)
-}
+})
 
-export async function DELETE(request: NextRequest) {
+export const DELETE = withRouteHandler(async (request: NextRequest) => {
   const validationResponse = await validateResourceRequestEnvelope(request)
   if (validationResponse) return validationResponse
 
   return copilotResourcesDelete(request, undefined)
-}
+})

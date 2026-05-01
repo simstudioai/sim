@@ -44,7 +44,7 @@ export const webhookUpsertBodySchema = z
     providerConfig: webhookProviderConfigSchema.optional(),
     blockId: z.string().optional(),
   })
-  .passthrough()
+  .strict()
 
 export type WebhookUpsertBody = z.input<typeof webhookUpsertBodySchema>
 
@@ -62,7 +62,7 @@ export const webhookPatchBodySchema = z
       .min(0, 'failedCount must be at least 0')
       .optional(),
   })
-  .passthrough()
+  .strict()
 export type WebhookPatchBody = z.input<typeof webhookPatchBodySchema>
 
 export const webhookPollingParamsSchema = z.object({
@@ -131,20 +131,18 @@ const listWebhooksResponseSchema = z.object({
   webhooks: z.array(webhookListItemSchema),
 })
 
-const upsertWebhookResponseSchema = z
-  .object({
-    webhook: webhookDataSchema,
-    credentialSetInfo: z
-      .object({
-        credentialSetId: z.string(),
-        totalWebhooks: z.number(),
-        created: z.number(),
-        updated: z.number(),
-        deleted: z.number(),
-      })
-      .optional(),
-  })
-  .passthrough()
+const upsertWebhookResponseSchema = z.object({
+  webhook: webhookDataSchema,
+  credentialSetInfo: z
+    .object({
+      credentialSetId: z.string(),
+      totalWebhooks: z.number(),
+      created: z.number(),
+      updated: z.number(),
+      deleted: z.number(),
+    })
+    .optional(),
+})
 
 const getWebhookResponseSchema = z.object({
   webhook: webhookListItemSchema,

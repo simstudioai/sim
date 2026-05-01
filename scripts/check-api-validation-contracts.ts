@@ -166,7 +166,17 @@ const RAW_FETCH_HELPER_GUARD_PATTERN = /(?:requestJson|requestRaw|prefetchJson|p
  */
 const SAME_ORIGIN_API_FETCH_PATTERN = /\bfetch\(\s*[`'"]\/api\//g
 const DOUBLE_CAST_PATTERN = /\bas unknown as\b/g
-const RAW_JSON_READ_PATTERN = /\bawait\s+(?:request|req)\.json\s*\(\s*\)/g
+/**
+ * Matches `await request.json()` / `await req.json()` and the multi-line
+ * `await request.clone().json()` clone-then-read variant. Both forms read
+ * the request body without going through `parseRequest(...)` / a contract
+ * and count toward the `rawJsonReads` ratchet.
+ *
+ * `\s` is multi-line (handles common Prettier/Biome formatting where the
+ * `.clone()` and `.json()` calls land on separate lines).
+ */
+const RAW_JSON_READ_PATTERN =
+  /\bawait\s+(?:request|req)\s*(?:\.\s*clone\s*\(\s*\))?\s*\.\s*json\s*\(\s*\)/g
 /**
  * Matches `schema:` followed directly by a "validates nothing" zod construct.
  * Three forms are treated equivalently:

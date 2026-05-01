@@ -347,12 +347,22 @@ export const PUT = withRouteHandler(
         }
       }
 
-      // Update the workflow
       const [updatedWorkflow] = await db
         .update(workflow)
         .set(updateData)
         .where(eq(workflow.id, workflowId))
-        .returning()
+        .returning({
+          id: workflow.id,
+          name: workflow.name,
+          description: workflow.description,
+          color: workflow.color,
+          workspaceId: workflow.workspaceId,
+          folderId: workflow.folderId,
+          sortOrder: workflow.sortOrder,
+          createdAt: workflow.createdAt,
+          updatedAt: workflow.updatedAt,
+          archivedAt: workflow.archivedAt,
+        })
 
       const elapsed = Date.now() - startTime
       logger.info(`[${requestId}] Successfully updated workflow ${workflowId} in ${elapsed}ms`, {

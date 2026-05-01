@@ -88,8 +88,7 @@ async function handleWorkflowRedirect(
     const workflowData = await requestJson(getWorkflowStateContract, {
       params: { id: workflowId },
     })
-    const data = workflowData.data as Record<string, unknown> | undefined
-    const workspaceId = typeof data?.workspaceId === 'string' ? data.workspaceId : undefined
+    const workspaceId = workflowData.data.workspaceId
     if (workspaceId) {
       logger.info(`Redirecting workflow ${workflowId} to workspace ${workspaceId}`)
       router.replace(`/workspace/${workspaceId}/w/${workflowId}`)

@@ -113,7 +113,7 @@ export async function fetchWorkflowForExport(
       const { data } = await requestJson(getWorkflowVariablesContract, {
         params: { id: workflowId },
       })
-      workflowVariables = data
+      workflowVariables = data as Record<string, Variable>
     } catch (error) {
       if (error instanceof ApiClientError) {
         logger.warn(`Failed to fetch workflow ${workflowId} variables for export`, {

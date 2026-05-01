@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 
@@ -95,53 +96,51 @@ const workflowParallelSchema = z.object({
 })
 
 /**
- * Workflow variable write schema.
+ * Write/input wire shape for a workflow variable.
  *
- * Intentionally omits `workflowId`: variables are workflow-scoped and the
- * route's `[id]` path parameter is the source of truth for writes and
- * persisted workflow state.
+ * Intentionally omits `workflowId`: a variable is workflow-scoped and the
+ * route's `[id]` path parameter is the single source of truth on writes.
+ * Persisting `workflowId` per-variable would be redundant.
+ *
+ * `value` is `unknown` to match the canonical client-side `Variable` type
+ * from `@sim/workflow-types/workflow`. Variables are free-form on the
+ * editor (the user enters a string that may parse as any of the declared
+ * types) and validation is done per-`type` at use-time by
+ * `validateVariable` in `apps/sim/stores/variables/store.ts`.
  */
 export const workflowVariableWriteSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
-  // `value` is `unknown` to match the canonical client-side `Variable`
-  // type from `@sim/workflow-types/workflow`. Variables are free-form on
-  // the editor (the user enters a string that may parse as any of the
-  // above types) and validation is done per-`type` at use-time by
-  // `validateVariable` in `apps/sim/stores/variables/store.ts`. The wire
-  // contract intentionally accepts the same union the store accepts.
   value: z.unknown(),
   validationError: z.string().optional(),
 })
 
 /**
- * Workflow variable read schema.
+ * Read/response wire shape for a workflow variable.
  *
- * GET routes stamp `workflowId` from the path parameter before returning
- * variables so the global client-side variables store can filter by workflow.
+ * Adds the server-stamped `workflowId` that GET handlers attach for the
+ * client-side variables store (`apps/sim/stores/variables/types.ts`),
+ * which keeps a `workflowId` field for cross-workflow filtering inside a
+ * single global store. Without this on the read schema, the field is
+ * stripped during `requestJson` Zod parsing and the store filter breaks.
+ *
+ * Routes stamping this field:
+ * - `apps/sim/app/api/workflows/[id]/route.ts` (GET) on `data.variables`
+ * - `apps/sim/app/api/workflows/[id]/state/route.ts` (GET) on `variables`
+ * - `apps/sim/app/api/workflows/[id]/variables/route.ts` (GET) on `data`
  */
 export const workflowVariableReadSchema = workflowVariableWriteSchema.extend({
   workflowId: z.string(),
 })
 
 /**
- * Workflow state as it crosses the HTTP boundary.
- *
- * This schema intentionally mirrors the persisted/editor state shape without
- * being a 1:1 TypeScript alias for the Zustand store's `WorkflowState` from
- * `@sim/workflow-types/workflow`. The store type includes UI-only fields
- * (`currentWorkflowId`, `lastUpdate`, `dragStartPosition`) and some narrower
- * editor unions (`subBlocks.value`, block outputs) that are validated by
- * editor/runtime code rather than the API contract.
- *
- * Keep this schema focused on persisted wire data. When adding or changing
- * fields, check the full flow: normalized DB loaders, `/api/workflows/[id]`,
- * `/api/workflows/[id]/state`, workflow import/export, realtime reloads, and
- * deployment state. If a field only exists for client store bookkeeping, it
- * should usually be stamped at the route boundary or omitted from persisted
- * writes instead of being stored redundantly.
+ * Backwards-compatible alias for callers that do not need to distinguish
+ * read vs write. Prefer `workflowVariableWriteSchema` for request bodies
+ * and `workflowVariableReadSchema` for response payloads.
  */
+export const workflowVariableSchema = workflowVariableWriteSchema
+
 export const workflowStateSchema = z.object({
   blocks: z.record(z.string(), workflowBlockStateSchema),
   edges: z.array(workflowEdgeSchema),
@@ -150,7 +149,14 @@ export const workflowStateSchema = z.object({
   lastSaved: z.number().optional(),
   isDeployed: z.boolean().optional(),
   deployedAt: z.coerce.date().nullable().optional(),
-  variables: z.record(z.string(), workflowVariableWriteSchema).optional(),
+  variables: z.record(z.string(), workflowVariableSchema).optional(),
+  /**
+   * Display metadata stamped onto the workflow state by the GET
+   * `/api/workflows/[id]` route, so callers consuming the wire payload
+   * (export, copilot tool result handling, etc.) can show the workflow's
+   * name/description without a second request. Not persisted on disk —
+   * the route reads it from the workflow row and stamps it on read.
+   */
   metadata: z
     .object({
       name: z.string().optional(),
@@ -159,15 +165,8 @@ export const workflowStateSchema = z.object({
     .optional(),
 })
 
-export const workflowStateReadSchema = workflowStateSchema.extend({
-  variables: z.record(z.string(), workflowVariableReadSchema).optional(),
-})
-
-export type WorkflowVariableWrite = z.output<typeof workflowVariableWriteSchema>
-export type WorkflowVariableRead = z.output<typeof workflowVariableReadSchema>
 export type WorkflowStateContractInput = z.input<typeof workflowStateSchema>
 export type WorkflowStateContractOutput = z.output<typeof workflowStateSchema>
-export type WorkflowStateRead = z.output<typeof workflowStateReadSchema>
 
 export type WorkflowStateWirePayload = WorkflowStateContractOutput
 
@@ -205,7 +204,7 @@ export const workflowListQuerySchema = z.object({
 export const v1ListWorkflowsQuerySchema = z.object({
   workspaceId: z.string().min(1),
   folderId: z.string().optional(),
-  deployedOnly: z.coerce.boolean().optional().default(false),
+  deployedOnly: booleanQueryFlagSchema.optional().default(false),
   limit: z.coerce.number().min(1).max(100).optional().default(50),
   cursor: z.string().optional(),
 })
@@ -357,7 +356,7 @@ export const executeWorkflowBodySchema = z.object({
 export type ExecuteWorkflowBody = z.input<typeof executeWorkflowBodySchema>
 
 export const workflowVariablesBodySchema = z.object({
-  variables: z.record(z.string(), workflowVariableWriteSchema),
+  variables: z.record(z.string(), workflowVariableSchema),
 })
 export type WorkflowVariablesBody = z.input<typeof workflowVariablesBodySchema>
 
@@ -466,6 +465,18 @@ const successResponseSchema = z.object({
   success: z.literal(true),
 })
 
+/**
+ * Generic wrapper used by v1 admin workflow list/detail responses. `data` is
+ * the provider-shaped admin payload (varies per route) and `limits` is an
+ * optional rate-limit envelope; both are intentionally `z.unknown()` here.
+ * Tightening would require per-route discriminated unions and is tracked as
+ * a follow-up.
+ *
+ * boundary-policy: this is the "validates nothing" alias form that the audit
+ * script's `untyped-response` regex doesn't currently catch. Treat any new
+ * wrapper of this shape the same way — either annotate at the contract use
+ * site with `// untyped-response: <reason>` or replace with a concrete schema.
+ */
 const v1WorkflowApiResponseWithLimitsSchema = z
   .object({
     data: z.unknown(),
@@ -588,6 +599,39 @@ export const v1GetWorkflowContract = defineRouteContract({
   },
 })
 
+/**
+ * Wire shape returned by GET `/api/workflows/[id]` for the `data` payload.
+ * Mirrors the workflow row spread by the route handler plus the stamped `state`
+ * (built from normalized tables) and stamped per-variable `workflowId`. Keep
+ * this aligned with `apps/sim/app/api/workflows/[id]/route.ts` whenever the
+ * row spread or the state assembly changes — it replaces a previous
+ * `.passthrough()` slot that forced clients to cast row fields like
+ * `workspaceId` / `isDeployed` / `deployedAt` out as `unknown`.
+ */
+export const getWorkflowResponseDataSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  workspaceId: z.string().nullable(),
+  folderId: z.string().nullable(),
+  sortOrder: z.number(),
+  name: z.string(),
+  description: z.string().nullable(),
+  color: z.string(),
+  lastSynced: z.coerce.date(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+  isDeployed: z.boolean(),
+  deployedAt: z.coerce.date().nullable(),
+  isPublicApi: z.boolean(),
+  runCount: z.number(),
+  lastRunAt: z.coerce.date().nullable(),
+  archivedAt: z.coerce.date().nullable(),
+  state: workflowStateSchema,
+  variables: z.record(z.string(), workflowVariableReadSchema).optional(),
+})
+
+export type GetWorkflowResponseData = z.output<typeof getWorkflowResponseDataSchema>
+
 export const getWorkflowStateContract = defineRouteContract({
   method: 'GET',
   path: '/api/workflows/[id]',
@@ -595,12 +639,7 @@ export const getWorkflowStateContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({
-      data: z
-        .object({
-          state: workflowStateReadSchema,
-          variables: z.record(z.string(), workflowVariableReadSchema),
-        })
-        .passthrough(),
+      data: getWorkflowResponseDataSchema,
     }),
   },
 })

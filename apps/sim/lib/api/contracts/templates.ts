@@ -1,7 +1,8 @@
 import { z } from 'zod'
+import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const booleanQuerySchema = z.coerce.boolean().optional().default(false)
+const booleanQuerySchema = booleanQueryFlagSchema.optional().default(false)
 
 export const templateStatusSchema = z.enum(['pending', 'approved', 'rejected'])
 
