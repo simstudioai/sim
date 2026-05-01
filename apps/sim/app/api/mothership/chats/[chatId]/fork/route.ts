@@ -25,11 +25,6 @@ import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('ForkChatAPI')
 
-/**
- * POST /api/mothership/chats/[chatId]/fork
- * Creates a new chat branched from the given chat, keeping messages up to and
- * including the specified message. Resources and copilot-side state are copied.
- */
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
