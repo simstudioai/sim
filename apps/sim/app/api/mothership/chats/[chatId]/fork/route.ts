@@ -82,6 +82,41 @@ export const POST = withRouteHandler(
       const title = `Fork | ${baseTitle}`
       const now = new Date()
 
+      // Clone copilot-service conversation state first. If this fails we never
+      // insert the Sim row, so there is no orphaned UI entry to clean up.
+      // (The inverse order — Sim INSERT first — required a compensating delete
+      // and still left a brief window where the row was visible but Go state
+      // wasn't ready.)
+      const copilotHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (env.COPILOT_API_KEY) {
+        copilotHeaders['x-api-key'] = env.COPILOT_API_KEY
+      }
+      try {
+        const copilotRes = await fetchGo(`${SIM_AGENT_API_URL}/api/chats/fork`, {
+          method: 'POST',
+          headers: copilotHeaders,
+          body: JSON.stringify({
+            sourceChatId: chatId,
+            newChatId: newId,
+            keepCount: forkedMessages.length,
+            userId,
+          }),
+          spanName: 'sim → go /api/chats/fork',
+          operation: 'fork_chat',
+        })
+        if (!copilotRes.ok) {
+          const text = await copilotRes.text().catch(() => '')
+          logger.error('Copilot fork returned non-OK', { status: copilotRes.status, body: text })
+          return createInternalServerErrorResponse('Failed to fork chat')
+        }
+      } catch (err) {
+        logger.error('Failed to call copilot fork endpoint', { err })
+        return createInternalServerErrorResponse('Failed to fork chat')
+      }
+
+      // Go state is ready — now persist the Sim metadata row. If this insert
+      // fails the Go conversation is orphaned but permanently inaccessible
+      // (no Sim row = no UI entry), which is harmless.
       const [newChat] = await db
         .insert(copilotChats)
         .values({
@@ -104,49 +139,11 @@ export const POST = withRouteHandler(
         .returning({ id: copilotChats.id, workspaceId: copilotChats.workspaceId })
 
       if (!newChat) {
-        return createInternalServerErrorResponse('Failed to create forked chat')
-      }
-
-      // Clone copilot-service conversation state (messages, active_messages, memory files).
-      const copilotHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (env.COPILOT_API_KEY) {
-        copilotHeaders['x-api-key'] = env.COPILOT_API_KEY
-      }
-      let copilotFailed = false
-      try {
-        const copilotRes = await fetchGo(`${SIM_AGENT_API_URL}/api/chats/fork`, {
-          method: 'POST',
-          headers: copilotHeaders,
-          body: JSON.stringify({
-            sourceChatId: chatId,
-            newChatId: newId,
-            keepCount: forkedMessages.length,
-            userId,
-          }),
-          spanName: 'sim → go /api/chats/fork',
-          operation: 'fork_chat',
+        logger.error('Failed to insert forked chat row after successful Go fork', {
+          newId,
+          chatId,
         })
-        if (!copilotRes.ok) {
-          const text = await copilotRes.text().catch(() => '')
-          logger.error('Copilot fork returned non-OK', { status: copilotRes.status, body: text })
-          copilotFailed = true
-        }
-      } catch (err) {
-        logger.error('Failed to call copilot fork endpoint', { err })
-        copilotFailed = true
-      }
-
-      if (copilotFailed) {
-        // Compensating delete — remove the orphaned Sim row.
-        await db
-          .delete(copilotChats)
-          .where(eq(copilotChats.id, newId))
-          .catch((e: unknown) => {
-            logger.error('Failed to delete orphaned forked chat after copilot failure', {
-              error: e,
-            })
-          })
-        return createInternalServerErrorResponse('Failed to fork chat')
+        return createInternalServerErrorResponse('Failed to create forked chat')
       }
 
       if (newChat.workspaceId) {
