@@ -184,7 +184,7 @@ export function getSocketUrl(): string {
   if (explicit) return explicit
 
   const browserOrigin = getBrowserOrigin()
-  if (browserOrigin && !LOCALHOST_HOSTNAMES.has(window.location.hostname)) {
+  if (browserOrigin && !LOCALHOST_HOSTNAMES.has(new URL(browserOrigin).hostname)) {
     return browserOrigin
   }
 

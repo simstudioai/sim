@@ -2,6 +2,7 @@
 
 // This script is intentionally self-contained for execution in the migrations image.
 // Do not import from the main app code; duplicate minimal schema and DB setup here.
+// Workspace-internal packages (`@sim/*`) are permitted since they ship in the migrations image.
 
 import { generateId } from '@sim/utils/id'
 import { sql } from 'drizzle-orm'

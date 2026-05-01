@@ -149,11 +149,14 @@ const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
   logger.warn('Ignoring invalid entry in TRUSTED_ORIGINS', { value })
 )
 
-if (env.NODE_ENV === 'production' && isLocalhostUrl(getBaseUrl())) {
-  logger.warn(
-    'NEXT_PUBLIC_APP_URL points to localhost in production. Self-hosted deployments must set NEXT_PUBLIC_APP_URL to the public URL users access (e.g. https://sim.example.com), otherwise auth POST requests from any non-localhost origin will be rejected by trustedOrigins. Set TRUSTED_ORIGINS to allow additional public origins.',
-    { baseUrl: getBaseUrl() }
-  )
+if (env.NODE_ENV === 'production') {
+  const baseUrl = getBaseUrl()
+  if (isLocalhostUrl(baseUrl)) {
+    logger.warn(
+      'NEXT_PUBLIC_APP_URL points to localhost in production. Self-hosted deployments must set NEXT_PUBLIC_APP_URL to the public URL users access (e.g. https://sim.example.com), otherwise auth POST requests from any non-localhost origin will be rejected by trustedOrigins. Set TRUSTED_ORIGINS to allow additional public origins.',
+      { baseUrl }
+    )
+  }
 }
 
 const validStripeKey = env.STRIPE_SECRET_KEY
