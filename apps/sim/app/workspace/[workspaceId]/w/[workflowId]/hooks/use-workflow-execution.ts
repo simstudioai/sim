@@ -2029,6 +2029,7 @@ export function useWorkflowExecution() {
                 handleExecutionCancelledConsole({
                   workflowId: reconnectWorkflowId,
                   executionId: capturedExecutionId,
+                  durationMs: data?.duration,
                   finalBlockLogs: data?.finalBlockLogs,
                 })
               },
