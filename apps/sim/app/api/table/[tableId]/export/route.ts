@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { tableExportFormatSchema, tableIdParamsSchema } from '@/lib/api/contracts/tables'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -9,8 +11,8 @@ import { accessError, checkAccess } from '@/app/api/table/utils'
 const logger = createLogger('TableExport')
 
 const EXPORT_BATCH_SIZE = 1000
-const SUPPORTED_FORMATS = ['csv', 'json'] as const
-type ExportFormat = (typeof SUPPORTED_FORMATS)[number]
+
+type ExportFormat = 'csv' | 'json'
 
 interface RouteParams {
   params: Promise<{ tableId: string }>
@@ -19,7 +21,7 @@ interface RouteParams {
 /** GET /api/table/[tableId]/export - Streams the full table contents as CSV or JSON. */
 export const GET = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
-  const { tableId } = await params
+  const { tableId } = tableIdParamsSchema.parse(await params)
 
   const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
   if (!auth.success || !auth.userId) {
@@ -27,14 +29,16 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   }
 
   const { searchParams } = new URL(request.url)
-  const rawFormat = (searchParams.get('format') ?? 'csv').toLowerCase()
-  if (!SUPPORTED_FORMATS.includes(rawFormat as ExportFormat)) {
+  const formatValidation = tableExportFormatSchema.safeParse(
+    searchParams.get('format') ?? undefined
+  )
+  if (!formatValidation.success) {
     return NextResponse.json(
-      { error: `Unsupported format. Use one of: ${SUPPORTED_FORMATS.join(', ')}` },
+      { error: getValidationErrorMessage(formatValidation.error) },
       { status: 400 }
     )
   }
-  const format = rawFormat as ExportFormat
+  const format: ExportFormat = formatValidation.data
 
   const access = await checkAccess(tableId, auth.userId, 'read')
   if (!access.ok) return accessError(access, requestId, tableId)

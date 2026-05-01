@@ -3,6 +3,15 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  csvExtensionSchema,
+  csvImportCreateColumnsSchema,
+  csvImportFormSchema,
+  csvImportMappingSchema,
+  csvImportModeSchema,
+  tableIdParamsSchema,
+} from '@/lib/api/contracts/tables'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -11,7 +20,6 @@ import {
   batchInsertRowsWithTx,
   buildAutoMapping,
   CSV_MAX_BATCH_SIZE,
-  CSV_MAX_FILE_SIZE_BYTES,
   type CsvHeaderMapping,
   CsvImportValidationError,
   coerceRowsForTable,
@@ -27,15 +35,13 @@ import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSVExisting')
 
-const IMPORT_MODES = new Set(['append', 'replace'])
-
 interface RouteParams {
   params: Promise<{ tableId: string }>
 }
 
 export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
-  const { tableId } = await params
+  const { tableId } = tableIdParamsSchema.parse(await params)
 
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -44,40 +50,39 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     }
 
     const formData = await request.formData()
-    const file = formData.get('file')
-    const workspaceId = formData.get('workspaceId') as string | null
-    const rawMode = (formData.get('mode') as string | null) ?? 'append'
-    const rawMapping = formData.get('mapping') as string | null
-    const rawCreateColumns = formData.get('createColumns') as string | null
+    const formValidation = csvImportFormSchema.safeParse({
+      file: formData.get('file'),
+      workspaceId: formData.get('workspaceId'),
+    })
+    const rawMode = formData.get('mode') ?? 'append'
+    const rawMapping = formData.get('mapping')
+    const rawCreateColumns = formData.get('createColumns')
 
-    if (!file || !(file instanceof File)) {
-      return NextResponse.json({ error: 'CSV file is required' }, { status: 400 })
-    }
-
-    if (file.size > CSV_MAX_FILE_SIZE_BYTES) {
+    if (!formValidation.success) {
       return NextResponse.json(
-        {
-          error: `File exceeds maximum allowed size of ${CSV_MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB`,
-        },
+        { error: getValidationErrorMessage(formValidation.error) },
         { status: 400 }
       )
     }
 
-    if (!workspaceId) {
-      return NextResponse.json({ error: 'Workspace ID is required' }, { status: 400 })
-    }
+    const { file, workspaceId } = formValidation.data
 
-    if (!IMPORT_MODES.has(rawMode)) {
+    const modeValidation = csvImportModeSchema.safeParse(rawMode)
+    if (!modeValidation.success) {
       return NextResponse.json(
-        { error: `Invalid mode "${rawMode}". Must be "append" or "replace".` },
+        { error: `Invalid mode "${String(rawMode)}". Must be "append" or "replace".` },
         { status: 400 }
       )
     }
-    const mode = rawMode as 'append' | 'replace'
+    const mode = modeValidation.data
 
     const ext = file.name.split('.').pop()?.toLowerCase()
-    if (ext !== 'csv' && ext !== 'tsv') {
-      return NextResponse.json({ error: 'Only CSV and TSV files are supported' }, { status: 400 })
+    const extensionValidation = csvExtensionSchema.safeParse(ext)
+    if (!extensionValidation.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(extensionValidation.error) },
+        { status: 400 }
+      )
     }
 
     const accessResult = await checkAccess(tableId, authResult.userId, 'write')
@@ -98,38 +103,30 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
     let mapping: CsvHeaderMapping | undefined
     if (rawMapping) {
-      try {
-        const parsed = JSON.parse(rawMapping)
-        if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          return NextResponse.json(
-            { error: 'mapping must be a JSON object mapping CSV headers to column names' },
-            { status: 400 }
-          )
-        }
-        mapping = parsed as CsvHeaderMapping
-      } catch {
-        return NextResponse.json({ error: 'mapping must be valid JSON' }, { status: 400 })
+      const mappingValidation = csvImportMappingSchema.safeParse(rawMapping)
+      if (!mappingValidation.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(mappingValidation.error) },
+          { status: 400 }
+        )
       }
+      mapping = mappingValidation.data
     }
 
     let createColumns: string[] | undefined
     if (rawCreateColumns) {
-      try {
-        const parsed = JSON.parse(rawCreateColumns)
-        if (!Array.isArray(parsed) || parsed.some((h) => typeof h !== 'string')) {
-          return NextResponse.json(
-            { error: 'createColumns must be a JSON array of CSV header names' },
-            { status: 400 }
-          )
-        }
-        createColumns = parsed as string[]
-      } catch {
-        return NextResponse.json({ error: 'createColumns must be valid JSON' }, { status: 400 })
+      const createColumnsValidation = csvImportCreateColumnsSchema.safeParse(rawCreateColumns)
+      if (!createColumnsValidation.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(createColumnsValidation.error) },
+          { status: 400 }
+        )
       }
+      createColumns = createColumnsValidation.data
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const delimiter = ext === 'tsv' ? '\t' : ','
+    const delimiter = extensionValidation.data === 'tsv' ? '\t' : ','
     const { headers, rows } = await parseCsvBuffer(buffer, delimiter)
 
     let effectiveMapping = mapping ?? buildAutoMapping(headers, table.schema)

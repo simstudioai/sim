@@ -12,6 +12,37 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import type { ContractJsonResponse } from '@/lib/api/contracts'
+import {
+  addTableColumnContract,
+  type BatchInsertTableRowsBodyInput,
+  type BatchUpdateTableRowsBodyInput,
+  batchCreateTableRowsContract,
+  batchUpdateTableRowsContract,
+  type CreateTableBodyInput,
+  type CreateTableColumnBodyInput,
+  createTableContract,
+  createTableRowContract,
+  deleteTableColumnContract,
+  deleteTableContract,
+  deleteTableRowContract,
+  deleteTableRowsContract,
+  getTableContract,
+  type InsertTableRowBodyInput,
+  listTableRowsContract,
+  listTablesContract,
+  renameTableContract,
+  restoreTableContract,
+  type TableIdParamsInput,
+  type TableRowParamsInput,
+  type TableRowsQueryInput,
+  type UpdateTableColumnBodyInput,
+  type UpdateTableRowBodyInput,
+  updateTableColumnContract,
+  updateTableMetadataContract,
+  updateTableRowContract,
+} from '@/lib/api/contracts/tables'
 import type {
   CsvHeaderMapping,
   Filter,
@@ -38,53 +69,43 @@ export const tableKeys = {
     [...tableKeys.rowsRoot(tableId), 'infinite', paramsKey] as const,
 }
 
-interface TableRowsParams {
-  workspaceId: string
-  tableId: string
-  limit: number
-  offset: number
-  filter?: Filter | null
-  sort?: Sort | null
-  /** When `false`, skip the server-side `COUNT(*)` and receive `totalCount: null`. */
-  includeTotal?: boolean
-}
+type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
+  TableIdParamsInput & {
+    filter?: Filter | null
+    sort?: Sort | null
+  }
 
-interface TableRowsResponse {
-  rows: TableRow[]
-  /** `null` when the request opted out of the count via `includeTotal: false`. */
-  totalCount: number | null
-}
+type TableRowsResponse = Pick<
+  ContractJsonResponse<typeof listTableRowsContract>['data'],
+  'rows' | 'totalCount'
+>
 
 interface RowMutationContext {
   workspaceId: string
   tableId: string
 }
 
-interface UpdateTableRowParams {
-  rowId: string
-  data: Record<string, unknown>
-}
+type UpdateTableRowParams = Pick<TableRowParamsInput, 'rowId'> &
+  Omit<UpdateTableRowBodyInput, 'workspaceId' | 'data'> & {
+    data: Record<string, unknown>
+  }
 
-interface TableRowsDeleteResult {
-  deletedRowIds: string[]
-}
+type TableRowsDeleteResult = Pick<
+  ContractJsonResponse<typeof deleteTableRowsContract>['data'],
+  'deletedRowIds'
+>
 
 async function fetchTable(
   workspaceId: string,
   tableId: string,
   signal?: AbortSignal
 ): Promise<TableDefinition> {
-  const res = await fetch(`/api/table/${tableId}?workspaceId=${encodeURIComponent(workspaceId)}`, {
+  const response = await requestJson(getTableContract, {
+    params: { tableId },
+    query: { workspaceId },
     signal,
   })
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}))
-    throw new Error(error.error || 'Failed to fetch table')
-  }
-
-  const json: { data?: { table: TableDefinition }; table?: TableDefinition } = await res.json()
-  const data = json.data || json
-  return (data as { table: TableDefinition }).table
+  return response.data.table
 }
 
 async function fetchTableRows({
@@ -97,41 +118,20 @@ async function fetchTableRows({
   includeTotal,
   signal,
 }: TableRowsParams & { signal?: AbortSignal }): Promise<TableRowsResponse> {
-  const searchParams = new URLSearchParams({
-    workspaceId,
-    limit: String(limit),
-    offset: String(offset),
+  const response = await requestJson(listTableRowsContract, {
+    params: { tableId },
+    query: {
+      workspaceId,
+      limit,
+      offset,
+      filter: filter ?? undefined,
+      sort: sort ?? undefined,
+      includeTotal,
+    },
+    signal,
   })
-
-  if (filter) {
-    searchParams.set('filter', JSON.stringify(filter))
-  }
-
-  if (sort) {
-    searchParams.set('sort', JSON.stringify(sort))
-  }
-
-  if (includeTotal === false) {
-    searchParams.set('includeTotal', 'false')
-  }
-
-  const res = await fetch(`/api/table/${tableId}/rows?${searchParams}`, { signal })
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}))
-    throw new Error(error.error || 'Failed to fetch rows')
-  }
-
-  const json: {
-    data?: { rows: TableRow[]; totalCount: number | null }
-    rows?: TableRow[]
-    totalCount?: number | null
-  } = await res.json()
-
-  const data = json.data || json
-  return {
-    rows: (data.rows || []) as TableRow[],
-    totalCount: data.totalCount ?? null,
-  }
+  const { rows, totalCount } = response.data
+  return { rows, totalCount }
 }
 
 function invalidateRowData(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
@@ -167,20 +167,11 @@ export function useTablesList(workspaceId?: string, scope: TableQueryScope = 'ac
     queryFn: async ({ signal }) => {
       if (!workspaceId) throw new Error('Workspace ID required')
 
-      const res = await fetch(
-        `/api/table?workspaceId=${encodeURIComponent(workspaceId)}&scope=${scope}`,
-        {
-          signal,
-        }
-      )
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || 'Failed to fetch tables')
-      }
-
-      const response = await res.json()
-      return (response.data?.tables || []) as TableDefinition[]
+      const response = await requestJson(listTablesContract, {
+        query: { workspaceId, scope },
+        signal,
+      })
+      return response.data.tables
     },
     enabled: Boolean(workspaceId),
     staleTime: 30 * 1000,
@@ -260,24 +251,10 @@ export function useCreateTable(workspaceId: string) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (params: {
-      name: string
-      description?: string
-      schema: { columns: Array<{ name: string; type: string; required?: boolean }> }
-      initialRowCount?: number
-    }) => {
-      const res = await fetch('/api/table', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...params, workspaceId }),
+    mutationFn: async (params: Omit<CreateTableBodyInput, 'workspaceId'>) => {
+      return requestJson(createTableContract, {
+        body: { ...params, workspaceId },
       })
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || 'Failed to create table')
-      }
-
-      return res.json()
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -292,25 +269,11 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (column: {
-      name: string
-      type: string
-      required?: boolean
-      unique?: boolean
-      position?: number
-    }) => {
-      const res = await fetch(`/api/table/${tableId}/columns`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, column }),
+    mutationFn: async (column: CreateTableColumnBodyInput['column']) => {
+      return requestJson(addTableColumnContract, {
+        params: { tableId },
+        body: { workspaceId, column },
       })
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || 'Failed to add column')
-      }
-
-      return res.json()
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, workspaceId, tableId)
@@ -326,18 +289,10 @@ export function useRenameTable(workspaceId: string) {
 
   return useMutation({
     mutationFn: async ({ tableId, name }: { tableId: string; name: string }) => {
-      const res = await fetch(`/api/table/${tableId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, name }),
+      return requestJson(renameTableContract, {
+        params: { tableId },
+        body: { workspaceId, name },
       })
-
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to rename table')
-      }
-
-      return res.json()
     },
     onError: (error) => {
       toast.error(error.message, { duration: 5000 })
@@ -357,19 +312,10 @@ export function useDeleteTable(workspaceId: string) {
 
   return useMutation({
     mutationFn: async (tableId: string) => {
-      const res = await fetch(
-        `/api/table/${tableId}?workspaceId=${encodeURIComponent(workspaceId)}`,
-        {
-          method: 'DELETE',
-        }
-      )
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || 'Failed to delete table')
-      }
-
-      return res.json()
+      return requestJson(deleteTableContract, {
+        params: { tableId },
+        query: { workspaceId },
+      })
     },
     onSettled: (_data, _error, tableId) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -388,22 +334,18 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (variables: { data: Record<string, unknown>; position?: number }) => {
-      const res = await fetch(`/api/table/${tableId}/rows`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, data: variables.data, position: variables.position }),
-      })
-
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to add row')
+    mutationFn: async (
+      variables: Omit<InsertTableRowBodyInput, 'workspaceId' | 'data'> & {
+        data: Record<string, unknown>
       }
-
-      return res.json()
+    ) => {
+      return requestJson(createTableRowContract, {
+        params: { tableId },
+        body: { workspaceId, data: variables.data as RowData, position: variables.position },
+      })
     },
     onSuccess: (response) => {
-      const row = (response as { data?: { row?: TableRow } })?.data?.row as TableRow | undefined
+      const row = response.data.row
       if (!row) return
 
       reconcileCreatedRow(queryClient, tableId, row)
@@ -494,19 +436,11 @@ function reconcileCreatedRow(
   )
 }
 
-interface BatchCreateTableRowsParams {
+type BatchCreateTableRowsParams = Omit<BatchInsertTableRowsBodyInput, 'workspaceId' | 'rows'> & {
   rows: Array<Record<string, unknown>>
-  positions?: number[]
 }
 
-interface BatchCreateTableRowsResponse {
-  success: boolean
-  data?: {
-    rows: TableRow[]
-    insertedCount: number
-    message: string
-  }
-}
+type BatchCreateTableRowsResponse = ContractJsonResponse<typeof batchCreateTableRowsContract>
 
 /**
  * Batch create rows in a table. Supports optional per-row positions for undo restore.
@@ -518,22 +452,14 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
     mutationFn: async (
       variables: BatchCreateTableRowsParams
     ): Promise<BatchCreateTableRowsResponse> => {
-      const res = await fetch(`/api/table/${tableId}/rows`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      return requestJson(batchCreateTableRowsContract, {
+        params: { tableId },
+        body: {
           workspaceId,
-          rows: variables.rows,
+          rows: variables.rows as RowData[],
           positions: variables.positions,
-        }),
+        },
       })
-
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to create rows')
-      }
-
-      return res.json()
     },
     onSettled: () => {
       invalidateRowCount(queryClient, workspaceId, tableId)
@@ -550,18 +476,10 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
 
   return useMutation({
     mutationFn: async ({ rowId, data }: UpdateTableRowParams) => {
-      const res = await fetch(`/api/table/${tableId}/rows/${rowId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, data }),
+      return requestJson(updateTableRowContract, {
+        params: { tableId, rowId },
+        body: { workspaceId, data: data as RowData },
       })
-
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to update row')
-      }
-
-      return res.json()
     },
     onMutate: ({ rowId, data }) => {
       void queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
@@ -589,7 +507,7 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
   })
 }
 
-interface BatchUpdateTableRowsParams {
+type BatchUpdateTableRowsParams = Omit<BatchUpdateTableRowsBodyInput, 'workspaceId' | 'updates'> & {
   updates: Array<{ rowId: string; data: Record<string, unknown> }>
 }
 
@@ -601,18 +519,13 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
 
   return useMutation({
     mutationFn: async ({ updates }: BatchUpdateTableRowsParams) => {
-      const res = await fetch(`/api/table/${tableId}/rows`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, updates }),
+      return requestJson(batchUpdateTableRowsContract, {
+        params: { tableId },
+        body: {
+          workspaceId,
+          updates: updates.map((update) => ({ ...update, data: update.data as RowData })),
+        },
       })
-
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to update rows')
-      }
-
-      return res.json()
     },
     onMutate: ({ updates }) => {
       void queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
@@ -652,18 +565,10 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
 
   return useMutation({
     mutationFn: async (rowId: string) => {
-      const res = await fetch(`/api/table/${tableId}/rows/${rowId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId }),
+      return requestJson(deleteTableRowContract, {
+        params: { tableId, rowId },
+        body: { workspaceId },
       })
-
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to delete row')
-      }
-
-      return res.json()
     },
     onSettled: () => {
       invalidateRowCount(queryClient, workspaceId, tableId)
@@ -682,27 +587,17 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
     mutationFn: async (rowIds: string[]): Promise<TableRowsDeleteResult> => {
       const uniqueRowIds = Array.from(new Set(rowIds))
 
-      const res = await fetch(`/api/table/${tableId}/rows`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, rowIds: uniqueRowIds }),
+      const response = await requestJson(deleteTableRowsContract, {
+        params: { tableId },
+        body: { workspaceId, rowIds: uniqueRowIds },
       })
 
-      const json: {
-        error?: string
-        data?: { deletedRowIds?: string[]; missingRowIds?: string[]; requestedCount?: number }
-      } = await res.json().catch(() => ({}))
-
-      if (!res.ok) {
-        throw new Error(json.error || 'Failed to delete rows')
-      }
-
-      const deletedRowIds = json.data?.deletedRowIds || []
-      const missingRowIds = json.data?.missingRowIds || []
+      const deletedRowIds = response.data.deletedRowIds || []
+      const missingRowIds = response.data.missingRowIds || []
 
       if (missingRowIds.length > 0) {
         const failureCount = missingRowIds.length
-        const totalCount = json.data?.requestedCount ?? uniqueRowIds.length
+        const totalCount = response.data.requestedCount ?? uniqueRowIds.length
         const successCount = deletedRowIds.length
         const firstMissing = missingRowIds[0]
         throw new Error(
@@ -718,15 +613,7 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
   })
 }
 
-interface UpdateColumnParams {
-  columnName: string
-  updates: {
-    name?: string
-    type?: string
-    required?: boolean
-    unique?: boolean
-  }
-}
+type UpdateColumnParams = Omit<UpdateTableColumnBodyInput, 'workspaceId'>
 
 /**
  * Update a column (rename, type change, or constraint update).
@@ -736,18 +623,10 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
 
   return useMutation({
     mutationFn: async ({ columnName, updates }: UpdateColumnParams) => {
-      const res = await fetch(`/api/table/${tableId}/columns`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, columnName, updates }),
+      return requestJson(updateTableColumnContract, {
+        params: { tableId },
+        body: { workspaceId, columnName, updates },
       })
-
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to update column')
-      }
-
-      return res.json()
     },
     onError: (error) => {
       toast.error(error.message, { duration: 5000 })
@@ -767,18 +646,10 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
 
   return useMutation({
     mutationFn: async (metadata: TableMetadata) => {
-      const res = await fetch(`/api/table/${tableId}/metadata`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, metadata }),
+      return requestJson(updateTableMetadataContract, {
+        params: { tableId },
+        body: { workspaceId, metadata },
       })
-
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({}))
-        throw new Error((error as { error?: string }).error || 'Failed to update metadata')
-      }
-
-      return res.json()
     },
     onMutate: async (metadata) => {
       await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
@@ -813,12 +684,9 @@ export function useRestoreTable() {
 
   return useMutation({
     mutationFn: async (tableId: string) => {
-      const res = await fetch(`/api/table/${tableId}/restore`, { method: 'POST' })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to restore table')
-      }
-      return res.json()
+      return requestJson(restoreTableContract, {
+        params: { tableId },
+      })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -843,6 +711,7 @@ export function useUploadCsvToTable() {
       formData.append('file', file)
       formData.append('workspaceId', workspaceId)
 
+      // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
       const response = await fetch('/api/table/import-csv', {
         method: 'POST',
         body: formData,
@@ -918,6 +787,7 @@ export function useImportCsvIntoTable() {
         formData.append('createColumns', JSON.stringify(createColumns))
       }
 
+      // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
       const response = await fetch(`/api/table/${tableId}/import`, {
         method: 'POST',
         body: formData,
@@ -950,6 +820,7 @@ export async function downloadTableExport(
   format: 'csv' | 'json' = 'csv'
 ): Promise<void> {
   const url = `/api/table/${tableId}/export?format=${format}&t=${Date.now()}`
+  // boundary-raw-fetch: streaming download to a Blob, requestJson cannot consume non-JSON streams
   const response = await fetch(url, { cache: 'no-store' })
   if (!response.ok) {
     const data = await response.json().catch(() => ({}))
@@ -972,18 +843,10 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
 
   return useMutation({
     mutationFn: async (columnName: string) => {
-      const res = await fetch(`/api/table/${tableId}/columns`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, columnName }),
+      return requestJson(deleteTableColumnContract, {
+        params: { tableId },
+        body: { workspaceId, columnName },
       })
-
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to delete column')
-      }
-
-      return res.json()
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, workspaceId, tableId)

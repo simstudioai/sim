@@ -811,6 +811,42 @@ export const csvExtensionSchema = z.enum(['csv', 'tsv'], {
 })
 
 /**
+ * `createColumns` form field — a JSON-encoded array of CSV header names that
+ * the import should auto-create as new columns on the target table.
+ */
+export const csvImportCreateColumnsSchema = z.unknown().transform((value, ctx): string[] => {
+  if (typeof value !== 'string') {
+    ctx.addIssue({ code: 'custom', message: 'createColumns must be valid JSON' })
+    return z.NEVER
+  }
+  try {
+    const parsed: unknown = JSON.parse(value)
+    if (!Array.isArray(parsed) || parsed.some((h) => typeof h !== 'string')) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'createColumns must be a JSON array of CSV header names',
+      })
+      return z.NEVER
+    }
+    return parsed as string[]
+  } catch {
+    ctx.addIssue({ code: 'custom', message: 'createColumns must be valid JSON' })
+    return z.NEVER
+  }
+})
+
+/**
+ * `format` query param for the table export route. Lower-cases the input
+ * before validating against the supported formats and defaults to `'csv'`.
+ */
+export const tableExportFormatSchema = z
+  .preprocess(
+    (value) => (typeof value === 'string' ? value.toLowerCase() : value),
+    z.enum(['csv', 'json'])
+  )
+  .default('csv')
+
+/**
  * `mapping` form field — a JSON-encoded `CsvHeaderMapping` (CSV header →
  * column name, or `null` to skip the header).
  */
