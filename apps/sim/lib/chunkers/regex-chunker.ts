@@ -15,6 +15,33 @@ const logger = createLogger('RegexChunker')
 
 const MAX_PATTERN_LENGTH = 500
 
+/**
+ * Converts unescaped capturing groups `(...)` into non-capturing groups `(?:...)`.
+ * `String.prototype.split()` interleaves captured groups into the result array,
+ * which would surface delimiter text as spurious chunks. Lookarounds, named
+ * groups, and other `(?...)` constructs are left untouched.
+ */
+function toNonCapturing(pattern: string): string {
+  let result = ''
+  let inClass = false
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i]
+    if (c === '\\' && i + 1 < pattern.length) {
+      result += c + pattern[i + 1]
+      i++
+      continue
+    }
+    if (c === '[') inClass = true
+    else if (c === ']') inClass = false
+    if (!inClass && c === '(' && pattern[i + 1] !== '?') {
+      result += '(?:'
+      continue
+    }
+    result += c
+  }
+  return result
+}
+
 export class RegexChunker {
   private readonly chunkSize: number
   private readonly chunkOverlap: number
@@ -39,7 +66,7 @@ export class RegexChunker {
     }
 
     try {
-      const regex = new RegExp(pattern, 'g')
+      const regex = new RegExp(toNonCapturing(pattern), 'g')
 
       const testStrings = [
         'a'.repeat(10000),

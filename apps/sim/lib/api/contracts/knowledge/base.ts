@@ -45,6 +45,9 @@ export const chunkingConfigSchema = z
       message: 'Regex pattern is required when using the regex chunking strategy',
     }
   )
+  .refine((data) => data.strategy === 'regex' || data.strategyOptions?.strictBoundaries !== true, {
+    message: 'strictBoundaries is only valid for the regex chunking strategy',
+  })
 
 export const createKnowledgeBaseBodySchema = z.object({
   name: z.string().min(1, 'Name is required'),
