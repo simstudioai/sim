@@ -1,7 +1,7 @@
 ---
-
-## name: ship
+name: ship
 description: Commit, push, and open a PR to staging in one shot
+---
 
 # Ship Command
 
