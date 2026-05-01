@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { internalToolResponseSchema } from '@/lib/api/contracts/tools/internal/shared'
+import { genericToolResponseSchema } from '@/lib/api/contracts/tools/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
@@ -34,7 +34,7 @@ export const quiverTextToSvgContract = defineRouteContract({
   body: quiverTextToSvgBodySchema,
   response: {
     mode: 'json',
-    schema: internalToolResponseSchema,
+    schema: genericToolResponseSchema,
   },
 })
 
@@ -44,6 +44,6 @@ export const quiverImageToSvgContract = defineRouteContract({
   body: quiverImageToSvgBodySchema,
   response: {
     mode: 'json',
-    schema: internalToolResponseSchema,
+    schema: genericToolResponseSchema,
   },
 })
