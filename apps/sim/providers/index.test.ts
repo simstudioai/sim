@@ -149,9 +149,7 @@ describe('executeProviderRequest — BYOK regression', () => {
             startTime: 1777584457940,
             endTime: 1777584458000,
             duration: 60,
-            // Tool segments do not currently carry `cost` (tool cost lives on
-            // the parent's response.cost.toolCost), but if a future provider
-            // ever wrote a tool-segment cost we must NOT zero it.
+            cost: { total: 0.01 },
           },
         ],
       },
@@ -166,8 +164,7 @@ describe('executeProviderRequest — BYOK regression', () => {
     const [model, tool] = result.timing!.timeSegments!
     expect(model.cost?.total).toBe(0)
     expect(tool.type).toBe('tool')
-    // Helper only zeroes type==='model'; the tool segment is untouched.
-    expect((tool as { cost?: unknown }).cost).toBeUndefined()
+    expect(tool.cost?.total).toBe(0.01)
   })
 
   it('zeroes per-segment cost on streaming responses for BYOK callers', async () => {
