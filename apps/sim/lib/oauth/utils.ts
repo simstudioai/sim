@@ -201,6 +201,9 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
     'Add and remove participants from customer requests',
   'read:request.approval:jira-service-management': 'View approvals on customer requests',
   'write:request.approval:jira-service-management': 'Approve or decline customer requests',
+  'read:form:jira-service-management': 'View JSM forms and templates',
+  'write:form:jira-service-management': 'Attach, save, and submit JSM forms',
+  'delete:form:jira-service-management': 'Delete JSM forms',
 
   // Microsoft scopes
   'User.Read': 'Read Microsoft user',
