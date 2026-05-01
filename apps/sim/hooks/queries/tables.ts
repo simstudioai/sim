@@ -11,36 +11,42 @@ import { toast } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
+  type AddWorkflowGroupBodyInput,
   addTableColumnContract,
+  addWorkflowGroupContract,
   type BatchInsertTableRowsBodyInput,
   type BatchUpdateTableRowsBodyInput,
   batchCreateTableRowsContract,
   batchUpdateTableRowsContract,
   type CreateTableBodyInput,
   type CreateTableColumnBodyInput,
+  cancelTableRunsContract,
   createTableContract,
   createTableRowContract,
   deleteTableColumnContract,
   deleteTableContract,
   deleteTableRowContract,
   deleteTableRowsContract,
+  deleteWorkflowGroupContract,
   getTableContract,
   type InsertTableRowBodyInput,
   listTableRowsContract,
   listTablesContract,
   renameTableContract,
   restoreTableContract,
+  runWorkflowGroupContract,
   type TableIdParamsInput,
   type TableRowParamsInput,
   type TableRowsQueryInput,
   type UpdateTableColumnBodyInput,
   type UpdateTableRowBodyInput,
+  type UpdateWorkflowGroupBodyInput,
   updateTableColumnContract,
   updateTableMetadataContract,
   updateTableRowContract,
+  updateWorkflowGroupContract,
 } from '@/lib/api/contracts/tables'
 import type {
-  ColumnDefinition,
   CsvHeaderMapping,
   Filter,
   RowData,
@@ -786,16 +792,10 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
 
   return useMutation({
     mutationFn: async ({ scope, rowId }: CancelRunsParams) => {
-      const res = await fetch(`/api/table/${tableId}/cancel-runs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, scope, rowId }),
+      return requestJson(cancelTableRunsContract, {
+        params: { tableId },
+        body: { workspaceId, scope, rowId },
       })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error((data as { error?: string }).error || 'Failed to cancel runs')
-      }
-      return res.json() as Promise<{ success: true; data: { cancelled: number } }>
     },
     onMutate: async ({ scope, rowId }) => {
       logger.info(`[STOP-DEBUG] cancel onMutate scope=${scope} rowId=${rowId ?? 'all'}`)
@@ -1057,18 +1057,10 @@ export function useRunGroup({ workspaceId, tableId }: RowMutationContext) {
 
   return useMutation({
     mutationFn: async ({ groupId, mode = 'all' }: RunGroupVariables) => {
-      const res = await fetch(`/api/table/${tableId}/groups/${encodeURIComponent(groupId)}/run`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, mode }),
+      return requestJson(runWorkflowGroupContract, {
+        params: { tableId, groupId },
+        body: { workspaceId, mode },
       })
-
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to run group')
-      }
-
-      return res.json() as Promise<{ success: boolean; data: { triggered: number } }>
     },
     onMutate: async ({ groupId, workflowId, mode = 'all' }) => {
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
@@ -1104,23 +1096,17 @@ export function useRunGroup({ workspaceId, tableId }: RowMutationContext) {
 
 interface AddWorkflowGroupVariables {
   group: WorkflowGroup
-  outputColumns: ColumnDefinition[]
+  outputColumns: AddWorkflowGroupBodyInput['outputColumns']
 }
 
 export function useAddWorkflowGroup({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ group, outputColumns }: AddWorkflowGroupVariables) => {
-      const res = await fetch(`/api/table/${tableId}/groups`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, group, outputColumns }),
+      return requestJson(addWorkflowGroupContract, {
+        params: { tableId },
+        body: { workspaceId, group, outputColumns },
       })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error((err as { error?: string }).error || 'Failed to add workflow group')
-      }
-      return res.json()
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
@@ -1134,23 +1120,17 @@ interface UpdateWorkflowGroupVariables {
   name?: string
   dependencies?: WorkflowGroupDependencies
   outputs?: WorkflowGroupOutput[]
-  newOutputColumns?: ColumnDefinition[]
+  newOutputColumns?: UpdateWorkflowGroupBodyInput['newOutputColumns']
 }
 
 export function useUpdateWorkflowGroup({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (vars: UpdateWorkflowGroupVariables) => {
-      const res = await fetch(`/api/table/${tableId}/groups`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, ...vars }),
+      return requestJson(updateWorkflowGroupContract, {
+        params: { tableId },
+        body: { workspaceId, ...vars },
       })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error((err as { error?: string }).error || 'Failed to update workflow group')
-      }
-      return res.json()
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
@@ -1167,16 +1147,10 @@ export function useDeleteWorkflowGroup({ workspaceId, tableId }: RowMutationCont
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ groupId }: DeleteWorkflowGroupVariables) => {
-      const res = await fetch(`/api/table/${tableId}/groups`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, groupId }),
+      return requestJson(deleteWorkflowGroupContract, {
+        params: { tableId },
+        body: { workspaceId, groupId },
       })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error((err as { error?: string }).error || 'Failed to delete workflow group')
-      }
-      return res.json()
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)

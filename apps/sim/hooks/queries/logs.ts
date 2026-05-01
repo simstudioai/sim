@@ -144,18 +144,16 @@ async function fetchLogByExecutionId(
   executionId: string,
   signal?: AbortSignal
 ): Promise<WorkflowLog | null> {
-  const params = new URLSearchParams({
-    workspaceId,
-    executionId,
-    details: 'full',
-    limit: '1',
+  const apiData = await requestJson(listLogsContract, {
+    query: {
+      workspaceId,
+      executionId,
+      details: 'full',
+      limit: 1,
+    },
+    signal,
   })
-  const response = await fetch(`/api/logs?${params.toString()}`, { signal })
-  if (!response.ok) {
-    throw new Error('Failed to fetch log by execution id')
-  }
-  const apiData: LogsResponse = await response.json()
-  return apiData.data?.[0] ?? null
+  return apiData.data?.[0] ? toWorkflowLog(apiData.data[0]) : null
 }
 
 interface UseLogsListOptions {

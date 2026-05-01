@@ -1,16 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
-import { z } from 'zod'
 import {
   createTableColumnBodySchema,
   deleteTableColumnBodySchema,
   updateTableColumnBodySchema,
 } from '@/lib/api/contracts/tables'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table'
-import { COLUMN_TYPES, getTableById } from '@/lib/table'
+import { getTableById } from '@/lib/table'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-
-const columnTypeEnum = z.enum(COLUMN_TYPES)
 
 const logger = createLogger('TableUtils')
 
@@ -169,52 +166,6 @@ export function serverErrorResponse(message = 'Internal server error') {
 export const CreateColumnSchema = createTableColumnBodySchema
 export const UpdateColumnSchema = updateTableColumnBodySchema
 export const DeleteColumnSchema = deleteTableColumnBodySchema
-
-const WorkflowGroupOutputSchema = z.object({
-  blockId: z.string().min(1),
-  path: z.string().min(1),
-  columnName: z.string().min(1),
-})
-
-const WorkflowGroupDependenciesSchema = z.object({
-  columns: z.array(z.string()).optional(),
-  workflowGroups: z.array(z.string()).optional(),
-})
-
-const WorkflowGroupOutputColumnSchema = z.object({
-  name: z.string().min(1),
-  type: columnTypeEnum,
-  required: z.boolean().optional(),
-  unique: z.boolean().optional(),
-  workflowGroupId: z.string().min(1),
-})
-
-export const AddWorkflowGroupSchema = z.object({
-  workspaceId: z.string().min(1),
-  group: z.object({
-    id: z.string().min(1),
-    workflowId: z.string().min(1),
-    name: z.string().optional(),
-    dependencies: WorkflowGroupDependenciesSchema.optional(),
-    outputs: z.array(WorkflowGroupOutputSchema).min(1),
-  }),
-  outputColumns: z.array(WorkflowGroupOutputColumnSchema).min(1),
-})
-
-export const UpdateWorkflowGroupSchema = z.object({
-  workspaceId: z.string().min(1),
-  groupId: z.string().min(1),
-  workflowId: z.string().min(1).optional(),
-  name: z.string().optional(),
-  dependencies: WorkflowGroupDependenciesSchema.optional(),
-  outputs: z.array(WorkflowGroupOutputSchema).optional(),
-  newOutputColumns: z.array(WorkflowGroupOutputColumnSchema).optional(),
-})
-
-export const DeleteWorkflowGroupSchema = z.object({
-  workspaceId: z.string().min(1),
-  groupId: z.string().min(1),
-})
 
 export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
   return {

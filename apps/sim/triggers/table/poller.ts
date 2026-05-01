@@ -1,4 +1,6 @@
 import { TableIcon } from '@/components/icons'
+import { requestJson } from '@/lib/api/client/request'
+import { listTablesContract } from '@/lib/api/contracts/tables'
 import type { TableDefinition } from '@/lib/table'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { tableKeys } from '@/hooks/queries/tables'
@@ -17,14 +19,12 @@ async function fetchTableColumns(blockId: string): Promise<Array<{ label: string
 
   const tables = await getQueryClient().fetchQuery({
     queryKey: tableKeys.list(workspaceId),
-    queryFn: async ({ signal }) => {
-      const res = await fetch(
-        `/api/table?workspaceId=${encodeURIComponent(workspaceId)}&scope=active`,
-        { signal }
-      )
-      if (!res.ok) return []
-      const response = await res.json()
-      return (response.data?.tables || []) as TableDefinition[]
+    queryFn: async ({ signal }): Promise<TableDefinition[]> => {
+      const response = await requestJson(listTablesContract, {
+        query: { workspaceId, scope: 'active' },
+        signal,
+      })
+      return (response.data.tables ?? []) as TableDefinition[]
     },
     staleTime: 60 * 1000,
   })

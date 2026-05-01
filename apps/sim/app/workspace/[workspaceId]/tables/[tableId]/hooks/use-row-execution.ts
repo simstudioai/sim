@@ -2,6 +2,8 @@ import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import { runRowWorkflowGroupContract } from '@/lib/api/contracts/tables'
 import type { RowExecutionMetadata } from '@/lib/table'
 import {
   restoreCachedWorkflowCells,
@@ -41,22 +43,10 @@ export function useRowExecution(): UseRowExecutionReturn {
 
   const mutation = useMutation({
     mutationFn: async (params: RunWorkflowGroupParams) => {
-      const res = await fetch(
-        `/api/table/${params.tableId}/rows/${params.rowId}/run-workflow-group`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            workspaceId: params.workspaceId,
-            groupId: params.groupId,
-          }),
-        }
-      )
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error((body as { error?: string }).error || 'Failed to run workflow')
-      }
-      return res.json()
+      return requestJson(runRowWorkflowGroupContract, {
+        params: { tableId: params.tableId, rowId: params.rowId },
+        body: { workspaceId: params.workspaceId, groupId: params.groupId },
+      })
     },
     onMutate: async (params) => {
       const snapshots = await snapshotAndMutateRows(queryClient, params.tableId, (r) => {

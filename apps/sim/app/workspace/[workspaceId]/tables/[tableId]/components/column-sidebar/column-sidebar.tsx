@@ -7,6 +7,15 @@ import { generateId } from '@sim/utils/id'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, Loader2, Plus, RepeatIcon, SplitIcon, X } from 'lucide-react'
 import { Button, Checkbox, Combobox, Input, Label, Switch, Tooltip, toast } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import type {
+  AddWorkflowGroupBodyInput,
+  UpdateWorkflowGroupBodyInput,
+} from '@/lib/api/contracts/tables'
+import {
+  putWorkflowNormalizedStateContract,
+  type WorkflowStateContractInput,
+} from '@/lib/api/contracts/workflows'
 import { cn } from '@/lib/core/utils/cn'
 import type {
   ColumnDefinition,
@@ -549,22 +558,21 @@ export function ColumnSidebar({
         },
       }
 
-      const res = await fetch(`/api/workflows/${wfId}/state`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          blocks: updatedBlocks,
-          edges: state.edges,
-          loops: state.loops,
-          parallels: state.parallels,
-          lastSaved: state.lastSaved ?? Date.now(),
-          isDeployed: state.isDeployed ?? false,
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error((err as { error?: string }).error ?? 'Failed to add inputs')
+      const rawBody = {
+        blocks: updatedBlocks,
+        edges: state.edges,
+        loops: state.loops,
+        parallels: state.parallels,
+        lastSaved: state.lastSaved ?? Date.now(),
+        isDeployed: state.isDeployed ?? false,
       }
+      // double-cast-allowed: WorkflowStatePayload is the loose local view of
+      // useWorkflowState; we round-trip it back to the strict PUT body shape.
+      const body = rawBody as unknown as WorkflowStateContractInput
+      await requestJson(putWorkflowNormalizedStateContract, {
+        params: { id: wfId },
+        body,
+      })
       return missingInputColumnNames.length
     },
     onSuccess: (added) => {
@@ -773,7 +781,7 @@ export function ColumnSidebar({
             )
           )
           const fullOutputs: WorkflowGroupOutput[] = []
-          const newOutputColumns: ColumnDefinition[] = []
+          const newOutputColumns: NonNullable<UpdateWorkflowGroupBodyInput['newOutputColumns']> = []
           for (const o of orderedOutputs) {
             const key = `${o.blockId}::${o.path}`
             const existing = existingGroup.outputs.find(
@@ -819,7 +827,7 @@ export function ColumnSidebar({
           // Create path: build a fresh group with auto-derived column names.
           const groupId = generateId()
           const taken = new Set(allColumns.map((c) => c.name))
-          const newOutputColumns: ColumnDefinition[] = []
+          const newOutputColumns: AddWorkflowGroupBodyInput['outputColumns'] = []
           const groupOutputs: WorkflowGroupOutput[] = []
           for (const o of orderedOutputs) {
             const blockName = blockNameByBlockId.get(o.blockId) ?? 'output'

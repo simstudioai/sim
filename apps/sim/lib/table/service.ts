@@ -1544,10 +1544,16 @@ export async function updateRow(
   // the in-process read and now. Without this, an in-flight `running`
   // partial-write can land after `cancelled` and clobber it.
   const guard = data.cancellationGuard
+  // The guard rejects writes only when the DB *already* shows
+  // `cancelled` + matching executionId. Wrap the JSON traversals in
+  // `IS DISTINCT FROM` so a missing `executions[groupId]` (NULL) cleanly
+  // evaluates as "different" — Postgres three-valued logic would otherwise
+  // make the whole expression NULL and the UPDATE would mistakenly become
+  // a no-op for any row that has no prior execution record.
   const whereClause = guard
     ? and(
         eq(userTableRows.id, data.rowId),
-        sql`NOT (executions->${guard.groupId}->>'status' = 'cancelled' AND executions->${guard.groupId}->>'executionId' = ${guard.executionId})`
+        sql`(executions->${guard.groupId}->>'status' IS DISTINCT FROM 'cancelled' OR executions->${guard.groupId}->>'executionId' IS DISTINCT FROM ${guard.executionId})`
       )
     : eq(userTableRows.id, data.rowId)
 
