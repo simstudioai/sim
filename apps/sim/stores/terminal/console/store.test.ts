@@ -9,10 +9,13 @@ vi.unmock('@/stores/terminal/console/store')
 
 import { useTerminalConsoleStore } from '@/stores/terminal/console/store'
 
-const storeLogger = vi
+const storeLoggerCallIdx = vi
   .mocked(createLogger)
-  .mock.results.map((result) => result.value)
-  .find((value) => value && typeof value.warn === 'function')
+  .mock.calls.findIndex((call) => call[0] === 'TerminalConsoleStore')
+const storeLogger =
+  storeLoggerCallIdx >= 0
+    ? vi.mocked(createLogger).mock.results[storeLoggerCallIdx]?.value
+    : undefined
 
 describe('terminal console store', () => {
   beforeEach(() => {
