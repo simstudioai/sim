@@ -6,7 +6,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, Loader2, Plus, RepeatIcon, SplitIcon, X } from 'lucide-react'
-import { Button, Checkbox, Combobox, Input, Label, Switch, toast, Tooltip } from '@/components/emcn'
+import { Button, Checkbox, Combobox, Input, Label, Switch, Tooltip, toast } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type {
   ColumnDefinition,
@@ -23,8 +23,9 @@ import {
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
-import { getBlock } from '@/blocks'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { getBlock } from '@/blocks'
 import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
 import {
   useAddTableColumn,
@@ -33,7 +34,6 @@ import {
   useUpdateWorkflowGroup,
 } from '@/hooks/queries/tables'
 import { useWorkflowState, workflowKeys } from '@/hooks/queries/workflows'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { COLUMN_TYPE_OPTIONS, type SidebarColumnType } from './column-types'
 
@@ -76,17 +76,10 @@ function slugifyColumnName(value: string): string {
   return slug
 }
 
-function deriveOutputColumnName(
-  blockName: string,
-  path: string,
-  taken: Set<string>
-): string {
+function deriveOutputColumnName(blockName: string, path: string, taken: Set<string>): string {
   // Try the bare path first — short and reads as the source field. Only escalate
   // to longer names on collision so the common case stays clean.
-  const candidates = [
-    slugifyColumnName(path),
-    slugifyColumnName(`${blockName}_${path}`),
-  ]
+  const candidates = [slugifyColumnName(path), slugifyColumnName(`${blockName}_${path}`)]
   for (const c of candidates) {
     if (!taken.has(c)) return c
   }
@@ -152,10 +145,13 @@ interface BlockOutputGroup {
  * generic from `@/stores/workflows/workflow/types`.
  */
 interface WorkflowStatePayload {
-  blocks: Record<string, {
-    type: string
-    subBlocks?: Record<string, { id?: string; type?: string; value?: unknown }>
-  } & Record<string, unknown>>
+  blocks: Record<
+    string,
+    {
+      type: string
+      subBlocks?: Record<string, { id?: string; type?: string; value?: unknown }>
+    } & Record<string, unknown>
+  >
   edges: unknown[]
   loops: unknown
   parallels: unknown
@@ -223,7 +219,7 @@ function FieldLabel({
 
 /** Inline validation message styled like the workflow editor's destructive text. */
 function FieldError({ message }: { message: string }) {
-  return <p className='pl-0.5 text-destructive text-caption'>{message}</p>
+  return <p className='pl-0.5 text-caption text-destructive'>{message}</p>
 }
 
 /**
@@ -311,8 +307,7 @@ export function ColumnSidebar({
   const [nameInput, setNameInput] = useState<string>('')
   const [typeInput, setTypeInput] = useState<SidebarColumnType>('string')
 
-  const isWorkflow =
-    !!existingGroup || configState?.mode === 'new' || typeInput === 'workflow'
+  const isWorkflow = !!existingGroup || configState?.mode === 'new' || typeInput === 'workflow'
 
   /**
    * Show the Column name field whenever a *specific* column is open: scalar
@@ -514,9 +509,7 @@ export function ColumnSidebar({
     return allColumns
       .filter(
         (c) =>
-          c.name !== columnName &&
-          !c.workflowGroupId &&
-          !startBlockInputs.existingNames.has(c.name)
+          c.name !== columnName && !c.workflowGroupId && !startBlockInputs.existingNames.has(c.name)
       )
       .map((c) => c.name)
   }, [allColumns, columnName, startBlockInputs])
@@ -768,8 +761,7 @@ export function ColumnSidebar({
           // (the column rename itself goes through `updateColumn` below, which
           // server-side cascades into outputs/deps — but our outgoing payload
           // also has to use the new name so the group update doesn't undo it).
-          const editedColumnName =
-            configState.mode === 'edit' ? configState.columnName : null
+          const editedColumnName = configState.mode === 'edit' ? configState.columnName : null
           const renamedColumn =
             editedColumnName && trimmedName && trimmedName !== editedColumnName
               ? { from: editedColumnName, to: trimmedName }
@@ -1158,11 +1150,7 @@ export function ColumnSidebar({
                               !isLast && 'border-[var(--border)] border-b'
                             )}
                           >
-                            <Checkbox
-                              size='sm'
-                              checked={checked}
-                              className='pointer-events-none'
-                            />
+                            <Checkbox size='sm' checked={checked} className='pointer-events-none' />
                             <span className='font-medium text-[var(--text-secondary)] text-small'>
                               {c.name}
                             </span>
@@ -1196,11 +1184,7 @@ export function ColumnSidebar({
                               !isLast && 'border-[var(--border)] border-b'
                             )}
                           >
-                            <Checkbox
-                              size='sm'
-                              checked={checked}
-                              className='pointer-events-none'
-                            />
+                            <Checkbox size='sm' checked={checked} className='pointer-events-none' />
                             <span
                               className='h-[10px] w-[10px] shrink-0 rounded-sm'
                               style={{ backgroundColor: color }}
@@ -1238,8 +1222,7 @@ export function ColumnSidebar({
                       <div
                         key={group.blockId}
                         className={cn(
-                          gi < blockOutputGroups.length - 1 &&
-                            'border-[var(--border)] border-b'
+                          gi < blockOutputGroups.length - 1 && 'border-[var(--border)] border-b'
                         )}
                       >
                         <div className='flex items-center gap-1.5 bg-[var(--surface-2)] px-2.5 py-1.5'>
@@ -1289,7 +1272,6 @@ export function ColumnSidebar({
                   together — they share one workflow run.
                 </p>
               </div>
-
             </>
           )}
         </div>
@@ -1298,7 +1280,7 @@ export function ColumnSidebar({
           {saveError ? (
             <p
               role='alert'
-              className='min-w-0 flex-1 break-words pl-0.5 text-destructive text-caption'
+              className='min-w-0 flex-1 break-words pl-0.5 text-caption text-destructive'
             >
               {saveError}
             </p>

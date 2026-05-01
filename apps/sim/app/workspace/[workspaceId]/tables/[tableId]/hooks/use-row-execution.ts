@@ -2,12 +2,12 @@ import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
+import type { RowExecutionMetadata } from '@/lib/table'
 import {
   restoreCachedWorkflowCells,
   snapshotAndMutateRows,
   tableKeys,
 } from '@/hooks/queries/tables'
-import type { RowExecutionMetadata } from '@/lib/table'
 
 const logger = createLogger('useRowExecution')
 
@@ -61,7 +61,7 @@ export function useRowExecution(): UseRowExecutionReturn {
     onMutate: async (params) => {
       const snapshots = await snapshotAndMutateRows(queryClient, params.tableId, (r) => {
         if (r.id !== params.rowId) return null
-        const exec = (r.executions ?? {})[params.groupId] as RowExecutionMetadata | undefined
+        const exec = r.executions?.[params.groupId] as RowExecutionMetadata | undefined
         const pending: RowExecutionMetadata = {
           status: 'pending',
           executionId: exec?.executionId ?? null,

@@ -21,6 +21,7 @@ import {
 } from '@/lib/table'
 import {
   addTableColumn,
+  addWorkflowGroup,
   batchInsertRows,
   batchUpdateRows,
   createTable,
@@ -30,6 +31,7 @@ import {
   deleteRowsByFilter,
   deleteRowsByIds,
   deleteTable,
+  deleteWorkflowGroup,
   getRowById,
   getTableById,
   insertRow,
@@ -41,8 +43,17 @@ import {
   updateColumnType,
   updateRow,
   updateRowsByFilter,
+  updateWorkflowGroup,
 } from '@/lib/table/service'
-import type { RowData, TableDefinition } from '@/lib/table/types'
+import type {
+  ColumnDefinition,
+  RowData,
+  TableDefinition,
+  WorkflowGroup,
+  WorkflowGroupDependencies,
+  WorkflowGroupOutput,
+} from '@/lib/table/types'
+import { cancelWorkflowGroupRuns, triggerWorkflowGroupRun } from '@/lib/table/workflow-columns'
 import {
   downloadWorkspaceFile,
   resolveWorkspaceFileReference,
@@ -144,6 +155,47 @@ async function parseFileRows(
     return parseCsvBuffer(buffer, delimiter)
   }
   throw new Error(`Unsupported file format: "${ext}". Supported: csv, tsv, json`)
+}
+
+/**
+ * Mirror of `column-sidebar.tsx`'s `slugifyColumnName`: lowercase, collapse
+ * non-alphanum runs to `_`, prefix `c_` on leading digits, fall back to
+ * `output` for empty results. Used to auto-name workflow-output columns when
+ * the AI omits an explicit `columnName`.
+ */
+function slugifyOutputName(value: string): string {
+  let slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  if (!slug) slug = 'output'
+  if (/^[0-9]/.test(slug)) slug = `c_${slug}`
+  return slug
+}
+
+/** Map a block-output leaf type onto a column type (mirror of the sidebar). */
+function columnTypeForLeaf(leafType: string | undefined): ColumnDefinition['type'] {
+  switch (leafType) {
+    case 'string':
+    case 'number':
+    case 'boolean':
+    case 'date':
+    case 'json':
+      return leafType
+    default:
+      return 'json'
+  }
+}
+
+/** Pick a non-colliding column name, escalating on conflict. */
+function deriveOutputColumnName(path: string, taken: Set<string>): string {
+  const base = slugifyOutputName(path)
+  if (!taken.has(base)) return base
+  for (let i = 2; i < 1000; i++) {
+    const candidate = `${base}_${i}`
+    if (!taken.has(candidate)) return candidate
+  }
+  return `${base}_${Date.now()}`
 }
 
 async function batchInsertAll(
@@ -255,7 +307,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return {
             success: true,
             message: `Schema for "${table.name}"`,
-            data: { name: table.name, columns: table.schema.columns },
+            data: {
+              name: table.name,
+              columns: table.schema.columns,
+              workflowGroups: table.schema.workflowGroups ?? [],
+            },
           }
         }
 
@@ -455,6 +511,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             table,
             requestId
           )
+          if (!updatedRow) {
+            // Only the cell-task path passes a `cancellationGuard`; this caller
+            // doesn't, so the guard never trips here. Defensive narrowing.
+            return { success: false, message: 'Row update was skipped' }
+          }
 
           return {
             success: true,
@@ -1034,6 +1095,192 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             success: true,
             message: `Renamed table to "${renamed.name}"`,
             data: { table: { id: renamed.id, name: renamed.name } },
+          }
+        }
+
+        case 'add_workflow_group': {
+          if (!args.tableId) return { success: false, message: 'Table ID is required' }
+          if (!workspaceId) return { success: false, message: 'Workspace ID is required' }
+          const workflowId = args.workflowId as string | undefined
+          if (!workflowId) {
+            return { success: false, message: 'workflowId is required for add_workflow_group' }
+          }
+          const rawOutputs = args.outputs as
+            | Array<{
+                blockId: string
+                path: string
+                columnName?: string
+                columnType?: string
+              }>
+            | undefined
+          if (!rawOutputs || rawOutputs.length === 0) {
+            return {
+              success: false,
+              message: 'outputs array (with blockId + path entries) is required',
+            }
+          }
+          const tableForGroup = await getTableById(args.tableId)
+          if (!tableForGroup || tableForGroup.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+
+          const taken = new Set(tableForGroup.schema.columns.map((c) => c.name))
+          const groupId = generateId()
+          const outputs: WorkflowGroupOutput[] = []
+          const outputColumns: ColumnDefinition[] = []
+          for (const o of rawOutputs) {
+            if (!o.blockId || !o.path) {
+              return {
+                success: false,
+                message: 'Each output entry must include both blockId and path',
+              }
+            }
+            const colName = o.columnName ?? deriveOutputColumnName(o.path, taken)
+            taken.add(colName)
+            outputs.push({ blockId: o.blockId, path: o.path, columnName: colName })
+            outputColumns.push({
+              name: colName,
+              type: columnTypeForLeaf(o.columnType),
+              required: false,
+              unique: false,
+              workflowGroupId: groupId,
+            })
+          }
+          const dependencies = args.dependencies as WorkflowGroupDependencies | undefined
+          const name = args.name as string | undefined
+          const group: WorkflowGroup = {
+            id: groupId,
+            workflowId,
+            ...(name ? { name } : {}),
+            ...(dependencies ? { dependencies } : {}),
+            outputs,
+          }
+          const requestId = generateId().slice(0, 8)
+          assertNotAborted()
+          const updated = await addWorkflowGroup(
+            { tableId: args.tableId, group, outputColumns },
+            requestId
+          )
+          return {
+            success: true,
+            message: `Added workflow group "${name ?? groupId}" with ${outputs.length} output column(s)`,
+            data: {
+              groupId,
+              schema: updated.schema,
+            },
+          }
+        }
+
+        case 'update_workflow_group': {
+          if (!args.tableId) return { success: false, message: 'Table ID is required' }
+          if (!workspaceId) return { success: false, message: 'Workspace ID is required' }
+          const groupId = args.groupId as string | undefined
+          if (!groupId) {
+            return { success: false, message: 'groupId is required for update_workflow_group' }
+          }
+          const tableForUpdate = await getTableById(args.tableId)
+          if (!tableForUpdate || tableForUpdate.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+          const requestId = generateId().slice(0, 8)
+          assertNotAborted()
+          const updated = await updateWorkflowGroup(
+            {
+              tableId: args.tableId,
+              groupId,
+              workflowId: args.workflowId as string | undefined,
+              name: args.name as string | undefined,
+              dependencies: args.dependencies as WorkflowGroupDependencies | undefined,
+              outputs: args.outputs as WorkflowGroupOutput[] | undefined,
+              newOutputColumns: args.newOutputColumns as ColumnDefinition[] | undefined,
+            },
+            requestId
+          )
+          return {
+            success: true,
+            message: `Updated workflow group ${groupId}`,
+            data: { schema: updated.schema },
+          }
+        }
+
+        case 'delete_workflow_group': {
+          if (!args.tableId) return { success: false, message: 'Table ID is required' }
+          if (!workspaceId) return { success: false, message: 'Workspace ID is required' }
+          const groupId = args.groupId as string | undefined
+          if (!groupId) {
+            return { success: false, message: 'groupId is required for delete_workflow_group' }
+          }
+          const tableForDelete = await getTableById(args.tableId)
+          if (!tableForDelete || tableForDelete.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+          const requestId = generateId().slice(0, 8)
+          assertNotAborted()
+          const updated = await deleteWorkflowGroup({ tableId: args.tableId, groupId }, requestId)
+          return {
+            success: true,
+            message: `Deleted workflow group ${groupId}`,
+            data: { schema: updated.schema },
+          }
+        }
+
+        case 'run_workflow_group': {
+          if (!args.tableId) return { success: false, message: 'Table ID is required' }
+          if (!workspaceId) return { success: false, message: 'Workspace ID is required' }
+          const groupId = args.groupId as string | undefined
+          if (!groupId) {
+            return { success: false, message: 'groupId is required for run_workflow_group' }
+          }
+          const mode = (args.mode as 'all' | 'incomplete' | undefined) ?? 'incomplete'
+          if (mode !== 'all' && mode !== 'incomplete') {
+            return {
+              success: false,
+              message: `Invalid mode "${mode}". Must be "all" or "incomplete"`,
+            }
+          }
+          const requestId = generateId().slice(0, 8)
+          assertNotAborted()
+          const { triggered } = await triggerWorkflowGroupRun({
+            tableId: args.tableId,
+            groupId,
+            workspaceId,
+            mode,
+            requestId,
+          })
+          return {
+            success: true,
+            message: `Triggered ${triggered} row(s) for workflow group ${groupId} (${mode})`,
+            data: { triggered },
+          }
+        }
+
+        case 'cancel_table_runs': {
+          if (!args.tableId) return { success: false, message: 'Table ID is required' }
+          if (!workspaceId) return { success: false, message: 'Workspace ID is required' }
+          const scope = (args.scope as 'all' | 'row' | undefined) ?? 'all'
+          if (scope !== 'all' && scope !== 'row') {
+            return {
+              success: false,
+              message: `Invalid scope "${scope}". Must be "all" or "row"`,
+            }
+          }
+          const rowId = args.rowId as string | undefined
+          if (scope === 'row' && !rowId) {
+            return { success: false, message: 'rowId is required when scope is "row"' }
+          }
+          const tableForCancel = await getTableById(args.tableId)
+          if (!tableForCancel || tableForCancel.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+          assertNotAborted()
+          const cancelled = await cancelWorkflowGroupRuns(
+            args.tableId,
+            scope === 'row' ? rowId : undefined
+          )
+          return {
+            success: true,
+            message: `Cancelled ${cancelled} run(s)`,
+            data: { cancelled },
           }
         }
 

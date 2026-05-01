@@ -41,10 +41,8 @@ export async function executeWorkflowGroupCellJob(
     )
 
     const cellCtx = { tableId, rowId, workspaceId, groupId, executionId, requestId }
-    const writeState = (
-      executionState: RowExecutionMetadata,
-      dataPatch?: RowData
-    ) => writeWorkflowGroupState(cellCtx, { executionState, dataPatch })
+    const writeState = (executionState: RowExecutionMetadata, dataPatch?: RowData) =>
+      writeWorkflowGroupState(cellCtx, { executionState, dataPatch })
 
     // Hoisted out of the try so the catch block can drain pending writes and
     // surface partial errors in the terminal-error state.
@@ -191,7 +189,7 @@ export async function executeWorkflowGroupCellJob(
 
       const readJobId = async (): Promise<string | null> => {
         const r = await getRowById(tableId, rowId, workspaceId)
-        const exec = (r?.executions ?? {})[groupId] as RowExecutionMetadata | undefined
+        const exec = r?.executions?.[groupId] as RowExecutionMetadata | undefined
         return exec?.jobId ?? null
       }
 

@@ -8,11 +8,12 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
 import { toError } from '@sim/utils/errors'
-import { eq } from 'drizzle-orm'
+import { generateId } from '@sim/utils/id'
+import { and, asc, eq } from 'drizzle-orm'
 import { buildCancelledExecution, writeWorkflowGroupState } from '@/lib/table/cell-write'
 import type {
+  RowData,
   RowExecutionMetadata,
   RowExecutions,
   TableDefinition,
@@ -37,7 +38,7 @@ export function areGroupDepsSatisfied(group: WorkflowGroup, row: TableRow): bool
     if (value === null || value === undefined || value === '') return false
   }
   for (const gid of deps.workflowGroups ?? []) {
-    if ((row.executions ?? {})[gid]?.status !== 'completed') return false
+    if (row.executions?.[gid]?.status !== 'completed') return false
   }
   return true
 }
@@ -50,9 +51,14 @@ export function areGroupDepsSatisfied(group: WorkflowGroup, row: TableRow): bool
  * sets it and the scheduler is what actually enqueues the job.
  */
 export function isGroupEligible(group: WorkflowGroup, row: TableRow): boolean {
-  const exec = (row.executions ?? {})[group.id]
+  const exec = row.executions?.[group.id]
   const status = exec?.status
-  if (status === 'running' || status === 'completed' || status === 'error' || status === 'cancelled') {
+  if (
+    status === 'running' ||
+    status === 'completed' ||
+    status === 'error' ||
+    status === 'cancelled'
+  ) {
     return false
   }
   if (status === 'pending' && exec?.jobId) {
@@ -96,9 +102,7 @@ export async function scheduleWorkflowGroupRuns(
 
     if (pendingRuns.length === 0) return
 
-    logger.info(
-      `Scheduling ${pendingRuns.length} workflow group cell run(s) for table=${table.id}`
-    )
+    logger.info(`Scheduling ${pendingRuns.length} workflow group cell run(s) for table=${table.id}`)
 
     await Promise.allSettled(pendingRuns.map((opts) => runWorkflowGroupCell(opts)))
   } catch (err) {
@@ -200,10 +204,7 @@ export async function runWorkflowGroupCell(opts: RunGroupCellOptions): Promise<v
     try {
       await queue.cancelJob(jobId)
     } catch (cancelErr) {
-      logger.error(
-        `Failed to cancel orphaned workflow-group-cell job (jobId=${jobId}):`,
-        cancelErr
-      )
+      logger.error(`Failed to cancel orphaned workflow-group-cell job (jobId=${jobId}):`, cancelErr)
     }
     return
   }
@@ -219,7 +220,9 @@ export async function runWorkflowGroupCell(opts: RunGroupCellOptions): Promise<v
 
     void (async () => {
       try {
-        const { executeWorkflowGroupCellJob } = await import('@/background/workflow-column-execution')
+        const { executeWorkflowGroupCellJob } = await import(
+          '@/background/workflow-column-execution'
+        )
         await queue.startJob(jobId)
         await executeWorkflowGroupCellJob(taskPayload, abortController.signal)
         await queue.completeJob(jobId, null)
@@ -334,6 +337,89 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
   return mutations.reduce((sum, m) => sum + m.cancelledCount, 0)
 }
 
+/**
+ * Manually triggers a workflow group for every dep-satisfied row in a table.
+ * `mode: 'all'` re-runs every eligible row; `mode: 'incomplete'` skips rows
+ * whose group is already `completed`. Eligible rows have their output cells
+ * cleared and their `executions[groupId]` reset to `pending`; the scheduler
+ * picks them up and enqueues per-cell jobs from there. Returns the number of
+ * rows that were marked for re-run. Used by the `groups/[groupId]/run` HTTP
+ * route and the Copilot/Mothership `run_workflow_group` op so both share one
+ * eligibility predicate.
+ */
+export async function triggerWorkflowGroupRun(opts: {
+  tableId: string
+  groupId: string
+  workspaceId: string
+  mode: 'all' | 'incomplete'
+  requestId: string
+}): Promise<{ triggered: number }> {
+  const { tableId, groupId, workspaceId, mode, requestId } = opts
+  const { getTableById, batchUpdateRows } = await import('./service')
+  const table = await getTableById(tableId)
+  if (!table) throw new Error('Table not found')
+  if (table.workspaceId !== workspaceId) throw new Error('Invalid workspace ID')
+
+  const group = (table.schema.workflowGroups ?? []).find((g) => g.id === groupId)
+  if (!group) throw new Error('Workflow group not found')
+
+  const allRows = await db
+    .select({
+      id: userTableRows.id,
+      position: userTableRows.position,
+      data: userTableRows.data,
+      executions: userTableRows.executions,
+      createdAt: userTableRows.createdAt,
+      updatedAt: userTableRows.updatedAt,
+    })
+    .from(userTableRows)
+    .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.workspaceId, workspaceId)))
+    .orderBy(asc(userTableRows.position))
+
+  if (allRows.length === 0) return { triggered: 0 }
+
+  const eligibleRows = allRows.filter((r) => {
+    const tableRow: TableRow = {
+      id: r.id,
+      data: r.data as RowData,
+      executions: (r.executions as RowExecutions) ?? {},
+      position: r.position,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    }
+    const exec = tableRow.executions[groupId]
+    if (exec?.status === 'running') return false
+    if (exec?.status === 'pending' && exec?.jobId) return false
+    if (mode === 'incomplete' && exec?.status === 'completed') return false
+    try {
+      return areGroupDepsSatisfied(group, tableRow)
+    } catch {
+      return false
+    }
+  })
+
+  if (eligibleRows.length === 0) return { triggered: 0 }
+
+  const clearedData = Object.fromEntries(group.outputs.map((o) => [o.columnName, null])) as RowData
+  const updates = eligibleRows.map((r) => {
+    const pendingExec: RowExecutionMetadata = {
+      status: 'pending',
+      executionId: generateId(),
+      jobId: null,
+      workflowId: group.workflowId,
+      error: null,
+    }
+    return {
+      rowId: r.id,
+      data: clearedData,
+      executionsPatch: { [groupId]: pendingExec },
+    }
+  })
+
+  const opResult = await batchUpdateRows({ tableId, updates, workspaceId }, table, requestId)
+  return { triggered: opResult.affectedCount }
+}
+
 // ───────────────────────────── Validation ─────────────────────────────
 
 /**
@@ -341,10 +427,7 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
  * `addWorkflowGroup`, `updateWorkflowGroup`, `renameColumn`, `reorderColumns`,
  * etc. Returns a list of human-readable errors (empty if valid).
  */
-export function validateSchema(
-  schema: TableSchema,
-  columnOrder: string[] | undefined
-): string[] {
+export function validateSchema(schema: TableSchema, columnOrder: string[] | undefined): string[] {
   const errors: string[] = []
   const columnsByName = new Map(schema.columns.map((c) => [c.name, c]))
   const groups = schema.workflowGroups ?? []
@@ -408,9 +491,7 @@ export function validateSchema(
     for (const depCol of deps.columns ?? []) {
       const col = columnsByName.get(depCol)
       if (!col) {
-        errors.push(
-          `Group "${group.name ?? group.id}" depends on missing column "${depCol}".`
-        )
+        errors.push(`Group "${group.name ?? group.id}" depends on missing column "${depCol}".`)
         continue
       }
       if (col.workflowGroupId) {

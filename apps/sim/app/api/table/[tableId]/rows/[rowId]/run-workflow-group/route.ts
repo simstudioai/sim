@@ -5,8 +5,8 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { updateRow } from '@/lib/table'
 import type { RowExecutionMetadata } from '@/lib/table'
+import { updateRow } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRunWorkflowGroupAPI')
@@ -64,9 +64,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     // Clear the group's output cells so the rerun starts visually fresh —
     // otherwise stale values from the previous run linger in the UI until the
     // new run writes new ones (or doesn't, on error/router-skip).
-    const clearedData = Object.fromEntries(
-      group.outputs.map((o) => [o.columnName, null])
-    )
+    const clearedData = Object.fromEntries(group.outputs.map((o) => [o.columnName, null]))
     await updateRow(
       {
         tableId,

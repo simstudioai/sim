@@ -168,7 +168,9 @@ export async function verifyTableAccess(
       .limit(1)
 
     if (!permissionRow?.permissionType) {
-      logger.warn(`User ${userId} has no permission for workspace ${workspaceId} (table ${tableId})`)
+      logger.warn(
+        `User ${userId} has no permission for workspace ${workspaceId} (table ${tableId})`
+      )
       return { hasAccess: false }
     }
     return { hasAccess: true, workspaceId }

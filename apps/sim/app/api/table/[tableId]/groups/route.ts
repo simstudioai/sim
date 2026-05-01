@@ -6,8 +6,8 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { addWorkflowGroup, deleteWorkflowGroup, updateWorkflowGroup } from '@/lib/table/service'
 import {
-  accessError,
   AddWorkflowGroupSchema,
+  accessError,
   checkAccess,
   DeleteWorkflowGroupSchema,
   normalizeColumn,
@@ -92,9 +92,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
         groupId: validated.groupId,
         ...(validated.workflowId !== undefined ? { workflowId: validated.workflowId } : {}),
         ...(validated.name !== undefined ? { name: validated.name } : {}),
-        ...(validated.dependencies !== undefined
-          ? { dependencies: validated.dependencies }
-          : {}),
+        ...(validated.dependencies !== undefined ? { dependencies: validated.dependencies } : {}),
         ...(validated.outputs !== undefined ? { outputs: validated.outputs } : {}),
         ...(validated.newOutputColumns !== undefined
           ? { newOutputColumns: validated.newOutputColumns }

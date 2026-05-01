@@ -2,8 +2,8 @@ import { createLogger } from '@sim/logger'
 import type { Server } from 'socket.io'
 import {
   type IRoomManager,
-  tableRoomName,
   type TableRowUpdatedPayload,
+  tableRoomName,
   type UserPresence,
   type UserSession,
   type WorkflowRoom,
@@ -267,10 +267,7 @@ export class MemoryRoomManager implements IRoomManager {
     this._io.to(tableRoomName(tableId)).emit(event, payload)
   }
 
-  async handleTableRowUpdated(
-    tableId: string,
-    payload: TableRowUpdatedPayload
-  ): Promise<void> {
+  async handleTableRowUpdated(tableId: string, payload: TableRowUpdatedPayload): Promise<void> {
     this.emitToTable(tableId, 'table-row-updated', { tableId, ...payload })
   }
 

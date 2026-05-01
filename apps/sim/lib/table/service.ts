@@ -8,11 +8,7 @@
  */
 
 import { db } from '@sim/db'
-import {
-  userTableDefinitions,
-  userTableRows,
-  workflowExecutionLogs,
-} from '@sim/db/schema'
+import { userTableDefinitions, userTableRows, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -82,9 +78,7 @@ function notifyTableRowUpdated(tableId: string, row: TableRow): void {
   const execStates = Object.fromEntries(
     Object.entries(row.executions ?? {}).map(([gid, e]) => [gid, e?.status ?? null])
   )
-  logger.info(
-    `[STOP-DEBUG] notify row=${row.id} exec=${JSON.stringify(execStates)}`
-  )
+  logger.info(`[STOP-DEBUG] notify row=${row.id} exec=${JSON.stringify(execStates)}`)
   void fetch(`${getSocketServerUrl()}/api/table-row-updated`, {
     method: 'POST',
     headers: {
@@ -699,9 +693,7 @@ export async function pruneStaleWorkflowGroupOutputs({
       })
       .where(eq(userTableDefinitions.id, t.id))
 
-    logger.info(
-      `[${requestId}] Pruned stale workflow=${workflowId} block refs from table ${t.id}`
-    )
+    logger.info(`[${requestId}] Pruned stale workflow=${workflowId} block refs from table ${t.id}`)
   }
 }
 
@@ -2364,9 +2356,7 @@ export async function deleteColumns(
     .filter((g) => !removedGroupIds.has(g.id))
     .map((group) => {
       const depCols = group.dependencies?.columns?.filter((d) => !namesToDelete.has(d))
-      const depGroups = group.dependencies?.workflowGroups?.filter(
-        (id) => !removedGroupIds.has(id)
-      )
+      const depGroups = group.dependencies?.workflowGroups?.filter((id) => !removedGroupIds.has(id))
       const colsChanged = depCols && depCols.length !== (group.dependencies?.columns?.length ?? 0)
       const groupsChanged =
         depGroups && depGroups.length !== (group.dependencies?.workflowGroups?.length ?? 0)
@@ -2623,10 +2613,7 @@ export async function addWorkflowGroup(
     }
   }
 
-  if (
-    schema.columns.length + data.outputColumns.length >
-    TABLE_LIMITS.MAX_COLUMNS_PER_TABLE
-  ) {
+  if (schema.columns.length + data.outputColumns.length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
     throw new Error(
       `Adding ${data.outputColumns.length} columns would exceed the maximum (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE}).`
     )
@@ -2772,17 +2759,14 @@ export async function updateWorkflowGroup(
   // `columnOrder` mirrors the schema layout. Drop removed columns, then splice
   // the new ones in at the same anchor as `nextColumns` so the table renders
   // them inside the group's contiguous run instead of at the tail.
-  let updatedColumnOrder = table.metadata?.columnOrder?.filter(
-    (n) => !removedColumnNames.has(n)
-  )
+  let updatedColumnOrder = table.metadata?.columnOrder?.filter((n) => !removedColumnNames.has(n))
   if (updatedColumnOrder && newColDefs.length > 0) {
     const newColNamesLower = new Set(newColDefs.map((c) => c.name.toLowerCase()))
     const orderWithoutNew = updatedColumnOrder.filter((n) => !newColNamesLower.has(n.toLowerCase()))
     const groupColNames = new Set(newOutputs.map((o) => o.columnName))
     const orderedGroupNames = newOutputs.map((o) => o.columnName)
     const firstGroupOrderIdx = orderWithoutNew.findIndex((n) => groupColNames.has(n))
-    const anchorOrderIdx =
-      firstGroupOrderIdx === -1 ? orderWithoutNew.length : firstGroupOrderIdx
+    const anchorOrderIdx = firstGroupOrderIdx === -1 ? orderWithoutNew.length : firstGroupOrderIdx
     const remainingOrder = orderWithoutNew.filter((n) => !groupColNames.has(n))
     updatedColumnOrder = [
       ...remainingOrder.slice(0, anchorOrderIdx),
@@ -2886,9 +2870,7 @@ export async function deleteWorkflowGroup(
     columns: schema.columns.filter((c) => !removedColumnNames.has(c.name)),
     workflowGroups: nextGroups,
   }
-  const updatedColumnOrder = table.metadata?.columnOrder?.filter(
-    (n) => !removedColumnNames.has(n)
-  )
+  const updatedColumnOrder = table.metadata?.columnOrder?.filter((n) => !removedColumnNames.has(n))
   assertValidSchema(updatedSchema, updatedColumnOrder)
 
   const updatedMetadata: TableMetadata | null =
@@ -2915,9 +2897,7 @@ export async function deleteWorkflowGroup(
     )
   })
 
-  logger.info(
-    `[${requestId}] Deleted workflow group "${data.groupId}" from table ${data.tableId}`
-  )
+  logger.info(`[${requestId}] Deleted workflow group "${data.groupId}" from table ${data.tableId}`)
 
   return {
     ...table,
@@ -2967,7 +2947,7 @@ async function backfillAddedGroupOutputs(opts: {
   // Collect unique executionIds across rows whose group execution completed.
   const executionIdsByRow = new Map<string, string>()
   for (const r of rowRecords) {
-    const exec = ((r.executions as RowExecutions) ?? {})[groupId]
+    const exec = (r.executions as RowExecutions)?.[groupId]
     if (!exec || exec.status !== 'completed' || !exec.executionId) continue
     executionIdsByRow.set(r.id, exec.executionId)
   }
@@ -2992,7 +2972,7 @@ async function backfillAddedGroupOutputs(opts: {
 
   const updates: Array<{ rowId: string; data: RowData }> = []
   for (const r of rowRecords) {
-    const exec = ((r.executions as RowExecutions) ?? {})[groupId]
+    const exec = (r.executions as RowExecutions)?.[groupId]
     if (!exec?.executionId) continue
     const log = logByExecutionId.get(exec.executionId)
     if (!log) continue

@@ -90,9 +90,7 @@ export function useWorkflowState(workflowId: string | undefined) {
 export function useWorkflowStates(
   workflowIds: ReadonlyArray<string | undefined>
 ): Map<string, WorkflowState | null> {
-  const uniqueIds = Array.from(
-    new Set(workflowIds.filter((id): id is string => Boolean(id)))
-  )
+  const uniqueIds = Array.from(new Set(workflowIds.filter((id): id is string => Boolean(id))))
   const results = useQueries({
     queries: uniqueIds.map((id) => ({
       queryKey: workflowKeys.state(id),

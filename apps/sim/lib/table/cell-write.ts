@@ -10,12 +10,7 @@
  */
 
 import { createLogger } from '@sim/logger'
-import type {
-  RowData,
-  RowExecutionMetadata,
-  RowExecutions,
-  WorkflowGroup,
-} from '@/lib/table/types'
+import type { RowData, RowExecutionMetadata, RowExecutions, WorkflowGroup } from '@/lib/table/types'
 
 const logger = createLogger('WorkflowCellWrite')
 
@@ -59,7 +54,7 @@ export async function writeWorkflowGroupState(
     logger.warn(`Row ${rowId} vanished before group state write`)
     return 'wrote'
   }
-  const current = (row.executions ?? {})[groupId] as RowExecutionMetadata | undefined
+  const current = row.executions?.[groupId] as RowExecutionMetadata | undefined
   if (
     current?.status === 'cancelled' &&
     current.executionId === executionId &&
@@ -75,9 +70,7 @@ export async function writeWorkflowGroupState(
   // writes (running/completed/error) get the SQL guard so an in-flight
   // partial can't clobber a stop click that already committed.
   const cancellationGuard =
-    payload.executionState.status === 'cancelled'
-      ? undefined
-      : { groupId, executionId }
+    payload.executionState.status === 'cancelled' ? undefined : { groupId, executionId }
   const result = await updateRow(
     {
       tableId,
@@ -134,6 +127,8 @@ export function buildOutputsByBlockId(
 }
 
 /** Type-narrowing helper used by readers that can't assume `executions` is set. */
-export function readExecutions(row: { executions?: RowExecutions } | null | undefined): RowExecutions {
+export function readExecutions(
+  row: { executions?: RowExecutions } | null | undefined
+): RowExecutions {
   return row?.executions ?? {}
 }

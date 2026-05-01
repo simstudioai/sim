@@ -3,8 +3,8 @@ import { createClient, type RedisClientType } from 'redis'
 import type { Server } from 'socket.io'
 import {
   type IRoomManager,
-  tableRoomName,
   type TableRowUpdatedPayload,
+  tableRoomName,
   type UserPresence,
   type UserSession,
 } from '@/rooms/types'
@@ -468,10 +468,7 @@ export class RedisRoomManager implements IRoomManager {
     this._io.to(tableRoomName(tableId)).emit(event, payload)
   }
 
-  async handleTableRowUpdated(
-    tableId: string,
-    payload: TableRowUpdatedPayload
-  ): Promise<void> {
+  async handleTableRowUpdated(tableId: string, payload: TableRowUpdatedPayload): Promise<void> {
     this.emitToTable(tableId, 'table-row-updated', { tableId, ...payload })
   }
 

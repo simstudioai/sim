@@ -55,14 +55,16 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import type { FlattenOutputsBlockInput } from '@/lib/workflows/blocks/flatten-outputs'
-import { getBlock } from '@/blocks'
 import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
 import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
+import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
+import { getBlock } from '@/blocks'
+import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
+import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
   useAddTableColumn,
-  useRunGroup,
   useBatchCreateTableRows,
   useBatchUpdateTableRows,
   useCancelTableRuns,
@@ -71,14 +73,13 @@ import {
   useDeleteTable,
   useDeleteWorkflowGroup,
   useRenameTable,
+  useRunGroup,
   useUpdateColumn,
   useUpdateTableMetadata,
   useUpdateTableRow,
   useUpdateWorkflowGroup,
 } from '@/hooks/queries/tables'
-import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
-import { useLogByExecutionId } from '@/hooks/queries/logs'
-import { useWorkflows, useWorkflowStates } from '@/hooks/queries/workflows'
+import { useWorkflowStates, useWorkflows } from '@/hooks/queries/workflows'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
@@ -91,7 +92,6 @@ import {
   formatValueForInput,
   storageToDisplay,
 } from '../../utils'
-import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { type ColumnConfigState, ColumnSidebar } from '../column-sidebar/column-sidebar'
 import { ContextMenu } from '../context-menu'
 import { RowModal } from '../row-modal'
@@ -256,7 +256,7 @@ function areRowDepsSatisfied(
     if (value === null || value === undefined || value === '') return false
   }
   for (const gid of deps.workflowGroups ?? []) {
-    if ((row.executions ?? {})[gid]?.status !== 'completed') return false
+    if (row.executions?.[gid]?.status !== 'completed') return false
   }
   return true
 }
@@ -520,8 +520,7 @@ export function Table({
     const map = new Map<string, ColumnSourceInfo>()
     for (const group of tableWorkflowGroups) {
       const state = workflowStates.get(group.workflowId)
-      const blocks = (state as { blocks?: Record<string, FlattenOutputsBlockInput> } | null)
-        ?.blocks
+      const blocks = (state as { blocks?: Record<string, FlattenOutputsBlockInput> } | null)?.blocks
       for (const out of group.outputs) {
         const block = blocks?.[out.blockId]
         const blockConfig = block?.type ? getBlock(block.type) : undefined
@@ -1329,9 +1328,7 @@ export function Table({
       const serverSet = new Set(serverOrder)
       const localSet = new Set(localOrder ?? [])
       const setChanged =
-        !localOrder ||
-        serverSet.size !== localSet.size ||
-        serverOrder.some((n) => !localSet.has(n))
+        !localOrder || serverSet.size !== localSet.size || serverOrder.some((n) => !localSet.has(n))
       if (setChanged) {
         setColumnOrder(serverOrder)
       }
@@ -2214,7 +2211,7 @@ export function Table({
     [generateColumnName, insertColumnInOrder]
   )
 
-/**
+  /**
    * Config state for the side panel:
    * - `null` → closed.
    * - `{ mode: 'edit' }` → configuring an existing column (any type).
@@ -2327,16 +2324,11 @@ export function Table({
       // Falls back to deleting the whole group when this is its last output,
       // since a group with zero outputs is invalid.
       const groupId = entry.def?.workflowGroupId
-      const group = groupId
-        ? workflowGroupsRef.current.find((g) => g.id === groupId)
-        : undefined
+      const group = groupId ? workflowGroupsRef.current.find((g) => g.id === groupId) : undefined
       if (group) {
         const remainingOutputs = group.outputs.filter((o) => o.columnName !== columnToDelete)
         if (remainingOutputs.length === 0) {
-          deleteWorkflowGroupMutation.mutate(
-            { groupId: group.id },
-            { onSuccess: onDeleted }
-          )
+          deleteWorkflowGroupMutation.mutate({ groupId: group.id }, { onSuccess: onDeleted })
         } else {
           updateWorkflowGroupMutation.mutate(
             {
@@ -2455,10 +2447,7 @@ export function Table({
   const createTrigger = useMemo(
     () =>
       userPermissions.canEdit ? (
-        <HeaderAddColumnTrigger
-          onClick={handleAddColumn}
-          disabled={addColumnMutation.isPending}
-        />
+        <HeaderAddColumnTrigger onClick={handleAddColumn} disabled={addColumnMutation.isPending} />
       ) : null,
     [handleAddColumn, addColumnMutation.isPending, userPermissions.canEdit]
   )
@@ -2708,10 +2697,7 @@ export function Table({
                   <>
                     {hasWorkflowGroup && (
                       <tr>
-                        <th
-                          className='border-[var(--border)] border-b bg-[var(--bg)] px-1 py-[5px]'
-                          aria-hidden='true'
-                        />
+                        <th className='border-[var(--border)] border-b bg-[var(--bg)] px-1 py-[5px]' />
                         {headerGroups.map((g) =>
                           g.kind === 'workflow' ? (
                             <WorkflowGroupMetaCell
@@ -2731,9 +2717,7 @@ export function Table({
                               groupId={g.groupId}
                               onSelectGroup={handleGroupSelect}
                               onOpenConfig={handleConfigureColumn}
-                              onRunGroup={
-                                userPermissions.canEdit ? handleRunGroup : undefined
-                              }
+                              onRunGroup={userPermissions.canEdit ? handleRunGroup : undefined}
                               onInsertLeft={
                                 userPermissions.canEdit ? handleInsertColumnLeft : undefined
                               }
@@ -2751,15 +2735,11 @@ export function Table({
                             <th
                               key={`meta-${g.startColIndex}`}
                               className='border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]'
-                              aria-hidden='true'
                             />
                           )
                         )}
                         {userPermissions.canEdit && (
-                          <th
-                            className='border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]'
-                            aria-hidden='true'
-                          />
+                          <th className='border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]' />
                         )}
                       </tr>
                     )}
@@ -2770,42 +2750,42 @@ export function Table({
                       />
                       {displayColumns.map((column, idx) => (
                         <ColumnHeaderMenu
-                        key={column.key}
-                        column={column}
-                        colIndex={idx}
-                        readOnly={!userPermissions.canEdit}
-                        isRenaming={columnRename.editingId === column.name}
-                        isColumnSelected={
-                          isColumnSelection &&
-                          normalizedSelection !== null &&
-                          idx >= normalizedSelection.startCol &&
-                          idx <= normalizedSelection.endCol
-                        }
-                        renameValue={
-                          columnRename.editingId === column.name ? columnRename.editValue : ''
-                        }
-                        onRenameValueChange={columnRename.setEditValue}
-                        onRenameSubmit={columnRename.submitRename}
-                        onRenameCancel={columnRename.cancelRename}
-                        onColumnSelect={handleColumnSelect}
-                        onChangeType={handleChangeType}
-                        onInsertLeft={handleInsertColumnLeft}
-                        onInsertRight={handleInsertColumnRight}
-                        onDeleteColumn={handleDeleteColumn}
-                        onResizeStart={handleColumnResizeStart}
-                        onResize={handleColumnResize}
-                        onResizeEnd={handleColumnResizeEnd}
-                        onAutoResize={handleColumnAutoResize}
-                        onDragStart={handleColumnDragStart}
-                        onDragOver={handleColumnDragOver}
-                        onDragEnd={handleColumnDragEnd}
-                        onDragLeave={handleColumnDragLeave}
-                        workflows={workflows}
-                        workflowGroups={tableWorkflowGroups}
-                        sourceInfo={columnSourceInfo.get(column.name)}
-                        onOpenConfig={handleConfigureColumn}
-                      />
-                    ))}
+                          key={column.key}
+                          column={column}
+                          colIndex={idx}
+                          readOnly={!userPermissions.canEdit}
+                          isRenaming={columnRename.editingId === column.name}
+                          isColumnSelected={
+                            isColumnSelection &&
+                            normalizedSelection !== null &&
+                            idx >= normalizedSelection.startCol &&
+                            idx <= normalizedSelection.endCol
+                          }
+                          renameValue={
+                            columnRename.editingId === column.name ? columnRename.editValue : ''
+                          }
+                          onRenameValueChange={columnRename.setEditValue}
+                          onRenameSubmit={columnRename.submitRename}
+                          onRenameCancel={columnRename.cancelRename}
+                          onColumnSelect={handleColumnSelect}
+                          onChangeType={handleChangeType}
+                          onInsertLeft={handleInsertColumnLeft}
+                          onInsertRight={handleInsertColumnRight}
+                          onDeleteColumn={handleDeleteColumn}
+                          onResizeStart={handleColumnResizeStart}
+                          onResize={handleColumnResize}
+                          onResizeEnd={handleColumnResizeEnd}
+                          onAutoResize={handleColumnAutoResize}
+                          onDragStart={handleColumnDragStart}
+                          onDragOver={handleColumnDragOver}
+                          onDragEnd={handleColumnDragEnd}
+                          onDragLeave={handleColumnDragLeave}
+                          workflows={workflows}
+                          workflowGroups={tableWorkflowGroups}
+                          sourceInfo={columnSourceInfo.get(column.name)}
+                          onOpenConfig={handleConfigureColumn}
+                        />
+                      ))}
                       {userPermissions.canEdit && (
                         <AddColumnButton
                           onClick={handleAddColumn}
@@ -3524,9 +3504,7 @@ function CellContent({
     // that haven't started won't run on this attempt — collapse them to dash
     // instead of leaving a stale "Waiting" spinner if the cell task didn't
     // reach a clean terminal state.
-    const groupHasBlockErrors = !!(
-      exec?.blockErrors && Object.keys(exec.blockErrors).length > 0
-    )
+    const groupHasBlockErrors = !!(exec?.blockErrors && Object.keys(exec.blockErrors).length > 0)
     if (blockError) {
       displayContent = (
         <span
@@ -3950,9 +3928,7 @@ function ColumnOptionsMenu({
                 Run
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
-                <DropdownMenuItem onSelect={() => onRunGroupAll?.()}>
-                  Run all rows
-                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onRunGroupAll?.()}>Run all rows</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => onRunGroupIncomplete?.()}>
                   Run empty rows
                 </DropdownMenuItem>
@@ -4236,7 +4212,9 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     column.workflowGroupId && workflowGroups
       ? workflowGroups.find((g) => g.id === column.workflowGroupId)
       : undefined
-  const configuredWorkflow = ownGroup ? workflows?.find((w) => w.id === ownGroup.workflowId) : undefined
+  const configuredWorkflow = ownGroup
+    ? workflows?.find((w) => w.id === ownGroup.workflowId)
+    : undefined
   const workflowColor = configuredWorkflow?.color
   const blockIconInfo = sourceInfo?.blockIconInfo
   const blockName = sourceInfo?.blockName
@@ -4758,13 +4736,7 @@ const AddColumnButton = React.memo(function AddColumnButton({
 
 const HEADER_ADD_COLUMN_ICON = <Plus className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
 
-function HeaderAddColumnTrigger({
-  onClick,
-  disabled,
-}: {
-  onClick: () => void
-  disabled: boolean
-}) {
+function HeaderAddColumnTrigger({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
   return (
     <Button
       variant='subtle'
@@ -4792,7 +4764,6 @@ const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: ()
     </div>
   )
 })
-
 
 function ColumnTypeIcon({
   type,

@@ -8,7 +8,6 @@ import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
-import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
@@ -55,6 +54,7 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
 } from '@/lib/table'
+import { useSocket } from '@/app/workspace/providers/socket-provider'
 
 /** Short poll to surface running → completed transitions from the server without a dedicated realtime channel. */
 const ROWS_POLL_INTERVAL_WHILE_RUNNING_MS = 1500
@@ -97,7 +97,6 @@ export type TableRowsResponse = Pick<
   ContractJsonResponse<typeof listTableRowsContract>['data'],
   'rows' | 'totalCount'
 >
-
 
 interface RowMutationContext {
   workspaceId: string
@@ -182,19 +181,13 @@ function invalidateRowData(queryClient: ReturnType<typeof useQueryClient>, table
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 }
 
-function invalidateRowCount(
-  queryClient: ReturnType<typeof useQueryClient>,
-  tableId: string
-) {
+function invalidateRowCount(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
 }
 
-function invalidateTableSchema(
-  queryClient: ReturnType<typeof useQueryClient>,
-  tableId: string
-) {
+function invalidateTableSchema(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -1064,14 +1057,11 @@ export function useRunGroup({ workspaceId, tableId }: RowMutationContext) {
 
   return useMutation({
     mutationFn: async ({ groupId, mode = 'all' }: RunGroupVariables) => {
-      const res = await fetch(
-        `/api/table/${tableId}/groups/${encodeURIComponent(groupId)}/run`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId, mode }),
-        }
-      )
+      const res = await fetch(`/api/table/${tableId}/groups/${encodeURIComponent(groupId)}/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId, mode }),
+      })
 
       if (!res.ok) {
         const error = await res.json().catch(() => ({}))
@@ -1082,7 +1072,7 @@ export function useRunGroup({ workspaceId, tableId }: RowMutationContext) {
     },
     onMutate: async ({ groupId, workflowId, mode = 'all' }) => {
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
-        const exec = (r.executions ?? {})[groupId] as RowExecutionMetadata | undefined
+        const exec = r.executions?.[groupId] as RowExecutionMetadata | undefined
         if (exec?.status === 'running' || exec?.status === 'pending') return null
         // Mirror the server-side `incomplete` filter so the optimistic update
         // doesn't flash `pending` on rows the server is going to skip.

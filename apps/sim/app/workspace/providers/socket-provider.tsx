@@ -837,27 +837,24 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     setExplicitWorkflowId(null)
   }, [])
 
-  const joinTable = useCallback(
-    (tableId: string) => {
-      const s = socketRef.current
-      if (!s) {
-        // Defer: when socket connects, the requestedTableId effect below re-emits join-table.
-        currentTableIdRef.current = tableId
-        setCurrentTableId(tableId)
-        return
-      }
-      // Idempotent: if we're already in this room, no-op.
-      if (currentTableIdRef.current === tableId && s.connected) return
-      // Switching tables: leave the previous room first.
-      if (currentTableIdRef.current && currentTableIdRef.current !== tableId) {
-        s.emit('leave-table', { tableId: currentTableIdRef.current })
-      }
+  const joinTable = useCallback((tableId: string) => {
+    const s = socketRef.current
+    if (!s) {
+      // Defer: when socket connects, the requestedTableId effect below re-emits join-table.
       currentTableIdRef.current = tableId
       setCurrentTableId(tableId)
-      s.emit('join-table', { tableId })
-    },
-    []
-  )
+      return
+    }
+    // Idempotent: if we're already in this room, no-op.
+    if (currentTableIdRef.current === tableId && s.connected) return
+    // Switching tables: leave the previous room first.
+    if (currentTableIdRef.current && currentTableIdRef.current !== tableId) {
+      s.emit('leave-table', { tableId: currentTableIdRef.current })
+    }
+    currentTableIdRef.current = tableId
+    setCurrentTableId(tableId)
+    s.emit('join-table', { tableId })
+  }, [])
 
   const leaveTable = useCallback(() => {
     const s = socketRef.current
