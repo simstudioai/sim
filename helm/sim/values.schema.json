@@ -382,11 +382,6 @@
               "format": "uri",
               "description": "Authentication service URL"
             },
-            "NEXT_PUBLIC_SOCKET_URL": {
-              "type": "string",
-              "format": "uri",
-              "description": "Public socket URL"
-            },
             "ALLOWED_ORIGINS": {
               "type": "string",
               "description": "CORS allowed origins"

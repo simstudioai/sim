@@ -362,7 +362,6 @@ realtime:
     # Application URLs — must mirror the public origin used by the main app.
     NEXT_PUBLIC_APP_URL: "http://localhost:3000"
     BETTER_AUTH_URL: "http://localhost:3000"
-    NEXT_PUBLIC_SOCKET_URL: ""  # Leave empty unless realtime is on a separate host:port from the app
 
     # Authentication secret (REQUIRED for production)
     # Must match the BETTER_AUTH_SECRET value from the main app configuration
