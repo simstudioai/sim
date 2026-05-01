@@ -14,6 +14,8 @@ import {
   ModalTrigger,
 } from '@/components/emcn'
 import { GithubIcon, GoogleIcon } from '@/components/icons'
+import { requestJson } from '@/lib/api/client/request'
+import { type AuthProviderStatusResponse, getAuthProvidersContract } from '@/lib/api/contracts/auth'
 import { client } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { captureClientEvent } from '@/lib/posthog/client'
@@ -30,13 +32,9 @@ interface AuthModalProps {
   source: PostHogEventMap['auth_modal_opened']['source']
 }
 
-interface ProviderStatus {
-  githubAvailable: boolean
-  googleAvailable: boolean
-  registrationDisabled: boolean
-}
+type ProviderStatus = AuthProviderStatusResponse
 
-let fetchPromise: Promise<ProviderStatus> | null = null
+let fetchPromise: Promise<AuthProviderStatusResponse> | null = null
 
 const FALLBACK_STATUS: ProviderStatus = {
   githubAvailable: false,
@@ -49,12 +47,8 @@ const SOCIAL_BTN =
 
 function fetchProviderStatus(): Promise<ProviderStatus> {
   if (fetchPromise) return fetchPromise
-  fetchPromise = fetch('/api/auth/providers')
-    .then((r) => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      return r.json()
-    })
-    .then(({ githubAvailable, googleAvailable, registrationDisabled }: ProviderStatus) => ({
+  fetchPromise = requestJson(getAuthProvidersContract, {})
+    .then(({ githubAvailable, googleAvailable, registrationDisabled }) => ({
       githubAvailable,
       googleAvailable,
       registrationDisabled,

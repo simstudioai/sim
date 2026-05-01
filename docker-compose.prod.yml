@@ -13,6 +13,10 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
       - BETTER_AUTH_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      # TRUSTED_ORIGINS: comma-separated public origins to trust for auth in
+      # addition to NEXT_PUBLIC_APP_URL. Use when serving from multiple domains
+      # (apex + www, alias hostnames, reverse-proxy IPs). Empty by default.
+      - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - API_ENCRYPTION_KEY=${API_ENCRYPTION_KEY:-}
@@ -22,7 +26,11 @@ services:
       - SIM_AGENT_API_URL=${SIM_AGENT_API_URL}
       - OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
       - SOCKET_SERVER_URL=${SOCKET_SERVER_URL:-http://realtime:3002}
-      - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-http://localhost:3002}
+      # NEXT_PUBLIC_SOCKET_URL is read by the browser. Leaving it unset lets the
+      # client default to the page's own origin (assumes the reverse proxy routes
+      # /socket.io). Set it explicitly only when the realtime service is on a
+      # different host:port from the app (e.g. wss://socket.example.com).
+      - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-}
       - ADMISSION_GATE_MAX_INFLIGHT=${ADMISSION_GATE_MAX_INFLIGHT:-500}
     depends_on:
       db:

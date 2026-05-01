@@ -35,6 +35,12 @@ import {
 } from '@/components/emcn'
 import { Lock, Unlock, Upload } from '@/components/emcn/icons'
 import { VariableIcon } from '@/components/icons'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  createWorkflowCopilotChatContract,
+  deleteCopilotChatContract,
+} from '@/lib/api/contracts/copilot'
+import { getWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
 import { useSession } from '@/lib/auth/auth-client'
 import { captureEvent } from '@/lib/posthog/client'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
@@ -284,18 +290,16 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
   const handleCopilotDeleteChat = useCallback(
     (chatId: string) => {
-      fetch('/api/copilot/chat/delete', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId }),
-      })
+      requestJson(deleteCopilotChatContract, { body: { chatId } })
         .then(() => {
           if (copilotChatId === chatId) {
             setCopilotChatId(undefined)
           }
           loadCopilotChats()
         })
-        .catch(() => {})
+        .catch((err) => {
+          logger.error('Failed to delete copilot chat', { error: toError(err).message, chatId })
+        })
     },
     [copilotChatId, loadCopilotChats, setCopilotChatId]
   )
@@ -308,11 +312,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
       const baselineWorkflow = captureBaselineSnapshot(workflowId)
 
-      fetch(`/api/workflows/${workflowId}/state`)
-        .then((res) => {
-          if (!res.ok) throw new Error(`State fetch failed: ${res.status}`)
-          return res.json()
-        })
+      requestJson(getWorkflowNormalizedStateContract, { params: { id: workflowId } })
         .then((freshState) => {
           const diffStore = useWorkflowDiffStore.getState()
           return diffStore.setProposedChanges(freshState as WorkflowState, undefined, {
@@ -353,14 +353,10 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
   const handleCopilotNewChat = useCallback(() => {
     if (!activeWorkflowId || !workspaceId) return
-    fetch('/api/copilot/chats', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspaceId, workflowId: activeWorkflowId }),
+    requestJson(createWorkflowCopilotChatContract, {
+      body: { workspaceId, workflowId: activeWorkflowId },
     })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('create chat failed'))))
-      .then((data: { id?: string }) => {
-        if (!data?.id) return
+      .then((data) => {
         // Seed the new chat into the list cache before selecting it. Without this, the
         // auto-select effect sees a selected id that isn't in the (still-stale) list and
         // deselects it, which leaves the panel detached from the freshly created row.
@@ -368,7 +364,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
           copilotChatsKeys.list(activeWorkflowId),
           (prev) => [
             {
-              id: data.id!,
+              id: data.id,
               title: null,
               workflowId: activeWorkflowId,
               updatedAt: new Date().toISOString(),
@@ -381,7 +377,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         loadCopilotChats()
       })
       .catch((err) => {
-        logger.error('Failed to create copilot chat', err)
+        logger.error('Failed to create copilot chat', { error: toError(err).message })
       })
   }, [activeWorkflowId, workspaceId, loadCopilotChats, setCopilotChatId, queryClient])
 

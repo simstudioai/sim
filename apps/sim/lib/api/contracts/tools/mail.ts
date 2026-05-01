@@ -6,7 +6,15 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const mailToolResponseSchema = z.object({}).passthrough()
+export const mailSendResponseSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z
+    .object({
+      id: z.string(),
+    })
+    .nullable(),
+})
 
 export const mailSendBodySchema = z.object({
   fromAddress: z.string().min(1, 'From address is required'),
@@ -35,7 +43,7 @@ export const mailSendContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/mail/send',
   body: mailSendBodySchema,
-  response: { mode: 'json', schema: mailToolResponseSchema },
+  response: { mode: 'json', schema: mailSendResponseSchema },
 })
 
 export type MailSendBody = ContractBody<typeof mailSendContract>

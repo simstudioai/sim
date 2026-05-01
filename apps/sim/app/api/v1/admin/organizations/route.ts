@@ -28,7 +28,7 @@ import { count, eq } from 'drizzle-orm'
 import {
   adminV1CreateOrganizationContract,
   adminV1ListOrganizationsContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import {
   createOrganizationWithOwner,

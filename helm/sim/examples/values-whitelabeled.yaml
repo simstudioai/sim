@@ -47,7 +47,6 @@ realtime:
   env:
     NEXT_PUBLIC_APP_URL: "https://sim.acme.ai"
     BETTER_AUTH_URL: "https://sim.acme.ai"
-    NEXT_PUBLIC_SOCKET_URL: "https://sim-ws.acme.ai"
     BETTER_AUTH_SECRET: "your-production-auth-secret-here"
     ALLOWED_ORIGINS: "https://sim.acme.ai"
 

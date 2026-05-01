@@ -5,7 +5,7 @@ import {
   v1AddTableColumnContract,
   v1DeleteTableColumnContract,
   v1UpdateTableColumnContract,
-} from '@/lib/api/contracts/tables'
+} from '@/lib/api/contracts/v1/tables'
 import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'

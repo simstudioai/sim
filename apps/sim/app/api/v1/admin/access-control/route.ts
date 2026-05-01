@@ -31,7 +31,7 @@ import {
   type AdminV1PermissionGroup,
   adminV1DeleteAccessControlContract,
   adminV1ListAccessControlContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'

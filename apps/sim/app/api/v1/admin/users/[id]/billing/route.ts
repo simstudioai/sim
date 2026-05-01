@@ -26,7 +26,7 @@ import { eq, or } from 'drizzle-orm'
 import {
   adminV1GetUserBillingContract,
   adminV1UpdateUserBillingContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'

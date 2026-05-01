@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { v1KnowledgeSearchContract } from '@/lib/api/contracts/knowledge'
+import { v1KnowledgeSearchContract } from '@/lib/api/contracts/v1/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'

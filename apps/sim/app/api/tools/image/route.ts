@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { imageProxyQuerySchema } from '@/lib/api/contracts/media-tools'
+import { imageProxyQuerySchema } from '@/lib/api/contracts/tools/media/image'
 import { getValidationErrorMessage, searchParamsToObject } from '@/lib/api/server/validation'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {

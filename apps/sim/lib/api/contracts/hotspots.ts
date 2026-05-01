@@ -1,31 +1,7 @@
 import { z } from 'zod'
 import { unknownRecordSchema } from '@/lib/api/contracts/primitives'
-import {
-  toolFailureResponseSchema,
-  toolSuccessResponseSchema,
-} from '@/lib/api/contracts/tool-primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
-
-export const thinkingToolContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/thinking',
-  body: z.object({
-    thought: z.string().min(1, 'The thought parameter is required and must be a string'),
-  }),
-  response: {
-    mode: 'json',
-    schema: z.union([
-      toolSuccessResponseSchema(
-        z.object({
-          acknowledgedThought: z.string(),
-        })
-      ),
-      toolFailureResponseSchema,
-    ]),
-  },
-})
-
 export const guardrailsValidateContract = defineRouteContract({
   method: 'POST',
   path: '/api/guardrails/validate',

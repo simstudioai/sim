@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { supabaseStorageUploadContract } from '@/lib/api/contracts/database-tools'
+import { supabaseStorageUploadContract } from '@/lib/api/contracts/tools/databases/supabase'
 import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateSupabaseProjectId } from '@/lib/core/security/input-validation'

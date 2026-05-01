@@ -349,9 +349,9 @@
       "name": "@sim/db",
       "version": "0.1.0",
       "dependencies": {
+        "@sim/utils": "workspace:*",
         "drizzle-orm": "^0.45.2",
         "postgres": "^3.4.5",
-        "uuid": "^11.1.0",
         "zod": "4.3.6",
       },
       "devDependencies": {
@@ -397,6 +397,9 @@
     "packages/testing": {
       "name": "@sim/testing",
       "version": "0.1.0",
+      "dependencies": {
+        "@sim/utils": "workspace:*",
+      },
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",
         "typescript": "^5.7.3",

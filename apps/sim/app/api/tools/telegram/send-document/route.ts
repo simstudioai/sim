@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { telegramSendDocumentContract } from '@/lib/api/contracts'
+import { telegramSendDocumentContract } from '@/lib/api/contracts/tools/communication/messaging'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'

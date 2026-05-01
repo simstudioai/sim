@@ -4,6 +4,13 @@ import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  acceptInvitationContract,
+  getInvitationContract,
+  type InvitationDetails,
+} from '@/lib/api/contracts/invitations'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 import { organizationKeys } from '@/hooks/queries/organization'
@@ -35,26 +42,6 @@ interface InviteError {
   message: string
   requiresAuth?: boolean
   canRetry?: boolean
-}
-
-type InvitationKind = 'organization' | 'workspace'
-
-interface InvitationDetails {
-  id: string
-  kind: InvitationKind
-  email: string
-  organizationId: string | null
-  organizationName: string | null
-  role: string
-  status: string
-  expiresAt: string
-  inviterName: string | null
-  inviterEmail: string | null
-  grants: Array<{
-    workspaceId: string
-    workspaceName: string | null
-    permission: 'admin' | 'write' | 'read'
-  }>
 }
 
 function getInviteError(code: string): InviteError {
@@ -156,6 +143,15 @@ function codeFromStatus(status: number): InviteErrorCode {
   return 'unknown'
 }
 
+function codeFromApiClientError(error: ApiClientError): string {
+  if (error.body && typeof error.body === 'object') {
+    const code = (error.body as { error?: unknown }).error
+    if (typeof code === 'string' && code.length > 0) return code
+  }
+
+  return codeFromStatus(error.status)
+}
+
 export default function Invite() {
   const router = useRouter()
   const params = useParams()
@@ -200,23 +196,19 @@ export default function Invite() {
     async function fetchInvitation() {
       setIsLoading(true)
       try {
-        const tokenParam = token ? `?token=${encodeURIComponent(token)}` : ''
-        const response = await fetch(`/api/invitations/${inviteId}${tokenParam}`)
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}))
-          const code = data.error || codeFromStatus(response.status)
-          setError(getInviteError(code))
-          setIsLoading(false)
-          return
-        }
-
-        const data = await response.json()
-        setInvitation(data.invitation as InvitationDetails)
+        const data = await requestJson(getInvitationContract, {
+          params: { id: inviteId },
+          query: { token: token ?? undefined },
+        })
+        setInvitation(data.invitation)
         setError(null)
       } catch (fetchError) {
         logger.error('Error fetching invitation:', fetchError)
-        setError(getInviteError('network-error'))
+        const code =
+          fetchError instanceof ApiClientError
+            ? codeFromApiClientError(fetchError)
+            : 'network-error'
+        setError(getInviteError(code))
       } finally {
         setIsLoading(false)
       }
@@ -230,22 +222,10 @@ export default function Invite() {
     setIsAccepting(true)
 
     try {
-      const response = await fetch(`/api/invitations/${inviteId}/accept`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ token: token ?? undefined }),
+      const data = await requestJson(acceptInvitationContract, {
+        params: { id: inviteId },
+        body: { token: token ?? undefined },
       })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        const code = data.error || codeFromStatus(response.status)
-        setError(getInviteError(code))
-        setIsAccepting(false)
-        return
-      }
-
-      const data = await response.json()
 
       if (invitation.organizationId) {
         try {
@@ -263,11 +243,14 @@ export default function Invite() {
       setAccepted(true)
       setIsAccepting(false)
 
-      const redirectPath = typeof data.redirectPath === 'string' ? data.redirectPath : '/workspace'
-      setTimeout(() => router.push(redirectPath), 1200)
+      setTimeout(() => router.push(data.redirectPath), 1200)
     } catch (acceptError) {
       logger.error('Error accepting invitation:', acceptError)
-      setError(getInviteError('network-error'))
+      const code =
+        acceptError instanceof ApiClientError
+          ? codeFromApiClientError(acceptError)
+          : 'network-error'
+      setError(getInviteError(code))
       setIsAccepting(false)
     }
   }

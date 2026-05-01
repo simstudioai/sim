@@ -2,6 +2,9 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Label, Switch } from '@/components/emcn'
+import { isApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import { getKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
 import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
 import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
 import { useCreateChunk, useUpdateChunk } from '@/hooks/queries/kb/knowledge'
@@ -64,16 +67,15 @@ export function ChunkEditor({
   useEffect(() => {
     if (isCreateMode || !chunk?.id) return
     const controller = new AbortController()
+    const chunkId = chunk.id
     const handleVisibility = async () => {
       if (document.visibilityState !== 'visible') return
       try {
-        const res = await fetch(
-          `/api/knowledge/${knowledgeBaseId}/documents/${documentData.id}/chunks/${chunk.id}`,
-          { signal: controller.signal }
-        )
-        if (!res.ok) return
-        const json = await res.json()
-        const serverContent: string = json.data?.content ?? ''
+        const json = await requestJson(getKnowledgeChunkContract, {
+          params: { id: knowledgeBaseId, documentId: documentData.id, chunkId },
+          signal: controller.signal,
+        })
+        const serverContent = json.data.content ?? ''
         if (serverContent === savedContentRef.current) return
         const isClean = editedContentRef.current === savedContentRef.current
         savedContentRef.current = serverContent
@@ -83,6 +85,7 @@ export function ChunkEditor({
         }
       } catch (err) {
         if ((err as Error).name === 'AbortError') return
+        if (isApiClientError(err)) return
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)

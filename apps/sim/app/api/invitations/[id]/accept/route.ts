@@ -1,11 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import {
-  invitationActionBodySchema,
-  invitationActionParamsSchema,
-} from '@/lib/api/contracts/invitations'
-import { getValidationErrorMessage } from '@/lib/api/server'
+import { acceptInvitationContract } from '@/lib/api/contracts/invitations'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { acceptInvitation } from '@/lib/invitations/core'
@@ -13,35 +10,23 @@ import { acceptInvitation } from '@/lib/invitations/core'
 const logger = createLogger('InvitationAcceptAPI')
 
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const parsedParams = invitationActionParamsSchema.safeParse(await params)
-    if (!parsedParams.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(parsedParams.error) },
-        { status: 400 }
-      )
-    }
-    const { id } = parsedParams.data
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const session = await getSession()
 
     if (!session?.user?.id || !session.user.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json().catch(() => ({}))
-    const parsed = invitationActionBodySchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(parsed.error, 'Invalid request body') },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(acceptInvitationContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id } = parsed.data.params
 
     const result = await acceptInvitation({
       userId: session.user.id,
       userEmail: session.user.email,
       invitationId: id,
-      token: parsed.data.token ?? null,
+      token: parsed.data.body.token ?? null,
     })
 
     if (!result.success) {

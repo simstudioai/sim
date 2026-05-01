@@ -1,7 +1,7 @@
 import type { Stagehand as StagehandType } from '@browserbasehq/stagehand'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { stagehandExtractContract } from '@/lib/api/contracts/internal-tools'
+import { stagehandExtractContract } from '@/lib/api/contracts/tools/internal/stagehand'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'

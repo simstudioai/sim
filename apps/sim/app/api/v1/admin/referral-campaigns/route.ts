@@ -33,7 +33,7 @@ import {
   type AdminV1ReferralCampaignDuration,
   adminV1CreateReferralCampaignContract,
   adminV1ListReferralCampaignsContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans } from '@/lib/billing/plans'

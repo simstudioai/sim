@@ -7,10 +7,13 @@ import { useMutation } from '@tanstack/react-query'
 import Link from 'next/link'
 import { Combobox, Input, Textarea } from '@/components/emcn'
 import { Check } from '@/components/emcn/icons'
+import { requestJson } from '@/lib/api/client/request'
 import {
   CONTACT_TOPIC_OPTIONS,
   type ContactRequestPayload,
   contactRequestSchema,
+  type SubmitContactBody,
+  submitContactContract,
 } from '@/lib/api/contracts/contact'
 import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
 import { getEnv } from '@/lib/core/config/env'
@@ -53,29 +56,8 @@ const LANDING_SUBMIT =
 const LANDING_LABEL =
   'font-[500] font-season text-[13px] text-[var(--landing-text)] tracking-[0.02em]'
 
-interface SubmitContactRequestInput extends ContactRequestPayload {
-  website: string
-  captchaToken?: string
-  captchaUnavailable?: boolean
-}
-
-async function submitContactRequest(payload: SubmitContactRequestInput) {
-  const response = await fetch('/api/contact', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
-
-  const result = (await response.json().catch(() => null)) as {
-    error?: string
-    message?: string
-  } | null
-
-  if (!response.ok) {
-    throw new Error(result?.error || 'Failed to send message')
-  }
-
-  return result
+async function submitContactRequest(payload: SubmitContactBody) {
+  return requestJson(submitContactContract, { body: payload })
 }
 
 export function ContactForm() {

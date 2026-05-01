@@ -2,7 +2,8 @@ import { db, member, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { ssoProvidersQuerySchema } from '@/lib/api/contracts/auth'
+import { listSsoProvidersContract } from '@/lib/api/contracts/auth'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -12,11 +13,9 @@ const logger = createLogger('SSOProvidersRoute')
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
-    const { searchParams } = new URL(request.url)
-    const query = ssoProvidersQuerySchema.parse({
-      organizationId: searchParams.get('organizationId') || undefined,
-    })
-    const { organizationId } = query
+    const parsed = await parseRequest(listSsoProvidersContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { organizationId } = parsed.data.query
 
     let providers
     if (session?.user?.id) {

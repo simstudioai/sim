@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { cursorDownloadArtifactContract } from '@/lib/api/contracts/internal-tools'
+import { cursorDownloadArtifactContract } from '@/lib/api/contracts/tools/internal/cursor'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {

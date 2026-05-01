@@ -1165,6 +1165,7 @@ async function handleExecutePost(
                 data: {
                   error: timeoutErrorMessage,
                   duration: result.metadata?.duration || 0,
+                  finalBlockLogs: result.logs,
                 },
               })
               finalMetaStatus = 'error'
@@ -1178,6 +1179,7 @@ async function handleExecutePost(
                 workflowId,
                 data: {
                   duration: result.metadata?.duration || 0,
+                  finalBlockLogs: result.logs,
                 },
               })
               finalMetaStatus = 'cancelled'
@@ -1242,6 +1244,7 @@ async function handleExecutePost(
             data: {
               error: executionResult?.error || errorMessage,
               duration: executionResult?.metadata?.duration || 0,
+              finalBlockLogs: executionResult?.logs,
             },
           })
           finalMetaStatus = 'error'

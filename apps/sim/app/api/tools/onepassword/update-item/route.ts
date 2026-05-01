@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { onePasswordUpdateItemContract } from '@/lib/api/contracts/internal-tools'
+import { onePasswordUpdateItemContract } from '@/lib/api/contracts/tools/internal/onepassword'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'

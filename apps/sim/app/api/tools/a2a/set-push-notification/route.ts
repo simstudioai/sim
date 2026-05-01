@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createA2AClient } from '@/lib/a2a/utils'
-import { a2aSetPushNotificationContract } from '@/lib/api/contracts/internal-tools'
+import { a2aSetPushNotificationContract } from '@/lib/api/contracts/tools/internal/a2a'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'

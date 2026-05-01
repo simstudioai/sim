@@ -109,6 +109,16 @@ export const createKnowledgeChunkContract = defineRouteContract({
   },
 })
 
+export const getKnowledgeChunkContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/knowledge/[id]/documents/[documentId]/chunks/[chunkId]',
+  params: knowledgeChunkParamsSchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(chunkDataSchema),
+  },
+})
+
 export const updateKnowledgeChunkContract = defineRouteContract({
   method: 'PUT',
   path: '/api/knowledge/[id]/documents/[documentId]/chunks/[chunkId]',

@@ -2,7 +2,10 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { playHtOutputFormatSchema, ttsUnifiedToolContract } from '@/lib/api/contracts/media-tools'
+import {
+  playHtOutputFormatSchema,
+  ttsUnifiedToolContract,
+} from '@/lib/api/contracts/tools/media/tts'
 import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'

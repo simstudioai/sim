@@ -27,7 +27,7 @@ OLLAMA_URL=http://192.168.1.x:11434           # Linux (use actual IP)
 
 ## WebSocket/实时功能无法正常工作
 
-1. 检查 `NEXT_PUBLIC_SOCKET_URL` 是否与您的域名匹配
+1. 确认反向代理将 `/socket.io` 路由到 realtime 服务（默认端口 3002）。仅当 realtime 部署在独立主机时才需要设置 `NEXT_PUBLIC_SOCKET_URL`。
 2. 验证实时服务是否正在运行：`docker compose ps realtime`
 3. 确保反向代理支持 WebSocket 升级（参见 [Docker 指南](/self-hosting/docker)）
 

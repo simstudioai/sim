@@ -22,6 +22,10 @@ vi.mock('@/lib/knowledge/documents/utils', () => ({
   retryWithExponentialBackoff: (fn: any) => fn(),
 }))
 
+vi.mock('@/lib/workspaces/utils', () => ({
+  getWorkspaceBilledAccountUserId: vi.fn().mockResolvedValue('user1'),
+}))
+
 vi.mock('@/lib/knowledge/documents/document-processor', () => ({
   processDocument: vi.fn().mockResolvedValue({
     chunks: [
@@ -211,7 +215,7 @@ describe('Knowledge Utils', () => {
       kbRows.push({
         id: 'kb1',
         userId: 'user1',
-        workspaceId: null,
+        workspaceId: 'workspace1',
         embeddingModel: 'text-embedding-3-small',
         chunkingConfig: { maxSize: 1024, minSize: 1, overlap: 200 },
       })

@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import {
   v1DeleteKnowledgeDocumentContract,
   v1GetKnowledgeDocumentContract,
-} from '@/lib/api/contracts/knowledge'
+} from '@/lib/api/contracts/v1/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteDocument } from '@/lib/knowledge/documents/service'

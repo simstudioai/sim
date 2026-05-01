@@ -107,6 +107,28 @@ export const updateOrganizationDataRetentionBodySchema = z.object({
   taskCleanupHours: organizationDataRetentionHoursSchema,
 })
 
+const organizationRetentionValuesSchema = z.object({
+  logRetentionHours: z.number().int().nullable(),
+  softDeleteRetentionHours: z.number().int().nullable(),
+  taskCleanupHours: z.number().int().nullable(),
+})
+
+export type OrganizationRetentionValues = z.output<typeof organizationRetentionValuesSchema>
+
+const organizationDataRetentionDataSchema = z.object({
+  isEnterprise: z.boolean(),
+  defaults: organizationRetentionValuesSchema,
+  configured: organizationRetentionValuesSchema,
+  effective: organizationRetentionValuesSchema,
+})
+
+export type OrganizationDataRetention = z.output<typeof organizationDataRetentionDataSchema>
+
+export const organizationDataRetentionResponseSchema = z.object({
+  success: z.boolean(),
+  data: organizationDataRetentionDataSchema,
+})
+
 export const updateOrganizationWhitelabelBodySchema = z.object({
   brandName: z
     .string()
@@ -411,6 +433,16 @@ export const updateOrganizationContract = defineRouteContract({
   },
 })
 
+export const getOrganizationDataRetentionContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/data-retention',
+  params: organizationParamsSchema,
+  response: {
+    mode: 'json',
+    schema: organizationDataRetentionResponseSchema,
+  },
+})
+
 export const updateOrganizationDataRetentionContract = defineRouteContract({
   method: 'PUT',
   path: '/api/organizations/[id]/data-retention',
@@ -418,17 +450,41 @@ export const updateOrganizationDataRetentionContract = defineRouteContract({
   body: updateOrganizationDataRetentionBodySchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema.extend({
-      data: z
-        .object({
-          isEnterprise: z.boolean(),
-          defaults: z.record(z.string(), z.unknown()),
-          configured: z.record(z.string(), z.unknown()),
-          effective: z.record(z.string(), z.unknown()),
-        })
-        .passthrough()
-        .optional(),
-    }),
+    schema: organizationDataRetentionResponseSchema,
+  },
+})
+
+// Read shape mirrors `OrganizationWhitelabelSettings` from
+// `@/lib/branding/types`. All fields are optional (nullable on the way in
+// for the PUT contract, but stored without nulls on the way out — the
+// route deletes keys that are explicitly cleared).
+export const organizationWhitelabelSettingsResponseSchema = z.object({
+  brandName: z.string().optional(),
+  logoUrl: z.string().optional(),
+  wordmarkUrl: z.string().optional(),
+  primaryColor: z.string().optional(),
+  primaryHoverColor: z.string().optional(),
+  accentColor: z.string().optional(),
+  accentHoverColor: z.string().optional(),
+  supportEmail: z.string().optional(),
+  documentationUrl: z.string().optional(),
+  termsUrl: z.string().optional(),
+  privacyUrl: z.string().optional(),
+  hidePoweredBySim: z.boolean().optional(),
+})
+
+const organizationWhitelabelEnvelopeResponseSchema = z.object({
+  success: z.boolean(),
+  data: organizationWhitelabelSettingsResponseSchema,
+})
+
+export const getOrganizationWhitelabelContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/whitelabel',
+  params: organizationParamsSchema,
+  response: {
+    mode: 'json',
+    schema: organizationWhitelabelEnvelopeResponseSchema,
   },
 })
 
@@ -439,9 +495,7 @@ export const updateOrganizationWhitelabelContract = defineRouteContract({
   body: updateOrganizationWhitelabelBodySchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema.extend({
-      data: z.record(z.string(), z.unknown()).optional(),
-    }),
+    schema: organizationWhitelabelEnvelopeResponseSchema,
   },
 })
 

@@ -32,7 +32,7 @@ import { NextResponse } from 'next/server'
 import {
   adminV1ImportWorkspaceContract,
   adminV1WorkspaceImportBodySchema,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/v1/admin'
 import { parseJsonBody, parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {

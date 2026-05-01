@@ -3,7 +3,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const workflowStateSchema = z.custom<WorkflowState>(
+const deployedWorkflowStateSchema = z.custom<WorkflowState>(
   (value) => typeof value === 'object' && value !== null,
   'Expected workflow state'
 )
@@ -157,7 +157,7 @@ export const updatePublicApiResponseSchema = z.object({
 export type UpdatePublicApiResponse = z.output<typeof updatePublicApiResponseSchema>
 
 export const deployedWorkflowStateResponseSchema = z.object({
-  deployedState: workflowStateSchema.nullable(),
+  deployedState: deployedWorkflowStateSchema.nullable(),
 })
 
 export type DeployedWorkflowStateResponse = z.output<typeof deployedWorkflowStateResponseSchema>
@@ -251,7 +251,7 @@ export const getDeploymentVersionStateContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({
-      deployedState: workflowStateSchema,
+      deployedState: deployedWorkflowStateSchema,
     }),
   },
 })

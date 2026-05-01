@@ -1,12 +1,25 @@
 import { z } from 'zod'
-import {
-  defineGetSelector,
-  idNameSchema,
-  optionalString,
-} from '@/lib/api/contracts/selectors/shared'
+import { defineGetSelector, optionalString } from '@/lib/api/contracts/selectors/shared'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 
 export const WEALTHBOX_ITEM_TYPES = ['note', 'contact', 'task'] as const
+
+const wealthboxItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.string(),
+  content: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+const wealthboxItemsResponseSchema = z.object({
+  items: z.array(wealthboxItemSchema),
+})
+
+const wealthboxItemResponseSchema = z.object({
+  item: wealthboxItemSchema.optional(),
+})
 
 export const wealthboxItemsQuerySchema = z.object({
   credentialId: z.string().min(1),
@@ -35,25 +48,25 @@ export const wealthboxItemQuerySchema = z.object({
 export const wealthboxItemsSelectorContract = defineGetSelector(
   '/api/tools/wealthbox/items',
   wealthboxItemsQuerySchema,
-  z.object({ items: z.array(idNameSchema) })
+  wealthboxItemsResponseSchema
 )
 
 export const wealthboxItemContract = defineGetSelector(
   '/api/tools/wealthbox/item',
   wealthboxItemQuerySchema,
-  z.object({ item: idNameSchema.passthrough() })
+  wealthboxItemResponseSchema
 )
 
 export const wealthboxOAuthItemsContract = defineGetSelector(
   '/api/auth/oauth/wealthbox/items',
   wealthboxItemsQuerySchema,
-  z.object({}).passthrough()
+  wealthboxItemsResponseSchema
 )
 
 export const wealthboxOAuthItemContract = defineGetSelector(
   '/api/auth/oauth/wealthbox/item',
   wealthboxItemQuerySchema,
-  z.object({}).passthrough()
+  wealthboxItemResponseSchema
 )
 
 export type WealthboxItemsSelectorResponse = ContractJsonResponse<

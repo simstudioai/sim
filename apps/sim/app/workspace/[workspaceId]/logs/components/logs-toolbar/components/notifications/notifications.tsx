@@ -3,7 +3,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Plus, X } from 'lucide-react'
-import type { z } from 'zod'
 import {
   Badge,
   Button,
@@ -25,9 +24,9 @@ import {
 } from '@/components/emcn'
 import { SlackIcon } from '@/components/icons'
 import type {
-  alertRuleSchema,
-  notificationLevelSchema,
-  notificationTypeSchema,
+  NotificationAlertRule,
+  NotificationLogLevel,
+  NotificationType,
 } from '@/lib/api/contracts/notifications'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
@@ -53,10 +52,9 @@ const logger = createLogger('NotificationSettings')
 const TRIGGER_OPTIONS = getTriggerOptions()
 const ALL_TRIGGER_VALUES = TRIGGER_OPTIONS.map((t) => t.value)
 
-type NotificationType = z.output<typeof notificationTypeSchema>
-type LogLevel = z.output<typeof notificationLevelSchema>
+type LogLevel = NotificationLogLevel
 /** Contract alert rule plus a UI-only `'none'` sentinel meaning "no alert config". */
-type AlertRule = z.output<typeof alertRuleSchema> | 'none'
+type AlertRule = NotificationAlertRule | 'none'
 
 const ALERT_RULES: { value: AlertRule; label: string; description: string }[] = [
   { value: 'none', label: 'None', description: 'Notify on every matching execution' },

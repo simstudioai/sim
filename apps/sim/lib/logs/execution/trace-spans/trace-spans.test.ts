@@ -2206,4 +2206,38 @@ describe('nested subflow grouping via parentIterations', () => {
     expect(secondModel.errorMessage).toBe('too many requests')
     expect(secondModel.status).toBe('error')
   })
+
+  it.concurrent('preserves parent toolCost on trace span cost', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'done' },
+      logs: [
+        {
+          blockId: 'agent-tool-cost',
+          blockName: 'Agent With Tool Cost',
+          blockType: 'agent',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:02.000Z',
+          durationMs: 2000,
+          success: true,
+          input: {},
+          output: {
+            content: 'done',
+            model: 'gpt-4o',
+            tokens: { input: 100, output: 50, total: 150 },
+            cost: { input: 0.001, output: 0.002, toolCost: 0.015, total: 0.018 },
+          },
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    expect(traceSpans[0].cost).toEqual({
+      input: 0.001,
+      output: 0.002,
+      toolCost: 0.015,
+      total: 0.018,
+    })
+  })
 })

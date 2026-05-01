@@ -3,6 +3,9 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import { getAllowedIntegrationsContract } from '@/lib/api/contracts/common'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
@@ -30,9 +33,16 @@ function useAllowedIntegrationsFromEnv() {
   return useQuery<AllowedIntegrationsResponse>({
     queryKey: ['allowedIntegrations', 'env'],
     queryFn: async ({ signal }) => {
-      const response = await fetch('/api/settings/allowed-integrations', { signal })
-      if (!response.ok) return { allowedIntegrations: null }
-      return response.json()
+      try {
+        return await requestJson(getAllowedIntegrationsContract, { signal })
+      } catch (error) {
+        // Treat any auth/server failure as "no env allowlist configured"
+        // so the UI falls back to the permission-group-driven allowlist.
+        if (error instanceof ApiClientError) {
+          return { allowedIntegrations: null }
+        }
+        throw error
+      }
     },
     staleTime: 5 * 60 * 1000,
   })

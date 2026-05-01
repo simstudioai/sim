@@ -71,6 +71,7 @@ export default function Form({ identifier }: { identifier: string }) {
         setIsLoading(true)
         setError(null)
 
+        // boundary-raw-fetch: GET /api/form/[identifier] is a polymorphic form-discovery endpoint that returns either a form config OR a 401 envelope carrying `error: 'auth_required_password' | 'auth_required_email'` plus partial title/customizations for the auth gate; modelling this as a contract requires a discriminated response schema and a custom error path that surfaces 401-as-data without throwing
         const response = await fetch(`/api/form/${identifier}`, { signal })
         if (signal?.aborted) return
 
@@ -165,6 +166,7 @@ export default function Form({ identifier }: { identifier: string }) {
         setIsSubmitting(true)
         setError(null)
 
+        // boundary-raw-fetch: POST /api/form/[identifier] is the public form submission endpoint; the same route also accepts `{ password }` or `{ email }` auth gate bodies (handled by fetchFormConfig/handlePasswordAuth) and runs workflow execution with CORS headers/streaming envelopes that don't fit the current `requestJson` contract surface
         const response = await fetch(`/api/form/${identifier}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -201,6 +203,7 @@ export default function Form({ identifier }: { identifier: string }) {
         setIsLoading(true)
         setError(null)
 
+        // boundary-raw-fetch: POST /api/form/[identifier] doubles as the password auth gate; same polymorphic route as the form submission above (separate `{ password }` body branch on the server)
         const response = await fetch(`/api/form/${identifier}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

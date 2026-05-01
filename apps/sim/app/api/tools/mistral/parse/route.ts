@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { mistralParseContract } from '@/lib/api/contracts/media-tools'
+import { mistralParseContract } from '@/lib/api/contracts/tools/media/document-parse'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {

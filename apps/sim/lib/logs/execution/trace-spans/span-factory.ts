@@ -117,8 +117,13 @@ function enrichWithProviderMetadata(span: TraceSpan, log: ValidBlockLog): void {
   }
 
   if (output.cost) {
-    const { input, output: out, total } = output.cost
-    span.cost = { input, output: out, total }
+    const { input, output: out, total, toolCost } = output.cost
+    span.cost = {
+      input,
+      output: out,
+      total,
+      ...(typeof toolCost === 'number' && toolCost > 0 ? { toolCost } : {}),
+    }
   }
 
   if (output.tokens) {
