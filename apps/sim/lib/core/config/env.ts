@@ -401,7 +401,7 @@ export const env = createEnv({
     NEXT_PUBLIC_APP_URL:                   z.string().url(),                       // Base URL of the application (e.g., https://www.sim.ai)
 
     // Client-side Services
-    NEXT_PUBLIC_SOCKET_URL:                z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()), // WebSocket server URL for real-time features (empty string treated as unset)
+    NEXT_PUBLIC_SOCKET_URL:                z.string().url().optional(),            // WebSocket server URL for real-time features
     
     // Billing
     NEXT_PUBLIC_BILLING_ENABLED:           z.boolean().optional(),                 // Enable billing enforcement and usage tracking (client-side)
