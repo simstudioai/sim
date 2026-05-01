@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getVoiceSettingsContract } from '@/lib/api/contracts/common'
-import { speechTokenContract } from '@/lib/api/contracts/media-tools'
+import { speechTokenContract } from '@/lib/api/contracts/media/speech'
 import { arrayBufferToBase64, floatTo16BitPCM } from '@/lib/speech/audio'
 import {
   CHUNK_SEND_INTERVAL_MS,

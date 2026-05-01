@@ -39,7 +39,7 @@ import {
   adminV1CreateWorkspaceMemberContract,
   adminV1DeleteWorkspaceMemberContract,
   adminV1ListWorkspaceMembersContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'

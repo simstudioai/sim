@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { docusignToolContract } from '@/lib/api/contracts/internal-tools'
+import { docusignToolContract } from '@/lib/api/contracts/tools/internal/docusign'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'

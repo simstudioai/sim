@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { customToolSchemaSchema } from '@/lib/api/contracts/custom-tools'
+import { customToolSchemaSchema } from '@/lib/api/contracts/tools/custom'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,

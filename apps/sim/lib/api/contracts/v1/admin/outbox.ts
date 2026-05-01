@@ -10,7 +10,7 @@ import {
   adminV1IdParamsSchema,
   adminV1QueryStringSchema,
   lastQueryValue,
-} from '@/lib/api/contracts/v1-admin/shared'
+} from '@/lib/api/contracts/v1/admin/shared'
 
 const adminV1OutboxStatuses = ['pending', 'processing', 'completed', 'dead_letter'] as const
 

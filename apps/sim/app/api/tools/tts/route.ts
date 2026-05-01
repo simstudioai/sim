@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { ttsToolContract } from '@/lib/api/contracts/media-tools'
+import { ttsToolContract } from '@/lib/api/contracts/tools/media/tts'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'

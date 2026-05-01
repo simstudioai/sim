@@ -1,6 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { getActiveWorkflowRecord } from '@sim/workflow-authz'
-import { adminV1DeployWorkflowContract, adminV1UndeployWorkflowContract } from '@/lib/api/contracts'
+import {
+  adminV1DeployWorkflowContract,
+  adminV1UndeployWorkflowContract,
+} from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'

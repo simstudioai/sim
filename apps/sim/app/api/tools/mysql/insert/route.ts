@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { mysqlInsertContract } from '@/lib/api/contracts/database-tools'
+import { mysqlInsertContract } from '@/lib/api/contracts/tools/databases/mysql'
 import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'

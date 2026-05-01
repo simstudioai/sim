@@ -7,7 +7,7 @@
  */
 
 import { createLogger } from '@sim/logger'
-import { adminV1GetOrganizationSeatsContract } from '@/lib/api/contracts'
+import { adminV1GetOrganizationSeatsContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { getOrganizationSeatAnalytics } from '@/lib/billing/validation/seat-management'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'

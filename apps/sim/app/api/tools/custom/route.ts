@@ -9,7 +9,7 @@ import {
   deleteCustomToolContract,
   listCustomToolsContract,
   upsertCustomToolsContract,
-} from '@/lib/api/contracts/custom-tools'
+} from '@/lib/api/contracts/tools/custom'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'

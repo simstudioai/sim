@@ -8,7 +8,7 @@ import {
   adminV1SingleResponseSchema,
   adminV1SubscriptionSchema,
   lastQueryValue,
-} from '@/lib/api/contracts/v1-admin/shared'
+} from '@/lib/api/contracts/v1/admin/shared'
 
 export const adminV1ListSubscriptionsQuerySchema = adminV1PaginationQuerySchema.extend({
   plan: adminV1QueryStringSchema,

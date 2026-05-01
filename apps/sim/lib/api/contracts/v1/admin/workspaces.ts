@@ -8,11 +8,11 @@ import {
   adminV1QueryStringSchema,
   adminV1SingleResponseSchema,
   lastQueryValue,
-} from '@/lib/api/contracts/v1-admin/shared'
+} from '@/lib/api/contracts/v1/admin/shared'
 import {
   adminV1ImportResultSchema,
   adminV1WorkflowSchema,
-} from '@/lib/api/contracts/v1-admin/workflows'
+} from '@/lib/api/contracts/v1/admin/workflows'
 import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
 
 export const adminV1WorkspaceMemberParamsSchema = adminV1IdParamsSchema.extend({

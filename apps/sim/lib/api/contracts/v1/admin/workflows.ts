@@ -6,7 +6,7 @@ import {
   adminV1ListResponseSchema,
   adminV1PaginationQuerySchema,
   adminV1SingleResponseSchema,
-} from '@/lib/api/contracts/v1-admin/shared'
+} from '@/lib/api/contracts/v1/admin/shared'
 import { workflowStateSchema } from '@/lib/api/contracts/workflows'
 
 export const adminV1WorkflowVersionParamsSchema = adminV1IdParamsSchema.extend({

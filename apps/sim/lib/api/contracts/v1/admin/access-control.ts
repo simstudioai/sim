@@ -9,7 +9,7 @@ import {
   adminV1PaginationMetaSchema,
   adminV1QueryStringSchema,
   adminV1SingleResponseSchema,
-} from '@/lib/api/contracts/v1-admin/shared'
+} from '@/lib/api/contracts/v1/admin/shared'
 
 export const adminV1PermissionGroupSchema = z.object({
   id: z.string(),

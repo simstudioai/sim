@@ -33,7 +33,7 @@ import {
   adminV1GetOrganizationMemberContract,
   adminV1RemoveOrganizationMemberContract,
   adminV1UpdateOrganizationMemberContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'

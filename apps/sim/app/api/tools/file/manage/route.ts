@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { fileManageContract } from '@/lib/api/contracts/media-tools'
+import { fileManageContract } from '@/lib/api/contracts/tools/file'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'

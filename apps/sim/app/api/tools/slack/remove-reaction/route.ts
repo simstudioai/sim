@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { slackRemoveReactionContract } from '@/lib/api/contracts'
+import { slackRemoveReactionContract } from '@/lib/api/contracts/tools/communication/slack'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
