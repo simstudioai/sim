@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { googleDriveDownloadContract } from '@/lib/api/contracts/google-tools'
+import { googleDriveDownloadContract } from '@/lib/api/contracts/tools/google'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {

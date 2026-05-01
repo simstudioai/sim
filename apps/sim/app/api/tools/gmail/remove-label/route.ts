@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { gmailRemoveLabelContract } from '@/lib/api/contracts/google-tools'
+import { gmailRemoveLabelContract } from '@/lib/api/contracts/tools/google'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
