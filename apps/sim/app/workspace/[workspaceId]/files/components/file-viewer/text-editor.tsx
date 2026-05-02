@@ -219,6 +219,27 @@ const SPLIT_MIN_PCT = 20
 const SPLIT_MAX_PCT = 80
 const SPLIT_DEFAULT_PCT = 50
 
+/**
+ * Monaco's find-widget button hover tooltips render above the button by default. Because the find
+ * widget sits at the very top of the editor, the tooltip overlaps the button itself —
+ * `document.elementFromPoint` at the button's center returns `.hover-contents` instead of the
+ * button, which fires `mouseleave` on the button. Monaco then disposes the tooltip, the cursor
+ * lands back on the button, and the cycle repeats every ~210ms, making the buttons unclickable.
+ *
+ * Translate the tooltip's `.context-view` below the button so the cursor stays on the button
+ * while the tooltip is shown, and flip the carat to point up at the button.
+ */
+const FIND_TOOLTIP_FIX_CSS = `
+[data-find-tooltip-fix] .context-view.top.left {
+  transform: translateY(56px);
+}
+[data-find-tooltip-fix] .context-view.top.left .workbench-hover-pointer.bottom {
+  top: -3px;
+  bottom: auto;
+  transform: rotate(225deg);
+}
+`
+
 /** Maps file extensions to Monaco editor language IDs. */
 const MONACO_LANGUAGE_BY_EXTENSION: Partial<Record<string, string>> = {
   js: 'javascript',
@@ -663,7 +684,8 @@ export const TextEditor = memo(function TextEditor({
   const closeContextMenu = () => setContextMenu(null)
 
   return (
-    <div ref={containerRef} className='relative flex flex-1 overflow-hidden'>
+    <div ref={containerRef} data-find-tooltip-fix className='relative flex flex-1 overflow-hidden'>
+      <style>{FIND_TOOLTIP_FIX_CSS}</style>
       {showEditor && (
         <div
           style={showPreviewPane ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}

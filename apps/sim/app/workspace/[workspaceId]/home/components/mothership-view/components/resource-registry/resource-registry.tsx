@@ -100,6 +100,30 @@ function IconDropdownItem({ item, icon: Icon }: DropdownItemRenderProps & { icon
   )
 }
 
+function LogDropdownItem({ item }: DropdownItemRenderProps) {
+  const color = (item.color as string) ?? '#888'
+  const workflowName = (item.workflowName as string) ?? item.name
+  const time = (item.time as string) ?? ''
+  return (
+    <>
+      <div
+        className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+        style={{
+          backgroundColor: color,
+          borderColor: workflowBorderColor(color),
+          backgroundClip: 'padding-box',
+        }}
+      />
+      <span className='truncate'>{workflowName}</span>
+      {time && (
+        <span className='ml-auto flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
+          {time}
+        </span>
+      )}
+    </>
+  )
+}
+
 export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfig> = {
   generic: {
     type: 'generic',
@@ -172,7 +196,7 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     renderTabIcon: (_resource, className) => (
       <Library className={cn(className, 'text-[var(--text-icon)]')} />
     ),
-    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Library} />,
+    renderDropdownItem: (props) => <LogDropdownItem {...props} />,
   },
 } as const
 

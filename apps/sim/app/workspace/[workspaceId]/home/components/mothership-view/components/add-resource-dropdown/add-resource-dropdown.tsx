@@ -24,8 +24,10 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import { useLogsList } from '@/hooks/queries/logs'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useTasks } from '@/hooks/queries/tasks'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -47,6 +49,18 @@ interface AvailableItemsByType {
   items: AvailableItem[]
 }
 
+const LOG_DROPDOWN_LIMIT = 50
+
+const LOG_DROPDOWN_FILTERS = {
+  timeRange: 'All time' as const,
+  level: 'all',
+  workflowIds: [] as string[],
+  folderIds: [] as string[],
+  triggers: [] as string[],
+  searchQuery: '',
+  limit: LOG_DROPDOWN_LIMIT,
+}
+
 export function useAvailableResources(
   workspaceId: string,
   existingKeys: Set<string>,
@@ -58,6 +72,13 @@ export function useAvailableResources(
   const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId)
   const { data: folders = [] } = useFolders(workspaceId)
   const { data: tasks = [] } = useTasks(workspaceId)
+  const { data: logsData } = useLogsList(workspaceId, LOG_DROPDOWN_FILTERS)
+  const logs = useMemo(() => (logsData?.pages ?? []).flatMap((page) => page.logs), [logsData])
+  const workflowColorById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const w of workflows) map.set(w.id, w.color)
+    return map
+  }, [workflows])
 
   return useMemo(() => {
     const excluded = new Set<MothershipResourceType>(excludeTypes ?? [])
@@ -115,9 +136,39 @@ export function useAvailableResources(
           isOpen: existingKeys.has(`task:${t.id}`),
         })),
       },
+      {
+        type: 'log' as const,
+        items: logs.map((log) => {
+          const workflowName = log.workflow?.name ?? log.workflowId ?? 'Unknown'
+          const color =
+            log.workflow?.color ??
+            (log.workflowId ? workflowColorById.get(log.workflowId) : undefined) ??
+            '#888'
+          const time = formatDate(log.createdAt).compact
+          return {
+            id: log.id,
+            name: `${workflowName} · ${time}`,
+            workflowName,
+            color,
+            time,
+            isOpen: existingKeys.has(`log:${log.id}`),
+          }
+        }),
+      },
     ]
     return groups.filter((g) => !excluded.has(g.type))
-  }, [workflows, folders, tables, files, knowledgeBases, tasks, existingKeys, excludeTypes])
+  }, [
+    workflows,
+    folders,
+    tables,
+    files,
+    knowledgeBases,
+    tasks,
+    logs,
+    workflowColorById,
+    existingKeys,
+    excludeTypes,
+  ])
 }
 
 export type WorkflowTreeNode =
