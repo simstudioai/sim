@@ -1654,8 +1654,8 @@ export async function updateRow(
     .where(whereClause)
     .returning({ id: userTableRows.id })
 
-  if (updated.length === 0) {
-    // Guard rejected — DB already shows the cancelled state for this run.
+  // Only meaningful when a guard is set — `null` signals "guard rejected".
+  if (guard && updated.length === 0) {
     return null
   }
 
