@@ -5,13 +5,7 @@ import type {
   BlockErrorData,
   BlockStartedData,
 } from '@/lib/workflows/executor/execution-events'
-import type {
-  BlockLog,
-  BlockState,
-  ExecutionResult,
-  NormalizedBlockOutput,
-  StreamingExecution,
-} from '@/executor/types'
+import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
 import { processSSEStream } from '@/hooks/use-execution-stream'
 
@@ -112,7 +106,6 @@ export interface BlockEventHandlerConfig {
   accumulatedBlockLogs: BlockLog[]
   accumulatedBlockStates: Map<string, BlockState>
   executedBlockIds: Set<string>
-  consoleMode: 'update' | 'add'
   includeStartConsoleEntry: boolean
   onBlockCompleteCallback?: (blockId: string, output: unknown) => Promise<void>
 }
@@ -142,7 +135,6 @@ export function createBlockEventHandlers(
     accumulatedBlockLogs,
     accumulatedBlockStates,
     executedBlockIds,
-    consoleMode,
     includeStartConsoleEntry,
     onBlockCompleteCallback,
   } = config
@@ -202,61 +194,6 @@ export function createBlockEventHandlers(
     executionOrder: data.executionOrder,
     endedAt: data.endedAt,
   })
-
-  const addConsoleEntry = (data: BlockCompletedData, output: NormalizedBlockOutput) => {
-    if (!workflowId) return
-    addConsole({
-      input: data.input || {},
-      output,
-      success: true,
-      durationMs: data.durationMs,
-      startedAt: data.startedAt,
-      executionOrder: data.executionOrder,
-      endedAt: data.endedAt,
-      workflowId,
-      blockId: data.blockId,
-      executionId: executionIdRef.current,
-      blockName: data.blockName || 'Unknown Block',
-      blockType: data.blockType || 'unknown',
-      ...extractIterationFields(data),
-    })
-  }
-
-  const addConsoleErrorEntry = (data: BlockErrorData) => {
-    if (!workflowId) return
-
-    const existingRunningEntry = useTerminalConsoleStore
-      .getState()
-      .getWorkflowEntries(workflowId)
-      .some(
-        (entry) =>
-          entry.blockId === data.blockId &&
-          entry.executionId === executionIdRef.current &&
-          entry.isRunning
-      )
-
-    if (existingRunningEntry) {
-      updateConsoleErrorEntry(data)
-      return
-    }
-
-    addConsole({
-      input: data.input || {},
-      output: {},
-      success: false,
-      error: data.error,
-      durationMs: data.durationMs,
-      startedAt: data.startedAt,
-      executionOrder: data.executionOrder,
-      endedAt: data.endedAt,
-      workflowId,
-      blockId: data.blockId,
-      executionId: executionIdRef.current,
-      blockName: data.blockName || 'Unknown Block',
-      blockType: data.blockType || 'unknown',
-      ...extractIterationFields(data),
-    })
-  }
 
   const updateConsoleEntry = (data: BlockCompletedData) => {
     updateConsole(
@@ -353,11 +290,7 @@ export function createBlockEventHandlers(
 
     accumulatedBlockLogs.push(createBlockLogEntry(data, { success: true, output: data.output }))
 
-    if (consoleMode === 'update') {
-      updateConsoleEntry(data)
-    } else {
-      addConsoleEntry(data, data.output as NormalizedBlockOutput)
-    }
+    updateConsoleEntry(data)
 
     if (onBlockCompleteCallback) {
       onBlockCompleteCallback(data.blockId, data.output).catch((error) => {
@@ -391,11 +324,7 @@ export function createBlockEventHandlers(
       createBlockLogEntry(data, { success: false, output: {}, error: data.error })
     )
 
-    if (consoleMode === 'update') {
-      updateConsoleErrorEntry(data)
-    } else {
-      addConsoleErrorEntry(data)
-    }
+    updateConsoleErrorEntry(data)
   }
 
   const onBlockChildWorkflowStarted = (data: {
@@ -714,7 +643,6 @@ export async function executeWorkflowWithFullLogging(
       accumulatedBlockLogs,
       accumulatedBlockStates: new Map(),
       executedBlockIds: new Set(),
-      consoleMode: 'update',
       includeStartConsoleEntry: true,
       onBlockCompleteCallback: options.onBlockComplete,
     },

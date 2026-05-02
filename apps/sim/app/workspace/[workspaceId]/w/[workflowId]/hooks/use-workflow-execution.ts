@@ -1036,7 +1036,6 @@ export function useWorkflowExecution() {
           accumulatedBlockLogs,
           accumulatedBlockStates,
           executedBlockIds,
-          consoleMode: 'update',
           includeStartConsoleEntry: true,
           onBlockCompleteCallback: onBlockComplete,
         })
@@ -1684,7 +1683,6 @@ export function useWorkflowExecution() {
           accumulatedBlockLogs,
           accumulatedBlockStates,
           executedBlockIds,
-          consoleMode: 'update',
           includeStartConsoleEntry: true,
         })
 
@@ -1915,7 +1913,6 @@ export function useWorkflowExecution() {
         accumulatedBlockLogs,
         accumulatedBlockStates,
         executedBlockIds,
-        consoleMode: 'update',
         includeStartConsoleEntry: true,
       })
 
