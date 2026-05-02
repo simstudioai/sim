@@ -394,13 +394,15 @@ const MermaidDiagram = memo(function MermaidDiagram({
   }
 
   if (svg && renderedDefinition === trimmedDefinition) {
-    const diagram = (
-      <div className='max-h-full max-w-full' dangerouslySetInnerHTML={{ __html: svg }} />
-    )
+    const diagram = <div dangerouslySetInnerHTML={{ __html: svg }} />
 
     if (zoomable) {
       return (
-        <ZoomablePreview className={zoomClassName ?? 'my-4 h-[420px] rounded-lg'}>
+        <ZoomablePreview
+          className={zoomClassName ?? 'my-4 h-[420px] rounded-lg'}
+          initialScale='fit'
+          resetKey={renderedDefinition}
+        >
           {diagram}
         </ZoomablePreview>
       )
@@ -415,7 +417,7 @@ const MermaidDiagram = memo(function MermaidDiagram({
     return <MermaidSourcePreview definition={definition} isRendering={isRendering} />
   }
 
-  if (!trimmedDefinition || !svg) {
+  if (!trimmedDefinition || !svg || renderedDefinition !== trimmedDefinition) {
     return <MermaidCodeBlockSkeleton />
   }
   return null
@@ -987,7 +989,7 @@ function SvgPreview({ content }: { content: string }) {
   const wrappedContent = `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:transparent;}svg{max-width:100%;max-height:100vh;}</style></head><body>${content}</body></html>`
 
   return (
-    <ZoomablePreview className='h-full'>
+    <ZoomablePreview className='h-full' contentClassName='h-full w-full'>
       <iframe
         srcDoc={wrappedContent}
         sandbox=''

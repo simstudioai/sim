@@ -8,7 +8,7 @@ export const ImagePreview = memo(function ImagePreview({ file }: { file: Workspa
   const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
 
   return (
-    <ZoomablePreview className='flex flex-1'>
+    <ZoomablePreview className='flex flex-1' contentClassName='h-full w-full'>
       <img
         src={serveUrl}
         alt={file.name}
