@@ -169,6 +169,7 @@ export async function executeQueuedWorkflowJob(
           data: {
             error: timeoutErrorMessage,
             duration: result.metadata?.duration || 0,
+            finalBlockLogs: result.logs,
           },
         })
 
@@ -214,6 +215,7 @@ export async function executeQueuedWorkflowJob(
           workflowId,
           data: {
             duration: result.metadata?.duration || 0,
+            finalBlockLogs: result.logs,
           },
         })
         await setExecutionMeta(executionId, { status: 'cancelled' })
@@ -290,6 +292,8 @@ export async function executeQueuedWorkflowJob(
       })
     }
 
+    const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
+
     if (eventWriter) {
       await eventWriter.write({
         type: 'execution:error',
@@ -299,12 +303,11 @@ export async function executeQueuedWorkflowJob(
         data: {
           error: toError(error).message,
           duration: 0,
+          finalBlockLogs: executionResult?.logs,
         },
       })
       await setExecutionMeta(executionId, { status: 'error' })
     }
-
-    const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
 
     return buildResult(
       'failed',
