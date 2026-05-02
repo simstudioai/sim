@@ -78,8 +78,14 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const sourceValue = source.kind === 'url' ? source.url : source.buffer
+  const isEmptyBufferSource = source.kind === 'buffer' && source.buffer.byteLength === 0
   const file = useMemo(
-    () => (source.kind === 'url' ? source.url : { data: new Uint8Array(source.buffer.slice(0)) }),
+    () =>
+      source.kind === 'url'
+        ? source.url
+        : source.buffer.byteLength > 0
+          ? { data: new Uint8Array(source.buffer.slice(0)) }
+          : null,
     [sourceValue]
   )
 
@@ -254,55 +260,57 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
         className='relative flex flex-1 items-start overflow-auto bg-[var(--surface-1)]'
       >
         {!isDocumentReady && PDF_SKELETON}
-        <ReactPdfDocument
-          file={file}
-          onLoadSuccess={({ numPages }) => {
-            setPageCount(numPages)
-            setCurrentPage(1)
-            setLoadError(null)
-            setIsDocumentReady(true)
-          }}
-          onLoadError={(err) => {
-            logger.error('PDF load failed', { error: err.message })
-            setLoadError(err.message)
-            setIsDocumentReady(true)
-          }}
-          error={<PdfError error={loadError ?? 'Failed to load PDF'} />}
-          className='mx-auto'
-        >
-          <div
-            ref={paddingWrapperRef}
-            style={{
-              padding: PDF_VIEWER_PADDING,
-              minWidth:
-                pageWidth !== undefined
-                  ? `${pageWidth * displayZoom + 2 * PDF_VIEWER_PADDING}px`
-                  : undefined,
+        {!isEmptyBufferSource && file && (
+          <ReactPdfDocument
+            file={file}
+            onLoadSuccess={({ numPages }) => {
+              setPageCount(numPages)
+              setCurrentPage(1)
+              setLoadError(null)
+              setIsDocumentReady(true)
             }}
+            onLoadError={(err) => {
+              logger.error('PDF load failed', { error: err.message })
+              setLoadError(err.message)
+              setIsDocumentReady(true)
+            }}
+            error={<PdfError error={loadError ?? 'Failed to load PDF'} />}
+            className='mx-auto'
           >
-            <div ref={pagesWrapperRef} style={{ width: pageWidth }}>
-              {Array.from({ length: pageCount }, (_, i) => (
-                <div
-                  key={i}
-                  ref={(el) => {
-                    pageRefs.current[i] = el
-                  }}
-                  data-page={i + 1}
-                  className='mb-4 overflow-clip rounded-md shadow-medium'
-                >
-                  <ReactPdfPage
-                    pageNumber={i + 1}
-                    width={pageWidth}
-                    className='!overflow-clip [&_.textLayer]:!overflow-clip'
-                    renderTextLayer
-                    renderAnnotationLayer={false}
-                    aria-label={`${filename} page ${i + 1}`}
-                  />
-                </div>
-              ))}
+            <div
+              ref={paddingWrapperRef}
+              style={{
+                padding: PDF_VIEWER_PADDING,
+                minWidth:
+                  pageWidth !== undefined
+                    ? `${pageWidth * displayZoom + 2 * PDF_VIEWER_PADDING}px`
+                    : undefined,
+              }}
+            >
+              <div ref={pagesWrapperRef} style={{ width: pageWidth }}>
+                {Array.from({ length: pageCount }, (_, i) => (
+                  <div
+                    key={i}
+                    ref={(el) => {
+                      pageRefs.current[i] = el
+                    }}
+                    data-page={i + 1}
+                    className='mb-4 overflow-clip rounded-md shadow-medium'
+                  >
+                    <ReactPdfPage
+                      pageNumber={i + 1}
+                      width={pageWidth}
+                      className='!overflow-clip [&_.textLayer]:!overflow-clip'
+                      renderTextLayer
+                      renderAnnotationLayer={false}
+                      aria-label={`${filename} page ${i + 1}`}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        </ReactPdfDocument>
+          </ReactPdfDocument>
+        )}
       </div>
     </div>
   )
