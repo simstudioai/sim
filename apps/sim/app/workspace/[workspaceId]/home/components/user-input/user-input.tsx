@@ -58,6 +58,51 @@ import type { ChatContext } from '@/stores/panel'
 
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 
+function getCaretAnchor(
+  textarea: HTMLTextAreaElement,
+  caretPos: number
+): { left: number; top: number } {
+  const textareaRect = textarea.getBoundingClientRect()
+  const style = window.getComputedStyle(textarea)
+
+  const mirror = document.createElement('div')
+  mirror.style.position = 'absolute'
+  mirror.style.top = '0'
+  mirror.style.left = '0'
+  mirror.style.visibility = 'hidden'
+  mirror.style.whiteSpace = 'pre-wrap'
+  mirror.style.overflowWrap = 'break-word'
+  mirror.style.font = style.font
+  mirror.style.padding = style.padding
+  mirror.style.border = style.border
+  mirror.style.width = style.width
+  mirror.style.lineHeight = style.lineHeight
+  mirror.style.boxSizing = style.boxSizing
+  mirror.style.letterSpacing = style.letterSpacing
+  mirror.style.textTransform = style.textTransform
+  mirror.style.textIndent = style.textIndent
+  mirror.style.textAlign = style.textAlign
+  mirror.textContent = textarea.value.substring(0, caretPos)
+
+  const marker = document.createElement('span')
+  marker.style.display = 'inline-block'
+  marker.style.width = '0px'
+  marker.style.padding = '0'
+  marker.style.border = '0'
+  marker.style.verticalAlign = 'text-top'
+  mirror.appendChild(marker)
+
+  document.body.appendChild(mirror)
+  const markerRect = marker.getBoundingClientRect()
+  const mirrorRect = mirror.getBoundingClientRect()
+  document.body.removeChild(mirror)
+
+  return {
+    left: textareaRect.left + (markerRect.left - mirrorRect.left) - textarea.scrollLeft,
+    top: textareaRect.top + (markerRect.top - mirrorRect.top) - textarea.scrollTop,
+  }
+}
+
 interface UserInputProps {
   defaultValue?: string
   draftScopeKey?: string
@@ -304,7 +349,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const pendingCursorRef = useRef<number | null>(null)
   const mentionRangeRef = useRef<{ start: number; end: number } | null>(null)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
 
   useImperativeHandle(
     ref,
@@ -664,7 +708,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   getActiveMentionAtRef.current = mentionMenu.getActiveMentionQueryAtPosition
 
   const syncMentionState = useCallback(
-    (_textarea: HTMLTextAreaElement, text: string, caret: number) => {
+    (textarea: HTMLTextAreaElement, text: string, caret: number) => {
       const active = getActiveMentionAtRef.current(caret, text)
       // Treat any whitespace inside the query as a closer — typing a space
       // after `@foo` should leave the raw `@foo` text and dismiss the menu.
@@ -682,10 +726,8 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       mentionRangeRef.current = { start: active.start, end: active.end }
       setMentionQuery(active.query)
       if (!wasActive) {
-        // Anchor above the whole input box (not at the caret) so the menu can never
-        // overlap the user's typing.
-        const rect = containerRef.current?.getBoundingClientRect()
-        const anchor = rect ? { left: rect.left, top: rect.top } : { left: 0, top: 0 }
+        // Anchor at the caret so the menu floats above the user's cursor.
+        const anchor = getCaretAnchor(textarea, active.start)
         plusMenuRef.current?.open(anchor, { mention: true })
       }
     },
@@ -834,7 +876,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
   return (
     <div
-      ref={containerRef}
       onClick={handleContainerClick}
       className={cn(
         'relative z-10 mx-auto w-full max-w-[42rem] cursor-text rounded-[20px] border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
