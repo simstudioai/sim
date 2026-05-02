@@ -110,7 +110,7 @@ const fetchBatchPresignedData = async (
   const result: (PresignedUploadInfo | undefined)[] = new Array(files.length).fill(undefined)
   const smallFileIndices: number[] = []
   for (let i = 0; i < files.length; i++) {
-    if (files[i].size < LARGE_FILE_THRESHOLD) smallFileIndices.push(i)
+    if (files[i].size <= LARGE_FILE_THRESHOLD) smallFileIndices.push(i)
   }
   if (smallFileIndices.length === 0) return result
 
