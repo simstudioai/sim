@@ -79,7 +79,7 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
 
   const sourceValue = source.kind === 'url' ? source.url : source.buffer
   const file = useMemo(
-    () => (source.kind === 'url' ? source.url : { data: new Uint8Array(source.buffer) }),
+    () => (source.kind === 'url' ? source.url : { data: new Uint8Array(source.buffer.slice(0)) }),
     [sourceValue]
   )
 

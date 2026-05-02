@@ -117,6 +117,10 @@ export const ResourceContent = memo(function ResourceContent({
   const rawPreviewText = previewSession?.previewText
   const streamingPreviewText =
     typeof rawPreviewText === 'string' && rawPreviewText.length > 0 ? rawPreviewText : undefined
+  const pendingOrStreamingFilePreviewText =
+    previewSession?.fileId === resource.id && typeof rawPreviewText === 'string'
+      ? rawPreviewText
+      : undefined
 
   if (previewSession && resource.id === 'streaming-file') {
     return (
@@ -152,9 +156,7 @@ export const ResourceContent = memo(function ResourceContent({
           workspaceId={workspaceId}
           fileId={resource.id}
           previewMode={previewMode}
-          streamingContent={
-            previewSession?.fileId === resource.id ? streamingPreviewText : undefined
-          }
+          streamingContent={pendingOrStreamingFilePreviewText}
           streamingMode='replace'
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
