@@ -114,7 +114,7 @@ async function fetchBlobContent(
   owner: string,
   repo: string,
   sha: string
-): Promise<string> {
+): Promise<string | null> {
   const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/blobs/${encodeURIComponent(sha)}`
   const response = await fetchWithRetry(url, {
     method: 'GET',
@@ -134,7 +134,9 @@ async function fetchBlobContent(
   const encoding = data.encoding as string | undefined
 
   if (encoding === 'base64') {
-    return Buffer.from(content, 'base64').toString('utf8')
+    const buf = Buffer.from(content, 'base64')
+    if (isBinaryBuffer(buf)) return null
+    return buf.toString('utf8')
   }
   if (encoding === 'utf-8') {
     return content
@@ -332,7 +334,12 @@ export const githubConnector: ConnectorConfig = {
         }
         content = buf.toString('utf8')
       } else if (encoding === 'none' && data.sha && size > 0) {
-        content = await fetchBlobContent(accessToken, owner, repo, data.sha as string)
+        const blobContent = await fetchBlobContent(accessToken, owner, repo, data.sha as string)
+        if (blobContent === null) {
+          logger.info('Skipping binary GitHub file', { path, size })
+          return null
+        }
+        content = blobContent
       } else {
         content = ''
       }
