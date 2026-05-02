@@ -322,41 +322,66 @@ export async function registerUploadedWorkspaceFile(params: {
     throw new Error(`File size exceeds maximum of ${MAX_WORKSPACE_FILE_SIZE} bytes`)
   }
 
-  const quotaCheck = await checkStorageQuota(userId, verifiedSize)
-  if (!quotaCheck.allowed) {
-    await cleanupOrphan('quota rejection')
-    throw new Error(quotaCheck.error || 'Storage limit exceeded')
-  }
-
-  let fileId = `wf_${generateShortId()}`
-  let displayName: string
-  let created = false
+  /**
+   * Existence check runs before the quota guard so a retry after a
+   * successful-but-network-dropped register does not (a) fail quota because
+   * the bytes are now counted, or (b) invoke cleanupOrphan on an already
+   * registered object.
+   */
   const existing = await getFileMetadataByKey(key, 'workspace')
-  if (existing) {
-    fileId = existing.id
-    displayName = existing.originalName
-    logger.info(`Using existing metadata record for direct upload: ${key}`)
-  } else {
-    created = true
-    displayName = await allocateUniqueWorkspaceFileName(workspaceId, originalName)
-    try {
-      await insertFileMetadata({
-        id: fileId,
-        key,
-        userId,
-        workspaceId,
-        context: 'workspace',
-        originalName: displayName,
-        contentType,
-        size: verifiedSize,
-      })
-    } catch (insertError) {
+
+  const fileId = existing?.id ?? `wf_${generateShortId()}`
+  let displayName = existing?.originalName ?? ''
+  let created = false
+
+  if (!existing) {
+    const quotaCheck = await checkStorageQuota(userId, verifiedSize)
+    if (!quotaCheck.allowed) {
+      await cleanupOrphan('quota rejection')
+      throw new Error(quotaCheck.error || 'Storage limit exceeded')
+    }
+
+    let lastInsertError: unknown
+    for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
+      displayName = await allocateUniqueWorkspaceFileName(workspaceId, originalName)
+      try {
+        await insertFileMetadata({
+          id: fileId,
+          key,
+          userId,
+          workspaceId,
+          context: 'workspace',
+          originalName: displayName,
+          contentType,
+          size: verifiedSize,
+        })
+        created = true
+        lastInsertError = undefined
+        break
+      } catch (insertError) {
+        lastInsertError = insertError
+        if (getPostgresErrorCode(insertError) === '23505') {
+          logger.warn(
+            `Unique name conflict on register (attempt ${attempt + 1}/${MAX_UPLOAD_UNIQUE_RETRIES}), retrying with a new name`
+          )
+          continue
+        }
+        break
+      }
+    }
+
+    if (!created) {
       logger.error(
         'Failed to insert metadata after direct upload; cleaning up storage object',
-        insertError
+        lastInsertError
       )
       await cleanupOrphan('metadata insert failure')
-      throw insertError
+      if (getPostgresErrorCode(lastInsertError) === '23505') {
+        throw new FileConflictError(originalName)
+      }
+      throw lastInsertError instanceof Error
+        ? lastInsertError
+        : new Error('Failed to insert workspace file metadata')
     }
 
     try {
@@ -364,6 +389,8 @@ export async function registerUploadedWorkspaceFile(params: {
     } catch (storageError) {
       logger.error('Failed to update storage tracking:', storageError)
     }
+  } else {
+    logger.info(`Using existing metadata record for direct upload: ${key}`)
   }
 
   const pathPrefix = getServePathPrefix()
