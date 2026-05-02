@@ -89,6 +89,7 @@ function getCaretAnchor(
   marker.style.width = '0px'
   marker.style.padding = '0'
   marker.style.border = '0'
+  marker.style.verticalAlign = 'text-top'
   mirror.appendChild(marker)
 
   document.body.appendChild(mirror)
