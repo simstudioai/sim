@@ -1,9 +1,4 @@
 /**
- * Tests for the client-side direct-upload transport. Focuses on:
- * - Strategy selection at the LARGE_FILE_THRESHOLD boundary.
- * - Parts shape `{ partNumber, etag? }` sent to /complete.
- * - FALLBACK_REQUIRED propagation when the server reports no cloud storage.
- *
  * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

@@ -175,12 +175,12 @@ export async function uploadWorkspaceFile(
 
       const uploadResult = await uploadFile({
         file: fileBuffer,
-        fileName: storageKey, // Use the full storageKey as fileName
+        fileName: storageKey,
         contentType,
         context: 'workspace',
-        preserveKey: true, // Don't add timestamp prefix
-        customKey: storageKey, // Explicitly set the key
-        metadata, // Pass metadata for cloud storage consistency
+        preserveKey: true,
+        customKey: storageKey,
+        metadata,
       })
 
       logger.info(`Upload returned key: ${uploadResult.key}`)
@@ -240,7 +240,7 @@ export async function uploadWorkspaceFile(
         name: uniqueName,
         size: fileBuffer.length,
         type: contentType,
-        url: serveUrl, // Use authenticated serve URL (enforces context)
+        url: serveUrl,
         key: uploadResult.key,
         context: 'workspace',
       }
@@ -323,10 +323,8 @@ export async function registerUploadedWorkspaceFile(params: {
   }
 
   /**
-   * Existence check runs before the quota guard so a retry after a
-   * successful-but-network-dropped register does not (a) fail quota because
-   * the bytes are now counted, or (b) invoke cleanupOrphan on an already
-   * registered object.
+   * Existence check precedes the quota guard so a network-dropped retry doesn't
+   * double-charge quota or orphan-cleanup an already-registered object.
    */
   const existing = await getFileMetadataByKey(key, 'workspace')
 

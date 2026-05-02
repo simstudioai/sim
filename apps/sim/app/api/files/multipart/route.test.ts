@@ -1,7 +1,4 @@
 /**
- * Tests for the generic multipart upload route — focuses on parts shape
- * normalization across S3 and Azure Blob providers.
- *
  * @vitest-environment node
  */
 import { authMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'

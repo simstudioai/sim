@@ -1,6 +1,4 @@
 /**
- * Tests for workspace file register API route.
- *
  * @vitest-environment node
  */
 import {

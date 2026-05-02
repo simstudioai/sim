@@ -1,6 +1,4 @@
 /**
- * Tests for workspace presigned upload API route.
- *
  * @vitest-environment node
  */
 import {
