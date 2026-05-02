@@ -307,26 +307,16 @@ export const confluenceConnector: ConnectorConfig = {
     const labels = labelMap.get(String(page.id)) ?? []
 
     const links = page._links as Record<string, unknown> | undefined
-    const version = page.version as Record<string, unknown> | undefined
-    const versionNumber = version?.number as number | undefined
-    const lastModified = (version?.createdAt ?? version?.when ?? '') as string
-    const versionKey = versionNumber ?? lastModified
+    const stub = pageToStub(page, {
+      spaceId: page.spaceId,
+      labels,
+      sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+    })
 
     return {
-      externalId: String(page.id),
-      title: (page.title as string) || 'Untitled',
+      ...stub,
       content: plainText,
       contentDeferred: false,
-      mimeType: 'text/plain',
-      sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
-      contentHash: `confluence:${page.id}:${versionKey}`,
-      metadata: {
-        spaceId: page.spaceId,
-        status: page.status,
-        version: versionNumber,
-        labels,
-        lastModified,
-      },
     }
   },
 
