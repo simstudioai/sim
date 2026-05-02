@@ -23,7 +23,7 @@ const PAGE_SIZE = 100
 const SYS_ID_PATTERN = /^[a-f0-9]{32}$/i
 const NUMERIC_ID_PATTERN = /^\d+$/
 const KB_CATEGORY_PATTERN = /^[\w \-./]+$/
-const VALID_WORKFLOW_STATES = new Set(['published', 'draft', 'review', 'retired'])
+const VALID_WORKFLOW_STATES = new Set(['published', 'draft', 'review', 'retired', 'outdated'])
 
 interface ServiceNowRecord {
   sys_id: string
@@ -474,6 +474,7 @@ export const servicenowConnector: ConnectorConfig = {
         { label: 'Draft', id: 'draft' },
         { label: 'Review', id: 'review' },
         { label: 'Retired', id: 'retired' },
+        { label: 'Outdated', id: 'outdated' },
       ],
     },
     {
@@ -497,6 +498,7 @@ export const servicenowConnector: ConnectorConfig = {
         { label: 'On Hold', id: '3' },
         { label: 'Resolved', id: '6' },
         { label: 'Closed', id: '7' },
+        { label: 'Canceled', id: '8' },
       ],
     },
     {

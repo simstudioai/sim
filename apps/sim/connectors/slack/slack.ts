@@ -17,6 +17,9 @@ interface SlackMessage {
   text?: string
   ts: string
   subtype?: string
+  edited?: { ts: string; user?: string }
+  latest_reply?: string
+  reply_count?: number
 }
 
 interface SlackChannel {
@@ -301,7 +304,22 @@ async function buildSlackChannelDocument(
 
   const content = await formatMessages(accessToken, messages, syncContext)
   const messageCount = messages.length
-  const contentHash = `slack:${channel.id}:${oldestTs ?? 'empty'}:${lastActivityTs ?? 'empty'}:${messageCount}`
+
+  /**
+   * Edit/thread fingerprint: max(edited.ts) and max(latest_reply) across the
+   * window. `ts` is immutable for messages, so without these signals an
+   * in-place edit (chat.update) or a new threaded reply would not change the
+   * channel hash. Slack returns `edited.ts` only when a message was edited
+   * and `latest_reply` only when threaded replies exist.
+   */
+  let maxEditTs = ''
+  let maxReplyTs = ''
+  for (const m of messages) {
+    if (m.edited?.ts && m.edited.ts > maxEditTs) maxEditTs = m.edited.ts
+    if (m.latest_reply && m.latest_reply > maxReplyTs) maxReplyTs = m.latest_reply
+  }
+
+  const contentHash = `slack:${channel.id}:${oldestTs ?? 'empty'}:${lastActivityTs ?? 'empty'}:${messageCount}:${maxEditTs || 'noedit'}:${maxReplyTs || 'noreply'}`
 
   return { content, contentHash, messageCount, lastActivityTs }
 }

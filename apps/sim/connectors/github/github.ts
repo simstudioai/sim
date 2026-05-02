@@ -11,6 +11,19 @@ const GITHUB_API_URL = 'https://api.github.com'
 const BATCH_SIZE = 30
 const GIT_SHA_PREFIX = 'git-sha:'
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+const BINARY_SNIFF_BYTES = 8000
+
+/**
+ * Heuristic binary detection: Git treats files containing a NUL byte in the
+ * first 8000 bytes as binary. Matches `git diff` / `git grep` semantics.
+ */
+function isBinaryBuffer(buf: Buffer): boolean {
+  const len = Math.min(buf.length, BINARY_SNIFF_BYTES)
+  for (let i = 0; i < len; i++) {
+    if (buf[i] === 0) return true
+  }
+  return false
+}
 
 /**
  * Parses the repository string into owner and repo.
@@ -228,10 +241,11 @@ export const githubConnector: ConnectorConfig = {
     } else {
       const tree = await fetchTree(accessToken, owner, repo, branch)
 
-      // Filter by path prefix and extensions
+      // Filter by path prefix, extensions, and size
       const filtered = tree.filter((item) => {
         if (pathPrefix && !item.path.startsWith(pathPrefix)) return false
         if (!matchesExtension(item.path, extSet)) return false
+        if (typeof item.size === 'number' && item.size > MAX_FILE_SIZE) return false
         return true
       })
 
@@ -311,7 +325,12 @@ export const githubConnector: ConnectorConfig = {
       const encoding = data.encoding as string | undefined
       let content: string
       if (encoding === 'base64' && rawContent.length > 0) {
-        content = Buffer.from(rawContent, 'base64').toString('utf8')
+        const buf = Buffer.from(rawContent, 'base64')
+        if (isBinaryBuffer(buf)) {
+          logger.info('Skipping binary GitHub file', { path, size })
+          return null
+        }
+        content = buf.toString('utf8')
       } else if (encoding === 'none' && data.sha && size > 0) {
         content = await fetchBlobContent(accessToken, owner, repo, data.sha as string)
       } else {
