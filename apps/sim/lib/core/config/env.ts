@@ -516,19 +516,25 @@ export const isFalsy = (value: string | boolean | number | undefined) =>
 export { getEnv }
 
 /**
- * Coerce an env-derived value to a positive finite number, falling back to the
- * provided default when the value is unset, empty, non-finite, or negative.
- * Zero is accepted — some configs (e.g. `KB_CONFIG_DELAY_BETWEEN_BATCHES`)
- * use `0` to mean "no delay / max throughput".
+ * Coerce an env-derived value to a finite number ≥ `min`, falling back to the
+ * provided default when the value is unset, empty, non-finite, or below `min`.
+ * `min` defaults to `0` so configs like `KB_CONFIG_DELAY_BETWEEN_BATCHES=0`
+ * (meaning "no delay / max throughput") are honored. Pass `min: 1` for configs
+ * where zero is invalid (e.g. Redis TTLs, capacity limits).
  *
  * `createEnv` is configured with `skipValidation: true`, so values declared as
  * `z.number()` arrive as raw strings when sourced from `process.env` or Helm.
  * Use this helper anywhere a numeric env override is consumed to normalize the
  * type at the boundary instead of relying on JS implicit coercion.
  */
-export function envNumber(value: number | string | undefined | null, fallback: number): number {
-  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value
+export function envNumber(
+  value: number | string | undefined | null,
+  fallback: number,
+  options: { min?: number } = {}
+): number {
+  const min = options.min ?? 0
+  if (typeof value === 'number' && Number.isFinite(value) && value >= min) return value
   if (value === undefined || value === null || value === '') return fallback
   const parsed = Number(value)
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
+  return Number.isFinite(parsed) && parsed >= min ? parsed : fallback
 }
