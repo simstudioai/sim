@@ -216,8 +216,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
 
-  // Skip the initial save — restore's setState calls haven't propagated yet, so
-  // files/contexts are still empty and would transiently wipe a file-only draft.
   const isFirstSaveRef = useRef(true)
   useEffect(() => {
     if (isFirstSaveRef.current) {
@@ -426,7 +424,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
         const newValue = `${before}${insertText}${after}`
         pendingCursorRef.current = newPos
-        // Eagerly sync refs so successive drop-handler iterations see the updated position
         valueRef.current = newValue
         atInsertPosRef.current = newPos
         mentionRangeRef.current = null
@@ -536,9 +533,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     wasSendingRef.current = isSending
   }, [isSending, textareaRef])
 
-  // Auto-focus on mount. The RAF runs after all synchronous mount effects, so if
-  // the draft-restore effect already focused the textarea the isEditingElsewhere
-  // guard below will be true and we skip the re-focus, preserving cursor position.
   useEffect(() => {
     const raf = window.requestAnimationFrame(() => {
       const active = document.activeElement
