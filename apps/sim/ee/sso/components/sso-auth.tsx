@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Input, Label, Loader } from '@/components/emcn'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import { authenticateDeployedChatContract } from '@/lib/api/contracts/chats'
+import { chatSSOContract } from '@/lib/api/contracts/chats'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import AuthBackground from '@/app/(auth)/components/auth-background'
@@ -69,10 +69,17 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
     setIsLoading(true)
 
     try {
-      await requestJson(authenticateDeployedChatContract, {
+      const { eligible } = await requestJson(chatSSOContract, {
         params: { identifier },
-        body: { email, checkSSOAccess: true },
+        body: { email },
       })
+
+      if (!eligible) {
+        setEmailErrors(['Email not authorized for this chat'])
+        setShowEmailValidationError(true)
+        setIsLoading(false)
+        return
+      }
 
       const callbackUrl = `/chat/${identifier}`
       const ssoUrl = `/sso?email=${encodeURIComponent(email)}&callbackUrl=${encodeURIComponent(callbackUrl)}`

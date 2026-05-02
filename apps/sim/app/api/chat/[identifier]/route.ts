@@ -149,7 +149,9 @@ export const POST = withRouteHandler(
           request
         )
 
-        setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
+        if (deployment.authType !== 'sso') {
+          setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
+        }
 
         return response
       }
