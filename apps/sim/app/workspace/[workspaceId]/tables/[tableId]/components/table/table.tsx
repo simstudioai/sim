@@ -88,7 +88,11 @@ const logger = createLogger('TableView')
 const EMPTY_CHECKED_ROWS = new Set<number>()
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
-const CHECKBOX_COL_WIDTH = 40
+// Wide enough to host the row-number + per-row run button side by side.
+// Single-digit row numbers (rows 1–9) and multi-digit (10+) need to render
+// with the play button at the same x-position so the column doesn't reflow
+// row-by-row.
+const CHECKBOX_COL_WIDTH = 56
 const ADD_COL_WIDTH = 120
 /** Width of the column-config slideout (matches `column-sidebar.tsx`'s `w-[400px]`). */
 const COLUMN_SIDEBAR_WIDTH = 400
@@ -3236,7 +3240,7 @@ const DataRow = React.memo(function DataRow({
       <td className={cn(CELL_CHECKBOX, 'cursor-pointer')}>
         <div className='flex items-center justify-between gap-1'>
           <div
-            className='group/checkbox flex h-[20px] w-[20px] items-center justify-center'
+            className='group/checkbox flex h-[20px] w-[24px] shrink-0 items-center justify-center'
             onMouseDown={(e) => {
               if (e.button !== 0) return
               onRowToggle(rowIndex, e.shiftKey)

@@ -1088,15 +1088,32 @@ interface RunGroupVariables {
   runMode?: 'all' | 'incomplete'
 }
 
-type RowsCacheSnapshots = Array<[ReadonlyArray<unknown>, TableRowsResponse]>
+type InfiniteRowsCache = { pages: TableRowsResponse[]; pageParams: number[] }
+/**
+ * Cache shapes that hold table-row data. Single-page (`useTableRows`) and
+ * infinite (`useInfiniteTableRows`) live under the same `rowsRoot(tableId)`
+ * prefix, so optimistic mutations have to walk both shapes.
+ */
+type RowsCacheEntry = TableRowsResponse | InfiniteRowsCache
+type RowsCacheSnapshots = Array<[ReadonlyArray<unknown>, RowsCacheEntry]>
+
+function isInfiniteRowsCache(value: unknown): value is InfiniteRowsCache {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    Array.isArray((value as { pages?: unknown }).pages) &&
+    Array.isArray((value as { pageParams?: unknown }).pageParams)
+  )
+}
 
 /**
  * Walks every cached row-list under `tableId`, applies `transform` to each row,
- * and snapshots the originals for rollback. Returns `null` if no row was touched
- * — callers can use that to skip a useless invalidation cycle.
+ * and snapshots the originals for rollback.
  *
- * `transform(row)` returns the next row to write, or `null` to leave it. The
- * common pattern is "matching cells flip state, others are skipped".
+ * Handles both cache shapes: the single-page `TableRowsResponse` and the
+ * infinite-query `{ pages, pageParams }`. `transform(row)` returns the next
+ * row to write, or `null` to leave it. The common pattern is "matching cells
+ * flip state, others are skipped".
  */
 export async function snapshotAndMutateRows(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -1104,12 +1121,30 @@ export async function snapshotAndMutateRows(
   transform: (row: TableRow) => TableRow | null
 ): Promise<RowsCacheSnapshots> {
   await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-  const matching = queryClient.getQueriesData<TableRowsResponse>({
+  const matching = queryClient.getQueriesData<RowsCacheEntry>({
     queryKey: tableKeys.rowsRoot(tableId),
   })
   const snapshots: RowsCacheSnapshots = []
   for (const [key, data] of matching) {
     if (!data) continue
+    if (isInfiniteRowsCache(data)) {
+      let touched = false
+      const nextPages = data.pages.map((page) => {
+        let pageTouched = false
+        const nextRows = page.rows.map((r) => {
+          const next = transform(r)
+          if (!next) return r
+          pageTouched = true
+          touched = true
+          return next
+        })
+        return pageTouched ? { ...page, rows: nextRows } : page
+      })
+      if (!touched) continue
+      snapshots.push([key, data])
+      queryClient.setQueryData<InfiniteRowsCache>(key, { ...data, pages: nextPages })
+      continue
+    }
     let touched = false
     const nextRows = data.rows.map((r) => {
       const next = transform(r)
