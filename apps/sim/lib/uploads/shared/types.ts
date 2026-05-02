@@ -5,6 +5,12 @@
  */
 export const MAX_WORKSPACE_FILE_SIZE = 5 * 1024 * 1024 * 1024
 
+/**
+ * Cap on the legacy FormData upload route, which buffers the whole file in
+ * worker memory. Direct-to-storage uploads use {@link MAX_WORKSPACE_FILE_SIZE}.
+ */
+export const MAX_WORKSPACE_FORMDATA_FILE_SIZE = 100 * 1024 * 1024
+
 export type StorageContext =
   | 'knowledge-base'
   | 'chat'

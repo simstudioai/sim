@@ -290,10 +290,8 @@ export async function registerUploadedWorkspaceFile(params: {
   key: string
   originalName: string
   contentType: string
-  /** Caller-supplied size; verified against storage HEAD when cloud storage is configured. */
-  size: number
 }): Promise<RegisterUploadedWorkspaceFileResult> {
-  const { workspaceId, userId, key, originalName, contentType, size } = params
+  const { workspaceId, userId, key, originalName, contentType } = params
 
   if (!hasCloudStorage()) {
     throw new Error('Direct-upload registration requires cloud storage')

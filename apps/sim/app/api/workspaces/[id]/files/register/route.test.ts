@@ -170,7 +170,6 @@ describe('POST /api/workspaces/[id]/files/register', () => {
       key: VALID_KEY,
       originalName: 'video.mp4',
       contentType: 'video/mp4',
-      size: 10 * 1024 * 1024,
     })
 
     expect(posthogServerMockFns.mockCaptureServerEvent).toHaveBeenCalledWith(
