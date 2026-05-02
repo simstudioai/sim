@@ -61,6 +61,7 @@ import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
+import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { listTables } from '@/lib/table/service'
 import {
   downloadWorkspaceFile,
@@ -316,7 +317,7 @@ function getStaticComponentFiles(): Map<string, string> {
  *   files/{name}/meta.json
  *   files/by-id/{id}/meta.json
  *   files/by-id/{id}/style            (dynamic — OOXML theme/font extraction for .docx/.pptx)
- *   files/by-id/{id}/compiled-check   (dynamic — compile JS source via sandbox, returns {ok,error?})
+ *   files/by-id/{id}/compiled-check   (dynamic — compile generated source / validate diagrams, returns {ok,error?})
  *   jobs/{title}/meta.json
  *   jobs/{title}/history.json
  *   jobs/{title}/executions.json
@@ -457,7 +458,7 @@ export class WorkspaceVFS {
    * Handles images (base64), parseable documents (PDF, etc.), and text files.
    * Also handles:
    *   `files/by-id/{id}/style`           — OOXML theme/style extraction (.docx / .pptx only)
-   *   `files/by-id/{id}/compiled-check`  — sandbox compile check for JS-source binary files
+   *   `files/by-id/{id}/compiled-check`  — compile JS-source binary files or validate Mermaid diagrams
    * Returns null if the path doesn't match `files/{name}` / `files/by-id/{id}` or the file isn't found.
    */
   async readFileContent(path: string): Promise<FileReadResult | null> {
@@ -470,7 +471,8 @@ export class WorkspaceVFS {
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
         const taskId = BINARY_DOC_TASKS[ext]
-        if (!taskId) return null
+        const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
+        if (!taskId && !isMermaidFile) return null
         const buffer = await downloadWorkspaceFile(record)
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
@@ -479,8 +481,14 @@ export class WorkspaceVFS {
             totalLines: 1,
           }
         }
+        if (isMermaidFile) {
+          const result = await validateMermaidSource(code)
+          const json = JSON.stringify(result)
+          return { content: json, totalLines: 1 }
+        }
         let result: { ok: boolean; error?: string; errorName?: string }
         try {
+          if (!taskId) return null
           await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
           result = { ok: true }
         } catch (err) {

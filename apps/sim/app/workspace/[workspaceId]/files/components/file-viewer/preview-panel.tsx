@@ -25,6 +25,7 @@ import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import { DataTable } from './data-table'
+import { ZoomablePreview } from './zoomable-preview'
 
 interface HastNode {
   position?: { start?: { offset?: number } }
@@ -252,15 +253,21 @@ function CalloutBlock({ type, children }: { type: string; children?: React.React
 function MermaidSourcePreview({
   definition,
   isRendering,
+  status,
 }: {
   definition: string
   isRendering: boolean
+  status?: string
 }) {
   return (
     <div className='my-4 overflow-hidden rounded-lg border border-[var(--border)]'>
       <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
         <span className='text-[11px] text-[var(--text-tertiary)]'>mermaid</span>
-        {isRendering && <span className='text-[11px] text-[var(--text-muted)]'>Rendering...</span>}
+        {(isRendering || status) && (
+          <span className='text-[11px] text-[var(--text-muted)]'>
+            {isRendering ? 'Rendering...' : status}
+          </span>
+        )}
       </div>
       <div className='code-editor-theme bg-[var(--surface-5)]'>
         <pre className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] text-[var(--text-primary)] leading-[1.6]'>
@@ -271,12 +278,34 @@ function MermaidSourcePreview({
   )
 }
 
+function MermaidCodeBlockSkeleton() {
+  return (
+    <div className='my-4 overflow-hidden rounded-lg border border-[var(--border)]'>
+      <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
+        <span className='text-[11px] text-[var(--text-tertiary)]'>mermaid</span>
+        <span className='text-[11px] text-[var(--text-muted)]'>Rendering...</span>
+      </div>
+      <div className='code-editor-theme bg-[var(--surface-5)]'>
+        <div className='space-y-2 p-4'>
+          <div className='h-3 w-5/6 animate-pulse rounded bg-[var(--surface-2)]' />
+          <div className='h-3 w-2/3 animate-pulse rounded bg-[var(--surface-2)]' />
+          <div className='h-3 w-3/4 animate-pulse rounded bg-[var(--surface-2)]' />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const MermaidDiagram = memo(function MermaidDiagram({
   definition,
   isStreaming = false,
+  zoomable = false,
+  zoomClassName,
 }: {
   definition: string
   isStreaming?: boolean
+  zoomable?: boolean
+  zoomClassName?: string
 }) {
   const [svg, setSvg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -360,14 +389,23 @@ const MermaidDiagram = memo(function MermaidDiagram({
 
   if (error) {
     return (
-      <div className='my-4 rounded-lg border border-[var(--border)] p-4 text-[13px] text-[var(--text-muted)]'>
-        <span className='font-medium text-[var(--text-primary)]'>Diagram error: </span>
-        {error}
-      </div>
+      <MermaidSourcePreview definition={definition} isRendering={false} status='Invalid diagram' />
     )
   }
 
   if (svg && renderedDefinition === trimmedDefinition) {
+    const diagram = (
+      <div className='max-h-full max-w-full' dangerouslySetInnerHTML={{ __html: svg }} />
+    )
+
+    if (zoomable) {
+      return (
+        <ZoomablePreview className={zoomClassName ?? 'my-4 h-[420px] rounded-lg'}>
+          {diagram}
+        </ZoomablePreview>
+      )
+    }
+
     return (
       <div className='my-4 overflow-auto rounded-lg' dangerouslySetInnerHTML={{ __html: svg }} />
     )
@@ -378,7 +416,7 @@ const MermaidDiagram = memo(function MermaidDiagram({
   }
 
   if (!trimmedDefinition || !svg) {
-    return <div className='my-4 h-[100px] animate-pulse rounded-lg bg-[var(--surface-2)]' />
+    return <MermaidCodeBlockSkeleton />
   }
   return null
 })
@@ -949,21 +987,26 @@ function SvgPreview({ content }: { content: string }) {
   const wrappedContent = `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:transparent;}svg{max-width:100%;max-height:100vh;}</style></head><body>${content}</body></html>`
 
   return (
-    <div className='h-full overflow-hidden'>
+    <ZoomablePreview className='h-full'>
       <iframe
         srcDoc={wrappedContent}
         sandbox=''
         title='SVG Preview'
         className='h-full w-full border-0'
       />
-    </div>
+    </ZoomablePreview>
   )
 }
 
 function MermaidFilePreview({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   return (
     <div className='h-full overflow-auto p-6'>
-      <MermaidDiagram definition={content} isStreaming={isStreaming} />
+      <MermaidDiagram
+        definition={content}
+        isStreaming={isStreaming}
+        zoomable
+        zoomClassName='h-full rounded-lg'
+      />
     </div>
   )
 }
