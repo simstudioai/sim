@@ -383,6 +383,232 @@ describe('duplicateWorkflow ordering', () => {
     expect(copiedSubBlocks.variables.value[0].variableName).toBe('customerName')
   })
 
+  it('preserves remap when an edge references an unknown source block (drops the edge with a warning)', async () => {
+    let insertedEdges: Array<Record<string, unknown>> | null = null
+    const tx = createMockTx(
+      [
+        [
+          {
+            id: 'source-workflow-id',
+            workspaceId: 'workspace-123',
+            folderId: null,
+            description: 'source',
+            color: '#000000',
+            variables: {},
+          },
+        ],
+        [],
+        [],
+        [
+          {
+            id: 'block-a',
+            workflowId: 'source-workflow-id',
+            type: 'agent',
+            name: 'Agent A',
+            parentId: null,
+            extent: null,
+            data: {},
+            subBlocks: {},
+            position: { x: 0, y: 0 },
+            enabled: true,
+            horizontalHandles: true,
+            isWide: false,
+            height: 0,
+            advancedMode: false,
+            triggerMode: false,
+            locked: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: 'block-b',
+            workflowId: 'source-workflow-id',
+            type: 'agent',
+            name: 'Agent B',
+            parentId: null,
+            extent: null,
+            data: {},
+            subBlocks: {},
+            position: { x: 0, y: 0 },
+            enabled: true,
+            horizontalHandles: true,
+            isWide: false,
+            height: 0,
+            advancedMode: false,
+            triggerMode: false,
+            locked: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+        [
+          {
+            id: 'edge-valid',
+            workflowId: 'source-workflow-id',
+            sourceBlockId: 'block-a',
+            targetBlockId: 'block-b',
+            sourceHandle: null,
+            targetHandle: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: 'edge-orphan',
+            workflowId: 'source-workflow-id',
+            sourceBlockId: 'unknown-source-block',
+            targetBlockId: 'block-b',
+            sourceHandle: null,
+            targetHandle: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+        [],
+      ],
+      undefined,
+      (values) => {
+        if (
+          Array.isArray(values) &&
+          values.length > 0 &&
+          (values[0] as Record<string, unknown>)?.sourceBlockId !== undefined
+        ) {
+          insertedEdges = values as Array<Record<string, unknown>>
+        }
+      }
+    )
+
+    mockDb.transaction.mockImplementation(async (callback: (txArg: unknown) => Promise<unknown>) =>
+      callback(tx)
+    )
+
+    await expect(
+      duplicateWorkflow({
+        sourceWorkflowId: 'source-workflow-id',
+        userId: 'user-123',
+        name: 'Duplicated',
+        workspaceId: 'workspace-123',
+        folderId: null,
+        requestId: 'req-orphan-edge',
+      })
+    ).resolves.toBeDefined()
+
+    expect(insertedEdges).toHaveLength(1)
+    const onlyEdge = insertedEdges?.[0]
+    expect(onlyEdge?.sourceBlockId).not.toBe('unknown-source-block')
+    expect(onlyEdge?.sourceBlockId).toEqual(expect.any(String))
+    expect(onlyEdge?.targetBlockId).toEqual(expect.any(String))
+  })
+
+  it('preserves remap when a subflow references an unknown node (drops the node with a warning)', async () => {
+    let insertedSubflows: Array<Record<string, unknown>> | null = null
+    const tx = createMockTx(
+      [
+        [
+          {
+            id: 'source-workflow-id',
+            workspaceId: 'workspace-123',
+            folderId: null,
+            description: 'source',
+            color: '#000000',
+            variables: {},
+          },
+        ],
+        [],
+        [],
+        [
+          {
+            id: 'loop-block',
+            workflowId: 'source-workflow-id',
+            type: 'loop',
+            name: 'Loop',
+            parentId: null,
+            extent: null,
+            data: {},
+            subBlocks: {},
+            position: { x: 0, y: 0 },
+            enabled: true,
+            horizontalHandles: true,
+            isWide: false,
+            height: 0,
+            advancedMode: false,
+            triggerMode: false,
+            locked: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: 'known-node',
+            workflowId: 'source-workflow-id',
+            type: 'agent',
+            name: 'Agent',
+            parentId: null,
+            extent: null,
+            data: {},
+            subBlocks: {},
+            position: { x: 0, y: 0 },
+            enabled: true,
+            horizontalHandles: true,
+            isWide: false,
+            height: 0,
+            advancedMode: false,
+            triggerMode: false,
+            locked: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+        [],
+        [
+          {
+            id: 'loop-block',
+            workflowId: 'source-workflow-id',
+            type: 'loop',
+            config: {
+              id: 'loop-block',
+              nodes: ['known-node', 'unknown-node'],
+              iterations: 1,
+              loopType: 'for',
+            },
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+      ],
+      undefined,
+      (values) => {
+        if (
+          Array.isArray(values) &&
+          values.length > 0 &&
+          (values[0] as Record<string, unknown>)?.config !== undefined
+        ) {
+          insertedSubflows = values as Array<Record<string, unknown>>
+        }
+      }
+    )
+
+    mockDb.transaction.mockImplementation(async (callback: (txArg: unknown) => Promise<unknown>) =>
+      callback(tx)
+    )
+
+    await expect(
+      duplicateWorkflow({
+        sourceWorkflowId: 'source-workflow-id',
+        userId: 'user-123',
+        name: 'Duplicated',
+        workspaceId: 'workspace-123',
+        folderId: null,
+        requestId: 'req-orphan-subflow',
+      })
+    ).resolves.toBeDefined()
+
+    expect(insertedSubflows).toHaveLength(1)
+    const remappedConfig = insertedSubflows?.[0].config as { nodes: string[] }
+    expect(Array.isArray(remappedConfig.nodes)).toBe(true)
+    expect(remappedConfig.nodes).toHaveLength(1)
+    expect(remappedConfig.nodes[0]).not.toBe('unknown-node')
+    expect(remappedConfig.nodes[0]).toEqual(expect.any(String))
+  })
+
   it('preserves stale variable references instead of failing the duplicate', async () => {
     let insertedBlocks: Array<Record<string, unknown>> | null = null
     const tx = createMockTx(

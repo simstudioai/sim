@@ -504,31 +504,52 @@ export async function duplicateWorkflow(
       .where(eq(workflowEdges.workflowId, sourceWorkflowId))
 
     if (sourceEdges.length > 0) {
-      const newEdges = sourceEdges.map((edge) => {
+      /**
+       * Edge remap is best-effort: when an edge points at a source/target block
+       * that isn't in `blockIdMapping`, we drop the edge with a `logger.warn`
+       * instead of throwing. This matches the pre-PR leniency (which silently
+       * kept stale references) and avoids rolling back an entire folder-tree
+       * duplicate transaction over a single orphaned reference. Inserting an
+       * edge with a stale block id would create a dangling DB row, so we skip
+       * the edge entirely rather than carry forward the unmapped id.
+       */
+      const newEdges = sourceEdges.flatMap((edge) => {
         const newSourceBlockId = blockIdMapping.get(edge.sourceBlockId)
         const newTargetBlockId = blockIdMapping.get(edge.targetBlockId)
         if (!newSourceBlockId || !newTargetBlockId) {
-          throw new Error(`Edge ${edge.id} references a block that could not be remapped`)
+          logger.warn('Skipping edge with unmapped block reference during duplication', {
+            requestId,
+            edgeId: edge.id,
+            sourceBlockId: edge.sourceBlockId,
+            targetBlockId: edge.targetBlockId,
+          })
+          return []
         }
         const newSourceHandle =
           edge.sourceHandle && blockIdMapping.has(edge.sourceBlockId)
             ? remapConditionEdgeHandle(edge.sourceHandle, edge.sourceBlockId, newSourceBlockId)
             : edge.sourceHandle
 
-        return {
-          ...edge,
-          id: generateId(),
-          workflowId: newWorkflowId,
-          sourceBlockId: newSourceBlockId,
-          targetBlockId: newTargetBlockId,
-          sourceHandle: newSourceHandle,
-          createdAt: now,
-          updatedAt: now,
-        }
+        return [
+          {
+            ...edge,
+            id: generateId(),
+            workflowId: newWorkflowId,
+            sourceBlockId: newSourceBlockId,
+            targetBlockId: newTargetBlockId,
+            sourceHandle: newSourceHandle,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]
       })
 
-      await tx.insert(workflowEdges).values(newEdges)
-      logger.info(`[${requestId}] Copied ${sourceEdges.length} edges with updated block references`)
+      if (newEdges.length > 0) {
+        await tx.insert(workflowEdges).values(newEdges)
+      }
+      logger.info(
+        `[${requestId}] Copied ${newEdges.length}/${sourceEdges.length} edges with updated block references`
+      )
     }
 
     // Copy all subflows from source workflow with new IDs and updated block references
@@ -567,16 +588,28 @@ export async function duplicateWorkflow(
 
             ;(updatedConfig as any).id = newSubflowId
 
-            // Update node references in config if they exist
+            /**
+             * Subflow node remap is best-effort: when `config.nodes` lists a
+             * block id that isn't in `blockIdMapping`, we drop the entry with
+             * a `logger.warn` instead of throwing. This matches the pre-PR
+             * leniency (which silently carried the stale id forward) and
+             * avoids rolling back an entire folder-tree duplicate transaction
+             * over a single orphaned reference. Downstream consumers and
+             * cleanup tolerate missing membership entries the same way they
+             * tolerate other persisted drift.
+             */
             if ('nodes' in updatedConfig && Array.isArray(updatedConfig.nodes)) {
-              updatedConfig.nodes = updatedConfig.nodes.map((nodeId: string) => {
+              updatedConfig.nodes = updatedConfig.nodes.flatMap((nodeId: string) => {
                 const newNodeId = blockIdMapping.get(nodeId)
                 if (!newNodeId) {
-                  throw new Error(
-                    `Subflow ${subflow.id} references node ${nodeId} that could not be remapped`
-                  )
+                  logger.warn('Skipping unmapped subflow node reference during duplication', {
+                    requestId,
+                    subflowId: subflow.id,
+                    nodeId,
+                  })
+                  return []
                 }
-                return newNodeId
+                return [newNodeId]
               })
             }
           }
