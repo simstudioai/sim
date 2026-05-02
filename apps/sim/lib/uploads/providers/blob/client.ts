@@ -314,7 +314,7 @@ export async function headBlobObject(
   customConfig?: BlobConfig
 ): Promise<{ size: number; contentType?: string } | null> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
-  let blobServiceClient: BlobServiceClientInstance
+  let blobServiceClient: BlobServiceClientType
   let containerName: string
 
   if (customConfig) {
