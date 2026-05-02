@@ -444,7 +444,7 @@ export class Serializer {
         const paramsMapper = blockConfig.tools?.config?.params
         if (typeof paramsMapper === 'function') {
           const result = paramsMapper({ ...params })
-          if (result && typeof result === 'object') {
+          if (result && typeof result === 'object' && !Array.isArray(result)) {
             mappedParams = { ...params, ...result }
           }
         }
@@ -485,7 +485,7 @@ export class Serializer {
             return
           }
 
-          const fieldValue = mappedParams[paramId] ?? params[paramId]
+          const fieldValue = mappedParams[paramId]
           if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
             const activeConfig = matchingConfigs.find((config: any) =>
               shouldSerializeSubBlock(
