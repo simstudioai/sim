@@ -59,6 +59,18 @@ export interface TablePlanLimits {
 export type TablePlanLimitsByPlan = Record<PlanName, TablePlanLimits>
 
 /**
+ * Coerce an env value to a number. `env.ts` runs with `skipValidation: true`,
+ * so values declared as `z.number()` arrive as raw strings (e.g. when set via
+ * Helm). Falls back to the default when the value is unset, empty, or not a
+ * finite number.
+ */
+function envNumber(value: number | string | undefined, fallback: number): number {
+  if (value === undefined || value === null || value === '') return fallback
+  const parsed = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+/**
  * Returns plan-based table limits, applying env var overrides on top of the
  * defaults. When no override is set the value falls back to the hosted-default
  * constant so behavior is unchanged for the hosted product.
@@ -66,21 +78,35 @@ export type TablePlanLimitsByPlan = Record<PlanName, TablePlanLimits>
 export function getTablePlanLimits(): TablePlanLimitsByPlan {
   return {
     free: {
-      maxTables: env.FREE_TABLES_LIMIT ?? DEFAULT_TABLE_PLAN_LIMITS.free.maxTables,
-      maxRowsPerTable: env.FREE_TABLE_ROWS_LIMIT ?? DEFAULT_TABLE_PLAN_LIMITS.free.maxRowsPerTable,
+      maxTables: envNumber(env.FREE_TABLES_LIMIT, DEFAULT_TABLE_PLAN_LIMITS.free.maxTables),
+      maxRowsPerTable: envNumber(
+        env.FREE_TABLE_ROWS_LIMIT,
+        DEFAULT_TABLE_PLAN_LIMITS.free.maxRowsPerTable
+      ),
     },
     pro: {
-      maxTables: env.PRO_TABLES_LIMIT ?? DEFAULT_TABLE_PLAN_LIMITS.pro.maxTables,
-      maxRowsPerTable: env.PRO_TABLE_ROWS_LIMIT ?? DEFAULT_TABLE_PLAN_LIMITS.pro.maxRowsPerTable,
+      maxTables: envNumber(env.PRO_TABLES_LIMIT, DEFAULT_TABLE_PLAN_LIMITS.pro.maxTables),
+      maxRowsPerTable: envNumber(
+        env.PRO_TABLE_ROWS_LIMIT,
+        DEFAULT_TABLE_PLAN_LIMITS.pro.maxRowsPerTable
+      ),
     },
     team: {
-      maxTables: env.TEAM_TABLES_LIMIT ?? DEFAULT_TABLE_PLAN_LIMITS.team.maxTables,
-      maxRowsPerTable: env.TEAM_TABLE_ROWS_LIMIT ?? DEFAULT_TABLE_PLAN_LIMITS.team.maxRowsPerTable,
+      maxTables: envNumber(env.TEAM_TABLES_LIMIT, DEFAULT_TABLE_PLAN_LIMITS.team.maxTables),
+      maxRowsPerTable: envNumber(
+        env.TEAM_TABLE_ROWS_LIMIT,
+        DEFAULT_TABLE_PLAN_LIMITS.team.maxRowsPerTable
+      ),
     },
     enterprise: {
-      maxTables: env.ENTERPRISE_TABLES_LIMIT ?? DEFAULT_TABLE_PLAN_LIMITS.enterprise.maxTables,
-      maxRowsPerTable:
-        env.ENTERPRISE_TABLE_ROWS_LIMIT ?? DEFAULT_TABLE_PLAN_LIMITS.enterprise.maxRowsPerTable,
+      maxTables: envNumber(
+        env.ENTERPRISE_TABLES_LIMIT,
+        DEFAULT_TABLE_PLAN_LIMITS.enterprise.maxTables
+      ),
+      maxRowsPerTable: envNumber(
+        env.ENTERPRISE_TABLE_ROWS_LIMIT,
+        DEFAULT_TABLE_PLAN_LIMITS.enterprise.maxRowsPerTable
+      ),
     },
   }
 }
