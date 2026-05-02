@@ -447,23 +447,8 @@ const MermaidDiagram = memo(function MermaidDiagram({
   if (!trimmedDefinition || !svg || renderedDefinition !== trimmedDefinition) {
     if (zoomable) {
       return (
-        <div className='flex h-full items-center justify-center bg-[var(--surface-1)] p-8'>
-          <div
-            className='w-full max-w-[720px] shrink-0 rounded-md bg-[var(--surface-2)] p-8 shadow-medium'
-            style={{ aspectRatio: '4 / 3' }}
-          >
-            <div className='flex h-full flex-col justify-between'>
-              <div className='flex flex-col gap-3'>
-                <Skeleton className='h-[18px] w-[45%]' />
-                <Skeleton className='h-[14px] w-[65%]' />
-                <Skeleton className='h-[14px] w-[55%]' />
-              </div>
-              <div className='flex flex-col gap-2'>
-                <Skeleton className='h-[14px] w-[75%]' />
-                <Skeleton className='h-[14px] w-[60%]' />
-              </div>
-            </div>
-          </div>
+        <div className='h-full p-6'>
+          <Skeleton className='h-full w-full rounded-lg' />
         </div>
       )
     }
