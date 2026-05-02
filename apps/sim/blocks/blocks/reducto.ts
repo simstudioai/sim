@@ -71,7 +71,6 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
           apiKey: params.apiKey.trim(),
         }
 
-        // document is the canonical param from fileUpload (basic) or filePath (advanced)
         const documentInput = params.document
 
         if (typeof documentInput === 'object') {
@@ -135,9 +134,6 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
   },
 }
 
-// ReductoV2Block drops V1's URL filePath input and exposes file upload + file reference
-// as a single canonical group. The canonical id matches the tool param name (`file`) so
-// pre-execution validation can resolve the value without invoking the params mapper.
 const reductoV2Inputs = {
   file: { type: 'json' as const, description: 'PDF document (file upload or file reference)' },
   apiKey: ReductoBlock.inputs?.apiKey,

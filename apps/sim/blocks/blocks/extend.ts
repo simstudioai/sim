@@ -130,8 +130,6 @@ export const ExtendBlock: BlockConfig<ExtendParserOutput> = {
   },
 }
 
-// ExtendV2Block renames the canonical id to `file` so it matches the tool param name
-// and pre-execution validation can resolve the value without invoking the params mapper.
 const extendV2Inputs = {
   file: { type: 'json' as const, description: 'Document (file upload or file reference)' },
   apiKey: ExtendBlock.inputs?.apiKey,

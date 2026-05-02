@@ -74,7 +74,6 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
           apiKey: params.apiKey.trim(),
         }
 
-        // document is the canonical param from fileUpload (basic) or filePath (advanced)
         const documentInput = params.document
         if (typeof documentInput === 'object') {
           parameters.file = documentInput
@@ -128,8 +127,6 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
   },
 }
 
-// PulseV2Block renames the canonical id to `file` so it matches the tool param name
-// and pre-execution validation can resolve the value without invoking the params mapper.
 const pulseV2Inputs = {
   file: { type: 'json' as const, description: 'Document (file upload or file reference)' },
   apiKey: PulseBlock.inputs?.apiKey,
