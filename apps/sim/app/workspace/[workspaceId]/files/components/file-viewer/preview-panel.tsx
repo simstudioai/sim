@@ -606,8 +606,8 @@ const STATIC_MARKDOWN_COMPONENTS = {
     )
   },
   hr: () => <hr className='my-6 border-[var(--border)]' />,
-  img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) => {
-    const resolvedSrc = resolveSimFileUrl(typeof src === 'string' ? src : undefined)
+  img: ({ src, alt }: { src?: string; alt?: string }) => {
+    const resolvedSrc = resolveSimFileUrl(src)
     return (
       <img
         src={resolvedSrc}
