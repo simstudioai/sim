@@ -130,7 +130,7 @@ async function fetchChannelMessages(
   accessToken: string,
   channelId: string,
   maxMessages: number
-): Promise<{ messages: SlackMessage[]; lastActivityTs?: string }> {
+): Promise<{ messages: SlackMessage[]; lastActivityTs?: string; oldestTs?: string }> {
   const allMessages: SlackMessage[] = []
   let cursor: string | undefined
   let lastActivityTs: string | undefined
@@ -162,7 +162,9 @@ async function fetchChannelMessages(
     cursor = nextCursor
   }
 
-  return { messages: allMessages.slice(0, maxMessages), lastActivityTs }
+  const trimmed = allMessages.slice(0, maxMessages)
+  const oldestTs = trimmed.length > 0 ? trimmed[trimmed.length - 1].ts : undefined
+  return { messages: trimmed, lastActivityTs, oldestTs }
 }
 
 /**
@@ -291,7 +293,7 @@ async function buildSlackChannelDocument(
   messageCount: number
   lastActivityTs?: string
 }> {
-  const { messages, lastActivityTs } = await fetchChannelMessages(
+  const { messages, lastActivityTs, oldestTs } = await fetchChannelMessages(
     accessToken,
     channel.id,
     maxMessages
@@ -299,7 +301,7 @@ async function buildSlackChannelDocument(
 
   const content = await formatMessages(accessToken, messages, syncContext)
   const messageCount = messages.length
-  const contentHash = `slack:${channel.id}:${lastActivityTs ?? 'empty'}:${messageCount}`
+  const contentHash = `slack:${channel.id}:${oldestTs ?? 'empty'}:${lastActivityTs ?? 'empty'}:${messageCount}`
 
   return { content, contentHash, messageCount, lastActivityTs }
 }
@@ -520,7 +522,7 @@ export const slackConnector: ConnectorConfig = {
 
       return { valid: false, error: `Channel not found: ${channelInput}` }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = toError(error).message || 'Failed to validate configuration'
       return { valid: false, error: message }
     }
   },
