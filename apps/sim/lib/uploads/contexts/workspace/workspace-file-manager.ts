@@ -278,6 +278,12 @@ export async function uploadWorkspaceFile(
  * Throws if the object is missing in storage, quota is exceeded, or the
  * caller cannot resolve a unique name within the retry budget.
  */
+export interface RegisterUploadedWorkspaceFileResult {
+  file: UserFile
+  /** True when a new metadata row was inserted; false when an existing row was reused. */
+  created: boolean
+}
+
 export async function registerUploadedWorkspaceFile(params: {
   workspaceId: string
   userId: string
@@ -286,7 +292,7 @@ export async function registerUploadedWorkspaceFile(params: {
   contentType: string
   /** Caller-supplied size; verified against storage HEAD when cloud storage is configured. */
   size: number
-}): Promise<UserFile> {
+}): Promise<RegisterUploadedWorkspaceFileResult> {
   const { workspaceId, userId, key, originalName, contentType, size } = params
 
   if (parseWorkspaceFileKey(key) !== workspaceId) {
@@ -324,12 +330,14 @@ export async function registerUploadedWorkspaceFile(params: {
 
   let fileId = `wf_${generateShortId()}`
   let displayName: string
+  let created = false
   const existing = await getFileMetadataByKey(key, 'workspace')
   if (existing) {
     fileId = existing.id
     displayName = existing.originalName
     logger.info(`Using existing metadata record for direct upload: ${key}`)
   } else {
+    created = true
     displayName = await allocateUniqueWorkspaceFileName(workspaceId, originalName)
     try {
       await insertFileMetadata({
@@ -362,13 +370,16 @@ export async function registerUploadedWorkspaceFile(params: {
   const serveUrl = `${pathPrefix}${encodeURIComponent(key)}?context=workspace`
 
   return {
-    id: fileId,
-    name: displayName,
-    size: verifiedSize,
-    type: contentType,
-    url: serveUrl,
-    key,
-    context: 'workspace',
+    file: {
+      id: fileId,
+      name: displayName,
+      size: verifiedSize,
+      type: contentType,
+      url: serveUrl,
+      key,
+      context: 'workspace',
+    },
+    created,
   }
 }
 

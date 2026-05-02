@@ -5,6 +5,7 @@
  */
 import {
   auditMock,
+  auditMockFns,
   authMockFns,
   permissionsMock,
   permissionsMockFns,
@@ -72,13 +73,16 @@ describe('POST /api/workspaces/[id]/files/register', () => {
       return match ? match[1] : null
     })
     mockRegisterUploadedWorkspaceFile.mockResolvedValue({
-      id: 'wf_123',
-      name: 'video.mp4',
-      size: 10 * 1024 * 1024,
-      type: 'video/mp4',
-      url: '/api/files/serve/...',
-      key: VALID_KEY,
-      context: 'workspace',
+      file: {
+        id: 'wf_123',
+        name: 'video.mp4',
+        size: 10 * 1024 * 1024,
+        type: 'video/mp4',
+        url: '/api/files/serve/...',
+        key: VALID_KEY,
+        context: 'workspace',
+      },
+      created: true,
     })
   })
 
@@ -132,6 +136,26 @@ describe('POST /api/workspaces/[id]/files/register', () => {
     const body = await res.json()
     expect(res.status).toBe(409)
     expect(body.isDuplicate).toBe(true)
+  })
+
+  it('skips audit + analytics on idempotent re-register (created=false)', async () => {
+    mockRegisterUploadedWorkspaceFile.mockResolvedValueOnce({
+      file: {
+        id: 'wf_123',
+        name: 'video.mp4',
+        size: 10 * 1024 * 1024,
+        type: 'video/mp4',
+        url: '/api/files/serve/...',
+        key: VALID_KEY,
+        context: 'workspace',
+      },
+      created: false,
+    })
+
+    const res = await POST(makeRequest(validBody), params())
+    expect(res.status).toBe(200)
+    expect(posthogServerMockFns.mockCaptureServerEvent).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('finalizes upload, records audit and analytics', async () => {

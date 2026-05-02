@@ -50,7 +50,7 @@ export const POST = withRouteHandler(
     }
 
     try {
-      const userFile = await registerUploadedWorkspaceFile({
+      const { file: userFile, created } = await registerUploadedWorkspaceFile({
         workspaceId,
         userId,
         key,
@@ -59,28 +59,32 @@ export const POST = withRouteHandler(
         size,
       })
 
-      logger.info(`Registered direct upload ${name} -> ${key}`)
+      if (created) {
+        logger.info(`Registered direct upload ${name} -> ${key}`)
 
-      captureServerEvent(
-        userId,
-        'file_uploaded',
-        { workspace_id: workspaceId, file_type: contentType },
-        { groups: { workspace: workspaceId } }
-      )
+        captureServerEvent(
+          userId,
+          'file_uploaded',
+          { workspace_id: workspaceId, file_type: contentType },
+          { groups: { workspace: workspaceId } }
+        )
 
-      recordAudit({
-        workspaceId,
-        actorId: userId,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.FILE_UPLOADED,
-        resourceType: AuditResourceType.FILE,
-        resourceId: userFile.id,
-        resourceName: name,
-        description: `Uploaded file "${name}"`,
-        metadata: { fileSize: size, fileType: contentType },
-        request,
-      })
+        recordAudit({
+          workspaceId,
+          actorId: userId,
+          actorName: session.user.name,
+          actorEmail: session.user.email,
+          action: AuditAction.FILE_UPLOADED,
+          resourceType: AuditResourceType.FILE,
+          resourceId: userFile.id,
+          resourceName: name,
+          description: `Uploaded file "${name}"`,
+          metadata: { fileSize: size, fileType: contentType },
+          request,
+        })
+      } else {
+        logger.info(`Idempotent re-register for existing upload ${name} -> ${key}`)
+      }
 
       return NextResponse.json({ success: true, file: userFile })
     } catch (error) {
