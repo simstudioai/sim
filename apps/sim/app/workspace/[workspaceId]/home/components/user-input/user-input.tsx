@@ -536,6 +536,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     wasSendingRef.current = isSending
   }, [isSending, textareaRef])
 
+  // Auto-focus on mount. The RAF runs after all synchronous mount effects, so if
+  // the draft-restore effect already focused the textarea the isEditingElsewhere
+  // guard below will be true and we skip the re-focus, preserving cursor position.
   useEffect(() => {
     const raf = window.requestAnimationFrame(() => {
       const active = document.activeElement
