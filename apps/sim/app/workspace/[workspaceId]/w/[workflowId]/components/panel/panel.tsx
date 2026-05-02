@@ -670,7 +670,12 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   {userPermissions.canAdmin && !isSnapshotView && (
                     <DropdownMenuItem
                       onSelect={handleToggleWorkflowLock}
-                      disabled={!hasBlocks || (workflowLocked && !allBlocksLocked)}
+                      disabled={!hasBlocks || workflowLocked}
+                      title={
+                        workflowLocked
+                          ? 'Workflow is locked at the row or folder level — release it from the workflow notification or folder menu'
+                          : undefined
+                      }
                     >
                       {allBlocksLocked ? <Unlock /> : <Lock />}
                       {allBlocksLocked ? 'Unlock workflow' : 'Lock workflow'}
