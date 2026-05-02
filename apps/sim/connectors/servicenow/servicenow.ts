@@ -23,6 +23,7 @@ const PAGE_SIZE = 100
 const SYS_ID_PATTERN = /^[a-f0-9]{32}$/i
 const NUMERIC_ID_PATTERN = /^\d+$/
 const KB_CATEGORY_PATTERN = /^[\w \-./]+$/
+const VALID_WORKFLOW_STATES = new Set(['published', 'draft', 'review', 'retired'])
 
 interface ServiceNowRecord {
   sys_id: string
@@ -365,10 +366,12 @@ function buildKBQuery(sourceConfig: Record<string, unknown>): string {
 
   const workflowState = sourceConfig.workflowState as string | undefined
   if (workflowState && workflowState !== 'all') {
-    if (NUMERIC_ID_PATTERN.test(workflowState)) {
+    if (VALID_WORKFLOW_STATES.has(workflowState)) {
       parts.push(`workflow_state=${workflowState}`)
     } else {
-      logger.warn('Skipping workflowState filter: value is not a numeric ID', { workflowState })
+      logger.warn('Skipping workflowState filter: value is not in the allowed set', {
+        workflowState,
+      })
     }
   }
 
