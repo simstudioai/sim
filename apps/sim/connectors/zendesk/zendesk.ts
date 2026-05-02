@@ -514,7 +514,7 @@ export const zendeskConnector: ConnectorConfig = {
       await zendeskApiGet(url, accessToken, sourceConfig, VALIDATE_RETRY_OPTIONS)
       return { valid: true }
     } catch (error) {
-      return { valid: false, error: toError(error).message }
+      return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
     }
   },
 
