@@ -3,7 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { SlackIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, parseTagDate } from '@/connectors/utils'
+import { parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('SlackConnector')
 
@@ -239,6 +239,71 @@ async function resolveChannel(
   return null
 }
 
+/**
+ * Resolves the Slack team ID for the current token, caching the result on
+ * `syncContext._slackTeamId` to avoid repeated `auth.test` calls. The team ID
+ * is stable per token, so caching for the lifetime of a sync is safe.
+ */
+async function resolveTeamId(
+  accessToken: string,
+  syncContext?: Record<string, unknown>
+): Promise<string | undefined> {
+  const cacheKey = '_slackTeamId'
+  if (syncContext && typeof syncContext[cacheKey] === 'string') {
+    return syncContext[cacheKey] as string
+  }
+
+  try {
+    const authData = await slackApiGet('auth.test', accessToken, {})
+    const teamId = authData.team_id as string | undefined
+    if (teamId && syncContext) {
+      syncContext[cacheKey] = teamId
+    }
+    return teamId
+  } catch (error) {
+    logger.warn('Failed to resolve Slack team ID', {
+      error: toError(error).message,
+    })
+    return undefined
+  }
+}
+
+/**
+ * Builds a channel document payload shared by `listDocuments` and `getDocument`.
+ *
+ * The `contentHash` is derived from stable Slack metadata — channel ID, the
+ * newest message `ts`, and the message count — rather than the formatted text.
+ * This keeps the hash deterministic across calls even though the formatted
+ * content depends on the user-name cache state and the sliding message window.
+ *
+ * Each Slack message has a unique, stable `ts` per channel
+ * (https://api.slack.com/methods/conversations.history), so `lastActivityTs`
+ * uniquely identifies the newest message included in the document.
+ */
+async function buildSlackChannelDocument(
+  accessToken: string,
+  channel: SlackChannel,
+  maxMessages: number,
+  syncContext?: Record<string, unknown>
+): Promise<{
+  content: string
+  contentHash: string
+  messageCount: number
+  lastActivityTs?: string
+}> {
+  const { messages, lastActivityTs } = await fetchChannelMessages(
+    accessToken,
+    channel.id,
+    maxMessages
+  )
+
+  const content = await formatMessages(accessToken, messages, syncContext)
+  const messageCount = messages.length
+  const contentHash = `slack:${channel.id}:${lastActivityTs ?? 'empty'}:${messageCount}`
+
+  return { content, contentHash, messageCount, lastActivityTs }
+}
+
 export const slackConnector: ConnectorConfig = {
   id: 'slack',
   name: 'Slack',
@@ -311,31 +376,21 @@ export const slackConnector: ConnectorConfig = {
       throw new Error(`Channel not found: ${channelInput}`)
     }
 
-    const { messages, lastActivityTs } = await fetchChannelMessages(
+    const { content, contentHash, messageCount, lastActivityTs } = await buildSlackChannelDocument(
       accessToken,
-      channel.id,
-      maxMessages
+      channel,
+      maxMessages,
+      syncContext
     )
-
-    const content = await formatMessages(accessToken, messages, syncContext)
     if (!content.trim()) {
       logger.info(`No messages found in channel: #${channel.name}`)
       return { documents: [], hasMore: false }
     }
 
-    const contentHash = await computeContentHash(content)
-
-    // Attempt to get team ID for the source URL
-    let sourceUrl = `https://app.slack.com/client/${channel.id}`
-    try {
-      const authData = await slackApiGet('auth.test', accessToken, {})
-      const teamId = authData.team_id as string | undefined
-      if (teamId) {
-        sourceUrl = `https://app.slack.com/client/${teamId}/${channel.id}`
-      }
-    } catch {
-      // Fall back to URL without team ID
-    }
+    const teamId = await resolveTeamId(accessToken, syncContext)
+    const sourceUrl = teamId
+      ? `https://app.slack.com/client/${teamId}/${channel.id}`
+      : `https://app.slack.com/client/${channel.id}`
 
     const document: ExternalDocument = {
       externalId: channel.id,
@@ -346,7 +401,7 @@ export const slackConnector: ConnectorConfig = {
       contentHash,
       metadata: {
         channelName: channel.name,
-        messageCount: messages.length,
+        messageCount,
         lastActivity: lastActivityTs ? formatSlackTimestamp(lastActivityTs) : undefined,
         topic: channel.topic?.value,
         purpose: channel.purpose?.value,
@@ -374,27 +429,14 @@ export const slackConnector: ConnectorConfig = {
       const data = await slackApiGet('conversations.info', accessToken, { channel: externalId })
       const channel = data.channel as SlackChannel
 
-      const { messages, lastActivityTs } = await fetchChannelMessages(
-        accessToken,
-        externalId,
-        maxMessages
-      )
-
-      const content = await formatMessages(accessToken, messages, syncContext)
+      const { content, contentHash, messageCount, lastActivityTs } =
+        await buildSlackChannelDocument(accessToken, channel, maxMessages, syncContext)
       if (!content.trim()) return null
 
-      const contentHash = await computeContentHash(content)
-
-      let sourceUrl = `https://app.slack.com/client/${channel.id}`
-      try {
-        const authData = await slackApiGet('auth.test', accessToken, {})
-        const teamId = authData.team_id as string | undefined
-        if (teamId) {
-          sourceUrl = `https://app.slack.com/client/${teamId}/${channel.id}`
-        }
-      } catch {
-        // Fall back to URL without team ID
-      }
+      const teamId = await resolveTeamId(accessToken, syncContext)
+      const sourceUrl = teamId
+        ? `https://app.slack.com/client/${teamId}/${channel.id}`
+        : `https://app.slack.com/client/${channel.id}`
 
       return {
         externalId: channel.id,
@@ -405,7 +447,7 @@ export const slackConnector: ConnectorConfig = {
         contentHash,
         metadata: {
           channelName: channel.name,
-          messageCount: messages.length,
+          messageCount,
           lastActivity: lastActivityTs ? formatSlackTimestamp(lastActivityTs) : undefined,
           topic: channel.topic?.value,
           purpose: channel.purpose?.value,

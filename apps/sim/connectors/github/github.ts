@@ -10,6 +10,7 @@ const logger = createLogger('GitHubConnector')
 const GITHUB_API_URL = 'https://api.github.com'
 const BATCH_SIZE = 30
 const GIT_SHA_PREFIX = 'git-sha:'
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
 /**
  * Parses the repository string into owner and repo.
@@ -88,6 +89,44 @@ async function fetchTree(
   }
 
   return (data.tree || []).filter((item: TreeItem) => item.type === 'blob')
+}
+
+/**
+ * Fetches blob content via the Git Blobs API. Used as a fallback when the
+ * `/contents/` endpoint cannot return the file body (files larger than 1 MB
+ * return `content: ""` and `encoding: "none"`). Supports blobs up to 100 MB.
+ */
+async function fetchBlobContent(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  sha: string
+): Promise<string> {
+  const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/blobs/${encodeURIComponent(sha)}`
+  const response = await fetchWithRetry(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch git blob ${sha}: ${response.status}`)
+  }
+
+  const data = await response.json()
+  const content = (data.content as string) || ''
+  const encoding = data.encoding as string | undefined
+
+  if (encoding === 'base64') {
+    return Buffer.from(content, 'base64').toString('utf8')
+  }
+  if (encoding === 'utf-8') {
+    return content
+  }
+  return ''
 }
 
 /**
@@ -257,10 +296,27 @@ export const githubConnector: ConnectorConfig = {
 
       const lastModifiedHeader = response.headers.get('last-modified') || undefined
       const data = await response.json()
-      const content =
-        data.encoding === 'base64'
-          ? Buffer.from(data.content as string, 'base64').toString('utf-8')
-          : (data.content as string) || ''
+
+      const size = typeof data.size === 'number' ? data.size : 0
+      if (size > MAX_FILE_SIZE) {
+        logger.info('Skipping GitHub file exceeding size limit', {
+          path,
+          size,
+          limit: MAX_FILE_SIZE,
+        })
+        return null
+      }
+
+      const rawContent = (data.content as string) || ''
+      const encoding = data.encoding as string | undefined
+      let content: string
+      if (encoding === 'base64' && rawContent.length > 0) {
+        content = Buffer.from(rawContent, 'base64').toString('utf8')
+      } else if ((encoding === 'none' || rawContent.length === 0) && data.sha) {
+        content = await fetchBlobContent(accessToken, owner, repo, data.sha as string)
+      } else {
+        content = ''
+      }
 
       return {
         externalId,

@@ -11,6 +11,8 @@ const ARTICLES_PER_PAGE = 30
 const TICKETS_PER_PAGE = 100
 const DEFAULT_MAX_TICKETS = 500
 
+const VALID_TICKET_STATUSES = new Set(['new', 'open', 'pending', 'hold', 'solved', 'closed'])
+
 interface ZendeskArticle {
   id: number
   title: string
@@ -97,7 +99,7 @@ async function fetchArticles(
 ): Promise<ZendeskArticle[]> {
   const allArticles: ZendeskArticle[] = []
   const baseUrl = buildBaseUrl(subdomain)
-  const localePath = locale ? `/${locale}` : ''
+  const localePath = locale ? `/${encodeURIComponent(locale)}` : ''
   let page = 1
 
   while (true) {
@@ -131,8 +133,12 @@ async function fetchTickets(
   const limit = maxTickets || DEFAULT_MAX_TICKETS
   let url: string | null = `${baseUrl}/api/v2/tickets.json?per_page=${TICKETS_PER_PAGE}`
 
-  if (statusFilter && statusFilter !== 'all') {
-    url = `${baseUrl}/api/v2/search.json?query=type:ticket status:${statusFilter}&per_page=${TICKETS_PER_PAGE}`
+  if (statusFilter && statusFilter !== 'all' && VALID_TICKET_STATUSES.has(statusFilter)) {
+    const params = new URLSearchParams({
+      query: `type:ticket status:${statusFilter}`,
+      per_page: String(TICKETS_PER_PAGE),
+    })
+    url = `${baseUrl}/api/v2/search.json?${params.toString()}`
   }
 
   while (url && allTickets.length < limit) {
@@ -496,8 +502,7 @@ export const zendeskConnector: ConnectorConfig = {
       await zendeskApiGet(url, accessToken, sourceConfig, VALIDATE_RETRY_OPTIONS)
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
-      return { valid: false, error: message }
+      return { valid: false, error: toError(error).message }
     }
   },
 
