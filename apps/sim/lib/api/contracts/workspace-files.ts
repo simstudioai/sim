@@ -182,7 +182,6 @@ export const workspacePresignedUploadContract = defineRouteContract({
 export const registerWorkspaceFileBodySchema = z.object({
   key: z.string().min(1, 'key is required'),
   name: z.string().min(1, 'name is required'),
-  size: z.number().nonnegative('size must be a non-negative number'),
   contentType: z.string().min(1, 'contentType is required'),
 })
 

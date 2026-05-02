@@ -286,7 +286,7 @@ const REGISTER_RETRY_DELAY_MS = 500
  */
 async function registerWithRetry(
   workspaceId: string,
-  result: { key: string; name: string; size: number; contentType: string },
+  result: { key: string; name: string; contentType: string },
   signal?: AbortSignal
 ) {
   let lastError: unknown
@@ -297,7 +297,6 @@ async function registerWithRetry(
         body: {
           key: result.key,
           name: result.name,
-          size: result.size,
           contentType: result.contentType,
         },
         signal,

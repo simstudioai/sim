@@ -55,7 +55,6 @@ const makeRequest = (body: unknown) =>
 const validBody = {
   key: VALID_KEY,
   name: 'video.mp4',
-  size: 10 * 1024 * 1024,
   contentType: 'video/mp4',
 }
 
@@ -108,16 +107,6 @@ describe('POST /api/workspaces/[id]/files/register', () => {
   it('returns 400 for empty key/name', async () => {
     const res = await POST(makeRequest({ ...validBody, key: '' }), params())
     expect(res.status).toBe(400)
-  })
-
-  it('returns 400 for negative size', async () => {
-    const res = await POST(makeRequest({ ...validBody, size: -1 }), params())
-    expect(res.status).toBe(400)
-  })
-
-  it('accepts size === 0 (empty new files)', async () => {
-    const res = await POST(makeRequest({ ...validBody, size: 0 }), params())
-    expect(res.status).toBe(200)
   })
 
   it('returns 404 when storage object is missing', async () => {
