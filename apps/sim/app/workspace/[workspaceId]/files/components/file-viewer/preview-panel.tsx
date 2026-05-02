@@ -456,7 +456,9 @@ function resolveSimFileUrl(src: string | undefined): string | undefined {
   try {
     const parsed = new URL(src, 'http://placeholder')
     const isRelative = parsed.origin === 'http://placeholder'
-    const isSameOrigin = parsed.origin === getBrowserOrigin()
+    const browserOrigin = getBrowserOrigin()
+    // null means SSR — treat as same-origin so server and client produce identical output
+    const isSameOrigin = browserOrigin === null || parsed.origin === browserOrigin
     if (!isRelative && !isSameOrigin) return src
     const [, seg1, , seg3, fileId] = parsed.pathname.split('/')
     if (seg1 === 'workspace' && seg3 === 'files' && fileId) {
