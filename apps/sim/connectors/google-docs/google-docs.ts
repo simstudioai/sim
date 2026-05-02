@@ -84,7 +84,15 @@ function extractTextFromDocsBody(doc: DocsDocument): string {
     if (!paragraph?.elements) continue
 
     const prefix = headingPrefix(paragraph.paragraphStyle?.namedStyleType)
-    const text = paragraph.elements.map((el) => el.textRun?.content ?? '').join('')
+    /**
+     * Each paragraph's final `textRun.content` already ends with `\n`. Strip
+     * it before joining with `\n` so a heading followed by a body paragraph
+     * is separated by a single newline, not two.
+     */
+    const text = paragraph.elements
+      .map((el) => el.textRun?.content ?? '')
+      .join('')
+      .replace(/\n+$/, '')
 
     if (text.trim()) {
       parts.push(`${prefix}${text}`)
