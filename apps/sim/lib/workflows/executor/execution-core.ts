@@ -435,7 +435,6 @@ export async function executeWorkflowCore(
         executionTime: number
         startedAt: string
         endedAt: string
-        blockExecutionId?: string
       },
       iterationContext?: IterationContext,
       childWorkflowContext?: ChildWorkflowContext
@@ -443,14 +442,13 @@ export async function executeWorkflowCore(
       try {
         await loggingSession.onBlockComplete(blockId, blockName, blockType, output)
         if (onBlockComplete) {
-          await onBlockComplete(
+          void onBlockComplete(
             blockId,
             blockName,
             blockType,
             output,
             iterationContext,
-            childWorkflowContext,
-            output.blockExecutionId
+            childWorkflowContext
           ).catch((error) => {
             logger.warn(`[${requestId}] Block completion callback failed`, {
               executionId,
@@ -476,20 +474,18 @@ export async function executeWorkflowCore(
       blockType: string,
       executionOrder: number,
       iterationContext?: IterationContext,
-      childWorkflowContext?: ChildWorkflowContext,
-      blockExecutionId?: string
+      childWorkflowContext?: ChildWorkflowContext
     ) => {
       try {
         await loggingSession.onBlockStart(blockId, blockName, blockType, new Date().toISOString())
         if (onBlockStart) {
-          await onBlockStart(
+          void onBlockStart(
             blockId,
             blockName,
             blockType,
             executionOrder,
             iterationContext,
-            childWorkflowContext,
-            blockExecutionId
+            childWorkflowContext
           ).catch((error) => {
             logger.warn(`[${requestId}] Block start callback failed`, {
               executionId,

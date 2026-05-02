@@ -25,6 +25,7 @@ import {
   addHttpErrorConsoleEntry,
   type BlockEventHandlerConfig,
   createBlockEventHandlers,
+  reconcileFinalBlockLogs,
   addExecutionErrorConsoleEntry as sharedAddExecutionErrorConsoleEntry,
   handleExecutionCancelledConsole as sharedHandleExecutionCancelledConsole,
   handleExecutionErrorConsole as sharedHandleExecutionErrorConsole,
@@ -230,25 +231,31 @@ export function useWorkflowExecution() {
       durationMs?: number
       blockLogs: BlockLog[]
       isPreExecutionError?: boolean
+      finalBlockLogs?: BlockLog[]
     }) => {
       if (!params.workflowId) return
       sharedHandleExecutionErrorConsole(
-        { addConsole, updateConsole },
+        { addConsole, updateConsole, cancelRunningEntries },
         { ...params, workflowId: params.workflowId }
       )
     },
-    [addConsole, updateConsole]
+    [addConsole, cancelRunningEntries, updateConsole]
   )
 
   const handleExecutionCancelledConsole = useCallback(
-    (params: { workflowId?: string; executionId?: string; durationMs?: number }) => {
+    (params: {
+      workflowId?: string
+      executionId?: string
+      durationMs?: number
+      finalBlockLogs?: BlockLog[]
+    }) => {
       if (!params.workflowId) return
       sharedHandleExecutionCancelledConsole(
-        { addConsole, updateConsole },
+        { addConsole, updateConsole, cancelRunningEntries },
         { ...params, workflowId: params.workflowId }
       )
     },
-    [addConsole, updateConsole]
+    [addConsole, cancelRunningEntries, updateConsole]
   )
 
   const buildBlockEventHandlers = useCallback(
@@ -1030,6 +1037,7 @@ export function useWorkflowExecution() {
           accumulatedBlockLogs,
           accumulatedBlockStates,
           executedBlockIds,
+          includeStartConsoleEntry: true,
           onBlockCompleteCallback: onBlockComplete,
         })
 
@@ -1123,6 +1131,13 @@ export function useWorkflowExecution() {
 
               if (activeWorkflowId) {
                 setCurrentExecutionId(activeWorkflowId, null)
+                reconcileFinalBlockLogs(
+                  updateConsole,
+                  activeWorkflowId,
+                  executionIdRef.current,
+                  data.finalBlockLogs
+                )
+                cancelRunningEntries(activeWorkflowId)
               }
 
               executionResult = {
@@ -1232,6 +1247,7 @@ export function useWorkflowExecution() {
                 durationMs: data.duration,
                 blockLogs: accumulatedBlockLogs,
                 isPreExecutionError,
+                finalBlockLogs: data.finalBlockLogs,
               })
 
               if (activeWorkflowId && !isExecutingFromChat) {
@@ -1258,6 +1274,7 @@ export function useWorkflowExecution() {
                 workflowId: activeWorkflowId,
                 executionId: executionIdRef.current,
                 durationMs: data?.duration,
+                finalBlockLogs: data?.finalBlockLogs,
               })
 
               if (activeWorkflowId && !isExecutingFromChat) {
@@ -1674,6 +1691,7 @@ export function useWorkflowExecution() {
           accumulatedBlockLogs,
           accumulatedBlockStates,
           executedBlockIds,
+          includeStartConsoleEntry: true,
         })
 
         await executionStream.executeFromBlock({
@@ -1692,6 +1710,14 @@ export function useWorkflowExecution() {
             onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
 
             onExecutionCompleted: (data) => {
+              reconcileFinalBlockLogs(
+                updateConsole,
+                workflowId,
+                executionIdRef.current,
+                data.finalBlockLogs
+              )
+              cancelRunningEntries(workflowId)
+
               if (data.success) {
                 executedBlockIds.add(blockId)
 
@@ -1743,6 +1769,7 @@ export function useWorkflowExecution() {
                 error: data.error,
                 durationMs: data.duration,
                 blockLogs: accumulatedBlockLogs,
+                finalBlockLogs: data.finalBlockLogs,
               })
 
               setCurrentExecutionId(workflowId, null)
@@ -1755,6 +1782,7 @@ export function useWorkflowExecution() {
                 workflowId,
                 executionId: executionIdRef.current,
                 durationMs: data?.duration,
+                finalBlockLogs: data?.finalBlockLogs,
               })
 
               setCurrentExecutionId(workflowId, null)
@@ -1901,6 +1929,7 @@ export function useWorkflowExecution() {
         accumulatedBlockLogs,
         accumulatedBlockStates,
         executedBlockIds,
+        includeStartConsoleEntry: true,
       })
 
       const capturedExecutionId = executionId
@@ -1967,7 +1996,7 @@ export function useWorkflowExecution() {
               onBlockCompleted: wrapHandler(handlers.onBlockCompleted),
               onBlockError: wrapHandler(handlers.onBlockError),
               onBlockChildWorkflowStarted: wrapHandler(handlers.onBlockChildWorkflowStarted),
-              onExecutionCompleted: () => {
+              onExecutionCompleted: (data) => {
                 reconnectionComplete = true
                 activeReconnections.delete(reconnectWorkflowId)
                 if (!activated) {
@@ -1981,6 +2010,13 @@ export function useWorkflowExecution() {
                 setCurrentExecutionId(reconnectWorkflowId, null)
                 setIsExecuting(reconnectWorkflowId, false)
                 setActiveBlocks(reconnectWorkflowId, new Set())
+                reconcileFinalBlockLogs(
+                  updateConsole,
+                  reconnectWorkflowId,
+                  capturedExecutionId,
+                  data?.finalBlockLogs
+                )
+                cancelRunningEntries(reconnectWorkflowId)
               },
               onExecutionError: (data) => {
                 reconnectionComplete = true
@@ -2001,6 +2037,7 @@ export function useWorkflowExecution() {
                   executionId: capturedExecutionId,
                   error: data.error,
                   blockLogs: accumulatedBlockLogs,
+                  finalBlockLogs: data.finalBlockLogs,
                 })
               },
               onExecutionCancelled: (data) => {
@@ -2021,6 +2058,7 @@ export function useWorkflowExecution() {
                   workflowId: reconnectWorkflowId,
                   executionId: capturedExecutionId,
                   durationMs: data?.duration,
+                  finalBlockLogs: data?.finalBlockLogs,
                 })
               },
             },

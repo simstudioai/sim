@@ -3,6 +3,7 @@ import type {
   IterationContext,
   ParentIteration,
 } from '@/executor/execution/types'
+import type { BlockLog } from '@/executor/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export type ExecutionEventType =
@@ -51,6 +52,8 @@ export interface ExecutionCompletedEvent extends BaseExecutionEvent {
     duration: number
     startTime: string
     endTime: string
+    /** Authoritative per-block terminal states from the server's blockLogs. */
+    finalBlockLogs?: BlockLog[]
   }
 }
 
@@ -77,6 +80,8 @@ export interface ExecutionErrorEvent extends BaseExecutionEvent {
   data: {
     error: string
     duration: number
+    /** Authoritative per-block terminal states from the server's blockLogs. */
+    finalBlockLogs?: BlockLog[]
   }
 }
 
@@ -85,6 +90,8 @@ export interface ExecutionCancelledEvent extends BaseExecutionEvent {
   workflowId: string
   data: {
     duration: number
+    /** Authoritative per-block terminal states from the server's blockLogs. */
+    finalBlockLogs?: BlockLog[]
   }
 }
 
@@ -106,8 +113,6 @@ export interface BlockStartedEvent extends BaseExecutionEvent {
     parentIterations?: ParentIteration[]
     childWorkflowBlockId?: string
     childWorkflowName?: string
-    /** Per-invocation unique ID for this block execution (distinct across loop/parallel iterations). */
-    blockExecutionId?: string
   }
 }
 
@@ -136,8 +141,6 @@ export interface BlockCompletedEvent extends BaseExecutionEvent {
     childWorkflowName?: string
     /** Per-invocation unique ID for correlating child block events with this workflow block. */
     childWorkflowInstanceId?: string
-    /** Per-invocation unique ID for this block execution (distinct across loop/parallel iterations). */
-    blockExecutionId?: string
   }
 }
 
@@ -166,8 +169,6 @@ export interface BlockErrorEvent extends BaseExecutionEvent {
     childWorkflowName?: string
     /** Per-invocation unique ID for correlating child block events with this workflow block. */
     childWorkflowInstanceId?: string
-    /** Per-invocation unique ID for this block execution (distinct across loop/parallel iterations). */
-    blockExecutionId?: string
   }
 }
 
@@ -284,8 +285,7 @@ export function createExecutionCallbacks(options: {
     blockType: string,
     executionOrder: number,
     iterationContext?: IterationContext,
-    childWorkflowContext?: ChildWorkflowContext,
-    blockExecutionId?: string
+    childWorkflowContext?: ChildWorkflowContext
   ) => {
     await sendBufferedEvent({
       type: 'block:started',
@@ -310,7 +310,6 @@ export function createExecutionCallbacks(options: {
           childWorkflowBlockId: childWorkflowContext.parentBlockId,
           childWorkflowName: childWorkflowContext.workflowName,
         }),
-        ...(blockExecutionId && { blockExecutionId }),
       },
     })
   }
@@ -327,11 +326,9 @@ export function createExecutionCallbacks(options: {
       executionOrder: number
       endedAt: string
       childWorkflowInstanceId?: string
-      blockExecutionId?: string
     },
     iterationContext?: IterationContext,
-    childWorkflowContext?: ChildWorkflowContext,
-    blockExecutionId?: string
+    childWorkflowContext?: ChildWorkflowContext
   ) => {
     const hasError = callbackData.output?.error
     const iterationData = iterationContext
@@ -356,11 +353,6 @@ export function createExecutionCallbacks(options: {
       ? { childWorkflowInstanceId: callbackData.childWorkflowInstanceId }
       : {}
 
-    const blockExecData =
-      blockExecutionId || callbackData.blockExecutionId
-        ? { blockExecutionId: blockExecutionId ?? callbackData.blockExecutionId }
-        : {}
-
     if (hasError) {
       await sendBufferedEvent({
         type: 'block:error',
@@ -380,7 +372,6 @@ export function createExecutionCallbacks(options: {
           ...iterationData,
           ...childWorkflowData,
           ...instanceData,
-          ...blockExecData,
         },
       })
     } else {
@@ -402,7 +393,6 @@ export function createExecutionCallbacks(options: {
           ...iterationData,
           ...childWorkflowData,
           ...instanceData,
-          ...blockExecData,
         },
       })
     }
