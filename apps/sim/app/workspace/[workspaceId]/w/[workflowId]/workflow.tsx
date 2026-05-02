@@ -345,7 +345,7 @@ const WorkflowContent = React.memo(
       const blockList = Object.values(blocks)
       return blockList.length > 0 && blockList.every((b) => b.locked)
     }, [blocks])
-    const workflowLocked = workflowRowLocked || workflowFolderLocked || allBlocksLocked
+    const workflowLocked = workflowRowLocked || workflowFolderLocked
     const workflowReadOnly = workflowLocked && !sandbox
     const canvasOpacityClass = isCanvasReady
       ? workflowReadOnly
@@ -1261,7 +1261,9 @@ const WorkflowContent = React.memo(
       prevCanAdminRef.current = effectivePermissions.canAdmin
 
       const lockSignature = workflowReadOnly
-        ? `${workflowRowLocked ? 'row' : workflowFolderLocked ? `folder:${inheritedLockFolderName ?? ''}` : 'blocks'}`
+        ? workflowRowLocked
+          ? 'row'
+          : `folder:${inheritedLockFolderName ?? ''}`
         : null
       const lockSignatureChanged = prevLockSignatureRef.current !== lockSignature
       prevLockSignatureRef.current = lockSignature
@@ -1311,11 +1313,16 @@ const WorkflowContent = React.memo(
     // Clean up notification on unmount
     useEffect(() => clearLockNotification, [clearLockNotification])
 
-    // Listen for unlock-workflow events from notification action button
+    /**
+     * `mutate` is the only stable handle on a TanStack Query v5 mutation; the
+     * mutation object itself rebuilds on every state change (e.g. `isPending`
+     * flipping during the unlock call), so depend on `.mutate` directly.
+     */
+    const updateWorkflowMutate = updateWorkflowMutation.mutate
     useEffect(() => {
       const handleUnlockWorkflow = () => {
         if (workflowRowLocked && activeWorkflowId) {
-          updateWorkflowMutation.mutate({
+          updateWorkflowMutate({
             workspaceId,
             workflowId: activeWorkflowId,
             metadata: { locked: false },
@@ -1335,7 +1342,7 @@ const WorkflowContent = React.memo(
     }, [
       activeWorkflowId,
       collaborativeBatchToggleLocked,
-      updateWorkflowMutation,
+      updateWorkflowMutate,
       workflowFolderLocked,
       workflowRowLocked,
       workspaceId,

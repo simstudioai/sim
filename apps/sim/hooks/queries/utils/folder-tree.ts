@@ -79,3 +79,33 @@ export function findLockedAncestorFolder(
 
   return null
 }
+
+/**
+ * Effective lock state for a workflow as visible to the client. Mirrors
+ * the server's `getWorkflowLockStatus(workflowId)` (in `@sim/workflow-authz`)
+ * but reads from cached folder data instead of issuing DB walks. Treats an
+ * undefined workflow as unlocked so callers don't need to early-return.
+ */
+export function isWorkflowEffectivelyLocked(
+  workflow: { locked?: boolean | null; folderId?: string | null } | null | undefined,
+  folders: Record<string, WorkflowFolder>
+): boolean {
+  if (!workflow) return false
+  if (workflow.locked) return true
+  return isFolderOrAncestorLocked(workflow.folderId, folders)
+}
+
+/**
+ * Effective lock state for a folder as visible to the client. Mirrors the
+ * server's `getFolderLockStatus(folderId)` (in `@sim/workflow-authz`) but
+ * reads from cached folder data instead of issuing DB walks. Treats an
+ * undefined folder as unlocked so callers don't need to early-return.
+ */
+export function isFolderEffectivelyLocked(
+  folder: { locked?: boolean | null; parentId?: string | null } | null | undefined,
+  folders: Record<string, WorkflowFolder>
+): boolean {
+  if (!folder) return false
+  if (folder.locked) return true
+  return isFolderOrAncestorLocked(folder.parentId, folders)
+}

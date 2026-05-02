@@ -49,7 +49,7 @@ import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/prev
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockType } from '@/blocks/types'
 import { useFolderMap } from '@/hooks/queries/folders'
-import { isFolderOrAncestorLocked } from '@/hooks/queries/utils/folder-tree'
+import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap, useWorkflowState } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePanelEditorStore } from '@/stores/panel'
@@ -119,8 +119,7 @@ export function Editor() {
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
   const { data: folders = {} } = useFolderMap(workspaceId)
   const workflowMetadata = workflowId ? workflows[workflowId] : undefined
-  const workflowLocked =
-    !!workflowMetadata?.locked || isFolderOrAncestorLocked(workflowMetadata?.folderId, folders)
+  const workflowLocked = isWorkflowEffectivelyLocked(workflowMetadata, folders)
 
   // Check if block is locked (or inside a locked ancestor) and compute edit permission
   // Locked blocks cannot be edited by anyone (admins can only lock/unlock)

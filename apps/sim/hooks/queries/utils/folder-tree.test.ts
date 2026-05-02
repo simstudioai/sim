@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest'
 import {
   findLockedAncestorFolder,
   getFolderPath,
+  isFolderEffectivelyLocked,
   isFolderOrAncestorLocked,
+  isWorkflowEffectivelyLocked,
 } from '@/hooks/queries/utils/folder-tree'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
@@ -143,5 +145,61 @@ describe('findLockedAncestorFolder', () => {
       f2: makeFolder({ id: 'f2', name: 'B', parentId: 'f1' }),
     }
     expect(findLockedAncestorFolder('f1', folders)).toBeNull()
+  })
+})
+
+describe('isWorkflowEffectivelyLocked', () => {
+  it('treats undefined or null workflows as unlocked', () => {
+    expect(isWorkflowEffectivelyLocked(undefined, {})).toBe(false)
+    expect(isWorkflowEffectivelyLocked(null, {})).toBe(false)
+  })
+
+  it('returns true when the workflow row itself is locked', () => {
+    expect(isWorkflowEffectivelyLocked({ locked: true, folderId: null }, {})).toBe(true)
+  })
+
+  it('returns true when an ancestor folder is locked', () => {
+    const folders = {
+      eng: makeFolder({ id: 'eng', locked: true }),
+      be: makeFolder({ id: 'be', parentId: 'eng' }),
+    }
+    expect(isWorkflowEffectivelyLocked({ locked: false, folderId: 'be' }, folders)).toBe(true)
+  })
+
+  it('returns false when neither row nor any ancestor is locked', () => {
+    const folders = { eng: makeFolder({ id: 'eng' }) }
+    expect(isWorkflowEffectivelyLocked({ locked: false, folderId: 'eng' }, folders)).toBe(false)
+  })
+
+  it('returns false for a workflow at workspace root with no row lock', () => {
+    expect(isWorkflowEffectivelyLocked({ locked: false, folderId: null }, {})).toBe(false)
+  })
+})
+
+describe('isFolderEffectivelyLocked', () => {
+  it('treats undefined or null folders as unlocked', () => {
+    expect(isFolderEffectivelyLocked(undefined, {})).toBe(false)
+    expect(isFolderEffectivelyLocked(null, {})).toBe(false)
+  })
+
+  it('returns true when the folder itself is locked', () => {
+    expect(isFolderEffectivelyLocked({ locked: true, parentId: null }, {})).toBe(true)
+  })
+
+  it('returns true when an ancestor folder is locked', () => {
+    const folders = {
+      eng: makeFolder({ id: 'eng', locked: true }),
+      be: makeFolder({ id: 'be', parentId: 'eng' }),
+    }
+    expect(isFolderEffectivelyLocked({ locked: false, parentId: 'eng' }, folders)).toBe(true)
+  })
+
+  it('returns false when neither the folder nor any ancestor is locked', () => {
+    const folders = { eng: makeFolder({ id: 'eng' }) }
+    expect(isFolderEffectivelyLocked({ locked: false, parentId: 'eng' }, folders)).toBe(false)
+  })
+
+  it('returns false for a root-level folder with no own lock', () => {
+    expect(isFolderEffectivelyLocked({ locked: false, parentId: null }, {})).toBe(false)
   })
 })

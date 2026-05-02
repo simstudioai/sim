@@ -32,7 +32,10 @@ import {
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
-import { isFolderOrAncestorLocked } from '@/hooks/queries/utils/folder-tree'
+import {
+  isFolderOrAncestorLocked,
+  isWorkflowEffectivelyLocked,
+} from '@/hooks/queries/utils/folder-tree'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
@@ -74,7 +77,7 @@ export function WorkflowItem({
 
   const { data: foldersById = {} } = useFolderMap(workspaceId)
   const inheritedFolderLocked = isFolderOrAncestorLocked(workflow.folderId, foldersById)
-  const effectiveLocked = !!workflow.locked || inheritedFolderLocked
+  const effectiveLocked = isWorkflowEffectivelyLocked(workflow, foldersById)
 
   const { canDeleteWorkflows, canDeleteFolder } = useCanDelete({ workspaceId })
 
