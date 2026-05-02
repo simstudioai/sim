@@ -13,7 +13,7 @@ const logger = createLogger('FilesViewAPI')
 
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const parsed = await parseRequest(fileViewContract, request, await context.params)
+    const parsed = await parseRequest(fileViewContract, request, context)
     if (!parsed.success) return parsed.response
 
     const { id } = parsed.data.params
