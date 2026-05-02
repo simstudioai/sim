@@ -37,7 +37,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'fileUpload',
       title: 'Document',
       type: 'file-upload' as SubBlockType,
-      canonicalParamId: 'document',
+      canonicalParamId: 'file',
       acceptedTypes:
         'application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.oasis.opendocument.text,application/rtf,text/rtf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/html',
       placeholder: 'Upload a document (PDF, DOCX, HTML, XLSX, etc.)',
@@ -53,7 +53,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       id: 'fileReference',
       title: 'File Reference',
       type: 'short-input' as SubBlockType,
-      canonicalParamId: 'document',
+      canonicalParamId: 'file',
       placeholder: 'File reference from previous block',
       mode: 'advanced',
       condition: {
@@ -487,7 +487,7 @@ Example 2 - Product Data:
             break
 
           case 'parse': {
-            const file = normalizeFileInput(params.document, { single: true })
+            const file = normalizeFileInput(params.file, { single: true })
             if (!file) {
               throw new Error('A document file is required for the parse operation')
             }
@@ -624,7 +624,7 @@ Example 2 - Product Data:
     },
     maxCredits: { type: 'number', description: 'Maximum credits to spend' },
     strictConstrainToURLs: { type: 'boolean', description: 'Limit agent to provided URLs only' },
-    document: { type: 'json', description: 'Document input (file upload or file reference)' },
+    file: { type: 'json', description: 'Document input (file upload or file reference)' },
     includeTags: { type: 'json', description: 'HTML tags to include during parsing' },
     excludeTags: { type: 'json', description: 'HTML tags to exclude during parsing' },
     parsers: { type: 'json', description: 'Parser configuration (e.g., [{"type": "pdf"}])' },
