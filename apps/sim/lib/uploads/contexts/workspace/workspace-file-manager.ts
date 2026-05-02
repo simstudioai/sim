@@ -299,7 +299,7 @@ export async function registerUploadedWorkspaceFile(params: {
     if (!head) {
       throw new Error('Uploaded object not found in storage')
     }
-    verifiedSize = head.size ?? size
+    verifiedSize = head.size > 0 ? head.size : size
   }
 
   const cleanupOrphan = async (reason: string) => {
@@ -322,14 +322,15 @@ export async function registerUploadedWorkspaceFile(params: {
     throw new Error(quotaCheck.error || 'Storage limit exceeded')
   }
 
-  const uniqueName = await allocateUniqueWorkspaceFileName(workspaceId, originalName)
-
   let fileId = `wf_${generateShortId()}`
+  let displayName: string
   const existing = await getFileMetadataByKey(key, 'workspace')
   if (existing) {
     fileId = existing.id
+    displayName = existing.originalName
     logger.info(`Using existing metadata record for direct upload: ${key}`)
   } else {
+    displayName = await allocateUniqueWorkspaceFileName(workspaceId, originalName)
     try {
       await insertFileMetadata({
         id: fileId,
@@ -337,7 +338,7 @@ export async function registerUploadedWorkspaceFile(params: {
         userId,
         workspaceId,
         context: 'workspace',
-        originalName: uniqueName,
+        originalName: displayName,
         contentType,
         size: verifiedSize,
       })
@@ -362,7 +363,7 @@ export async function registerUploadedWorkspaceFile(params: {
 
   return {
     id: fileId,
-    name: uniqueName,
+    name: displayName,
     size: verifiedSize,
     type: contentType,
     url: serveUrl,
