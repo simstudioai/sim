@@ -80,13 +80,12 @@ export const PlusMenuDropdown = React.memo(
       const q = rawQuery.toLowerCase().trim()
       // In mention mode always render a flat filtered list — empty query = show everything.
       if (!isMention && !q) return null
-      // Folders organize resources but aren't a valid mention/insertable target — drop them
-      // from the flat list (matches the nested rendering, which also excludes them).
-      const flatGroups = availableResources.filter(({ type }) => type !== 'folder')
       if (isMention && !q) {
-        return flatGroups.flatMap(({ type, items }) => items.map((item) => ({ type, item })))
+        return availableResources.flatMap(({ type, items }) =>
+          items.map((item) => ({ type, item }))
+        )
       }
-      return flatGroups.flatMap(({ type, items }) =>
+      return availableResources.flatMap(({ type, items }) =>
         items.filter((item) => item.name.toLowerCase().includes(q)).map((item) => ({ type, item }))
       )
     }, [isMention, mentionQuery, search, availableResources])
