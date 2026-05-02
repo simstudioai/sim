@@ -79,7 +79,7 @@ export const POST = withRouteHandler(
           resourceId: userFile.id,
           resourceName: name,
           description: `Uploaded file "${name}"`,
-          metadata: { fileSize: size, fileType: contentType },
+          metadata: { fileSize: userFile.size, fileType: contentType },
           request,
         })
       } else {
