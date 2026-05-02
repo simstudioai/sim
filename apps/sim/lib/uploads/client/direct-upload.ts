@@ -180,8 +180,15 @@ export const getPresignedUploadInfo = async (
     try {
       errorDetails = await response.json()
     } catch {}
+    const serverMessage =
+      errorDetails != null &&
+      typeof errorDetails === 'object' &&
+      typeof (errorDetails as Record<string, unknown>).error === 'string'
+        ? ((errorDetails as Record<string, unknown>).error as string)
+        : null
     throw new DirectUploadError(
-      `Failed to get presigned URL for ${file.name}: ${response.status} ${response.statusText}`,
+      serverMessage ||
+        `Failed to get presigned URL for ${file.name}: ${response.status} ${response.statusText}`,
       'PRESIGNED_URL_ERROR',
       errorDetails
     )

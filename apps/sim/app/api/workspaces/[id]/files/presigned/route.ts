@@ -46,14 +46,6 @@ export const POST = withRouteHandler(
       )
     }
 
-    const quotaCheck = await checkStorageQuota(userId, fileSize)
-    if (!quotaCheck.allowed) {
-      return NextResponse.json(
-        { error: quotaCheck.error || 'Storage limit exceeded' },
-        { status: 413 }
-      )
-    }
-
     if (!hasCloudStorage()) {
       logger.info(`Local storage detected, signaling API fallback for ${fileName}`)
       return NextResponse.json({
@@ -62,6 +54,14 @@ export const POST = withRouteHandler(
         fileInfo: { path: '', key: '', name: fileName, size: fileSize, type: contentType },
         directUploadSupported: false,
       })
+    }
+
+    const quotaCheck = await checkStorageQuota(userId, fileSize)
+    if (!quotaCheck.allowed) {
+      return NextResponse.json(
+        { error: quotaCheck.error || 'Storage limit exceeded' },
+        { status: 413 }
+      )
     }
 
     const key = generateWorkspaceFileKey(workspaceId, fileName)
