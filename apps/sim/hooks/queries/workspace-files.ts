@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
-import { isApiClientError } from '@/lib/api/client/errors'
+import { ApiClientError, isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getUsageLimitsContract } from '@/lib/api/contracts/usage-limits'
 import {
@@ -267,21 +268,50 @@ async function uploadWorkspaceFile(
     throw error
   }
 
-  const data = await requestJson(registerWorkspaceFileContract, {
-    params: { id: workspaceId },
-    body: {
-      key: result.key,
-      name: result.name,
-      size: result.size,
-      contentType: result.contentType,
-    },
-    signal,
-  })
+  const data = await registerWithRetry(workspaceId, result, signal)
 
   if (!data.success || !data.file) {
     throw new Error(data.error || 'Failed to register file')
   }
   return { success: true, file: data.file }
+}
+
+const REGISTER_MAX_ATTEMPTS = 3
+const REGISTER_RETRY_DELAY_MS = 500
+
+/**
+ * Register the uploaded object with bounded retries. The server-side handler
+ * is idempotent (existing-record short-circuit), so safely retrying handles
+ * dropped responses that would otherwise orphan the object in storage.
+ */
+async function registerWithRetry(
+  workspaceId: string,
+  result: { key: string; name: string; size: number; contentType: string },
+  signal?: AbortSignal
+) {
+  let lastError: unknown
+  for (let attempt = 1; attempt <= REGISTER_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await requestJson(registerWorkspaceFileContract, {
+        params: { id: workspaceId },
+        body: {
+          key: result.key,
+          name: result.name,
+          size: result.size,
+          contentType: result.contentType,
+        },
+        signal,
+      })
+    } catch (error) {
+      lastError = error
+      if (signal?.aborted) throw error
+      const isTransient =
+        !(error instanceof ApiClientError) || (error.status >= 500 && error.status < 600)
+      if (!isTransient || attempt === REGISTER_MAX_ATTEMPTS) throw error
+      await sleep(REGISTER_RETRY_DELAY_MS * attempt)
+    }
+  }
+  throw lastError
 }
 
 export function useUploadWorkspaceFile() {

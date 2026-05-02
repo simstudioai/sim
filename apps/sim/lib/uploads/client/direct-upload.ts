@@ -382,25 +382,30 @@ const uploadViaMultipart = async (
     }
   }
 
-  // boundary-raw-fetch: multipart upload control plane uses action query strings; sequenced with initiate/complete/abort outside the contract layer
-  const partUrlsResponse = await fetch('/api/files/multipart?action=get-part-urls', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ uploadToken, partNumbers }),
-    signal,
-  })
+  let presignedUrls: PartUrl[]
+  try {
+    // boundary-raw-fetch: multipart upload control plane uses action query strings; sequenced with initiate/complete/abort outside the contract layer
+    const partUrlsResponse = await fetch('/api/files/multipart?action=get-part-urls', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uploadToken, partNumbers }),
+      signal,
+    })
 
-  if (!partUrlsResponse.ok) {
+    if (!partUrlsResponse.ok) {
+      throw new DirectUploadError(
+        `Failed to get part URLs: ${partUrlsResponse.statusText}`,
+        'MULTIPART_ERROR',
+        undefined,
+        partUrlsResponse.status
+      )
+    }
+
+    ;({ presignedUrls } = (await partUrlsResponse.json()) as { presignedUrls: PartUrl[] })
+  } catch (err) {
     await abortMultipart()
-    throw new DirectUploadError(
-      `Failed to get part URLs: ${partUrlsResponse.statusText}`,
-      'MULTIPART_ERROR',
-      undefined,
-      partUrlsResponse.status
-    )
+    throw err
   }
-
-  const { presignedUrls } = (await partUrlsResponse.json()) as { presignedUrls: PartUrl[] }
 
   const completedBytes = new Array<number>(numParts).fill(0)
   const reportProgress = () => {
