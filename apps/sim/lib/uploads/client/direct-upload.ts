@@ -63,6 +63,16 @@ export class DirectUploadError extends Error {
   }
 }
 
+/**
+ * Transport-level upload errors worth retrying at the outer level: timeouts,
+ * 5xx from the storage backend, and per-part failures whose inner retry was
+ * exhausted. Excludes deterministic failures (`PRESIGNED_URL_ERROR`,
+ * `FALLBACK_REQUIRED`) and aborts.
+ */
+export const isTransientUploadError = (error: unknown): boolean =>
+  error instanceof DirectUploadError &&
+  (error.code === 'DIRECT_UPLOAD_ERROR' || error.code === 'MULTIPART_ERROR')
+
 const calculateUploadTimeoutMs = (fileSize: number): number => {
   const sizeInMb = fileSize / (1024 * 1024)
   const dynamicBudget = BASE_TIMEOUT_MS + sizeInMb * TIMEOUT_PER_MB_MS

@@ -4,6 +4,7 @@ import { sleep } from '@sim/utils/helpers'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   DirectUploadError,
+  isTransientUploadError,
   LARGE_FILE_THRESHOLD,
   MULTIPART_MAX_RETRIES,
   MULTIPART_RETRY_BACKOFF,
@@ -266,7 +267,8 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           return buildUploadedFile(file, toAbsoluteUrl(filePath))
         }
 
-        if (isAbortError(error) || !isNetworkError(error) || attempt >= MULTIPART_MAX_RETRIES) {
+        const retryable = isNetworkError(error) || isTransientUploadError(error)
+        if (isAbortError(error) || !retryable || attempt >= MULTIPART_MAX_RETRIES) {
           throw error
         }
 
