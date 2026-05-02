@@ -362,8 +362,10 @@ export const zendeskConnector: ConnectorConfig = {
       description: 'Filter tickets by status (applies only when syncing tickets)',
       options: [
         { label: 'All Statuses', id: 'all' },
+        { label: 'New', id: 'new' },
         { label: 'Open', id: 'open' },
         { label: 'Pending', id: 'pending' },
+        { label: 'On Hold', id: 'hold' },
         { label: 'Solved', id: 'solved' },
         { label: 'Closed', id: 'closed' },
       ],

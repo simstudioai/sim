@@ -102,7 +102,7 @@ async function fetchUserinfo(
 
     // Only fall through to the next host on auth-shaped failures; surface
     // other errors (e.g. 5xx) immediately so we don't mask real problems.
-    if (response.status !== 401 && response.status !== 403) {
+    if (response.status !== 400 && response.status !== 401 && response.status !== 403) {
       break
     }
   }

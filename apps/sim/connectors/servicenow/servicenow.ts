@@ -20,7 +20,9 @@ const PAGE_SIZE = 100
  * fetches (`/api/now/table/{table}/{sys_id}`) likewise treat the sys_id as a
  * URL path segment and must be constrained to safe characters.
  */
-const SYS_ID_PATTERN = /^[a-f0-9]{32}$/
+const SYS_ID_PATTERN = /^[a-f0-9]{32}$/i
+const NUMERIC_ID_PATTERN = /^\d+$/
+const KB_CATEGORY_PATTERN = /^[\w \-./]+$/
 
 interface ServiceNowRecord {
   sys_id: string
@@ -363,18 +365,22 @@ function buildKBQuery(sourceConfig: Record<string, unknown>): string {
 
   const workflowState = sourceConfig.workflowState as string | undefined
   if (workflowState && workflowState !== 'all') {
-    parts.push(`workflow_state=${workflowState}`)
+    if (NUMERIC_ID_PATTERN.test(workflowState)) {
+      parts.push(`workflow_state=${workflowState}`)
+    } else {
+      logger.warn('Skipping workflowState filter: value is not a numeric ID', { workflowState })
+    }
   }
 
   const kbCategory = sourceConfig.kbCategory as string | undefined
   const trimmedCategory = kbCategory?.trim()
   if (trimmedCategory) {
-    if (trimmedCategory.includes('^')) {
-      logger.warn('Skipping kbCategory filter: value contains "^" separator', {
+    if (KB_CATEGORY_PATTERN.test(trimmedCategory)) {
+      parts.push(`kb_category.label=${trimmedCategory}`)
+    } else {
+      logger.warn('Skipping kbCategory filter: value contains disallowed characters', {
         kbCategory: trimmedCategory,
       })
-    } else {
-      parts.push(`kb_category.label=${trimmedCategory}`)
     }
   }
 
@@ -390,12 +396,22 @@ function buildIncidentQuery(sourceConfig: Record<string, unknown>): string {
 
   const incidentState = sourceConfig.incidentState as string | undefined
   if (incidentState && incidentState !== 'all') {
-    parts.push(`state=${incidentState}`)
+    if (NUMERIC_ID_PATTERN.test(incidentState)) {
+      parts.push(`state=${incidentState}`)
+    } else {
+      logger.warn('Skipping incidentState filter: value is not a numeric ID', { incidentState })
+    }
   }
 
   const incidentPriority = sourceConfig.incidentPriority as string | undefined
   if (incidentPriority && incidentPriority !== 'all') {
-    parts.push(`priority=${incidentPriority}`)
+    if (NUMERIC_ID_PATTERN.test(incidentPriority)) {
+      parts.push(`priority=${incidentPriority}`)
+    } else {
+      logger.warn('Skipping incidentPriority filter: value is not a numeric ID', {
+        incidentPriority,
+      })
+    }
   }
 
   parts.push('ORDERBYDESCsys_updated_on')
