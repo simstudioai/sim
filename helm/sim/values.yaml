@@ -166,6 +166,17 @@ app:
     EXECUTION_TIMEOUT_ASYNC_TEAM: "5400"                  # Team tier async timeout (90 minutes)
     EXECUTION_TIMEOUT_ASYNC_ENTERPRISE: "5400"            # Enterprise tier async timeout (90 minutes)
 
+    # Table Feature Limits (per workspace, per plan)
+    # Apply when billing is disabled (free tier defaults) or for billed plans
+    FREE_TABLES_LIMIT: "3"                                # Max user tables per workspace on free tier
+    FREE_TABLE_ROWS_LIMIT: "1000"                         # Max rows per table on free tier
+    PRO_TABLES_LIMIT: "25"                                # Max user tables per workspace on pro tier
+    PRO_TABLE_ROWS_LIMIT: "5000"                          # Max rows per table on pro tier
+    TEAM_TABLES_LIMIT: "100"                              # Max user tables per workspace on team tier
+    TEAM_TABLE_ROWS_LIMIT: "10000"                        # Max rows per table on team tier
+    ENTERPRISE_TABLES_LIMIT: "10000"                      # Max user tables per workspace on enterprise tier
+    ENTERPRISE_TABLE_ROWS_LIMIT: "1000000"                # Max rows per table on enterprise tier
+
     # Isolated-VM Worker Pool Configuration
     IVM_POOL_SIZE: "4"                                    # Max worker processes in pool
     IVM_MAX_CONCURRENT: "10000"                           # Max concurrent executions globally

@@ -197,6 +197,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       canonicalParamId: 'teamId',
       placeholder: 'Enter Linear team ID',
       mode: 'advanced',
+      dependsOn: ['credential'],
       required: {
         field: 'operation',
         value: [
@@ -271,6 +272,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       canonicalParamId: 'projectId',
       placeholder: 'Enter Linear project ID',
       mode: 'advanced',
+      dependsOn: ['credential', 'teamId'],
       required: {
         field: 'operation',
         value: [
@@ -1090,7 +1092,7 @@ Return ONLY the description text - no explanations.`,
     },
     // Customer request priority/urgency
     {
-      id: 'priority',
+      id: 'customerRequestPriority',
       title: 'Urgency',
       type: 'dropdown',
       options: [
@@ -2001,7 +2003,10 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               customerId: params.customerId.trim(),
               body: params.requestBody?.trim(),
-              priority: params.priority !== undefined ? Number(params.priority) : 0,
+              priority:
+                params.customerRequestPriority !== undefined
+                  ? Number(params.customerRequestPriority)
+                  : 0,
               issueId: params.linkedIssueId?.trim(),
               projectId: effectiveProjectId || undefined,
             }
@@ -2015,7 +2020,10 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               customerNeedId: params.customerNeedId.trim(),
               customerId: params.customerId?.trim(),
               body: params.requestBody?.trim(),
-              priority: params.priority !== undefined ? Number(params.priority) : undefined,
+              priority:
+                params.customerRequestPriority !== undefined
+                  ? Number(params.customerRequestPriority)
+                  : undefined,
               issueId: params.linkedIssueId?.trim(),
               projectId: effectiveProjectId || undefined,
             }
@@ -2354,6 +2362,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     stateId: { type: 'string', description: 'Workflow state identifier' },
     assigneeId: { type: 'string', description: 'Assignee user identifier' },
     priority: { type: 'string', description: 'Priority level' },
+    customerRequestPriority: { type: 'string', description: 'Customer request urgency level' },
     estimate: { type: 'string', description: 'Estimate points' },
     query: { type: 'string', description: 'Search query' },
     includeArchived: { type: 'boolean', description: 'Include archived items' },

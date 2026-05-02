@@ -168,7 +168,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'short-input',
       canonicalParamId: 'issueKey',
       placeholder: 'Enter Jira issue key',
-      dependsOn: ['credential', 'domain'],
+      dependsOn: ['credential', 'domain', 'projectId'],
       condition: {
         field: 'operation',
         value: [

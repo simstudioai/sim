@@ -277,6 +277,7 @@ export const GET = withRouteHandler(
         .select({
           id: userTableRows.id,
           data: userTableRows.data,
+          executions: userTableRows.executions,
           position: userTableRows.position,
           createdAt: userTableRows.createdAt,
           updatedAt: userTableRows.updatedAt,
@@ -317,6 +318,7 @@ export const GET = withRouteHandler(
           rows: rows.map((r) => ({
             id: r.id,
             data: r.data,
+            executions: r.executions ?? {},
             position: r.position,
             createdAt:
               r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),

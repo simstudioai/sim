@@ -664,7 +664,10 @@ export const LogDetails = memo(function LogDetails({
   const { handleMouseDown } = useLogDetailsResize()
 
   const maxVw = `${MAX_LOG_DETAILS_WIDTH_RATIO * 100}vw`
-  const effectiveWidth = `clamp(${MIN_LOG_DETAILS_WIDTH}px, ${panelWidth}px, ${maxVw})`
+  // CSS-side clamp matching `clampPanelWidth` in stores/logs/utils.ts: the
+  // floor is itself capped at the max-vw ratio so a narrow viewport doesn't
+  // let the min outpace the cap and cover the table behind the panel.
+  const effectiveWidth = `clamp(min(${MIN_LOG_DETAILS_WIDTH}px, ${maxVw}), ${panelWidth}px, ${maxVw})`
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

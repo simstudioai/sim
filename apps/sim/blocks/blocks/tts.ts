@@ -56,6 +56,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
         { label: 'GPT-4o Mini TTS', id: 'gpt-4o-mini-tts' },
       ],
       value: () => 'tts-1',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -78,6 +79,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
         { label: 'Verse', id: 'verse' },
       ],
       value: () => 'alloy',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -95,6 +97,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
         { label: 'WAV', id: 'wav' },
       ],
       value: () => 'mp3',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -108,6 +111,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       max: 4.0,
       step: 0.25,
       value: () => '1.0',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -132,6 +136,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
         { label: 'Zeus', id: 'aura-zeus-en' },
       ],
       value: () => 'aura-asteria-en',
+      dependsOn: ['provider'],
       required: true,
     },
 
@@ -149,6 +154,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
         { label: 'Linear16', id: 'linear16' },
       ],
       value: () => 'mp3',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -169,6 +175,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
         { label: '48000 Hz', id: '48000' },
       ],
       value: () => '24000',
+      dependsOn: ['encoding'],
       required: false,
     },
 
@@ -179,6 +186,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       type: 'short-input',
       condition: { field: 'provider', value: 'elevenlabs' },
       placeholder: 'Enter ElevenLabs voice ID',
+      dependsOn: ['provider'],
       required: true,
     },
 
@@ -197,6 +205,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
         { label: 'Multilingual v1', id: 'eleven_multilingual_v1' },
       ],
       value: () => 'eleven_turbo_v2_5',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -210,6 +219,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       max: 1.0,
       step: 0.05,
       value: () => '0.5',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -223,6 +233,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       max: 1.0,
       step: 0.05,
       value: () => '0.8',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -236,6 +247,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       max: 1.0,
       step: 0.05,
       value: () => '0.0',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -253,6 +265,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
         { label: 'Sonic Multilingual', id: 'sonic-multilingual' },
       ],
       value: () => 'sonic-3',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -263,6 +276,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       type: 'short-input',
       condition: { field: 'provider', value: 'cartesia' },
       placeholder: 'Enter Cartesia voice ID',
+      dependsOn: ['provider'],
       required: true,
     },
 
@@ -276,6 +290,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       max: 2.0,
       step: 0.1,
       value: () => '1.0',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -286,6 +301,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       type: 'short-input',
       condition: { field: 'provider', value: 'google' },
       placeholder: 'e.g., en-US-Neural2-A',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -297,6 +313,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       condition: { field: 'provider', value: 'google' },
       placeholder: 'e.g., en-US, es-ES',
       value: () => 'en-US',
+      dependsOn: ['provider'],
       required: true,
     },
 
@@ -310,6 +327,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       max: 2.0,
       step: 0.25,
       value: () => '1.0',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -323,6 +341,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       max: 20.0,
       step: 1.0,
       value: () => '0.0',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -333,6 +352,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       type: 'short-input',
       condition: { field: 'provider', value: 'azure' },
       placeholder: 'e.g., en-US-JennyNeural',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -343,6 +363,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       type: 'short-input',
       condition: { field: 'provider', value: 'azure' },
       placeholder: 'e.g., eastus, westus',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -358,6 +379,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
         { label: 'MP3 48kHz 96kbps', id: 'audio-48khz-96kbitrate-mono-mp3' },
       ],
       value: () => 'audio-24khz-96kbitrate-mono-mp3',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -368,6 +390,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       type: 'short-input',
       condition: { field: 'provider', value: 'azure' },
       placeholder: 'e.g., cheerful, sad, angry',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -379,6 +402,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       condition: { field: 'provider', value: 'playht' },
       placeholder: 'Enter your PlayHT user ID',
       password: true,
+      dependsOn: ['provider'],
       required: true,
     },
 
@@ -389,6 +413,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       type: 'short-input',
       condition: { field: 'provider', value: 'playht' },
       placeholder: 'Voice ID or manifest URL',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -404,6 +429,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
         { label: 'Premium', id: 'premium' },
       ],
       value: () => 'standard',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -417,6 +443,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       max: 2.0,
       step: 0.1,
       value: () => '1.0',
+      dependsOn: ['provider'],
       required: false,
     },
 

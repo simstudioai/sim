@@ -139,6 +139,11 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       table,
       requestId
     )
+    // No `cancellationGuard` is passed here, so `updateRow` can't return null
+    // from this caller. Defensive narrowing for TypeScript.
+    if (!updatedRow) {
+      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
+    }
 
     return NextResponse.json({
       success: true,

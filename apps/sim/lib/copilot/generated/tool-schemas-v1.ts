@@ -216,7 +216,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             "A short, descriptive title for the job (e.g., 'Email Poller', 'Daily Report'). Used as the display name.",
         },
       },
-      required: ['prompt'],
+      required: ['title', 'prompt'],
     },
     resultSchema: undefined,
   },
@@ -788,15 +788,16 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   'Parameters for the operation. \nFor edit: {"inputs": {"temperature": 0.5}} NOT {"subBlocks": {"temperature": {"value": 0.5}}}\nFor add: {"type": "agent", "name": "My Agent", "inputs": {"model": "claude-sonnet-4-6"}}\nFor delete: {} (empty object)',
               },
             },
-            required: ['operation_type', 'block_id'],
+            required: ['operation_type', 'block_id', 'params'],
           },
         },
         workflowId: {
           type: 'string',
-          description: 'Workflow ID to edit.',
+          description:
+            'Optional workflow ID to edit. If not provided, uses the current workflow in context.',
         },
       },
-      required: ['operations', 'workflowId'],
+      required: ['operations'],
     },
     resultSchema: undefined,
   },
@@ -1430,7 +1431,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           ],
         },
       },
-      required: ['operation'],
+      required: ['operation', 'args'],
     },
     resultSchema: {
       type: 'object',
@@ -2386,32 +2387,22 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           default: 'workspace',
         },
         variables: {
-          description: 'Environment variables to set, as a name/value list or object record.',
-          oneOf: [
-            {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  name: {
-                    type: 'string',
-                    description: 'Variable name',
-                  },
-                  value: {
-                    type: 'string',
-                    description: 'Variable value',
-                  },
-                },
-                required: ['name', 'value'],
-              },
-            },
-            {
-              type: 'object',
-              additionalProperties: {
+          type: 'array',
+          description: 'List of env vars to set',
+          items: {
+            type: 'object',
+            properties: {
+              name: {
                 type: 'string',
+                description: 'Variable name',
+              },
+              value: {
+                type: 'string',
+                description: 'Variable value',
               },
             },
-          ],
+            required: ['name', 'value'],
+          },
         },
       },
       required: ['variables'],
@@ -2603,6 +2594,16 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'object',
           description: 'Arguments for the operation',
           properties: {
+            autoRun: {
+              type: 'boolean',
+              description:
+                'Optional flag for add_workflow_group. When true, existing rows whose dependencies are already filled run immediately. Default false: groups are staged silently — call run_workflow_group when ready to fire rows. Set true if the user explicitly asked you to start runs.',
+            },
+            blockId: {
+              type: 'string',
+              description:
+                'Source block ID inside the workflow. Used by add_workflow_group_output.',
+            },
             column: {
               type: 'object',
               description: 'Column definition for add_column: { name, type, unique?, position? }',
@@ -2610,7 +2611,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             columnName: {
               type: 'string',
               description:
-                'Column name (required for rename_column, update_column; use columnNames array for batch delete_column)',
+                'Column name. Required for rename_column, update_column, and delete_workflow_group_output (the bound column to drop). Optional for add_workflow_group_output (auto-derived from path when omitted). Use columnNames array for batch delete_column.',
             },
             columnNames: {
               type: 'array',
@@ -2620,6 +2621,27 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             data: {
               type: 'object',
               description: 'Row data as key-value pairs (required for insert_row, update_row)',
+            },
+            dependencies: {
+              type: 'object',
+              description:
+                'Dependencies the workflow group requires before running a row. { columns?: string[] } lists input column names that must be filled; { workflowGroups?: string[] } lists other workflow group IDs whose outputs must complete first. Used by add_workflow_group and update_workflow_group.',
+              properties: {
+                columns: {
+                  type: 'array',
+                  description: 'Input column names that must be filled before the group runs.',
+                  items: {
+                    type: 'string',
+                  },
+                },
+                workflowGroups: {
+                  type: 'array',
+                  description: 'Other workflow group IDs whose outputs must complete first.',
+                  items: {
+                    type: 'string',
+                  },
+                },
+              },
             },
             description: {
               type: 'string',
@@ -2640,6 +2662,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               description:
                 'MongoDB-style filter for query_rows, update_rows_by_filter, delete_rows_by_filter',
             },
+            groupId: {
+              type: 'string',
+              description:
+                'Workflow group ID (required for update_workflow_group, delete_workflow_group, add_workflow_group_output, delete_workflow_group_output, run_workflow_group).',
+            },
             limit: {
               type: 'number',
               description: 'Maximum rows to return or affect (optional, default 100)',
@@ -2647,11 +2674,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             mapping: {
               type: 'object',
               description:
-                'Optional explicit CSV-header → table-column mapping for import_file, as { "csvHeader": "columnName" | null }. When omitted, headers are auto-matched by sanitized name (case-insensitive fallback). Use null to skip a CSV column.',
+                'Optional explicit CSV-header → table-column mapping for import_file, as { "csvHeader": "columnName" | null }. A string maps the CSV header to that table column; null skips that CSV header (it won\'t be imported); omit a header entirely to fall back to auto-mapping by sanitized name (case-insensitive).',
               additionalProperties: {
-                type: 'string',
+                type: ['string', 'null'],
                 description:
-                  'Target column name on the table. Use null to skip this CSV header instead of a column name.',
+                  "Target column name on the table. null skips that CSV header (it won't be imported); omit it entirely to fall back to auto-mapping.",
               },
             },
             mode: {
@@ -2688,6 +2715,39 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               description:
                 'Pipe query_rows results directly to a NEW workspace file. The format is auto-inferred from the file extension: .csv → CSV, .json → JSON, .md → Markdown, etc. Use .csv for tabular exports. Use a flat path like "files/export.csv" — nested paths are not supported.',
             },
+            outputs: {
+              type: 'array',
+              description:
+                "Outputs to surface as columns. Each entry maps a workflow block output to a table column: { blockId, path, columnName?, columnType? }. blockId is the source block; path is the dotted output path; columnName auto-derives from the path when omitted; columnType defaults from the leaf type when omitted. Used by add_workflow_group. (Also accepted by update_workflow_group for the UI's bulk replace, but the AI flow should use add_workflow_group_output / delete_workflow_group_output instead.) If unsure about valid (blockId, path) pairs, call list_workflow_outputs first — paths are validated against the live workflow and invalid picks return an error with the valid options. For Agent blocks with structured outputs, the structured fields appear as top-level paths (e.g. summary, industry); there is NO response.content path on a structured agent.",
+              items: {
+                type: 'object',
+                properties: {
+                  blockId: {
+                    type: 'string',
+                    description: 'Source block ID inside the workflow.',
+                  },
+                  columnName: {
+                    type: 'string',
+                    description:
+                      'Optional target column name. Auto-derived from the path when omitted.',
+                  },
+                  columnType: {
+                    type: 'string',
+                    description: 'Optional column type. Defaults from the leaf type when omitted.',
+                    enum: ['string', 'number', 'boolean', 'date', 'json'],
+                  },
+                  path: {
+                    type: 'string',
+                    description: 'Dotted output path on the block.',
+                  },
+                },
+                required: ['blockId', 'path'],
+              },
+            },
+            path: {
+              type: 'string',
+              description: 'Dotted output path on the block. Used by add_workflow_group_output.',
+            },
             position: {
               type: 'integer',
               description:
@@ -2703,20 +2763,37 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             rowId: {
               type: 'string',
-              description: 'Row ID (required for get_row, update_row, delete_row)',
+              description:
+                "Row ID. Required for get_row, update_row, delete_row, and for cancel_table_runs when scope:'row'.",
             },
             rowIds: {
               type: 'array',
-              description: 'Array of row IDs to delete (for batch_delete_rows)',
+              description:
+                'Array of row IDs. Used by batch_delete_rows (rows to delete) and run_workflow_group (optional row scope: when omitted, runs across the whole table; when provided, only these rows are candidates and the eligibility predicate still applies — mid-run rows or rows with unmet deps are silently skipped).',
+              items: {
+                type: 'string',
+              },
             },
             rows: {
               type: 'array',
               description: 'Array of row data objects (required for batch_insert_rows)',
             },
+            runMode: {
+              type: 'string',
+              description:
+                "Run mode for run_workflow_group. 'incomplete' (default) re-runs only rows that never produced output or last failed; 'all' re-runs every dep-satisfied row.",
+              enum: ['incomplete', 'all'],
+            },
             schema: {
               type: 'object',
               description:
                 "Table schema with columns array (required for 'create'). Each column: { name, type, unique? }",
+            },
+            scope: {
+              type: 'string',
+              description:
+                "Cancellation scope for cancel_table_runs. 'all' cancels in-flight runs across the whole table; 'row' cancels only the row identified by rowId.",
+              enum: ['all', 'row'],
             },
             sort: {
               type: 'object',
@@ -2749,6 +2826,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               description:
                 'Map of rowId to value for single-column batch update: { "rowId1": val1, "rowId2": val2 } (for batch_update_rows with columnName)',
             },
+            workflowId: {
+              type: 'string',
+              description:
+                'ID of the workflow (required for add_workflow_group and list_workflow_outputs).',
+            },
           },
         },
         operation: {
@@ -2775,10 +2857,18 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'rename_column',
             'delete_column',
             'update_column',
+            'add_workflow_group',
+            'update_workflow_group',
+            'delete_workflow_group',
+            'add_workflow_group_output',
+            'delete_workflow_group_output',
+            'run_workflow_group',
+            'cancel_table_runs',
+            'list_workflow_outputs',
           ],
         },
       },
-      required: ['operation'],
+      required: ['operation', 'args'],
     },
     resultSchema: {
       type: 'object',
@@ -2812,7 +2902,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         operation: {
           type: 'string',
           description: 'The file operation to perform.',
-          enum: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
+          enum: ['append', 'update', 'patch'],
         },
         target: {
           type: 'object',
@@ -2916,7 +3006,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'New file name for rename. Must be a plain workspace filename like "main.py".',
         },
       },
-      required: ['operation'],
+      required: ['operation', 'target', 'title'],
     },
     resultSchema: {
       type: 'object',

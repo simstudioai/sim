@@ -74,6 +74,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       canonicalParamId: 'workspace',
       required: true,
       placeholder: 'Enter Asana workspace GID',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -123,6 +124,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       type: 'short-input',
       canonicalParamId: 'getTasks_workspace',
       placeholder: 'Enter workspace GID',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: {
         field: 'operation',
