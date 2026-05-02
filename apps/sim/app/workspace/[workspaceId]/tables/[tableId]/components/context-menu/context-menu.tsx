@@ -5,7 +5,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { ArrowDown, ArrowUp, Duplicate, Pencil, Trash } from '@/components/emcn/icons'
+import { ArrowDown, ArrowUp, Duplicate, Eye, Pencil, Trash } from '@/components/emcn/icons'
 import type { ContextMenuState } from '../../types'
 
 interface ContextMenuProps {
@@ -16,6 +16,9 @@ interface ContextMenuProps {
   onInsertAbove: () => void
   onInsertBelow: () => void
   onDuplicate: () => void
+  onViewExecution?: () => void
+  canViewExecution?: boolean
+  canEditCell?: boolean
   selectedRowCount?: number
   disableEdit?: boolean
   disableInsert?: boolean
@@ -30,6 +33,9 @@ export function ContextMenu({
   onInsertAbove,
   onInsertBelow,
   onDuplicate,
+  onViewExecution,
+  canViewExecution = false,
+  canEditCell = true,
   selectedRowCount = 1,
   disableEdit = false,
   disableInsert = false,
@@ -63,10 +69,16 @@ export function ContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        {contextMenu.columnName && (
+        {contextMenu.columnName && canEditCell && (
           <DropdownMenuItem disabled={disableEdit} onSelect={onEditCell}>
             <Pencil />
             Edit cell
+          </DropdownMenuItem>
+        )}
+        {canViewExecution && onViewExecution && (
+          <DropdownMenuItem onSelect={onViewExecution}>
+            <Eye />
+            View execution
           </DropdownMenuItem>
         )}
         <DropdownMenuItem disabled={disableInsert} onSelect={onInsertAbove}>

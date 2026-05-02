@@ -229,6 +229,27 @@ export async function performFullDeploy(
 
   await syncMcpToolsForWorkflow({ workflowId, requestId, context: 'deploy' })
 
+  // Drop stale block refs from any table workflow column targeting this workflow,
+  // so columns that referenced just-removed blocks collapse cleanly instead of
+  // showing perpetual "Waiting" indicators on future row runs.
+  if (workflowData.workspaceId) {
+    try {
+      const { pruneStaleWorkflowGroupOutputs } = await import('@/lib/table/service')
+      const validBlockIds = new Set(Object.keys(normalizedData.blocks))
+      await pruneStaleWorkflowGroupOutputs({
+        workflowId,
+        workspaceId: workflowData.workspaceId as string,
+        validBlockIds,
+        requestId,
+      })
+    } catch (pruneError) {
+      logger.warn(
+        `[${requestId}] Failed to prune stale workflow column outputs for ${workflowId}`,
+        pruneError
+      )
+    }
+  }
+
   recordAudit({
     workspaceId: (workflowData.workspaceId as string) || null,
     actorId: actorId,
