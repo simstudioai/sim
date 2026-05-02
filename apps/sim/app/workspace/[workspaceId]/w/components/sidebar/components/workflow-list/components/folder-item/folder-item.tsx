@@ -545,18 +545,20 @@ export function FolderItem({
           />
         ) : (
           <div className='flex min-w-0 flex-1 items-center gap-2'>
-            <span
-              className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'
-              onDoubleClick={handleDoubleClick}
-            >
-              {folder.name}
-            </span>
-            {folder.locked && (
-              <Lock
-                className='h-[12px] w-[12px] flex-shrink-0 pointer-events-none text-[var(--text-icon)]'
-                aria-label='Folder is locked'
-              />
-            )}
+            <div className='flex min-w-0 flex-1 items-center gap-1'>
+              <span
+                className='min-w-0 truncate font-base text-[var(--text-body)]'
+                onDoubleClick={handleDoubleClick}
+              >
+                {folder.name}
+              </span>
+              {folder.locked && (
+                <Lock
+                  className='h-[12px] w-[12px] flex-shrink-0 pointer-events-none text-[var(--text-icon)]'
+                  aria-label='Folder is locked'
+                />
+              )}
+            </div>
             <button
               type='button'
               aria-label='Folder options'
