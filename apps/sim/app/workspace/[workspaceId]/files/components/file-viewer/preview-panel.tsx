@@ -10,7 +10,7 @@ import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { Checkbox, CopyCodeButton, highlight, languages } from '@/components/emcn'
+import { Checkbox, CopyCodeButton, highlight, languages, Skeleton } from '@/components/emcn'
 import '@/components/emcn/components/code/code.css'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
@@ -98,6 +98,33 @@ export const PreviewPanel = memo(function PreviewPanel({
 
 const CALLOUT_TYPES = new Set(['NOTE', 'TIP', 'WARNING', 'IMPORTANT', 'CAUTION'])
 
+function remarkMermaid() {
+  return (tree: { type: string; children?: unknown[] }) => {
+    function processNode(node: {
+      type: string
+      children?: unknown[]
+      lang?: string
+      value?: string
+      data?: Record<string, unknown>
+    }) {
+      if (!node.children) return
+      for (const child of node.children) {
+        const c = child as typeof node
+        if (c.type === 'code' && c.lang === 'mermaid') {
+          c.data = {
+            hName: 'mermaid-diagram',
+            hProperties: { definition: c.value ?? '' },
+            hChildren: [],
+          }
+        } else {
+          processNode(c)
+        }
+      }
+    }
+    processNode(tree)
+  }
+}
+
 function remarkCallouts() {
   return (tree: { type: string; children?: unknown[] }) => {
     function processNode(node: { type: string; children?: unknown[] }) {
@@ -142,7 +169,7 @@ function remarkCallouts() {
   }
 }
 
-const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkCallouts]
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkMermaid, remarkCallouts]
 const REHYPE_PLUGINS = [rehypeSlug]
 
 /**
@@ -418,13 +445,39 @@ const MermaidDiagram = memo(function MermaidDiagram({
   }
 
   if (!trimmedDefinition || !svg || renderedDefinition !== trimmedDefinition) {
+    if (zoomable) {
+      return (
+        <div className='h-full p-6'>
+          <Skeleton className='h-full w-full rounded-lg' />
+        </div>
+      )
+    }
     return <MermaidCodeBlockSkeleton />
   }
   return null
 })
 
+function resolveSimFileUrl(src: string | undefined): string | undefined {
+  if (!src) return src
+  try {
+    const parsed = new URL(src, 'http://placeholder')
+    if (parsed.origin !== 'http://placeholder') return src
+    const [, seg1, , seg3, fileId] = parsed.pathname.split('/')
+    if (seg1 === 'workspace' && seg3 === 'files' && fileId) {
+      return `/api/files/view/${fileId}`
+    }
+  } catch {
+    // not a parseable URL
+  }
+  return src
+}
+
 const STATIC_MARKDOWN_COMPONENTS = {
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  'mermaid-diagram': ({ definition }: { definition?: string }) => {
+    const isStreaming = useContext(MermaidStreamingCtx)
+    return <MermaidDiagram definition={definition ?? ''} isStreaming={isStreaming} />
+  },
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className='mb-3 break-words text-[14px] text-[var(--text-primary)] leading-[1.6] last:mb-0'>
       {children}
@@ -493,14 +546,9 @@ const STATIC_MARKDOWN_COMPONENTS = {
     )
   },
   code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
-    const isMarkdownStreaming = useContext(MermaidStreamingCtx)
     const langMatch = className?.match(/language-(\w+)/)
     const langRaw = langMatch?.[1] ?? ''
     const codeString = extractTextContent(children)
-
-    if (langRaw === 'mermaid') {
-      return <MermaidDiagram definition={codeString} isStreaming={isMarkdownStreaming} />
-    }
 
     if (!codeString) {
       return (
@@ -562,14 +610,17 @@ const STATIC_MARKDOWN_COMPONENTS = {
     )
   },
   hr: () => <hr className='my-6 border-[var(--border)]' />,
-  img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-    <img
-      src={src as string}
-      alt={alt ?? ''}
-      className='my-3 max-w-full rounded-md'
-      loading='lazy'
-    />
-  ),
+  img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) => {
+    const resolvedSrc = resolveSimFileUrl(typeof src === 'string' ? src : undefined)
+    return (
+      <img
+        src={resolvedSrc}
+        alt={alt ?? ''}
+        className='my-3 max-w-full rounded-md'
+        loading='lazy'
+      />
+    )
+  },
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className='my-4 max-w-full overflow-x-auto'>
       <table className='w-full border-collapse text-[13px]'>{children}</table>
@@ -832,6 +883,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
           remarkPlugins={REMARK_PLUGINS}
           rehypePlugins={REHYPE_PLUGINS}
           components={MARKDOWN_COMPONENTS}
+          allowedTags={{ 'mermaid-diagram': ['definition'] }}
         >
           {markdownContent}
         </Streamdown>
