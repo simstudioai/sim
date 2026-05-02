@@ -179,6 +179,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       type: 'short-input',
       canonicalParamId: 'channel',
       placeholder: 'Enter Slack channel ID (e.g., C1234567890)',
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
       mode: 'advanced',
       condition: (values?: Record<string, unknown>) => {
         const op = values?.operation as string
@@ -238,6 +239,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       type: 'short-input',
       canonicalParamId: 'dmUserId',
       placeholder: 'Enter Slack user ID (e.g., U1234567890)',
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
       mode: 'advanced',
       condition: {
         field: 'destinationType',
@@ -267,6 +269,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       type: 'short-input',
       canonicalParamId: 'ephemeralUser',
       placeholder: 'Enter Slack user ID (e.g., U1234567890)',
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -529,6 +532,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
       type: 'short-input',
       canonicalParamId: 'userId',
       placeholder: 'Enter Slack user ID (e.g., U1234567890)',
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -748,6 +752,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       canonicalParamId: 'presenceUserId',
       placeholder: 'Enter Slack user ID (e.g., U1234567890)',
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -1108,6 +1113,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       canonicalParamId: 'publishUserId',
       placeholder: 'Enter Slack user ID (e.g., U0BPQUNTA)',
+      dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] },
       mode: 'advanced',
       condition: {
         field: 'operation',

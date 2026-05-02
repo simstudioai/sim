@@ -197,6 +197,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
           'discord_create_webhook',
         ],
       },
+      dependsOn: ['operation'],
     },
     // Name (optional for updates)
     {
@@ -208,6 +209,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
         field: 'operation',
         value: ['discord_update_channel', 'discord_update_role'],
       },
+      dependsOn: ['operation'],
     },
     // Role ID
     {

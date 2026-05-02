@@ -197,6 +197,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       canonicalParamId: 'teamId',
       placeholder: 'Enter Linear team ID',
       mode: 'advanced',
+      dependsOn: ['credential'],
       required: {
         field: 'operation',
         value: [
@@ -271,6 +272,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       canonicalParamId: 'projectId',
       placeholder: 'Enter Linear project ID',
       mode: 'advanced',
+      dependsOn: ['credential', 'teamId'],
       required: {
         field: 'operation',
         value: [
@@ -507,6 +509,7 @@ Return ONLY the comment text - no explanations.`,
         field: 'operation',
         value: ['linear_create_issue', 'linear_update_issue', 'linear_create_project'],
       },
+      dependsOn: ['operation'],
     },
     // Estimate (for issues)
     {
@@ -1052,6 +1055,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         field: 'operation',
         value: ['linear_create_customer_request', 'linear_update_customer_request'],
       },
+      dependsOn: ['operation'],
     },
     // Customer request ID (for updating)
     {

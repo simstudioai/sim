@@ -132,6 +132,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       type: 'short-input',
       canonicalParamId: 'serviceDeskId',
       placeholder: 'Enter service desk ID',
+      dependsOn: ['credential', 'domain'],
       mode: 'advanced',
       required: {
         field: 'operation',
@@ -181,6 +182,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       canonicalParamId: 'requestTypeId',
       required: true,
       placeholder: 'Enter request type ID',
+      dependsOn: ['credential', 'domain', 'serviceDeskId'],
       mode: 'advanced',
       condition: { field: 'operation', value: ['create_request', 'get_request_type_fields'] },
     },

@@ -49,6 +49,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: 'Veo 3.1', id: 'veo-3.1' },
       ],
       value: () => 'veo-3',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -60,6 +61,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       condition: { field: 'provider', value: 'luma' },
       options: [{ label: 'Ray 2', id: 'ray-2' }],
       value: () => 'ray-2',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -71,6 +73,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       condition: { field: 'provider', value: 'minimax' },
       options: [{ label: 'Hailuo 2.3', id: 'hailuo-02' }],
       value: () => 'hailuo-02',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -84,6 +87,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: 'Standard', id: 'standard' },
       ],
       value: () => 'standard',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -104,6 +108,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: 'LTXV 0.9.8', id: 'ltxv-0.9.8' },
       ],
       value: () => 'veo-3.1',
+      dependsOn: ['provider'],
       required: true,
     },
 
@@ -127,6 +132,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: '10', id: '10' },
       ],
       value: () => '5',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -142,6 +148,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: '8', id: '8' },
       ],
       value: () => '8',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -156,6 +163,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: '9', id: '9' },
       ],
       value: () => '5',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -170,6 +178,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: '10', id: '10' },
       ],
       value: () => '6',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -193,6 +202,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: '10', id: '10' },
       ],
       value: () => '5',
+      dependsOn: ['model'],
       required: false,
     },
 
@@ -207,6 +217,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: '9:16', id: '9:16' },
       ],
       value: () => '16:9',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -222,6 +233,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: '1:1', id: '1:1' },
       ],
       value: () => '16:9',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -237,6 +249,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: '1:1', id: '1:1' },
       ],
       value: () => '16:9',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -259,6 +272,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: '9:16', id: '9:16' },
       ],
       value: () => '16:9',
+      dependsOn: ['model'],
       required: false,
     },
 
@@ -277,6 +291,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: '1080p', id: '1080p' },
       ],
       value: () => '1080p',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -292,6 +307,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: '1080p', id: '1080p' },
       ],
       value: () => '1080p',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -306,6 +322,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       placeholder: 'Upload reference image',
       mode: 'basic',
       multiple: false,
+      dependsOn: ['provider'],
       required: true,
       acceptedTypes: '.jpg,.jpeg,.png,.webp',
     },
@@ -317,6 +334,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       type: 'long-input',
       condition: { field: 'provider', value: 'luma' },
       placeholder: 'JSON: [{ "key": "pan_right" }, { "key": "zoom_in" }]',
+      dependsOn: ['provider'],
       required: false,
     },
 
@@ -326,6 +344,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       title: 'Prompt Optimizer',
       type: 'switch',
       condition: { field: 'provider', value: 'minimax' },
+      dependsOn: ['provider'],
     },
 
     // API Key
@@ -463,6 +482,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         { label: 'Veo 3.1', id: 'veo-3.1' },
       ],
       value: () => 'veo-3',
+      dependsOn: ['provider'],
       required: false,
     },
     {
@@ -472,6 +492,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
       condition: { field: 'provider', value: 'luma' },
       options: [{ label: 'Ray 2', id: 'ray-2' }],
       value: () => 'ray-2',
+      dependsOn: ['provider'],
       required: false,
     },
     {
@@ -481,6 +502,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
       condition: { field: 'provider', value: 'minimax' },
       options: [{ label: 'Hailuo 2.3', id: 'hailuo-02' }],
       value: () => 'hailuo-02',
+      dependsOn: ['provider'],
       required: false,
     },
     {
@@ -493,6 +515,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         { label: 'Standard', id: 'standard' },
       ],
       value: () => 'standard',
+      dependsOn: ['provider'],
       required: false,
     },
     {
@@ -511,6 +534,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         { label: 'LTXV 0.9.8', id: 'ltxv-0.9.8' },
       ],
       value: () => 'veo-3.1',
+      dependsOn: ['provider'],
       required: true,
     },
     {
@@ -530,6 +554,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         { label: '10', id: '10' },
       ],
       value: () => '5',
+      dependsOn: ['provider'],
       required: false,
     },
     {
@@ -543,6 +568,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         { label: '8', id: '8' },
       ],
       value: () => '8',
+      dependsOn: ['provider'],
       required: false,
     },
     {
@@ -555,6 +581,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         { label: '9', id: '9' },
       ],
       value: () => '5',
+      dependsOn: ['provider'],
       required: false,
     },
     {
@@ -567,6 +594,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         { label: '10', id: '10' },
       ],
       value: () => '6',
+      dependsOn: ['provider'],
       required: false,
     },
     {
@@ -588,6 +616,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         { label: '10', id: '10' },
       ],
       value: () => '5',
+      dependsOn: ['model'],
       required: false,
     },
     {
@@ -600,6 +629,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         { label: '9:16', id: '9:16' },
       ],
       value: () => '16:9',
+      dependsOn: ['provider'],
       required: false,
     },
     {
@@ -613,6 +643,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         { label: '1:1', id: '1:1' },
       ],
       value: () => '16:9',
+      dependsOn: ['provider'],
       required: false,
     },
     {
@@ -626,6 +657,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         { label: '1:1', id: '1:1' },
       ],
       value: () => '16:9',
+      dependsOn: ['provider'],
       required: false,
     },
     {
@@ -646,6 +678,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         { label: '9:16', id: '9:16' },
       ],
       value: () => '16:9',
+      dependsOn: ['model'],
       required: false,
     },
     {
@@ -658,6 +691,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         { label: '1080p', id: '1080p' },
       ],
       value: () => '1080p',
+      dependsOn: ['provider'],
       required: false,
     },
     {
@@ -671,6 +705,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         { label: '1080p', id: '1080p' },
       ],
       value: () => '1080p',
+      dependsOn: ['provider'],
       required: false,
     },
     {
@@ -682,6 +717,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
       placeholder: 'Upload reference image',
       mode: 'basic',
       multiple: false,
+      dependsOn: ['provider'],
       required: true,
       acceptedTypes: '.jpg,.jpeg,.png,.webp',
     },
@@ -693,6 +729,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
       condition: { field: 'provider', value: 'runway' },
       placeholder: 'Reference image from previous blocks',
       mode: 'advanced',
+      dependsOn: ['provider'],
       required: true,
     },
     {
@@ -701,6 +738,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
       type: 'long-input',
       condition: { field: 'provider', value: 'luma' },
       placeholder: 'JSON: [{ "key": "pan_right" }, { "key": "zoom_in" }]',
+      dependsOn: ['provider'],
       required: false,
     },
     {
@@ -708,6 +746,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
       title: 'Prompt Optimizer',
       type: 'switch',
       condition: { field: 'provider', value: 'minimax' },
+      dependsOn: ['provider'],
     },
     {
       id: 'apiKey',

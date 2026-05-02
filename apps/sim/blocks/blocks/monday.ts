@@ -128,6 +128,7 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
       type: 'short-input',
       canonicalParamId: 'boardId',
       placeholder: 'Enter board ID',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: { field: 'operation', value: BOARD_OPS },
       required: { field: 'operation', value: BOARD_OPS },
@@ -180,6 +181,7 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
       type: 'short-input',
       canonicalParamId: 'groupId',
       placeholder: 'Enter group ID',
+      dependsOn: ['credential', 'boardId'],
       mode: 'advanced',
       condition: {
         field: 'operation',

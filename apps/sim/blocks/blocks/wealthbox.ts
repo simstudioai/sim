@@ -69,6 +69,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       placeholder: 'Enter Contact ID',
       mode: 'basic',
       canonicalParamId: 'contactId',
+      dependsOn: ['credential'],
       condition: { field: 'operation', value: ['read_contact', 'write_task', 'write_note'] },
     },
     {
@@ -78,6 +79,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       canonicalParamId: 'contactId',
       placeholder: 'Enter Contact ID',
       mode: 'advanced',
+      dependsOn: ['credential'],
       condition: { field: 'operation', value: ['read_contact', 'write_task', 'write_note'] },
     },
     {
