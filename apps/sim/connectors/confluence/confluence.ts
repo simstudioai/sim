@@ -489,7 +489,11 @@ async function listAllContentTypes(
       pagesDone = parsed.pagesDone === true
       blogsDone = parsed.blogsDone === true
     } catch {
-      pageCursor = cursor
+      /**
+       * Older bare-string cursors are no longer emitted; fall through and
+       * restart instead of silently re-listing blogposts from page 0.
+       */
+      logger.warn('Ignoring unparseable Confluence cursor; restarting listing')
     }
   }
 

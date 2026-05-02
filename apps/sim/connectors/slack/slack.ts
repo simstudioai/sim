@@ -11,6 +11,33 @@ const SLACK_API_BASE = 'https://slack.com/api'
 const DEFAULT_MAX_MESSAGES = 1000
 const MESSAGES_PER_PAGE = 200
 
+/**
+ * Message subtypes that carry no user-authored text (channel events, bot
+ * lifecycle, etc.). Per https://api.slack.com/events/message every other
+ * subtype — `bot_message`, `file_share`, `me_message`, `thread_broadcast`,
+ * `reminder_add`, `file_comment`, etc. — can carry meaningful content.
+ */
+const SLACK_NOISE_SUBTYPES = new Set([
+  'channel_join',
+  'channel_leave',
+  'channel_topic',
+  'channel_purpose',
+  'channel_name',
+  'channel_archive',
+  'channel_unarchive',
+  'group_join',
+  'group_leave',
+  'group_topic',
+  'group_purpose',
+  'group_name',
+  'group_archive',
+  'group_unarchive',
+  'pinned_item',
+  'unpinned_item',
+  'bot_add',
+  'bot_remove',
+])
+
 interface SlackMessage {
   type: string
   user?: string
@@ -187,7 +214,13 @@ async function formatMessages(
   for (const msg of chronological) {
     // Skip non-user messages (join/leave, bot messages without text, etc.)
     if (!msg.text) continue
-    if (msg.subtype && msg.subtype !== 'bot_message' && msg.subtype !== 'file_share') continue
+    /**
+     * Drop only known noise subtypes (channel join/leave/topic events,
+     * bot add/remove, etc.). Per https://api.slack.com/events/message any
+     * subtype with user-authored text — `thread_broadcast`, `me_message`,
+     * `bot_message`, `file_share`, `reminder_add`, etc. — should be kept.
+     */
+    if (msg.subtype && SLACK_NOISE_SUBTYPES.has(msg.subtype)) continue
 
     const timestamp = formatSlackTimestamp(msg.ts)
     const userName = msg.user
@@ -314,12 +347,19 @@ async function buildSlackChannelDocument(
    */
   let maxEditTs = ''
   let maxReplyTs = ''
+  let totalReplies = 0
   for (const m of messages) {
     if (m.edited?.ts && m.edited.ts > maxEditTs) maxEditTs = m.edited.ts
     if (m.latest_reply && m.latest_reply > maxReplyTs) maxReplyTs = m.latest_reply
+    if (typeof m.reply_count === 'number') totalReplies += m.reply_count
   }
 
-  const contentHash = `slack:${channel.id}:${oldestTs ?? 'empty'}:${lastActivityTs ?? 'empty'}:${messageCount}:${maxEditTs || 'noedit'}:${maxReplyTs || 'noreply'}`
+  /**
+   * `latest_reply` alone misses reply edits and deletes. Folding `reply_count`
+   * in catches deletes (count drops) but still cannot detect reply edits
+   * without fetching `conversations.replies` for each parent.
+   */
+  const contentHash = `slack:${channel.id}:${oldestTs ?? 'empty'}:${lastActivityTs ?? 'empty'}:${messageCount}:${maxEditTs || 'noedit'}:${maxReplyTs || 'noreply'}:${totalReplies}`
 
   return { content, contentHash, messageCount, lastActivityTs }
 }

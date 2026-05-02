@@ -42,7 +42,8 @@ const OBJECT_FIELDS: Record<string, string[]> = {
 
 /** SOQL WHERE clause additions per object type. */
 const OBJECT_WHERE: Record<string, string> = {
-  KnowledgeArticleVersion: " WHERE PublishStatus='Online' AND Language='en_US'",
+  KnowledgeArticleVersion:
+    " WHERE PublishStatus='Online' AND IsLatestVersion=true AND Language='en_US'",
 } as const
 
 /**
@@ -389,7 +390,7 @@ export const salesforceConnector: ConnectorConfig = {
       instanceUrl = await resolveInstanceUrl(accessToken, syncContext)
     }
 
-    const url = `${instanceUrl}sobjects/${objectType}/${externalId}?fields=${fields.join(',')}`
+    const url = `${instanceUrl}sobjects/${objectType}/${encodeURIComponent(externalId)}?fields=${fields.join(',')}`
 
     const response = await fetchWithRetry(url, {
       method: 'GET',

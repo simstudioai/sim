@@ -138,10 +138,12 @@ async function fetchBlobContent(
     if (isBinaryBuffer(buf)) return null
     return buf.toString('utf8')
   }
-  if (encoding === 'utf-8') {
-    return content
-  }
-  return ''
+  /**
+   * Per https://docs.github.com/en/rest/git/blobs the Blobs API only ever
+   * returns base64. Refuse to silently persist empty content for an
+   * unexpected encoding so a sync surfaces the error instead.
+   */
+  throw new Error(`Unexpected git blob encoding for ${sha}: ${encoding ?? 'undefined'}`)
 }
 
 /**
@@ -162,7 +164,7 @@ function treeItemToStub(
     content: '',
     contentDeferred: true,
     mimeType: 'text/plain',
-    sourceUrl: `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(branch)}/${item.path.split('/').map(encodeURIComponent).join('/')}`,
+    sourceUrl: `https://github.com/${owner}/${repo}/blob/${branch.split('/').map(encodeURIComponent).join('/')}/${item.path.split('/').map(encodeURIComponent).join('/')}`,
     contentHash: `${GIT_SHA_PREFIX}${item.sha}`,
     metadata: {
       path: item.path,
@@ -307,6 +309,13 @@ export const githubConnector: ConnectorConfig = {
 
       if (!response.ok) {
         if (response.status === 404) return null
+        if (response.status === 403) {
+          logger.info('Skipping GitHub file rejected by Contents API', {
+            path,
+            status: response.status,
+          })
+          return null
+        }
         throw new Error(`Failed to fetch file ${path}: ${response.status}`)
       }
 
@@ -350,7 +359,7 @@ export const githubConnector: ConnectorConfig = {
         content,
         contentDeferred: false,
         mimeType: 'text/plain',
-        sourceUrl: `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(branch)}/${path.split('/').map(encodeURIComponent).join('/')}`,
+        sourceUrl: `https://github.com/${owner}/${repo}/blob/${branch.split('/').map(encodeURIComponent).join('/')}/${path.split('/').map(encodeURIComponent).join('/')}`,
         contentHash: `${GIT_SHA_PREFIX}${data.sha as string}`,
         metadata: {
           path,

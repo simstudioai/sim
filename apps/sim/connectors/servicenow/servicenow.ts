@@ -36,7 +36,6 @@ interface ServiceNowRecord {
 interface KBArticle extends ServiceNowRecord {
   short_description?: string
   text?: string
-  wiki?: string
   workflow_state?: string
   kb_category?: string | { display_value?: string }
   kb_knowledge_base?: string | { display_value?: string }
@@ -264,7 +263,7 @@ function priorityLabel(priority: string | undefined): string {
  */
 function kbArticleToDocument(article: KBArticle, instanceUrl: string): ExternalDocument {
   const title = rawValue(article.short_description) || rawValue(article.number) || article.sys_id
-  const articleText = rawValue(article.text) || rawValue(article.wiki) || ''
+  const articleText = rawValue(article.text) || ''
   const content = htmlToPlainText(articleText)
   const sysId = rawValue(article.sys_id) || article.sys_id
   const updatedOn = rawValue(article.sys_updated_on) || ''
@@ -549,7 +548,7 @@ export const servicenowConnector: ConnectorConfig = {
     const query = isKB ? buildKBQuery(sourceConfig) : buildIncidentQuery(sourceConfig)
 
     const fields = isKB
-      ? 'sys_id,short_description,text,wiki,workflow_state,kb_category,kb_knowledge_base,number,author,sys_created_by,sys_updated_by,sys_updated_on,sys_created_on'
+      ? 'sys_id,short_description,text,workflow_state,kb_category,kb_knowledge_base,number,author,sys_created_by,sys_updated_by,sys_updated_on,sys_created_on'
       : 'sys_id,number,short_description,description,state,priority,category,assigned_to,opened_by,close_notes,resolution_notes,sys_created_by,sys_updated_by,sys_updated_on,sys_created_on'
 
     const params: Record<string, string> = {
@@ -625,7 +624,7 @@ export const servicenowConnector: ConnectorConfig = {
     }
 
     const fields = isKB
-      ? 'sys_id,short_description,text,wiki,workflow_state,kb_category,kb_knowledge_base,number,author,sys_created_by,sys_updated_by,sys_updated_on,sys_created_on'
+      ? 'sys_id,short_description,text,workflow_state,kb_category,kb_knowledge_base,number,author,sys_created_by,sys_updated_by,sys_updated_on,sys_created_on'
       : 'sys_id,number,short_description,description,state,priority,category,assigned_to,opened_by,close_notes,resolution_notes,sys_created_by,sys_updated_by,sys_updated_on,sys_created_on'
 
     const instanceUrl = resolveServiceNowInstanceUrl(sourceConfig.instanceUrl as string)

@@ -91,7 +91,7 @@ function extractTextFromDocsBody(doc: DocsDocument): string {
     }
   }
 
-  return parts.join('').trim()
+  return parts.join('\n').trim()
 }
 
 /**
