@@ -416,7 +416,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
         />
       )
     },
-    [handleUpdateVariable]
+    [handleUpdateVariable, readOnly]
   )
 
   if (!isOpen) return null
