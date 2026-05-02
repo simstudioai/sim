@@ -90,7 +90,7 @@ jobs:
 
           echo "✅ All feature flags are properly configured"
 
-      - name: Check subblock ID stability
+      - name: Check block registry invariants
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE_REF="origin/${{ github.base_ref }}"
@@ -98,7 +98,7 @@ jobs:
           else
             BASE_REF="HEAD~1"
           fi
-          bun run apps/sim/scripts/check-subblock-id-stability.ts "$BASE_REF"
+          bun run apps/sim/scripts/check-block-registry.ts "$BASE_REF"
 
       - name: Lint code
         run: bun run lint:check
