@@ -10,7 +10,7 @@ import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { Checkbox, CopyCodeButton, highlight, languages } from '@/components/emcn'
+import { Checkbox, CopyCodeButton, highlight, languages, Skeleton } from '@/components/emcn'
 import '@/components/emcn/components/code/code.css'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
@@ -446,6 +446,13 @@ const MermaidDiagram = memo(function MermaidDiagram({
   }
 
   if (!trimmedDefinition || !svg || renderedDefinition !== trimmedDefinition) {
+    if (zoomable) {
+      return (
+        <div className='flex h-full items-center justify-center p-8'>
+          <Skeleton className='w-full rounded-lg' style={{ aspectRatio: '4 / 3' }} />
+        </div>
+      )
+    }
     return <MermaidCodeBlockSkeleton />
   }
   return null
