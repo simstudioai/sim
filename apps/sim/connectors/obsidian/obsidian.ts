@@ -313,15 +313,21 @@ export const obsidianConnector: ConnectorConfig = {
         VALIDATE_RETRY_OPTIONS
       )
 
-      if (response.status === 401 || response.status === 403) {
+      if (!response.ok) {
+        return { valid: false, error: `Obsidian API returned status ${response.status}` }
+      }
+
+      /**
+       * `GET /` is the only public endpoint and returns 200 regardless of auth;
+       * the response body's `authenticated` field is the actual auth signal.
+       * See https://coddingtonbear.github.io/obsidian-local-rest-api/.
+       */
+      const data = (await response.json()) as { authenticated?: boolean }
+      if (!data?.authenticated) {
         return {
           valid: false,
           error: 'Invalid API key — check your Obsidian Local REST API settings',
         }
-      }
-
-      if (!response.ok) {
-        return { valid: false, error: `Obsidian API returned status ${response.status}` }
       }
 
       const folderPath = (sourceConfig.folderPath as string) || ''
