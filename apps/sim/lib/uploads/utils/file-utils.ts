@@ -272,25 +272,32 @@ export function getMimeTypeFromExtension(extension: string): string {
 }
 
 /**
- * Resolve a reliable MIME type from a file, falling back to extension
- * when the browser reports empty or generic `application/octet-stream`
+ * Resolve a reliable MIME type from a file, falling back to the extension map
+ * when the browser reports an empty type. By default treats
+ * `application/octet-stream` as "unknown" and falls back to the extension —
+ * pass `{ preserveOctetStream: true }` for direct PUT uploads where the
+ * browser-supplied content-type must match the presigned handshake exactly.
  */
-export function resolveFileType(file: { type: string; name: string }): string {
-  return file.type && file.type !== 'application/octet-stream'
-    ? file.type
-    : getMimeTypeFromExtension(getFileExtension(file.name))
+export function resolveFileType(
+  file: { type: string; name: string },
+  options?: { preserveOctetStream?: boolean }
+): string {
+  const browserType = file.type?.trim()
+  if (browserType) {
+    if (options?.preserveOctetStream || browserType !== 'application/octet-stream') {
+      return browserType
+    }
+  }
+  return getMimeTypeFromExtension(getFileExtension(file.name))
 }
 
 /**
- * Resolve the upload `Content-Type` for a `File`. Trusts the browser-reported
- * type when present, otherwise falls back to the extension map. Unlike
- * {@link resolveFileType}, this preserves `application/octet-stream` if the
- * browser explicitly set it — relevant for direct PUT uploads where we want
- * the exact content-type the user's browser handshakes with the bucket on.
+ * Upload `Content-Type` for direct PUT — preserves the browser's reported type
+ * verbatim (including `application/octet-stream`) so it matches the presigned
+ * URL's signed Content-Type header.
  */
 export function getFileContentType(file: File): string {
-  if (file.type?.trim()) return file.type
-  return getMimeTypeFromExtension(getFileExtension(file.name))
+  return resolveFileType(file, { preserveOctetStream: true })
 }
 
 /**
