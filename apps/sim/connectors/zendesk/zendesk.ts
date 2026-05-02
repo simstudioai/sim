@@ -10,6 +10,7 @@ const logger = createLogger('ZendeskConnector')
 const ARTICLES_PER_PAGE = 30
 const TICKETS_PER_PAGE = 100
 const DEFAULT_MAX_TICKETS = 500
+const SEARCH_API_RESULT_CAP = 1000
 
 const VALID_TICKET_STATUSES = new Set(['new', 'open', 'pending', 'hold', 'solved', 'closed'])
 
@@ -134,6 +135,11 @@ async function fetchTickets(
   let url: string | null = `${baseUrl}/api/v2/tickets.json?per_page=${TICKETS_PER_PAGE}`
 
   if (statusFilter && statusFilter !== 'all' && VALID_TICKET_STATUSES.has(statusFilter)) {
+    if (limit > SEARCH_API_RESULT_CAP) {
+      logger.warn(
+        `Zendesk Search API caps at ${SEARCH_API_RESULT_CAP} results; requested limit ${limit} will be truncated. Remove status filter to use the unbounded tickets endpoint.`
+      )
+    }
     const params = new URLSearchParams({
       query: `type:ticket status:${statusFilter}`,
       per_page: String(TICKETS_PER_PAGE),
@@ -509,6 +515,7 @@ export const zendeskConnector: ConnectorConfig = {
   tagDefinitions: [
     { id: 'contentType', displayName: 'Content Type', fieldType: 'text' },
     { id: 'status', displayName: 'Status', fieldType: 'text' },
+    { id: 'priority', displayName: 'Priority', fieldType: 'text' },
     { id: 'labels', displayName: 'Labels', fieldType: 'text' },
     { id: 'tags', displayName: 'Tags', fieldType: 'text' },
     { id: 'updatedAt', displayName: 'Last Updated', fieldType: 'date' },
@@ -524,6 +531,10 @@ export const zendeskConnector: ConnectorConfig = {
 
     if (typeof metadata.status === 'string') {
       result.status = metadata.status
+    }
+
+    if (typeof metadata.priority === 'string') {
+      result.priority = metadata.priority
     }
 
     const labels = joinTagArray(metadata.labels)

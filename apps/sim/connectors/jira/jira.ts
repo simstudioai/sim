@@ -282,7 +282,7 @@ export const jiraConnector: ConnectorConfig = {
     const jqlFilter = (sourceConfig.jql as string | undefined)?.trim() || ''
 
     try {
-      const cloudId = await getJiraCloudId(domain, accessToken)
+      const cloudId = await getJiraCloudId(domain, accessToken, VALIDATE_RETRY_OPTIONS)
 
       const params = new URLSearchParams()
       const safeKey = projectKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"')

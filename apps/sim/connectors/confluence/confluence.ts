@@ -347,7 +347,7 @@ export const confluenceConnector: ConnectorConfig = {
     }
 
     try {
-      const cloudId = await getConfluenceCloudId(domain, accessToken)
+      const cloudId = await getConfluenceCloudId(domain, accessToken, VALIDATE_RETRY_OPTIONS)
       const spaceUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces?keys=${encodeURIComponent(spaceKey)}&limit=1`
       const response = await fetchWithRetry(
         spaceUrl,
@@ -369,8 +369,7 @@ export const confluenceConnector: ConnectorConfig = {
       }
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
-      return { valid: false, error: message }
+      return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
     }
   },
 

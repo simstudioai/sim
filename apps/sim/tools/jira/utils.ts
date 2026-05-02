@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 
 const logger = createLogger('JiraUtils')
@@ -163,7 +164,11 @@ export function normalizeDomain(domain: string): string {
     .replace(/\/+$/, '')}`.toLowerCase()
 }
 
-export async function getJiraCloudId(domain: string, accessToken: string): Promise<string> {
+export async function getJiraCloudId(
+  domain: string,
+  accessToken: string,
+  retryOptions?: RetryOptions
+): Promise<string> {
   const response = await fetchWithRetry(
     'https://api.atlassian.com/oauth/token/accessible-resources',
     {
@@ -172,7 +177,8 @@ export async function getJiraCloudId(domain: string, accessToken: string): Promi
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
       },
-    }
+    },
+    retryOptions
   )
 
   if (!response.ok) {
