@@ -734,7 +734,7 @@ const HTML_PREVIEW_CSP = [
   "default-src 'none'",
   "script-src 'unsafe-inline'",
   "style-src 'unsafe-inline'",
-  'img-src data: blob:',
+  "img-src 'self' https: data: blob:",
   'font-src data:',
   'media-src data: blob:',
   "connect-src 'none'",

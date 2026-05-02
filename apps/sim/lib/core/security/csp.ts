@@ -61,23 +61,7 @@ const STATIC_SCRIPT_SRC = [
     : []),
 ] as const
 
-const STATIC_IMG_SRC = [
-  "'self'",
-  'data:',
-  'blob:',
-  'https://*.googleusercontent.com',
-  'https://*.google.com',
-  'https://*.atlassian.com',
-  'https://cdn.discordapp.com',
-  'https://*.githubusercontent.com',
-  'https://*.s3.amazonaws.com',
-  'https://s3.amazonaws.com',
-  'https://*.amazonaws.com',
-  'https://*.blob.core.windows.net',
-  'https://github.com/*',
-  'https://cursor.com',
-  ...(isHosted ? ['https://www.googletagmanager.com', 'https://www.google-analytics.com'] : []),
-] as const
+const STATIC_IMG_SRC = ["'self'", 'data:', 'blob:', 'https:'] as const
 
 const STATIC_CONNECT_SRC = [
   "'self'",
