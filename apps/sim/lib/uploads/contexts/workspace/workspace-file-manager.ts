@@ -25,6 +25,7 @@ import {
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKey, insertFileMetadata } from '@/lib/uploads/server/metadata'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
@@ -301,8 +302,23 @@ export async function registerUploadedWorkspaceFile(params: {
     verifiedSize = head.size ?? size
   }
 
+  const cleanupOrphan = async (reason: string) => {
+    if (!hasCloudStorage()) return
+    try {
+      await deleteFile({ key, context: 'workspace' })
+    } catch (deleteError) {
+      logger.error(`Failed to clean up orphaned object after ${reason}`, deleteError)
+    }
+  }
+
+  if (verifiedSize > MAX_WORKSPACE_FILE_SIZE) {
+    await cleanupOrphan('size-cap rejection')
+    throw new Error(`File size exceeds maximum of ${MAX_WORKSPACE_FILE_SIZE} bytes`)
+  }
+
   const quotaCheck = await checkStorageQuota(userId, verifiedSize)
   if (!quotaCheck.allowed) {
+    await cleanupOrphan('quota rejection')
     throw new Error(quotaCheck.error || 'Storage limit exceeded')
   }
 
@@ -330,13 +346,7 @@ export async function registerUploadedWorkspaceFile(params: {
         'Failed to insert metadata after direct upload; cleaning up storage object',
         insertError
       )
-      if (hasCloudStorage()) {
-        try {
-          await deleteFile({ key, context: 'workspace' })
-        } catch (deleteError) {
-          logger.error('Failed to clean up orphaned storage object', deleteError)
-        }
-      }
+      await cleanupOrphan('metadata insert failure')
       throw insertError
     }
   }

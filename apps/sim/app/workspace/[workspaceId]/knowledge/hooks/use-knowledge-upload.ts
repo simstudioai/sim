@@ -259,7 +259,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           return buildUploadedFile(file, toAbsoluteUrl(filePath))
         }
 
-        if (attempt >= MULTIPART_MAX_RETRIES || (!isNetworkError(error) && !isAbortError(error))) {
+        if (isAbortError(error) || !isNetworkError(error) || attempt >= MULTIPART_MAX_RETRIES) {
           throw error
         }
 

@@ -223,9 +223,20 @@ async function uploadViaApiFallback(
     signal,
   })
 
-  const data = await response.json()
-  if (!data.success) {
-    throw new Error(data.error || 'Upload failed')
+  return parseUploadResponse(response, 'Upload failed')
+}
+
+async function parseUploadResponse(
+  response: Response,
+  fallbackMessage: string
+): Promise<UploadFileResponse> {
+  let data: { success?: boolean; error?: string; file?: WorkspaceFileRecord } | null = null
+  try {
+    data = await response.json()
+  } catch {}
+
+  if (!response.ok || !data?.success) {
+    throw new Error(data?.error || `${fallbackMessage} (${response.status})`)
   }
   return data as UploadFileResponse
 }
@@ -265,11 +276,7 @@ async function uploadWorkspaceFile(
     signal,
   })
 
-  const data = await registerResponse.json()
-  if (!data.success) {
-    throw new Error(data.error || 'Failed to register file')
-  }
-  return data as UploadFileResponse
+  return parseUploadResponse(registerResponse, 'Failed to register file')
 }
 
 export function useUploadWorkspaceFile() {
