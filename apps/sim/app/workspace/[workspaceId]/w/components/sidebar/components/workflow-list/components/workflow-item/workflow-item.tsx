@@ -470,7 +470,7 @@ export function WorkflowItem({
             )}
             {!isEditing && workflow.locked && (
               <Lock
-                className='h-[12px] w-[12px] flex-shrink-0 pointer-events-none text-[var(--text-icon)]'
+                className='pointer-events-none h-[12px] w-[12px] flex-shrink-0 text-[var(--text-icon)]'
                 aria-label='Workflow is locked'
               />
             )}
