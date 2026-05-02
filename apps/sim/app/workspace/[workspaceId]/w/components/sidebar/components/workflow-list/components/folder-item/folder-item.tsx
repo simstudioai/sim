@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { Lock } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -550,6 +551,12 @@ export function FolderItem({
             >
               {folder.name}
             </span>
+            {folder.locked && (
+              <Lock
+                className='h-[12px] w-[12px] flex-shrink-0 pointer-events-none text-[var(--text-icon)]'
+                aria-label='Folder is locked'
+              />
+            )}
             <button
               type='button'
               aria-label='Folder options'

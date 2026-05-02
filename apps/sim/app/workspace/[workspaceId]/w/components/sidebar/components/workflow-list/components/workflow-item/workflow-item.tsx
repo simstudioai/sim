@@ -5,6 +5,7 @@ import clsx from 'clsx'
 import { MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { Lock } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -466,6 +467,12 @@ export function WorkflowItem({
               >
                 {workflow.name}
               </div>
+            )}
+            {!isEditing && workflow.locked && (
+              <Lock
+                className='h-[12px] w-[12px] flex-shrink-0 pointer-events-none text-[var(--text-icon)]'
+                aria-label='Workflow is locked'
+              />
             )}
             {!isEditing && <Avatars workflowId={workflow.id} />}
           </div>
