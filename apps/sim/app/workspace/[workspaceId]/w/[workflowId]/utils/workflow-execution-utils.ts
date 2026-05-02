@@ -454,8 +454,8 @@ export function reconcileFinalBlockLogs(
   finalBlockLogs: BlockLog[] | undefined
 ): void {
   if (!finalBlockLogs?.length || !executionId) return
-  const entries = useTerminalConsoleStore.getState().getWorkflowEntries(workflowId)
   for (const log of finalBlockLogs) {
+    const entries = useTerminalConsoleStore.getState().getWorkflowEntries(workflowId)
     const running = entries.find(
       (e) => e.blockId === log.blockId && e.executionId === executionId && e.isRunning
     )
