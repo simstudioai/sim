@@ -8,7 +8,6 @@ import { useParams } from 'next/navigation'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { Avatars } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/avatars/avatars'
@@ -31,13 +30,16 @@ import {
   useExportSelection,
   useExportWorkflow,
 } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useFolderMap } from '@/hooks/queries/folders'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import {
+  isFolderOrAncestorLocked,
+  isWorkflowEffectivelyLocked,
+} from '@/hooks/queries/utils/folder-tree'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
@@ -72,6 +74,10 @@ export function WorkflowItem({
   const updateWorkflowMutation = useUpdateWorkflow()
   const userPermissions = useUserPermissionsContext()
   const isSelected = selectedWorkflows.has(workflow.id)
+
+  const { data: foldersById = {} } = useFolderMap(workspaceId)
+  const inheritedFolderLocked = isFolderOrAncestorLocked(workflow.folderId, foldersById)
+  const effectiveLocked = isWorkflowEffectivelyLocked(workflow, foldersById)
 
   const { canDeleteWorkflows, canDeleteFolder } = useCanDelete({ workspaceId })
 
@@ -175,33 +181,20 @@ export function WorkflowItem({
 
   const handleColorChange = useCallback(
     (color: string) => {
+      if (effectiveLocked) return
       updateWorkflowMutation.mutate({ workspaceId, workflowId: workflow.id, metadata: { color } })
     },
-    [workflow.id, workspaceId]
-  )
-
-  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const isActiveWorkflow = workflow.id === activeWorkflowId
-
-  const isWorkflowLocked = useWorkflowStore(
-    useCallback(
-      (state) => {
-        if (!isActiveWorkflow) return false
-        const blockValues = Object.values(state.blocks)
-        if (blockValues.length === 0) return false
-        return blockValues.every((block) => block.locked)
-      },
-      [isActiveWorkflow]
-    )
+    [updateWorkflowMutation, workflow.id, effectiveLocked, workspaceId]
   )
 
   const handleToggleLock = useCallback(() => {
-    if (!isActiveWorkflow) return
-    const blocks = useWorkflowStore.getState().blocks
-    const blockIds = getWorkflowLockToggleIds(blocks, !isWorkflowLocked)
-    if (blockIds.length === 0) return
-    window.dispatchEvent(new CustomEvent('toggle-workflow-lock', { detail: { blockIds } }))
-  }, [isActiveWorkflow, isWorkflowLocked])
+    if (inheritedFolderLocked) return
+    updateWorkflowMutation.mutate({
+      workspaceId,
+      workflowId: workflow.id,
+      metadata: { locked: !workflow.locked },
+    })
+  }, [updateWorkflowMutation, workflow.id, workflow.locked, inheritedFolderLocked, workspaceId])
 
   const isEditingRef = useRef(false)
   const dragGhostRef = useRef<HTMLElement | null>(null)
@@ -387,9 +380,10 @@ export function WorkflowItem({
     (e: React.MouseEvent) => {
       e.preventDefault()
       e.stopPropagation()
+      if (effectiveLocked) return
       handleStartEdit()
     },
-    [handleStartEdit]
+    [handleStartEdit, effectiveLocked]
   )
 
   const handleClick = useCallback(
@@ -430,7 +424,7 @@ export function WorkflowItem({
             'hover-hover:bg-[var(--surface-hover)]',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
-        draggable={!isEditing && !dragDisabled}
+        draggable={!isEditing && !dragDisabled && !effectiveLocked}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onClick={handleClick}
@@ -512,15 +506,15 @@ export function WorkflowItem({
         showDuplicate={true}
         showExport={true}
         showColorChange={!isMixedSelection && selectedWorkflows.size <= 1}
-        disableRename={!userPermissions.canEdit}
+        disableRename={!userPermissions.canEdit || effectiveLocked}
         disableDuplicate={!userPermissions.canEdit || isDuplicatingSelection}
         disableExport={!userPermissions.canEdit}
-        disableColorChange={!userPermissions.canEdit}
-        disableDelete={!userPermissions.canEdit || !canDeleteSelection}
+        disableColorChange={!userPermissions.canEdit || effectiveLocked}
+        disableDelete={!userPermissions.canEdit || !canDeleteSelection || effectiveLocked}
         onToggleLock={handleToggleLock}
-        showLock={isActiveWorkflow && !isMixedSelection && selectedWorkflows.size <= 1}
-        disableLock={!userPermissions.canAdmin}
-        isLocked={isWorkflowLocked}
+        showLock={!isMixedSelection && selectedWorkflows.size <= 1}
+        disableLock={!userPermissions.canAdmin || inheritedFolderLocked}
+        isLocked={effectiveLocked}
       />
 
       <DeleteModal

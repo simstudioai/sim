@@ -87,6 +87,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       createdAt: workflow.createdAt,
       updatedAt: workflow.updatedAt,
       archivedAt: workflow.archivedAt,
+      locked: workflow.locked,
     } as const
     const orderByClause = [asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id)]
 

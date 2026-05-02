@@ -32,8 +32,12 @@ import {
   useExportFolder,
   useExportSelection,
 } from '@/app/workspace/[workspaceId]/w/hooks'
-import { useCreateFolder, useUpdateFolder } from '@/hooks/queries/folders'
+import { useCreateFolder, useFolderMap, useUpdateFolder } from '@/hooks/queries/folders'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import {
+  isFolderEffectivelyLocked,
+  isFolderOrAncestorLocked,
+} from '@/hooks/queries/utils/folder-tree'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
@@ -75,6 +79,10 @@ export function FolderItem({
   const userPermissions = useUserPermissionsContext()
   const selectedFolders = useFolderStore((state) => state.selectedFolders)
   const isSelected = selectedFolders.has(folder.id)
+
+  const { data: foldersById = {} } = useFolderMap(workspaceId)
+  const inheritedFolderLocked = isFolderOrAncestorLocked(folder.parentId, foldersById)
+  const effectiveLocked = isFolderEffectivelyLocked(folder, foldersById)
 
   const { canDeleteFolder, canDeleteWorkflows } = useCanDelete({ workspaceId })
 
@@ -144,6 +152,7 @@ export function FolderItem({
   const dragGhostRef = useRef<HTMLElement | null>(null)
 
   const handleCreateWorkflowInFolder = useCallback(() => {
+    if (effectiveLocked) return
     const name = generateCreativeWorkflowName()
     const color = getNextWorkflowColor()
     const id = generateId()
@@ -160,9 +169,10 @@ export function FolderItem({
     expandFolder()
     router.push(`/workspace/${workspaceId}/w/${id}`)
     window.dispatchEvent(new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: id } }))
-  }, [createWorkflowMutation, workspaceId, folder.id, router, expandFolder])
+  }, [createWorkflowMutation, workspaceId, folder.id, effectiveLocked, router, expandFolder])
 
   const handleCreateFolderInFolder = useCallback(async () => {
+    if (effectiveLocked) return
     try {
       const result = await createFolderMutation.mutateAsync({
         workspaceId,
@@ -179,7 +189,16 @@ export function FolderItem({
     } catch (error) {
       logger.error('Failed to create folder:', error)
     }
-  }, [createFolderMutation, workspaceId, folder.id, expandFolder])
+  }, [createFolderMutation, workspaceId, folder.id, effectiveLocked, expandFolder])
+
+  const handleToggleLock = useCallback(() => {
+    if (inheritedFolderLocked) return
+    updateFolderMutation.mutate({
+      workspaceId,
+      id: folder.id,
+      updates: { locked: !folder.locked },
+    })
+  }, [folder.id, folder.locked, inheritedFolderLocked, updateFolderMutation, workspaceId])
 
   const onDragStart = useCallback(
     (e: React.DragEvent) => {
@@ -327,9 +346,11 @@ export function FolderItem({
     (e: React.MouseEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      handleStartEdit()
+      if (!effectiveLocked) {
+        handleStartEdit()
+      }
     },
-    [handleStartEdit]
+    [effectiveLocked, handleStartEdit]
   )
 
   const handleClick = useCallback(
@@ -479,7 +500,7 @@ export function FolderItem({
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
-        draggable={!isEditing && !dragDisabled}
+        draggable={!isEditing && !dragDisabled && !effectiveLocked}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         {...hoverHandlers}
@@ -562,14 +583,22 @@ export function FolderItem({
         showRename={!isMixedSelection && selectedFolders.size <= 1}
         showDuplicate={true}
         showExport={true}
-        disableRename={!userPermissions.canEdit}
-        disableCreate={!userPermissions.canEdit || createWorkflowMutation.isPending}
-        disableCreateFolder={!userPermissions.canEdit || createFolderMutation.isPending}
+        disableRename={!userPermissions.canEdit || effectiveLocked}
+        disableCreate={
+          !userPermissions.canEdit || effectiveLocked || createWorkflowMutation.isPending
+        }
+        disableCreateFolder={
+          !userPermissions.canEdit || effectiveLocked || createFolderMutation.isPending
+        }
         disableDuplicate={
           !userPermissions.canEdit || isDuplicatingSelection || !hasExportableContent
         }
         disableExport={!userPermissions.canEdit || isExporting || !hasExportableContent}
-        disableDelete={!userPermissions.canEdit || !canDeleteSelection}
+        disableDelete={!userPermissions.canEdit || effectiveLocked || !canDeleteSelection}
+        onToggleLock={handleToggleLock}
+        showLock={!isMixedSelection && selectedFolders.size <= 1}
+        disableLock={!userPermissions.canAdmin || inheritedFolderLocked}
+        isLocked={effectiveLocked}
       />
 
       <DeleteModal

@@ -11,6 +11,7 @@ export const folderSchema = z.object({
   parentId: z.string().nullable(),
   color: z.string().nullable(),
   isExpanded: z.boolean(),
+  locked: z.boolean(),
   sortOrder: z.number(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -42,6 +43,7 @@ export const updateFolderBodySchema = z.object({
   name: z.string().optional(),
   color: z.string().optional(),
   isExpanded: z.boolean().optional(),
+  locked: z.boolean().optional(),
   parentId: z.string().nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
 })

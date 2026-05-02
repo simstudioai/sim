@@ -6,6 +6,7 @@ export interface WorkflowFolder {
   parentId: string | null
   color: string
   isExpanded: boolean
+  locked: boolean
   sortOrder: number
   createdAt: Date
   updatedAt: Date

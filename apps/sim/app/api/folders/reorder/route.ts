@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { assertFolderMutable, FolderLockedError } from '@sim/workflow-authz'
 import { eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { reorderFoldersContract } from '@/lib/api/contracts'
@@ -50,6 +51,13 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: 'No valid folders to update' }, { status: 400 })
     }
 
+    for (const update of validUpdates) {
+      await assertFolderMutable(update.id)
+      if (update.parentId !== undefined) {
+        await assertFolderMutable(update.parentId)
+      }
+    }
+
     await db.transaction(async (tx) => {
       for (const update of validUpdates) {
         const updateData: Record<string, unknown> = {
@@ -69,6 +77,10 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
 
     return NextResponse.json({ success: true, updated: validUpdates.length })
   } catch (error) {
+    if (error instanceof FolderLockedError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
     logger.error(`[${requestId}] Error reordering folders`, error)
     return NextResponse.json({ error: 'Failed to reorder folders' }, { status: 500 })
   }

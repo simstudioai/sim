@@ -1,7 +1,13 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import {
+  assertFolderMutable,
+  assertWorkflowMutable,
+  authorizeWorkflowByWorkspacePermission,
+  FolderLockedError,
+  WorkflowLockedError,
+} from '@sim/workflow-authz'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateWorkflowContract } from '@/lib/api/contracts/workflows'
@@ -191,6 +197,8 @@ export const DELETE = withRouteHandler(
         )
       }
 
+      await assertWorkflowMutable(workflowId)
+
       const { searchParams } = new URL(request.url)
       const checkTemplates = searchParams.get('check-templates') === 'true'
       const deleteTemplatesParam = searchParams.get('deleteTemplates')
@@ -245,6 +253,10 @@ export const DELETE = withRouteHandler(
 
       return NextResponse.json({ success: true }, { status: 200 })
     } catch (error: any) {
+      if (error instanceof WorkflowLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
+
       const elapsed = Date.now() - startTime
       logger.error(`[${requestId}] Error deleting workflow ${workflowId} after ${elapsed}ms`, error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -300,12 +312,31 @@ export const PUT = withRouteHandler(
         )
       }
 
+      if (updates.locked !== undefined && authorization.workspacePermission !== 'admin') {
+        logger.warn(
+          `[${requestId}] User ${userId} denied permission to lock workflow ${workflowId}`
+        )
+        return NextResponse.json(
+          { error: 'Admin access required to lock workflows' },
+          { status: 403 }
+        )
+      }
+
+      const hasNonLockUpdate = Object.keys(updates).some((key) => key !== 'locked')
+      if (hasNonLockUpdate) {
+        await assertWorkflowMutable(workflowId)
+      }
+      if (updates.folderId !== undefined) {
+        await assertFolderMutable(updates.folderId)
+      }
+
       const updateData: Record<string, unknown> = { updatedAt: new Date() }
       if (updates.name !== undefined) updateData.name = updates.name
       if (updates.description !== undefined) updateData.description = updates.description
       if (updates.color !== undefined) updateData.color = updates.color
       if (updates.folderId !== undefined) updateData.folderId = updates.folderId
       if (updates.sortOrder !== undefined) updateData.sortOrder = updates.sortOrder
+      if (updates.locked !== undefined) updateData.locked = updates.locked
 
       if (updates.name !== undefined || updates.folderId !== undefined) {
         const targetName = updates.name ?? workflowData.name
@@ -359,6 +390,7 @@ export const PUT = withRouteHandler(
           workspaceId: workflow.workspaceId,
           folderId: workflow.folderId,
           sortOrder: workflow.sortOrder,
+          locked: workflow.locked,
           createdAt: workflow.createdAt,
           updatedAt: workflow.updatedAt,
           archivedAt: workflow.archivedAt,
@@ -371,6 +403,10 @@ export const PUT = withRouteHandler(
 
       return NextResponse.json({ workflow: updatedWorkflow }, { status: 200 })
     } catch (error: any) {
+      if (error instanceof WorkflowLockedError || error instanceof FolderLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
+
       const elapsed = Date.now() - startTime
       logger.error(`[${requestId}] Error updating workflow ${workflowId} after ${elapsed}ms`, error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

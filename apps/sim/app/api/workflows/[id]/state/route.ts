@@ -2,7 +2,11 @@ import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import {
+  assertWorkflowMutable,
+  authorizeWorkflowByWorkspacePermission,
+  WorkflowLockedError,
+} from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { putWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
@@ -128,6 +132,8 @@ export const PUT = withRouteHandler(
           { status: authorization.status || 403 }
         )
       }
+
+      await assertWorkflowMutable(workflowId)
 
       // Note: prior versions cross-checked that each variable's `workflowId`
       // equalled the path param. The write contract does not carry `workflowId`
@@ -272,6 +278,10 @@ export const PUT = withRouteHandler(
         { status: 200 }
       )
     } catch (error: any) {
+      if (error instanceof WorkflowLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
+
       const elapsed = Date.now() - startTime
       logger.error(
         `[${requestId}] Error saving workflow ${workflowId} state after ${elapsed}ms`,
