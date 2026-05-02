@@ -163,7 +163,6 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
           'elasticsearch_delete_document',
         ],
       },
-      dependsOn: ['operation'],
     },
 
     // Optional Document ID - for index document
@@ -173,7 +172,6 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       type: 'short-input',
       placeholder: 'Leave empty for auto-generated ID',
       condition: { field: 'operation', value: 'elasticsearch_index_document' },
-      dependsOn: ['operation'],
     },
 
     // Document body - for index
@@ -184,7 +182,6 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       placeholder: '{ "field": "value", "another_field": 123 }',
       required: true,
       condition: { field: 'operation', value: 'elasticsearch_index_document' },
-      dependsOn: ['operation'],
       wandConfig: {
         enabled: true,
         prompt: `Generate an Elasticsearch document JSON object based on the user's description.
@@ -205,7 +202,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       placeholder: '{ "field_to_update": "new_value" }',
       required: true,
       condition: { field: 'operation', value: 'elasticsearch_update_document' },
-      dependsOn: ['operation'],
       wandConfig: {
         enabled: true,
         prompt: `Generate an Elasticsearch partial document JSON for updating based on the user's description.
@@ -224,7 +220,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       type: 'code',
       placeholder: '{ "match": { "field": "search term" } }',
       condition: { field: 'operation', value: 'elasticsearch_search' },
-      dependsOn: ['operation'],
       wandConfig: {
         enabled: true,
         prompt: `Generate an Elasticsearch query DSL JSON based on the user's description.
@@ -247,7 +242,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       type: 'code',
       placeholder: '{ "match": { "field": "value" } }',
       condition: { field: 'operation', value: 'elasticsearch_count' },
-      dependsOn: ['operation'],
       wandConfig: {
         enabled: true,
         prompt: `Generate an Elasticsearch query DSL JSON for counting documents based on the user's description.

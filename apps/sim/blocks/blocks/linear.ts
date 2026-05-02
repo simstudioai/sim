@@ -509,7 +509,6 @@ Return ONLY the comment text - no explanations.`,
         field: 'operation',
         value: ['linear_create_issue', 'linear_update_issue', 'linear_create_project'],
       },
-      dependsOn: ['operation'],
     },
     // Estimate (for issues)
     {
@@ -1055,7 +1054,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         field: 'operation',
         value: ['linear_create_customer_request', 'linear_update_customer_request'],
       },
-      dependsOn: ['operation'],
     },
     // Customer request ID (for updating)
     {
@@ -1094,7 +1092,7 @@ Return ONLY the description text - no explanations.`,
     },
     // Customer request priority/urgency
     {
-      id: 'priority',
+      id: 'customerRequestPriority',
       title: 'Urgency',
       type: 'dropdown',
       options: [
@@ -2005,7 +2003,10 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               customerId: params.customerId.trim(),
               body: params.requestBody?.trim(),
-              priority: params.priority !== undefined ? Number(params.priority) : 0,
+              priority:
+                params.customerRequestPriority !== undefined
+                  ? Number(params.customerRequestPriority)
+                  : 0,
               issueId: params.linkedIssueId?.trim(),
               projectId: effectiveProjectId || undefined,
             }
@@ -2019,7 +2020,10 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               customerNeedId: params.customerNeedId.trim(),
               customerId: params.customerId?.trim(),
               body: params.requestBody?.trim(),
-              priority: params.priority !== undefined ? Number(params.priority) : undefined,
+              priority:
+                params.customerRequestPriority !== undefined
+                  ? Number(params.customerRequestPriority)
+                  : undefined,
               issueId: params.linkedIssueId?.trim(),
               projectId: effectiveProjectId || undefined,
             }
@@ -2358,6 +2362,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     stateId: { type: 'string', description: 'Workflow state identifier' },
     assigneeId: { type: 'string', description: 'Assignee user identifier' },
     priority: { type: 'string', description: 'Priority level' },
+    customerRequestPriority: { type: 'string', description: 'Customer request urgency level' },
     estimate: { type: 'string', description: 'Estimate points' },
     query: { type: 'string', description: 'Search query' },
     includeArchived: { type: 'boolean', description: 'Include archived items' },
