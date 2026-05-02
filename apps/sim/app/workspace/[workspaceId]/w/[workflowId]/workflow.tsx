@@ -1216,7 +1216,6 @@ const WorkflowContent = React.memo(
       if (ids.length > 0) collaborativeBatchToggleLocked(ids)
     }, [collaborativeBatchToggleLocked])
 
-    // Show notification when all blocks in the workflow are locked
     const lockNotificationIdRef = useRef<string | null>(null)
 
     const clearLockNotification = useCallback(() => {
@@ -1327,26 +1326,12 @@ const WorkflowContent = React.memo(
             workflowId: activeWorkflowId,
             metadata: { locked: false },
           })
-          return
         }
-
-        if (workflowFolderLocked) return
-
-        const currentBlocks = useWorkflowStore.getState().blocks
-        const ids = getWorkflowLockToggleIds(currentBlocks, false)
-        if (ids.length > 0) collaborativeBatchToggleLocked(ids)
       }
 
       window.addEventListener('unlock-workflow', handleUnlockWorkflow)
       return () => window.removeEventListener('unlock-workflow', handleUnlockWorkflow)
-    }, [
-      activeWorkflowId,
-      collaborativeBatchToggleLocked,
-      updateWorkflowMutate,
-      workflowFolderLocked,
-      workflowRowLocked,
-      workspaceId,
-    ])
+    }, [activeWorkflowId, updateWorkflowMutate, workflowRowLocked, workspaceId])
 
     const handleContextRemoveFromSubflow = useCallback(() => {
       const blocksToRemove = contextMenuBlocks.filter(

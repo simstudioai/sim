@@ -298,6 +298,7 @@ interface DuplicateWorkflowMutationData {
   workspaceId: string
   folderId?: string | null
   sortOrder: number
+  locked: boolean
   blocksCount: number
   edgesCount: number
   subflowsCount: number
@@ -340,6 +341,7 @@ export function useDuplicateWorkflowMutation() {
         workspaceId,
         folderId: duplicatedWorkflow.folderId ?? folderId,
         sortOrder: duplicatedWorkflow.sortOrder ?? 0,
+        locked: duplicatedWorkflow.locked,
         blocksCount: duplicatedWorkflow.blocksCount || 0,
         edgesCount: duplicatedWorkflow.edgesCount || 0,
         subflowsCount: duplicatedWorkflow.subflowsCount || 0,
