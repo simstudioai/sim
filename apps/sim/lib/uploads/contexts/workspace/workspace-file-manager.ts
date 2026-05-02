@@ -305,7 +305,7 @@ export async function registerUploadedWorkspaceFile(params: {
     if (!head) {
       throw new Error('Uploaded object not found in storage')
     }
-    verifiedSize = head.size > 0 ? head.size : size
+    verifiedSize = head.size
   }
 
   const cleanupOrphan = async (reason: string) => {
