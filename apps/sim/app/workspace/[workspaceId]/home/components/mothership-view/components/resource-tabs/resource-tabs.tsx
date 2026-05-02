@@ -41,11 +41,7 @@ import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 const EDGE_ZONE = 40
 const SCROLL_SPEED = 8
 
-const ADD_RESOURCE_EXCLUDED_TYPES: readonly MothershipResourceType[] = [
-  'folder',
-  'task',
-  'log',
-] as const
+const ADD_RESOURCE_EXCLUDED_TYPES: readonly MothershipResourceType[] = ['folder', 'task'] as const
 
 /**
  * Returns the id of the nearest resource to `idx` that is in `filter`
