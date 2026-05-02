@@ -243,6 +243,7 @@ export async function executeQueuedWorkflowJob(
             duration: result.metadata?.duration || 0,
             startTime: result.metadata?.startTime || metadata.startTime,
             endTime: result.metadata?.endTime || new Date().toISOString(),
+            finalBlockLogs: result.logs,
           },
         })
         await setExecutionMeta(executionId, { status: 'complete' })

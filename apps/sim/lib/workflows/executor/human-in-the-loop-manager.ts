@@ -1077,6 +1077,7 @@ export class PauseResumeManager {
             duration: result.metadata?.duration || 0,
             startTime: result.metadata?.startTime || new Date().toISOString(),
             endTime: result.metadata?.endTime || new Date().toISOString(),
+            finalBlockLogs: result.logs,
           },
         } as ExecutionEvent)
         finalMetaStatus = 'complete'

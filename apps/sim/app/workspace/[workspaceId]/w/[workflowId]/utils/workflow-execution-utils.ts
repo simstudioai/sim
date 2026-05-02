@@ -731,6 +731,8 @@ export async function executeWorkflowWithFullLogging(
 
         onExecutionCompleted: (data) => {
           setCurrentExecutionId(wfId, null)
+          reconcileFinalBlockLogs(updateConsole, wfId, executionIdRef.current, data.finalBlockLogs)
+          cancelRunningEntries(wfId)
           executionResult = {
             success: data.success,
             output: data.output,

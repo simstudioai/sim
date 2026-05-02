@@ -25,6 +25,7 @@ import {
   addHttpErrorConsoleEntry,
   type BlockEventHandlerConfig,
   createBlockEventHandlers,
+  reconcileFinalBlockLogs,
   addExecutionErrorConsoleEntry as sharedAddExecutionErrorConsoleEntry,
   handleExecutionCancelledConsole as sharedHandleExecutionCancelledConsole,
   handleExecutionErrorConsole as sharedHandleExecutionErrorConsole,
@@ -1130,6 +1131,13 @@ export function useWorkflowExecution() {
 
               if (activeWorkflowId) {
                 setCurrentExecutionId(activeWorkflowId, null)
+                reconcileFinalBlockLogs(
+                  updateConsole,
+                  activeWorkflowId,
+                  executionIdRef.current,
+                  data.finalBlockLogs
+                )
+                cancelRunningEntries(activeWorkflowId)
               }
 
               executionResult = {
@@ -1702,6 +1710,14 @@ export function useWorkflowExecution() {
             onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
 
             onExecutionCompleted: (data) => {
+              reconcileFinalBlockLogs(
+                updateConsole,
+                workflowId,
+                executionIdRef.current,
+                data.finalBlockLogs
+              )
+              cancelRunningEntries(workflowId)
+
               if (data.success) {
                 executedBlockIds.add(blockId)
 
@@ -1980,7 +1996,7 @@ export function useWorkflowExecution() {
               onBlockCompleted: wrapHandler(handlers.onBlockCompleted),
               onBlockError: wrapHandler(handlers.onBlockError),
               onBlockChildWorkflowStarted: wrapHandler(handlers.onBlockChildWorkflowStarted),
-              onExecutionCompleted: () => {
+              onExecutionCompleted: (data) => {
                 reconnectionComplete = true
                 activeReconnections.delete(reconnectWorkflowId)
                 if (!activated) {
@@ -1994,6 +2010,13 @@ export function useWorkflowExecution() {
                 setCurrentExecutionId(reconnectWorkflowId, null)
                 setIsExecuting(reconnectWorkflowId, false)
                 setActiveBlocks(reconnectWorkflowId, new Set())
+                reconcileFinalBlockLogs(
+                  updateConsole,
+                  reconnectWorkflowId,
+                  capturedExecutionId,
+                  data?.finalBlockLogs
+                )
+                cancelRunningEntries(reconnectWorkflowId)
               },
               onExecutionError: (data) => {
                 reconnectionComplete = true
