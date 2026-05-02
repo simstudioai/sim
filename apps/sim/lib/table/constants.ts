@@ -2,7 +2,7 @@
  * Limits and constants for user-defined tables.
  */
 
-import { env } from '@/lib/core/config/env'
+import { env, envNumber } from '@/lib/core/config/env'
 
 export const TABLE_LIMITS = {
   MAX_TABLES_PER_WORKSPACE: 100,
@@ -57,18 +57,6 @@ export interface TablePlanLimits {
 }
 
 export type TablePlanLimitsByPlan = Record<PlanName, TablePlanLimits>
-
-/**
- * Coerce an env value to a number. `env.ts` runs with `skipValidation: true`,
- * so values declared as `z.number()` arrive as raw strings (e.g. when set via
- * Helm). Falls back to the default when the value is unset, empty, or not a
- * finite number.
- */
-function envNumber(value: number | string | undefined, fallback: number): number {
-  if (value === undefined || value === null || value === '') return fallback
-  const parsed = typeof value === 'number' ? value : Number(value)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
 
 /**
  * Returns plan-based table limits, applying env var overrides on top of the

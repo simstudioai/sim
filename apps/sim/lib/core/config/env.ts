@@ -514,3 +514,19 @@ export const isFalsy = (value: string | boolean | number | undefined) =>
   typeof value === 'string' ? value.toLowerCase() === 'false' || value === '0' : value === false
 
 export { getEnv }
+
+/**
+ * Coerce an env-derived value to a positive finite number, falling back to the
+ * provided default when the value is unset, empty, non-finite, or ≤ 0.
+ *
+ * `createEnv` is configured with `skipValidation: true`, so values declared as
+ * `z.number()` arrive as raw strings when sourced from `process.env` or Helm.
+ * Use this helper anywhere a numeric env override is consumed to normalize the
+ * type at the boundary instead of relying on JS implicit coercion.
+ */
+export function envNumber(value: number | string | undefined | null, fallback: number): number {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
+  if (value === undefined || value === null || value === '') return fallback
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
