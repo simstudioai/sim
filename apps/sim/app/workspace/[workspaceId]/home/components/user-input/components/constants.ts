@@ -96,5 +96,7 @@ const RESOURCE_TO_CONTEXT: Record<
 }
 
 export function mapResourceToContext(resource: MothershipResource): ChatContext {
-  return RESOURCE_TO_CONTEXT[resource.type](resource)
+  const converter = RESOURCE_TO_CONTEXT[resource.type]
+  if (!converter) return { kind: 'docs', label: resource.title }
+  return converter(resource)
 }
