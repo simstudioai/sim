@@ -433,29 +433,18 @@ export class Serializer {
     const currentToolId = toolAccess?.length > 0 ? this.selectToolId(blockConfig, params) : null
     const currentTool = currentToolId ? getTool(currentToolId) : null
 
-    // Validate tool parameters (for blocks with tools)
+    // Validate tool parameters (for blocks with tools).
+    // Lookup contract: a tool param's value lives under its own paramId in `params`.
+    // Block subBlocks must align via either `id === paramId` or `canonicalParamId === paramId`
+    // (enforced by `bun run check:block-canonical`), so this validator never has to invoke
+    // the block's `tools.config.params` mapper.
     if (currentTool) {
-      // Apply the block's tools.config.params transform to mirror execution-time
-      // canonical → tool-param renaming (e.g. canonical `document` → tool param `file`).
-      // Without this, validation looks up the pre-rename name and incorrectly reports
-      // a missing field for blocks that rename inputs in tools.config.params.
-      let mappedParams: Record<string, any> = params
-      try {
-        const paramsMapper = blockConfig.tools?.config?.params
-        if (typeof paramsMapper === 'function') {
-          const result = paramsMapper({ ...params })
-          if (result && typeof result === 'object' && !Array.isArray(result)) {
-            mappedParams = { ...params, ...result }
-          }
-        }
-      } catch {
-        // Mapper may throw on placeholder/runtime values — fall back to raw params.
-      }
-
       Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]) => {
         if (paramConfig.required && paramConfig.visibility === 'user-only') {
           const matchingConfigs =
-            blockConfig.subBlocks?.filter((sb: any) => sb.id === paramId) || []
+            blockConfig.subBlocks?.filter(
+              (sb: any) => sb.id === paramId || sb.canonicalParamId === paramId
+            ) || []
 
           let shouldValidateParam = true
 
@@ -485,7 +474,7 @@ export class Serializer {
             return
           }
 
-          const fieldValue = mappedParams[paramId]
+          const fieldValue = params[paramId]
           if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
             const activeConfig = matchingConfigs.find((config: any) =>
               shouldSerializeSubBlock(
@@ -509,8 +498,11 @@ export class Serializer {
     const validatedByTool = new Set(currentTool ? Object.keys(currentTool.params || {}) : [])
 
     blockConfig.subBlocks?.forEach((subBlockConfig: SubBlockConfig) => {
-      // Skip if already validated via tool params
+      // Skip if already validated via tool params (either by id or canonical bridge)
       if (validatedByTool.has(subBlockConfig.id)) {
+        return
+      }
+      if (subBlockConfig.canonicalParamId && validatedByTool.has(subBlockConfig.canonicalParamId)) {
         return
       }
 

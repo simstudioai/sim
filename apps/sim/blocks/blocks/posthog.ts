@@ -156,6 +156,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
       id: 'personalApiKey',
       title: 'Personal API Key',
       type: 'short-input',
+      canonicalParamId: 'apiKey',
       placeholder: 'Enter your PostHog personal API key',
       password: true,
       condition: {
@@ -1192,9 +1193,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         if (params.operation === 'posthog_get_project' && params.projectIdParam) {
           params.projectId = params.projectIdParam
         }
-        if (params.personalApiKey) {
-          params.apiKey = params.personalApiKey
-        }
 
         const flagOps = [
           'posthog_get_feature_flag',
@@ -1276,7 +1274,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     operation: { type: 'string', description: 'Operation to perform' },
     region: { type: 'string', description: 'PostHog region (us or eu)' },
     projectApiKey: { type: 'string', description: 'Project API key for public endpoints' },
-    personalApiKey: { type: 'string', description: 'Personal API key for private endpoints' },
+    apiKey: { type: 'string', description: 'Personal API key for private endpoints' },
     projectId: { type: 'string', description: 'PostHog project ID' },
     // Core Data
     event: { type: 'string', description: 'Event name' },
