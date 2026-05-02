@@ -295,21 +295,21 @@ export async function registerUploadedWorkspaceFile(params: {
 }): Promise<RegisterUploadedWorkspaceFileResult> {
   const { workspaceId, userId, key, originalName, contentType, size } = params
 
+  if (!hasCloudStorage()) {
+    throw new Error('Direct-upload registration requires cloud storage')
+  }
+
   if (parseWorkspaceFileKey(key) !== workspaceId) {
     throw new Error('Storage key does not belong to this workspace')
   }
 
-  let verifiedSize = size
-  if (hasCloudStorage()) {
-    const head = await headObject(key, 'workspace')
-    if (!head) {
-      throw new Error('Uploaded object not found in storage')
-    }
-    verifiedSize = head.size
+  const head = await headObject(key, 'workspace')
+  if (!head) {
+    throw new Error('Uploaded object not found in storage')
   }
+  const verifiedSize = head.size
 
   const cleanupOrphan = async (reason: string) => {
-    if (!hasCloudStorage()) return
     try {
       await deleteFile({ key, context: 'workspace' })
     } catch (deleteError) {
@@ -328,7 +328,7 @@ export async function registerUploadedWorkspaceFile(params: {
    */
   const existing = await getFileMetadataByKey(key, 'workspace')
 
-  const fileId = existing?.id ?? `wf_${generateShortId()}`
+  let fileId = existing?.id ?? ''
   let displayName = existing?.originalName ?? ''
   let created = false
 
@@ -341,6 +341,7 @@ export async function registerUploadedWorkspaceFile(params: {
 
     let lastInsertError: unknown
     for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
+      fileId = `wf_${generateShortId()}`
       displayName = await allocateUniqueWorkspaceFileName(workspaceId, originalName)
       try {
         await insertFileMetadata({
