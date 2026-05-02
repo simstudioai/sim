@@ -153,12 +153,13 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const overlayRef = useRef<HTMLDivElement>(null)
   const plusMenuRef = useRef<PlusMenuHandle>(null)
 
-  const prevDefaultValueRef = useRef(defaultValue)
-  useEffect(() => {
-    if (defaultValue === prevDefaultValueRef.current) return
-    prevDefaultValueRef.current = defaultValue
-    if (defaultValue) setValue(defaultValue)
-  }, [defaultValue])
+  const [prevDefaultValue, setPrevDefaultValue] = useState(defaultValue)
+  if (defaultValue && defaultValue !== prevDefaultValue) {
+    setPrevDefaultValue(defaultValue)
+    setValue(defaultValue)
+  } else if (!defaultValue && prevDefaultValue) {
+    setPrevDefaultValue(defaultValue)
+  }
 
   const files = useFileAttachments({
     userId: userId || session?.user?.id,
@@ -205,6 +206,13 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
           uploading: false,
         }))
       )
+    }
+    if (draft.text) {
+      const textarea = textareaRef.current
+      if (textarea) {
+        textarea.focus()
+        textarea.setSelectionRange(draft.text.length, draft.text.length)
+      }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
 
