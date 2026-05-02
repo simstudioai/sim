@@ -251,7 +251,7 @@ export const PlusMenuDropdown = React.memo(
               // Plus-click shows short fixed labels (Workflows, Tables, …) — let it size
               // to its content via the emcn DropdownMenuContent default max-w.
               // Mention mode renders resource names directly, so widen for breathing room.
-              isMention && 'w-[300px] max-w-[calc(100vw-32px)]'
+              isMention && 'max-w-[min(300px,calc(100vw-32px))]'
             )}
             onCloseAutoFocus={handleCloseAutoFocus}
             onOpenAutoFocus={handleOpenAutoFocus}
@@ -286,7 +286,7 @@ export const PlusMenuDropdown = React.memo(
                       />
                       <span>Workflows</span>
                     </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className='w-[300px] max-w-[calc(100vw-32px)]'>
+                    <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
                       <WorkflowFolderTreeItems nodes={workflowTree} onSelect={handleSelect} />
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
@@ -303,7 +303,7 @@ export const PlusMenuDropdown = React.memo(
                           <Icon className='h-[14px] w-[14px]' />
                           <span>{config.label}</span>
                         </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent className='w-[300px] max-w-[calc(100vw-32px)]'>
+                        <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
                           {items.map((item) => (
                             <DropdownMenuItem
                               key={item.id}
