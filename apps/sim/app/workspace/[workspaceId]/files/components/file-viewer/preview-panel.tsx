@@ -423,6 +423,20 @@ const MermaidDiagram = memo(function MermaidDiagram({
   return null
 })
 
+function resolveSimFileUrl(src: string | undefined): string | undefined {
+  if (!src) return src
+  try {
+    const { pathname } = new URL(src, 'http://placeholder')
+    const [, seg1, , seg3, fileId] = pathname.split('/')
+    if (seg1 === 'workspace' && seg3 === 'files' && fileId) {
+      return `/api/files/view/${fileId}`
+    }
+  } catch {
+    // not a parseable URL
+  }
+  return src
+}
+
 const STATIC_MARKDOWN_COMPONENTS = {
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   p: ({ children }: { children?: React.ReactNode }) => (
@@ -737,16 +751,6 @@ function AnchorRenderer({ href, children }: { href?: string; children?: React.Re
       {children}
     </a>
   )
-}
-
-const SIM_FILES_PAGE_PATTERN =
-  /(?:https?:\/\/[^/]+)?\/workspace\/[a-f0-9-]{36}\/files\/([a-f0-9-]{36})(?:[?#].*)?$/
-
-function resolveSimFileUrl(src: string | undefined): string | undefined {
-  if (!src) return src
-  const match = SIM_FILES_PAGE_PATTERN.exec(src)
-  if (!match) return src
-  return `/api/files/view/${match[1]}`
 }
 
 const MARKDOWN_COMPONENTS = {
