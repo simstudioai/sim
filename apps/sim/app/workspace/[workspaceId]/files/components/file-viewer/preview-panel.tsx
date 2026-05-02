@@ -89,7 +89,8 @@ export const PreviewPanel = memo(function PreviewPanel({
   if (previewType === 'html') return <HtmlPreview content={content} />
   if (previewType === 'csv') return <CsvPreview content={content} />
   if (previewType === 'svg') return <SvgPreview content={content} />
-  if (previewType === 'mermaid') return <MermaidFilePreview content={content} />
+  if (previewType === 'mermaid')
+    return <MermaidFilePreview content={content} isStreaming={isStreaming} />
 
   return null
 })
@@ -151,6 +152,7 @@ const MarkdownCheckboxCtx = createContext<{
   contentRef: React.MutableRefObject<string>
   onToggle: (index: number, checked: boolean) => void
 } | null>(null)
+const MermaidStreamingCtx = createContext(false)
 
 /** Carries the resolved checkbox index from LiRenderer to InputRenderer. */
 const CheckboxIndexCtx = createContext(-1)
@@ -247,17 +249,57 @@ function CalloutBlock({ type, children }: { type: string; children?: React.React
   )
 }
 
-const MermaidDiagram = memo(function MermaidDiagram({ definition }: { definition: string }) {
+function MermaidSourcePreview({
+  definition,
+  isRendering,
+}: {
+  definition: string
+  isRendering: boolean
+}) {
+  return (
+    <div className='my-4 overflow-hidden rounded-lg border border-[var(--border)]'>
+      <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
+        <span className='text-[11px] text-[var(--text-tertiary)]'>mermaid</span>
+        {isRendering && <span className='text-[11px] text-[var(--text-muted)]'>Rendering...</span>}
+      </div>
+      <div className='code-editor-theme bg-[var(--surface-5)]'>
+        <pre className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] text-[var(--text-primary)] leading-[1.6]'>
+          <code>{definition}</code>
+        </pre>
+      </div>
+    </div>
+  )
+}
+
+const MermaidDiagram = memo(function MermaidDiagram({
+  definition,
+  isStreaming = false,
+}: {
+  definition: string
+  isStreaming?: boolean
+}) {
   const [svg, setSvg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const idRef = useRef(`mermaid-${generateShortId(8)}`)
+  const [isRendering, setIsRendering] = useState(false)
+  const [renderedDefinition, setRenderedDefinition] = useState<string | null>(null)
+  const trimmedDefinition = definition.trim()
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    if (!trimmedDefinition) {
+      setSvg(null)
+      setError(null)
+      setIsRendering(false)
+      setRenderedDefinition(null)
+      return
+    }
+
     let cancelled = false
+    const renderDelay = isStreaming ? 150 : 0
 
     async function render() {
       try {
+        setIsRendering(true)
         const { default: mermaid } = await import('mermaid')
         if (cancelled) return
 
@@ -266,27 +308,55 @@ const MermaidDiagram = memo(function MermaidDiagram({ definition }: { definition
           securityLevel: 'strict',
           theme: 'default',
         })
+        mermaid.setParseErrorHandler?.(() => undefined)
 
-        const { svg: rendered } = await mermaid.render(idRef.current, definition.trim())
+        if (isStreaming) {
+          const parsed = await mermaid.parse(trimmedDefinition, { suppressErrors: true })
+          if (!parsed) {
+            if (!cancelled) {
+              setError(null)
+            }
+            return
+          }
+        } else {
+          await mermaid.parse(trimmedDefinition)
+        }
+
+        const { svg: rendered } = await mermaid.render(
+          `mermaid-${generateShortId(8)}`,
+          trimmedDefinition
+        )
         if (!cancelled) {
           setSvg(rendered)
+          setRenderedDefinition(trimmedDefinition)
           setError(null)
         }
       } catch (err) {
         if (!cancelled) {
-          setError(toError(err).message || 'Failed to render diagram')
-          setSvg(null)
+          if (isStreaming) {
+            setError(null)
+          } else {
+            setError(toError(err).message || 'Failed to render diagram')
+            setSvg(null)
+            setRenderedDefinition(null)
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          setIsRendering(false)
         }
       }
     }
 
-    setSvg(null)
     setError(null)
-    render()
+    const timer = window.setTimeout(() => {
+      render()
+    }, renderDelay)
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
-  }, [definition])
+  }, [trimmedDefinition, isStreaming])
 
   if (error) {
     return (
@@ -297,11 +367,20 @@ const MermaidDiagram = memo(function MermaidDiagram({ definition }: { definition
     )
   }
 
-  if (!svg) {
-    return <div className='my-4 h-[100px] animate-pulse rounded-lg bg-[var(--surface-2)]' />
+  if (svg && renderedDefinition === trimmedDefinition) {
+    return (
+      <div className='my-4 overflow-auto rounded-lg' dangerouslySetInnerHTML={{ __html: svg }} />
+    )
   }
 
-  return <div className='my-4 overflow-auto rounded-lg' dangerouslySetInnerHTML={{ __html: svg }} />
+  if (isStreaming) {
+    return <MermaidSourcePreview definition={definition} isRendering={isRendering} />
+  }
+
+  if (!trimmedDefinition || !svg) {
+    return <div className='my-4 h-[100px] animate-pulse rounded-lg bg-[var(--surface-2)]' />
+  }
+  return null
 })
 
 const STATIC_MARKDOWN_COMPONENTS = {
@@ -374,12 +453,13 @@ const STATIC_MARKDOWN_COMPONENTS = {
     )
   },
   code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
+    const isMarkdownStreaming = useContext(MermaidStreamingCtx)
     const langMatch = className?.match(/language-(\w+)/)
     const langRaw = langMatch?.[1] ?? ''
     const codeString = extractTextContent(children)
 
     if (langRaw === 'mermaid') {
-      return <MermaidDiagram definition={codeString} />
+      return <MermaidDiagram definition={codeString} isStreaming={isMarkdownStreaming} />
     }
 
     if (!codeString) {
@@ -706,14 +786,16 @@ const MarkdownPreview = memo(function MarkdownPreview({
   const body = (
     <div ref={autoScrollRef} className='h-full overflow-auto p-6'>
       {frontMatterData && <FrontMatterCard data={frontMatterData} />}
-      <Streamdown
-        mode={streamdownMode}
-        remarkPlugins={REMARK_PLUGINS}
-        rehypePlugins={REHYPE_PLUGINS}
-        components={MARKDOWN_COMPONENTS}
-      >
-        {markdownContent}
-      </Streamdown>
+      <MermaidStreamingCtx.Provider value={isStreaming}>
+        <Streamdown
+          mode={streamdownMode}
+          remarkPlugins={REMARK_PLUGINS}
+          rehypePlugins={REHYPE_PLUGINS}
+          components={MARKDOWN_COMPONENTS}
+        >
+          {markdownContent}
+        </Streamdown>
+      </MermaidStreamingCtx.Provider>
     </div>
   )
 
@@ -878,10 +960,10 @@ function SvgPreview({ content }: { content: string }) {
   )
 }
 
-function MermaidFilePreview({ content }: { content: string }) {
+function MermaidFilePreview({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   return (
     <div className='h-full overflow-auto p-6'>
-      <MermaidDiagram definition={content} />
+      <MermaidDiagram definition={content} isStreaming={isStreaming} />
     </div>
   )
 }
