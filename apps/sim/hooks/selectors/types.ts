@@ -1,5 +1,6 @@
 import type React from 'react'
 import type { QueryKey } from '@tanstack/react-query'
+import type { AnyApiRouteContract } from '@/lib/api/contracts/types'
 
 export type SelectorKey =
   | 'airtable.bases'
@@ -101,6 +102,7 @@ export interface SelectorQueryArgs {
 
 export interface SelectorDefinition {
   key: SelectorKey
+  contracts?: readonly AnyApiRouteContract[]
   getQueryKey: (args: SelectorQueryArgs) => QueryKey
   fetchList: (args: SelectorQueryArgs) => Promise<SelectorOption[]>
   fetchById?: (args: SelectorQueryArgs) => Promise<SelectorOption | null>

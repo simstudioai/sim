@@ -1,34 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { awsSesSendBulkEmailContract } from '@/lib/api/contracts/tools/aws/ses-send-bulk-email'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { validateAwsRegion } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createSESClient, sendBulkEmail } from '../utils'
+import { createSESClient, parseBulkEmailDestinations, sendBulkEmail } from '../utils'
 
 const logger = createLogger('SESSendBulkEmailAPI')
-
-const DestinationSchema = z.object({
-  toAddresses: z.array(z.string().email()),
-  templateData: z.string().optional(),
-})
-
-const SendBulkEmailSchema = z.object({
-  region: z
-    .string()
-    .min(1, 'AWS region is required')
-    .refine((v) => validateAwsRegion(v).isValid, {
-      message: 'Invalid AWS region format (e.g., us-east-1, eu-west-2)',
-    }),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  fromAddress: z.string().email('Valid sender email address is required'),
-  templateName: z.string().min(1, 'Template name is required'),
-  destinations: z.string().min(1, 'Destinations JSON array is required'),
-  defaultTemplateData: z.string().nullish(),
-  configurationSetName: z.string().nullish(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request)
@@ -37,13 +16,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-    const params = SendBulkEmailSchema.parse(body)
+    const parsed = await parseToolRequest(awsSesSendBulkEmailContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
 
-    let destinations: Array<{ toAddresses: string[]; templateData?: string }>
+    let destinations: ReturnType<typeof parseBulkEmailDestinations>
     try {
-      const parsed = JSON.parse(params.destinations)
-      destinations = z.array(DestinationSchema).parse(parsed)
+      destinations = parseBulkEmailDestinations(params.destinations)
     } catch {
       return NextResponse.json(
         { error: 'destinations must be a valid JSON array of destination objects' },
@@ -79,14 +61,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       client.destroy()
     }
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn('Invalid request data', { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     logger.error('Failed to send bulk email:', error)
 
     return NextResponse.json(

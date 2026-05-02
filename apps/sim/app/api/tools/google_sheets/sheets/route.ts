@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { googleSheetsSelectorContract } from '@/lib/api/contracts/selectors/google'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -38,21 +40,28 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-    const spreadsheetId = searchParams.get('spreadsheetId')
-    const workflowId = searchParams.get('workflowId') || undefined
-    const impersonateEmail = searchParams.get('impersonateEmail') || undefined
+    const parsed = await parseRequest(
+      googleSheetsSelectorContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          const missingCredential = error.issues.some((issue) => issue.path[0] === 'credentialId')
+          if (missingCredential) {
+            logger.warn(`[${requestId}] Missing credentialId parameter`)
+            return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
+          }
 
-    if (!credentialId) {
-      logger.warn(`[${requestId}] Missing credentialId parameter`)
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
-    }
+          logger.warn(`[${requestId}] Missing spreadsheetId parameter`)
+          return NextResponse.json({ error: 'Spreadsheet ID is required' }, { status: 400 })
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!spreadsheetId) {
-      logger.warn(`[${requestId}] Missing spreadsheetId parameter`)
-      return NextResponse.json({ error: 'Spreadsheet ID is required' }, { status: 400 })
-    }
+    const { credentialId, spreadsheetId } = parsed.data.query
+    const workflowId = parsed.data.query.workflowId || undefined
+    const impersonateEmail = parsed.data.query.impersonateEmail || undefined
 
     const authz = await authorizeCredentialUse(request, { credentialId, workflowId })
     if (!authz.ok || !authz.credentialOwnerUserId) {

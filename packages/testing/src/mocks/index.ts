@@ -118,6 +118,12 @@ export {
 } from './stripe.mock'
 // Telemetry mocks
 export { telemetryMock } from './telemetry.mock'
+// Terminal console mocks (for @/stores/terminal and @/stores/terminal/console/store)
+export {
+  resetTerminalConsoleMock,
+  terminalConsoleMock,
+  terminalConsoleMockFns,
+} from './terminal-console.mock'
 // URL mocks
 export { urlsMock, urlsMockFns } from './urls.mock'
 // Workflow authz package mocks (for @sim/workflow-authz)

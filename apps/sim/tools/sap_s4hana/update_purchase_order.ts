@@ -109,7 +109,7 @@ export const updatePurchaseOrderTool: ToolConfig<UpdatePurchaseOrderParams, SapP
         ...baseProxyBody(params),
         service: 'API_PURCHASEORDER_PROCESS_SRV',
         path: `/A_PurchaseOrder(${quoteOdataKey(params.purchaseOrder)})`,
-        method: 'PATCH',
+        method: 'MERGE',
         query: { $format: 'json' },
         body: payload,
         ifMatch: params.ifMatch || '*',

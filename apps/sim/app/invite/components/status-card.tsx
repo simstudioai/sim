@@ -1,7 +1,7 @@
 'use client'
 
-import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { Loader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { AUTH_PRIMARY_CTA_BASE } from '@/app/(auth)/components/auth-button-classes'
 
@@ -39,7 +39,7 @@ export function InviteStatusCard({
           <p className='font-[380] text-[var(--landing-text-muted)] text-md'>{description}</p>
         </div>
         <div className='mt-8 flex w-full items-center justify-center py-8'>
-          <Loader2 className='h-8 w-8 animate-spin text-[var(--landing-text-muted)]' />
+          <Loader className='h-8 w-8 text-[var(--landing-text-muted)]' animate />
         </div>
       </>
     )
@@ -74,7 +74,7 @@ export function InviteStatusCard({
           >
             {action.loading ? (
               <span className='flex items-center gap-2'>
-                <Loader2 className='h-4 w-4 animate-spin' />
+                <Loader className='h-4 w-4' animate />
                 {action.label}...
               </span>
             ) : (

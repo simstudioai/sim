@@ -90,7 +90,6 @@ describe('Connector Documents API Route', () => {
 
       const url = 'http://localhost/api/knowledge/kb-123/connectors/conn-456/documents'
       const req = createMockRequest('GET', undefined, undefined, url)
-      Object.assign(req, { nextUrl: new URL(url) })
       const response = await GET(req as never, { params: mockParams })
       const data = await response.json()
 
@@ -115,7 +114,6 @@ describe('Connector Documents API Route', () => {
       const url =
         'http://localhost/api/knowledge/kb-123/connectors/conn-456/documents?includeExcluded=true'
       const req = createMockRequest('GET', undefined, undefined, url)
-      Object.assign(req, { nextUrl: new URL(url) })
       const response = await GET(req as never, { params: mockParams })
       const data = await response.json()
 

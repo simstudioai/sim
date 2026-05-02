@@ -9,6 +9,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { executionIdParamsSchema } from '@/lib/api/contracts/logs'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -21,7 +22,7 @@ export const GET = withRouteHandler(
     const requestId = generateRequestId()
 
     try {
-      const { executionId } = await params
+      const { executionId } = executionIdParamsSchema.parse(await params)
 
       const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!authResult.success || !authResult.userId) {

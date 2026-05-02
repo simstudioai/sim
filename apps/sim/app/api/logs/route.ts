@@ -25,21 +25,16 @@ import {
   sql,
 } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { listLogsQuerySchema } from '@/lib/api/contracts/logs'
+import { isZodError } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
+import { buildFilterConditions } from '@/lib/logs/filters'
 
 const logger = createLogger('LogsAPI')
 
 export const revalidate = 0
-
-const QueryParamsSchema = LogFilterParamsSchema.extend({
-  details: z.enum(['basic', 'full']).optional().default('basic'),
-  limit: z.coerce.number().optional().default(100),
-  offset: z.coerce.number().optional().default(0),
-})
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -55,7 +50,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     try {
       const { searchParams } = new URL(request.url)
-      const params = QueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
+      const params = listLogsQuerySchema.parse(Object.fromEntries(searchParams.entries()))
 
       const selectColumns =
         params.details === 'full'
@@ -589,14 +584,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         { status: 200 }
       )
     } catch (validationError) {
-      if (validationError instanceof z.ZodError) {
+      if (isZodError(validationError)) {
         logger.warn(`[${requestId}] Invalid logs request parameters`, {
-          errors: validationError.errors,
+          errors: validationError.issues,
         })
         return NextResponse.json(
           {
             error: 'Invalid request parameters',
-            details: validationError.errors,
+            details: validationError.issues,
           },
           { status: 400 }
         )

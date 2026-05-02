@@ -1,8 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  confluenceBlogPostOperationContract,
+  confluenceDeleteBlogPostContract,
+  confluenceListBlogPostsContract,
+  confluenceUpdateBlogPostContract,
+} from '@/lib/api/contracts/selectors/confluence'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
@@ -10,35 +16,6 @@ import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 const logger = createLogger('ConfluenceBlogPostsAPI')
 
 export const dynamic = 'force-dynamic'
-
-const getBlogPostSchema = z
-  .object({
-    domain: z.string().min(1, 'Domain is required'),
-    accessToken: z.string().min(1, 'Access token is required'),
-    cloudId: z.string().optional(),
-    blogPostId: z.string().min(1, 'Blog post ID is required'),
-    bodyFormat: z.string().optional(),
-  })
-  .refine(
-    (data) => {
-      const validation = validateAlphanumericId(data.blogPostId, 'blogPostId', 255)
-      return validation.isValid
-    },
-    (data) => {
-      const validation = validateAlphanumericId(data.blogPostId, 'blogPostId', 255)
-      return { message: validation.error || 'Invalid blog post ID', path: ['blogPostId'] }
-    }
-  )
-
-const createBlogPostSchema = z.object({
-  domain: z.string().min(1, 'Domain is required'),
-  accessToken: z.string().min(1, 'Access token is required'),
-  cloudId: z.string().optional(),
-  spaceId: z.string().min(1, 'Space ID is required'),
-  title: z.string().min(1, 'Title is required'),
-  content: z.string().min(1, 'Content is required'),
-  status: z.enum(['current', 'draft']).optional(),
-})
 
 /**
  * List all blog posts or get a specific blog post
@@ -50,14 +27,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const domain = searchParams.get('domain')
-    const accessToken = searchParams.get('accessToken')
-    const providedCloudId = searchParams.get('cloudId')
-    const limit = searchParams.get('limit') || '25'
-    const status = searchParams.get('status')
-    const sortOrder = searchParams.get('sort')
-    const cursor = searchParams.get('cursor')
+    const parsed = await parseRequest(confluenceListBlogPostsContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const {
+      domain,
+      accessToken,
+      cloudId: providedCloudId,
+      limit,
+      status,
+      sort: sortOrder,
+      cursor,
+    } = parsed.data.query
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -150,17 +131,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
+    const parsed = await parseRequest(confluenceBlogPostOperationContract, request, {})
+    if (!parsed.success) return parsed.response
+    const body = parsed.data.body
 
-    // Check if this is a create or get request
-    if (body.title && body.content && body.spaceId) {
+    if ('title' in body && 'content' in body && 'spaceId' in body) {
       // Create blog post
-      const validation = createBlogPostSchema.safeParse(body)
-      if (!validation.success) {
-        const firstError = validation.error.errors[0]
-        return NextResponse.json({ error: firstError.message }, { status: 400 })
-      }
-
       const {
         domain,
         accessToken,
@@ -169,7 +145,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         title,
         content,
         status,
-      } = validation.data
+      } = body
 
       const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
@@ -222,19 +198,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
     // Get blog post by ID
-    const validation = getBlogPostSchema.safeParse(body)
-    if (!validation.success) {
-      const firstError = validation.error.errors[0]
-      return NextResponse.json({ error: firstError.message }, { status: 400 })
-    }
-
-    const {
-      domain,
-      accessToken,
-      cloudId: providedCloudId,
-      blogPostId,
-      bodyFormat,
-    } = validation.data
+    const { domain, accessToken, cloudId: providedCloudId, blogPostId, bodyFormat } = body
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
@@ -302,20 +266,17 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { domain, accessToken, blogPostId, title, content, cloudId: providedCloudId } = body
+    const parsed = await parseRequest(confluenceUpdateBlogPostContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    if (!domain || !accessToken || !blogPostId) {
-      return NextResponse.json(
-        { error: 'Domain, access token, and blog post ID are required' },
-        { status: 400 }
-      )
-    }
-
-    const blogPostIdValidation = validateAlphanumericId(blogPostId, 'blogPostId', 255)
-    if (!blogPostIdValidation.isValid) {
-      return NextResponse.json({ error: blogPostIdValidation.error }, { status: 400 })
-    }
+    const {
+      domain,
+      accessToken,
+      blogPostId,
+      title,
+      content,
+      cloudId: providedCloudId,
+    } = parsed.data.body
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
@@ -406,20 +367,10 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { domain, accessToken, blogPostId, cloudId: providedCloudId } = body
+    const parsed = await parseRequest(confluenceDeleteBlogPostContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    if (!domain || !accessToken || !blogPostId) {
-      return NextResponse.json(
-        { error: 'Domain, access token, and blog post ID are required' },
-        { status: 400 }
-      )
-    }
-
-    const blogPostIdValidation = validateAlphanumericId(blogPostId, 'blogPostId', 255)
-    if (!blogPostIdValidation.isValid) {
-      return NextResponse.json({ error: blogPostIdValidation.error }, { status: 400 })
-    }
+    const { domain, accessToken, blogPostId, cloudId: providedCloudId } = parsed.data.body
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 

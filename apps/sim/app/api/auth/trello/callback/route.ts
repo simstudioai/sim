@@ -1,10 +1,15 @@
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { trelloCallbackContract } from '@/lib/api/contracts/oauth-connections'
+import { parseRequest } from '@/lib/api/server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
-export const GET = withRouteHandler(async () => {
+export const GET = withRouteHandler(async (request: NextRequest) => {
+  const parsed = await parseRequest(trelloCallbackContract, request, {})
+  if (!parsed.success) return parsed.response
+
   const baseUrl = getBaseUrl()
 
   return new NextResponse(

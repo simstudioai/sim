@@ -127,6 +127,7 @@ export const workflowFolder = pgTable(
     parentId: text('parent_id'), // Self-reference will be handled by foreign key constraint
     color: text('color').default('#6B7280'),
     isExpanded: boolean('is_expanded').notNull().default(true),
+    locked: boolean('locked').notNull().default(false),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -165,6 +166,7 @@ export const workflow = pgTable(
     isDeployed: boolean('is_deployed').notNull().default(false),
     deployedAt: timestamp('deployed_at'),
     isPublicApi: boolean('is_public_api').notNull().default(false),
+    locked: boolean('locked').notNull().default(false),
     runCount: integer('run_count').notNull().default(0),
     lastRunAt: timestamp('last_run_at'),
     variables: json('variables').default('{}'),

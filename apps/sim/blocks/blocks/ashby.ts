@@ -152,6 +152,40 @@ export const AshbyBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
+      id: 'website',
+      title: 'Website URL',
+      type: 'short-input',
+      placeholder: 'https://example.com',
+      condition: { field: 'operation', value: 'create_candidate' },
+      mode: 'advanced',
+    },
+    {
+      id: 'alternateEmail',
+      title: 'Alternate Email',
+      type: 'short-input',
+      placeholder: 'Additional email address',
+      condition: { field: 'operation', value: 'update_candidate' },
+      mode: 'advanced',
+    },
+    {
+      id: 'candidateCreatedAt',
+      title: 'Created At',
+      type: 'short-input',
+      placeholder: 'e.g. 2024-01-01T00:00:00Z',
+      condition: { field: 'operation', value: ['create_candidate', 'update_candidate'] },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+Examples:
+- "last week" -> One week ago from today at 00:00:00Z
+- "January 1st 2024" -> 2024-01-01T00:00:00Z
+- "30 days ago" -> 30 days before today at 00:00:00Z
+Output only the ISO 8601 timestamp string, nothing else.`,
+        generationType: 'timestamp',
+      },
+    },
+    {
       id: 'updateName',
       title: 'Name',
       type: 'short-input',
@@ -234,8 +268,11 @@ export const AshbyBlock: BlockConfig = {
       id: 'creditedToUserId',
       title: 'Credited To User ID',
       type: 'short-input',
-      placeholder: 'User UUID the application is credited to',
-      condition: { field: 'operation', value: 'create_application' },
+      placeholder: 'User UUID credited as the source of this record',
+      condition: {
+        field: 'operation',
+        value: ['create_application', 'create_candidate', 'update_candidate'],
+      },
       mode: 'advanced',
     },
     {
@@ -281,8 +318,32 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       id: 'sendNotifications',
       title: 'Send Notifications',
       type: 'switch',
+      condition: { field: 'operation', value: ['create_note', 'update_candidate'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'isPrivate',
+      title: 'Private Note',
+      type: 'switch',
       condition: { field: 'operation', value: 'create_note' },
       mode: 'advanced',
+    },
+    {
+      id: 'noteCreatedAt',
+      title: 'Created At',
+      type: 'short-input',
+      placeholder: 'e.g. 2024-01-01T00:00:00Z',
+      condition: { field: 'operation', value: 'create_note' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+Examples:
+- "yesterday" -> Yesterday at 00:00:00Z
+- "January 1st 2024" -> 2024-01-01T00:00:00Z
+Output only the ISO 8601 timestamp string, nothing else.`,
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'filterStatus',
@@ -308,11 +369,29 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       mode: 'advanced',
     },
     {
+      id: 'filterCandidateId',
+      title: 'Candidate ID Filter',
+      type: 'short-input',
+      placeholder: 'Filter by candidate UUID',
+      condition: { field: 'operation', value: 'list_applications' },
+      mode: 'advanced',
+    },
+    {
       id: 'createdAfter',
       title: 'Created After',
       type: 'short-input',
       placeholder: 'e.g. 2024-01-01T00:00:00Z',
-      condition: { field: 'operation', value: 'list_applications' },
+      condition: {
+        field: 'operation',
+        value: [
+          'list_applications',
+          'list_candidates',
+          'list_jobs',
+          'list_offers',
+          'list_openings',
+          'list_interviews',
+        ],
+      },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -322,6 +401,62 @@ Examples:
 - "January 1st 2024" -> 2024-01-01T00:00:00Z
 - "30 days ago" -> 30 days before today at 00:00:00Z
 - "start of this month" -> First day of current month at 00:00:00Z
+Output only the ISO 8601 timestamp string, nothing else.`,
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'openedAfter',
+      title: 'Opened After',
+      type: 'short-input',
+      placeholder: 'e.g. 2024-01-01T00:00:00Z',
+      condition: { field: 'operation', value: 'list_jobs' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+Output only the ISO 8601 timestamp string, nothing else.`,
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'openedBefore',
+      title: 'Opened Before',
+      type: 'short-input',
+      placeholder: 'e.g. 2024-12-31T23:59:59Z',
+      condition: { field: 'operation', value: 'list_jobs' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+Output only the ISO 8601 timestamp string, nothing else.`,
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'closedAfter',
+      title: 'Closed After',
+      type: 'short-input',
+      placeholder: 'e.g. 2024-01-01T00:00:00Z',
+      condition: { field: 'operation', value: 'list_jobs' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+Output only the ISO 8601 timestamp string, nothing else.`,
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'closedBefore',
+      title: 'Closed Before',
+      type: 'short-input',
+      placeholder: 'e.g. 2024-12-31T23:59:59Z',
+      condition: { field: 'operation', value: 'list_jobs' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
 Output only the ISO 8601 timestamp string, nothing else.`,
         generationType: 'timestamp',
       },
@@ -358,6 +493,9 @@ Output only the ISO 8601 timestamp string, nothing else.`,
           'list_users',
           'list_interviews',
           'list_candidate_tags',
+          'list_locations',
+          'list_departments',
+          'list_custom_fields',
         ],
       },
       mode: 'advanced',
@@ -379,6 +517,9 @@ Output only the ISO 8601 timestamp string, nothing else.`,
           'list_users',
           'list_interviews',
           'list_candidate_tags',
+          'list_locations',
+          'list_departments',
+          'list_custom_fields',
         ],
       },
       mode: 'advanced',
@@ -388,7 +529,47 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       title: 'Sync Token',
       type: 'short-input',
       placeholder: 'Sync token for incremental updates',
-      condition: { field: 'operation', value: 'list_candidate_tags' },
+      condition: {
+        field: 'operation',
+        value: [
+          'list_candidate_tags',
+          'list_locations',
+          'list_departments',
+          'list_custom_fields',
+          'list_offers',
+        ],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'includeLocationHierarchy',
+      title: 'Include Location Hierarchy',
+      type: 'switch',
+      condition: { field: 'operation', value: 'list_locations' },
+      mode: 'advanced',
+    },
+    {
+      id: 'offerApplicationId',
+      title: 'Application ID Filter',
+      type: 'short-input',
+      placeholder: 'Filter offers by application UUID',
+      condition: { field: 'operation', value: 'list_offers' },
+      mode: 'advanced',
+    },
+    {
+      id: 'alternateEmailAddresses',
+      title: 'Alternate Email Addresses',
+      type: 'long-input',
+      placeholder: 'Comma-separated or JSON array (e.g. ["a@x.com","b@x.com"])',
+      condition: { field: 'operation', value: 'create_candidate' },
+      mode: 'advanced',
+    },
+    {
+      id: 'socialLinks',
+      title: 'Social Links',
+      type: 'long-input',
+      placeholder: 'JSON array (e.g. [{"type":"Twitter","url":"https://twitter.com/x"}])',
+      condition: { field: 'operation', value: 'update_candidate' },
       mode: 'advanced',
     },
     {
@@ -397,20 +578,58 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       type: 'switch',
       condition: {
         field: 'operation',
-        value: ['list_candidate_tags', 'list_archive_reasons'],
+        value: [
+          'list_candidate_tags',
+          'list_archive_reasons',
+          'list_sources',
+          'list_departments',
+          'list_custom_fields',
+          'list_locations',
+        ],
       },
       mode: 'advanced',
     },
     {
-      id: 'expandApplicationFormDefinition',
-      title: 'Include Application Form Definition',
+      id: 'includeDeactivated',
+      title: 'Include Deactivated',
       type: 'switch',
-      condition: { field: 'operation', value: 'get_job_posting' },
+      condition: { field: 'operation', value: 'list_users' },
       mode: 'advanced',
     },
     {
-      id: 'expandSurveyFormDefinitions',
-      title: 'Include Survey Form Definitions',
+      id: 'jobBoardId',
+      title: 'Job Board ID',
+      type: 'short-input',
+      placeholder: 'Optional job board UUID (defaults to external)',
+      condition: { field: 'operation', value: ['get_job_posting', 'list_job_postings'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'postingLocation',
+      title: 'Location Filter',
+      type: 'short-input',
+      placeholder: 'Filter by location name (case sensitive)',
+      condition: { field: 'operation', value: 'list_job_postings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'postingDepartment',
+      title: 'Department Filter',
+      type: 'short-input',
+      placeholder: 'Filter by department name (case sensitive)',
+      condition: { field: 'operation', value: 'list_job_postings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listedOnly',
+      title: 'Listed Postings Only',
+      type: 'switch',
+      condition: { field: 'operation', value: 'list_job_postings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'expandJob',
+      title: 'Include Job',
       type: 'switch',
       condition: { field: 'operation', value: 'get_job_posting' },
       mode: 'advanced',
@@ -501,6 +720,9 @@ Output only the ISO 8601 timestamp string, nothing else.`,
         if (params.searchEmail) result.email = params.searchEmail
         if (params.filterStatus) result.status = params.filterStatus
         if (params.filterJobId) result.jobId = params.filterJobId
+        if (params.operation === 'list_applications' && params.filterCandidateId) {
+          result.candidateId = params.filterCandidateId
+        }
         if (params.jobStatus) result.status = params.jobStatus
         if (params.sendNotifications === 'true' || params.sendNotifications === true) {
           result.sendNotifications = true
@@ -508,21 +730,51 @@ Output only the ISO 8601 timestamp string, nothing else.`,
         if (params.includeArchived === 'true' || params.includeArchived === true) {
           result.includeArchived = true
         }
-        if (
-          params.expandApplicationFormDefinition === 'true' ||
-          params.expandApplicationFormDefinition === true
-        ) {
-          result.expandApplicationFormDefinition = true
+        if (params.includeDeactivated === 'true' || params.includeDeactivated === true) {
+          result.includeDeactivated = true
+        }
+        if (params.isPrivate === 'true' || params.isPrivate === true) {
+          result.isPrivate = true
+        }
+        if (params.listedOnly === 'true' || params.listedOnly === true) {
+          result.listedOnly = true
+        }
+        if (params.expandJob === 'true' || params.expandJob === true) {
+          result.expandJob = true
+        }
+        if (params.operation === 'create_application' && params.appCandidateId) {
+          result.candidateId = params.appCandidateId
+        }
+        if (params.operation === 'create_application' && params.appCreatedAt) {
+          result.createdAt = params.appCreatedAt
         }
         if (
-          params.expandSurveyFormDefinitions === 'true' ||
-          params.expandSurveyFormDefinitions === true
+          (params.operation === 'create_candidate' || params.operation === 'update_candidate') &&
+          params.candidateCreatedAt
         ) {
-          result.expandSurveyFormDefinitions = true
+          result.createdAt = params.candidateCreatedAt
         }
-        if (params.appCandidateId) result.candidateId = params.appCandidateId
-        if (params.appCreatedAt) result.createdAt = params.appCreatedAt
+        if (params.operation === 'create_note' && params.noteCreatedAt) {
+          result.createdAt = params.noteCreatedAt
+        }
         if (params.updateName) result.name = params.updateName
+        if (params.website) result.website = params.website
+        if (params.alternateEmail) result.alternateEmail = params.alternateEmail
+        if (params.postingLocation) result.location = params.postingLocation
+        if (params.postingDepartment) result.department = params.postingDepartment
+        if (
+          params.includeLocationHierarchy === 'true' ||
+          params.includeLocationHierarchy === true
+        ) {
+          result.includeLocationHierarchy = true
+        }
+        if (params.operation === 'list_offers' && params.offerApplicationId) {
+          result.applicationId = params.offerApplicationId
+        }
+        if (params.alternateEmailAddresses) {
+          result.alternateEmailAddresses = params.alternateEmailAddresses
+        }
+        if (params.socialLinks) result.socialLinks = params.socialLinks
         return result
       },
     },
@@ -554,24 +806,51 @@ Output only the ISO 8601 timestamp string, nothing else.`,
     sendNotifications: { type: 'boolean', description: 'Send notifications' },
     filterStatus: { type: 'string', description: 'Application status filter' },
     filterJobId: { type: 'string', description: 'Job UUID filter' },
+    filterCandidateId: { type: 'string', description: 'Candidate UUID filter' },
     createdAfter: { type: 'string', description: 'Filter by creation date' },
+    openedAfter: { type: 'string', description: 'Filter jobs opened after this timestamp' },
+    openedBefore: { type: 'string', description: 'Filter jobs opened before this timestamp' },
+    closedAfter: { type: 'string', description: 'Filter jobs closed after this timestamp' },
+    closedBefore: { type: 'string', description: 'Filter jobs closed before this timestamp' },
     jobStatus: { type: 'string', description: 'Job status filter' },
     cursor: { type: 'string', description: 'Pagination cursor' },
     perPage: { type: 'number', description: 'Results per page' },
     syncToken: { type: 'string', description: 'Sync token for incremental updates' },
     includeArchived: { type: 'boolean', description: 'Include archived records' },
-    expandApplicationFormDefinition: {
+    includeDeactivated: { type: 'boolean', description: 'Include deactivated users' },
+    website: { type: 'string', description: 'Personal website URL for new candidate' },
+    alternateEmail: { type: 'string', description: 'Additional email to add to candidate' },
+    candidateCreatedAt: { type: 'string', description: 'Candidate creation timestamp override' },
+    noteCreatedAt: { type: 'string', description: 'Note creation timestamp override' },
+    isPrivate: { type: 'boolean', description: 'Whether the note is private' },
+    postingLocation: { type: 'string', description: 'Filter job postings by location name' },
+    postingDepartment: { type: 'string', description: 'Filter job postings by department name' },
+    listedOnly: { type: 'boolean', description: 'Only return publicly listed job postings' },
+    jobBoardId: { type: 'string', description: 'Job board UUID for job posting lookup' },
+    expandJob: {
       type: 'boolean',
-      description: 'Include application form definition in job posting',
-    },
-    expandSurveyFormDefinitions: {
-      type: 'boolean',
-      description: 'Include survey form definitions in job posting',
+      description: 'Include the related job object in job posting response',
     },
     tagId: { type: 'string', description: 'Tag UUID' },
     offerId: { type: 'string', description: 'Offer UUID' },
     jobPostingId: { type: 'string', description: 'Job posting UUID' },
     archiveReasonId: { type: 'string', description: 'Archive reason UUID' },
+    includeLocationHierarchy: {
+      type: 'boolean',
+      description: 'Include hierarchical location data when listing locations',
+    },
+    offerApplicationId: {
+      type: 'string',
+      description: 'Application UUID filter for list_offers',
+    },
+    alternateEmailAddresses: {
+      type: 'string',
+      description: 'Alternate email addresses (comma-separated or JSON array)',
+    },
+    socialLinks: {
+      type: 'string',
+      description: 'Social links as JSON array',
+    },
   },
 
   outputs: {
@@ -583,7 +862,7 @@ Output only the ISO 8601 timestamp string, nothing else.`,
     jobs: {
       type: 'json',
       description:
-        'List of jobs (id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds[], customFields[], jobPostingIds[], customRequisitionId, brandId, hiringTeam[], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings[] with latestVersion, compensation with compensationTiers[])',
+        'List of jobs (id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds[], customFields[], jobPostingIds[], customRequisitionId, brandId, hiringTeam[], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings[] with latestVersion)',
     },
     applications: {
       type: 'json',
@@ -636,7 +915,7 @@ Output only the ISO 8601 timestamp string, nothing else.`,
     users: {
       type: 'json',
       description:
-        'List of users (id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId)',
+        'List of users (id, firstName, lastName, email, globalRole, isEnabled, updatedAt)',
     },
     interviewSchedules: {
       type: 'json',
@@ -654,12 +933,12 @@ Output only the ISO 8601 timestamp string, nothing else.`,
     candidate: {
       type: 'json',
       description:
-        'Candidate details (id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses[], phoneNumbers[], socialLinks[], customFields[], source, creditedToUser, createdAt, updatedAt)',
+        'Candidate summary (id, name, primaryEmailAddress, primaryPhoneNumber). For full candidate fields use the candidates list output or the get/create/update candidate operations.',
     },
     job: {
       type: 'json',
       description:
-        'Job details (id, title, status, employmentType, locationId, departmentId, hiringTeam[], author, location, openings[], compensation, createdAt, updatedAt)',
+        'Job details (id, title, status, employmentType, locationId, departmentId, hiringTeam[], author, location, openings[], createdAt, updatedAt)',
     },
     application: {
       type: 'json',
@@ -674,12 +953,12 @@ Output only the ISO 8601 timestamp string, nothing else.`,
     jobPosting: {
       type: 'json',
       description:
-        'Job posting details (id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy[], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt)',
+        'Job posting details (id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy[], jobId, locationName, locationIds, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt, job [included when expandJob=true])',
     },
     content: { type: 'string', description: 'Note content' },
     author: {
       type: 'json',
-      description: 'Note author (id, firstName, lastName, email, globalRole, isEnabled)',
+      description: 'Note author (id, firstName, lastName, email)',
     },
     isPrivate: { type: 'boolean', description: 'Whether the note is private' },
     createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },

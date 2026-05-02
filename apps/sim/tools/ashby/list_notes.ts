@@ -1,3 +1,4 @@
+import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListNotesParams {
@@ -62,10 +63,7 @@ export const listNotesTool: ToolConfig<AshbyListNotesParams, AshbyListNotesRespo
   request: {
     url: 'https://api.ashbyhq.com/candidate.listNotes',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {
         candidateId: params.candidateId.trim(),
@@ -80,7 +78,7 @@ export const listNotesTool: ToolConfig<AshbyListNotesParams, AshbyListNotesRespo
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to list notes')
+      throw new Error(ashbyErrorMessage(data, 'Failed to list notes'))
     }
 
     return {

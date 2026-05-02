@@ -1,21 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { awsSecretsManagerDeleteSecretContract } from '@/lib/api/contracts/tools/aws/secrets-manager-delete-secret'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createSecretsManagerClient, deleteSecret } from '../utils'
 
 const logger = createLogger('SecretsManagerDeleteSecretAPI')
-
-const DeleteSecretSchema = z.object({
-  region: z.string().min(1, 'AWS region is required'),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  secretId: z.string().min(1, 'Secret ID is required'),
-  recoveryWindowInDays: z.number().min(7).max(30).nullish(),
-  forceDelete: z.boolean().nullish(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
@@ -26,8 +18,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-    const params = DeleteSecretSchema.parse(body)
+    const parsed = await parseToolRequest(awsSecretsManagerDeleteSecretContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
 
     logger.info(`[${requestId}] Deleting secret ${params.secretId}`)
 
@@ -56,14 +52,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       client.destroy()
     }
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     logger.error(`[${requestId}] Failed to delete secret:`, error)
 

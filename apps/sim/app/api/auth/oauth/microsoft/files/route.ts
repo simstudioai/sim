@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { microsoftFilesQuerySchema } from '@/lib/api/contracts/selectors/microsoft'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validatePathSegment } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -20,15 +22,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     // Get the credential ID from the query params
     const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-    const query = searchParams.get('query') || ''
-    const driveId = searchParams.get('driveId') || undefined
-    const workflowId = searchParams.get('workflowId') || undefined
+    const parsedQuery = microsoftFilesQuerySchema.safeParse({
+      credentialId: searchParams.get('credentialId') ?? undefined,
+      query: searchParams.get('query') ?? undefined,
+      driveId: searchParams.get('driveId') ?? undefined,
+      workflowId: searchParams.get('workflowId') ?? undefined,
+    })
 
-    if (!credentialId) {
-      logger.warn(`[${requestId}] Missing credential ID`)
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
+    if (!parsedQuery.success) {
+      logger.warn(`[${requestId}] Invalid query parameters`)
+      return NextResponse.json(
+        { error: getValidationErrorMessage(parsedQuery.error) },
+        { status: 400 }
+      )
     }
+
+    const { credentialId, driveId, workflowId } = parsedQuery.data
+    const query = parsedQuery.data.query ?? ''
 
     const authz = await authorizeCredentialUse(request, {
       credentialId,

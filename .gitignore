@@ -80,3 +80,4 @@ i18n.cache
 ## Claude Code
 .claude/launch.json
 .claude/worktrees/
+.claude/scheduled_tasks.lock

@@ -3023,10 +3023,31 @@ export const EMBEDDING_MODEL_PRICING: Record<string, ModelPricing> = {
     output: 0.0,
     updatedAt: '2026-04-01',
   },
+  'gemini-embedding-001': {
+    input: 0.15, // $0.15 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-04-29',
+  },
 }
 
 export function getEmbeddingModelPricing(modelId: string): ModelPricing | null {
   return EMBEDDING_MODEL_PRICING[modelId] || null
+}
+
+/**
+ * Cohere rerank pricing in USD per single search unit (one query × ≤100 docs).
+ * Sim caps every rerank request to ≤100 documents, so each call = 1 unit.
+ */
+export const RERANK_MODEL_PRICING: Record<string, { perSearchUnit: number; updatedAt: string }> = {
+  'rerank-v4.0-pro': { perSearchUnit: 0.0025, updatedAt: '2026-04-29' },
+  'rerank-v4.0-fast': { perSearchUnit: 0.002, updatedAt: '2026-04-29' },
+  'rerank-v3.5': { perSearchUnit: 0.002, updatedAt: '2026-04-29' },
+}
+
+export function getRerankModelPricing(
+  modelId: string
+): { perSearchUnit: number; updatedAt: string } | null {
+  return RERANK_MODEL_PRICING[modelId] || null
 }
 
 export function getModelsWithReasoningEffort(): string[] {

@@ -48,7 +48,7 @@ export const jiraDeleteAttachmentTool: ToolConfig<
   request: {
     url: (params: JiraDeleteAttachmentParams) => {
       if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/attachment/${params.attachmentId}`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/attachment/${params.attachmentId?.trim() ?? ''}`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -65,7 +65,7 @@ export const jiraDeleteAttachmentTool: ToolConfig<
     if (!params?.cloudId) {
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
       // Make the actual request with the resolved cloudId
-      const attachmentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/attachment/${params?.attachmentId}`
+      const attachmentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/attachment/${params?.attachmentId?.trim() ?? ''}`
       const attachmentResponse = await fetch(attachmentUrl, {
         method: 'DELETE',
         headers: {

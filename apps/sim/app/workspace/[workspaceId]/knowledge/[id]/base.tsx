@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { format } from 'date-fns'
-import { AlertCircle, Loader2, Pencil, Plus, Tag, X } from 'lucide-react'
+import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
@@ -15,6 +15,7 @@ import {
   DatePicker,
   Input,
   Label,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
@@ -25,7 +26,6 @@ import {
 } from '@/components/emcn'
 import { Database, DatabaseX } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
-import { cn } from '@/lib/core/utils/cn'
 import { ADD_CONNECTOR_SEARCH_PARAM } from '@/lib/credentials/client-state'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
@@ -84,11 +84,11 @@ const DOCUMENTS_PER_PAGE = 50
 
 const DOCUMENT_COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
-  { id: 'size', header: 'Size' },
-  { id: 'tokens', header: 'Tokens' },
-  { id: 'chunks', header: 'Chunks' },
-  { id: 'uploaded', header: 'Uploaded' },
-  { id: 'status', header: 'Status' },
+  { id: 'size', header: 'Size', widthMultiplier: 0.625 },
+  { id: 'tokens', header: 'Tokens', widthMultiplier: 0.625 },
+  { id: 'chunks', header: 'Chunks', widthMultiplier: 0.5 },
+  { id: 'uploaded', header: 'Uploaded', widthMultiplier: 0.75 },
+  { id: 'status', header: 'Status', widthMultiplier: 0.875 },
   { id: 'tags', header: 'Tags' },
 ]
 
@@ -99,7 +99,7 @@ interface KnowledgeBaseProps {
 }
 
 const AnimatedLoader = ({ className }: { className?: string }) => (
-  <Loader2 className={cn(className, 'animate-spin')} />
+  <Loader className={className} animate />
 )
 
 const getStatusBadge = (doc: DocumentData) => {
@@ -926,7 +926,7 @@ export function KnowledgeBase({
               className='flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption shadow-[inset_0_0_0_1px_var(--border)] transition-colors hover-hover:bg-[var(--surface-3)]'
             >
               {connector.status === 'syncing' ? (
-                <Loader2 className='h-[14px] w-[14px] animate-spin' />
+                <Loader className='h-[14px] w-[14px]' animate />
               ) : (
                 ConnectorIcon && <ConnectorIcon className='h-[14px] w-[14px]' />
               )}

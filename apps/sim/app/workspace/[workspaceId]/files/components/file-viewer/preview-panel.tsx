@@ -1,38 +1,44 @@
 'use client'
 
-import {
-  createContext,
-  memo,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { createContext, memo, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import matter from 'gray-matter'
 import { useRouter } from 'next/navigation'
 import rehypeSlug from 'rehype-slug'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
-import { Checkbox } from '@/components/emcn'
+import { toError } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
+import { Checkbox, CopyCodeButton, highlight, languages, Skeleton } from '@/components/emcn'
+import '@/components/emcn/components/code/code.css'
+import 'prismjs/components/prism-bash'
+import 'prismjs/components/prism-css'
+import 'prismjs/components/prism-markup'
+import 'prismjs/components/prism-javascript'
+import 'prismjs/components/prism-typescript'
+import 'prismjs/components/prism-yaml'
+import 'prismjs/components/prism-sql'
+import 'prismjs/components/prism-python'
 import { cn } from '@/lib/core/utils/cn'
+import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import { DataTable } from './data-table'
+import { ZoomablePreview } from './zoomable-preview'
 
 interface HastNode {
   position?: { start?: { offset?: number } }
 }
 
-type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | null
+type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | null
 
 const PREVIEWABLE_MIME_TYPES: Record<string, PreviewType> = {
   'text/markdown': 'markdown',
   'text/html': 'html',
   'text/csv': 'csv',
   'image/svg+xml': 'svg',
+  'text/x-mermaid': 'mermaid',
 }
 
 const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
@@ -41,6 +47,7 @@ const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
   htm: 'html',
   csv: 'csv',
   svg: 'svg',
+  mmd: 'mermaid',
 }
 
 /** All extensions that have a rich preview renderer. */
@@ -57,6 +64,7 @@ interface PreviewPanelProps {
   mimeType: string | null
   filename: string
   isStreaming?: boolean
+  disableAutoScroll?: boolean
   onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
 }
 
@@ -65,6 +73,7 @@ export const PreviewPanel = memo(function PreviewPanel({
   mimeType,
   filename,
   isStreaming,
+  disableAutoScroll,
   onCheckboxToggle,
 }: PreviewPanelProps) {
   const previewType = resolvePreviewType(mimeType, filename)
@@ -74,17 +83,93 @@ export const PreviewPanel = memo(function PreviewPanel({
       <MarkdownPreview
         content={content}
         isStreaming={isStreaming}
+        disableAutoScroll={disableAutoScroll}
         onCheckboxToggle={onCheckboxToggle}
       />
     )
   if (previewType === 'html') return <HtmlPreview content={content} />
   if (previewType === 'csv') return <CsvPreview content={content} />
   if (previewType === 'svg') return <SvgPreview content={content} />
+  if (previewType === 'mermaid')
+    return <MermaidFilePreview content={content} isStreaming={isStreaming} />
 
   return null
 })
 
-const REMARK_PLUGINS = [remarkGfm, remarkBreaks]
+const CALLOUT_TYPES = new Set(['NOTE', 'TIP', 'WARNING', 'IMPORTANT', 'CAUTION'])
+
+function remarkMermaid() {
+  return (tree: { type: string; children?: unknown[] }) => {
+    function processNode(node: {
+      type: string
+      children?: unknown[]
+      lang?: string
+      value?: string
+      data?: Record<string, unknown>
+    }) {
+      if (!node.children) return
+      for (const child of node.children) {
+        const c = child as typeof node
+        if (c.type === 'code' && c.lang === 'mermaid') {
+          c.data = {
+            hName: 'mermaid-diagram',
+            hProperties: { definition: c.value ?? '' },
+            hChildren: [],
+          }
+        } else {
+          processNode(c)
+        }
+      }
+    }
+    processNode(tree)
+  }
+}
+
+function remarkCallouts() {
+  return (tree: { type: string; children?: unknown[] }) => {
+    function processNode(node: { type: string; children?: unknown[] }) {
+      if (!node.children) return
+      for (const child of node.children) {
+        processNode(child as { type: string; children?: unknown[] })
+        const c = child as {
+          type: string
+          children?: unknown[]
+          data?: { hName?: string; hProperties?: Record<string, string> }
+        }
+        if (c.type !== 'blockquote') continue
+        const first = (c.children?.[0] ?? null) as {
+          type: string
+          children?: unknown[]
+        } | null
+        if (!first || first.type !== 'paragraph') continue
+        const firstText = (first.children?.[0] ?? null) as {
+          type: string
+          value?: string
+        } | null
+        if (!firstText || firstText.type !== 'text' || !firstText.value) continue
+        const match = firstText.value.match(/^\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]\s?/i)
+        if (!match) continue
+        const calloutType = match[1].toUpperCase()
+        if (!CALLOUT_TYPES.has(calloutType)) continue
+
+        c.data ??= {}
+        c.data.hProperties = { ...(c.data.hProperties ?? {}), 'data-callout': calloutType }
+
+        const remainder = firstText.value.slice(match[0].length)
+        if (remainder) {
+          firstText.value = remainder
+        } else if (first.children && first.children.length === 1) {
+          c.children?.shift()
+        } else {
+          first.children?.shift()
+        }
+      }
+    }
+    processNode(tree)
+  }
+}
+
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkMermaid, remarkCallouts]
 const REHYPE_PLUGINS = [rehypeSlug]
 
 /**
@@ -95,13 +180,304 @@ const MarkdownCheckboxCtx = createContext<{
   contentRef: React.MutableRefObject<string>
   onToggle: (index: number, checked: boolean) => void
 } | null>(null)
+const MermaidStreamingCtx = createContext(false)
 
 /** Carries the resolved checkbox index from LiRenderer to InputRenderer. */
 const CheckboxIndexCtx = createContext(-1)
 
 const NavigateCtx = createContext<((path: string) => void) | null>(null)
 
+const CALLOUT_CONFIG: Record<
+  string,
+  { label: string; borderColor: string; bgColor: string; textColor: string; iconColor: string }
+> = {
+  NOTE: {
+    label: 'Note',
+    borderColor: 'border-blue-400/60',
+    bgColor: 'bg-blue-400/10',
+    textColor: 'text-[var(--text-primary)]',
+    iconColor: 'text-blue-500',
+  },
+  TIP: {
+    label: 'Tip',
+    borderColor: 'border-emerald-400/60',
+    bgColor: 'bg-emerald-400/10',
+    textColor: 'text-[var(--text-primary)]',
+    iconColor: 'text-emerald-500',
+  },
+  WARNING: {
+    label: 'Warning',
+    borderColor: 'border-amber-400/60',
+    bgColor: 'bg-amber-400/10',
+    textColor: 'text-[var(--text-primary)]',
+    iconColor: 'text-amber-500',
+  },
+  IMPORTANT: {
+    label: 'Important',
+    borderColor: 'border-violet-400/60',
+    bgColor: 'bg-violet-400/10',
+    textColor: 'text-[var(--text-primary)]',
+    iconColor: 'text-violet-500',
+  },
+  CAUTION: {
+    label: 'Caution',
+    borderColor: 'border-red-400/60',
+    bgColor: 'bg-red-400/10',
+    textColor: 'text-[var(--text-primary)]',
+    iconColor: 'text-red-500',
+  },
+}
+
+const CALLOUT_ICONS: Record<string, string> = {
+  NOTE: 'ℹ',
+  TIP: '💡',
+  WARNING: '⚠',
+  IMPORTANT: '❕',
+  CAUTION: '🛑',
+}
+
+const LANG_ALIASES: Record<string, string> = {
+  js: 'javascript',
+  ts: 'typescript',
+  tsx: 'typescript',
+  jsx: 'javascript',
+  sh: 'bash',
+  shell: 'bash',
+  html: 'markup',
+  xml: 'markup',
+  yml: 'yaml',
+  py: 'python',
+}
+
+function CalloutBlock({ type, children }: { type: string; children?: React.ReactNode }) {
+  const config = CALLOUT_CONFIG[type]
+  if (!config) {
+    return (
+      <blockquote className='my-4 break-words border-[var(--border-1)] border-l-4 py-1 pl-4 text-[var(--text-tertiary)] italic'>
+        {children}
+      </blockquote>
+    )
+  }
+  return (
+    <div
+      className={cn(
+        'my-4 rounded-lg border-l-4 px-4 py-3 text-[14px]',
+        config.borderColor,
+        config.bgColor
+      )}
+    >
+      <div
+        className={cn('mb-1 flex items-center gap-1.5 font-semibold text-[13px]', config.iconColor)}
+      >
+        <span>{CALLOUT_ICONS[type]}</span>
+        <span>{config.label}</span>
+      </div>
+      <div className={cn('break-words leading-[1.6]', config.textColor)}>{children}</div>
+    </div>
+  )
+}
+
+function MermaidSourcePreview({
+  definition,
+  isRendering,
+  status,
+}: {
+  definition: string
+  isRendering: boolean
+  status?: string
+}) {
+  return (
+    <div className='my-4 overflow-hidden rounded-lg border border-[var(--border)]'>
+      <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
+        <span className='text-[11px] text-[var(--text-tertiary)]'>mermaid</span>
+        {(isRendering || status) && (
+          <span className='text-[11px] text-[var(--text-muted)]'>
+            {isRendering ? 'Rendering...' : status}
+          </span>
+        )}
+      </div>
+      <div className='code-editor-theme bg-[var(--surface-5)]'>
+        <pre className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] text-[var(--text-primary)] leading-[1.6]'>
+          <code>{definition}</code>
+        </pre>
+      </div>
+    </div>
+  )
+}
+
+function MermaidCodeBlockSkeleton() {
+  return (
+    <div className='my-4 overflow-hidden rounded-lg border border-[var(--border)]'>
+      <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
+        <span className='text-[11px] text-[var(--text-tertiary)]'>mermaid</span>
+        <span className='text-[11px] text-[var(--text-muted)]'>Rendering...</span>
+      </div>
+      <div className='code-editor-theme bg-[var(--surface-5)]'>
+        <div className='space-y-2 p-4'>
+          <div className='h-3 w-5/6 animate-pulse rounded bg-[var(--surface-2)]' />
+          <div className='h-3 w-2/3 animate-pulse rounded bg-[var(--surface-2)]' />
+          <div className='h-3 w-3/4 animate-pulse rounded bg-[var(--surface-2)]' />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const MermaidDiagram = memo(function MermaidDiagram({
+  definition,
+  isStreaming = false,
+  zoomable = false,
+  zoomClassName,
+}: {
+  definition: string
+  isStreaming?: boolean
+  zoomable?: boolean
+  zoomClassName?: string
+}) {
+  const [svg, setSvg] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isRendering, setIsRendering] = useState(false)
+  const [renderedDefinition, setRenderedDefinition] = useState<string | null>(null)
+  const trimmedDefinition = definition.trim()
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!trimmedDefinition) {
+      setSvg(null)
+      setError(null)
+      setIsRendering(false)
+      setRenderedDefinition(null)
+      return
+    }
+
+    let cancelled = false
+    const renderDelay = isStreaming ? 150 : 0
+
+    async function render() {
+      try {
+        setIsRendering(true)
+        const { default: mermaid } = await import('mermaid')
+        if (cancelled) return
+
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'default',
+        })
+        mermaid.setParseErrorHandler?.(() => undefined)
+
+        if (isStreaming) {
+          const parsed = await mermaid.parse(trimmedDefinition, { suppressErrors: true })
+          if (!parsed) {
+            if (!cancelled) {
+              setError(null)
+            }
+            return
+          }
+        } else {
+          await mermaid.parse(trimmedDefinition)
+        }
+
+        const { svg: rendered } = await mermaid.render(
+          `mermaid-${generateShortId(8)}`,
+          trimmedDefinition
+        )
+        if (!cancelled) {
+          setSvg(rendered)
+          setRenderedDefinition(trimmedDefinition)
+          setError(null)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          if (isStreaming) {
+            setError(null)
+          } else {
+            setError(toError(err).message || 'Failed to render diagram')
+            setSvg(null)
+            setRenderedDefinition(null)
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          setIsRendering(false)
+        }
+      }
+    }
+
+    setError(null)
+    const timer = window.setTimeout(() => {
+      render()
+    }, renderDelay)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [trimmedDefinition, isStreaming])
+
+  if (error) {
+    return (
+      <MermaidSourcePreview definition={definition} isRendering={false} status='Invalid diagram' />
+    )
+  }
+
+  if (svg && renderedDefinition === trimmedDefinition) {
+    const diagram = <div dangerouslySetInnerHTML={{ __html: svg }} />
+
+    if (zoomable) {
+      return (
+        <ZoomablePreview
+          className={zoomClassName ?? 'my-4 h-[420px] rounded-lg'}
+          initialScale='fit'
+          resetKey={renderedDefinition}
+        >
+          {diagram}
+        </ZoomablePreview>
+      )
+    }
+
+    return (
+      <div className='my-4 overflow-auto rounded-lg' dangerouslySetInnerHTML={{ __html: svg }} />
+    )
+  }
+
+  if (isStreaming) {
+    return <MermaidSourcePreview definition={definition} isRendering={isRendering} />
+  }
+
+  if (!trimmedDefinition || !svg || renderedDefinition !== trimmedDefinition) {
+    if (zoomable) {
+      return (
+        <div className='h-full p-6'>
+          <Skeleton className='h-full w-full rounded-lg' />
+        </div>
+      )
+    }
+    return <MermaidCodeBlockSkeleton />
+  }
+  return null
+})
+
+function resolveSimFileUrl(src: string | undefined): string | undefined {
+  if (!src) return src
+  try {
+    const parsed = new URL(src, 'http://placeholder')
+    if (parsed.origin !== 'http://placeholder') return src
+    const [, seg1, , seg3, fileId] = parsed.pathname.split('/')
+    if (seg1 === 'workspace' && seg3 === 'files' && fileId) {
+      return `/api/files/view/${fileId}`
+    }
+  } catch {
+    // not a parseable URL
+  }
+  return src
+}
+
 const STATIC_MARKDOWN_COMPONENTS = {
+  pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  'mermaid-diagram': ({ definition }: { definition?: string }) => {
+    const isStreaming = useContext(MermaidStreamingCtx)
+    return <MermaidDiagram definition={definition ?? ''} isStreaming={isStreaming} />
+  },
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className='mb-3 break-words text-[14px] text-[var(--text-primary)] leading-[1.6] last:mb-0'>
       {children}
@@ -139,41 +515,112 @@ const STATIC_MARKDOWN_COMPONENTS = {
       {children}
     </h4>
   ),
+  h5: ({ id, children }: { id?: string; children?: React.ReactNode }) => (
+    <h5
+      id={id}
+      className='mt-3 mb-1 break-words font-semibold text-[13px] text-[var(--text-primary)] first:mt-0'
+    >
+      {children}
+    </h5>
+  ),
+  h6: ({ id, children }: { id?: string; children?: React.ReactNode }) => (
+    <h6
+      id={id}
+      className='mt-3 mb-1 break-words font-medium text-[12px] text-[var(--text-secondary)] first:mt-0'
+    >
+      {children}
+    </h6>
+  ),
   inlineCode: ({ children }: { children?: React.ReactNode }) => {
     if (typeof children === 'string' && children.includes('\n')) {
       return (
-        <code className='my-4 block overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface-5)] p-4 font-mono text-[13px] text-[var(--text-primary)] leading-[1.6]'>
+        <code className='my-4 block overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface-5)] p-4 font-mono text-[var(--text-primary)] leading-[1.6]'>
           {children}
         </code>
       )
     }
     return (
-      <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[13px] text-[var(--caution)]'>
+      <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[var(--caution)]'>
         {children}
       </code>
     )
   },
-  pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
+    const langMatch = className?.match(/language-(\w+)/)
+    const langRaw = langMatch?.[1] ?? ''
+    const codeString = extractTextContent(children)
+
+    if (!codeString) {
+      return (
+        <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[var(--caution)]'>
+          {children}
+        </code>
+      )
+    }
+
+    const resolved = LANG_ALIASES[langRaw] || langRaw || 'javascript'
+    const grammar = languages[resolved] || languages.javascript
+    const html = grammar ? highlight(codeString.trimEnd(), grammar, resolved) : null
+
+    return (
+      <div className='my-4 overflow-hidden rounded-lg border border-[var(--border)]'>
+        <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
+          <span className='text-[11px] text-[var(--text-tertiary)]'>{langRaw || 'code'}</span>
+          <CopyCodeButton
+            code={codeString}
+            className='-mr-1 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+          />
+        </div>
+        <div className='code-editor-theme bg-[var(--surface-5)]'>
+          {html ? (
+            <pre
+              className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] leading-[1.6]'
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          ) : (
+            <pre className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] text-[var(--text-primary)] leading-[1.6]'>
+              <code>{codeString.trimEnd()}</code>
+            </pre>
+          )}
+        </div>
+      </div>
+    )
+  },
   strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className='break-words font-semibold text-[var(--text-primary)]'>{children}</strong>
+    <strong className='break-words font-semibold'>{children}</strong>
   ),
-  em: ({ children }: { children?: React.ReactNode }) => (
-    <em className='break-words text-[var(--text-tertiary)]'>{children}</em>
+  em: ({ children }: { children?: React.ReactNode }) => <em className='break-words'>{children}</em>,
+  del: ({ children }: { children?: React.ReactNode }) => (
+    <del className='line-through opacity-50'>{children}</del>
   ),
-  blockquote: ({ children }: { children?: React.ReactNode }) => (
-    <blockquote className='my-4 break-words border-[var(--border-1)] border-l-4 py-1 pl-4 text-[var(--text-tertiary)] italic'>
-      {children}
-    </blockquote>
-  ),
+  blockquote: ({
+    children,
+    'data-callout': calloutType,
+  }: {
+    children?: React.ReactNode
+    'data-callout'?: string
+  }) => {
+    if (calloutType && CALLOUT_TYPES.has(calloutType)) {
+      return <CalloutBlock type={calloutType}>{children}</CalloutBlock>
+    }
+    return (
+      <blockquote className='my-4 break-words border-[var(--border-1)] border-l-4 py-1 pl-4 text-[var(--text-tertiary)] italic'>
+        {children}
+      </blockquote>
+    )
+  },
   hr: () => <hr className='my-6 border-[var(--border)]' />,
-  img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-    <img
-      src={src as string}
-      alt={alt ?? ''}
-      className='my-3 max-w-full rounded-md'
-      loading='lazy'
-    />
-  ),
+  img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) => {
+    const resolvedSrc = resolveSimFileUrl(typeof src === 'string' ? src : undefined)
+    return (
+      <img
+        src={resolvedSrc}
+        alt={alt ?? ''}
+        className='my-3 max-w-full rounded-md'
+        loading='lazy'
+      />
+    )
+  },
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className='my-4 max-w-full overflow-x-auto'>
       <table className='w-full border-collapse text-[13px]'>{children}</table>
@@ -299,36 +746,33 @@ function isInternalHref(
 
 function AnchorRenderer({ href, children }: { href?: string; children?: React.ReactNode }) {
   const navigate = useContext(NavigateCtx)
-  const parsed = useMemo(() => (href ? isInternalHref(href) : null), [href])
+  const parsed = href ? isInternalHref(href) : null
 
-  const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLAnchorElement>) => {
-      if (!parsed || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!parsed || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
 
-      e.preventDefault()
+    e.preventDefault()
 
-      if (parsed.pathname === '' && parsed.hash) {
-        const el = document.getElementById(parsed.hash.slice(1))
-        if (el) {
-          const container = el.closest('.overflow-auto') as HTMLElement | null
-          if (container) {
-            container.scrollTo({ top: el.offsetTop - container.offsetTop, behavior: 'smooth' })
-          } else {
-            el.scrollIntoView({ behavior: 'smooth' })
-          }
+    if (parsed.pathname === '' && parsed.hash) {
+      const el = document.getElementById(parsed.hash.slice(1))
+      if (el) {
+        const container = el.closest('.overflow-auto') as HTMLElement | null
+        if (container) {
+          container.scrollTo({ top: el.offsetTop - container.offsetTop, behavior: 'smooth' })
+        } else {
+          el.scrollIntoView({ behavior: 'smooth' })
         }
-        return
       }
+      return
+    }
 
-      const destination = parsed.pathname + parsed.hash
-      if (navigate) {
-        navigate(destination)
-      } else {
-        window.location.assign(destination)
-      }
-    },
-    [parsed, navigate]
-  )
+    const destination = parsed.pathname + parsed.hash
+    if (navigate) {
+      navigate(destination)
+    } else {
+      window.location.assign(destination)
+    }
+  }
 
   return (
     <a
@@ -352,32 +796,64 @@ const MARKDOWN_COMPONENTS = {
   input: InputRenderer,
 }
 
+function FrontMatterCard({ data }: { data: Record<string, unknown> }) {
+  const entries = Object.entries(data)
+  if (entries.length === 0) return null
+
+  return (
+    <div className='mb-6 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-[13px]'>
+      <dl className='flex flex-col gap-1.5'>
+        {entries.map(([key, value]) => (
+          <div key={key} className='flex gap-2 break-words'>
+            <dt className='shrink-0 font-medium text-[var(--text-secondary)]'>{key}:</dt>
+            <dd className='text-[var(--text-primary)]'>
+              {Array.isArray(value)
+                ? value.join(', ')
+                : value instanceof Date
+                  ? value.toISOString().split('T')[0]
+                  : String(value ?? '')}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
 const MarkdownPreview = memo(function MarkdownPreview({
   content,
   isStreaming = false,
+  disableAutoScroll = false,
   onCheckboxToggle,
 }: {
   content: string
   isStreaming?: boolean
+  disableAutoScroll?: boolean
   onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
 }) {
   const { push: navigate } = useRouter()
-  const { ref: autoScrollRef } = useAutoScroll(isStreaming)
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const { ref: autoScrollRef } = useAutoScroll(isStreaming && !disableAutoScroll)
 
   const contentRef = useRef(content)
   contentRef.current = content
 
+  const { frontMatterData, markdownContent } = useMemo(() => {
+    if (isStreaming) return { frontMatterData: null, markdownContent: content }
+    try {
+      const parsed = matter(content)
+      const hasFrontMatter = Object.keys(parsed.data).length > 0
+      return {
+        frontMatterData: hasFrontMatter ? parsed.data : null,
+        markdownContent: hasFrontMatter ? parsed.content : content,
+      }
+    } catch {
+      return { frontMatterData: null, markdownContent: content }
+    }
+  }, [content, isStreaming])
+
   const ctxValue = useMemo(
     () => (onCheckboxToggle ? { contentRef, onToggle: onCheckboxToggle } : null),
     [onCheckboxToggle]
-  )
-  const setScrollRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      scrollContainerRef.current = node
-      autoScrollRef(node)
-    },
-    [autoScrollRef]
   )
 
   const hasScrolledToHash = useRef(false)
@@ -398,37 +874,30 @@ const MarkdownPreview = memo(function MarkdownPreview({
 
   const streamdownMode = isStreaming ? undefined : 'static'
 
-  if (onCheckboxToggle) {
-    return (
-      <NavigateCtx.Provider value={navigate}>
-        <MarkdownCheckboxCtx.Provider value={ctxValue}>
-          <div ref={setScrollRef} className='h-full overflow-auto p-6'>
-            <Streamdown
-              mode={streamdownMode}
-              remarkPlugins={REMARK_PLUGINS}
-              rehypePlugins={REHYPE_PLUGINS}
-              components={MARKDOWN_COMPONENTS}
-            >
-              {content}
-            </Streamdown>
-          </div>
-        </MarkdownCheckboxCtx.Provider>
-      </NavigateCtx.Provider>
-    )
-  }
-
-  return (
-    <NavigateCtx.Provider value={navigate}>
-      <div ref={setScrollRef} className='h-full overflow-auto p-6'>
+  const body = (
+    <div ref={autoScrollRef} className='h-full overflow-auto p-6'>
+      {frontMatterData && <FrontMatterCard data={frontMatterData} />}
+      <MermaidStreamingCtx.Provider value={isStreaming}>
         <Streamdown
           mode={streamdownMode}
           remarkPlugins={REMARK_PLUGINS}
           rehypePlugins={REHYPE_PLUGINS}
           components={MARKDOWN_COMPONENTS}
+          allowedTags={{ 'mermaid-diagram': ['definition'] }}
         >
-          {content}
+          {markdownContent}
         </Streamdown>
-      </div>
+      </MermaidStreamingCtx.Provider>
+    </div>
+  )
+
+  return (
+    <NavigateCtx.Provider value={navigate}>
+      {onCheckboxToggle ? (
+        <MarkdownCheckboxCtx.Provider value={ctxValue}>{body}</MarkdownCheckboxCtx.Provider>
+      ) : (
+        body
+      )}
     </NavigateCtx.Provider>
   )
 })
@@ -497,9 +966,7 @@ function buildHtmlPreviewDocument(content: string): string {
 }
 
 const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) {
-  // Run inline HTML/JS in an isolated iframe while blocking any navigation
-  // that would replace the preview with another document.
-  const wrappedContent = useMemo(() => buildHtmlPreviewDocument(content), [content])
+  const wrappedContent = buildHtmlPreviewDocument(content)
   const containerRef = useRef<HTMLDivElement>(null)
   const [isRenderable, setIsRenderable] = useState(false)
   const [resumeNonce, setResumeNonce] = useState(0)
@@ -563,31 +1030,40 @@ const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) 
           sandbox='allow-scripts'
           referrerPolicy='no-referrer'
           title='HTML Preview'
-          className='h-full w-full border-0 bg-white'
+          className='h-full w-full border-0 bg-[var(--surface-2)]'
         />
       )}
     </div>
   )
 })
 
-const SvgPreview = memo(function SvgPreview({ content }: { content: string }) {
-  const wrappedContent = useMemo(
-    () =>
-      `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:transparent;}svg{max-width:100%;max-height:100vh;}</style></head><body>${content}</body></html>`,
-    [content]
-  )
+function SvgPreview({ content }: { content: string }) {
+  const wrappedContent = `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:transparent;}svg{max-width:100%;max-height:100vh;}</style></head><body>${content}</body></html>`
 
   return (
-    <div className='h-full overflow-hidden'>
+    <ZoomablePreview className='h-full' contentClassName='h-full w-full'>
       <iframe
         srcDoc={wrappedContent}
         sandbox=''
         title='SVG Preview'
         className='h-full w-full border-0'
       />
+    </ZoomablePreview>
+  )
+}
+
+function MermaidFilePreview({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
+  return (
+    <div className='h-full overflow-auto p-6'>
+      <MermaidDiagram
+        definition={content}
+        isStreaming={isStreaming}
+        zoomable
+        zoomClassName='h-full rounded-lg'
+      />
     </div>
   )
-})
+}
 
 const CsvPreview = memo(function CsvPreview({ content }: { content: string }) {
   const { headers, rows } = useMemo(() => parseCsv(content), [content])

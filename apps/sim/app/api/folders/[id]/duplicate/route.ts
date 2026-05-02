@@ -3,29 +3,24 @@ import { db } from '@sim/db'
 import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { FolderLockedError } from '@sim/workflow-authz'
 import { and, eq, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { duplicateFolderContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import type { DbOrTx } from '@/lib/db/types'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FolderDuplicateAPI')
 
-const DuplicateRequestSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  workspaceId: z.string().optional(),
-  parentId: z.string().nullable().optional(),
-  color: z.string().optional(),
-  newId: z.string().uuid().optional(),
-})
-
 // POST /api/folders/[id]/duplicate - Duplicate a folder with all its child folders and workflows
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: sourceFolderId } = await params
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const { id: sourceFolderId } = await context.params
     const requestId = generateRequestId()
     const startTime = Date.now()
 
@@ -36,21 +31,16 @@ export const POST = withRouteHandler(
     }
 
     try {
-      const body = await req.json()
-      const {
-        name,
-        workspaceId,
-        parentId,
-        color,
-        newId: clientNewId,
-      } = DuplicateRequestSchema.parse(body)
+      const parsed = await parseRequest(duplicateFolderContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { name, workspaceId, parentId, color, newId: clientNewId } = parsed.data.body
 
       logger.info(`[${requestId}] Duplicating folder ${sourceFolderId} for user ${session.user.id}`)
 
       const sourceFolder = await db
         .select()
         .from(workflowFolder)
-        .where(eq(workflowFolder.id, sourceFolderId))
+        .where(and(eq(workflowFolder.id, sourceFolderId), isNull(workflowFolder.archivedAt)))
         .then((rows) => rows[0])
 
       if (!sourceFolder) {
@@ -68,11 +58,15 @@ export const POST = withRouteHandler(
       }
 
       const targetWorkspaceId = workspaceId || sourceFolder.workspaceId
+      if (targetWorkspaceId !== sourceFolder.workspaceId) {
+        throw new Error('Cross-workspace folder duplication is not supported')
+      }
 
-      const { newFolderId, folderMapping } = await db.transaction(async (tx) => {
+      const { newFolderId, folderMapping, workflowStats } = await db.transaction(async (tx) => {
         const newFolderId = clientNewId || generateId()
         const now = new Date()
         const targetParentId = parentId ?? sourceFolder.parentId
+        await assertTargetParentFolderMutable(tx, targetParentId, targetWorkspaceId, sourceFolderId)
 
         const folderParentCondition = targetParentId
           ? eq(workflowFolder.parentId, targetParentId)
@@ -100,16 +94,23 @@ export const POST = withRouteHandler(
           return Math.min(currentMin, candidate)
         }, null)
         const sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
+        const deduplicatedName = await deduplicateFolderName(
+          tx,
+          targetWorkspaceId,
+          targetParentId,
+          name
+        )
 
         await tx.insert(workflowFolder).values({
           id: newFolderId,
           userId: session.user.id,
           workspaceId: targetWorkspaceId,
-          name,
+          name: deduplicatedName,
           color: color || sourceFolder.color,
           parentId: targetParentId,
           sortOrder,
           isExpanded: false,
+          locked: false,
           createdAt: now,
           updatedAt: now,
         })
@@ -126,16 +127,17 @@ export const POST = withRouteHandler(
           folderMapping
         )
 
-        return { newFolderId, folderMapping }
-      })
+        const workflowStats = await duplicateWorkflowsInFolderTree(
+          tx,
+          sourceFolder.workspaceId,
+          targetWorkspaceId,
+          folderMapping,
+          session.user.id,
+          requestId
+        )
 
-      const workflowStats = await duplicateWorkflowsInFolderTree(
-        sourceFolder.workspaceId,
-        targetWorkspaceId,
-        folderMapping,
-        session.user.id,
-        requestId
-      )
+        return { newFolderId, folderMapping, workflowStats }
+      })
 
       const elapsed = Date.now() - startTime
       logger.info(
@@ -144,7 +146,6 @@ export const POST = withRouteHandler(
           foldersCount: folderMapping.size,
           workflowsCount: workflowStats.total,
           workflowsSucceeded: workflowStats.succeeded,
-          workflowsFailed: workflowStats.failed,
         }
       )
 
@@ -165,20 +166,19 @@ export const POST = withRouteHandler(
         request: req,
       })
 
-      return NextResponse.json(
-        {
-          id: newFolderId,
-          name,
-          color: color || sourceFolder.color,
-          workspaceId: targetWorkspaceId,
-          parentId: parentId || sourceFolder.parentId,
-          foldersCount: folderMapping.size,
-          workflowsCount: workflowStats.succeeded,
-        },
-        { status: 201 }
-      )
+      const duplicatedFolder = await db
+        .select()
+        .from(workflowFolder)
+        .where(eq(workflowFolder.id, newFolderId))
+        .then((rows) => rows[0])
+
+      return NextResponse.json({ folder: duplicatedFolder }, { status: 201 })
     } catch (error) {
       if (error instanceof Error) {
+        if (error instanceof FolderLockedError) {
+          return NextResponse.json({ error: error.message }, { status: error.status })
+        }
+
         if (error.message === 'Source folder not found') {
           logger.warn(`[${requestId}] Source folder ${sourceFolderId} not found`)
           return NextResponse.json({ error: 'Source folder not found' }, { status: 404 })
@@ -190,14 +190,20 @@ export const POST = withRouteHandler(
           )
           return NextResponse.json({ error: 'Access denied' }, { status: 403 })
         }
-      }
 
-      if (error instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid duplication request data`, { errors: error.errors })
-        return NextResponse.json(
-          { error: 'Invalid request data', details: error.errors },
-          { status: 400 }
-        )
+        if (error.message === 'Cross-workspace folder duplication is not supported') {
+          logger.warn(
+            `[${requestId}] User ${session.user.id} attempted cross-workspace folder duplication for ${sourceFolderId}`
+          )
+          return NextResponse.json({ error: error.message }, { status: 400 })
+        }
+
+        if (
+          error.message === 'Target parent folder not found' ||
+          error.message === 'Cannot duplicate folder into itself or one of its descendants'
+        ) {
+          return NextResponse.json({ error: error.message }, { status: 400 })
+        }
       }
 
       const elapsed = Date.now() - startTime
@@ -210,8 +216,76 @@ export const POST = withRouteHandler(
   }
 )
 
+async function assertTargetParentFolderMutable(
+  tx: DbOrTx,
+  parentId: string | null,
+  targetWorkspaceId: string,
+  sourceFolderId: string
+): Promise<void> {
+  let currentFolderId = parentId
+  const visited = new Set<string>()
+
+  while (currentFolderId && !visited.has(currentFolderId)) {
+    visited.add(currentFolderId)
+    const [folder] = await tx
+      .select({
+        id: workflowFolder.id,
+        parentId: workflowFolder.parentId,
+        workspaceId: workflowFolder.workspaceId,
+        locked: workflowFolder.locked,
+        archivedAt: workflowFolder.archivedAt,
+      })
+      .from(workflowFolder)
+      .where(eq(workflowFolder.id, currentFolderId))
+      .limit(1)
+
+    if (!folder || folder.workspaceId !== targetWorkspaceId || folder.archivedAt) {
+      throw new Error('Target parent folder not found')
+    }
+    if (folder.id === sourceFolderId) {
+      throw new Error('Cannot duplicate folder into itself or one of its descendants')
+    }
+    if (folder.locked) {
+      throw new FolderLockedError()
+    }
+
+    currentFolderId = folder.parentId
+  }
+}
+
+async function deduplicateFolderName(
+  tx: DbOrTx,
+  workspaceId: string,
+  parentId: string | null,
+  requestedName: string
+): Promise<string> {
+  const parentCondition = parentId
+    ? eq(workflowFolder.parentId, parentId)
+    : isNull(workflowFolder.parentId)
+  const siblingRows = await tx
+    .select({ name: workflowFolder.name })
+    .from(workflowFolder)
+    .where(
+      and(
+        eq(workflowFolder.workspaceId, workspaceId),
+        parentCondition,
+        isNull(workflowFolder.archivedAt)
+      )
+    )
+  const siblingNames = new Set(siblingRows.map((row) => row.name))
+  if (!siblingNames.has(requestedName)) return requestedName
+
+  let suffix = 1
+  let candidate = `${requestedName} (${suffix})`
+  while (siblingNames.has(candidate)) {
+    suffix += 1
+    candidate = `${requestedName} (${suffix})`
+  }
+  return candidate
+}
+
 async function duplicateFolderStructure(
-  tx: any,
+  tx: DbOrTx,
   sourceFolderId: string,
   newParentFolderId: string,
   sourceWorkspaceId: string,
@@ -226,7 +300,8 @@ async function duplicateFolderStructure(
     .where(
       and(
         eq(workflowFolder.parentId, sourceFolderId),
-        eq(workflowFolder.workspaceId, sourceWorkspaceId)
+        eq(workflowFolder.workspaceId, sourceWorkspaceId),
+        isNull(workflowFolder.archivedAt)
       )
     )
 
@@ -243,6 +318,7 @@ async function duplicateFolderStructure(
       parentId: newParentFolderId,
       sortOrder: childFolder.sortOrder,
       isExpanded: false,
+      locked: false,
       createdAt: timestamp,
       updatedAt: timestamp,
     })
@@ -261,40 +337,53 @@ async function duplicateFolderStructure(
 }
 
 async function duplicateWorkflowsInFolderTree(
+  tx: DbOrTx,
   sourceWorkspaceId: string,
   targetWorkspaceId: string,
   folderMapping: Map<string, string>,
   userId: string,
   requestId: string
-): Promise<{ total: number; succeeded: number; failed: number }> {
-  const stats = { total: 0, succeeded: 0, failed: 0 }
+): Promise<{ total: number; succeeded: number }> {
+  const stats = { total: 0, succeeded: 0 }
+  const workflowsByNewFolder = new Map<string, Array<typeof workflow.$inferSelect>>()
+  const workflowIdMap = new Map<string, string>()
 
   for (const [oldFolderId, newFolderId] of folderMapping.entries()) {
-    const workflowsInFolder = await db
+    const workflowsInFolder = await tx
       .select()
       .from(workflow)
-      .where(and(eq(workflow.folderId, oldFolderId), eq(workflow.workspaceId, sourceWorkspaceId)))
+      .where(
+        and(
+          eq(workflow.folderId, oldFolderId),
+          eq(workflow.workspaceId, sourceWorkspaceId),
+          isNull(workflow.archivedAt)
+        )
+      )
 
     stats.total += workflowsInFolder.length
-
+    workflowsByNewFolder.set(newFolderId, workflowsInFolder)
     for (const sourceWorkflow of workflowsInFolder) {
-      try {
-        await duplicateWorkflow({
-          sourceWorkflowId: sourceWorkflow.id,
-          userId,
-          name: sourceWorkflow.name,
-          description: sourceWorkflow.description || undefined,
-          color: sourceWorkflow.color,
-          workspaceId: targetWorkspaceId,
-          folderId: newFolderId,
-          requestId,
-        })
+      workflowIdMap.set(sourceWorkflow.id, generateId())
+    }
+  }
 
-        stats.succeeded++
-      } catch (error) {
-        stats.failed++
-        logger.error(`[${requestId}] Error duplicating workflow ${sourceWorkflow.id}:`, error)
-      }
+  for (const [newFolderId, workflowsInFolder] of workflowsByNewFolder.entries()) {
+    for (const sourceWorkflow of workflowsInFolder) {
+      await duplicateWorkflow({
+        sourceWorkflowId: sourceWorkflow.id,
+        userId,
+        name: sourceWorkflow.name,
+        description: sourceWorkflow.description || undefined,
+        color: sourceWorkflow.color,
+        workspaceId: targetWorkspaceId,
+        folderId: newFolderId,
+        requestId,
+        tx,
+        newWorkflowId: workflowIdMap.get(sourceWorkflow.id),
+        workflowIdMap,
+      })
+
+      stats.succeeded++
     }
   }
 

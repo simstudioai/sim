@@ -5,6 +5,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { createReadableStreamFromDeepseekStream } from '@/providers/deepseek/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
   ProviderConfig,
   ProviderRequest,
@@ -161,7 +162,7 @@ export const deepseekProvider: ProviderConfig = {
                 timeSegments: [
                   {
                     type: 'model',
-                    name: 'Streaming response',
+                    name: request.model,
                     startTime: providerStartTime,
                     endTime: Date.now(),
                     duration: Date.now() - providerStartTime,
@@ -217,7 +218,7 @@ export const deepseekProvider: ProviderConfig = {
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
-          name: 'Initial response',
+          name: request.model,
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -248,6 +249,14 @@ export const deepseekProvider: ProviderConfig = {
           }
 
           const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            currentResponse,
+            toolCallsInResponse,
+            { model: request.model, provider: 'deepseek' }
+          )
+
           if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
             break
           }
@@ -324,6 +333,7 @@ export const deepseekProvider: ProviderConfig = {
               startTime: startTime,
               endTime: endTime,
               duration: duration,
+              toolCallId: toolCall.id,
             })
 
             let resultContent: any
@@ -410,7 +420,7 @@ export const deepseekProvider: ProviderConfig = {
 
           timeSegments.push({
             type: 'model',
-            name: `Model response (iteration ${iterationCount + 1})`,
+            name: request.model,
             startTime: nextModelStartTime,
             endTime: nextModelEndTime,
             duration: thisModelTime,
@@ -431,6 +441,15 @@ export const deepseekProvider: ProviderConfig = {
           }
 
           iterationCount++
+        }
+
+        if (iterationCount === MAX_TOOL_ITERATIONS) {
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            currentResponse,
+            currentResponse.choices[0]?.message?.tool_calls,
+            { model: request.model, provider: 'deepseek' }
+          )
         }
       } catch (error) {
         logger.error('Error in Deepseek request:', { error })

@@ -1,3 +1,5 @@
+import type { SubBlockConfig } from '@/blocks/types'
+
 export interface TriggerOutput {
   type?: string
   description?: string | TriggerOutput
@@ -11,11 +13,9 @@ export interface TriggerConfig {
   description: string
   version: string
 
-  // Optional icon component for UI display
   icon?: React.ComponentType<{ className?: string }>
 
-  // Subblocks define the UI and configuration (same as blocks)
-  subBlocks: import('@/blocks/types').SubBlockConfig[]
+  subBlocks: SubBlockConfig[]
 
   // Define the structure of data this trigger outputs to workflows
   outputs: Record<string, TriggerOutput>

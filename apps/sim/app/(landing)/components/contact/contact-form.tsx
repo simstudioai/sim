@@ -1,19 +1,23 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { toError } from '@sim/utils/errors'
 import { useMutation } from '@tanstack/react-query'
 import Link from 'next/link'
-import { Combobox, type ComboboxOption, Input, Textarea } from '@/components/emcn'
+import { Combobox, Input, Textarea } from '@/components/emcn'
 import { Check } from '@/components/emcn/icons'
-import { getEnv } from '@/lib/core/config/env'
-import { captureClientEvent } from '@/lib/posthog/client'
+import { requestJson } from '@/lib/api/client/request'
 import {
   CONTACT_TOPIC_OPTIONS,
   type ContactRequestPayload,
   contactRequestSchema,
-} from '@/app/(landing)/components/contact/consts'
+  type SubmitContactBody,
+  submitContactContract,
+} from '@/lib/api/contracts/contact'
+import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
+import { getEnv } from '@/lib/core/config/env'
+import { captureClientEvent } from '@/lib/posthog/client'
 import { LandingField } from '@/app/(landing)/components/forms/landing-field'
 
 type ContactField = keyof ContactRequestPayload
@@ -52,29 +56,8 @@ const LANDING_SUBMIT =
 const LANDING_LABEL =
   'font-[500] font-season text-[13px] text-[var(--landing-text)] tracking-[0.02em]'
 
-interface SubmitContactRequestInput extends ContactRequestPayload {
-  website: string
-  captchaToken?: string
-  captchaUnavailable?: boolean
-}
-
-async function submitContactRequest(payload: SubmitContactRequestInput) {
-  const response = await fetch('/api/contact', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
-
-  const result = (await response.json().catch(() => null)) as {
-    error?: string
-    message?: string
-  } | null
-
-  if (!response.ok) {
-    throw new Error(result?.error || 'Failed to send message')
-  }
-
-  return result
+async function submitContactRequest(payload: SubmitContactBody) {
+  return requestJson(submitContactContract, { body: payload })
 }
 
 export function ContactForm() {
@@ -99,11 +82,7 @@ export function ContactForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [website, setWebsite] = useState('')
   const [widgetReady, setWidgetReady] = useState(false)
-  const [turnstileSiteKey, setTurnstileSiteKey] = useState<string | undefined>()
-
-  useEffect(() => {
-    setTurnstileSiteKey(getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'))
-  }, [])
+  const [turnstileSiteKey] = useState(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'))
 
   function updateField<TField extends keyof ContactFormState>(
     field: TField,
@@ -134,15 +113,7 @@ export function ContactForm() {
     })
 
     if (!parsed.success) {
-      const fieldErrors = parsed.error.flatten().fieldErrors
-      setErrors({
-        name: fieldErrors.name?.[0],
-        email: fieldErrors.email?.[0],
-        company: fieldErrors.company?.[0],
-        topic: fieldErrors.topic?.[0],
-        subject: fieldErrors.subject?.[0],
-        message: fieldErrors.message?.[0],
-      })
+      setErrors(flattenFieldErrors<ContactField>(parsed.error))
       setIsSubmitting(false)
       return
     }
@@ -275,7 +246,7 @@ export function ContactForm() {
           labelClassName={LANDING_LABEL}
         >
           <Combobox
-            options={CONTACT_TOPIC_OPTIONS as unknown as ComboboxOption[]}
+            options={[...CONTACT_TOPIC_OPTIONS]}
             value={form.topic}
             selectedValue={form.topic}
             onChange={(value) => updateField('topic', value as ContactRequestPayload['topic'])}

@@ -10,9 +10,12 @@ import { db } from '@sim/db'
 import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { adminV1GetUserContract } from '@/lib/api/contracts/v1/admin'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminValidationErrorResponse,
   internalErrorResponse,
   notFoundResponse,
   singleResponse,
@@ -27,7 +30,12 @@ interface RouteParams {
 
 export const GET = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: userId } = await context.params
+    const parsed = await parseRequest(adminV1GetUserContract, request, context, {
+      validationErrorResponse: adminValidationErrorResponse,
+    })
+    if (!parsed.success) return parsed.response
+
+    const { id: userId } = parsed.data.params
 
     try {
       const [userData] = await db.select().from(user).where(eq(user.id, userId)).limit(1)

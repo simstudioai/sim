@@ -85,14 +85,19 @@ export class BlockExecutor {
     const blockType = block.metadata?.id ?? ''
     const isSentinel = isSentinelBlockType(blockType)
 
+    // Capture startedAt and startTime at the same synchronous instant so
+    // blockLog.startedAt and performance.now()-derived durationMs share a
+    // single reference point. Any executor work below counts toward this block.
+    const startedAt = new Date().toISOString()
+    const startTime = performance.now()
+
     let blockLog: BlockLog | undefined
     if (!isSentinel) {
-      blockLog = this.createBlockLog(ctx, node.id, block, node)
+      blockLog = this.createBlockLog(ctx, node.id, block, node, startedAt)
       ctx.blockLogs.push(blockLog)
-      await this.callOnBlockStart(ctx, node, block, blockLog.executionOrder)
+      this.fireBlockStartCallback(ctx, node, block, blockLog.executionOrder)
     }
 
-    const startTime = performance.now()
     let resolvedInputs: Record<string, any> = {}
 
     const nodeMetadata = {
@@ -169,10 +174,11 @@ export class BlockExecutor {
         })) as NormalizedBlockOutput
       }
 
+      const endedAt = new Date().toISOString()
       const duration = performance.now() - startTime
 
       if (blockLog) {
-        blockLog.endedAt = new Date().toISOString()
+        blockLog.endedAt = endedAt
         blockLog.durationMs = duration
         blockLog.success = true
         blockLog.output = filterOutputForLog(block.metadata?.id || '', normalizedOutput, { block })
@@ -191,7 +197,7 @@ export class BlockExecutor {
         const displayOutput = filterOutputForLog(block.metadata?.id || '', normalizedOutput, {
           block,
         })
-        await this.callOnBlockComplete(
+        this.fireBlockCompleteCallback(
           ctx,
           node,
           block,
@@ -249,6 +255,7 @@ export class BlockExecutor {
     isSentinel: boolean,
     phase: 'input_resolution' | 'execution'
   ): Promise<NormalizedBlockOutput> {
+    const endedAt = new Date().toISOString()
     const duration = performance.now() - startTime
     const errorMessage = normalizeError(error)
     const hasResolvedInputs =
@@ -273,7 +280,7 @@ export class BlockExecutor {
     this.state.setBlockOutput(node.id, errorOutput, duration)
 
     if (blockLog) {
-      blockLog.endedAt = new Date().toISOString()
+      blockLog.endedAt = endedAt
       blockLog.durationMs = duration
       blockLog.success = false
       blockLog.error = errorMessage
@@ -299,7 +306,7 @@ export class BlockExecutor {
         ? error.childWorkflowInstanceId
         : undefined
       const displayOutput = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
-      await this.callOnBlockComplete(
+      this.fireBlockCompleteCallback(
         ctx,
         node,
         block,
@@ -351,7 +358,8 @@ export class BlockExecutor {
     ctx: ExecutionContext,
     blockId: string,
     block: SerializedBlock,
-    node: DAGNode
+    node: DAGNode,
+    startedAt: string
   ): BlockLog {
     let blockName = block.metadata?.name ?? blockId
     let loopId: string | undefined
@@ -384,7 +392,7 @@ export class BlockExecutor {
       blockId,
       blockName,
       blockType: block.metadata?.id ?? DEFAULTS.BLOCK_TYPE,
-      startedAt: new Date().toISOString(),
+      startedAt,
       executionOrder: getNextExecutionOrder(ctx),
       endedAt: '',
       durationMs: 0,
@@ -451,39 +459,47 @@ export class BlockExecutor {
     return redactApiKeys(result)
   }
 
-  private async callOnBlockStart(
+  /**
+   * Fires the `onBlockStart` progress callback without blocking block execution.
+   * Any error is logged and swallowed so callback I/O never stalls the critical path.
+   */
+  private fireBlockStartCallback(
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
     executionOrder: number
-  ): Promise<void> {
+  ): void {
+    if (!this.contextExtensions.onBlockStart) return
+
     const blockId = node.metadata?.originalBlockId ?? node.id
     const blockName = block.metadata?.name ?? blockId
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
-
     const iterationContext = getIterationContext(ctx, node?.metadata)
 
-    if (this.contextExtensions.onBlockStart) {
-      try {
-        await this.contextExtensions.onBlockStart(
-          blockId,
-          blockName,
-          blockType,
-          executionOrder,
-          iterationContext,
-          ctx.childWorkflowContext
-        )
-      } catch (error) {
+    void this.contextExtensions
+      .onBlockStart(
+        blockId,
+        blockName,
+        blockType,
+        executionOrder,
+        iterationContext,
+        ctx.childWorkflowContext
+      )
+      .catch((error) => {
         this.execLogger.warn('Block start callback failed', {
           blockId,
           blockType,
           error: toError(error).message,
         })
-      }
-    }
+      })
   }
 
-  private async callOnBlockComplete(
+  /**
+   * Fires the `onBlockComplete` progress callback without blocking subsequent blocks.
+   * The callback typically performs DB writes for progress markers — awaiting it would
+   * add latency between blocks and skew wall-clock timing in the trace view.
+   */
+  private fireBlockCompleteCallback(
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
@@ -494,39 +510,38 @@ export class BlockExecutor {
     executionOrder: number,
     endedAt: string,
     childWorkflowInstanceId?: string
-  ): Promise<void> {
+  ): void {
+    if (!this.contextExtensions.onBlockComplete) return
+
     const blockId = node.metadata?.originalBlockId ?? node.id
     const blockName = block.metadata?.name ?? blockId
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
-
     const iterationContext = getIterationContext(ctx, node?.metadata)
 
-    if (this.contextExtensions.onBlockComplete) {
-      try {
-        await this.contextExtensions.onBlockComplete(
-          blockId,
-          blockName,
-          blockType,
-          {
-            input,
-            output,
-            executionTime: duration,
-            startedAt,
-            executionOrder,
-            endedAt,
-            childWorkflowInstanceId,
-          },
-          iterationContext,
-          ctx.childWorkflowContext
-        )
-      } catch (error) {
+    void this.contextExtensions
+      .onBlockComplete(
+        blockId,
+        blockName,
+        blockType,
+        {
+          input,
+          output,
+          executionTime: duration,
+          startedAt,
+          executionOrder,
+          endedAt,
+          childWorkflowInstanceId,
+        },
+        iterationContext,
+        ctx.childWorkflowContext
+      )
+      .catch((error) => {
         this.execLogger.warn('Block completion callback failed', {
           blockId,
           blockType,
           error: toError(error).message,
         })
-      }
-    }
+      })
   }
 
   private preparePauseResumeSelfReference(

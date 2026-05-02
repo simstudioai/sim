@@ -1,11 +1,14 @@
 import type { AshbyOffer } from '@/tools/ashby/types'
-import { mapOffer, OFFER_OUTPUTS } from '@/tools/ashby/utils'
+import { ashbyAuthHeaders, ashbyErrorMessage, mapOffer, OFFER_OUTPUTS } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListOffersParams {
   apiKey: string
   cursor?: string
   perPage?: number
+  syncToken?: string
+  createdAfter?: string
+  applicationId?: string
 }
 
 interface AshbyListOffersResponse extends ToolResponse {
@@ -41,19 +44,41 @@ export const listOffersTool: ToolConfig<AshbyListOffersParams, AshbyListOffersRe
       visibility: 'user-or-llm',
       description: 'Number of results per page',
     },
+    createdAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Only return offers created after this ISO 8601 timestamp (e.g. 2024-01-01T00:00:00Z)',
+    },
+    syncToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Opaque token from a prior sync to fetch only items changed since then',
+    },
+    applicationId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Return only offers for the specified application UUID',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/offer.list',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.cursor) body.cursor = params.cursor
       if (params.perPage) body.limit = params.perPage
+      if (params.createdAfter) {
+        const ms = new Date(params.createdAfter).getTime()
+        if (!Number.isNaN(ms)) body.createdAfter = ms
+      }
+      if (params.syncToken) body.syncToken = params.syncToken
+      if (params.applicationId) body.applicationId = params.applicationId.trim()
       return body
     },
   },
@@ -62,7 +87,7 @@ export const listOffersTool: ToolConfig<AshbyListOffersParams, AshbyListOffersRe
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to list offers')
+      throw new Error(ashbyErrorMessage(data, 'Failed to list offers'))
     }
 
     return {

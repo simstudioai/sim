@@ -1,8 +1,9 @@
 'use client'
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { useQueryClient } from '@tanstack/react-query'
 import { History, Plus, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -34,6 +35,12 @@ import {
 } from '@/components/emcn'
 import { Lock, Unlock, Upload } from '@/components/emcn/icons'
 import { VariableIcon } from '@/components/icons'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  createWorkflowCopilotChatContract,
+  deleteCopilotChatContract,
+} from '@/lib/api/contracts/copilot'
+import { getWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
 import { useSession } from '@/lib/auth/auth-client'
 import { captureEvent } from '@/lib/posthog/client'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
@@ -59,6 +66,14 @@ import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useCopilotChatSelection } from '@/hooks/queries/copilot-chat-selection'
+import {
+  type CopilotChatListItem,
+  copilotChatsKeys,
+  useCopilotChats,
+} from '@/hooks/queries/copilot-chats'
+import { useFolderMap } from '@/hooks/queries/folders'
+import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useDuplicateWorkflowMutation, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -77,6 +92,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('Panel')
+const EMPTY_COPILOT_CHATS: readonly CopilotChatListItem[] = []
 /**
  * Panel component with resizable width and tab navigation that persists across page refreshes.
  *
@@ -136,6 +152,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })
   const duplicateWorkflowMutation = useDuplicateWorkflowMutation()
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
+  const { data: folders = {} } = useFolderMap(workspaceId)
   const { activeWorkflowId, hydration } = useWorkflowRegistry(
     useShallow((state) => ({
       activeWorkflowId: state.activeWorkflowId,
@@ -220,83 +237,76 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   )
 
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
+  const workflowLocked = isWorkflowEffectivelyLocked(currentWorkflow, folders)
+  const canMutateWorkflow = userPermissions.canEdit && !workflowLocked
   const { isSnapshotView } = useCurrentWorkflow()
 
-  const [copilotChatId, setCopilotChatId] = useState<string | undefined>(undefined)
-  const [copilotChatTitle, setCopilotChatTitle] = useState<string | null>(null)
-  const [copilotChatList, setCopilotChatList] = useState<
-    { id: string; title: string | null; updatedAt: string; activeStreamId: string | null }[]
-  >([])
+  const { chatId: copilotChatId, setChatId: setCopilotChatId } = useCopilotChatSelection(
+    activeWorkflowId ?? undefined
+  )
+
+  const { data: copilotChatList = EMPTY_COPILOT_CHATS } = useCopilotChats(
+    activeWorkflowId ?? undefined
+  )
   const [isCopilotHistoryOpen, setIsCopilotHistoryOpen] = useState(false)
 
-  const copilotChatIdRef = useRef(copilotChatId)
-  copilotChatIdRef.current = copilotChatId
-  const copilotInitialLoadDoneRef = useRef(false)
+  const copilotChatTitle = useMemo(
+    () =>
+      copilotChatId ? (copilotChatList.find((c) => c.id === copilotChatId)?.title ?? null) : null,
+    [copilotChatId, copilotChatList]
+  )
 
+  const queryClient = useQueryClient()
   const loadCopilotChats = useCallback(() => {
     if (!activeWorkflowId) return
-    fetch('/api/copilot/chats')
-      .then((res) => (res.ok ? res.json() : { chats: [] }))
-      .then((data) => {
-        const allChats = Array.isArray(data?.chats) ? data.chats : []
-        const filtered = allChats.filter(
-          (c: { workflowId?: string }) => c.workflowId === activeWorkflowId
-        ) as Array<{
-          id: string
-          title: string | null
-          updatedAt: string
-          activeStreamId: string | null
-        }>
-        setCopilotChatList(filtered)
+    queryClient.invalidateQueries({ queryKey: copilotChatsKeys.list(activeWorkflowId) })
+  }, [activeWorkflowId, queryClient])
 
-        const currentId = copilotChatIdRef.current
-        if (currentId) {
-          const match = filtered.find((c: { id: string }) => c.id === currentId)
-          if (match?.title) setCopilotChatTitle(match.title)
-        }
-
-        if (!copilotInitialLoadDoneRef.current && !currentId && filtered.length > 0) {
-          copilotInitialLoadDoneRef.current = true
-          setCopilotChatId(filtered[0].id)
-          setCopilotChatTitle(filtered[0].title)
-        }
-        copilotInitialLoadDoneRef.current = true
-      })
-      .catch(() => {})
-  }, [activeWorkflowId])
-
+  // Auto-select most recent on first list arrival per workflow, and drop a
+  // selection that no longer matches anything in the current list (e.g. the
+  // chat was deleted in another tab).
+  const autoSelectAttemptedForRef = useRef<Set<string>>(new Set())
   useEffect(() => {
-    copilotInitialLoadDoneRef.current = false
-    loadCopilotChats()
-  }, [loadCopilotChats])
+    if (!activeWorkflowId) return
+
+    if (copilotChatId && !copilotChatList.find((c) => c.id === copilotChatId)) {
+      setCopilotChatId(undefined)
+      return
+    }
+
+    if (copilotChatId) return
+    if (autoSelectAttemptedForRef.current.has(activeWorkflowId)) return
+    if (copilotChatList.length === 0) return
+    autoSelectAttemptedForRef.current.add(activeWorkflowId)
+    setCopilotChatId(copilotChatList[0].id)
+  }, [copilotChatList, copilotChatId, activeWorkflowId, setCopilotChatId])
 
   useEffect(() => {
     posthogRef.current = posthog
   }, [posthog])
 
-  const handleCopilotSelectChat = useCallback((chat: { id: string; title: string | null }) => {
-    setCopilotChatId(chat.id)
-    setCopilotChatTitle(chat.title)
-    setIsCopilotHistoryOpen(false)
-  }, [])
+  const handleCopilotSelectChat = useCallback(
+    (chat: { id: string; title: string | null }) => {
+      setCopilotChatId(chat.id)
+      setIsCopilotHistoryOpen(false)
+    },
+    [setCopilotChatId]
+  )
 
   const handleCopilotDeleteChat = useCallback(
     (chatId: string) => {
-      fetch('/api/copilot/chat/delete', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId }),
-      })
+      requestJson(deleteCopilotChatContract, { body: { chatId } })
         .then(() => {
           if (copilotChatId === chatId) {
             setCopilotChatId(undefined)
-            setCopilotChatTitle(null)
           }
           loadCopilotChats()
         })
-        .catch(() => {})
+        .catch((err) => {
+          logger.error('Failed to delete copilot chat', { error: toError(err).message, chatId })
+        })
     },
-    [copilotChatId, loadCopilotChats]
+    [copilotChatId, loadCopilotChats, setCopilotChatId]
   )
 
   const handleCopilotToolResult = useCallback(
@@ -307,11 +317,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
       const baselineWorkflow = captureBaselineSnapshot(workflowId)
 
-      fetch(`/api/workflows/${workflowId}/state`)
-        .then((res) => {
-          if (!res.ok) throw new Error(`State fetch failed: ${res.status}`)
-          return res.json()
-        })
+      requestJson(getWorkflowNormalizedStateContract, { params: { id: workflowId } })
         .then((freshState) => {
           const diffStore = useWorkflowDiffStore.getState()
           return diffStore.setProposedChanges(freshState as WorkflowState, undefined, {
@@ -352,23 +358,33 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
   const handleCopilotNewChat = useCallback(() => {
     if (!activeWorkflowId || !workspaceId) return
-    fetch('/api/copilot/chats', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspaceId, workflowId: activeWorkflowId }),
+    requestJson(createWorkflowCopilotChatContract, {
+      body: { workspaceId, workflowId: activeWorkflowId },
     })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('create chat failed'))))
-      .then((data: { id?: string }) => {
-        if (data?.id) {
-          setCopilotChatId(data.id)
-          setCopilotChatTitle(null)
-          loadCopilotChats()
-        }
+      .then((data) => {
+        // Seed the new chat into the list cache before selecting it. Without this, the
+        // auto-select effect sees a selected id that isn't in the (still-stale) list and
+        // deselects it, which leaves the panel detached from the freshly created row.
+        queryClient.setQueryData<CopilotChatListItem[]>(
+          copilotChatsKeys.list(activeWorkflowId),
+          (prev) => [
+            {
+              id: data.id,
+              title: null,
+              workflowId: activeWorkflowId,
+              updatedAt: new Date().toISOString(),
+              activeStreamId: null,
+            },
+            ...(prev ?? []),
+          ]
+        )
+        setCopilotChatId(data.id)
+        loadCopilotChats()
       })
       .catch((err) => {
-        logger.error('Failed to create copilot chat', err)
+        logger.error('Failed to create copilot chat', { error: toError(err).message })
       })
-  }, [activeWorkflowId, workspaceId, loadCopilotChats])
+  }, [activeWorkflowId, workspaceId, loadCopilotChats, setCopilotChatId, queryClient])
 
   const prevResolvedRef = useRef<string | undefined>(undefined)
   useEffect(() => {
@@ -383,7 +399,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     } else {
       prevResolvedRef.current = copilotResolvedChatId
     }
-  }, [copilotResolvedChatId, copilotChatId, loadCopilotChats])
+  }, [copilotResolvedChatId, copilotChatId, loadCopilotChats, setCopilotChatId])
 
   const wasCopilotSendingRef = useRef(false)
   useEffect(() => {
@@ -470,7 +486,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
    * Handles auto-layout of workflow blocks
    */
   const handleAutoLayout = useCallback(async () => {
-    if (isExecuting || !userPermissions.canEdit || isAutoLayouting) {
+    if (isExecuting || !canMutateWorkflow || isAutoLayouting) {
       return
     }
 
@@ -487,13 +503,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     } finally {
       setIsAutoLayouting(false)
     }
-  }, [
-    isExecuting,
-    userPermissions.canEdit,
-    isAutoLayouting,
-    autoLayoutWithFitView,
-    activeWorkflowId,
-  ])
+  }, [isExecuting, canMutateWorkflow, isAutoLayouting, autoLayoutWithFitView, activeWorkflowId])
 
   /**
    * Handles exporting workflow as JSON
@@ -645,7 +655,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   <DropdownMenuItem
                     onSelect={handleAutoLayout}
                     disabled={
-                      isExecuting || !userPermissions.canEdit || isAutoLayouting || hasLockedBlocks
+                      isExecuting || !canMutateWorkflow || isAutoLayouting || hasLockedBlocks
                     }
                     title={hasLockedBlocks ? 'Unlock blocks to use auto-layout' : undefined}
                   >
@@ -657,7 +667,15 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     Variables
                   </DropdownMenuItem>
                   {userPermissions.canAdmin && !isSnapshotView && (
-                    <DropdownMenuItem onSelect={handleToggleWorkflowLock} disabled={!hasBlocks}>
+                    <DropdownMenuItem
+                      onSelect={handleToggleWorkflowLock}
+                      disabled={!hasBlocks || workflowLocked}
+                      title={
+                        workflowLocked
+                          ? 'Workflow is locked at the row or folder level — release it from the workflow notification or folder menu'
+                          : undefined
+                      }
+                    >
                       {allBlocksLocked ? <Unlock /> : <Lock />}
                       {allBlocksLocked ? 'Unlock workflow' : 'Lock workflow'}
                     </DropdownMenuItem>
@@ -680,7 +698,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     onSelect={() => {
                       setIsDeleteModalOpen(true)
                     }}
-                    disabled={!userPermissions.canEdit || Object.keys(workflows).length <= 1}
+                    disabled={!canMutateWorkflow || Object.keys(workflows).length <= 1}
                   >
                     <Trash />
                     Delete workflow
@@ -698,7 +716,11 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
             {/* Deploy and Run */}
             <div className='flex gap-1.5' data-tour='deploy-run'>
-              <Deploy activeWorkflowId={activeWorkflowId} userPermissions={userPermissions} />
+              <Deploy
+                activeWorkflowId={activeWorkflowId}
+                userPermissions={userPermissions}
+                disabled={workflowLocked}
+              />
               <Button
                 className='h-[30px] gap-2 px-2.5'
                 data-tour='run-button'
@@ -932,7 +954,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       </Modal>
 
       {/* Floating Variables Modal */}
-      <Variables />
+      <Variables readOnly={workflowLocked} />
     </>
   )
 })

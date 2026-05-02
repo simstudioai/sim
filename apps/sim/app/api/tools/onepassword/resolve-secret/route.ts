@@ -1,20 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { onePasswordResolveSecretContract } from '@/lib/api/contracts/tools/onepassword'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createOnePasswordClient, resolveCredentials } from '../utils'
 
 const logger = createLogger('OnePasswordResolveSecretAPI')
-
-const ResolveSecretSchema = z.object({
-  connectionMode: z.enum(['service_account', 'connect']).nullish(),
-  serviceAccountToken: z.string().nullish(),
-  serverUrl: z.string().nullish(),
-  apiKey: z.string().nullish(),
-  secretReference: z.string().min(1, 'Secret reference is required'),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
@@ -26,8 +19,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-    const params = ResolveSecretSchema.parse(body)
+    const parsed = await parseRequest(
+      onePasswordResolveSecretContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => validationErrorResponse(error, 'Invalid request data'),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
     const creds = resolveCredentials(params)
 
     if (creds.mode !== 'service_account') {
@@ -47,12 +48,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       reference: params.secretReference,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
     const message = error instanceof Error ? error.message : 'Unknown error'
     logger.error(`[${requestId}] Resolve secret failed:`, error)
     return NextResponse.json({ error: `Failed to resolve secret: ${message}` }, { status: 500 })

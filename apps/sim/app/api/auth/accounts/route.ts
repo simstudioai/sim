@@ -3,6 +3,7 @@ import { account, credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { connectedAccountsQuerySchema } from '@/lib/api/contracts/oauth-connections'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -16,7 +17,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const { searchParams } = new URL(request.url)
-    const provider = searchParams.get('provider')
+    const { provider } = connectedAccountsQuerySchema.parse({
+      provider: searchParams.get('provider') || undefined,
+    })
 
     const whereConditions = [eq(account.userId, session.user.id)]
 

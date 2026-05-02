@@ -18,7 +18,11 @@ import {
   processDocumentAsync,
   updateDocument,
 } from '@/lib/knowledge/documents/service'
-import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
+import {
+  EMBEDDING_DIMENSIONS,
+  generateSearchEmbedding,
+  getConfiguredEmbeddingModel,
+} from '@/lib/knowledge/embeddings'
 import {
   createKnowledgeBase,
   deleteKnowledgeBase,
@@ -107,8 +111,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               description: args.description,
               workspaceId,
               userId: context.userId,
-              embeddingModel: 'text-embedding-3-small',
-              embeddingDimension: 1536,
+              embeddingModel: getConfiguredEmbeddingModel(),
+              embeddingDimension: EMBEDDING_DIMENSIONS,
               chunkingConfig: args.chunkingConfig || {
                 maxSize: 1024,
                 minSize: 1,
@@ -220,7 +224,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const queryEmbedding = await generateSearchEmbedding(
             args.query,
-            undefined,
+            kb.embeddingModel,
             kb.workspaceId
           )
           const queryVector = JSON.stringify(queryEmbedding)

@@ -1405,6 +1405,7 @@ export function useChat(
 
     const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
     if (persistChatId) {
+      // boundary-raw-fetch: fire-and-forget side-effect during stream lifecycle; intentionally avoids requestJson's response parsing/throw semantics so a failure here cannot interrupt the active turn
       fetch('/api/mothership/chat/resources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1595,6 +1596,7 @@ export function useChat(
     void recoverPendingClientWorkflowTools(mappedMessages)
 
     if (chatHistory.resources.some((r) => r.id === 'streaming-file')) {
+      // boundary-raw-fetch: fire-and-forget cleanup during chat-history hydration; failures are silently swallowed to keep hydration non-blocking
       fetch('/api/mothership/chat/resources', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -2730,6 +2732,7 @@ export function useChat(
       afterCursor: string,
       signal?: AbortSignal
     ): Promise<StreamBatchResponse> => {
+      // boundary-raw-fetch: stream-resume batch endpoint requires dynamic per-request traceparent header propagation that the contract layer does not model, and the response is consumed alongside live SSE tail fetches
       const response = await fetch(
         `/api/mothership/chat/stream?streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(afterCursor)}&batch=true`,
         {
@@ -2811,6 +2814,7 @@ export function useChat(
 
           logger.info('Opening live stream tail', { streamId, afterCursor: latestCursor })
 
+          // boundary-raw-fetch: live SSE tail endpoint streams events consumed via response.body.getReader() and processSSEStream
           const sseRes = await fetch(
             `/api/mothership/chat/stream?streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(latestCursor)}`,
             {
@@ -3618,6 +3622,7 @@ export function useChat(
       const executionId = execState.getCurrentExecutionId(workflowId)
       if (executionId) {
         execState.setCurrentExecutionId(workflowId, null)
+        // boundary-raw-fetch: fire-and-forget execution cancellation invoked from a stop-generation barrier; failures are silently swallowed so the stop teardown cannot stall on a contract-validation throw
         fetch(`/api/workflows/${workflowId}/executions/${executionId}/cancel`, {
           method: 'POST',
         }).catch(() => {})
@@ -3751,6 +3756,7 @@ export function useChat(
         const resolvedChatId = chatIdRef.current
         const abortPromise = sid
           ? (async () => {
+              // boundary-raw-fetch: stream-abort endpoint requires propagating the snapshotted traceparent header from the in-flight stream and has no contract authored yet
               const res = await fetch('/api/mothership/chat/abort', {
                 method: 'POST',
                 headers: {

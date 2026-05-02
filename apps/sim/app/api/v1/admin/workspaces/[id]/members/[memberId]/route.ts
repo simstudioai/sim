@@ -25,12 +25,17 @@ import { db } from '@sim/db'
 import { permissions, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+import {
+  adminV1GetWorkspaceMemberContract,
+  adminV1RemoveWorkspaceMemberContract,
+  adminV1UpdateWorkspaceMemberContract,
+} from '@/lib/api/contracts/v1/admin'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { revokeWorkspaceCredentialMemberships } from '@/lib/credentials/access'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
-  badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
   singleResponse,
@@ -45,8 +50,11 @@ interface RouteParams {
 }
 
 export const GET = withRouteHandler(
-  withAdminAuthParams<RouteParams>(async (_, context) => {
-    const { id: workspaceId, memberId } = await context.params
+  withAdminAuthParams<RouteParams>(async (request, context) => {
+    const parsed = await parseRequest(adminV1GetWorkspaceMemberContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id: workspaceId, memberId } = parsed.data.params
 
     try {
       const workspaceData = await getWorkspaceById(workspaceId)
@@ -105,15 +113,13 @@ export const GET = withRouteHandler(
 
 export const PATCH = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: workspaceId, memberId } = await context.params
+    const parsed = await parseRequest(adminV1UpdateWorkspaceMemberContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id: workspaceId, memberId } = parsed.data.params
+    const { permissions: permissionLevel } = parsed.data.body
 
     try {
-      const body = await request.json()
-
-      if (!body.permissions || !['admin', 'write', 'read'].includes(body.permissions)) {
-        return badRequestResponse('permissions must be "admin", "write", or "read"')
-      }
-
       const workspaceData = await getWorkspaceById(workspaceId)
 
       if (!workspaceData) {
@@ -145,7 +151,7 @@ export const PATCH = withRouteHandler(
 
       await db
         .update(permissions)
-        .set({ permissionType: body.permissions, updatedAt: now })
+        .set({ permissionType: permissionLevel, updatedAt: now })
         .where(eq(permissions.id, memberId))
 
       const [userData] = await db
@@ -158,7 +164,7 @@ export const PATCH = withRouteHandler(
         id: existingMember.id,
         workspaceId,
         userId: existingMember.userId,
-        permissions: body.permissions,
+        permissions: permissionLevel,
         createdAt: existingMember.createdAt.toISOString(),
         updatedAt: now.toISOString(),
         userName: userData?.name ?? '',
@@ -166,7 +172,7 @@ export const PATCH = withRouteHandler(
         userImage: userData?.image ?? null,
       }
 
-      logger.info(`Admin API: Updated member ${memberId} permissions to ${body.permissions}`, {
+      logger.info(`Admin API: Updated member ${memberId} permissions to ${permissionLevel}`, {
         workspaceId,
         previousPermissions: existingMember.permissionType,
       })
@@ -180,8 +186,11 @@ export const PATCH = withRouteHandler(
 )
 
 export const DELETE = withRouteHandler(
-  withAdminAuthParams<RouteParams>(async (_, context) => {
-    const { id: workspaceId, memberId } = await context.params
+  withAdminAuthParams<RouteParams>(async (request, context) => {
+    const parsed = await parseRequest(adminV1RemoveWorkspaceMemberContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id: workspaceId, memberId } = parsed.data.params
 
     try {
       const workspaceData = await getWorkspaceById(workspaceId)

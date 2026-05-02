@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { type NextRequest, NextResponse } from 'next/server'
+import type { OAuthConnection } from '@/lib/api/contracts/oauth-connections'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -46,7 +47,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const userEmail = userRecord.length > 0 ? userRecord[0]?.email : null
 
     // Process accounts to determine connections
-    const connections: any[] = []
+    const connections: OAuthConnection[] = []
 
     for (const acc of accounts) {
       const { baseProvider, featureType } = parseProvider(acc.providerId as OAuthProvider)

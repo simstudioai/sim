@@ -38,6 +38,17 @@ describe('generateShortId', () => {
     const ids = new Set(Array.from({ length: 100 }, () => generateShortId()))
     expect(ids.size).toBe(100)
   })
+
+  it('supports a custom alphabet', () => {
+    const alphabet = 'abcdef0123456789'
+    const id = generateShortId(32, alphabet)
+    expect(id).toHaveLength(32)
+    expect(id).toMatch(/^[a-f0-9]+$/)
+  })
+
+  it('throws for an alphabet shorter than 2 characters', () => {
+    expect(() => generateShortId(8, 'a')).toThrow()
+  })
 })
 
 describe('isValidUuid', () => {

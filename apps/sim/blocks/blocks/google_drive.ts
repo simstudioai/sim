@@ -27,14 +27,18 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       type: 'dropdown',
       options: [
         { label: 'List Files', id: 'list' },
+        { label: 'Search Files', id: 'search' },
         { label: 'Get File Info', id: 'get_file' },
+        { label: 'Get File Content', id: 'get_content' },
         { label: 'Create Folder', id: 'create_folder' },
         { label: 'Create File', id: 'create_file' },
         { label: 'Upload File', id: 'upload' },
         { label: 'Download File', id: 'download' },
         { label: 'Copy File', id: 'copy' },
+        { label: 'Move File', id: 'move' },
         { label: 'Update File', id: 'update' },
         { label: 'Move to Trash', id: 'trash' },
+        { label: 'Restore from Trash', id: 'untrash' },
         { label: 'Delete Permanently', id: 'delete' },
         { label: 'Share File', id: 'share' },
         { label: 'Remove Sharing', id: 'unshare' },
@@ -281,7 +285,7 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       id: 'pageSize',
       title: 'Results Per Page',
       type: 'short-input',
-      placeholder: 'Number of results (default: 100, max: 1000)',
+      placeholder: 'Number of results (default: 100, max: 100)',
       condition: { field: 'operation', value: 'list' },
     },
     // Download File Fields - File Selector (basic mode)
@@ -721,6 +725,198 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
       condition: { field: 'operation', value: 'list_permissions' },
       required: true,
     },
+    // Get File Content Fields
+    {
+      id: 'getContentFileSelector',
+      title: 'Select File',
+      type: 'file-selector',
+      canonicalParamId: 'getContentFileId',
+      serviceId: 'google-drive',
+      selectorKey: 'google.drive',
+      requiredScopes: getScopesForService('google-drive'),
+      placeholder: 'Select a file to get content from',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'get_content' },
+      required: true,
+    },
+    {
+      id: 'getContentManualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      canonicalParamId: 'getContentFileId',
+      placeholder: 'Enter file ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'get_content' },
+      required: true,
+    },
+    {
+      id: 'getContentExportMimeType',
+      title: 'Export Format',
+      type: 'dropdown',
+      options: [
+        { label: 'Auto (best format for file type)', id: 'auto' },
+        { label: 'Plain Text (text/plain)', id: 'text/plain' },
+        { label: 'HTML (text/html)', id: 'text/html' },
+        { label: 'PDF (application/pdf)', id: 'application/pdf' },
+        {
+          label: 'DOCX (MS Word)',
+          id: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        },
+        {
+          label: 'XLSX (MS Excel)',
+          id: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+        {
+          label: 'PPTX (MS PowerPoint)',
+          id: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        },
+        { label: 'CSV (text/csv)', id: 'text/csv' },
+      ],
+      value: () => 'auto',
+      placeholder: 'Export format for Google Workspace files',
+      condition: { field: 'operation', value: 'get_content' },
+    },
+    {
+      id: 'getContentIncludeRevisions',
+      title: 'Include Revisions',
+      type: 'dropdown',
+      canonicalParamId: 'includeRevisions',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes (full revision history)', id: 'true' },
+      ],
+      value: () => 'false',
+      placeholder: 'Include revision history',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'get_content' },
+    },
+    // Move File Fields
+    {
+      id: 'moveFileSelector',
+      title: 'Select File to Move',
+      type: 'file-selector',
+      canonicalParamId: 'moveFileId',
+      serviceId: 'google-drive',
+      selectorKey: 'google.drive',
+      requiredScopes: getScopesForService('google-drive'),
+      placeholder: 'Select a file to move',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'move' },
+      required: true,
+    },
+    {
+      id: 'moveManualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      canonicalParamId: 'moveFileId',
+      placeholder: 'Enter file ID to move',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'move' },
+      required: true,
+    },
+    {
+      id: 'moveDestFolderSelector',
+      title: 'Destination Folder',
+      type: 'file-selector',
+      canonicalParamId: 'moveDestFolderId',
+      serviceId: 'google-drive',
+      selectorKey: 'google.drive',
+      requiredScopes: getScopesForService('google-drive'),
+      mimeType: 'application/vnd.google-apps.folder',
+      placeholder: 'Select destination folder',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'move' },
+      required: true,
+    },
+    {
+      id: 'moveManualDestFolderId',
+      title: 'Destination Folder ID',
+      type: 'short-input',
+      canonicalParamId: 'moveDestFolderId',
+      placeholder: 'Enter destination folder ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'move' },
+      required: true,
+    },
+    {
+      id: 'moveRemoveFromCurrent',
+      title: 'Remove from Current Folder',
+      type: 'dropdown',
+      canonicalParamId: 'removeFromCurrent',
+      options: [
+        { label: 'Yes (default)', id: 'true' },
+        { label: 'No (add to destination, keep in current)', id: 'false' },
+      ],
+      placeholder: 'Remove from current folder',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'move' },
+    },
+    // Search Files Fields
+    {
+      id: 'searchQuery',
+      title: 'Search Query',
+      type: 'long-input',
+      placeholder:
+        "Drive query syntax (e.g., fullText contains 'budget' and mimeType = 'application/pdf')",
+      condition: { field: 'operation', value: 'search' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Google Drive search query based on the user's description.
+Use Google Drive query syntax:
+- name contains 'term' - search by filename
+- fullText contains 'term' - search file contents
+- mimeType = 'type' - filter by file type (e.g., 'application/pdf', 'application/vnd.google-apps.document')
+- modifiedTime > 'YYYY-MM-DDTHH:MM:SS' - filter by date
+- 'email' in owners - filter by owner
+- trashed = false - exclude trashed files
+- starred = true - only starred files
+- 'folderId' in parents - files in a specific folder
+
+Combine with 'and' / 'or' / 'not'. Example:
+- "PDFs about budget modified this year" -> mimeType = 'application/pdf' and fullText contains 'budget' and modifiedTime > '2024-01-01T00:00:00'
+- "starred Google Docs" -> mimeType = 'application/vnd.google-apps.document' and starred = true
+
+Return ONLY the query string - no explanations, no quotes around the whole thing, no extra text.`,
+        placeholder: 'Describe the files you want to find...',
+      },
+    },
+    {
+      id: 'searchPageSize',
+      title: 'Results Per Page',
+      type: 'short-input',
+      placeholder: 'Number of results (default: 100, max: 100)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'search' },
+    },
+    // Untrash File Fields
+    {
+      id: 'untrashFileSelector',
+      title: 'Select File to Restore',
+      type: 'file-selector',
+      canonicalParamId: 'untrashFileId',
+      serviceId: 'google-drive',
+      selectorKey: 'google.drive',
+      requiredScopes: getScopesForService('google-drive'),
+      placeholder: 'Select a file to restore from trash',
+      mode: 'basic',
+      dependsOn: ['credential'],
+      condition: { field: 'operation', value: 'untrash' },
+      required: true,
+    },
+    {
+      id: 'untrashManualFileId',
+      title: 'File ID',
+      type: 'short-input',
+      canonicalParamId: 'untrashFileId',
+      placeholder: 'Enter file ID to restore',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'untrash' },
+      required: true,
+    },
     // Get Drive Info has no additional fields (just needs credential)
     ...getTrigger('google_drive_poller').subBlocks,
   ],
@@ -728,12 +924,16 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
     access: [
       'google_drive_list',
       'google_drive_get_file',
+      'google_drive_get_content',
       'google_drive_create_folder',
       'google_drive_upload',
       'google_drive_download',
       'google_drive_copy',
+      'google_drive_move',
+      'google_drive_search',
       'google_drive_update',
       'google_drive_trash',
+      'google_drive_untrash',
       'google_drive_delete',
       'google_drive_share',
       'google_drive_unshare',
@@ -745,8 +945,12 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
         switch (params.operation) {
           case 'list':
             return 'google_drive_list'
+          case 'search':
+            return 'google_drive_search'
           case 'get_file':
             return 'google_drive_get_file'
+          case 'get_content':
+            return 'google_drive_get_content'
           case 'create_folder':
             return 'google_drive_create_folder'
           case 'create_file':
@@ -756,10 +960,14 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
             return 'google_drive_download'
           case 'copy':
             return 'google_drive_copy'
+          case 'move':
+            return 'google_drive_move'
           case 'update':
             return 'google_drive_update'
           case 'trash':
             return 'google_drive_trash'
+          case 'untrash':
+            return 'google_drive_untrash'
           case 'delete':
             return 'google_drive_delete'
           case 'share':
@@ -782,12 +990,16 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
           createFolderParentId,
           listFolderId,
           copyDestFolderId,
+          moveDestFolderId,
           // File canonical params (per-operation)
           downloadFileId,
           getFileId,
+          getContentFileId,
           copyFileId,
+          moveFileId,
           updateFileId,
           trashFileId,
+          untrashFileId,
           deleteFileId,
           shareFileId,
           unshareFileId,
@@ -798,6 +1010,13 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
           shareType,
           starred,
           sendNotification,
+          removeFromCurrent,
+          includeRevisions,
+          pageSize,
+          query,
+          searchQuery,
+          searchPageSize,
+          getContentExportMimeType,
           ...rest
         } = params
 
@@ -828,14 +1047,23 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
           case 'get_file':
             effectiveFileId = getFileId?.trim() || undefined
             break
+          case 'get_content':
+            effectiveFileId = getContentFileId?.trim() || undefined
+            break
           case 'copy':
             effectiveFileId = copyFileId?.trim() || undefined
+            break
+          case 'move':
+            effectiveFileId = moveFileId?.trim() || undefined
             break
           case 'update':
             effectiveFileId = updateFileId?.trim() || undefined
             break
           case 'trash':
             effectiveFileId = trashFileId?.trim() || undefined
+            break
+          case 'untrash':
+            effectiveFileId = untrashFileId?.trim() || undefined
             break
           case 'delete':
             effectiveFileId = deleteFileId?.trim() || undefined
@@ -851,9 +1079,13 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
             break
         }
 
-        // Resolve destinationFolderId for copy operation
-        const effectiveDestinationFolderId =
-          params.operation === 'copy' ? copyDestFolderId?.trim() || undefined : undefined
+        // Resolve destinationFolderId for copy/move operations
+        let effectiveDestinationFolderId: string | undefined
+        if (params.operation === 'copy') {
+          effectiveDestinationFolderId = copyDestFolderId?.trim() || undefined
+        } else if (params.operation === 'move') {
+          effectiveDestinationFolderId = moveDestFolderId?.trim() || undefined
+        }
 
         // Convert starred dropdown to boolean
         const starredValue = starred === 'true' ? true : starred === 'false' ? false : undefined
@@ -862,17 +1094,35 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
         const sendNotificationValue =
           sendNotification === 'true' ? true : sendNotification === 'false' ? false : undefined
 
+        // Convert removeFromCurrent dropdown to boolean
+        const removeFromCurrentValue =
+          removeFromCurrent === 'true' ? true : removeFromCurrent === 'false' ? false : undefined
+
+        // Convert includeRevisions dropdown to boolean
+        const includeRevisionsValue =
+          includeRevisions === 'true' ? true : includeRevisions === 'false' ? false : undefined
+
+        const effectivePageSize = params.operation === 'search' ? searchPageSize : pageSize
+        const effectiveQuery = params.operation === 'search' ? searchQuery : query
+        const effectiveMimeType =
+          params.operation === 'get_content' ? getContentExportMimeType : mimeType
+
         return {
           oauthCredential,
           folderId: effectiveFolderId,
           fileId: effectiveFileId,
           destinationFolderId: effectiveDestinationFolderId,
           file: normalizedFile,
-          pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
-          mimeType: mimeType === 'auto' ? undefined : mimeType,
+          pageSize: effectivePageSize
+            ? Number.parseInt(effectivePageSize as string, 10)
+            : undefined,
+          query: effectiveQuery,
+          mimeType: effectiveMimeType === 'auto' ? undefined : effectiveMimeType,
           type: shareType, // Map shareType to type for share tool
           starred: starredValue,
           sendNotification: sendNotificationValue,
+          removeFromCurrent: removeFromCurrentValue,
+          includeRevisions: includeRevisionsValue,
           transferOwnership: rest.role === 'owner' ? true : undefined,
           ...rest,
         }
@@ -887,16 +1137,27 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
     createFolderParentId: { type: 'string', description: 'Parent folder for create folder' },
     listFolderId: { type: 'string', description: 'Folder to list files from' },
     copyDestFolderId: { type: 'string', description: 'Destination folder for copy' },
+    moveDestFolderId: { type: 'string', description: 'Destination folder for move' },
     // File canonical params (per-operation)
     downloadFileId: { type: 'string', description: 'File to download' },
     getFileId: { type: 'string', description: 'File to get info for' },
+    getContentFileId: { type: 'string', description: 'File to get content from' },
     copyFileId: { type: 'string', description: 'File to copy' },
+    moveFileId: { type: 'string', description: 'File to move' },
     updateFileId: { type: 'string', description: 'File to update' },
     trashFileId: { type: 'string', description: 'File to trash' },
+    untrashFileId: { type: 'string', description: 'File to restore from trash' },
     deleteFileId: { type: 'string', description: 'File to delete' },
     shareFileId: { type: 'string', description: 'File to share' },
     unshareFileId: { type: 'string', description: 'File to unshare' },
     listPermissionsFileId: { type: 'string', description: 'File to list permissions for' },
+    // Move operation inputs
+    removeFromCurrent: {
+      type: 'string',
+      description: 'Whether to remove from current folder when moving',
+    },
+    // Get content operation inputs
+    includeRevisions: { type: 'string', description: 'Whether to include revision history' },
     // Upload and Create inputs
     fileName: { type: 'string', description: 'File or folder name' },
     file: { type: 'json', description: 'File to upload (UserFile object)' },

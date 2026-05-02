@@ -1,27 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { dataverseUploadFileContract } from '@/lib/api/contracts/tools/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('DataverseUploadFileAPI')
-
-const DataverseUploadFileSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  environmentUrl: z.string().min(1, 'Environment URL is required'),
-  entitySetName: z.string().min(1, 'Entity set name is required'),
-  recordId: z.string().min(1, 'Record ID is required'),
-  fileColumn: z.string().min(1, 'File column is required'),
-  fileName: z.string().min(1, 'File name is required'),
-  file: RawFileInputSchema.optional().nullable(),
-  fileContent: z.string().optional().nullable(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -44,8 +33,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
-    const body = await request.json()
-    const validatedData = DataverseUploadFileSchema.parse(body)
+    const parsed = await parseRequest(dataverseUploadFileContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Uploading file to Dataverse`, {
       entitySetName: validatedData.entitySetName,
@@ -128,14 +118,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        { success: false, error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error uploading file to Dataverse:`, error)
 
     return NextResponse.json(

@@ -1,13 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
-import { z } from 'zod'
+import { onedriveUploadContract } from '@/lib/api/contracts/tools/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import {
   getExtensionFromMimeType,
   processSingleFileToUserFile,
@@ -20,24 +20,6 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('OneDriveUploadAPI')
 
 const MICROSOFT_GRAPH_BASE = 'https://graph.microsoft.com/v1.0'
-
-const ExcelCellSchema = z.union([z.string(), z.number(), z.boolean(), z.null()])
-const ExcelRowSchema = z.array(ExcelCellSchema)
-const ExcelValuesSchema = z.union([
-  z.string(),
-  z.array(ExcelRowSchema),
-  z.array(z.record(ExcelCellSchema)),
-])
-
-const OneDriveUploadSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  fileName: z.string().min(1, 'File name is required'),
-  file: RawFileInputSchema.optional(),
-  folderId: z.string().optional().nullable(),
-  mimeType: z.string().nullish(),
-  values: ExcelValuesSchema.optional().nullable(),
-  conflictBehavior: z.enum(['fail', 'replace', 'rename']).optional().nullable(),
-})
 
 /** Microsoft Graph DriveItem response */
 interface OneDriveFileData {
@@ -80,8 +62,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = OneDriveUploadSchema.parse(body)
+    const parsed = await parseRequest(onedriveUploadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
     const excelValues = normalizeExcelValues(validatedData.values)
 
     let fileBuffer: Buffer
@@ -416,18 +399,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error uploading file to OneDrive:`, error)
 
     return NextResponse.json(

@@ -23,3 +23,8 @@ Run each of these skills in order on the specified scope, passing through the sc
 6. `/emcn-design-review $ARGUMENTS`
 
 After all skills have run, output a summary of what was found and fixed (or proposed) across all six passes.
+
+## Boundary Audit Guidance
+
+- When removing route-local Zod schemas, replacing raw `fetch(` calls in hooks, or removing `as unknown as X` casts, do not introduce `// boundary-raw-fetch: <reason>` or `// double-cast-allowed: <reason>` annotations to silence the audit. Fix the underlying call instead — adopt a contract from `@/lib/api/contracts/**` and use `requestJson(contract, ...)` from `@/lib/api/client/request`, or refine the type so the double cast is unnecessary.
+- Annotations are reserved for legitimate exceptions only: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, external-origin requests, and double casts where no narrower type is available. Each annotation requires a non-empty reason; empty reasons fail `bun run check:api-validation:strict`.

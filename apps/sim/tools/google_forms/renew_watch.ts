@@ -3,7 +3,7 @@ import type {
   GoogleFormsRenewWatchResponse,
   GoogleFormsWatch,
 } from '@/tools/google_forms/types'
-import { buildRenewWatchUrl } from '@/tools/google_forms/utils'
+import { buildRenewWatchUrl, getGoogleFormsErrorMessage } from '@/tools/google_forms/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const renewWatchTool: ToolConfig<
@@ -54,7 +54,6 @@ export const renewWatchTool: ToolConfig<
     const data = (await response.json()) as GoogleFormsWatch
 
     if (!response.ok) {
-      const errorData = data as unknown as { error?: { message?: string } }
       return {
         success: false,
         output: {
@@ -63,7 +62,7 @@ export const renewWatchTool: ToolConfig<
           expireTime: null,
           state: null,
         },
-        error: errorData.error?.message ?? 'Failed to renew watch',
+        error: getGoogleFormsErrorMessage(data, 'Failed to renew watch'),
       }
     }
 

@@ -2,13 +2,19 @@
 
 import { memo } from 'react'
 import {
+  Copy,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Eye,
+  Link,
+  ListFilter,
+  Redo,
+  SquareArrowUpRight,
+  X,
 } from '@/components/emcn'
-import { Copy, Eye, Link, ListFilter, SquareArrowUpRight, X } from '@/components/emcn/icons'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 
 interface LogRowContextMenuProps {
@@ -23,6 +29,8 @@ interface LogRowContextMenuProps {
   onToggleWorkflowFilter: () => void
   onClearAllFilters: () => void
   onCancelExecution: () => void
+  onRetryExecution: () => void
+  isRetryPending?: boolean
   isFilteredByThisWorkflow: boolean
   hasActiveFilters: boolean
 }
@@ -43,6 +51,8 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   onToggleWorkflowFilter,
   onClearAllFilters,
   onCancelExecution,
+  onRetryExecution,
+  isRetryPending = false,
   isFilteredByThisWorkflow,
   hasActiveFilters,
 }: LogRowContextMenuProps) {
@@ -50,6 +60,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   const hasWorkflow = Boolean(log?.workflow?.id || log?.workflowId)
   const isCancellable =
     (log?.status === 'running' || log?.status === 'pending') && hasExecutionId && hasWorkflow
+  const isRetryable = log?.status === 'failed' && hasWorkflow && log?.trigger !== 'mothership'
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -73,6 +84,15 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
+        {isRetryable && (
+          <>
+            <DropdownMenuItem onSelect={onRetryExecution} disabled={isRetryPending}>
+              <Redo />
+              {isRetryPending ? 'Retrying...' : 'Retry'}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {isCancellable && (
           <>
             <DropdownMenuItem onSelect={onCancelExecution}>

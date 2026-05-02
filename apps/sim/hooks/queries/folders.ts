@@ -1,6 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  createFolderContract,
+  deleteFolderContract,
+  duplicateFolderContract,
+  type FolderApi,
+  listFoldersContract,
+  reorderFoldersContract,
+  restoreFolderContract,
+  updateFolderContract,
+} from '@/lib/api/contracts'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { type FolderQueryScope, folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
@@ -14,15 +25,16 @@ import type { WorkflowFolder } from '@/stores/folders/types'
 
 const logger = createLogger('FolderQueries')
 
-function mapFolder(folder: any): WorkflowFolder {
+function mapFolder(folder: FolderApi): WorkflowFolder {
   return {
     id: folder.id,
     name: folder.name,
     userId: folder.userId,
     workspaceId: folder.workspaceId,
-    parentId: folder.parentId ?? null,
-    color: folder.color,
+    parentId: folder.parentId,
+    color: folder.color ?? '#6B7280',
     isExpanded: folder.isExpanded,
+    locked: folder.locked,
     sortOrder: folder.sortOrder,
     createdAt: new Date(folder.createdAt),
     updatedAt: new Date(folder.updatedAt),
@@ -35,13 +47,10 @@ async function fetchFolders(
   scope: FolderQueryScope = 'active',
   signal?: AbortSignal
 ): Promise<WorkflowFolder[]> {
-  const response = await fetch(`/api/folders?workspaceId=${workspaceId}&scope=${scope}`, { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch folders')
-  }
-
-  const { folders }: { folders: any[] } = await response.json()
+  const { folders } = await requestJson(listFoldersContract, {
+    query: { workspaceId, scope },
+    signal,
+  })
   return folders.map(mapFolder)
 }
 
@@ -82,7 +91,7 @@ interface CreateFolderVariables {
 interface UpdateFolderVariables {
   workspaceId: string
   id: string
-  updates: Partial<Pick<WorkflowFolder, 'name' | 'parentId' | 'color' | 'sortOrder'>>
+  updates: Partial<Pick<WorkflowFolder, 'name' | 'parentId' | 'color' | 'sortOrder' | 'locked'>>
 }
 
 interface DeleteFolderVariables {
@@ -157,6 +166,7 @@ export function useCreateFolder() {
         parentId: variables.parentId || null,
         color: variables.color || '#808080',
         isExpanded: false,
+        locked: false,
         sortOrder:
           variables.sortOrder ??
           getTopInsertionSortOrder(
@@ -175,18 +185,9 @@ export function useCreateFolder() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, sortOrder, ...payload }: CreateFolderVariables) => {
-      const response = await fetch('/api/folders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, workspaceId, sortOrder }),
+      const { folder } = await requestJson(createFolderContract, {
+        body: { ...payload, workspaceId, sortOrder },
       })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to create folder')
-      }
-
-      const { folder } = await response.json()
       return mapFolder(folder)
     },
     ...handlers,
@@ -198,18 +199,10 @@ export function useUpdateFolder() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, id, updates }: UpdateFolderVariables) => {
-      const response = await fetch(`/api/folders/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
+      const { folder } = await requestJson(updateFolderContract, {
+        params: { id },
+        body: updates,
       })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to update folder')
-      }
-
-      const { folder } = await response.json()
       return mapFolder(folder)
     },
     onSettled: (_data, _error, variables) => {
@@ -223,14 +216,7 @@ export function useDeleteFolderMutation() {
 
   return useMutation({
     mutationFn: async ({ workspaceId: _workspaceId, id }: DeleteFolderVariables) => {
-      const response = await fetch(`/api/folders/${id}`, { method: 'DELETE' })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to delete folder')
-      }
-
-      return response.json()
+      return requestJson(deleteFolderContract, { params: { id } })
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: folderKeys.lists() })
@@ -249,18 +235,10 @@ export function useRestoreFolder() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, folderId }: RestoreFolderVariables) => {
-      const response = await fetch(`/api/folders/${folderId}/restore`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId }),
+      return requestJson(restoreFolderContract, {
+        params: { id: folderId },
+        body: { workspaceId },
       })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to restore folder')
-      }
-
-      return response.json()
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: folderKeys.lists() })
@@ -290,6 +268,7 @@ export function useDuplicateFolderMutation() {
         parentId: targetParentId,
         color: variables.color || sourceFolder?.color || '#808080',
         isExpanded: false,
+        locked: false,
         sortOrder: getTopInsertionSortOrder(
           currentWorkflows,
           previousFolders,
@@ -313,25 +292,17 @@ export function useDuplicateFolderMutation() {
       color,
       newId,
     }: DuplicateFolderVariables): Promise<WorkflowFolder> => {
-      const response = await fetch(`/api/folders/${id}/duplicate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { folder } = await requestJson(duplicateFolderContract, {
+        params: { id },
+        body: {
           workspaceId,
           name,
           parentId: parentId ?? null,
           color,
           newId,
-        }),
+        },
       })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to duplicate folder')
-      }
-
-      const data = await response.json()
-      return mapFolder(data.folder || data)
+      return mapFolder(folder)
     },
     ...handlers,
     onSettled: (_data, _error, variables) => {
@@ -355,16 +326,7 @@ export function useReorderFolders() {
 
   return useMutation({
     mutationFn: async (variables: ReorderFoldersVariables): Promise<void> => {
-      const response = await fetch('/api/folders/reorder', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(variables),
-      })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to reorder folders')
-      }
+      await requestJson(reorderFoldersContract, { body: variables })
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: folderKeys.list(variables.workspaceId) })

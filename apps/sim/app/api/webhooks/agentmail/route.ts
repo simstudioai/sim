@@ -10,9 +10,14 @@ import {
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
-import { and, eq, gt, ne, sql } from 'drizzle-orm'
+import { and, eq, gt, isNotNull, ne, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { Webhook } from 'svix'
+import {
+  agentMailEnvelopeSchema,
+  agentMailMessageSchema,
+  webhookSvixHeadersSchema,
+} from '@/lib/api/contracts/webhooks'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
@@ -26,23 +31,17 @@ const MAX_EMAILS_PER_HOUR = 20
 export const POST = withRouteHandler(async (req: Request) => {
   try {
     const rawBody = await req.text()
-    const svixId = req.headers.get('svix-id')
-    const svixTimestamp = req.headers.get('svix-timestamp')
-    const svixSignature = req.headers.get('svix-signature')
+    const headersResult = webhookSvixHeadersSchema.safeParse({
+      'svix-id': req.headers.get('svix-id'),
+      'svix-timestamp': req.headers.get('svix-timestamp'),
+      'svix-signature': req.headers.get('svix-signature'),
+    })
 
-    const payload = JSON.parse(rawBody) as AgentMailWebhookPayload
-
-    if (payload.event_type !== 'message.received') {
-      return NextResponse.json({ ok: true })
+    if (!headersResult.success) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { message } = payload
-    const inboxId = message?.inbox_id
-    if (!message || !inboxId) {
-      return NextResponse.json({ ok: true })
-    }
-
-    const [result] = await db
+    const webhookCandidates = await db
       .select({
         id: workspace.id,
         inboxEnabled: workspace.inboxEnabled,
@@ -52,29 +51,62 @@ export const POST = withRouteHandler(async (req: Request) => {
       })
       .from(workspace)
       .leftJoin(mothershipInboxWebhook, eq(mothershipInboxWebhook.workspaceId, workspace.id))
-      .where(eq(workspace.inboxProviderId, inboxId))
-      .limit(1)
+      .where(isNotNull(mothershipInboxWebhook.secret))
 
-    if (!result || !result.webhookSecret) {
-      if (!result) {
-        logger.warn('No workspace found for inbox', { inboxId })
-      } else {
-        logger.warn('No webhook secret found for workspace', { workspaceId: result.id })
-      }
+    let result: (typeof webhookCandidates)[number] | undefined
+    for (const candidate of webhookCandidates) {
+      if (!candidate.webhookSecret) continue
+
+      try {
+        const wh = new Webhook(candidate.webhookSecret)
+        wh.verify(rawBody, headersResult.data)
+        result = candidate
+        break
+      } catch {}
+    }
+
+    if (!result) {
+      logger.warn('Webhook signature verification failed', {
+        candidateCount: webhookCandidates.length,
+      })
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    try {
-      const wh = new Webhook(result.webhookSecret)
-      wh.verify(rawBody, {
-        'svix-id': svixId || '',
-        'svix-timestamp': svixTimestamp || '',
-        'svix-signature': svixSignature || '',
-      })
-    } catch (verifyErr) {
-      logger.warn('Webhook signature verification failed', {
+    const envelopeResult = agentMailEnvelopeSchema.safeParse(JSON.parse(rawBody))
+    if (!envelopeResult.success) {
+      logger.warn('Invalid AgentMail webhook payload', {
         workspaceId: result.id,
-        error: verifyErr instanceof Error ? verifyErr.message : 'Unknown error',
+        issues: envelopeResult.error.issues,
+      })
+      return NextResponse.json(
+        { error: 'Invalid envelope payload', details: envelopeResult.error.issues },
+        { status: 400 }
+      )
+    }
+
+    if (envelopeResult.data.event_type !== 'message.received') {
+      return NextResponse.json({ ok: true })
+    }
+
+    const messageResult = agentMailMessageSchema.safeParse(envelopeResult.data.message)
+    if (!messageResult.success) {
+      logger.warn('Invalid AgentMail message payload', {
+        workspaceId: result.id,
+        issues: messageResult.error.issues,
+      })
+      return NextResponse.json(
+        { error: 'Invalid message payload', details: messageResult.error.issues },
+        { status: 400 }
+      )
+    }
+
+    const message: AgentMailWebhookPayload['message'] = messageResult.data
+    const inboxId = message.inbox_id
+    if (result.inboxProviderId !== inboxId) {
+      logger.warn('Verified AgentMail payload inbox mismatch', {
+        workspaceId: result.id,
+        verifiedInboxId: result.inboxProviderId,
+        payloadInboxId: inboxId,
       })
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

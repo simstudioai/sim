@@ -1,5 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  getWorkflowStateContract,
+  getWorkflowVariablesContract,
+  putWorkflowNormalizedStateContract,
+  type WorkflowStateContractInput,
+  workflowVariablesContract,
+} from '@/lib/api/contracts/workflows'
 import {
   type ExportWorkflowState,
   sanitizeForExport,
@@ -83,23 +92,37 @@ export async function fetchWorkflowForExport(
   workflowMeta: { name: string; description?: string; color?: string; folderId?: string | null }
 ): Promise<WorkflowExportData | null> {
   try {
-    const workflowResponse = await fetch(`/api/workflows/${workflowId}`)
-    if (!workflowResponse.ok) {
+    let workflowData: { state?: WorkflowState }
+    try {
+      const response = await requestJson(getWorkflowStateContract, {
+        params: { id: workflowId },
+      })
+      workflowData = { state: response.data.state as WorkflowState }
+    } catch {
       logger.error(`Failed to fetch workflow ${workflowId}`)
       return null
     }
 
-    const { data: workflowData } = await workflowResponse.json()
     if (!workflowData?.state) {
       logger.warn(`Workflow ${workflowId} has no state`)
       return null
     }
 
-    const variablesResponse = await fetch(`/api/workflows/${workflowId}/variables`)
     let workflowVariables: Record<string, Variable> | undefined
-    if (variablesResponse.ok) {
-      const variablesData = await variablesResponse.json()
-      workflowVariables = variablesData?.data
+    try {
+      const { data } = await requestJson(getWorkflowVariablesContract, {
+        params: { id: workflowId },
+      })
+      workflowVariables = data as Record<string, Variable>
+    } catch (error) {
+      if (error instanceof ApiClientError) {
+        logger.warn(`Failed to fetch workflow ${workflowId} variables for export`, {
+          status: error.status,
+          message: error.message,
+        })
+      } else {
+        logger.warn(`Failed to fetch workflow ${workflowId} variables for export:`, error)
+      }
     }
 
     return {
@@ -688,13 +711,38 @@ export async function persistImportedWorkflow({
 
   const newWorkflowId = createdWorkflow.id
 
-  const stateResponse = await fetch(`/api/workflows/${newWorkflowId}/state`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(workflowData),
+  type ContractEdgeInput = WorkflowStateContractInput['edges'][number]
+
+  // Imported workflow JSON may carry nullable sourceHandle / targetHandle
+  // values from older exports. The contract input schema rejects nulls
+  // (it expects `string | undefined`), so drop nullish handles before
+  // sending. Pre-validation by `parseWorkflowJson` already ensures the
+  // shape is otherwise contract-compatible.
+  const sanitizedEdges: ContractEdgeInput[] = (workflowData.edges || []).map((edge) => {
+    const { sourceHandle, targetHandle, ...rest } = edge
+    const sanitized: ContractEdgeInput = { ...rest } as ContractEdgeInput
+    if (typeof sourceHandle === 'string' && sourceHandle.length > 0) {
+      sanitized.sourceHandle = sourceHandle
+    }
+    if (typeof targetHandle === 'string' && targetHandle.length > 0) {
+      sanitized.targetHandle = targetHandle
+    }
+    return sanitized
   })
 
-  if (!stateResponse.ok) {
+  const stateBody: WorkflowStateContractInput = {
+    ...workflowData,
+    loops: workflowData.loops || {},
+    parallels: workflowData.parallels || {},
+    edges: sanitizedEdges,
+  }
+
+  try {
+    await requestJson(putWorkflowNormalizedStateContract, {
+      params: { id: newWorkflowId },
+      body: stateBody,
+    })
+  } catch {
     throw new Error(`Failed to save workflow state for ${newWorkflowId}`)
   }
 
@@ -704,10 +752,10 @@ export async function persistImportedWorkflow({
       : Object.values(workflowData.variables)
 
     if (variablesArray.length > 0) {
-      const variablesRecord: Record<
-        string,
-        { id: string; workflowId: string; name: string; type: string; value: unknown }
-      > = {}
+      type WorkflowVariablesBodyInput = NonNullable<
+        Parameters<typeof requestJson<typeof workflowVariablesContract>>[1]['body']
+      >
+      const variablesRecord: WorkflowVariablesBodyInput['variables'] = {}
 
       for (const variable of variablesArray) {
         const id =
@@ -715,20 +763,18 @@ export async function persistImportedWorkflow({
 
         variablesRecord[id] = {
           id,
-          workflowId: newWorkflowId,
           name: variable.name,
           type: variable.type,
           value: variable.value,
         }
       }
 
-      const variablesResponse = await fetch(`/api/workflows/${newWorkflowId}/variables`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ variables: variablesRecord }),
-      })
-
-      if (!variablesResponse.ok) {
+      try {
+        await requestJson(workflowVariablesContract, {
+          params: { id: newWorkflowId },
+          body: { variables: variablesRecord },
+        })
+      } catch {
         throw new Error(`Failed to save variables for ${newWorkflowId}`)
       }
     }

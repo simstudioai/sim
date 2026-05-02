@@ -1,10 +1,11 @@
+import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyGetJobPostingParams {
   apiKey: string
   jobPostingId: string
-  expandApplicationFormDefinition?: boolean
-  expandSurveyFormDefinitions?: boolean
+  jobBoardId?: string
+  expandJob?: boolean
 }
 
 interface AshbyDescriptionPart {
@@ -65,6 +66,7 @@ interface AshbyJobPosting {
   } | null
   applicationLimitCalloutHtml: string | null
   updatedAt: string | null
+  job: Record<string, unknown> | null
 }
 
 interface AshbyGetJobPostingResponse extends ToolResponse {
@@ -99,37 +101,31 @@ export const getJobPostingTool: ToolConfig<AshbyGetJobPostingParams, AshbyGetJob
       visibility: 'user-or-llm',
       description: 'The UUID of the job posting to fetch',
     },
-    expandApplicationFormDefinition: {
-      type: 'boolean',
+    jobBoardId: {
+      type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Include application form definition in the response',
+      description:
+        'Optional job board UUID. If omitted, returns posting for the external job board.',
     },
-    expandSurveyFormDefinitions: {
+    expandJob: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Include survey form definitions in the response',
+      description: 'Whether to expand and include the related job object in the response',
     },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/jobPosting.info',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {
         jobPostingId: params.jobPostingId.trim(),
       }
-      if (params.expandApplicationFormDefinition !== undefined) {
-        body.expandApplicationFormDefinition = params.expandApplicationFormDefinition
-      }
-      if (params.expandSurveyFormDefinitions !== undefined) {
-        body.expandSurveyFormDefinitions = params.expandSurveyFormDefinitions
-      }
+      if (params.jobBoardId) body.jobBoardId = params.jobBoardId.trim()
+      if (params.expandJob) body.expand = ['job']
       return body
     },
   },
@@ -138,7 +134,7 @@ export const getJobPostingTool: ToolConfig<AshbyGetJobPostingParams, AshbyGetJob
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to get job posting')
+      throw new Error(ashbyErrorMessage(data, 'Failed to get job posting'))
     }
 
     const r = (data.results ?? {}) as Record<string, unknown> & {
@@ -225,6 +221,7 @@ export const getJobPostingTool: ToolConfig<AshbyGetJobPostingParams, AshbyGetJob
           : null,
         applicationLimitCalloutHtml: (r.applicationLimitCalloutHtml as string) ?? null,
         updatedAt: (r.updatedAt as string) ?? null,
+        job: (r.job as Record<string, unknown>) ?? null,
       },
     }
   },
@@ -407,12 +404,18 @@ export const getJobPostingTool: ToolConfig<AshbyGetJobPostingParams, AshbyGetJob
     },
     applicationLimitCalloutHtml: {
       type: 'string',
-      description: 'HTML callout shown when application limit is reached',
+      description: 'HTML callout shown when the application limit is reached',
       optional: true,
     },
     updatedAt: {
       type: 'string',
       description: 'ISO 8601 last update timestamp',
+      optional: true,
+    },
+    job: {
+      type: 'object',
+      description:
+        'The expanded job object, only present when the request was made with expandJob=true',
       optional: true,
     },
   },

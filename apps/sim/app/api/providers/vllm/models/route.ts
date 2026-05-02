@@ -1,5 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  providerModelsResponseSchema,
+  vllmUpstreamResponseSchema,
+} from '@/lib/api/contracts/providers'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
@@ -48,7 +52,7 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
       return NextResponse.json({ models: [] })
     }
 
-    const data = (await response.json()) as { data: Array<{ id: string }> }
+    const data = vllmUpstreamResponseSchema.parse(await response.json())
     const allModels = data.data.map((model) => `vllm/${model.id}`)
     const models = filterBlacklistedModels(allModels)
 
@@ -58,7 +62,7 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
       models,
     })
 
-    return NextResponse.json({ models })
+    return NextResponse.json(providerModelsResponseSchema.parse({ models }))
   } catch (error) {
     logger.error('Failed to fetch vLLM models', {
       error: error instanceof Error ? error.message : 'Unknown error',

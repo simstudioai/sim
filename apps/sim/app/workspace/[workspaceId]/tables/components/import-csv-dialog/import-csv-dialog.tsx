@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
@@ -23,7 +23,7 @@ import {
   toast,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { buildAutoMapping, parseCsvBuffer } from '@/lib/table/csv-import'
+import { buildAutoMapping, parseCsvBuffer } from '@/lib/table/import'
 import type { TableDefinition } from '@/lib/table/types'
 import { type CsvImportMode, useImportCsvIntoTable } from '@/hooks/queries/tables'
 
@@ -37,6 +37,11 @@ const MAX_EXAMPLES_IN_ERROR = 3
  * (`/^[a-z_][a-z0-9_]*$/i`), so no real column can share this value.
  */
 const SKIP_VALUE = '__ skip __'
+/**
+ * Sentinel for the "Create new column" option. Same whitespace trick as
+ * `SKIP_VALUE` to avoid colliding with any valid column name.
+ */
+const CREATE_VALUE = '__ create __'
 
 /**
  * Converts the verbose backend error messages into a short, human-friendly
@@ -102,32 +107,40 @@ export function ImportCsvDialog({
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [parsing, setParsing] = useState(false)
   const [mapping, setMapping] = useState<Record<string, string | null>>({})
+  const [createHeaders, setCreateHeaders] = useState<Set<string>>(new Set())
   const [mode, setMode] = useState<CsvImportMode>('append')
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const importMutation = useImportCsvIntoTable()
 
-  const resetState = useCallback(() => {
+  function resetState() {
     setParsed(null)
     setParseError(null)
     setSubmitError(null)
     setMapping({})
+    setCreateHeaders(new Set())
     setMode('append')
     setIsDragging(false)
     setParsing(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
-  }, [])
+  }
 
-  useEffect(() => {
-    if (!open) resetState()
-  }, [open, resetState])
+  function handleOpenChange(newOpen: boolean) {
+    if (!newOpen) resetState()
+    onOpenChange(newOpen)
+  }
 
-  useEffect(() => {
+  const prevTableIdRef = useRef(table.id)
+  if (prevTableIdRef.current !== table.id) {
+    prevTableIdRef.current = table.id
     resetState()
-  }, [table.id, resetState])
+  }
 
   const columnOptions: ComboboxOption[] = useMemo(() => {
-    const options: ComboboxOption[] = [{ label: 'Do not import', value: SKIP_VALUE }]
+    const options: ComboboxOption[] = [
+      { label: 'Do not import', value: SKIP_VALUE },
+      { label: '+ Create new column', value: CREATE_VALUE },
+    ]
     for (const col of table.schema.columns) {
       options.push({
         label: col.required ? `${col.name} (required)` : col.name,
@@ -137,88 +150,111 @@ export function ImportCsvDialog({
     return options
   }, [table.schema.columns])
 
-  const handleFileSelected = useCallback(
-    async (file: File) => {
-      const ext = file.name.split('.').pop()?.toLowerCase()
-      if (ext !== 'csv' && ext !== 'tsv') {
-        setParseError('Only CSV and TSV files are supported')
-        return
-      }
-      setParsing(true)
-      setParseError(null)
-      try {
-        const arrayBuffer = await file.arrayBuffer()
-        const delimiter = ext === 'tsv' ? '\t' : ','
-        const { headers, rows } = await parseCsvBuffer(new Uint8Array(arrayBuffer), delimiter)
-        const autoMapping = buildAutoMapping(headers, table.schema)
-        setParsed({
-          file,
-          headers,
-          sampleRows: rows.slice(0, MAX_SAMPLE_ROWS),
-          totalRows: rows.length,
-        })
-        setMapping(autoMapping)
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to parse CSV'
-        logger.error('CSV parse failed', err)
-        setParseError(message)
-      } finally {
-        setParsing(false)
-      }
-    },
-    [table.schema]
-  )
+  async function handleFileSelected(file: File) {
+    const ext = file.name.split('.').pop()?.toLowerCase()
+    if (ext !== 'csv' && ext !== 'tsv') {
+      setParseError('Only CSV and TSV files are supported')
+      return
+    }
+    setParsing(true)
+    setParseError(null)
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      const delimiter = ext === 'tsv' ? '\t' : ','
+      const { headers, rows } = await parseCsvBuffer(new Uint8Array(arrayBuffer), delimiter)
+      const autoMapping = buildAutoMapping(headers, table.schema)
+      setParsed({
+        file,
+        headers,
+        sampleRows: rows.slice(0, MAX_SAMPLE_ROWS),
+        totalRows: rows.length,
+      })
+      setMapping(autoMapping)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to parse CSV'
+      logger.error('CSV parse failed', err)
+      setParseError(message)
+    } finally {
+      setParsing(false)
+    }
+  }
 
-  const handleFileInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      if (file) void handleFileSelected(file)
-    },
-    [handleFileSelected]
-  )
+  function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) void handleFileSelected(file)
+  }
 
-  const handleDragEnter = useCallback((e: React.DragEvent<HTMLButtonElement>) => {
+  function handleDragEnter(e: React.DragEvent<HTMLButtonElement>) {
     e.preventDefault()
     setIsDragging(true)
-  }, [])
+  }
 
-  const handleDragOver = useCallback((e: React.DragEvent<HTMLButtonElement>) => {
+  function handleDragOver(e: React.DragEvent<HTMLButtonElement>) {
     e.preventDefault()
-  }, [])
+  }
 
-  const handleDragLeave = useCallback((e: React.DragEvent<HTMLButtonElement>) => {
+  function handleDragLeave(e: React.DragEvent<HTMLButtonElement>) {
     e.preventDefault()
     setIsDragging(false)
-  }, [])
+  }
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent<HTMLButtonElement>) => {
-      e.preventDefault()
-      setIsDragging(false)
-      const file = e.dataTransfer.files?.[0]
-      if (file) void handleFileSelected(file)
-    },
-    [handleFileSelected]
-  )
+  function handleDrop(e: React.DragEvent<HTMLButtonElement>) {
+    e.preventDefault()
+    setIsDragging(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) void handleFileSelected(file)
+  }
 
-  const handleMappingChange = useCallback((header: string, value: string) => {
+  function handleMappingChange(header: string, value: string) {
     setSubmitError(null)
+    if (value === CREATE_VALUE) {
+      setCreateHeaders((prev) => {
+        const next = new Set(prev)
+        next.add(header)
+        return next
+      })
+      setMapping((prev) => ({ ...prev, [header]: null }))
+      return
+    }
+    setCreateHeaders((prev) => {
+      if (!prev.has(header)) return prev
+      const next = new Set(prev)
+      next.delete(header)
+      return next
+    })
     setMapping((prev) => ({
       ...prev,
       [header]: value === SKIP_VALUE ? null : value,
     }))
-  }, [])
+  }
 
-  const handleModeChange = useCallback((value: string) => {
+  function handleCreateAllUnmapped() {
+    if (!parsed) return
+    setSubmitError(null)
+    setCreateHeaders((prev) => {
+      const next = new Set(prev)
+      for (const header of parsed.headers) {
+        if (!mapping[header] && !next.has(header)) next.add(header)
+      }
+      return next
+    })
+  }
+
+  function handleModeChange(value: string) {
     setSubmitError(null)
     setMode(value as CsvImportMode)
-  }, [])
+  }
 
-  const { missingRequired, duplicateTargets, mappedCount, skipCount } = useMemo(() => {
+  const { missingRequired, duplicateTargets, mappedCount, skipCount, createCount } = useMemo(() => {
     const mappedTargets = new Map<string, string[]>()
     let mapped = 0
     let skipped = 0
+    let creating = 0
     for (const header of parsed?.headers ?? []) {
+      if (createHeaders.has(header)) {
+        creating++
+        continue
+      }
       const target = mapping[header]
       if (!target) {
         skipped++
@@ -241,8 +277,9 @@ export function ImportCsvDialog({
       duplicateTargets: dupes,
       mappedCount: mapped,
       skipCount: skipped,
+      createCount: creating,
     }
-  }, [mapping, parsed?.headers, table.schema.columns])
+  }, [mapping, parsed?.headers, table.schema.columns, createHeaders])
 
   const appendCapacityDeficit =
     parsed && mode === 'append' && table.rowCount + parsed.totalRows > table.maxRows
@@ -259,11 +296,11 @@ export function ImportCsvDialog({
     !importMutation.isPending &&
     missingRequired.length === 0 &&
     duplicateTargets.length === 0 &&
-    mappedCount > 0 &&
+    mappedCount + createCount > 0 &&
     appendCapacityDeficit === 0 &&
     replaceCapacityDeficit === 0
 
-  const handleSubmit = useCallback(async () => {
+  async function handleSubmit() {
     if (!parsed || !canSubmit) return
     setSubmitError(null)
     try {
@@ -273,6 +310,7 @@ export function ImportCsvDialog({
         file: parsed.file,
         mode,
         mapping,
+        createColumns: createHeaders.size > 0 ? [...createHeaders] : undefined,
       })
       const data = result.data
       if (mode === 'append') {
@@ -292,18 +330,7 @@ export function ImportCsvDialog({
       setSubmitError(summarizeImportError(message))
       logger.error('CSV import into existing table failed', err)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    canSubmit,
-    mapping,
-    mode,
-    onImported,
-    onOpenChange,
-    parsed,
-    table.id,
-    table.name,
-    workspaceId,
-  ])
+  }
 
   const hasWarning =
     missingRequired.length > 0 ||
@@ -312,7 +339,7 @@ export function ImportCsvDialog({
     replaceCapacityDeficit > 0
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
+    <Modal open={open} onOpenChange={handleOpenChange}>
       <ModalContent size='lg'>
         <ModalHeader>Import CSV into {table.name}</ModalHeader>
         <ModalBody>
@@ -382,7 +409,14 @@ export function ImportCsvDialog({
               </div>
 
               <div className='flex flex-col gap-2'>
-                <Label>Column mapping</Label>
+                <div className='flex items-center justify-between'>
+                  <Label>Column mapping</Label>
+                  {skipCount > 0 && (
+                    <Button variant='ghost' size='sm' onClick={handleCreateAllUnmapped}>
+                      Create columns for {skipCount} unmapped
+                    </Button>
+                  )}
+                </div>
                 <div className='overflow-hidden rounded-sm border border-[var(--border)]'>
                   <div className='max-h-[320px] overflow-auto'>
                     <Table>
@@ -418,7 +452,11 @@ export function ImportCsvDialog({
                               <TableCell>
                                 <Combobox
                                   options={columnOptions}
-                                  value={mapping[header] ?? SKIP_VALUE}
+                                  value={
+                                    createHeaders.has(header)
+                                      ? CREATE_VALUE
+                                      : (mapping[header] ?? SKIP_VALUE)
+                                  }
                                   onChange={(value) => handleMappingChange(header, value)}
                                   size='sm'
                                   className='w-full'
@@ -432,7 +470,12 @@ export function ImportCsvDialog({
                   </div>
                 </div>
                 <span className='text-[var(--text-tertiary)] text-xs'>
-                  {mappedCount} mapped · {skipCount} skipped
+                  {mappedCount} mapped
+                  {createCount > 0
+                    ? ` · ${createCount} new column${createCount === 1 ? '' : 's'}`
+                    : ''}
+                  {' · '}
+                  {skipCount} skipped
                 </span>
               </div>
 

@@ -13,7 +13,7 @@ import {
 } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import type { StreamingExecution } from '@/executor/types'
+import type { IterationToolCall, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
   checkForForcedToolUsage,
@@ -26,7 +26,13 @@ import {
   extractTextContent,
   mapToThinkingLevel,
 } from '@/providers/google/utils'
-import type { FunctionCallResponse, ProviderRequest, ProviderResponse } from '@/providers/types'
+import { enrichLastModelSegment } from '@/providers/trace-enrichment'
+import type {
+  FunctionCallResponse,
+  ProviderRequest,
+  ProviderResponse,
+  TimeSegment,
+} from '@/providers/types'
 import {
   calculateCost,
   isDeepResearchModel,
@@ -71,7 +77,7 @@ function createInitialState(
     timeSegments: [
       {
         type: 'model',
-        name: 'Initial response',
+        name: model,
         startTime: initialCallTime,
         endTime: initialCallTime + firstResponseTime,
         duration: firstResponseTime,
@@ -218,6 +224,7 @@ async function executeToolCallsBatch(
       startTime: r.startTime,
       endTime: r.endTime,
       duration: r.duration,
+      toolCallId: r.part.functionCall?.id ?? undefined,
     })
 
     totalToolsTime += r.duration
@@ -279,7 +286,7 @@ function updateStateWithResponse(
       ...state.timeSegments,
       {
         type: 'model',
-        name: `Model response (iteration ${state.iterationCount + 1})`,
+        name: model,
         startTime,
         endTime,
         duration,
@@ -326,15 +333,16 @@ function buildNextConfig(
 /**
  * Creates streaming execution result template
  */
+type StreamingExecutionDraft = Omit<StreamingExecution, 'stream'>
+
 function createStreamingResult(
   providerStartTime: number,
   providerStartTimeISO: string,
   firstResponseTime: number,
   initialCallTime: number,
   state?: ExecutionState
-): StreamingExecution {
+): StreamingExecutionDraft {
   return {
-    stream: undefined as unknown as ReadableStream<Uint8Array>,
     execution: {
       success: true,
       output: {
@@ -709,8 +717,7 @@ export async function executeDeepResearchRequest(
       )
       const firstResponseTime = Date.now() - providerStartTime
 
-      const streamingResult: StreamingExecution = {
-        stream: undefined as unknown as ReadableStream<Uint8Array>,
+      const streamingResult: StreamingExecutionDraft = {
         execution: {
           success: true,
           output: {
@@ -752,7 +759,7 @@ export async function executeDeepResearchRequest(
         },
       }
 
-      streamingResult.stream = createDeepResearchStream(
+      const stream = createDeepResearchStream(
         streamResponse,
         (content, usage, streamInteractionId) => {
           streamingResult.execution.output.content = content
@@ -782,7 +789,7 @@ export async function executeDeepResearchRequest(
         }
       )
 
-      return streamingResult
+      return { ...streamingResult, stream }
     }
 
     // Non-streaming mode: create and poll
@@ -1019,7 +1026,7 @@ export async function executeGeminiRequest(
       )
       streamingResult.execution.output.model = model
 
-      streamingResult.stream = createReadableStreamFromGeminiStream(
+      const stream = createReadableStreamFromGeminiStream(
         streamGenerator,
         (content: string, usage: GeminiUsage) => {
           streamingResult.execution.output.content = content
@@ -1052,7 +1059,7 @@ export async function executeGeminiRequest(
         }
       )
 
-      return streamingResult
+      return { ...streamingResult, stream }
     }
 
     // Non-streaming request
@@ -1074,6 +1081,9 @@ export async function executeGeminiRequest(
       model,
       toolConfig
     )
+    enrichLastModelSegmentFromGeminiResponse(state.timeSegments, response, {
+      model,
+    })
     const forcedTools = preparedTools?.forcedTools ?? []
 
     let currentResponse = response
@@ -1122,6 +1132,9 @@ export async function executeGeminiRequest(
             config: nextConfig,
           })
           state = updateStateWithResponse(state, checkResponse, model, Date.now() - 100, Date.now())
+          enrichLastModelSegmentFromGeminiResponse(state.timeSegments, checkResponse, {
+            model,
+          })
 
           if (checkResponse.functionCalls?.length) {
             currentResponse = checkResponse
@@ -1164,7 +1177,7 @@ export async function executeGeminiRequest(
           )
           streamingResult.execution.output.model = model
 
-          streamingResult.stream = createReadableStreamFromGeminiStream(
+          const stream = createReadableStreamFromGeminiStream(
             streamGenerator,
             (streamContent: string, usage: GeminiUsage) => {
               streamingResult.execution.output.content = streamContent
@@ -1196,7 +1209,7 @@ export async function executeGeminiRequest(
             }
           )
 
-          return streamingResult
+          return { ...streamingResult, stream }
         }
 
         // Non-streaming: get next response
@@ -1207,6 +1220,9 @@ export async function executeGeminiRequest(
           config: nextConfig,
         })
         state = updateStateWithResponse(state, nextResponse, model, nextModelStartTime, Date.now())
+        enrichLastModelSegmentFromGeminiResponse(state.timeSegments, nextResponse, {
+          model,
+        })
         currentResponse = nextResponse
       }
 
@@ -1256,4 +1272,81 @@ export async function executeGeminiRequest(
     })
     throw enhancedError
   }
+}
+
+/**
+ * Enriches the last model segment with per-iteration content extracted from a
+ * Gemini response: assistant text, thinking (thought) parts, function calls,
+ * finish reason, and token usage.
+ */
+function enrichLastModelSegmentFromGeminiResponse(
+  timeSegments: TimeSegment[],
+  response: GenerateContentResponse,
+  extras?: {
+    model?: string
+    ttft?: number
+    errorType?: string
+    errorMessage?: string
+  }
+): void {
+  const candidate = response.candidates?.[0]
+  const assistantText = extractTextContent(candidate)
+
+  const thinkingParts =
+    candidate?.content?.parts?.filter((p): p is Part & { text: string } =>
+      Boolean(p.text && p.thought === true)
+    ) ?? []
+  const thinkingContent = thinkingParts.map((p) => p.text).join('\n\n')
+
+  const functionCallParts = extractAllFunctionCallParts(candidate)
+  const toolCalls: IterationToolCall[] = functionCallParts
+    .filter((p): p is Part & { functionCall: NonNullable<Part['functionCall']> } =>
+      Boolean(p.functionCall)
+    )
+    .map((p) => ({
+      id: p.functionCall.id ?? '',
+      name: p.functionCall.name ?? '',
+      arguments: (p.functionCall.args ?? {}) as Record<string, unknown>,
+    }))
+
+  const usage = convertUsageMetadata(response.usageMetadata)
+  const cachedContentTokens = response.usageMetadata?.cachedContentTokenCount ?? 0
+  const thoughtsTokens = response.usageMetadata?.thoughtsTokenCount ?? 0
+
+  let cost: { input: number; output: number; total: number } | undefined
+  if (
+    extras?.model &&
+    response.usageMetadata &&
+    typeof usage.promptTokenCount === 'number' &&
+    typeof usage.candidatesTokenCount === 'number'
+  ) {
+    const full = calculateCost(
+      extras.model,
+      usage.promptTokenCount,
+      usage.candidatesTokenCount,
+      cachedContentTokens > 0
+    )
+    cost = { input: full.input, output: full.output, total: full.total }
+  }
+
+  enrichLastModelSegment(timeSegments, {
+    assistantContent: assistantText || undefined,
+    thinkingContent: thinkingContent || undefined,
+    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+    finishReason: candidate?.finishReason ?? undefined,
+    tokens: response.usageMetadata
+      ? {
+          input: usage.promptTokenCount,
+          output: usage.candidatesTokenCount,
+          total: usage.totalTokenCount,
+          ...(cachedContentTokens > 0 && { cacheRead: cachedContentTokens }),
+          ...(thoughtsTokens > 0 && { reasoning: thoughtsTokens }),
+        }
+      : undefined,
+    cost,
+    provider: 'google',
+    ttft: extras?.ttft,
+    errorType: extras?.errorType,
+    errorMessage: extras?.errorMessage,
+  })
 }

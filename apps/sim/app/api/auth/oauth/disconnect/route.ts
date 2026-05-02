@@ -4,7 +4,8 @@ import { account, credentialSet, credentialSetMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, like, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { disconnectOAuthContract } from '@/lib/api/contracts/oauth-connections'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -13,12 +14,6 @@ import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OAuthDisconnectAPI')
-
-const disconnectSchema = z.object({
-  provider: z.string({ required_error: 'Provider is required' }).min(1, 'Provider is required'),
-  providerId: z.string().optional(),
-  accountId: z.string().optional(),
-})
 
 /**
  * Disconnect an OAuth provider for the current user
@@ -34,26 +29,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
-    const rawBody = await request.json()
-    const parseResult = disconnectSchema.safeParse(rawBody)
-
-    if (!parseResult.success) {
-      const firstError = parseResult.error.errors[0]
-      const errorMessage = firstError?.message || 'Validation failed'
-
-      logger.warn(`[${requestId}] Invalid disconnect request`, {
-        errors: parseResult.error.errors,
-      })
-
-      return NextResponse.json(
-        {
-          error: errorMessage,
+    const parsed = await parseRequest(
+      disconnectOAuthContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid disconnect request`, { errors: error.issues })
+          return NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Validation failed') },
+            { status: 400 }
+          )
         },
-        { status: 400 }
-      )
-    }
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const { provider, providerId, accountId } = parseResult.data
+    const { provider, providerId, accountId } = parsed.data.body
 
     logger.info(`[${requestId}] Processing OAuth disconnect request`, {
       provider,

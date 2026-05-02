@@ -1,7 +1,12 @@
 import { db, workflow } from '@sim/db'
 import { eq } from 'drizzle-orm'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
-import type { ExecutionEnvironment, ExecutionTrigger, WorkflowState } from '@/lib/logs/types'
+import type {
+  ExecutionEnvironment,
+  ExecutionTrigger,
+  TraceSpan,
+  WorkflowState,
+} from '@/lib/logs/types'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
@@ -80,7 +85,22 @@ export async function loadDeployedWorkflowStateForLogging(
   }
 }
 
-export function calculateCostSummary(traceSpans: any[]): {
+type CostTraceSpan = Pick<TraceSpan, 'cost' | 'model' | 'tokens'> & {
+  type?: TraceSpan['type']
+  children?: CostTraceSpan[]
+}
+
+type BillableTraceSpan = CostTraceSpan & { cost: NonNullable<TraceSpan['cost']> }
+
+function hasBillableCost(span: CostTraceSpan): span is BillableTraceSpan {
+  return span.cost !== undefined
+}
+
+function isModelBreakdownSpan(span: CostTraceSpan): boolean {
+  return span.type === 'model'
+}
+
+export function calculateCostSummary(traceSpans: CostTraceSpan[] | undefined): {
   totalCost: number
   totalInputCost: number
   totalOutputCost: number
@@ -114,16 +134,39 @@ export function calculateCostSummary(traceSpans: any[]): {
     }
   }
 
-  const collectCostSpans = (spans: any[]): any[] => {
-    const costSpans: any[] = []
+  /**
+   * Collects spans that contribute to the execution's billable cost.
+   *
+   * Rule: when a span has its own `cost` AND has child model segments, the
+   * parent's block-level cost is authoritative — skip the model children to
+   * avoid double-counting. The parent cost is set by the provider response
+   * (and is correctly zeroed by `executeProviderRequest` for BYOK calls);
+   * model children only carry per-segment cost from the trace enrichers,
+   * which is unaware of BYOK status. Non-model children are still visited
+   * so standalone nested costs remain billable.
+   *
+   * Spans without their own `cost` (e.g. parent workflow spans for
+   * subworkflow blocks) still recurse so nested billable spans are counted.
+   */
+  const collectCostSpans = (spans: CostTraceSpan[]): BillableTraceSpan[] => {
+    const costSpans: BillableTraceSpan[] = []
 
     for (const span of spans) {
-      if (span.cost) {
+      const hasOwnCost = hasBillableCost(span)
+      if (hasOwnCost) {
         costSpans.push(span)
       }
 
       if (span.children && Array.isArray(span.children)) {
-        costSpans.push(...collectCostSpans(span.children))
+        if (hasOwnCost) {
+          // Parent already accounts for its model segments; only recurse into
+          // non-model children (e.g. nested workflow spans) to find further
+          // billable units.
+          const nonModelChildren = span.children.filter((child) => !isModelBreakdownSpan(child))
+          costSpans.push(...collectCostSpans(nonModelChildren))
+        } else {
+          costSpans.push(...collectCostSpans(span.children))
+        }
       }
     }
 

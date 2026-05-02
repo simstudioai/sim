@@ -144,8 +144,19 @@
             },
             "NEXT_PUBLIC_SOCKET_URL": {
               "type": "string",
-              "format": "uri",
-              "description": "Public socket URL"
+              "anyOf": [
+                {
+                  "format": "uri"
+                },
+                {
+                  "const": ""
+                }
+              ],
+              "description": "Public socket URL; leave empty to default to the page origin (assumes reverse proxy routes /socket.io)"
+            },
+            "TRUSTED_ORIGINS": {
+              "type": "string",
+              "description": "Comma-separated additional public origins to trust for auth (e.g. 'https://app.example.com,https://www.example.com'). Merged into Better Auth trustedOrigins."
             },
             "NODE_ENV": {
               "type": "string",
@@ -381,11 +392,6 @@
               "type": "string",
               "format": "uri",
               "description": "Authentication service URL"
-            },
-            "NEXT_PUBLIC_SOCKET_URL": {
-              "type": "string",
-              "format": "uri",
-              "description": "Public socket URL"
             },
             "ALLOWED_ORIGINS": {
               "type": "string",

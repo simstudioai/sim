@@ -4,6 +4,7 @@
  * This is the main entry point for OpenTelemetry instrumentation.
  * It delegates to runtime-specific instrumentation modules.
  */
+
 export async function register() {
   // Load Node.js-specific instrumentation
   if (process.env.NEXT_RUNTIME === 'nodejs') {

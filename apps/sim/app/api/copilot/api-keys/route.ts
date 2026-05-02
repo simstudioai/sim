@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { deleteCopilotApiKeyQuerySchema } from '@/lib/api/contracts'
 import { getSession } from '@/lib/auth'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -66,11 +67,13 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = session.user.id
-    const url = new URL(request.url)
-    const id = url.searchParams.get('id')
-    if (!id) {
+    const queryResult = deleteCopilotApiKeyQuerySchema.safeParse(
+      Object.fromEntries(new URL(request.url).searchParams)
+    )
+    if (!queryResult.success) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
     }
+    const { id } = queryResult.data
 
     const res = await fetchGo(`${SIM_AGENT_API_URL}/api/validate-key/delete`, {
       method: 'POST',

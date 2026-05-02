@@ -1,20 +1,13 @@
+import type { ProviderTiming, TokenInfo, ToolCall, TraceSpan } from '@/lib/logs/types'
+
+export type { ProviderTiming, TokenInfo, ToolCall, TraceSpan }
+
 export interface WorkflowData {
   id: string
   name: string
   description: string | null
   color: string
   state: any
-}
-
-export interface ToolCall {
-  name: string
-  duration: number // in milliseconds
-  startTime: string // ISO timestamp
-  endTime: string // ISO timestamp
-  status: 'success' | 'error' // Status of the tool call
-  input?: Record<string, unknown> // Input parameters (optional)
-  output?: Record<string, unknown> // Output data (optional)
-  error?: string // Error message if status is 'error'
 }
 
 export interface ToolCallMetadata {
@@ -53,52 +46,6 @@ export interface CostMetadata {
     cachedInput?: number
     updatedAt: string
   }
-}
-
-export interface TokenInfo {
-  input?: number
-  output?: number
-  total?: number
-  prompt?: number
-  completion?: number
-}
-
-export interface ProviderTiming {
-  duration: number
-  startTime: string
-  endTime: string
-  segments: Array<{
-    type: string
-    name?: string
-    startTime: string | number
-    endTime: string | number
-    duration: number
-  }>
-}
-
-export interface TraceSpan {
-  id: string
-  name: string
-  type: string
-  duration: number // in milliseconds
-  startTime: string
-  endTime: string
-  children?: TraceSpan[]
-  toolCalls?: ToolCall[]
-  status?: 'success' | 'error'
-  errorHandled?: boolean
-  tokens?: number | TokenInfo
-  relativeStartMs?: number // Time in ms from the start of the parent span
-  blockId?: string // Added to track the original block ID for relationship mapping
-  input?: Record<string, unknown> // Added to store input data for this span
-  output?: Record<string, unknown> // Added to store output data for this span
-  model?: string
-  cost?: {
-    input?: number
-    output?: number
-    total?: number
-  }
-  providerTiming?: ProviderTiming
 }
 
 export interface WorkflowLog {

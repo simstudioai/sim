@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { microsoftChannelsSelectorContract } from '@/lib/api/contracts/selectors/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -10,21 +12,11 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('TeamsChannelsAPI')
 
-export const POST = withRouteHandler(async (request: Request) => {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    const body = await request.json()
-
-    const { credential, teamId, workflowId } = body
-
-    if (!credential) {
-      logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-    }
-
-    if (!teamId) {
-      logger.error('Missing team ID in request')
-      return NextResponse.json({ error: 'Team ID is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(microsoftChannelsSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, teamId, workflowId } = parsed.data.body
 
     const teamIdValidation = validateMicrosoftGraphId(teamId, 'Team ID')
     if (!teamIdValidation.isValid) {
@@ -33,7 +25,7 @@ export const POST = withRouteHandler(async (request: Request) => {
     }
 
     try {
-      const authz = await authorizeCredentialUse(request as any, {
+      const authz = await authorizeCredentialUse(request, {
         credentialId: credential,
         workflowId,
       })

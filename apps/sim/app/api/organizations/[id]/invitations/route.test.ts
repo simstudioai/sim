@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { auditMock, createSession, loggerMock } from '@sim/testing'
+import { auditMock, createMockRequest, createSession, loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -157,11 +157,12 @@ describe('POST /api/organizations/[id]/invitations', () => {
     ]
 
     const response = await POST(
-      new Request('http://localhost/api/organizations/org-1/invitations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emails: ['invitee@example.com'] }),
-      }) as any,
+      createMockRequest(
+        'POST',
+        { emails: ['invitee@example.com'] },
+        {},
+        'http://localhost/api/organizations/org-1/invitations'
+      ),
       { params: Promise.resolve({ id: 'org-1' }) }
     )
 
@@ -195,11 +196,12 @@ describe('POST /api/organizations/[id]/invitations', () => {
     mockSendInvitationEmail.mockResolvedValue({ success: false, error: 'mailer unavailable' })
 
     const response = await POST(
-      new Request('http://localhost/api/organizations/org-1/invitations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emails: ['invitee@example.com'] }),
-      }) as any,
+      createMockRequest(
+        'POST',
+        { emails: ['invitee@example.com'] },
+        {},
+        'http://localhost/api/organizations/org-1/invitations'
+      ),
       { params: Promise.resolve({ id: 'org-1' }) }
     )
 

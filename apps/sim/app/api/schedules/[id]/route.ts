@@ -2,10 +2,15 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import {
+  assertWorkflowMutable,
+  authorizeWorkflowByWorkspacePermission,
+  WorkflowLockedError,
+} from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateScheduleContract } from '@/lib/api/contracts/schedules'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -16,20 +21,6 @@ import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 const logger = createLogger('ScheduleAPI')
 
 export const dynamic = 'force-dynamic'
-
-const scheduleUpdateSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('reactivate') }),
-  z.object({ action: z.literal('disable') }),
-  z.object({
-    action: z.literal('update'),
-    title: z.string().min(1).optional(),
-    prompt: z.string().min(1).optional(),
-    cronExpression: z.string().optional(),
-    timezone: z.string().optional(),
-    lifecycle: z.enum(['persistent', 'until_complete']).optional(),
-    maxRuns: z.number().nullable().optional(),
-  }),
-])
 
 type ScheduleRow = {
   id: string
@@ -108,30 +99,33 @@ async function fetchAndAuthorize(
 }
 
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
 
     try {
-      const { id: scheduleId } = await params
-
       const session = await getSession()
       if (!session?.user?.id) {
         logger.warn(`[${requestId}] Unauthorized schedule update attempt`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const body = await request.json()
-      const validation = scheduleUpdateSchema.safeParse(body)
+      const parsed = await parseRequest(updateScheduleContract, request, context, {
+        validationErrorResponse: () =>
+          NextResponse.json({ error: 'Invalid request body' }, { status: 400 }),
+      })
+      if (!parsed.success) return parsed.response
 
-      if (!validation.success) {
-        return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
-      }
+      const { id: scheduleId } = parsed.data.params
+      const validatedBody = parsed.data.body
 
       const result = await fetchAndAuthorize(requestId, scheduleId, session.user.id, 'write')
       if (result instanceof NextResponse) return result
       const { schedule, workspaceId } = result
+      if (schedule.workflowId) {
+        await assertWorkflowMutable(schedule.workflowId)
+      }
 
-      const { action } = validation.data
+      const { action } = validatedBody
 
       if (action === 'disable') {
         if (schedule.status === 'disabled') {
@@ -174,7 +168,7 @@ export const PUT = withRouteHandler(
           )
         }
 
-        const updates = validation.data
+        const updates = validatedBody
         const setFields: Record<string, unknown> = { updatedAt: new Date() }
 
         if (updates.title !== undefined) setFields.jobTitle = updates.title.trim()
@@ -277,6 +271,10 @@ export const PUT = withRouteHandler(
 
       return NextResponse.json({ message: 'Schedule activated successfully', nextRunAt })
     } catch (error) {
+      if (error instanceof WorkflowLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
+
       logger.error(`[${requestId}] Error updating schedule`, error)
       return NextResponse.json({ error: 'Failed to update schedule' }, { status: 500 })
     }

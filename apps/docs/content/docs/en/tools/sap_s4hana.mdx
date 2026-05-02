@@ -1,19 +1,19 @@
 ---
-title: SAP S/4HANA
-description: Read and write SAP S/4HANA Cloud business data via OData
+title: SAP S4HANA
+description: Read and write SAP S4HANA Cloud business data via OData
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="sap_s4hana"
-  color="#0A6ED1"
+  color="#FFFFFF"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[SAP S/4HANA](https://www.sap.com/products/erp/s4hana.html) is SAP's flagship intelligent ERP suite, running on the in-memory HANA database. It powers finance, supply chain, procurement, sales, and manufacturing for organizations of every size, and exposes its business data through a broad catalog of OData services on SAP Business Technology Platform (BTP).
+[SAP S4HANA](https://www.sap.com/products/erp/s4hana.html) is SAP's flagship intelligent ERP suite, running on the in-memory HANA database. It powers finance, supply chain, procurement, sales, and manufacturing for organizations of every size, and exposes its business data through a broad catalog of OData services on SAP Business Technology Platform (BTP).
 
-With SAP S/4HANA, you can:
+With SAP S4HANA, you can:
 
 - **Run core business processes**: Manage finance, procurement, sales, logistics, inventory, and manufacturing on a single source of truth.
 - **Model master data at scale**: Maintain business partners, customers, suppliers, products, and organizational structures across multiple company codes, sales organizations, and plants.
@@ -21,22 +21,22 @@ With SAP S/4HANA, you can:
 - **Govern access cleanly**: Use Communication Arrangements, Communication Systems, and Communication Scopes to scope OAuth client credentials to exactly the services each integration needs.
 - **Integrate via standard OData**: Every entity supported here speaks OData v2 with consistent paging, filtering, expansion, and ETag-based optimistic concurrency.
 
-In Sim, the SAP S/4HANA integration lets your agents read and write directly against your tenant's OData services using per-tenant OAuth 2.0 client credentials. Agents can list and fetch master data, create and update transactional documents, run stock and material document queries, and execute arbitrary OData v2 calls against any whitelisted Communication Scenario — all routed through a single internal proxy that handles token acquisition, CSRF fetch-and-retry, and OData error normalization. Use it to automate order-to-cash, procure-to-pay, and inventory workflows, keep SAP in sync with the rest of your stack, or trigger downstream agent logic from SAP business events.
+In Sim, the SAP S4HANA integration lets your agents read and write directly against your tenant's OData services using per-tenant OAuth 2.0 client credentials. Agents can list and fetch master data, create and update transactional documents, run stock and material document queries, and execute arbitrary OData v2 calls against any whitelisted Communication Scenario — all routed through a single internal proxy that handles token acquisition, CSRF fetch-and-retry, and OData error normalization. Use it to automate order-to-cash, procure-to-pay, and inventory workflows, keep SAP in sync with the rest of your stack, or trigger downstream agent logic from SAP business events.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
 {/* MANUAL-CONTENT-START:usage */}
-Connect any SAP S/4HANA tenant — **Cloud Public Edition**, **Cloud Private Edition (RISE)**, or **on-premise** — and read or write business data through the official OData v2 services. Each tool routes through a single internal proxy that handles token acquisition, CSRF fetch-and-retry for write operations, and OData error normalization.
+Connect any SAP S4HANA tenant — **Cloud Public Edition**, **Cloud Private Edition (RISE)**, or **on-premise** — and read or write business data through the official OData v2 services. Each tool routes through a single internal proxy that handles token acquisition, CSRF fetch-and-retry for write operations, and OData error normalization.
 
 ### Deployment modes
 
 Pick the deployment that matches your tenant in the **Deployment** dropdown:
 
-- **S/4HANA Cloud Public Edition** — provide your **BTP subaccount subdomain** and **region** (e.g., `eu10`, `us10`). The host is derived automatically as `{subdomain}-api.s4hana.ondemand.com`, and OAuth tokens are fetched from the matching BTP UAA endpoint. Authentication is OAuth 2.0 client credentials configured in a Communication Arrangement.
-- **S/4HANA Cloud Private Edition (RISE)** — provide your **OData Base URL** (e.g., `https://my-tenant.s4hana.cloud.sap`). Authenticate with **OAuth 2.0 client credentials** (provide the tenant's UAA `tokenUrl`, `clientId`, `clientSecret`) or **HTTP Basic** with a Communication User (`username`, `password`).
-- **On-premise S/4HANA** — provide your **OData Base URL** (e.g., `https://sap.internal.company.com:44300`). Authenticate with **OAuth 2.0 client credentials** issued by your on-prem identity provider, or **HTTP Basic** with a service user.
+- **S4HANA Cloud Public Edition** — provide your **BTP subaccount subdomain** and **region** (e.g., `eu10`, `us10`). The host is derived automatically as `{subdomain}-api.s4hana.ondemand.com`, and OAuth tokens are fetched from the matching BTP UAA endpoint. Authentication is OAuth 2.0 client credentials configured in a Communication Arrangement.
+- **S4HANA Cloud Private Edition (RISE)** — provide your **OData Base URL** (e.g., `https://my-tenant.s4hana.cloud.sap`). Authenticate with **OAuth 2.0 client credentials** (provide the tenant's UAA `tokenUrl`, `clientId`, `clientSecret`) or **HTTP Basic** with a Communication User (`username`, `password`).
+- **On-premise S4HANA** — provide your **OData Base URL** (e.g., `https://sap.internal.company.com:44300`). Authenticate with **OAuth 2.0 client credentials** issued by your on-prem identity provider, or **HTTP Basic** with a service user.
 
 ### What you can do
 
@@ -48,7 +48,7 @@ All update tools accept an optional `ifMatch` ETag. When omitted, `If-Match` def
 {/* MANUAL-CONTENT-END */}
 
 
-Connect SAP S/4HANA Cloud Public Edition with per-tenant OAuth 2.0 client credentials configured in your Communication Arrangements. Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices, or run arbitrary OData v2 queries against any whitelisted Communication Scenario.
+Connect SAP S4HANA Cloud Public Edition with per-tenant OAuth 2.0 client credentials configured in your Communication Arrangements. Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices, or run arbitrary OData v2 queries against any whitelisted Communication Scenario.
 
 
 

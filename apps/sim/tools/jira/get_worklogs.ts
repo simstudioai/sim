@@ -77,7 +77,7 @@ export const jiraGetWorklogsTool: ToolConfig<JiraGetWorklogsParams, JiraGetWorkl
       if (params.cloudId) {
         const startAt = params.startAt ?? 0
         const maxResults = params.maxResults ?? 50
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey}/worklog?startAt=${startAt}&maxResults=${maxResults}`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/worklog?startAt=${startAt}&maxResults=${maxResults}`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -94,7 +94,7 @@ export const jiraGetWorklogsTool: ToolConfig<JiraGetWorklogsParams, JiraGetWorkl
     const fetchWorklogs = async (cloudId: string) => {
       const startAt = params?.startAt ?? 0
       const maxResults = params?.maxResults ?? 50
-      const worklogsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/worklog?startAt=${startAt}&maxResults=${maxResults}`
+      const worklogsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/worklog?startAt=${startAt}&maxResults=${maxResults}`
       const worklogsResponse = await fetch(worklogsUrl, {
         method: 'GET',
         headers: {

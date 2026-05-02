@@ -1,22 +1,16 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { copilotStatsContract } from '@/lib/api/contracts/copilot'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
   authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
   createInternalServerErrorResponse,
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-
-const BodySchema = z.object({
-  messageId: z.string(),
-  diffCreated: z.boolean(),
-  diffAccepted: z.boolean(),
-})
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
   const tracker = createRequestTracker()
@@ -26,15 +20,24 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return createUnauthorizedResponse()
     }
 
-    const json = await req.json().catch(() => ({}))
-    const parsed = BodySchema.safeParse(json)
-    if (!parsed.success) {
-      return createBadRequestResponse('Invalid request body for copilot stats')
-    }
+    const parsed = await parseRequest(
+      copilotStatsContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          validationErrorResponse(error, 'Invalid request body for copilot stats'),
+        invalidJsonResponse: () =>
+          NextResponse.json(
+            { error: 'Invalid request body for copilot stats', details: [] },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const { messageId, diffCreated, diffAccepted } = parsed.data as any
+    const { messageId, diffCreated, diffAccepted } = parsed.data.body
 
-    // Build outgoing payload for Sim Agent with only required fields
     const payload: Record<string, any> = {
       messageId,
       diffCreated,
@@ -52,7 +55,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       operation: 'stats_ingest',
     })
 
-    // Prefer not to block clients; still relay status
     let agentJson: any = null
     try {
       agentJson = await agentRes.json()

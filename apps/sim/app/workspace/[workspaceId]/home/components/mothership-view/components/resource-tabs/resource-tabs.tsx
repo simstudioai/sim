@@ -41,11 +41,7 @@ import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 const EDGE_ZONE = 40
 const SCROLL_SPEED = 8
 
-const ADD_RESOURCE_EXCLUDED_TYPES: readonly MothershipResourceType[] = [
-  'folder',
-  'task',
-  'log',
-] as const
+const ADD_RESOURCE_EXCLUDED_TYPES: readonly MothershipResourceType[] = ['folder', 'task'] as const
 
 /**
  * Returns the id of the nearest resource to `idx` that is in `filter`
@@ -154,7 +150,7 @@ interface ResourceTabItemProps {
   onDragEnd: () => void
   onTabClick: (e: React.MouseEvent, idx: number) => void
   setHoveredTabId: Dispatch<SetStateAction<string | null>>
-  onRemove: (e: React.MouseEvent, resource: MothershipResource) => void
+  onRemove: (e: React.SyntheticEvent, resource: MothershipResource) => void
 }
 
 const ResourceTabItem = memo(function ResourceTabItem({
@@ -216,7 +212,7 @@ const ResourceTabItem = memo(function ResourceTabItem({
                 tabIndex={-1}
                 onClick={(e) => onRemove(e, resource)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') onRemove(e as unknown as React.MouseEvent, resource)
+                  if (e.key === 'Enter') onRemove(e, resource)
                 }}
                 className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-sm p-[1px] hover-hover:bg-[var(--surface-5)]'
                 aria-label={`Close ${displayName}`}
@@ -400,7 +396,7 @@ export function ResourceTabs({
   )
 
   const handleRemove = useCallback(
-    (e: React.MouseEvent, resource: MothershipResource) => {
+    (e: React.SyntheticEvent, resource: MothershipResource) => {
       e.stopPropagation()
       if (!chatId) return
       const isMulti = selectedIds.has(resource.id) && selectedIds.size > 1

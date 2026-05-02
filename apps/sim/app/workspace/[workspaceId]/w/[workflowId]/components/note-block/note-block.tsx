@@ -495,6 +495,7 @@ export const NoteBlock = memo(function NoteBlock({
   const isEmpty = content.trim().length === 0
 
   const userPermissions = useUserPermissionsContext()
+  const canEditWorkflow = userPermissions.canEdit && !data.isWorkflowLocked
 
   /**
    * Calculate deterministic dimensions based on content structure.
@@ -522,7 +523,7 @@ export const NoteBlock = memo(function NoteBlock({
         )}
         onClick={handleClick}
       >
-        <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
+        <ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} />
 
         <div className='flex items-center justify-between border-[var(--divider)] border-b p-2'>
           <div className='flex min-w-0 flex-1 items-center'>

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { batchWorkspaceInvitationsContract } from '@/lib/api/contracts/invitations'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { normalizeEmail } from '@/lib/invitations/core'
@@ -20,20 +21,6 @@ interface BatchInvitationFailure {
   email: string
   error: string
 }
-
-const batchInvitationSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  invitations: z
-    .array(
-      z.object({
-        email: z.string().trim().min(1, 'Invitation email is required'),
-        permission: z.string().optional(),
-      })
-    )
-    .min(1, 'At least one invitation is required'),
-})
-
-type BatchInvitationRequest = z.infer<typeof batchInvitationSchema>
 
 function batchErrorResponse(error: unknown) {
   if (error instanceof WorkspaceInvitationError) {
@@ -62,14 +49,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   }
 
   try {
-    const parsedBody = batchInvitationSchema.safeParse(await req.json().catch(() => null))
-    if (!parsedBody.success) {
-      return NextResponse.json(
-        { error: parsedBody.error.errors[0]?.message ?? 'Invalid invitation batch payload' },
-        { status: 400 }
-      )
-    }
-    const body: BatchInvitationRequest = parsedBody.data
+    const parsed = await parseRequest(batchWorkspaceInvitationsContract, req, {})
+    if (!parsed.success) return parsed.response
+    const { body } = parsed.data
 
     const context = await prepareWorkspaceInvitationContext({
       workspaceId: body.workspaceId,

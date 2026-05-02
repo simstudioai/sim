@@ -3,6 +3,20 @@ import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Maps user-provided accountId to the Jira API value.
+ * Empty string, "null", "none", or "unassigned" → null (unassign).
+ * "-1" → "-1" (auto-assign). Otherwise the trimmed accountId.
+ */
+function resolveAssigneeAccountId(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null
+  const trimmed = String(value).trim()
+  if (trimmed === '') return null
+  const lower = trimmed.toLowerCase()
+  if (lower === 'null' || lower === 'none' || lower === 'unassigned') return null
+  return trimmed
+}
+
 export const jiraAssignIssueTool: ToolConfig<JiraAssignIssueParams, JiraAssignIssueResponse> = {
   id: 'jira_assign_issue',
   name: 'Jira Assign Issue',
@@ -38,7 +52,7 @@ export const jiraAssignIssueTool: ToolConfig<JiraAssignIssueParams, JiraAssignIs
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Account ID of the user to assign the issue to. Use "-1" for automatic assignment or null to unassign.',
+        'Account ID of the user to assign the issue to. Use "-1" for automatic assignment, or leave empty / pass "null" to unassign.',
     },
     cloudId: {
       type: 'string',
@@ -52,7 +66,7 @@ export const jiraAssignIssueTool: ToolConfig<JiraAssignIssueParams, JiraAssignIs
   request: {
     url: (params: JiraAssignIssueParams) => {
       if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey}/assignee`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/assignee`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -66,16 +80,14 @@ export const jiraAssignIssueTool: ToolConfig<JiraAssignIssueParams, JiraAssignIs
     },
     body: (params: JiraAssignIssueParams) => {
       if (!params.cloudId) return undefined as any
-      return {
-        accountId: params.accountId === 'null' ? null : params.accountId,
-      }
+      return { accountId: resolveAssigneeAccountId(params.accountId) }
     },
   },
 
   transformResponse: async (response: Response, params?: JiraAssignIssueParams) => {
     if (!params?.cloudId) {
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      const assignUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/assignee`
+      const assignUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/assignee`
       const assignResponse = await fetch(assignUrl, {
         method: 'PUT',
         headers: {
@@ -83,9 +95,7 @@ export const jiraAssignIssueTool: ToolConfig<JiraAssignIssueParams, JiraAssignIs
           'Content-Type': 'application/json',
           Authorization: `Bearer ${params!.accessToken}`,
         },
-        body: JSON.stringify({
-          accountId: params!.accountId === 'null' ? null : params!.accountId,
-        }),
+        body: JSON.stringify({ accountId: resolveAssigneeAccountId(params!.accountId) }),
       })
 
       if (!assignResponse.ok) {

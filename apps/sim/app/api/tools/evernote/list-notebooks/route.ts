@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { evernoteListNotebooksContract } from '@/lib/api/contracts/tools/evernote'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { listNotebooks } from '@/app/api/tools/evernote/lib/client'
@@ -15,13 +17,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-    const { apiKey } = body
+    const parsed = await parseRequest(
+      evernoteListNotebooksContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { success: false, error: getValidationErrorMessage(error, 'Invalid request') },
+            { status: 400 }
+          ),
+        invalidJsonResponse: () =>
+          NextResponse.json({ success: false, error: 'Invalid request' }, { status: 400 }),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!apiKey) {
-      return NextResponse.json({ success: false, error: 'apiKey is required' }, { status: 400 })
-    }
-
+    const { apiKey } = parsed.data.body
     const notebooks = await listNotebooks(apiKey)
 
     return NextResponse.json({

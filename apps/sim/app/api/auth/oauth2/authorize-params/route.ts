@@ -3,6 +3,8 @@ import { verification } from '@sim/db/schema'
 import { and, eq, gt } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { oauthAuthorizeParamsContract } from '@/lib/api/contracts/oauth-connections'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -17,10 +19,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const consentCode = request.nextUrl.searchParams.get('consent_code')
-  if (!consentCode) {
-    return NextResponse.json({ error: 'consent_code is required' }, { status: 400 })
-  }
+  const parsed = await parseRequest(oauthAuthorizeParamsContract, request, {})
+  if (!parsed.success) return parsed.response
+  const consentCode = parsed.data.query.consent_code
 
   const [record] = await db
     .select({ value: verification.value })

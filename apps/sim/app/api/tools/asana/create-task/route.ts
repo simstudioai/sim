@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { asanaCreateTaskContract } from '@/lib/api/contracts/tools/asana'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -16,22 +18,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const { accessToken, workspace, name, notes, assignee, due_on } = await request.json()
-
-    if (!accessToken) {
-      logger.error('Missing access token in request')
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-    }
-
-    if (!name) {
-      logger.error('Missing task name in request')
-      return NextResponse.json({ error: 'Task name is required' }, { status: 400 })
-    }
-
-    if (!workspace) {
-      logger.error('Missing workspace in request')
-      return NextResponse.json({ error: 'Workspace GID is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(asanaCreateTaskContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { accessToken, workspace, name, notes, assignee, due_on } = parsed.data.body
 
     const workspaceValidation = validateAlphanumericId(workspace, 'workspace', 100)
     if (!workspaceValidation.isValid) {
@@ -40,7 +29,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const url = 'https://app.asana.com/api/1.0/tasks'
 
-    const taskData: Record<string, any> = {
+    const taskData: Record<string, unknown> = {
       name,
       workspace,
     }
@@ -115,7 +104,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       created_at: task.created_at,
       permalink_url: task.permalink_url,
     })
-  } catch (error: any) {
+  } catch (error) {
     logger.error('Error creating Asana task:', {
       error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,

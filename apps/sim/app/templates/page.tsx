@@ -69,11 +69,5 @@ export default function TemplatesPage() {
   //   .orderBy(desc(templates.views), desc(templates.createdAt))
   //   .then((rows) => rows.map((row) => ({ ...row, isStarred: false })))
   //
-  // return (
-  //   <Templates
-  //     initialTemplates={templatesData as unknown as Template[]}
-  //     currentUserId={null}
-  //     isSuperUser={false}
-  //   />
-  // )
+  // return <Templates initialTemplates={templatesData} currentUserId={null} isSuperUser={false} />
 }

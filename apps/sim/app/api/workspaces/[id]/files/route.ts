@@ -1,6 +1,11 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  listWorkspaceFilesQuerySchema,
+  workspaceFilesParamsSchema,
+} from '@/lib/api/contracts/workspace-files'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -9,7 +14,6 @@ import {
   FileConflictError,
   listWorkspaceFiles,
   uploadWorkspaceFile,
-  type WorkspaceFileScope,
 } from '@/lib/uploads/contexts/workspace'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
@@ -25,7 +29,14 @@ const logger = createLogger('WorkspaceFilesAPI')
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id: workspaceId } = await params
+    const paramsResult = workspaceFilesParamsSchema.safeParse(await params)
+    if (!paramsResult.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
+        { status: 400 }
+      )
+    }
+    const { id: workspaceId } = paramsResult.data
 
     try {
       const session = await getSession()
@@ -42,11 +53,16 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
-      const scope = (new URL(request.url).searchParams.get('scope') ??
-        'active') as WorkspaceFileScope
-      if (!['active', 'archived', 'all'].includes(scope)) {
-        return NextResponse.json({ error: 'Invalid scope' }, { status: 400 })
+      const queryResult = listWorkspaceFilesQuerySchema.safeParse(
+        Object.fromEntries(request.nextUrl.searchParams.entries())
+      )
+      if (!queryResult.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(queryResult.error, 'Invalid scope') },
+          { status: 400 }
+        )
       }
+      const { scope } = queryResult.data
 
       const files = await listWorkspaceFiles(workspaceId, { scope })
 
@@ -76,7 +92,14 @@ export const GET = withRouteHandler(
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id: workspaceId } = await params
+    const paramsResult = workspaceFilesParamsSchema.safeParse(await params)
+    if (!paramsResult.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
+        { status: 400 }
+      )
+    }
+    const { id: workspaceId } = paramsResult.data
 
     try {
       const session = await getSession()

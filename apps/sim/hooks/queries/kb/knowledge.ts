@@ -1,18 +1,62 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  type BulkChunkOperationData,
+  type BulkDocumentOperationData,
+  bulkKnowledgeChunksContract,
+  bulkKnowledgeDocumentsContract,
+  type ChunkData,
+  type ChunksPagination,
+  createKnowledgeBaseContract,
+  createKnowledgeChunkContract,
+  createTagDefinitionContract,
+  type DocumentData,
+  type DocumentTagDefinitionData,
+  type DocumentTagFilter,
+  deleteDocumentTagDefinitionsContract,
+  deleteKnowledgeBaseContract,
+  deleteKnowledgeChunkContract,
+  deleteKnowledgeDocumentContract,
+  deleteTagDefinitionContract,
+  getKnowledgeBaseContract,
+  getKnowledgeDocumentContract,
+  type KnowledgeBaseData,
+  type KnowledgeChunksResponse,
+  type KnowledgeDocumentsResponse,
+  type KnowledgeScope,
+  listDocumentTagDefinitionsContract,
+  listKnowledgeBasesContract,
+  listKnowledgeChunksContract,
+  listKnowledgeDocumentsContract,
+  listTagDefinitionsContract,
+  type NextAvailableSlotData,
+  nextAvailableSlotContract,
+  restoreKnowledgeBaseContract,
+  type SaveDocumentTagDefinitionsResult,
+  saveDocumentTagDefinitionsContract,
+  type TagDefinitionData,
+  updateKnowledgeBaseContract,
+  updateKnowledgeChunkContract,
+  updateKnowledgeDocumentContract,
+  updateKnowledgeDocumentTagsContract,
+} from '@/lib/api/contracts/knowledge'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
-import type {
-  ChunkData,
-  ChunksPagination,
-  DocumentData,
-  DocumentsPagination,
-  KnowledgeBaseData,
-} from '@/lib/knowledge/types'
+import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 
 const logger = createLogger('KnowledgeQueries')
 
-type KnowledgeQueryScope = 'active' | 'archived' | 'all'
+type KnowledgeQueryScope = KnowledgeScope
+
+export type {
+  DocumentTagDefinitionData,
+  DocumentTagFilter,
+  KnowledgeChunksResponse,
+  KnowledgeDocumentsResponse,
+  TagDefinitionData,
+}
 
 export const knowledgeKeys = {
   all: ['knowledge'] as const,
@@ -38,37 +82,22 @@ export async function fetchKnowledgeBases(
   scope: KnowledgeQueryScope = 'active',
   signal?: AbortSignal
 ): Promise<KnowledgeBaseData[]> {
-  const url = workspaceId
-    ? `/api/knowledge?workspaceId=${workspaceId}&scope=${scope}`
-    : `/api/knowledge?scope=${scope}`
-  const response = await fetch(url, { signal })
+  const result = await requestJson(listKnowledgeBasesContract, {
+    query: { workspaceId, scope },
+    signal,
+  })
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch knowledge bases: ${response.status} ${response.statusText}`)
-  }
-
-  const result = await response.json()
-  if (result?.success === false) {
-    throw new Error(result.error || 'Failed to fetch knowledge bases')
-  }
-
-  return Array.isArray(result?.data) ? result.data : []
+  return result.data
 }
 
 export async function fetchKnowledgeBase(
   knowledgeBaseId: string,
   signal?: AbortSignal
 ): Promise<KnowledgeBaseData> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}`, { signal })
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch knowledge base: ${response.status} ${response.statusText}`)
-  }
-
-  const result = await response.json()
-  if (!result?.success || !result?.data) {
-    throw new Error(result?.error || 'Failed to fetch knowledge base')
-  }
+  const result = await requestJson(getKnowledgeBaseContract, {
+    params: { id: knowledgeBaseId },
+    signal,
+  })
 
   return result.data
 }
@@ -78,31 +107,18 @@ export async function fetchDocument(
   documentId: string,
   signal?: AbortSignal
 ): Promise<DocumentData> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`, {
-    signal,
-  })
-
-  if (!response.ok) {
-    if (response.status === 404) {
+  try {
+    const result = await requestJson(getKnowledgeDocumentContract, {
+      params: { id: knowledgeBaseId, documentId },
+      signal,
+    })
+    return result.data
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) {
       throw new Error('Document not found')
     }
-    throw new Error(`Failed to fetch document: ${response.status} ${response.statusText}`)
+    throw error
   }
-
-  const result = await response.json()
-  if (!result?.success || !result?.data) {
-    throw new Error(result?.error || 'Failed to fetch document')
-  }
-
-  return result.data
-}
-
-export interface DocumentTagFilter {
-  tagSlot: string
-  fieldType: 'text' | 'number' | 'date' | 'boolean'
-  operator: string
-  value: string
-  valueTo?: string
 }
 
 export interface KnowledgeDocumentsParams {
@@ -110,15 +126,10 @@ export interface KnowledgeDocumentsParams {
   search?: string
   limit?: number
   offset?: number
-  sortBy?: string
-  sortOrder?: string
+  sortBy?: DocumentSortField
+  sortOrder?: SortOrder
   enabledFilter?: 'all' | 'enabled' | 'disabled'
   tagFilters?: DocumentTagFilter[]
-}
-
-export interface KnowledgeDocumentsResponse {
-  documents: DocumentData[]
-  pagination: DocumentsPagination
 }
 
 export async function fetchKnowledgeDocuments(
@@ -134,45 +145,21 @@ export async function fetchKnowledgeDocuments(
   }: KnowledgeDocumentsParams,
   signal?: AbortSignal
 ): Promise<KnowledgeDocumentsResponse> {
-  const params = new URLSearchParams()
-  if (search) params.set('search', search)
-  if (sortBy) params.set('sortBy', sortBy)
-  if (sortOrder) params.set('sortOrder', sortOrder)
-  params.set('limit', limit.toString())
-  params.set('offset', offset.toString())
-  if (enabledFilter) params.set('enabledFilter', enabledFilter)
-  if (tagFilters && tagFilters.length > 0) params.set('tagFilters', JSON.stringify(tagFilters))
-
-  const url = `/api/knowledge/${knowledgeBaseId}/documents${params.toString() ? `?${params.toString()}` : ''}`
-  const response = await fetch(url, { signal })
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch documents: ${response.status} ${response.statusText}`)
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to fetch documents')
-  }
-
-  const documents: DocumentData[] = result.data?.documents ?? result.data ?? []
-  const pagination: DocumentsPagination = result.data?.pagination ??
-    result.pagination ?? {
-      total: documents.length,
+  const result = await requestJson(listKnowledgeDocumentsContract, {
+    params: { id: knowledgeBaseId },
+    query: {
+      search,
+      sortBy,
+      sortOrder,
       limit,
       offset,
-      hasMore: false,
-    }
-
-  return {
-    documents,
-    pagination: {
-      total: pagination.total ?? documents.length,
-      limit: pagination.limit ?? limit,
-      offset: pagination.offset ?? offset,
-      hasMore: Boolean(pagination.hasMore),
+      enabledFilter,
+      tagFilters: tagFilters && tagFilters.length > 0 ? JSON.stringify(tagFilters) : undefined,
     },
-  }
+    signal,
+  })
+
+  return result.data
 }
 
 export interface KnowledgeChunksParams {
@@ -184,11 +171,6 @@ export interface KnowledgeChunksParams {
   offset?: number
   sortBy?: 'chunkIndex' | 'tokenCount' | 'enabled'
   sortOrder?: 'asc' | 'desc'
-}
-
-export interface KnowledgeChunksResponse {
-  chunks: ChunkData[]
-  pagination: ChunksPagination
 }
 
 export async function fetchKnowledgeChunks(
@@ -204,29 +186,23 @@ export async function fetchKnowledgeChunks(
   }: KnowledgeChunksParams,
   signal?: AbortSignal
 ): Promise<KnowledgeChunksResponse> {
-  const params = new URLSearchParams()
-  if (search) params.set('search', search)
-  if (enabledFilter && enabledFilter !== 'all') {
-    params.set('enabled', enabledFilter === 'enabled' ? 'true' : 'false')
-  }
-  if (limit) params.set('limit', limit.toString())
-  if (offset) params.set('offset', offset.toString())
-  if (sortBy && sortBy !== 'chunkIndex') params.set('sortBy', sortBy)
-  if (sortOrder && sortOrder !== 'asc') params.set('sortOrder', sortOrder)
-
-  const response = await fetch(
-    `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks${params.toString() ? `?${params.toString()}` : ''}`,
-    { signal }
-  )
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch chunks: ${response.status} ${response.statusText}`)
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to fetch chunks')
-  }
+  const result = await requestJson(listKnowledgeChunksContract, {
+    params: { id: knowledgeBaseId, documentId },
+    query: {
+      search,
+      enabled:
+        enabledFilter && enabledFilter !== 'all'
+          ? enabledFilter === 'enabled'
+            ? 'true'
+            : 'false'
+          : undefined,
+      limit,
+      offset,
+      sortBy,
+      sortOrder,
+    },
+    signal,
+  })
 
   const chunks: ChunkData[] = result.data ?? []
   const pagination: ChunksPagination = {
@@ -411,28 +387,14 @@ export async function updateChunk({
   content,
   enabled,
 }: UpdateChunkParams): Promise<ChunkData> {
-  const body: Record<string, unknown> = {}
+  const body: { content?: string; enabled?: boolean } = {}
   if (content !== undefined) body.content = content
   if (enabled !== undefined) body.enabled = enabled
 
-  const response = await fetch(
-    `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks/${chunkId}`,
-    {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }
-  )
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to update chunk')
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to update chunk')
-  }
+  const result = await requestJson(updateKnowledgeChunkContract, {
+    params: { id: knowledgeBaseId, documentId, chunkId },
+    body,
+  })
 
   return result.data
 }
@@ -442,7 +404,7 @@ export function useUpdateChunk() {
 
   return useMutation({
     mutationFn: updateChunk,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -464,20 +426,9 @@ export async function deleteChunk({
   documentId,
   chunkId,
 }: DeleteChunkParams): Promise<void> {
-  const response = await fetch(
-    `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks/${chunkId}`,
-    { method: 'DELETE' }
-  )
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to delete chunk')
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to delete chunk')
-  }
+  await requestJson(deleteKnowledgeChunkContract, {
+    params: { id: knowledgeBaseId, documentId, chunkId },
+  })
 }
 
 export function useDeleteChunk() {
@@ -485,7 +436,7 @@ export function useDeleteChunk() {
 
   return useMutation({
     mutationFn: deleteChunk,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -509,21 +460,10 @@ export async function createChunk({
   content,
   enabled = true,
 }: CreateChunkParams): Promise<ChunkData> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content, enabled }),
+  const result = await requestJson(createKnowledgeChunkContract, {
+    params: { id: knowledgeBaseId, documentId },
+    body: { content, enabled },
   })
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to create chunk')
-  }
-
-  const result = await response.json()
-  if (!result?.success || !result?.data) {
-    throw new Error(result?.error || 'Failed to create chunk')
-  }
 
   return result.data
 }
@@ -533,7 +473,7 @@ export function useCreateChunk() {
 
   return useMutation({
     mutationFn: createChunk,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -560,21 +500,10 @@ export async function updateDocument({
   documentId,
   updates,
 }: UpdateDocumentParams): Promise<DocumentData> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
+  const result = await requestJson(updateKnowledgeDocumentContract, {
+    params: { id: knowledgeBaseId, documentId },
+    body: updates,
   })
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to update document')
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to update document')
-  }
 
   return result.data
 }
@@ -584,7 +513,7 @@ export function useUpdateDocument() {
 
   return useMutation({
     mutationFn: updateDocument,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -604,19 +533,9 @@ export async function deleteDocument({
   knowledgeBaseId,
   documentId,
 }: DeleteDocumentParams): Promise<void> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`, {
-    method: 'DELETE',
+  await requestJson(deleteKnowledgeDocumentContract, {
+    params: { id: knowledgeBaseId, documentId },
   })
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to delete document')
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to delete document')
-  }
 }
 
 export function useDeleteDocument() {
@@ -624,7 +543,7 @@ export function useDeleteDocument() {
 
   return useMutation({
     mutationFn: deleteDocument,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -640,42 +559,19 @@ export interface BulkDocumentOperationParams {
   enabledFilter?: 'all' | 'enabled' | 'disabled'
 }
 
-export interface BulkDocumentOperationResult {
-  successCount: number
-  failedCount: number
-  updatedDocuments?: Array<{ id: string; enabled: boolean }>
-}
-
 export async function bulkDocumentOperation({
   knowledgeBaseId,
   operation,
   documentIds,
   selectAll,
   enabledFilter,
-}: BulkDocumentOperationParams): Promise<BulkDocumentOperationResult> {
-  const body: Record<string, unknown> = { operation }
-  if (selectAll) {
-    body.selectAll = true
-    if (enabledFilter) body.enabledFilter = enabledFilter
-  } else {
-    body.documentIds = documentIds
-  }
-
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+}: BulkDocumentOperationParams): Promise<BulkDocumentOperationData> {
+  const result = await requestJson(bulkKnowledgeDocumentsContract, {
+    params: { id: knowledgeBaseId },
+    body: selectAll
+      ? { operation, selectAll: true, enabledFilter }
+      : { operation, documentIds: documentIds ?? [] },
   })
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || `Failed to ${operation} documents`)
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || `Failed to ${operation} documents`)
-  }
 
   return result.data
 }
@@ -685,7 +581,7 @@ export function useBulkDocumentOperation() {
 
   return useMutation({
     mutationFn: bulkDocumentOperation,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -709,21 +605,9 @@ export interface CreateKnowledgeBaseParams {
 export async function createKnowledgeBase(
   params: CreateKnowledgeBaseParams
 ): Promise<KnowledgeBaseData> {
-  const response = await fetch('/api/knowledge', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
+  const result = await requestJson(createKnowledgeBaseContract, {
+    body: params,
   })
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to create knowledge base')
-  }
-
-  const result = await response.json()
-  if (!result?.success || !result?.data) {
-    throw new Error(result?.error || 'Failed to create knowledge base')
-  }
 
   return result.data
 }
@@ -733,7 +617,7 @@ export function useCreateKnowledgeBase(workspaceId?: string) {
 
   return useMutation({
     mutationFn: createKnowledgeBase,
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.lists(),
       })
@@ -754,21 +638,10 @@ export async function updateKnowledgeBase({
   knowledgeBaseId,
   updates,
 }: UpdateKnowledgeBaseParams): Promise<KnowledgeBaseData> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
+  const result = await requestJson(updateKnowledgeBaseContract, {
+    params: { id: knowledgeBaseId },
+    body: updates,
   })
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to update knowledge base')
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to update knowledge base')
-  }
 
   return result.data
 }
@@ -781,7 +654,7 @@ export function useUpdateKnowledgeBase(workspaceId?: string) {
     onError: (error) => {
       toast.error(error.message, { duration: 5000 })
     },
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.lists(),
       })
@@ -799,19 +672,9 @@ export interface DeleteKnowledgeBaseParams {
 export async function deleteKnowledgeBase({
   knowledgeBaseId,
 }: DeleteKnowledgeBaseParams): Promise<void> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}`, {
-    method: 'DELETE',
+  await requestJson(deleteKnowledgeBaseContract, {
+    params: { id: knowledgeBaseId },
   })
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to delete knowledge base')
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to delete knowledge base')
-  }
 }
 
 export function useDeleteKnowledgeBase(workspaceId?: string) {
@@ -819,7 +682,7 @@ export function useDeleteKnowledgeBase(workspaceId?: string) {
 
   return useMutation({
     mutationFn: deleteKnowledgeBase,
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.lists(),
       })
@@ -837,35 +700,16 @@ export interface BulkChunkOperationParams {
   chunkIds: string[]
 }
 
-export interface BulkChunkOperationResult {
-  operation: string
-  successCount: number
-  errorCount: number
-  processed: number
-  errors: string[]
-}
-
 export async function bulkChunkOperation({
   knowledgeBaseId,
   documentId,
   operation,
   chunkIds,
-}: BulkChunkOperationParams): Promise<BulkChunkOperationResult> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ operation, chunkIds }),
+}: BulkChunkOperationParams): Promise<BulkChunkOperationData> {
+  const result = await requestJson(bulkKnowledgeChunksContract, {
+    params: { id: knowledgeBaseId, documentId },
+    body: { operation, chunkIds },
   })
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || `Failed to ${operation} chunks`)
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || `Failed to ${operation} chunks`)
-  }
 
   return result.data
 }
@@ -875,7 +719,7 @@ export function useBulkChunkOperation() {
 
   return useMutation({
     mutationFn: bulkChunkOperation,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -897,21 +741,10 @@ export async function updateDocumentTags({
   documentId,
   tags,
 }: UpdateDocumentTagsParams): Promise<DocumentData> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(tags),
+  const result = await requestJson(updateKnowledgeDocumentTagsContract, {
+    params: { id: knowledgeBaseId, documentId },
+    body: tags,
   })
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to update document tags')
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to update document tags')
-  }
 
   return result.data
 }
@@ -921,7 +754,7 @@ export function useUpdateDocumentTags() {
 
   return useMutation({
     mutationFn: updateDocumentTags,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -932,31 +765,16 @@ export function useUpdateDocumentTags() {
   })
 }
 
-export interface TagDefinitionData {
-  id: string
-  tagSlot: string
-  displayName: string
-  fieldType: string
-  createdAt: string
-  updatedAt: string
-}
-
 export async function fetchTagDefinitions(
   knowledgeBaseId: string,
   signal?: AbortSignal
 ): Promise<TagDefinitionData[]> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/tag-definitions`, { signal })
+  const result = await requestJson(listTagDefinitionsContract, {
+    params: { id: knowledgeBaseId },
+    signal,
+  })
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch tag definitions: ${response.status} ${response.statusText}`)
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to fetch tag definitions')
-  }
-
-  return Array.isArray(result.data) ? result.data : []
+  return result.data
 }
 
 export function useTagDefinitionsQuery(knowledgeBaseId?: string | null) {
@@ -975,31 +793,14 @@ export interface CreateTagDefinitionParams {
   fieldType: string
 }
 
-interface NextAvailableSlotData {
-  nextAvailableSlot: string | null
-  fieldType: string
-  usedSlots: string[]
-  totalSlots: number
-  availableSlots: number
-}
-
 async function fetchNextAvailableSlotData(
   knowledgeBaseId: string,
   fieldType: string
 ): Promise<NextAvailableSlotData> {
-  const response = await fetch(
-    `/api/knowledge/${knowledgeBaseId}/next-available-slot?fieldType=${fieldType}`
-  )
-
-  if (!response.ok) {
-    throw new Error('Failed to get available slot')
-  }
-
-  const result = await response.json()
-  if (!result.success || !result.data) {
-    throw new Error('No available tag slots for this field type')
-  }
-
+  const result = await requestJson(nextAvailableSlotContract, {
+    params: { id: knowledgeBaseId },
+    query: { fieldType },
+  })
   return result.data
 }
 
@@ -1030,22 +831,10 @@ export async function createTagDefinition({
 }: CreateTagDefinitionParams): Promise<TagDefinitionData> {
   const tagSlot = await fetchNextAvailableSlot(knowledgeBaseId, fieldType)
 
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/tag-definitions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tagSlot, displayName, fieldType }),
+  const result = await requestJson(createTagDefinitionContract, {
+    params: { id: knowledgeBaseId },
+    body: { tagSlot, displayName, fieldType },
   })
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to create tag definition')
-  }
-
-  const result = await response.json()
-  if (!result?.success || !result?.data) {
-    throw new Error(result?.error || 'Failed to create tag definition')
-  }
-
   return result.data
 }
 
@@ -1054,7 +843,7 @@ export function useCreateTagDefinition() {
 
   return useMutation({
     mutationFn: createTagDefinition,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.tagDefinitions(knowledgeBaseId),
       })
@@ -1071,20 +860,9 @@ export async function deleteTagDefinition({
   knowledgeBaseId,
   tagDefinitionId,
 }: DeleteTagDefinitionParams): Promise<void> {
-  const response = await fetch(
-    `/api/knowledge/${knowledgeBaseId}/tag-definitions/${tagDefinitionId}`,
-    { method: 'DELETE' }
-  )
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to delete tag definition')
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to delete tag definition')
-  }
+  await requestJson(deleteTagDefinitionContract, {
+    params: { id: knowledgeBaseId, tagId: tagDefinitionId },
+  })
 }
 
 export function useDeleteTagDefinition() {
@@ -1092,7 +870,7 @@ export function useDeleteTagDefinition() {
 
   return useMutation({
     mutationFn: deleteTagDefinition,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.tagDefinitions(knowledgeBaseId),
       })
@@ -1100,37 +878,17 @@ export function useDeleteTagDefinition() {
   })
 }
 
-export interface DocumentTagDefinitionData {
-  id: string
-  tagSlot: string
-  displayName: string
-  fieldType: string
-  createdAt: string
-  updatedAt: string
-}
-
 export async function fetchDocumentTagDefinitions(
   knowledgeBaseId: string,
   documentId: string,
   signal?: AbortSignal
 ): Promise<DocumentTagDefinitionData[]> {
-  const response = await fetch(
-    `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/tag-definitions`,
-    { signal }
-  )
+  const result = await requestJson(listDocumentTagDefinitionsContract, {
+    params: { id: knowledgeBaseId, documentId },
+    signal,
+  })
 
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch document tag definitions: ${response.status} ${response.statusText}`
-    )
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to fetch document tag definitions')
-  }
-
-  return Array.isArray(result.data) ? result.data : []
+  return result.data
 }
 
 export function useDocumentTagDefinitionsQuery(
@@ -1163,30 +921,15 @@ export async function saveDocumentTagDefinitions({
   knowledgeBaseId,
   documentId,
   definitions,
-}: SaveDocumentTagDefinitionsParams): Promise<DocumentTagDefinitionData[]> {
+}: SaveDocumentTagDefinitionsParams): Promise<SaveDocumentTagDefinitionsResult> {
   const validDefinitions = (definitions || []).filter(
     (def) => def?.tagSlot && def.displayName && def.displayName.trim()
   )
 
-  const response = await fetch(
-    `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/tag-definitions`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ definitions: validDefinitions }),
-    }
-  )
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to save document tag definitions')
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to save document tag definitions')
-  }
-
+  const result = await requestJson(saveDocumentTagDefinitionsContract, {
+    params: { id: knowledgeBaseId, documentId },
+    body: { definitions: validDefinitions },
+  })
   return result.data
 }
 
@@ -1195,7 +938,7 @@ export function useSaveDocumentTagDefinitions() {
 
   return useMutation({
     mutationFn: saveDocumentTagDefinitions,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.documentTagDefinitions(knowledgeBaseId, documentId),
       })
@@ -1215,20 +958,9 @@ export async function deleteDocumentTagDefinitions({
   knowledgeBaseId,
   documentId,
 }: DeleteDocumentTagDefinitionsParams): Promise<void> {
-  const response = await fetch(
-    `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/tag-definitions`,
-    { method: 'DELETE' }
-  )
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to delete document tag definitions')
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to delete document tag definitions')
-  }
+  await requestJson(deleteDocumentTagDefinitionsContract, {
+    params: { id: knowledgeBaseId, documentId },
+  })
 }
 
 export function useRestoreKnowledgeBase() {
@@ -1236,12 +968,9 @@ export function useRestoreKnowledgeBase() {
 
   return useMutation({
     mutationFn: async (knowledgeBaseId: string) => {
-      const res = await fetch(`/api/knowledge/${knowledgeBaseId}/restore`, { method: 'POST' })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to restore knowledge base')
-      }
-      return res.json()
+      return requestJson(restoreKnowledgeBaseContract, {
+        params: { id: knowledgeBaseId },
+      })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
@@ -1254,7 +983,7 @@ export function useDeleteDocumentTagDefinitions() {
 
   return useMutation({
     mutationFn: deleteDocumentTagDefinitions,
-    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.documentTagDefinitions(knowledgeBaseId, documentId),
       })

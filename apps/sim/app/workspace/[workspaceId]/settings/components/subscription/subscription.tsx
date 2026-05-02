@@ -18,6 +18,8 @@ import {
   Switch,
   Tooltip,
 } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import { billingSwitchPlanContract } from '@/lib/api/contracts/subscription'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
 import { USAGE_THRESHOLDS } from '@/lib/billing/client/consts'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
@@ -559,13 +561,9 @@ export function Subscription() {
           'Interval switching is not available on legacy plans. Please upgrade first.'
         )
       }
-      const res = await fetch('/api/billing/switch-plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetPlanName: subscription.plan, interval }),
+      await requestJson(billingSwitchPlanContract, {
+        body: { targetPlanName: subscription.plan, interval },
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || 'Failed to switch interval')
       await refetchSubscription()
     },
     [refetchSubscription, subscription.plan, isLegacyPlan]
@@ -610,7 +608,7 @@ export function Subscription() {
           }
           limit={
             subscription.isOrgScoped
-              ? organizationBillingData?.data?.totalUsageLimit
+              ? (organizationBillingData?.data?.totalUsageLimit ?? usage.limit)
               : !subscription.isFree &&
                   (permissions.canEditUsageLimit || permissions.showTeamMemberView)
                 ? usage.current
@@ -779,16 +777,12 @@ export function Subscription() {
                           ? async () => {
                               const planType = subscription.isTeam ? 'team' : 'pro'
                               try {
-                                const res = await fetch('/api/billing/switch-plan', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
+                                await requestJson(billingSwitchPlanContract, {
+                                  body: {
                                     targetPlanName: `${planType}_${MAX_TIER.credits}`,
                                     interval: isAnnual ? 'year' : 'month',
-                                  }),
+                                  },
                                 })
-                                const data = await res.json()
-                                if (!res.ok) throw new Error(data?.error || 'Failed to upgrade')
                                 await refetchSubscription()
                               } catch (e) {
                                 alert(e instanceof Error ? e.message : 'Failed to upgrade')
@@ -861,13 +855,9 @@ export function Subscription() {
           const planType = subscription.isTeam ? 'team' : 'pro'
           const targetPlanName = `${planType}_${targetTier.credits}`
           try {
-            const res = await fetch('/api/billing/switch-plan', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ targetPlanName }),
+            await requestJson(billingSwitchPlanContract, {
+              body: { targetPlanName },
             })
-            const data = await res.json()
-            if (!res.ok) throw new Error(data?.error || 'Failed to switch plan')
             await refetchSubscription()
             setManagePlanModalOpen(false)
           } catch (e) {
@@ -882,13 +872,9 @@ export function Subscription() {
           const planType = subscription.isTeam ? 'team' : 'pro'
           const targetPlanName = `${planType}_${currentTier.credits}`
           try {
-            const res = await fetch('/api/billing/switch-plan', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ targetPlanName }),
+            await requestJson(billingSwitchPlanContract, {
+              body: { targetPlanName },
             })
-            const data = await res.json()
-            if (!res.ok) throw new Error(data?.error || 'Failed to migrate plan')
             await refetchSubscription()
             setManagePlanModalOpen(false)
           } catch (e) {
@@ -1135,12 +1121,15 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
   const [selectedTier, setSelectedTier] = useState<number>(PRO_TIER.credits)
   const [selectedSeats, setSelectedSeats] = useState(1)
 
-  useEffect(() => {
+  // Reset selections each time the modal opens.
+  const prevOpenRef = useRef(open)
+  if (prevOpenRef.current !== open) {
+    prevOpenRef.current = open
     if (open) {
       setSelectedTier(PRO_TIER.credits)
       setSelectedSeats(1)
     }
-  }, [open])
+  }
 
   const tier = CREDIT_TIERS.find((t) => t.credits === selectedTier) ?? PRO_TIER
   const monthlyCostPerSeat = tier.dollars
@@ -1293,9 +1282,12 @@ function ManagePlanModal({
   const [isSwitching, setIsSwitching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Clear the error each time the modal opens.
+  const prevOpenRef = useRef(open)
+  if (prevOpenRef.current !== open) {
+    prevOpenRef.current = open
     if (open) setError(null)
-  }, [open])
+  }
 
   const isOnMax = currentPlanCredits === MAX_TIER.credits || (isLegacyPlan && isTeamPlan)
   const currentTier = isOnMax ? MAX_TIER : PRO_TIER

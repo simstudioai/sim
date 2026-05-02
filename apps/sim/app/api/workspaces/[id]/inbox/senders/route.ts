@@ -3,22 +3,14 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { addInboxSenderContract, removeInboxSenderContract } from '@/lib/api/contracts/inbox'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasInboxAccess } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InboxSendersAPI')
-
-const addSenderSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  label: z.string().max(100).optional(),
-})
-
-const deleteSenderSchema = z.object({
-  senderId: z.string().min(1),
-})
 
 export const GET = withRouteHandler(
   async (_req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -77,8 +69,8 @@ export const GET = withRouteHandler(
 )
 
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: workspaceId } = await params
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const { id: workspaceId } = await context.params
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -96,7 +88,9 @@ export const POST = withRouteHandler(
     }
 
     try {
-      const { email, label } = addSenderSchema.parse(await req.json())
+      const parsed = await parseRequest(addInboxSenderContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { email, label } = parsed.data.body
       const normalizedEmail = email.toLowerCase()
 
       const [existing] = await db
@@ -127,12 +121,6 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ sender })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Invalid request', details: error.errors },
-          { status: 400 }
-        )
-      }
       logger.error('Failed to add sender', { workspaceId, error })
       return NextResponse.json({ error: 'Failed to add sender' }, { status: 500 })
     }
@@ -140,8 +128,8 @@ export const POST = withRouteHandler(
 )
 
 export const DELETE = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: workspaceId } = await params
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const { id: workspaceId } = await context.params
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -159,7 +147,9 @@ export const DELETE = withRouteHandler(
     }
 
     try {
-      const { senderId } = deleteSenderSchema.parse(await req.json())
+      const parsed = await parseRequest(removeInboxSenderContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { senderId } = parsed.data.body
 
       await db
         .delete(mothershipInboxAllowedSender)
@@ -172,12 +162,6 @@ export const DELETE = withRouteHandler(
 
       return NextResponse.json({ ok: true })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Invalid request', details: error.errors },
-          { status: 400 }
-        )
-      }
       logger.error('Failed to delete sender', { workspaceId, error })
       return NextResponse.json({ error: 'Failed to delete sender' }, { status: 500 })
     }

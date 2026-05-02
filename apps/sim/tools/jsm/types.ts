@@ -486,8 +486,7 @@ export interface JsmGetCustomersParams extends JsmBaseParams {
 
 export interface JsmAddCustomerParams extends JsmBaseParams {
   serviceDeskId: string
-  accountIds?: string
-  emails?: string
+  accountIds: string
 }
 
 export interface JsmGetOrganizationsParams extends JsmBaseParams {
@@ -1015,12 +1014,19 @@ export interface JsmGetFormAnswersParams extends JsmBaseParams {
   formId: string
 }
 
+export interface JsmFormSimplifiedAnswer {
+  label?: string
+  answer?: string
+  fieldKey?: string
+  choice?: string
+}
+
 export interface JsmGetFormAnswersResponse extends ToolResponse {
   output: {
     ts: string
     issueIdOrKey: string
     formId: string
-    answers: Record<string, unknown> | null
+    answers: JsmFormSimplifiedAnswer[] | null
   }
 }
 

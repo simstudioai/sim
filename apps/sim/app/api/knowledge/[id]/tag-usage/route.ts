@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getTagUsageContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getTagUsage } from '@/lib/knowledge/tags/service'
@@ -12,9 +14,11 @@ const logger = createLogger('TagUsageAPI')
 
 // GET /api/knowledge/[id]/tag-usage - Get usage statistics for all tag definitions
 export const GET = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateId().slice(0, 8)
-    const { id: knowledgeBaseId } = await params
+    const parsed = await parseRequest(getTagUsageContract, req, context)
+    if (!parsed.success) return parsed.response
+    const { id: knowledgeBaseId } = parsed.data.params
 
     try {
       logger.info(

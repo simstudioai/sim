@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Circle, ExternalLink, GraduationCap, Loader2 } from 'lucide-react'
+import { CheckCircle2, Circle, ExternalLink, GraduationCap } from 'lucide-react'
 import Link from 'next/link'
+import { Loader } from '@/components/emcn'
 import { getCompletedLessons } from '@/lib/academy/local-progress'
 import type { Course } from '@/lib/academy/types'
 import { useSession } from '@/lib/auth/auth-client'
@@ -135,7 +136,7 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
                     }
                     className='flex items-center gap-2 rounded-[5px] bg-[#ECECEC] px-4 py-2 font-[430] text-[#1C1C1C] text-[13px] transition-colors hover:bg-white disabled:opacity-50'
                   >
-                    {isPending && <Loader2 className='h-3.5 w-3.5 animate-spin' />}
+                    {isPending && <Loader className='h-3.5 w-3.5' animate />}
                     {isPending ? 'Issuing…' : 'Get certificate'}
                   </button>
                 ) : (

@@ -6,7 +6,8 @@ import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/erro
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { addPermissionGroupMemberContract } from '@/lib/api/contracts/permission-groups'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -76,18 +77,14 @@ export const GET = withRouteHandler(
   }
 )
 
-const addMemberSchema = z.object({
-  userId: z.string().min(1),
-})
-
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string; groupId: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string; groupId: string }> }) => {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id: workspaceId, groupId: id } = await params
+    const { id: workspaceId, groupId: id } = await context.params
 
     try {
       const isWorkspaceAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
@@ -108,8 +105,12 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
       }
 
-      const body = await req.json()
-      const { userId } = addMemberSchema.parse(body)
+      const parsed = await parseRequest(addPermissionGroupMemberContract, req, context, {
+        validationErrorResponse: (error) =>
+          NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+      })
+      if (!parsed.success) return parsed.response
+      const { userId } = parsed.data.body
 
       const [workspaceMember] = await db
         .select({ email: user.email })
@@ -202,9 +203,6 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ member: newMember }, { status: 201 })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
-      }
       if (error instanceof Error && error.message === 'ALREADY_IN_GROUP') {
         return NextResponse.json(
           { error: 'User is already in this permission group' },

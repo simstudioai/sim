@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { createA2AClient } from '@/lib/a2a/utils'
+import { a2aGetPushNotificationContract } from '@/lib/api/contracts/tools/a2a'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -9,12 +10,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('A2AGetPushNotificationAPI')
-
-const A2AGetPushNotificationSchema = z.object({
-  agentUrl: z.string().min(1, 'Agent URL is required'),
-  taskId: z.string().min(1, 'Task ID is required'),
-  apiKey: z.string().optional(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -42,8 +37,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
-    const body = await request.json()
-    const validatedData = A2AGetPushNotificationSchema.parse(body)
+    const parsed = await parseRequest(
+      a2aGetPushNotificationContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request data'),
+              details: error.issues,
+            },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Getting push notification config`, {
       agentUrl: validatedData.agentUrl,
@@ -81,18 +92,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     if (error instanceof Error && error.message.includes('not found')) {
       logger.info(`[${requestId}] Task not found, returning exists: false`)
       return NextResponse.json({

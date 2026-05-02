@@ -44,16 +44,27 @@ export const slackListMembersTool: ToolConfig<SlackListMembersParams, SlackListM
       visibility: 'user-or-llm',
       description: 'Maximum number of members to return (default: 100, max: 200)',
     },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor from a previous response.next_cursor',
+    },
   },
 
   request: {
     url: (params: SlackListMembersParams) => {
       const url = new URL('https://slack.com/api/conversations.members')
-      url.searchParams.append('channel', params.channel)
+      url.searchParams.append('channel', params.channel.trim())
 
       // Set limit (default 100, max 200)
       const limit = params.limit ? Math.min(Number(params.limit), 200) : 100
       url.searchParams.append('limit', String(limit))
+
+      const cursor = params.cursor?.trim()
+      if (cursor) {
+        url.searchParams.append('cursor', cursor)
+      }
 
       return url.toString()
     },
@@ -89,6 +100,7 @@ export const slackListMembersTool: ToolConfig<SlackListMembersParams, SlackListM
       output: {
         members,
         count: members.length,
+        nextCursor: data.response_metadata?.next_cursor || null,
       },
     }
   },
@@ -104,6 +116,11 @@ export const slackListMembersTool: ToolConfig<SlackListMembersParams, SlackListM
     count: {
       type: 'number',
       description: 'Total number of members returned',
+    },
+    nextCursor: {
+      type: 'string',
+      description: 'Cursor for the next page; null if no more pages',
+      optional: true,
     },
   },
 }

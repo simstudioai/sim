@@ -1,6 +1,12 @@
 'use client'
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  listSsoProvidersContract,
+  type SsoRegistrationBody,
+  ssoRegistrationContract,
+} from '@/lib/api/contracts/auth'
 import { organizationKeys } from '@/hooks/queries/organization'
 
 /**
@@ -15,14 +21,10 @@ export const ssoKeys = {
  * Fetch SSO providers
  */
 async function fetchSSOProviders(signal: AbortSignal, organizationId?: string) {
-  const url = organizationId
-    ? `/api/auth/sso/providers?organizationId=${encodeURIComponent(organizationId)}`
-    : '/api/auth/sso/providers'
-  const response = await fetch(url, { signal })
-  if (!response.ok) {
-    throw new Error('Failed to fetch SSO providers')
-  }
-  return response.json()
+  return requestJson(listSsoProvidersContract, {
+    query: organizationId ? { organizationId } : {},
+    signal,
+  })
 }
 
 /**
@@ -52,20 +54,10 @@ export function useConfigureSSO() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (config: ConfigureSSOParams) => {
-      const response = await fetch('/api/auth/sso/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || error.details || 'Failed to configure SSO')
-      }
-
-      return response.json()
-    },
+    mutationFn: (config: ConfigureSSOParams) =>
+      requestJson(ssoRegistrationContract, {
+        body: config as SsoRegistrationBody,
+      }),
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: ssoKeys.providers() })
 

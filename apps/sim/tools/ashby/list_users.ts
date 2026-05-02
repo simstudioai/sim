@@ -1,11 +1,17 @@
 import type { AshbyUserSummary } from '@/tools/ashby/types'
-import { mapUserSummary, USER_SUMMARY_OUTPUT } from '@/tools/ashby/utils'
+import {
+  ashbyAuthHeaders,
+  ashbyErrorMessage,
+  mapUserSummary,
+  USER_SUMMARY_OUTPUT,
+} from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListUsersParams {
   apiKey: string
   cursor?: string
   perPage?: number
+  includeDeactivated?: boolean
 }
 
 interface AshbyListUsersResponse extends ToolResponse {
@@ -41,19 +47,24 @@ export const listUsersTool: ToolConfig<AshbyListUsersParams, AshbyListUsersRespo
       visibility: 'user-or-llm',
       description: 'Number of results per page (default 100)',
     },
+    includeDeactivated: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When true, includes deactivated users in results (default false)',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/user.list',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.cursor) body.cursor = params.cursor
       if (params.perPage) body.limit = params.perPage
+      if (params.includeDeactivated !== undefined)
+        body.includeDeactivated = params.includeDeactivated
       return body
     },
   },
@@ -62,7 +73,7 @@ export const listUsersTool: ToolConfig<AshbyListUsersParams, AshbyListUsersRespo
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to list users')
+      throw new Error(ashbyErrorMessage(data, 'Failed to list users'))
     }
 
     return {

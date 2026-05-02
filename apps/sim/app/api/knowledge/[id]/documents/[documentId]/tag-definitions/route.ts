@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { saveDocumentTagDefinitionsContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
@@ -17,18 +18,6 @@ import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowled
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('DocumentTagDefinitionsAPI')
-
-const TagDefinitionSchema = z.object({
-  tagSlot: z.string(), // Will be validated against field type slots
-  displayName: z.string().min(1, 'Display name is required').max(100, 'Display name too long'),
-  fieldType: z.enum(SUPPORTED_FIELD_TYPES as [string, ...string[]]).default('text'),
-  // Optional: for editing existing definitions
-  _originalDisplayName: z.string().optional(),
-})
-
-const BulkTagDefinitionsSchema = z.object({
-  definitions: z.array(TagDefinitionSchema),
-})
 
 // GET /api/knowledge/[id]/documents/[documentId]/tag-definitions - Get tag definitions for a document
 export const GET = withRouteHandler(
@@ -76,9 +65,9 @@ export const GET = withRouteHandler(
 
 // POST /api/knowledge/[id]/documents/[documentId]/tag-definitions - Create/update tag definitions
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string; documentId: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string; documentId: string }> }) => {
     const requestId = generateId().slice(0, 8)
-    const { id: knowledgeBaseId, documentId } = await params
+    const { id: knowledgeBaseId, documentId } = await context.params
 
     try {
       logger.info(`[${requestId}] Creating/updating tag definitions for document ${documentId}`)
@@ -107,23 +96,24 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      let body
-      try {
-        body = await req.json()
-      } catch (error) {
-        logger.error(`[${requestId}] Failed to parse JSON body:`, error)
-        return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
-      }
+      const parsed = await parseRequest(saveDocumentTagDefinitionsContract, req, context)
+      if (!parsed.success) return parsed.response
 
-      if (!body || typeof body !== 'object') {
-        logger.error(`[${requestId}] Invalid request body:`, body)
-        return NextResponse.json(
-          { error: 'Request body must be a valid JSON object' },
-          { status: 400 }
-        )
-      }
+      const validatedData = parsed.data.body
 
-      const validatedData = BulkTagDefinitionsSchema.parse(body)
+      for (const def of validatedData.definitions) {
+        /**
+         * Defense-in-depth runtime check: the contract types `fieldType` as a plain
+         * string because tightening to the field-type enum cascades into UI form
+         * state types. Cast here to allow `includes` to accept the wider input.
+         */
+        if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(def.fieldType)) {
+          return NextResponse.json(
+            { error: 'Invalid request data', details: `Unsupported field type: ${def.fieldType}` },
+            { status: 400 }
+          )
+        }
+      }
 
       const bulkData: BulkTagDefinitionsData = {
         definitions: validatedData.definitions.map((def) => ({
@@ -145,13 +135,6 @@ export const POST = withRouteHandler(
         },
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Invalid request data', details: error.errors },
-          { status: 400 }
-        )
-      }
-
       logger.error(`[${requestId}] Error creating/updating tag definitions`, error)
       return NextResponse.json(
         { error: 'Failed to create/update tag definitions' },

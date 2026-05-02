@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  jiraIssueSelectorContract,
+  jiraIssuesSelectorContract,
+} from '@/lib/api/contracts/selectors/jira'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -14,16 +19,6 @@ const createErrorResponse = async (response: Response) => {
   return parseAtlassianErrorMessage(response.status, response.statusText, errorText)
 }
 
-const validateRequiredParams = (domain: string | null, accessToken: string | null) => {
-  if (!domain) {
-    return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
-  }
-  if (!accessToken) {
-    return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-  }
-  return null
-}
-
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
@@ -31,17 +26,31 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const { domain, accessToken, issueKeys = [], cloudId: providedCloudId } = await request.json()
+    const parsed = await parseRequest(jiraIssueSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const validationError = validateRequiredParams(domain || null, accessToken || null)
-    if (validationError) return validationError
+    const { domain, accessToken, issueKeys, cloudId: providedCloudId } = parsed.data.body
 
     if (issueKeys.length === 0) {
       logger.info('No issue keys provided, returning empty result')
       return NextResponse.json({ issues: [] })
     }
 
-    const cloudId = providedCloudId || (await getJiraCloudId(domain!, accessToken!))
+    const ISSUE_KEY_RE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/
+    const sanitizedKeys: string[] = []
+    for (const k of issueKeys) {
+      if (typeof k !== 'string') continue
+      const trimmed = k.trim()
+      if (!ISSUE_KEY_RE.test(trimmed)) {
+        return NextResponse.json({ error: `Invalid Jira issue key: "${trimmed}"` }, { status: 400 })
+      }
+      sanitizedKeys.push(trimmed)
+    }
+    if (sanitizedKeys.length === 0) {
+      return NextResponse.json({ issues: [] })
+    }
+
+    const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
@@ -49,11 +58,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     // Use search/jql endpoint (GET) with URL parameters
-    const jql = `issueKey in (${issueKeys.map((k: string) => k.trim()).join(',')})`
+    const jql = `issueKey in (${sanitizedKeys.join(',')})`
     const params = new URLSearchParams({
       jql,
       fields: 'summary,status,assignee,updated,project',
-      maxResults: String(Math.min(issueKeys.length, 100)),
+      maxResults: String(Math.min(sanitizedKeys.length, 100)),
     })
     const searchUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`
 
@@ -73,7 +82,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           {
             error: errorMessage,
             authRequired: true,
-            requiredScopes: ['read:jira-work', 'read:project:jira'],
+            requiredScopes: ['read:jira-work'],
           },
           { status: response.status }
         )
@@ -108,21 +117,21 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const url = new URL(request.url)
-    const domain = url.searchParams.get('domain')?.trim()
-    const accessToken = url.searchParams.get('accessToken')
-    const providedCloudId = url.searchParams.get('cloudId')
-    const query = url.searchParams.get('query') || ''
-    const projectId = url.searchParams.get('projectId') || ''
-    const manualProjectId = url.searchParams.get('manualProjectId') || ''
-    const all = url.searchParams.get('all')?.toLowerCase() === 'true'
-    const limitParam = Number.parseInt(url.searchParams.get('limit') || '', 10)
-    const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : 0
+    const parsed = await parseRequest(jiraIssuesSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const validationError = validateRequiredParams(domain || null, accessToken || null)
-    if (validationError) return validationError
+    const {
+      domain,
+      accessToken,
+      cloudId: providedCloudId,
+      query = '',
+      projectId = '',
+      manualProjectId = '',
+      all,
+      limit,
+    } = parsed.data.query
 
-    const cloudId = providedCloudId || (await getJiraCloudId(domain!, accessToken!))
+    const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
@@ -154,14 +163,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const target = Math.min(all ? limit || SAFETY_CAP : 25, SAFETY_CAP)
       const projectKey = (projectId || manualProjectId || '').trim()
 
-      const escapeJql = (s: string) => s.replace(/"/g, '\\"')
+      const escapeJql = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 
-      const buildJql = (startAt: number) => {
+      const buildUrl = (token?: string) => {
         const jqlParts: string[] = []
-        if (projectKey) jqlParts.push(`project = ${projectKey}`)
+        if (projectKey) jqlParts.push(`project = "${escapeJql(projectKey)}"`)
         if (query) {
           const q = escapeJql(query)
-          // Match by key prefix or summary text
           jqlParts.push(`(key ~ "${q}" OR summary ~ "${q}")`)
         }
         const jql = `${jqlParts.length ? `${jqlParts.join(' AND ')} ` : ''}ORDER BY updated DESC`
@@ -170,20 +178,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           fields: 'summary,key,updated',
           maxResults: String(Math.min(PAGE_SIZE, target)),
         })
-        if (startAt > 0) {
-          params.set('startAt', String(startAt))
-        }
-        return {
-          url: `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`,
-        }
+        if (token) params.set('nextPageToken', token)
+        return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`
       }
 
-      let startAt = 0
+      let nextPageToken: string | undefined
       let collected: any[] = []
-      let total = 0
 
       do {
-        const { url: apiUrl } = buildJql(startAt)
+        const apiUrl = buildUrl(nextPageToken)
         const response = await fetch(apiUrl, {
           method: 'GET',
           headers: {
@@ -199,7 +202,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               {
                 error: errorMessage,
                 authRequired: true,
-                requiredScopes: ['read:jira-work', 'read:project:jira'],
+                requiredScopes: ['read:jira-work'],
               },
               { status: response.status }
             )
@@ -209,10 +212,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
         const page = await response.json()
         const issues = page.issues || []
-        total = page.total || issues.length
         collected = collected.concat(issues)
-        startAt += PAGE_SIZE
-      } while (all && collected.length < Math.min(total, target))
+        nextPageToken = page.nextPageToken
+        if (!nextPageToken || issues.length === 0) break
+      } while (all && collected.length < target)
 
       const issues = collected.slice(0, target).map((it: any) => ({
         key: it.key,

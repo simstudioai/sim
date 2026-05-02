@@ -1,8 +1,8 @@
 /**
  * Width constraints for the log details panel.
  */
-export const MIN_LOG_DETAILS_WIDTH = 400
-export const DEFAULT_LOG_DETAILS_WIDTH = 400
+export const MIN_LOG_DETAILS_WIDTH = 600
+export const DEFAULT_LOG_DETAILS_WIDTH = 600
 export const MAX_LOG_DETAILS_WIDTH_RATIO = 0.65
 
 /**

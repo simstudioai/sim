@@ -49,13 +49,19 @@ export function processStreamingBlockLog(log: BlockLog, streamedContent: string)
     const inputText = extractTextContent(log.input)
 
     // Calculate streaming cost
+    const systemPrompt =
+      typeof log.input?.systemPrompt === 'string' ? log.input.systemPrompt : undefined
+    const context = typeof log.input?.context === 'string' ? log.input.context : undefined
+    const messages = Array.isArray(log.input?.messages)
+      ? (log.input.messages as Array<{ role: string; content: string }>)
+      : undefined
     const result = calculateStreamingCost(
       model,
       inputText,
       streamedContent,
-      log.input?.systemPrompt,
-      log.input?.context,
-      log.input?.messages
+      systemPrompt,
+      context,
+      messages
     )
 
     // Update the log output with tokenization data
@@ -102,8 +108,9 @@ function getModelForBlock(log: BlockLog): string {
   }
 
   // Try to get model from input
-  if (log.input?.model?.trim()) {
-    return log.input.model
+  const inputModel = log.input?.model
+  if (typeof inputModel === 'string' && inputModel.trim()) {
+    return inputModel
   }
 
   // Use block type specific defaults

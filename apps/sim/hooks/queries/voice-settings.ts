@@ -1,4 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import type { ContractJsonResponse } from '@/lib/api/contracts'
+import { getVoiceSettingsContract } from '@/lib/api/contracts'
 
 /**
  * Query key factory for voice settings queries
@@ -8,16 +11,14 @@ export const voiceSettingsKeys = {
   availability: () => [...voiceSettingsKeys.all, 'availability'] as const,
 }
 
-interface VoiceSettingsResponse {
-  sttAvailable: boolean
-}
+type VoiceSettingsResponse = ContractJsonResponse<typeof getVoiceSettingsContract>
 
 async function fetchVoiceSettings(signal?: AbortSignal): Promise<VoiceSettingsResponse> {
-  const response = await fetch('/api/settings/voice', { signal })
-  if (!response.ok) {
+  try {
+    return await requestJson(getVoiceSettingsContract, { signal })
+  } catch {
     return { sttAvailable: false }
   }
-  return response.json()
 }
 
 /**

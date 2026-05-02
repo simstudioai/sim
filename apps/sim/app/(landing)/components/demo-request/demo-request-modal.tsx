@@ -14,12 +14,15 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { Check } from '@/components/emcn/icons'
-import { captureClientEvent } from '@/lib/posthog/client'
+import { requestJson } from '@/lib/api/client/request'
 import {
   DEMO_REQUEST_COMPANY_SIZE_OPTIONS,
   type DemoRequestPayload,
   demoRequestSchema,
-} from '@/app/(landing)/components/demo-request/consts'
+  submitDemoRequestContract,
+} from '@/lib/api/contracts/demo-requests'
+import { flattenFieldErrors } from '@/lib/api/contracts/primitives'
+import { captureClientEvent } from '@/lib/posthog/client'
 import { LandingField } from '@/app/(landing)/components/forms/landing-field'
 
 interface DemoRequestModalProps {
@@ -55,22 +58,7 @@ const LANDING_INPUT =
   'h-[32px] rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 font-[430] font-season text-[13.5px] text-[var(--text-primary)] transition-colors placeholder:text-[var(--text-muted)] outline-none'
 
 async function submitDemoRequest(payload: DemoRequestPayload) {
-  const response = await fetch('/api/demo-requests', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
-
-  const result = (await response.json().catch(() => null)) as {
-    error?: string
-    message?: string
-  } | null
-
-  if (!response.ok) {
-    throw new Error(result?.error || 'Failed to submit demo request')
-  }
-
-  return result
+  return requestJson(submitDemoRequestContract, { body: payload })
 }
 
 export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalProps) {
@@ -129,15 +117,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
     })
 
     if (!parsed.success) {
-      const fieldErrors = parsed.error.flatten().fieldErrors
-      setErrors({
-        firstName: fieldErrors.firstName?.[0],
-        lastName: fieldErrors.lastName?.[0],
-        companyEmail: fieldErrors.companyEmail?.[0],
-        phoneNumber: fieldErrors.phoneNumber?.[0],
-        companySize: fieldErrors.companySize?.[0],
-        details: fieldErrors.details?.[0],
-      })
+      setErrors(flattenFieldErrors<DemoRequestField>(parsed.error))
       return
     }
 

@@ -2,7 +2,12 @@ import type {
   AshbySearchCandidatesParams,
   AshbySearchCandidatesResponse,
 } from '@/tools/ashby/types'
-import { CANDIDATE_OUTPUTS, mapCandidate } from '@/tools/ashby/utils'
+import {
+  ashbyAuthHeaders,
+  ashbyErrorMessage,
+  CANDIDATE_OUTPUTS,
+  mapCandidate,
+} from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchCandidatesTool: ToolConfig<
@@ -39,10 +44,7 @@ export const searchCandidatesTool: ToolConfig<
   request: {
     url: 'https://api.ashbyhq.com/candidate.search',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.name) body.name = params.name
@@ -55,7 +57,7 @@ export const searchCandidatesTool: ToolConfig<
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to search candidates')
+      throw new Error(ashbyErrorMessage(data, 'Failed to search candidates'))
     }
 
     return {

@@ -11,7 +11,9 @@ import {
   useRef,
   useState,
 } from 'react'
+import { Paperclip } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Button, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
@@ -51,6 +53,7 @@ import {
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSpeechToText } from '@/hooks/use-speech-to-text'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
@@ -86,6 +89,7 @@ function getCaretAnchor(
   marker.style.width = '0px'
   marker.style.padding = '0'
   marker.style.border = '0'
+  marker.style.verticalAlign = 'text-top'
   mirror.appendChild(marker)
 
   document.body.appendChild(mirror)
@@ -101,6 +105,7 @@ function getCaretAnchor(
 
 interface UserInputProps {
   defaultValue?: string
+  draftScopeKey?: string
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
@@ -123,6 +128,7 @@ export interface UserInputHandle {
 export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
   {
     defaultValue = '',
+    draftScopeKey,
     onSubmit,
     isSending,
     onStopGeneration,
@@ -139,7 +145,11 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const { navigateToSettings } = useSettingsNavigation()
   const { data: workflowsById = {} } = useWorkflowMap(workspaceId)
   const { data: session } = useSession()
-  const [value, setValue] = useState(defaultValue)
+  const [value, setValue] = useState(() => {
+    if (defaultValue) return defaultValue
+    if (!draftScopeKey) return ''
+    return useMothershipDraftsStore.getState().drafts[draftScopeKey]?.text ?? ''
+  })
   const overlayRef = useRef<HTMLDivElement>(null)
   const plusMenuRef = useRef<PlusMenuHandle>(null)
 
@@ -171,6 +181,67 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     },
     [addContext, onContextAdd]
   )
+
+  const draftScopeKeyRef = useRef(draftScopeKey)
+  draftScopeKeyRef.current = draftScopeKey
+
+  const hasRestoredDraftRef = useRef(false)
+  useEffect(() => {
+    if (hasRestoredDraftRef.current || !draftScopeKey) return
+    hasRestoredDraftRef.current = true
+    const draft = useMothershipDraftsStore.getState().drafts[draftScopeKey]
+    if (!draft) return
+    if (draft.contexts?.length) {
+      contextManagement.setSelectedContexts(draft.contexts)
+    }
+    if (draft.fileAttachments?.length) {
+      files.restoreAttachedFiles(
+        draft.fileAttachments.map((a) => ({
+          id: a.id,
+          name: a.filename,
+          size: a.size,
+          type: a.media_type,
+          path: a.path ?? '',
+          key: a.key,
+          uploading: false,
+        }))
+      )
+    }
+    if (draft.text) {
+      const textarea = textareaRef.current
+      if (textarea) {
+        textarea.focus()
+        textarea.setSelectionRange(draft.text.length, draft.text.length)
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
+
+  const isFirstSaveRef = useRef(true)
+  useEffect(() => {
+    if (isFirstSaveRef.current) {
+      isFirstSaveRef.current = false
+      return
+    }
+    if (!draftScopeKeyRef.current) return
+    const fileAttachments = files.attachedFiles
+      .filter((f) => !f.uploading && f.key)
+      .map((f) => ({
+        id: f.id,
+        key: f.key!,
+        filename: f.name,
+        media_type: f.type,
+        size: f.size,
+        ...(f.path ? { path: f.path } : {}),
+      }))
+    useMothershipDraftsStore.getState().setDraft(draftScopeKeyRef.current, {
+      text: value,
+      fileAttachments: fileAttachments.length > 0 ? fileAttachments : undefined,
+      contexts:
+        contextManagement.selectedContexts.length > 0
+          ? contextManagement.selectedContexts
+          : undefined,
+    })
+  }, [value, files.attachedFiles, contextManagement.selectedContexts])
 
   const onContextRemoveRef = useRef(onContextRemove)
   onContextRemoveRef.current = onContextRemove
@@ -239,16 +310,16 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   valueRef.current = value
   const sttPrefixRef = useRef('')
 
-  const handleTranscript = useCallback((text: string) => {
+  function handleTranscript(text: string) {
     const prefix = sttPrefixRef.current
     const newVal = prefix ? `${prefix} ${text}` : text
     setValue(newVal)
     valueRef.current = newVal
-  }, [])
+  }
 
-  const handleUsageLimitExceeded = useCallback(() => {
+  function handleUsageLimitExceeded() {
     navigateToSettings({ section: 'subscription' })
-  }, [navigateToSettings])
+  }
 
   const {
     isListening,
@@ -282,6 +353,8 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const wasSendingRef = useRef(false)
   const atInsertPosRef = useRef<number | null>(null)
   const pendingCursorRef = useRef<number | null>(null)
+  const mentionRangeRef = useRef<{ start: number; end: number } | null>(null)
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
 
   useImperativeHandle(
     ref,
@@ -327,17 +400,34 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       const textarea = textareaRef.current
       if (textarea) {
         const currentValue = valueRef.current
-        const insertAt = atInsertPosRef.current ?? textarea.selectionStart ?? currentValue.length
-        const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
-        const insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
-        const before = currentValue.slice(0, insertAt)
-        const after = currentValue.slice(insertAt)
+        const range = mentionRangeRef.current
+        let before: string
+        let after: string
+        let insertText: string
+        let newPos: number
+
+        if (range) {
+          before = currentValue.slice(0, range.start)
+          after = currentValue.slice(range.end)
+          const needsSpaceBefore =
+            range.start > 0 && !/\s/.test(currentValue.charAt(range.start - 1))
+          insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
+          newPos = before.length + insertText.length
+        } else {
+          const insertAt = atInsertPosRef.current ?? textarea.selectionStart ?? currentValue.length
+          const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
+          insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
+          before = currentValue.slice(0, insertAt)
+          after = currentValue.slice(insertAt)
+          newPos = before.length + insertText.length
+        }
+
         const newValue = `${before}${insertText}${after}`
-        const newPos = before.length + insertText.length
         pendingCursorRef.current = newPos
-        // Eagerly sync refs so successive drop-handler iterations see the updated position
         valueRef.current = newValue
         atInsertPosRef.current = newPos
+        mentionRangeRef.current = null
+        setMentionQuery(null)
         setValue(newValue)
       }
 
@@ -349,6 +439,8 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
   const handlePlusMenuClose = useCallback(() => {
     atInsertPosRef.current = null
+    mentionRangeRef.current = null
+    setMentionQuery(null)
   }, [])
 
   const handleFileSelectStable = useCallback(() => {
@@ -485,10 +577,18 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     setValue('')
     valueRef.current = ''
     sttPrefixRef.current = ''
+    if (draftScopeKeyRef.current) {
+      useMothershipDraftsStore.getState().clearDraft(draftScopeKeyRef.current)
+    }
     resetTranscript()
     currentFiles.clearAttachedFiles()
     prevSelectedContextsRef.current = []
     currentContext.clearContexts()
+    // Programmatic close() bypasses Radix's onOpenChange, so handlePlusMenuClose won't
+    // fire — clear mention state inline so ArrowUp etc. aren't intercepted post-submit.
+    plusMenuRef.current?.close()
+    mentionRangeRef.current = null
+    setMentionQuery(null)
 
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
@@ -497,6 +597,27 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (mentionRangeRef.current && !e.nativeEvent.isComposing) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          plusMenuRef.current?.moveActive(1)
+          return
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          plusMenuRef.current?.moveActive(-1)
+          return
+        }
+        if ((e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey) {
+          // Confirm the highlighted match if there is one. If no items match, fall
+          // through so Enter still submits and Tab still does its default thing.
+          if (plusMenuRef.current?.selectActive()) {
+            e.preventDefault()
+            return
+          }
+        }
+      }
+
       if (e.key === 'ArrowUp' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
         const isEmpty = valueRef.current.length === 0 && filesRef.current.attachedFiles.length === 0
         if (isEmpty && onEditQueuedTailRef.current) {
@@ -588,27 +709,45 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     [handleSubmit, mentionTokensWithContext, value, textareaRef]
   )
 
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value
-    const caret = e.target.selectionStart ?? newValue.length
+  const getActiveMentionAtRef = useRef(mentionMenu.getActiveMentionQueryAtPosition)
+  getActiveMentionAtRef.current = mentionMenu.getActiveMentionQueryAtPosition
 
-    if (
-      caret > 0 &&
-      newValue.charAt(caret - 1) === '@' &&
-      (caret === 1 || /\s/.test(newValue.charAt(caret - 2)))
-    ) {
-      const before = newValue.slice(0, caret - 1)
-      const after = newValue.slice(caret)
-      const adjusted = `${before}${after}`
-      setValue(adjusted)
-      atInsertPosRef.current = caret - 1
-      const anchor = getCaretAnchor(e.target, caret - 1)
-      plusMenuRef.current?.open(anchor)
-      return
-    }
+  const syncMentionState = useCallback(
+    (textarea: HTMLTextAreaElement, text: string, caret: number) => {
+      const active = getActiveMentionAtRef.current(caret, text)
+      // Treat any whitespace inside the query as a closer — typing a space
+      // after `@foo` should leave the raw `@foo` text and dismiss the menu.
+      const isOpenable = active && !/\s/.test(active.query)
+      if (!isOpenable) {
+        if (mentionRangeRef.current !== null) {
+          mentionRangeRef.current = null
+          setMentionQuery(null)
+          plusMenuRef.current?.close()
+        }
+        return
+      }
 
-    setValue(newValue)
-  }, [])
+      const wasActive = mentionRangeRef.current !== null
+      mentionRangeRef.current = { start: active.start, end: active.end }
+      setMentionQuery(active.query)
+      if (!wasActive) {
+        // Anchor at the caret so the menu floats above the user's cursor.
+        const anchor = getCaretAnchor(textarea, active.start)
+        plusMenuRef.current?.open(anchor, { mention: true })
+      }
+    },
+    []
+  )
+
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const newValue = e.target.value
+      const caret = e.target.selectionStart ?? newValue.length
+      setValue(newValue)
+      syncMentionState(e.target, newValue, caret)
+    },
+    [syncMentionState]
+  )
 
   const handleSelectAdjust = useCallback(() => {
     const textarea = textareaRef.current
@@ -620,8 +759,10 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       setTimeout(() => {
         textarea.setSelectionRange(snapPos, snapPos)
       }, 0)
+      return
     }
-  }, [textareaRef, mentionTokensWithContext])
+    syncMentionState(textarea, textarea.value, pos)
+  }, [textareaRef, mentionTokensWithContext, syncMentionState])
 
   const handleInput = useCallback(
     (e: React.FormEvent<HTMLTextAreaElement>) => {
@@ -790,11 +931,25 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
             ref={plusMenuRef}
             availableResources={availableResources}
             onResourceSelect={handleResourceSelect}
-            onFileSelect={handleFileSelectStable}
             onClose={handlePlusMenuClose}
             textareaRef={textareaRef}
             pendingCursorRef={pendingCursorRef}
+            mentionQuery={mentionQuery ?? undefined}
           />
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                type='button'
+                variant='ghost'
+                onClick={handleFileSelectStable}
+                aria-label='Attach file'
+                className='h-[28px] w-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
+              >
+                <Paperclip className='h-[14px] w-[14px] text-[var(--text-icon)]' strokeWidth={2} />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>Attach file</Tooltip.Content>
+          </Tooltip.Root>
         </div>
         <div className='flex items-center gap-1.5'>
           {isSttSupported && <MicButton isListening={isListening} onToggle={toggleListening} />}

@@ -5,7 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { removeWorkspaceMemberContract } from '@/lib/api/contracts/invitations'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
@@ -13,14 +14,10 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceMemberAPI')
-const deleteMemberSchema = z.object({
-  workspaceId: z.string().uuid(),
-})
 
 // DELETE /api/workspaces/members/[id] - Remove a member from a workspace
 export const DELETE = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: userId } = await params
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const session = await getSession()
 
     if (!session?.user?.id) {
@@ -28,9 +25,10 @@ export const DELETE = withRouteHandler(
     }
 
     try {
-      // Get the workspace ID from the request body or URL
-      const body = deleteMemberSchema.parse(await req.json())
-      const { workspaceId } = body
+      const parsed = await parseRequest(removeWorkspaceMemberContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { id: userId } = parsed.data.params
+      const { workspaceId } = parsed.data.body
 
       const workspaceRow = await db
         .select({

@@ -4,7 +4,11 @@ import { member, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  removeOrganizationMemberQuerySchema,
+  updateOrganizationMemberRoleContract,
+} from '@/lib/api/contracts/organization'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { getUserUsageData } from '@/lib/billing/core/usage'
@@ -16,12 +20,6 @@ import { reduceOrganizationSeatsByOne } from '@/lib/billing/organizations/seats'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationMemberAPI')
-
-const updateMemberSchema = z.object({
-  role: z.enum(['owner', 'admin', 'member'], {
-    errorMap: () => ({ message: 'Invalid role' }),
-  }),
-})
 
 /**
  * GET /api/organizations/[id]/members/[memberId]
@@ -142,10 +140,7 @@ export const GET = withRouteHandler(
  * Update organization member role
  */
 export const PUT = withRouteHandler(
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string; memberId: string }> }
-  ) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string; memberId: string }> }) => {
     try {
       const session = await getSession()
 
@@ -153,16 +148,11 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { id: organizationId, memberId } = await params
-      const body = await request.json()
+      const parsed = await parseRequest(updateOrganizationMemberRoleContract, request, context)
+      if (!parsed.success) return parsed.response
 
-      const validation = updateMemberSchema.safeParse(body)
-      if (!validation.success) {
-        const firstError = validation.error.errors[0]
-        return NextResponse.json({ error: firstError.message }, { status: 400 })
-      }
-
-      const { role } = validation.data
+      const { id: organizationId, memberId } = parsed.data.params
+      const { role } = parsed.data.body
 
       const userMember = await db
         .select()
@@ -259,8 +249,8 @@ export const PUT = withRouteHandler(
       })
     } catch (error) {
       logger.error('Failed to update organization member role', {
-        organizationId: (await params).id,
-        memberId: (await params).memberId,
+        organizationId: (await context.params).id,
+        memberId: (await context.params).memberId,
         error,
       })
 
@@ -286,7 +276,12 @@ export const DELETE = withRouteHandler(
       }
 
       const { id: organizationId, memberId: targetUserId } = await params
-      const shouldReduceSeats = request.nextUrl.searchParams.get('shouldReduceSeats') === 'true'
+      const queryResult = removeOrganizationMemberQuerySchema.safeParse(
+        Object.fromEntries(request.nextUrl.searchParams.entries())
+      )
+      const shouldReduceSeats = queryResult.success
+        ? queryResult.data.shouldReduceSeats === true
+        : false
 
       const userMember = await db
         .select()

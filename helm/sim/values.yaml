@@ -68,13 +68,20 @@ app:
 
   # Environment variables
   env:
-    # Application URLs
+    # Application URLs — set NEXT_PUBLIC_APP_URL to your public origin (e.g. https://sim.example.com).
+    # Leaving these at localhost in a production deployment will break sign-up/sign-in for browsers,
+    # because the auth client and Better Auth `trustedOrigins` use these values.
     NEXT_PUBLIC_APP_URL: "http://localhost:3000"
     BETTER_AUTH_URL: "http://localhost:3000"
     INTERNAL_API_BASE_URL: ""  # Optional server-side internal base URL for /api self-calls (include http:// or https://); falls back to NEXT_PUBLIC_APP_URL when empty
+    # TRUSTED_ORIGINS: comma-separated extra public origins to trust for auth (e.g. apex+www, alias hostnames).
+    # Merged into Better Auth `trustedOrigins` alongside NEXT_PUBLIC_APP_URL. Leave empty when serving from a single origin.
+    TRUSTED_ORIGINS: ""
     # SOCKET_SERVER_URL: Auto-detected when realtime.enabled=true (uses internal service)
-    # Only set this if using an external WebSocket service with realtime.enabled=false
-    NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"  # Public WebSocket URL for browsers
+    # NEXT_PUBLIC_SOCKET_URL: public WebSocket URL for browsers. Leave empty to default to the
+    # page's own origin (assumes the ingress/reverse proxy routes /socket.io to the realtime service).
+    # Set explicitly only when realtime is on a separate host:port from the app (e.g. wss://socket.example.com).
+    NEXT_PUBLIC_SOCKET_URL: ""
     
     # Node environment
     NODE_ENV: "production"
@@ -352,16 +359,17 @@ realtime:
   
   # Environment variables
   env:
-    # Application URLs
+    # Application URLs — must mirror the public origin used by the main app.
     NEXT_PUBLIC_APP_URL: "http://localhost:3000"
     BETTER_AUTH_URL: "http://localhost:3000"
-    NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"
-    
+
     # Authentication secret (REQUIRED for production)
     # Must match the BETTER_AUTH_SECRET value from the main app configuration
     BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
-    
-    # Cross-Origin Resource Sharing (CORS) allowed origins
+
+    # Cross-Origin Resource Sharing (CORS) allowed origins for the realtime service.
+    # Set to the same public origin(s) as the main app (comma-separated). The realtime
+    # service rejects WebSocket upgrades from origins not in this list.
     ALLOWED_ORIGINS: "http://localhost:3000"
     
     # Node environment

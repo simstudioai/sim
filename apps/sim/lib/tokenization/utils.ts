@@ -11,6 +11,7 @@ import {
 } from '@/lib/tokenization/constants'
 import { createTokenizationError } from '@/lib/tokenization/errors'
 import type { ProviderTokenizationConfig, TokenUsage } from '@/lib/tokenization/types'
+import type { BlockTokens } from '@/executor/types'
 import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('TokenizationUtils')
@@ -56,9 +57,11 @@ export function isTokenizableBlockType(blockType?: string): boolean {
 /**
  * Checks if tokens/cost data is meaningful (non-zero)
  */
-export function hasRealTokenData(tokens?: TokenUsage): boolean {
+export function hasRealTokenData(
+  tokens?: Pick<BlockTokens, 'total' | 'input' | 'output'>
+): boolean {
   if (!tokens) return false
-  return tokens.total > 0 || tokens.input > 0 || tokens.output > 0
+  return (tokens.total ?? 0) > 0 || (tokens.input ?? 0) > 0 || (tokens.output ?? 0) > 0
 }
 
 /**

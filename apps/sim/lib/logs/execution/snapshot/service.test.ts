@@ -533,4 +533,73 @@ describe('SnapshotService', () => {
       expect(databaseMock.db.select).not.toHaveBeenCalled()
     })
   })
+
+  describe('cleanupOrphanedSnapshots', () => {
+    function setupCleanupMocks(selectBatches: Array<Array<{ id: string }>>) {
+      const limitFn = vi.fn()
+      for (const batch of selectBatches) limitFn.mockResolvedValueOnce(batch)
+      limitFn.mockResolvedValue([])
+      const whereSelect = vi.fn().mockReturnValue({ limit: limitFn })
+      const fromFn = vi.fn().mockReturnValue({ where: whereSelect })
+      databaseMock.db.select = vi.fn().mockReturnValue({ from: fromFn })
+
+      const returningFn = vi.fn().mockImplementation(() => Promise.resolve([]))
+      const whereDelete = vi.fn().mockReturnValue({ returning: returningFn })
+      let batchIdx = 0
+      const deleteFn = vi.fn().mockImplementation(() => {
+        const batch = selectBatches[batchIdx] ?? []
+        batchIdx++
+        returningFn.mockImplementationOnce(() => Promise.resolve(batch.map((r) => ({ id: r.id }))))
+        return { where: whereDelete }
+      })
+      databaseMock.db.delete = deleteFn
+
+      return { deleteFn }
+    }
+
+    it('returns 0 and skips delete when nothing is orphaned', async () => {
+      const service = new SnapshotService()
+      const { deleteFn } = setupCleanupMocks([])
+
+      const count = await service.cleanupOrphanedSnapshots(7)
+
+      expect(count).toBe(0)
+      expect(deleteFn).not.toHaveBeenCalled()
+    })
+
+    it('stops after the first short batch', async () => {
+      const service = new SnapshotService()
+      const partial = Array.from({ length: 3 }, (_, i) => ({ id: `s${i}` }))
+      const { deleteFn } = setupCleanupMocks([partial])
+
+      const count = await service.cleanupOrphanedSnapshots(7)
+
+      expect(count).toBe(3)
+      expect(deleteFn).toHaveBeenCalledTimes(1)
+    })
+
+    it('loops through multiple full batches until exhausted', async () => {
+      const service = new SnapshotService()
+      const fullBatch = Array.from({ length: 1000 }, (_, i) => ({ id: `s${i}` }))
+      const tail = [{ id: 'tail-1' }]
+      const { deleteFn } = setupCleanupMocks([fullBatch, fullBatch, tail])
+
+      const count = await service.cleanupOrphanedSnapshots(7)
+
+      expect(count).toBe(2001)
+      expect(deleteFn).toHaveBeenCalledTimes(3)
+    })
+
+    it('caps at MAX_BATCHES (20 × 1000) even when more rows remain', async () => {
+      const service = new SnapshotService()
+      const fullBatch = Array.from({ length: 1000 }, (_, i) => ({ id: `s${i}` }))
+      const batches = Array.from({ length: 25 }, () => fullBatch)
+      const { deleteFn } = setupCleanupMocks(batches)
+
+      const count = await service.cleanupOrphanedSnapshots(7)
+
+      expect(count).toBe(20_000)
+      expect(deleteFn).toHaveBeenCalledTimes(20)
+    })
+  })
 })

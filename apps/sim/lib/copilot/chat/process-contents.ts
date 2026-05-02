@@ -345,6 +345,9 @@ async function processWorkflowFromDb(
 
 async function processPastChat(chatId: string, tagOverride?: string): Promise<AgentContext | null> {
   try {
+    // boundary-raw-fetch: GET /api/mothership/chat?chatId=... has no defineRouteContract;
+    // the route forwards to the copilot chat handler and emits a free-form chat envelope
+    // that isn't covered by mothershipChatGetQuerySchema or copilotChatGetContract.
     const resp = await fetch(`/api/mothership/chat?chatId=${encodeURIComponent(chatId)}`)
     if (!resp.ok) {
       logger.error('Failed to fetch past chat', { chatId, status: resp.status })

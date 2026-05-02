@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Hash, Lock } from 'lucide-react'
 import { Combobox, type ComboboxOption } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import { slackChannelsSelectorContract } from '@/lib/api/contracts'
 
 const logger = createLogger('SlackChannelSelector')
 
@@ -45,19 +47,16 @@ export function SlackChannelSelector({
     setFetchError(null)
 
     try {
-      const response = await fetch('/api/tools/slack/channels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: accountId }),
+      const data = await requestJson(slackChannelsSelectorContract, {
+        body: { credential: accountId },
       })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to fetch channels')
-      }
-
-      const data = await response.json()
-      setChannels(data.channels || [])
+      setChannels(
+        (data.channels ?? []).map((channel) => ({
+          id: channel.id,
+          name: channel.name,
+          isPrivate: channel.isPrivate,
+        }))
+      )
     } catch (err) {
       logger.error('Failed to fetch Slack channels', { error: err })
       setFetchError(err instanceof Error ? err.message : 'Failed to fetch channels')

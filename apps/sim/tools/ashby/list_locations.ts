@@ -1,7 +1,13 @@
+import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListLocationsParams {
   apiKey: string
+  cursor?: string
+  perPage?: number
+  syncToken?: string
+  includeArchived?: boolean
+  includeLocationHierarchy?: boolean
 }
 
 interface AshbyLocation {
@@ -20,11 +26,15 @@ interface AshbyLocation {
     postalCode: string | null
     streetAddress: string | null
   } | null
+  extraData: Record<string, unknown> | null
 }
 
 interface AshbyListLocationsResponse extends ToolResponse {
   output: {
     locations: AshbyLocation[]
+    moreDataAvailable: boolean
+    nextCursor: string | null
+    syncToken: string | null
   }
 }
 
@@ -41,23 +51,59 @@ export const listLocationsTool: ToolConfig<AshbyListLocationsParams, AshbyListLo
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Opaque pagination cursor from a previous response nextCursor value',
+    },
+    perPage: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of results per page (default and max 100)',
+    },
+    syncToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Opaque token from a prior sync to fetch only items changed since then',
+    },
+    includeArchived: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When true, includes archived locations in results (default false)',
+    },
+    includeLocationHierarchy: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When true, includes location hierarchy components/regions (default false)',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/location.list',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
-    body: () => ({}),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    body: (params) => {
+      const body: Record<string, unknown> = {}
+      if (params.cursor) body.cursor = params.cursor
+      if (params.perPage) body.limit = params.perPage
+      if (params.syncToken) body.syncToken = params.syncToken
+      if (params.includeArchived !== undefined) body.includeArchived = params.includeArchived
+      if (params.includeLocationHierarchy !== undefined)
+        body.includeLocationHierarchy = params.includeLocationHierarchy
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to list locations')
+      throw new Error(ashbyErrorMessage(data, 'Failed to list locations'))
     }
 
     return {
@@ -88,9 +134,13 @@ export const listLocationsTool: ToolConfig<AshbyListLocationsParams, AshbyListLo
                     streetAddress: (pa.streetAddress as string) ?? null,
                   }
                 : null,
+              extraData: (l.extraData as Record<string, unknown>) ?? null,
             }
           }
         ),
+        moreDataAvailable: data.moreDataAvailable ?? false,
+        nextCursor: data.nextCursor ?? null,
+        syncToken: data.syncToken ?? null,
       },
     }
   },
@@ -149,8 +199,27 @@ export const listLocationsTool: ToolConfig<AshbyListLocationsParams, AshbyListLo
               streetAddress: { type: 'string', description: 'Street address', optional: true },
             },
           },
+          extraData: {
+            type: 'json',
+            description: 'Free-form key-value metadata',
+            optional: true,
+          },
         },
       },
+    },
+    moreDataAvailable: {
+      type: 'boolean',
+      description: 'Whether more pages of results exist',
+    },
+    nextCursor: {
+      type: 'string',
+      description: 'Opaque cursor for fetching the next page',
+      optional: true,
+    },
+    syncToken: {
+      type: 'string',
+      description: 'Opaque sync token returned after the last page; pass on next sync',
+      optional: true,
     },
   },
 }

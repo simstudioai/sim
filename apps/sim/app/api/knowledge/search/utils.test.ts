@@ -220,7 +220,7 @@ describe('Knowledge Search Utils', () => {
       Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
-    it('should use default API version when not provided in Azure config', async () => {
+    it('falls back to OpenAI when AZURE_OPENAI_API_VERSION is not set', async () => {
       const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
       Object.assign(env, {
@@ -240,7 +240,7 @@ describe('Knowledge Search Utils', () => {
       await generateSearchEmbedding('test query')
 
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        expect.stringContaining('api-version='),
+        'https://api.openai.com/v1/embeddings',
         expect.any(Object)
       )
 
@@ -282,7 +282,7 @@ describe('Knowledge Search Utils', () => {
       Object.keys(env).forEach((key) => delete (env as any)[key])
 
       await expect(generateSearchEmbedding('test query')).rejects.toThrow(
-        'Either OPENAI_API_KEY or Azure OpenAI configuration (AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT) must be configured'
+        'OPENAI_API_KEY is not configured'
       )
     })
 
@@ -354,6 +354,7 @@ describe('Knowledge Search Utils', () => {
           body: JSON.stringify({
             input: ['test query'],
             encoding_format: 'float',
+            dimensions: 1536,
           }),
         })
       )

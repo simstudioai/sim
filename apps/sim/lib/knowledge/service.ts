@@ -250,8 +250,6 @@ export async function updateKnowledgeBase(
   if (updates.workspaceId !== undefined) updateData.workspaceId = updates.workspaceId
   if (updates.chunkingConfig !== undefined) {
     updateData.chunkingConfig = updates.chunkingConfig
-    updateData.embeddingModel = 'text-embedding-3-small'
-    updateData.embeddingDimension = 1536
   }
 
   if (updates.name !== undefined) {

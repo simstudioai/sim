@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { discordChannelsContract } from '@/lib/api/contracts/tools/communication/discord'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateNumericId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -22,17 +24,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const { botToken, serverId, channelId } = await request.json()
-
-    if (!botToken) {
-      logger.error('Missing bot token in request')
-      return NextResponse.json({ error: 'Bot token is required' }, { status: 400 })
-    }
-
-    if (!serverId) {
-      logger.error('Missing server ID in request')
-      return NextResponse.json({ error: 'Server ID is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(discordChannelsContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { botToken, serverId, channelId } = parsed.data.body
 
     const serverIdValidation = validateNumericId(serverId, 'serverId')
     if (!serverIdValidation.isValid) {

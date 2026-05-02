@@ -53,7 +53,6 @@ realtime:
   env:
     NEXT_PUBLIC_APP_URL: "http://localhost:3000"
     BETTER_AUTH_URL: "http://localhost:3000"
-    NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"
     BETTER_AUTH_SECRET: "dev-32-char-auth-secret-not-secure-dev"
     ALLOWED_ORIGINS: "http://localhost:3000"
 

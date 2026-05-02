@@ -20,6 +20,8 @@ import { createLogger } from '@sim/logger'
 import { inArray } from 'drizzle-orm'
 import JSZip from 'jszip'
 import { NextResponse } from 'next/server'
+import { adminV1ExportWorkflowsContract } from '@/lib/api/contracts/v1/admin'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sanitizePathSegment } from '@/lib/workflows/operations/import-export'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -37,25 +39,13 @@ import {
 
 const logger = createLogger('AdminWorkflowsExportAPI')
 
-interface ExportRequest {
-  ids: string[]
-}
-
 export const POST = withRouteHandler(
   withAdminAuth(async (request) => {
-    const url = new URL(request.url)
-    const format = url.searchParams.get('format') || 'zip'
+    const parsed = await parseRequest(adminV1ExportWorkflowsContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    let body: ExportRequest
-    try {
-      body = await request.json()
-    } catch {
-      return badRequestResponse('Invalid JSON body')
-    }
-
-    if (!body.ids || !Array.isArray(body.ids) || body.ids.length === 0) {
-      return badRequestResponse('ids must be a non-empty array of workflow IDs')
-    }
+    const { format } = parsed.data.query
+    const body = parsed.data.body
 
     try {
       const workflows = await db.select().from(workflow).where(inArray(workflow.id, body.ids))

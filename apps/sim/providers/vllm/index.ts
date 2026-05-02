@@ -6,6 +6,7 @@ import { env } from '@/lib/core/config/env'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
   Message,
   ProviderConfig,
@@ -252,7 +253,7 @@ export const vllmProvider: ProviderConfig = {
                 timeSegments: [
                   {
                     type: 'model',
-                    name: 'Streaming response',
+                    name: request.model,
                     startTime: providerStartTime,
                     endTime: Date.now(),
                     duration: Date.now() - providerStartTime,
@@ -329,7 +330,7 @@ export const vllmProvider: ProviderConfig = {
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
-          name: 'Initial response',
+          name: request.model,
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -347,6 +348,14 @@ export const vllmProvider: ProviderConfig = {
         }
 
         const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          currentResponse,
+          toolCallsInResponse,
+          { model: request.model, provider: 'vllm' }
+        )
+
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
           break
         }
@@ -427,6 +436,7 @@ export const vllmProvider: ProviderConfig = {
             startTime: startTime,
             endTime: endTime,
             duration: duration,
+            toolCallId: toolCall.id,
           })
 
           let resultContent: any
@@ -495,7 +505,7 @@ export const vllmProvider: ProviderConfig = {
 
         timeSegments.push({
           type: 'model',
-          name: `Model response (iteration ${iterationCount + 1})`,
+          name: request.model,
           startTime: nextModelStartTime,
           endTime: nextModelEndTime,
           duration: thisModelTime,
@@ -517,6 +527,15 @@ export const vllmProvider: ProviderConfig = {
         }
 
         iterationCount++
+      }
+
+      if (iterationCount === MAX_TOOL_ITERATIONS) {
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          currentResponse,
+          currentResponse.choices[0]?.message?.tool_calls,
+          { model: request.model, provider: 'vllm' }
+        )
       }
 
       if (request.stream) {
@@ -662,3 +681,8 @@ export const vllmProvider: ProviderConfig = {
     }
   },
 }
+
+/**
+ * Enriches the last model segment with per-iteration content from a Chat
+ * Completions response: assistant text, tool calls, finish reason, token usage.
+ */

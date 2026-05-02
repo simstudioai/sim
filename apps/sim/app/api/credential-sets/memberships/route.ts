@@ -5,6 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { leaveCredentialSetQuerySchema } from '@/lib/api/contracts/credential-sets'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
@@ -55,11 +57,18 @@ export const DELETE = withRouteHandler(async (req: NextRequest) => {
   }
 
   const { searchParams } = new URL(req.url)
-  const credentialSetId = searchParams.get('credentialSetId')
+  const validation = leaveCredentialSetQuerySchema.safeParse({
+    credentialSetId: searchParams.get('credentialSetId') ?? '',
+  })
 
-  if (!credentialSetId) {
-    return NextResponse.json({ error: 'credentialSetId is required' }, { status: 400 })
+  if (!validation.success) {
+    return NextResponse.json(
+      { error: getValidationErrorMessage(validation.error) },
+      { status: 400 }
+    )
   }
+
+  const { credentialSetId } = validation.data
 
   try {
     const requestId = generateId().slice(0, 8)

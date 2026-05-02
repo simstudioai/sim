@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { asanaAddCommentContract } from '@/lib/api/contracts/tools/asana'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -15,22 +17,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const { accessToken, taskGid, text } = await request.json()
-
-    if (!accessToken) {
-      logger.error('Missing access token in request')
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-    }
-
-    if (!taskGid) {
-      logger.error('Missing task GID in request')
-      return NextResponse.json({ error: 'Task GID is required' }, { status: 400 })
-    }
-
-    if (!text) {
-      logger.error('Missing comment text in request')
-      return NextResponse.json({ error: 'Comment text is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(asanaAddCommentContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { accessToken, taskGid, text } = parsed.data.body
 
     const taskGidValidation = validateAlphanumericId(taskGid, 'taskGid', 100)
     if (!taskGidValidation.isValid) {

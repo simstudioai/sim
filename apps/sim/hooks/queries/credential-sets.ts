@@ -1,58 +1,42 @@
 'use client'
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchJson } from '@/hooks/selectors/helpers'
+import { requestJson } from '@/lib/api/client/request'
+import type {
+  ContractBodyInput,
+  ContractParamsInput,
+  ContractQueryInput,
+} from '@/lib/api/contracts'
+import {
+  acceptCredentialSetInvitationContract,
+  type CreateCredentialSetData,
+  type CredentialSet,
+  type CredentialSetInvitation,
+  type CredentialSetInvitationDetail,
+  type CredentialSetMember,
+  type CredentialSetMembership,
+  cancelCredentialSetInvitationContract,
+  createCredentialSetContract,
+  createCredentialSetInvitationContract,
+  deleteCredentialSetContract,
+  getCredentialSetContract,
+  leaveCredentialSetContract,
+  listCredentialSetInvitationDetailsContract,
+  listCredentialSetInvitationsContract,
+  listCredentialSetMembersContract,
+  listCredentialSetMembershipsContract,
+  listCredentialSetsContract,
+  removeCredentialSetMemberContract,
+  resendCredentialSetInvitationContract,
+} from '@/lib/api/contracts'
 
-export interface CredentialSet {
-  id: string
-  name: string
-  description: string | null
-  providerId: string | null
-  createdBy: string
-  createdAt: string
-  updatedAt: string
-  creatorName: string | null
-  creatorEmail: string | null
-  memberCount: number
-}
-
-export interface CredentialSetMembership {
-  membershipId: string
-  status: string
-  joinedAt: string | null
-  credentialSetId: string
-  credentialSetName: string
-  credentialSetDescription: string | null
-  providerId: string | null
-  organizationId: string
-  organizationName: string
-}
-
-export interface CredentialSetInvitation {
-  invitationId: string
-  token: string
-  status: string
-  expiresAt: string
-  createdAt: string
-  credentialSetId: string
-  credentialSetName: string
-  providerId: string | null
-  organizationId: string
-  organizationName: string
-  invitedByName: string | null
-  invitedByEmail: string | null
-}
-
-interface CredentialSetsResponse {
-  credentialSets?: CredentialSet[]
-}
-
-interface MembershipsResponse {
-  memberships?: CredentialSetMembership[]
-}
-
-interface InvitationsResponse {
-  invitations?: CredentialSetInvitation[]
+export type {
+  CreateCredentialSetData,
+  CredentialSet,
+  CredentialSetInvitation,
+  CredentialSetInvitationDetail,
+  CredentialSetMember,
+  CredentialSetMembership,
 }
 
 export const credentialSetKeys = {
@@ -75,8 +59,8 @@ export async function fetchCredentialSets(
   signal?: AbortSignal
 ): Promise<CredentialSet[]> {
   if (!organizationId) return []
-  const data = await fetchJson<CredentialSetsResponse>('/api/credential-sets', {
-    searchParams: { organizationId },
+  const data = await requestJson(listCredentialSetsContract, {
+    query: { organizationId },
     signal,
   })
   return data.credentialSets ?? []
@@ -92,16 +76,13 @@ export function useCredentialSets(organizationId?: string, enabled = true) {
   })
 }
 
-interface CredentialSetDetailResponse {
-  credentialSet?: CredentialSet
-}
-
 export async function fetchCredentialSetById(
   id: string,
   signal?: AbortSignal
 ): Promise<CredentialSet | null> {
   if (!id) return null
-  const data = await fetchJson<CredentialSetDetailResponse>(`/api/credential-sets/${id}`, {
+  const data = await requestJson(getCredentialSetContract, {
+    params: { id },
     signal,
   })
   return data.credentialSet ?? null
@@ -121,9 +102,7 @@ export function useCredentialSetMemberships() {
   return useQuery<CredentialSetMembership[]>({
     queryKey: credentialSetKeys.memberships(),
     queryFn: async ({ signal }) => {
-      const data = await fetchJson<MembershipsResponse>('/api/credential-sets/memberships', {
-        signal,
-      })
+      const data = await requestJson(listCredentialSetMembershipsContract, { signal })
       return data.memberships ?? []
     },
     staleTime: 60 * 1000,
@@ -134,9 +113,7 @@ export function useCredentialSetInvitations() {
   return useQuery<CredentialSetInvitation[]>({
     queryKey: credentialSetKeys.invitations(),
     queryFn: async ({ signal }) => {
-      const data = await fetchJson<InvitationsResponse>('/api/credential-sets/invitations', {
-        signal,
-      })
+      const data = await requestJson(listCredentialSetInvitationsContract, { signal })
       return data.invitations ?? []
     },
     staleTime: 30 * 1000,
@@ -148,14 +125,9 @@ export function useAcceptCredentialSetInvitation() {
 
   return useMutation({
     mutationFn: async (token: string) => {
-      const response = await fetch(`/api/credential-sets/invite/${token}`, {
-        method: 'POST',
+      return requestJson(acceptCredentialSetInvitationContract, {
+        params: { token },
       })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to accept invitation')
-      }
-      return response.json()
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() })
@@ -164,28 +136,12 @@ export function useAcceptCredentialSetInvitation() {
   })
 }
 
-export interface CreateCredentialSetData {
-  organizationId: string
-  name: string
-  description?: string
-  providerId?: string
-}
-
 export function useCreateCredentialSet() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (data: CreateCredentialSetData) => {
-      const response = await fetch('/api/credential-sets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-      if (!response.ok) {
-        const result = await response.json()
-        throw new Error(result.error || 'Failed to create credential set')
-      }
-      return response.json()
+      return requestJson(createCredentialSetContract, { body: data })
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: credentialSetKeys.list(variables.organizationId) })
@@ -197,17 +153,15 @@ export function useCreateCredentialSetInvitation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: { credentialSetId: string; email?: string }) => {
-      const response = await fetch(`/api/credential-sets/${data.credentialSetId}/invite`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: data.email }),
+    mutationFn: async (
+      data: { credentialSetId: string } & ContractBodyInput<
+        typeof createCredentialSetInvitationContract
+      >
+    ) => {
+      return requestJson(createCredentialSetInvitationContract, {
+        params: { id: data.credentialSetId },
+        body: { email: data.email },
       })
-      if (!response.ok) {
-        const result = await response.json()
-        throw new Error(result.error || 'Failed to create invitation')
-      }
-      return response.json()
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
@@ -218,30 +172,15 @@ export function useCreateCredentialSetInvitation() {
   })
 }
 
-export interface CredentialSetMember {
-  id: string
-  userId: string
-  status: string
-  joinedAt: string | null
-  createdAt: string
-  userName: string | null
-  userEmail: string | null
-  userImage: string | null
-  credentials: { providerId: string; accountId: string }[]
-}
-
-interface MembersResponse {
-  members?: CredentialSetMember[]
-}
-
 export function useCredentialSetMembers(credentialSetId?: string) {
   return useQuery<CredentialSetMember[]>({
     queryKey: credentialSetKeys.detailMembers(credentialSetId),
     queryFn: async ({ signal }) => {
-      const data = await fetchJson<MembersResponse>(
-        `/api/credential-sets/${credentialSetId}/members`,
-        { signal }
-      )
+      if (!credentialSetId) return []
+      const data = await requestJson(listCredentialSetMembersContract, {
+        params: { id: credentialSetId },
+        signal,
+      })
       return data.members ?? []
     },
     enabled: Boolean(credentialSetId),
@@ -253,16 +192,15 @@ export function useRemoveCredentialSetMember() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: { credentialSetId: string; memberId: string }) => {
-      const response = await fetch(
-        `/api/credential-sets/${data.credentialSetId}/members?memberId=${data.memberId}`,
-        { method: 'DELETE' }
-      )
-      if (!response.ok) {
-        const result = await response.json()
-        throw new Error(result.error || 'Failed to remove member')
-      }
-      return response.json()
+    mutationFn: async (
+      data: { credentialSetId: string } & ContractQueryInput<
+        typeof removeCredentialSetMemberContract
+      >
+    ) => {
+      return requestJson(removeCredentialSetMemberContract, {
+        params: { id: data.credentialSetId },
+        query: { memberId: data.memberId },
+      })
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
@@ -278,15 +216,9 @@ export function useLeaveCredentialSet() {
 
   return useMutation({
     mutationFn: async (credentialSetId: string) => {
-      const response = await fetch(
-        `/api/credential-sets/memberships?credentialSetId=${credentialSetId}`,
-        { method: 'DELETE' }
-      )
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to leave credential set')
-      }
-      return response.json()
+      return requestJson(leaveCredentialSetContract, {
+        query: { credentialSetId },
+      })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() })
@@ -304,14 +236,9 @@ export function useDeleteCredentialSet() {
 
   return useMutation({
     mutationFn: async ({ credentialSetId }: DeleteCredentialSetParams) => {
-      const response = await fetch(`/api/credential-sets/${credentialSetId}`, {
-        method: 'DELETE',
+      return requestJson(deleteCredentialSetContract, {
+        params: { id: credentialSetId },
       })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to delete credential set')
-      }
-      return response.json()
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
@@ -325,29 +252,15 @@ export function useDeleteCredentialSet() {
   })
 }
 
-export interface CredentialSetInvitationDetail {
-  id: string
-  credentialSetId: string
-  email: string | null
-  token: string
-  status: string
-  expiresAt: string
-  createdAt: string
-  invitedBy: string
-}
-
-interface InvitationsDetailResponse {
-  invitations?: CredentialSetInvitationDetail[]
-}
-
 export function useCredentialSetInvitationsDetail(credentialSetId?: string) {
   return useQuery<CredentialSetInvitationDetail[]>({
     queryKey: credentialSetKeys.detailInvitations(credentialSetId),
     queryFn: async ({ signal }) => {
-      const data = await fetchJson<InvitationsDetailResponse>(
-        `/api/credential-sets/${credentialSetId}/invite`,
-        { signal }
-      )
+      if (!credentialSetId) return []
+      const data = await requestJson(listCredentialSetInvitationDetailsContract, {
+        params: { id: credentialSetId },
+        signal,
+      })
       return (data.invitations ?? []).filter((inv) => inv.status === 'pending')
     },
     enabled: Boolean(credentialSetId),
@@ -359,16 +272,15 @@ export function useCancelCredentialSetInvitation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: { credentialSetId: string; invitationId: string }) => {
-      const response = await fetch(
-        `/api/credential-sets/${data.credentialSetId}/invite?invitationId=${data.invitationId}`,
-        { method: 'DELETE' }
-      )
-      if (!response.ok) {
-        const result = await response.json()
-        throw new Error(result.error || 'Failed to cancel invitation')
-      }
-      return response.json()
+    mutationFn: async (
+      data: { credentialSetId: string } & ContractQueryInput<
+        typeof cancelCredentialSetInvitationContract
+      >
+    ) => {
+      return requestJson(cancelCredentialSetInvitationContract, {
+        params: { id: data.credentialSetId },
+        query: { invitationId: data.invitationId },
+      })
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
@@ -382,16 +294,15 @@ export function useResendCredentialSetInvitation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: { credentialSetId: string; invitationId: string; email: string }) => {
-      const response = await fetch(
-        `/api/credential-sets/${data.credentialSetId}/invite/${data.invitationId}`,
-        { method: 'POST' }
-      )
-      if (!response.ok) {
-        const result = await response.json()
-        throw new Error(result.error || 'Failed to resend invitation')
-      }
-      return response.json()
+    mutationFn: async (
+      data: { credentialSetId: string; email: string } & Pick<
+        ContractParamsInput<typeof resendCredentialSetInvitationContract>,
+        'invitationId'
+      >
+    ) => {
+      return requestJson(resendCredentialSetInvitationContract, {
+        params: { id: data.credentialSetId, invitationId: data.invitationId },
+      })
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({

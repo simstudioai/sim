@@ -3,6 +3,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { sanitizeFileName } from '@/executor/constants'
 import '@/lib/uploads/core/setup.server'
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import {
+  uploadFilesFormFieldsSchema,
+  uploadFilesFormFilesSchema,
+} from '@/lib/api/contracts/storage-transfer'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -53,16 +58,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const formData = await request.formData()
 
     const rawFiles = formData.getAll('file')
-    const files = rawFiles.filter((f): f is File => f instanceof File)
-
-    if (files.length === 0) {
+    const filesResult = uploadFilesFormFilesSchema.safeParse(rawFiles)
+    if (!filesResult.success) {
       throw new InvalidRequestError('No files provided')
     }
+    const files = filesResult.data
 
-    const workflowId = formData.get('workflowId') as string | null
-    const executionId = formData.get('executionId') as string | null
-    const workspaceId = formData.get('workspaceId') as string | null
-    const contextParam = formData.get('context') as string | null
+    const formFieldsResult = uploadFilesFormFieldsSchema.safeParse({
+      workflowId: formData.get('workflowId'),
+      executionId: formData.get('executionId'),
+      workspaceId: formData.get('workspaceId'),
+      context: formData.get('context'),
+    })
+    if (!formFieldsResult.success) {
+      throw new InvalidRequestError(
+        getValidationErrorMessage(formFieldsResult.error, 'Invalid upload form data')
+      )
+    }
+    const formFields = formFieldsResult.data
+    const { workflowId, executionId, workspaceId, context: contextParam } = formFields
 
     // Context must be explicitly provided
     if (!contextParam) {

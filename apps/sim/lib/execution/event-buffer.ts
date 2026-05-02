@@ -27,6 +27,10 @@ function getMetaKey(executionId: string) {
 
 export type ExecutionStreamStatus = 'active' | 'complete' | 'error' | 'cancelled'
 
+function isExecutionStreamStatus(value: string | undefined): value is ExecutionStreamStatus {
+  return value === 'active' || value === 'complete' || value === 'error' || value === 'cancelled'
+}
+
 export interface ExecutionStreamMeta {
   status: ExecutionStreamStatus
   userId?: string
@@ -83,7 +87,13 @@ export async function getExecutionMeta(executionId: string): Promise<ExecutionSt
     const key = getMetaKey(executionId)
     const meta = await redis.hgetall(key)
     if (!meta || Object.keys(meta).length === 0) return null
-    return meta as unknown as ExecutionStreamMeta
+    if (!isExecutionStreamStatus(meta.status)) return null
+    return {
+      status: meta.status,
+      userId: meta.userId,
+      workflowId: meta.workflowId,
+      updatedAt: meta.updatedAt,
+    }
   } catch (error) {
     logger.warn('Failed to read execution meta', {
       executionId,

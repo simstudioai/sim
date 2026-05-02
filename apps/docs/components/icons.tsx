@@ -4099,7 +4099,7 @@ export function SalesforceIcon(props: SVGProps<SVGSVGElement>) {
 export function SapS4HanaIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   return (
-    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 412.38 204'>
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='15 10 382.38 184'>
       <defs>
         <linearGradient
           id={id}

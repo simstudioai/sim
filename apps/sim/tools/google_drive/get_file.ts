@@ -52,10 +52,13 @@ export const getFileTool: ToolConfig<GoogleDriveGetFileParams, GoogleDriveGetFil
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await response.json().catch(() => ({}) as any)
 
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to get Google Drive file')
+      throw new Error(
+        data.error?.message ||
+          `Failed to get Google Drive file (${response.status} ${response.statusText})`
+      )
     }
 
     return {

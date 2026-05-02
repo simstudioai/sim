@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { TextChunker } from '@/lib/chunkers/text-chunker'
 import type { DocChunk, DocsChunkerOptions } from '@/lib/chunkers/types'
 import { estimateTokens } from '@/lib/chunkers/utils'
-import { generateEmbeddings } from '@/lib/knowledge/embeddings'
+import { generateEmbeddings, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
 
 interface HeaderInfo {
   level: number
@@ -74,9 +74,9 @@ export class DocsChunker {
     const headers = this.extractHeaders(cleanedContent)
 
     logger.info(`Generating embeddings for ${textChunks.length} chunks in ${relativePath}`)
+    const embeddingModel = getConfiguredEmbeddingModel()
     const embeddings: number[][] =
-      textChunks.length > 0 ? (await generateEmbeddings(textChunks)).embeddings : []
-    const embeddingModel = 'text-embedding-3-small'
+      textChunks.length > 0 ? (await generateEmbeddings(textChunks, embeddingModel)).embeddings : []
 
     const chunks: DocChunk[] = []
     let currentPosition = 0

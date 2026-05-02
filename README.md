@@ -141,6 +141,7 @@ See the [environment variables reference](https://docs.sim.ai/self-hosting/envir
 - **Runtime**: [Bun](https://bun.sh/)
 - **Database**: PostgreSQL with [Drizzle ORM](https://orm.drizzle.team)
 - **Authentication**: [Better Auth](https://better-auth.com)
+- **Schema Validation**: [Zod](https://zod.dev)
 - **UI**: [Shadcn](https://ui.shadcn.com/), [Tailwind CSS](https://tailwindcss.com)
 - **Streaming Markdown**: [Streamdown](https://github.com/vercel/streamdown)
 - **State Management**: [Zustand](https://zustand-demo.pmnd.rs/), [TanStack Query](https://tanstack.com/query)

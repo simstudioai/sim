@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { jsmCommentContract } from '@/lib/api/contracts/selectors/jsm'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -18,6 +20,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
+    const parsed = await parseRequest(jsmCommentContract, request, {})
+    if (!parsed.success) return parsed.response
+
     const {
       domain,
       accessToken,
@@ -25,7 +30,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       issueIdOrKey,
       body: commentBody,
       isPublic,
-    } = await request.json()
+    } = parsed.data.body
 
     if (!domain) {
       logger.error('Missing domain in request')

@@ -4,7 +4,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { billingSwitchPlanContract } from '@/lib/api/contracts/subscription'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
@@ -23,11 +24,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('SwitchPlan')
-
-const switchPlanSchema = z.object({
-  targetPlanName: z.string(),
-  interval: z.enum(['month', 'year']).optional(),
-})
 
 /**
  * POST /api/billing/switch-plan
@@ -52,16 +48,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Billing is not enabled' }, { status: 400 })
     }
 
-    const body = await request.json()
-    const parsed = switchPlanSchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid request', details: parsed.error.flatten() },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(billingSwitchPlanContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const { targetPlanName, interval } = parsed.data
+    const { targetPlanName, interval } = parsed.data.body
     const userId = session.user.id
 
     const sub = await getHighestPrioritySubscription(userId)

@@ -18,6 +18,7 @@ export {
   buttonGroupItemVariants,
   buttonGroupVariants,
 } from './button-group/button-group'
+export { Callout, type CalloutProps, calloutVariants } from './callout/callout'
 export {
   Checkbox,
   type CheckboxProps,

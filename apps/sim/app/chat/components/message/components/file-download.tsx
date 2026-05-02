@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
-import { ArrowDown, Download, Loader2, Music } from 'lucide-react'
-import { Button } from '@/components/emcn'
+import { ArrowDown, Download, Music } from 'lucide-react'
+import { Button, Loader } from '@/components/emcn'
 import { DefaultFileIcon, getDocumentIcon } from '@/components/icons/document-icons'
 import type { ChatFile } from '@/app/chat/components/message/message'
 
@@ -126,7 +126,7 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
       </div>
       <div className='flex-shrink-0'>
         {isDownloading ? (
-          <Loader2 className='h-3.5 w-3.5 animate-spin' />
+          <Loader className='h-3.5 w-3.5' animate />
         ) : (
           <ArrowDown
             className={`h-3.5 w-3.5 transition-opacity ${isHovered ? 'opacity-100' : 'opacity-0'}`}
@@ -176,7 +176,7 @@ export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
       className='text-[var(--landing-text-muted)] transition-colors hover:bg-[var(--landing-bg-elevated)] disabled:opacity-50'
     >
       {isDownloading ? (
-        <Loader2 className='h-3 w-3 animate-spin' strokeWidth={2} />
+        <Loader className='h-3 w-3' animate />
       ) : (
         <Download className='h-3 w-3' strokeWidth={2} />
       )}

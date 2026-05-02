@@ -57,8 +57,8 @@ export const slackDeleteMessageTool: ToolConfig<
     }),
     body: (params: SlackDeleteMessageParams) => ({
       accessToken: params.accessToken || params.botToken,
-      channel: params.channel,
-      timestamp: params.timestamp,
+      channel: params.channel?.trim(),
+      timestamp: params.timestamp?.trim(),
     }),
   },
 

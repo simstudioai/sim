@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { WebflowIcon } from '@/components/icons'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  webflowCollectionsSelectorContract,
+  webflowSitesSelectorContract,
+} from '@/lib/api/contracts/selectors/webflow'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '../types'
 
@@ -50,22 +55,13 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
           throw new Error('No Webflow credential selected')
         }
         try {
-          const response = await fetch('/api/tools/webflow/sites', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ credential: credentialId }),
+          const data = await requestJson(webflowSitesSelectorContract, {
+            body: { credential: credentialId },
           })
-          if (!response.ok) {
-            throw new Error('Failed to fetch Webflow sites')
-          }
-          const data = await response.json()
-          if (data.sites && Array.isArray(data.sites)) {
-            return data.sites.map((site: { id: string; name: string }) => ({
-              id: site.id,
-              label: site.name,
-            }))
-          }
-          return []
+          return (data.sites ?? []).map((site) => ({
+            id: site.id,
+            label: site.name,
+          }))
         } catch (error) {
           logger.error('Error fetching Webflow sites:', error)
           throw error
@@ -77,14 +73,10 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
           | null
         if (!credentialId) return null
         try {
-          const response = await fetch('/api/tools/webflow/sites', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ credential: credentialId, siteId: optionId }),
+          const data = await requestJson(webflowSitesSelectorContract, {
+            body: { credential: credentialId, siteId: optionId },
           })
-          if (!response.ok) return null
-          const data = await response.json()
-          const site = data.sites?.find((s: { id: string }) => s.id === optionId)
+          const site = data.sites?.find((s) => s.id === optionId)
           if (site) {
             return { id: site.id, label: site.name }
           }
@@ -119,22 +111,13 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
           return []
         }
         try {
-          const response = await fetch('/api/tools/webflow/collections', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ credential: credentialId, siteId }),
+          const data = await requestJson(webflowCollectionsSelectorContract, {
+            body: { credential: credentialId, siteId },
           })
-          if (!response.ok) {
-            throw new Error('Failed to fetch Webflow collections')
-          }
-          const data = await response.json()
-          if (data.collections && Array.isArray(data.collections)) {
-            return data.collections.map((collection: { id: string; name: string }) => ({
-              id: collection.id,
-              label: collection.name,
-            }))
-          }
-          return []
+          return (data.collections ?? []).map((collection) => ({
+            id: collection.id,
+            label: collection.name,
+          }))
         } catch (error) {
           logger.error('Error fetching Webflow collections:', error)
           throw error
@@ -149,14 +132,10 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
           | null
         if (!credentialId || !siteId) return null
         try {
-          const response = await fetch('/api/tools/webflow/collections', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ credential: credentialId, siteId }),
+          const data = await requestJson(webflowCollectionsSelectorContract, {
+            body: { credential: credentialId, siteId },
           })
-          if (!response.ok) return null
-          const data = await response.json()
-          const collection = data.collections?.find((c: { id: string }) => c.id === optionId)
+          const collection = data.collections?.find((c) => c.id === optionId)
           if (collection) {
             return { id: collection.id, label: collection.name }
           }

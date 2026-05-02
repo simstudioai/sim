@@ -1,7 +1,9 @@
 import type { Team } from '@linear/sdk'
 import { LinearClient } from '@linear/sdk'
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { linearTeamsSelectorContract } from '@/lib/api/contracts/selectors'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -11,18 +13,14 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('LinearTeamsAPI')
 
-export const POST = withRouteHandler(async (request: Request) => {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const requestId = generateRequestId()
-    const body = await request.json()
-    const { credential, workflowId } = body
+    const parsed = await parseRequest(linearTeamsSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, workflowId } = parsed.data.body
 
-    if (!credential) {
-      logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-    }
-
-    const authz = await authorizeCredentialUse(request as any, {
+    const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
       workflowId,
     })
@@ -41,10 +39,7 @@ export const POST = withRouteHandler(async (request: Request) => {
         userId: authz.credentialOwnerUserId,
       })
       return NextResponse.json(
-        {
-          error: 'Could not retrieve access token',
-          authRequired: true,
-        },
+        { error: 'Could not retrieve access token', authRequired: true },
         { status: 401 }
       )
     }

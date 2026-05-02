@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { getWorkflowStatusContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
@@ -12,12 +14,13 @@ import {
 const logger = createLogger('WorkflowStatusAPI')
 
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
+    const parsed = await parseRequest(getWorkflowStatusContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { id } = parsed.data.params
 
     try {
-      const { id } = await params
-
       const validation = await validateWorkflowAccess(request, id, false)
       if (validation.error) {
         logger.warn(`[${requestId}] Workflow access validation failed: ${validation.error.message}`)
@@ -35,7 +38,7 @@ export const GET = withRouteHandler(
         needsRedeployment,
       })
     } catch (error) {
-      logger.error(`[${requestId}] Error getting status for workflow: ${(await params).id}`, error)
+      logger.error(`[${requestId}] Error getting status for workflow: ${id}`, error)
       return createErrorResponse('Failed to get status', 500)
     }
   }

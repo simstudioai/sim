@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { confluencePagesSelectorContract } from '@/lib/api/contracts/selectors/confluence'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -18,21 +20,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const {
-      domain,
-      accessToken,
-      title,
-      cloudId: providedCloudId,
-      limit = 50,
-    } = await request.json()
+    const parsed = await parseRequest(confluencePagesSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
-    }
-
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-    }
+    const { domain, accessToken, title, cloudId: providedCloudId, limit } = parsed.data.body
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 

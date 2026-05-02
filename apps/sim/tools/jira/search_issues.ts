@@ -117,8 +117,7 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Array of field names to return (default: all navigable). Use "*all" for every field.',
+      description: 'Array of field names to return (default: all fields).',
     },
     cloudId: {
       type: 'string',
@@ -211,8 +210,8 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
         ts: new Date().toISOString(),
         issues: (data?.issues ?? []).map(transformSearchIssue),
         nextPageToken: data?.nextPageToken ?? null,
-        isLast: data?.isLast ?? true,
-        total: data?.total ?? null,
+        isLast: data?.isLast ?? !data?.nextPageToken,
+        total: null,
       },
     }
   },
@@ -235,7 +234,8 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
     isLast: { type: 'boolean', description: 'Whether this is the last page of results' },
     total: {
       type: 'number',
-      description: 'Total number of matching issues (may not always be available)',
+      description:
+        'Always null. The Jira /search/jql endpoint does not return a total count; use isLast and nextPageToken for pagination.',
       optional: true,
     },
   },

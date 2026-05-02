@@ -29,11 +29,18 @@ import { db } from '@sim/db'
 import { member, organization, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+import {
+  adminV1GetOrganizationMemberContract,
+  adminV1RemoveOrganizationMemberContract,
+  adminV1UpdateOrganizationMemberContract,
+} from '@/lib/api/contracts/v1/admin'
+import { parseRequest } from '@/lib/api/server'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminValidationErrorResponse,
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
@@ -49,8 +56,13 @@ interface RouteParams {
 }
 
 export const GET = withRouteHandler(
-  withAdminAuthParams<RouteParams>(async (_, context) => {
-    const { id: organizationId, memberId } = await context.params
+  withAdminAuthParams<RouteParams>(async (request, context) => {
+    const parsed = await parseRequest(adminV1GetOrganizationMemberContract, request, context, {
+      validationErrorResponse: adminValidationErrorResponse,
+    })
+    if (!parsed.success) return parsed.response
+
+    const { id: organizationId, memberId } = parsed.data.params
 
     try {
       const [orgData] = await db
@@ -113,14 +125,22 @@ export const GET = withRouteHandler(
 
 export const PATCH = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: organizationId, memberId } = await context.params
+    const routeParams = await context.params
+    const { id: organizationId, memberId } = routeParams
 
     try {
-      const body = await request.json()
+      const parsed = await parseRequest(
+        adminV1UpdateOrganizationMemberContract,
+        request,
+        { params: routeParams },
+        {
+          validationErrorResponse: adminValidationErrorResponse,
+          invalidJson: 'throw',
+        }
+      )
+      if (!parsed.success) return parsed.response
 
-      if (!body.role || !['admin', 'member'].includes(body.role)) {
-        return badRequestResponse('role must be "admin" or "member"')
-      }
+      const { role } = parsed.data.body
 
       const [orgData] = await db
         .select({ id: organization.id })
@@ -152,7 +172,7 @@ export const PATCH = withRouteHandler(
 
       const [updated] = await db
         .update(member)
-        .set({ role: body.role })
+        .set({ role })
         .where(eq(member.id, memberId))
         .returning()
 
@@ -172,7 +192,7 @@ export const PATCH = withRouteHandler(
         userEmail: userData?.email ?? '',
       }
 
-      logger.info(`Admin API: Updated member ${memberId} role to ${body.role}`, {
+      logger.info(`Admin API: Updated member ${memberId} role to ${role}`, {
         organizationId,
         previousRole: existingMember.role,
       })
@@ -187,10 +207,13 @@ export const PATCH = withRouteHandler(
 
 export const DELETE = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: organizationId, memberId } = await context.params
-    const url = new URL(request.url)
-    const skipBillingLogic =
-      !isBillingEnabled || url.searchParams.get('skipBillingLogic') === 'true'
+    const parsed = await parseRequest(adminV1RemoveOrganizationMemberContract, request, context, {
+      validationErrorResponse: adminValidationErrorResponse,
+    })
+    if (!parsed.success) return parsed.response
+
+    const { id: organizationId, memberId } = parsed.data.params
+    const skipBillingLogic = !isBillingEnabled || parsed.data.query.skipBillingLogic
 
     try {
       const [orgData] = await db

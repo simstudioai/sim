@@ -1,8 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { thinkingToolContract } from '@/lib/api/contracts/tools/thinking'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { ThinkingToolParams, ThinkingToolResponse } from '@/tools/thinking/types'
+import type { ThinkingToolResponse } from '@/tools/thinking/types'
 
 const logger = createLogger('ThinkingToolAPI')
 
@@ -16,21 +18,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const body: ThinkingToolParams = await request.json()
+    const parsed = await parseRequest(thinkingToolContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { body } = parsed.data
 
     logger.info(`[${requestId}] Processing thinking tool request`)
-
-    // Validate the required parameter
-    if (!body.thought || typeof body.thought !== 'string') {
-      logger.warn(`[${requestId}] Missing or invalid 'thought' parameter`)
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'The thought parameter is required and must be a string',
-        },
-        { status: 400 }
-      )
-    }
 
     // Simply acknowledge the thought by returning it in the output
     const response: ThinkingToolResponse = {

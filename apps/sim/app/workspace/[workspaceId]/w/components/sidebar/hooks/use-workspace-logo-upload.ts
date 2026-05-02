@@ -67,6 +67,7 @@ export function useWorkspaceLogoUpload({
       formData.append('workspaceId', workspaceIdRef.current)
     }
 
+    // boundary-raw-fetch: multipart/form-data upload (FileUpload boundary), incompatible with requestJson which JSON-stringifies bodies
     const response = await fetch('/api/files/upload', {
       method: 'POST',
       body: formData,

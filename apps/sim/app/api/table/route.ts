@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { createTableContract, listTablesQuerySchema } from '@/lib/api/contracts/tables'
+import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -9,7 +10,6 @@ import {
   createTable,
   getWorkspaceTableLimits,
   listTables,
-  TABLE_LIMITS,
   type TableSchema,
   type TableScope,
 } from '@/lib/table'
@@ -17,64 +17,6 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableAPI')
-
-const ColumnSchema = z.object({
-  name: z
-    .string()
-    .min(1, 'Column name is required')
-    .max(
-      TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH,
-      `Column name must be ${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters or less`
-    )
-    .regex(
-      /^[a-z_][a-z0-9_]*$/i,
-      'Column name must start with a letter or underscore and contain only alphanumeric characters and underscores'
-    ),
-  type: z.enum(['string', 'number', 'boolean', 'date', 'json'], {
-    errorMap: () => ({
-      message: 'Column type must be one of: string, number, boolean, date, json',
-    }),
-  }),
-  required: z.boolean().optional().default(false),
-  unique: z.boolean().optional().default(false),
-})
-
-const CreateTableSchema = z.object({
-  name: z
-    .string()
-    .min(1, 'Table name is required')
-    .max(
-      TABLE_LIMITS.MAX_TABLE_NAME_LENGTH,
-      `Table name must be ${TABLE_LIMITS.MAX_TABLE_NAME_LENGTH} characters or less`
-    )
-    .regex(
-      /^[a-z_][a-z0-9_]*$/i,
-      'Table name must start with a letter or underscore and contain only alphanumeric characters and underscores'
-    ),
-  description: z
-    .string()
-    .max(
-      TABLE_LIMITS.MAX_DESCRIPTION_LENGTH,
-      `Description must be ${TABLE_LIMITS.MAX_DESCRIPTION_LENGTH} characters or less`
-    )
-    .optional(),
-  schema: z.object({
-    columns: z
-      .array(ColumnSchema)
-      .min(1, 'Table must have at least one column')
-      .max(
-        TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
-        `Table cannot have more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} columns`
-      ),
-  }),
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  initialRowCount: z.number().int().min(0).max(100).optional(),
-})
-
-const ListTablesSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  scope: z.enum(['active', 'archived', 'all']).optional().default('active'),
-})
 
 interface WorkspaceAccessResult {
   hasAccess: boolean
@@ -105,14 +47,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    let body: unknown
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-    }
+    const parsed = await parseRequest(
+      createTableContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => validationErrorResponse(error),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const params = CreateTableSchema.parse(body)
+    const params = parsed.data.body
 
     const { hasAccess, canWrite } = await checkWorkspaceAccess(
       params.workspaceId,
@@ -182,13 +127,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     if (error instanceof Error) {
       if (error.message.includes('maximum table limit')) {
         return NextResponse.json({ error: error.message }, { status: 403 })
@@ -221,10 +159,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const workspaceId = searchParams.get('workspaceId')
     const scope = searchParams.get('scope')
 
-    const validation = ListTablesSchema.safeParse({ workspaceId, scope })
+    const validation = listTablesQuerySchema.safeParse({
+      workspaceId,
+      scope: scope ?? undefined,
+    })
     if (!validation.success) {
       return NextResponse.json(
-        { error: 'Validation error', details: validation.error.errors },
+        { error: 'Validation error', details: validation.error.issues },
         { status: 400 }
       )
     }
@@ -272,11 +213,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
+    if (isZodError(error)) {
+      return validationErrorResponse(error)
     }
 
     logger.error(`[${requestId}] Error listing tables:`, error)

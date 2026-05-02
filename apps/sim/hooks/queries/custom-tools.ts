@@ -1,16 +1,24 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  deleteCustomToolContract,
+  listCustomToolsContract,
+  upsertCustomToolsContract,
+} from '@/lib/api/contracts/tools/custom'
 import { customToolsKeys } from '@/hooks/queries/utils/custom-tool-keys'
 
 const logger = createLogger('CustomToolsQueries')
-const API_ENDPOINT = '/api/tools/custom'
 
 export interface CustomToolSchema {
-  type: string
+  [key: string]: unknown
+  type: 'function'
   function: {
+    [key: string]: unknown
     name: string
     description?: string
     parameters: {
+      [key: string]: unknown
       type: string
       properties: Record<string, unknown>
       required?: string[]
@@ -40,6 +48,10 @@ type ApiCustomTool = Partial<CustomToolDefinition> & {
     }
   }
   code?: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function normalizeCustomTool(tool: ApiCustomTool, workspaceId: string): CustomToolDefinition {
@@ -84,23 +96,15 @@ async function fetchCustomTools(
   workspaceId: string,
   signal?: AbortSignal
 ): Promise<CustomToolDefinition[]> {
-  const response = await fetch(`${API_ENDPOINT}?workspaceId=${workspaceId}`, { signal })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error || `Failed to fetch custom tools: ${response.statusText}`)
-  }
-
-  const { data } = await response.json()
-
-  if (!Array.isArray(data)) {
-    throw new Error('Invalid response format')
-  }
+  const { data } = await requestJson(listCustomToolsContract, {
+    query: { workspaceId },
+    signal,
+  })
 
   const normalizedTools: CustomToolDefinition[] = []
 
   data.forEach((tool, index) => {
-    if (!tool || typeof tool !== 'object') {
+    if (!isRecord(tool)) {
       logger.warn(`Skipping invalid tool at index ${index}: not an object`)
       return
     }
@@ -112,24 +116,43 @@ async function fetchCustomTools(
       logger.warn(`Skipping invalid tool at index ${index}: missing or invalid title`)
       return
     }
-    if (!tool.schema || typeof tool.schema !== 'object') {
+    if (!isRecord(tool.schema)) {
       logger.warn(`Skipping invalid tool at index ${index}: missing or invalid schema`)
       return
     }
-    if (!tool.schema.function || typeof tool.schema.function !== 'object') {
+    if (!isRecord(tool.schema.function)) {
       logger.warn(`Skipping invalid tool at index ${index}: missing function schema`)
       return
     }
 
+    const functionSchema = tool.schema.function
+    const parameters = isRecord(functionSchema.parameters) ? functionSchema.parameters : {}
+    const properties = isRecord(parameters.properties) ? parameters.properties : {}
+    const required = Array.isArray(parameters.required)
+      ? parameters.required.filter((value): value is string => typeof value === 'string')
+      : undefined
+
     const apiTool: ApiCustomTool = {
       id: tool.id,
       title: tool.title,
-      schema: tool.schema,
+      schema: {
+        type: 'function',
+        function: {
+          name: typeof functionSchema.name === 'string' ? functionSchema.name : tool.id,
+          description:
+            typeof functionSchema.description === 'string' ? functionSchema.description : undefined,
+          parameters: {
+            type: typeof parameters.type === 'string' ? parameters.type : 'object',
+            properties,
+            required,
+          },
+        },
+      },
       code: typeof tool.code === 'string' ? tool.code : '',
-      workspaceId: tool.workspaceId ?? null,
-      userId: tool.userId ?? null,
-      createdAt: tool.createdAt ?? undefined,
-      updatedAt: tool.updatedAt ?? undefined,
+      workspaceId: typeof tool.workspaceId === 'string' ? tool.workspaceId : null,
+      userId: typeof tool.userId === 'string' ? tool.userId : null,
+      createdAt: typeof tool.createdAt === 'string' ? tool.createdAt : undefined,
+      updatedAt: typeof tool.updatedAt === 'string' ? tool.updatedAt : undefined,
     }
 
     try {
@@ -174,10 +197,8 @@ export function useCreateCustomTool() {
     mutationFn: async ({ workspaceId, tool }: CreateCustomToolParams) => {
       logger.info(`Creating custom tool: ${tool.title} in workspace ${workspaceId}`)
 
-      const response = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const data = await requestJson(upsertCustomToolsContract, {
+        body: {
           tools: [
             {
               title: tool.title,
@@ -186,21 +207,15 @@ export function useCreateCustomTool() {
             },
           ],
           workspaceId,
-        }),
+        },
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create tool')
-      }
 
       if (!data.data || !Array.isArray(data.data)) {
         throw new Error('Invalid API response: missing tools data')
       }
 
       logger.info(`Created custom tool: ${tool.title}`)
-      return data.data
+      return data.data as CustomToolDefinition[]
     },
     onSuccess: (_data, variables) => {
       // Invalidate tools list for the workspace
@@ -238,10 +253,8 @@ export function useUpdateCustomTool() {
         throw new Error('Tool not found')
       }
 
-      const response = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const data = await requestJson(upsertCustomToolsContract, {
+        body: {
           tools: [
             {
               id: toolId,
@@ -251,21 +264,15 @@ export function useUpdateCustomTool() {
             },
           ],
           workspaceId,
-        }),
+        },
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update tool')
-      }
 
       if (!data.data || !Array.isArray(data.data)) {
         throw new Error('Invalid API response: missing tools data')
       }
 
       logger.info(`Updated custom tool: ${toolId}`)
-      return data.data
+      return data.data as CustomToolDefinition[]
     },
     onMutate: async ({ workspaceId, toolId, updates }) => {
       await queryClient.cancelQueries({ queryKey: customToolsKeys.list(workspaceId) })
@@ -318,19 +325,9 @@ export function useDeleteCustomTool() {
     mutationFn: async ({ workspaceId, toolId }: DeleteCustomToolParams) => {
       logger.info(`Deleting custom tool: ${toolId}`)
 
-      const url = workspaceId
-        ? `${API_ENDPOINT}?id=${toolId}&workspaceId=${workspaceId}`
-        : `${API_ENDPOINT}?id=${toolId}`
-
-      const response = await fetch(url, {
-        method: 'DELETE',
+      const data = await requestJson(deleteCustomToolContract, {
+        query: { id: toolId, workspaceId: workspaceId ?? undefined },
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete tool')
-      }
 
       logger.info(`Deleted custom tool: ${toolId}`)
       return data

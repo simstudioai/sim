@@ -1,6 +1,11 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  getOrganizationWhitelabelContract,
+  updateOrganizationWhitelabelContract,
+} from '@/lib/api/contracts/organization'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
 import { organizationKeys } from '@/hooks/queries/organization'
 
@@ -25,15 +30,11 @@ async function fetchWhitelabelSettings(
   orgId: string,
   signal?: AbortSignal
 ): Promise<OrganizationWhitelabelSettings> {
-  const response = await fetch(`/api/organizations/${orgId}/whitelabel`, { signal })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(error.error ?? 'Failed to fetch whitelabel settings')
-  }
-
-  const { data } = await response.json()
-  return data as OrganizationWhitelabelSettings
+  const { data } = await requestJson(getOrganizationWhitelabelContract, {
+    params: { id: orgId },
+    signal,
+  })
+  return data
 }
 
 /**
@@ -61,19 +62,11 @@ export function useUpdateWhitelabelSettings() {
 
   return useMutation({
     mutationFn: async ({ orgId, settings }: UpdateWhitelabelVariables) => {
-      const response = await fetch(`/api/organizations/${orgId}/whitelabel`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
+      const result = await requestJson(updateOrganizationWhitelabelContract, {
+        params: { id: orgId },
+        body: settings,
       })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error ?? 'Failed to update whitelabel settings')
-      }
-
-      const { data } = await response.json()
-      return data as OrganizationWhitelabelSettings
+      return result.data
     },
     onSettled: (_data, _error, { orgId }) => {
       queryClient.invalidateQueries({ queryKey: whitelabelKeys.settings(orgId) })

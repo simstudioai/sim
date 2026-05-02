@@ -5,7 +5,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq } from 'drizzle-orm'
 import { GetWorkflowLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import type { TraceSpan } from '@/stores/logs/filters/types'
+import type { TraceSpan } from '@/lib/logs/types'
 
 const logger = createLogger('GetWorkflowLogsServerTool')
 

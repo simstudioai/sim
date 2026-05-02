@@ -384,7 +384,7 @@ Assign a Jira issue to a user
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `issueKey` | string | Yes | Jira issue key to assign \(e.g., PROJ-123\) |
-| `accountId` | string | Yes | Account ID of the user to assign the issue to. Use "-1" for automatic assignment or null to unassign. |
+| `accountId` | string | Yes | Account ID of the user to assign the issue to. Use "-1" for automatic assignment, or leave empty / pass "null" to unassign. |
 | `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
@@ -436,7 +436,7 @@ Search for Jira issues using JQL (Jira Query Language)
 | `jql` | string | Yes | JQL query string to search for issues \(e.g., "project = PROJ AND status = Open"\) |
 | `nextPageToken` | string | No | Cursor token for the next page of results. Omit for the first page. |
 | `maxResults` | number | No | Maximum number of results to return per page \(default: 50\) |
-| `fields` | array | No | Array of field names to return \(default: all navigable\). Use "*all" for every field. |
+| `fields` | array | No | Array of field names to return \(default: all fields\). |
 | `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
@@ -506,7 +506,7 @@ Search for Jira issues using JQL (Jira Query Language)
 |   ↳ `updated` | string | ISO 8601 timestamp when the issue was last updated |
 | `nextPageToken` | string | Cursor token for the next page. Null when no more results. |
 | `isLast` | boolean | Whether this is the last page of results |
-| `total` | number | Total number of matching issues \(may not always be available\) |
+| `total` | number | Always null. The Jira /search/jql endpoint does not return a total count; use isLast and nextPageToken for pagination. |
 
 ### `jira_add_comment`
 

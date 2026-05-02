@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getEmailSubject, renderPollingGroupInvitationEmail } from '@/components/emails'
+import { credentialSetInvitationParamsSchema } from '@/lib/api/contracts/credential-sets'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -58,7 +59,7 @@ export const POST = withRouteHandler(
       )
     }
 
-    const { id, invitationId } = await params
+    const { id, invitationId } = credentialSetInvitationParamsSchema.parse(await params)
 
     try {
       const result = await getCredentialSetWithAccess(id, session.user.id)

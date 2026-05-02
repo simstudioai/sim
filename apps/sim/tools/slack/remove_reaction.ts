@@ -64,9 +64,9 @@ export const slackRemoveReactionTool: ToolConfig<
     }),
     body: (params: SlackRemoveReactionParams) => ({
       accessToken: params.accessToken || params.botToken,
-      channel: params.channel,
-      timestamp: params.timestamp,
-      name: params.name,
+      channel: params.channel?.trim(),
+      timestamp: params.timestamp?.trim(),
+      name: params.name?.trim(),
     }),
   },
 

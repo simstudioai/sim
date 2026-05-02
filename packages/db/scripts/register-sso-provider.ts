@@ -33,10 +33,10 @@
  *   SSO_SAML_WANT_ASSERTIONS_SIGNED=true (optional, defaults to false)
  */
 
+import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { v4 as uuidv4 } from 'uuid'
 import { ssoProvider, user } from '../schema'
 
 interface SSOMapping {
@@ -557,7 +557,7 @@ async function registerSSOProvider(): Promise<boolean> {
     }
 
     const providerData: SSOProviderData = {
-      id: uuidv4(),
+      id: generateId(),
       issuer: ssoConfig.issuer,
       domain: ssoConfig.domain,
       userId: adminUser.id,

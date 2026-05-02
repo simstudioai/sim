@@ -109,7 +109,7 @@ export const updateSupplierTool: ToolConfig<UpdateSupplierParams, SapProxyRespon
         ...baseProxyBody(params),
         service: 'API_BUSINESS_PARTNER',
         path: `/A_Supplier(${quoteOdataKey(params.supplier)})`,
-        method: 'PATCH',
+        method: 'MERGE',
         query: { $format: 'json' },
         body: payload,
         ifMatch: params.ifMatch || '*',

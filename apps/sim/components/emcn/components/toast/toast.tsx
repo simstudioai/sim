@@ -169,7 +169,8 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
       onMouseEnter={hasDuration ? handleMouseEnter : undefined}
       onMouseLeave={hasDuration ? handleMouseLeave : undefined}
       className={cn(
-        'pointer-events-auto flex w-[min(100vw-2rem,320px)] flex-col gap-2 overflow-hidden rounded-lg border px-3 py-2.5 shadow-md transition-[transform,opacity]',
+        'pointer-events-auto flex flex-col gap-2 overflow-hidden rounded-lg border px-3 py-2.5 shadow-md transition-[transform,opacity]',
+        t.variant === 'error' ? 'w-[min(100vw-2rem,400px)]' : 'w-[min(100vw-2rem,320px)]',
         VARIANT_STYLES[t.variant],
         exiting
           ? 'animate-[toast-exit_200ms_ease-in_forwards] motion-reduce:animate-none'
@@ -178,7 +179,12 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
     >
       <div className='flex items-start gap-2'>
         <div className='min-w-0 flex-1'>
-          <div className='line-clamp-2 font-medium text-[var(--text-body)] text-small leading-[18px]'>
+          <div
+            className={cn(
+              'font-medium text-[var(--text-body)] text-small leading-[18px]',
+              t.variant === 'error' ? 'line-clamp-3' : 'line-clamp-2'
+            )}
+          >
             {t.variant === 'error' && (
               <span className='mr-2 mb-0.5 inline-block h-2 w-2 rounded-[2px] bg-[var(--text-error)] align-middle' />
             )}

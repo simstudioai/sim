@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { useTemplateContract } from '@/lib/api/contracts/templates'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
@@ -29,20 +31,20 @@ interface TemplateDetails {
 
 // POST /api/templates/[id]/use - Use a template (increment views and create workflow)
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
 
     try {
       const session = await getSession()
       if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized use attempt for template: ${id}`)
+        logger.warn(`[${requestId}] Unauthorized template use attempt`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      // Get workspace ID and connectToTemplate flag from request body
-      const body = await request.json()
-      const { workspaceId, connectToTemplate = false } = body
+      const parsed = await parseRequest(useTemplateContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id } = parsed.data.params
+      const { workspaceId, connectToTemplate = false } = parsed.data.body
 
       if (!workspaceId) {
         logger.warn(`[${requestId}] Missing workspaceId in request body`)
@@ -226,7 +228,7 @@ export const POST = withRouteHandler(
         { status: 201 }
       )
     } catch (error: any) {
-      logger.error(`[${requestId}] Error using template: ${id}`, error)
+      logger.error(`[${requestId}] Error using template`, error)
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
   }

@@ -331,7 +331,7 @@ export async function processFilePreviewStreamEvent(input: {
         ...(edit ? { edit } : {}),
       }
 
-      if (!isDocFormat(fileName) && isContentOp && previewTargetKind) {
+      if (isContentOp && previewTargetKind) {
         let previewBaseContent: string | undefined
         if (
           execContext.workspaceId &&
@@ -445,7 +445,7 @@ export async function processFilePreviewStreamEvent(input: {
     const stateForTool = editContentState.get(toolCallId) ?? { raw: '' }
     stateForTool.raw += delta
 
-    if (context.activeFileIntent && !isDocFormat(context.activeFileIntent.target.fileName)) {
+    if (context.activeFileIntent) {
       const streamedContent = extractEditContent(stateForTool.raw)
       if (streamedContent !== (stateForTool.lastContentSnapshot ?? '')) {
         stateForTool.lastContentSnapshot = streamedContent

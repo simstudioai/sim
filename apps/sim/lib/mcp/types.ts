@@ -62,13 +62,14 @@ export interface McpSecurityPolicy {
  * Follows JSON Schema specification with description support.
  */
 export interface McpToolSchemaProperty {
-  type: string
+  type?: string | string[]
   description?: string
   items?: McpToolSchemaProperty
   properties?: Record<string, McpToolSchemaProperty>
   required?: string[]
-  enum?: Array<string | number | boolean>
+  enum?: Array<string | number | boolean | null>
   default?: unknown
+  [key: string]: unknown
 }
 
 /**
@@ -80,6 +81,7 @@ export interface McpToolSchema {
   properties?: Record<string, McpToolSchemaProperty>
   required?: string[]
   description?: string
+  [key: string]: unknown
 }
 
 /**

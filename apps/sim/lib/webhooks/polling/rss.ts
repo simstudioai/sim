@@ -1,10 +1,15 @@
+import type { Logger } from '@sim/logger'
 import Parser from 'rss-parser'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
-import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
+import {
+  getProviderConfig,
+  type PollingProviderHandler,
+  type PollWebhookContext,
+} from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
@@ -78,7 +83,7 @@ export const rssPollingHandler: PollingProviderHandler = {
     const webhookId = webhookData.id
 
     try {
-      const config = webhookData.providerConfig as unknown as RssWebhookConfig
+      const config = getProviderConfig<RssWebhookConfig>(webhookData.providerConfig)
 
       if (!config?.feedUrl) {
         logger.error(`[${requestId}] Missing feedUrl for webhook ${webhookId}`)
@@ -157,7 +162,7 @@ async function updateRssState(
   timestamp: string,
   newGuids: string[],
   config: RssWebhookConfig,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>,
+  logger: Logger,
   etag?: string,
   lastModified?: string
 ) {
@@ -179,7 +184,7 @@ async function updateRssState(
 async function fetchNewRssItems(
   config: RssWebhookConfig,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<{ feed: RssFeed; items: RssItem[]; etag?: string; lastModified?: string }> {
   try {
     const urlValidation = await validateUrlWithDNS(config.feedUrl, 'feedUrl')
@@ -285,7 +290,7 @@ async function processRssItems(
   webhookData: PollWebhookContext['webhookData'],
   workflowData: PollWebhookContext['workflowData'],
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<{ processedCount: number; failedCount: number }> {
   let processedCount = 0
   let failedCount = 0

@@ -107,10 +107,14 @@ export async function verifyFileAccess(
   cloudKey: string,
   userId: string,
   customConfig?: StorageConfig,
-  context?: StorageContext,
+  context?: StorageContext | 'general',
   isLocal?: boolean
 ): Promise<boolean> {
   try {
+    if (context === 'general') {
+      return await verifyRegularFileAccess(cloudKey, userId, customConfig, isLocal)
+    }
+
     // Infer context from key if not explicitly provided
     const inferredContext = context || inferContextFromKey(cloudKey)
 

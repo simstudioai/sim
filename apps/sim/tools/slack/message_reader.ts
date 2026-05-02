@@ -84,8 +84,8 @@ export const slackMessageReaderTool: ToolConfig<
       const isDM = params.destinationType === 'dm'
       return {
         accessToken: params.accessToken || params.botToken,
-        channel: isDM ? undefined : params.channel,
-        userId: isDM ? params.dmUserId : params.userId,
+        channel: isDM ? undefined : params.channel?.trim(),
+        userId: isDM ? params.dmUserId?.trim() : undefined,
         limit: params.limit,
         oldest: params.oldest,
         latest: params.latest,

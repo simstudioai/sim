@@ -157,7 +157,14 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
       }
     }
 
-    const data = JSON.parse(responseText)
+    let data: any
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      throw new Error(
+        `Jira update failed (${response.status} ${response.statusText}): non-JSON response from /api/tools/jira/update`
+      )
+    }
 
     if (data.success && data.output) {
       return data

@@ -1,5 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  type ConnectedAccount,
+  disconnectOAuthContract,
+  listConnectedAccountsContract,
+  listOAuthConnectionsContract,
+  type OAuthAccountSummary,
+  type OAuthConnection,
+} from '@/lib/api/contracts/oauth-connections'
 import { client } from '@/lib/auth/auth-client'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
 
@@ -20,17 +29,10 @@ export interface ServiceInfo extends OAuthServiceConfig {
   id: string
   isConnected: boolean
   lastConnected?: string
-  accounts?: { id: string; name: string }[]
+  accounts?: OAuthAccountSummary[]
 }
 
-/** OAuth connection data returned from the API. */
-interface OAuthConnectionResponse {
-  provider: string
-  baseProvider?: string
-  accounts?: { id: string; name: string }[]
-  lastConnected?: string
-  scopes?: string[]
-}
+type OAuthConnectionResponse = OAuthConnection
 
 function defineServices(): ServiceInfo[] {
   const servicesList: ServiceInfo[] = []
@@ -53,17 +55,7 @@ async function fetchOAuthConnections(signal?: AbortSignal): Promise<ServiceInfo[
   try {
     const serviceDefinitions = defineServices()
 
-    const response = await fetch('/api/auth/oauth/connections', { signal })
-
-    if (response.status === 404) {
-      return serviceDefinitions
-    }
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch OAuth connections')
-    }
-
-    const data = await response.json()
+    const data = await requestJson(listOAuthConnectionsContract, { signal })
     const connections = data.connections || []
 
     const updatedServices = serviceDefinitions.map((service) => {
@@ -74,7 +66,7 @@ async function fetchOAuthConnections(signal?: AbortSignal): Promise<ServiceInfo[
       if (connection) {
         return {
           ...service,
-          isConnected: connection.accounts?.length > 0,
+          isConnected: (connection.accounts?.length ?? 0) > 0,
           accounts: connection.accounts || [],
           lastConnected: connection.lastConnected,
         }
@@ -96,7 +88,7 @@ async function fetchOAuthConnections(signal?: AbortSignal): Promise<ServiceInfo[
       if (connectionWithScopes) {
         return {
           ...service,
-          isConnected: connectionWithScopes.accounts?.length > 0,
+          isConnected: (connectionWithScopes.accounts?.length ?? 0) > 0,
           accounts: connectionWithScopes.accounts || [],
           lastConnected: connectionWithScopes.lastConnected,
         }
@@ -185,23 +177,13 @@ export function useDisconnectOAuthService() {
 
   return useMutation({
     mutationFn: async ({ provider, providerId, accountId }: DisconnectServiceParams) => {
-      const response = await fetch('/api/auth/oauth/disconnect', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      return requestJson(disconnectOAuthContract, {
+        body: {
           provider,
           providerId,
           accountId,
-        }),
+        },
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to disconnect service')
-      }
-
-      return response.json()
     },
     onMutate: async ({ serviceId, accountId }) => {
       await queryClient.cancelQueries({ queryKey: oauthConnectionsKeys.connections() })
@@ -243,26 +225,17 @@ export function useDisconnectOAuthService() {
 }
 
 /** Connected OAuth account for a specific provider. */
-export interface ConnectedAccount {
-  id: string
-  accountId: string
-  providerId: string
-  displayName?: string
-}
+export type { ConnectedAccount }
 
 async function fetchConnectedAccounts(
   provider: string,
   signal?: AbortSignal
 ): Promise<ConnectedAccount[]> {
-  const response = await fetch(`/api/auth/accounts?provider=${provider}`, { signal })
-
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}))
-    throw new Error(data.error || `Failed to load ${provider} accounts`)
-  }
-
-  const data = await response.json()
-  return data.accounts || []
+  const data = await requestJson(listConnectedAccountsContract, {
+    query: { provider },
+    signal,
+  })
+  return data.accounts
 }
 
 /**

@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { workspaceParamsSchema } from '@/lib/api/contracts'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -19,7 +21,14 @@ const logger = createLogger('WorkspaceMembersAPI')
 export const GET = withRouteHandler(
   async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     try {
-      const { id: workspaceId } = await params
+      const paramsResult = workspaceParamsSchema.safeParse(await params)
+      if (!paramsResult.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
+          { status: 400 }
+        )
+      }
+      const { id: workspaceId } = paramsResult.data
       const session = await getSession()
 
       if (!session?.user?.id) {

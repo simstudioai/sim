@@ -1,4 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
+import { isApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  type ListWebhooksByBlockResponse,
+  listWebhooksByBlockContract,
+  type WebhookData,
+} from '@/lib/api/contracts/webhooks'
 
 export const webhookKeys = {
   all: ['webhooks'] as const,
@@ -6,45 +13,23 @@ export const webhookKeys = {
     [...webhookKeys.all, workflowId, blockId] as const,
 }
 
-interface WebhookProviderConfig {
-  triggerId?: string
-  credentialId?: string
-  credentialSetId?: string
-  userId?: string
-  historyId?: string
-  lastCheckedTimestamp?: string
-  setupCompleted?: boolean
-  externalId?: string
-  blockId?: string
-  [key: string]: unknown
-}
-
-export interface WebhookData {
-  id: string
-  path?: string
-  providerConfig?: WebhookProviderConfig
-}
-
-interface WebhookResponse {
-  webhooks: Array<{
-    webhook: WebhookData
-  }>
-}
+export type { WebhookData }
 
 async function fetchWebhooks(
   workflowId: string,
   blockId: string,
   signal?: AbortSignal
 ): Promise<WebhookData | null> {
-  const response = await fetch(`/api/webhooks?workflowId=${workflowId}&blockId=${blockId}`, {
-    signal,
-  })
-
-  if (!response.ok) {
-    return null
+  let data: ListWebhooksByBlockResponse
+  try {
+    data = await requestJson(listWebhooksByBlockContract, {
+      query: { workflowId, blockId },
+      signal,
+    })
+  } catch (error) {
+    if (isApiClientError(error) && error.status === 404) return null
+    throw error
   }
-
-  const data: WebhookResponse = await response.json()
 
   if (data.webhooks && data.webhooks.length > 0) {
     return data.webhooks[0].webhook

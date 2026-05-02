@@ -10,6 +10,7 @@ import {
   supportsNativeStructuredOutputs,
 } from '@/providers/fireworks/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
   FunctionCallResponse,
   Message,
@@ -209,7 +210,7 @@ export const fireworksProvider: ProviderConfig = {
                 timeSegments: [
                   {
                     type: 'model',
-                    name: 'Streaming response',
+                    name: request.model,
                     startTime: providerStartTime,
                     endTime: Date.now(),
                     duration: Date.now() - providerStartTime,
@@ -257,7 +258,7 @@ export const fireworksProvider: ProviderConfig = {
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
-          name: 'Initial response',
+          name: request.model,
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -279,6 +280,14 @@ export const fireworksProvider: ProviderConfig = {
         }
 
         const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          currentResponse,
+          toolCallsInResponse,
+          { model: request.model, provider: 'fireworks' }
+        )
+
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
           break
         }
@@ -358,6 +367,7 @@ export const fireworksProvider: ProviderConfig = {
             startTime: startTime,
             endTime: endTime,
             duration: duration,
+            toolCallId: toolCall.id,
           })
 
           let resultContent: any
@@ -423,7 +433,7 @@ export const fireworksProvider: ProviderConfig = {
         const thisModelTime = nextModelEndTime - nextModelStartTime
         timeSegments.push({
           type: 'model',
-          name: `Model response (iteration ${iterationCount + 1})`,
+          name: request.model,
           startTime: nextModelStartTime,
           endTime: nextModelEndTime,
           duration: thisModelTime,
@@ -438,6 +448,15 @@ export const fireworksProvider: ProviderConfig = {
           tokens.total += currentResponse.usage.total_tokens || 0
         }
         iterationCount++
+      }
+
+      if (iterationCount === MAX_TOOL_ITERATIONS) {
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          currentResponse,
+          currentResponse.choices[0]?.message?.tool_calls,
+          { model: request.model, provider: 'fireworks' }
+        )
       }
 
       if (request.stream) {
@@ -572,6 +591,13 @@ export const fireworksProvider: ProviderConfig = {
           tokens.output += finalResponse.usage.completion_tokens || 0
           tokens.total += finalResponse.usage.total_tokens || 0
         }
+
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          finalResponse,
+          finalResponse.choices[0]?.message?.tool_calls,
+          { model: request.model, provider: 'fireworks' }
+        )
       }
 
       const providerEndTime = Date.now()
@@ -622,3 +648,8 @@ export const fireworksProvider: ProviderConfig = {
     }
   },
 }
+
+/**
+ * Enriches the last model segment with per-iteration content from a Chat
+ * Completions response: assistant text, tool calls, finish reason, token usage.
+ */

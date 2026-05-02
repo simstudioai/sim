@@ -1,5 +1,23 @@
 import { createLogger } from '@sim/logger'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  authenticateDeployedChatContract,
+  type ChatAuthType,
+  type CreateChatBody,
+  type CreateChatResponse,
+  createChatContract,
+  type DeployedChatAuthBody,
+  type DeployedChatConfig,
+  deleteChatContract,
+  getDeployedChatConfigContract,
+  requestChatEmailOtpContract,
+  type UpdateChatBody,
+  type UpdateChatResponse,
+  updateChatContract,
+  verifyChatEmailOtpContract,
+} from '@/lib/api/contracts/chats'
 import type { OutputConfig } from '@/stores/chat/types'
 import { deploymentKeys } from './deployments'
 
@@ -19,25 +37,10 @@ export const chatKeys = {
 /**
  * Auth types for chat access control
  */
-export type AuthType = 'public' | 'password' | 'email' | 'sso'
+export type AuthType = ChatAuthType
 
-/**
- * Deployed chat configuration returned from the public chat endpoint
- */
-export interface DeployedChatConfig {
-  id: string
-  title: string
-  description: string
-  customizations: {
-    primaryColor?: string
-    logoUrl?: string
-    imageUrl?: string
-    welcomeMessage?: string
-    headerText?: string
-  }
-  authType?: AuthType
-  outputConfigs?: Array<{ blockId: string; path?: string }>
-}
+/** Deployed chat configuration returned from the public chat endpoint. */
+export type { DeployedChatConfig }
 
 /**
  * Result of loading a deployed chat's configuration.
@@ -59,27 +62,23 @@ async function fetchDeployedChatConfig(
   identifier: string,
   signal?: AbortSignal
 ): Promise<DeployedChatConfigResult> {
-  const response = await fetch(`/api/chat/${identifier}`, {
-    credentials: 'same-origin',
-    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    signal,
-  })
-
-  if (response.status === 401) {
-    const errorData = await response.json().catch(() => ({}))
-    const authType = AUTH_ERROR_MAP[errorData?.error]
-    if (authType) {
-      return { kind: 'auth', authType }
+  try {
+    const config = await requestJson(getDeployedChatConfigContract, {
+      params: { identifier },
+      signal,
+    })
+    return { kind: 'config', config }
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 401) {
+      const authType = AUTH_ERROR_MAP[error.message]
+      if (authType) {
+        return { kind: 'auth', authType }
+      }
+      throw new Error('Unauthorized', { cause: error })
     }
-    throw new Error('Unauthorized')
-  }
 
-  if (!response.ok) {
-    throw new Error(`Failed to load chat configuration: ${response.status}`)
+    throw error
   }
-
-  const config = (await response.json()) as DeployedChatConfig
-  return { kind: 'config', config }
 }
 
 /**
@@ -99,24 +98,12 @@ export function useDeployedChatConfig(identifier: string) {
 
 async function postChatAuth(
   identifier: string,
-  body: Record<string, unknown>
+  body: DeployedChatAuthBody
 ): Promise<DeployedChatConfig> {
-  const response = await fetch(`/api/chat/${identifier}`, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-    },
-    body: JSON.stringify(body),
+  return requestJson(authenticateDeployedChatContract, {
+    params: { identifier },
+    body,
   })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData?.error || 'Authentication failed')
-  }
-
-  return (await response.json()) as DeployedChatConfig
 }
 
 /**
@@ -144,18 +131,10 @@ export function useChatPasswordAuth(identifier: string) {
 export function useChatEmailOtpRequest(identifier: string) {
   return useMutation({
     mutationFn: async ({ email }: { email: string }) => {
-      const response = await fetch(`/api/chat/${identifier}/otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: JSON.stringify({ email }),
+      await requestJson(requestChatEmailOtpContract, {
+        params: { identifier },
+        body: { email },
       })
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData?.error || 'Failed to send verification code')
-      }
     },
   })
 }
@@ -168,19 +147,10 @@ export function useChatEmailOtpVerify(identifier: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ email, otp }: { email: string; otp: string }) => {
-      const response = await fetch(`/api/chat/${identifier}/otp`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: JSON.stringify({ email, otp }),
+      return requestJson(verifyChatEmailOtpContract, {
+        params: { identifier },
+        body: { email, otp },
       })
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData?.error || 'Invalid verification code')
-      }
-      return (await response.json()) as DeployedChatConfig
     },
     onSuccess: (config) => {
       queryClient.setQueryData<DeployedChatConfigResult>(chatKeys.config(identifier), {
@@ -211,7 +181,6 @@ export interface ChatFormData {
 interface CreateChatVariables {
   workflowId: string
   formData: ChatFormData
-  apiKey?: string
   imageUrl?: string | null
 }
 
@@ -234,11 +203,18 @@ interface DeleteChatVariables {
 }
 
 /**
- * Response from chat create/update mutations
+ * Data returned by chat create/update mutations
  */
-interface ChatMutationResult {
-  chatUrl: string
-  chatId?: string
+type ChatMutationData =
+  | Pick<CreateChatResponse, 'chatUrl' | 'chatId'>
+  | Pick<UpdateChatResponse, 'chatUrl'>
+
+function throwUserFriendlyIdentifierError(error: unknown): never {
+  if (error instanceof ApiClientError && error.message === 'Identifier already in use') {
+    throw new Error('This identifier is already in use', { cause: error })
+  }
+
+  throw error
 }
 
 /**
@@ -266,10 +242,8 @@ function parseOutputConfigs(selectedOutputBlocks: string[]): OutputConfig[] {
 function buildChatPayload(
   workflowId: string,
   formData: ChatFormData,
-  apiKey?: string,
-  imageUrl?: string | null,
-  isUpdate?: boolean
-) {
+  imageUrl?: string | null
+): CreateChatBody {
   const outputConfigs = parseOutputConfigs(formData.selectedOutputBlocks)
 
   return {
@@ -287,8 +261,6 @@ function buildChatPayload(
     allowedEmails:
       formData.authType === 'email' || formData.authType === 'sso' ? formData.emails : [],
     outputConfigs,
-    apiKey,
-    deployApiEnabled: !isUpdate,
   }
 }
 
@@ -303,34 +275,19 @@ export function useCreateChat() {
     mutationFn: async ({
       workflowId,
       formData,
-      apiKey,
       imageUrl,
-    }: CreateChatVariables): Promise<ChatMutationResult> => {
-      const payload = buildChatPayload(workflowId, formData, apiKey, imageUrl, false)
+    }: CreateChatVariables): Promise<ChatMutationData> => {
+      const payload = buildChatPayload(workflowId, formData, imageUrl)
 
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        if (result.error === 'Identifier already in use') {
-          throw new Error('This identifier is already in use')
-        }
-        throw new Error(result.error || 'Failed to deploy chat')
+      try {
+        const result = await requestJson(createChatContract, { body: payload })
+        logger.info('Chat deployed successfully:', result.chatUrl)
+        return { chatUrl: result.chatUrl, chatId: result.chatId }
+      } catch (error) {
+        throwUserFriendlyIdentifierError(error)
       }
-
-      if (!result.chatUrl) {
-        throw new Error('Response missing chatUrl')
-      }
-
-      logger.info('Chat deployed successfully:', result.chatUrl)
-      return { chatUrl: result.chatUrl, chatId: result.chatId }
     },
-    onSuccess: (_, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.chatStatus(variables.workflowId),
       })
@@ -360,32 +317,21 @@ export function useUpdateChat() {
       workflowId,
       formData,
       imageUrl,
-    }: UpdateChatVariables): Promise<ChatMutationResult> => {
-      const payload = buildChatPayload(workflowId, formData, undefined, imageUrl, true)
+    }: UpdateChatVariables): Promise<ChatMutationData> => {
+      const payload = buildChatPayload(workflowId, formData, imageUrl)
 
-      const response = await fetch(`/api/chat/manage/${chatId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        if (result.error === 'Identifier already in use') {
-          throw new Error('This identifier is already in use')
-        }
-        throw new Error(result.error || 'Failed to update chat')
+      try {
+        const result = await requestJson(updateChatContract, {
+          params: { id: chatId },
+          body: payload satisfies UpdateChatBody,
+        })
+        logger.info('Chat updated successfully:', result.chatUrl)
+        return { chatUrl: result.chatUrl, chatId }
+      } catch (error) {
+        throwUserFriendlyIdentifierError(error)
       }
-
-      if (!result.chatUrl) {
-        throw new Error('Response missing chatUrl')
-      }
-
-      logger.info('Chat updated successfully:', result.chatUrl)
-      return { chatUrl: result.chatUrl, chatId }
     },
-    onSuccess: (_, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.chatStatus(variables.workflowId),
       })
@@ -408,18 +354,10 @@ export function useDeleteChat() {
 
   return useMutation({
     mutationFn: async ({ chatId }: DeleteChatVariables): Promise<void> => {
-      const response = await fetch(`/api/chat/manage/${chatId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to delete chat')
-      }
-
+      await requestJson(deleteChatContract, { params: { id: chatId } })
       logger.info('Chat deleted successfully')
     },
-    onSuccess: (_, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.chatStatus(variables.workflowId),
       })

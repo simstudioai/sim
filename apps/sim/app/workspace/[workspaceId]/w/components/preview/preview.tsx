@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import type React from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import { redactApiKeys } from '@/lib/core/security/redaction'
@@ -126,7 +127,13 @@ interface PreviewProps {
   initialSelectedBlockId?: string | null
   /** Whether to auto-select the leftmost block on mount */
   autoSelectLeftmost?: boolean
+  /** Whether to show the close (X) button on the block detail panel */
+  showBlockCloseButton?: boolean
 }
+
+const MIN_PANEL_WIDTH = 280
+const MAX_PANEL_WIDTH = 600
+const DEFAULT_PANEL_WIDTH = 320
 
 /**
  * Main preview component that combines PreviewCanvas with PreviewEditor
@@ -151,7 +158,47 @@ export function Preview({
   showBorder = false,
   initialSelectedBlockId,
   autoSelectLeftmost = true,
+  showBlockCloseButton = true,
 }: PreviewProps) {
+  const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH)
+  const panelWidthRef = useRef(DEFAULT_PANEL_WIDTH)
+  panelWidthRef.current = panelWidth
+  const isResizingRef = useRef(false)
+  const startXRef = useRef(0)
+  const startWidthRef = useRef(0)
+
+  function handleResizeMouseDown(e: React.MouseEvent) {
+    isResizingRef.current = true
+    startXRef.current = e.clientX
+    startWidthRef.current = panelWidthRef.current
+    document.body.style.cursor = 'ew-resize'
+    document.body.style.userSelect = 'none'
+  }
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current) return
+      const delta = startXRef.current - e.clientX
+      setPanelWidth(
+        Math.max(MIN_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, startWidthRef.current + delta))
+      )
+    }
+    const handleMouseUp = () => {
+      if (!isResizingRef.current) return
+      isResizingRef.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [])
+
   const [pinnedBlockId, setPinnedBlockId] = useState<string | null>(() => {
     if (initialSelectedBlockId) return initialSelectedBlockId
     if (autoSelectLeftmost) {
@@ -173,67 +220,55 @@ export function Preview({
     return buildBlockExecutions(rootTraceSpans)
   }, [providedBlockExecutions, rootTraceSpans])
 
-  const blockExecutions = useMemo(() => {
-    if (workflowStack.length > 0) {
-      return workflowStack[workflowStack.length - 1].blockExecutions
-    }
-    return rootBlockExecutions
-  }, [workflowStack, rootBlockExecutions])
+  const currentStackEntry =
+    workflowStack.length > 0 ? workflowStack[workflowStack.length - 1] : null
+  const blockExecutions = currentStackEntry
+    ? currentStackEntry.blockExecutions
+    : rootBlockExecutions
+  const workflowState = currentStackEntry ? currentStackEntry.workflowState : rootWorkflowState
 
-  const workflowState = useMemo(() => {
-    if (workflowStack.length > 0) {
-      return workflowStack[workflowStack.length - 1].workflowState
-    }
-    return rootWorkflowState
-  }, [workflowStack, rootWorkflowState])
+  const isExecutionMode = Object.keys(blockExecutions).length > 0
 
-  const isExecutionMode = useMemo(() => {
-    return Object.keys(blockExecutions).length > 0
-  }, [blockExecutions])
+  function handleDrillDown(blockId: string, childWorkflowState: WorkflowState) {
+    const blockExecution = blockExecutions[blockId]
+    const childTraceSpans = extractChildTraceSpans(blockExecution)
+    const childBlockExecutions = buildBlockExecutions(childTraceSpans)
 
-  const handleDrillDown = useCallback(
-    (blockId: string, childWorkflowState: WorkflowState) => {
-      const blockExecution = blockExecutions[blockId]
-      const childTraceSpans = extractChildTraceSpans(blockExecution)
-      const childBlockExecutions = buildBlockExecutions(childTraceSpans)
+    const workflowName =
+      childWorkflowState.metadata?.name ||
+      (blockExecution?.output as { childWorkflowName?: string } | undefined)?.childWorkflowName ||
+      'Nested Workflow'
 
-      const workflowName =
-        childWorkflowState.metadata?.name ||
-        (blockExecution?.output as { childWorkflowName?: string } | undefined)?.childWorkflowName ||
-        'Nested Workflow'
+    setWorkflowStack((prev) => [
+      ...prev,
+      {
+        workflowState: childWorkflowState,
+        traceSpans: childTraceSpans,
+        blockExecutions: childBlockExecutions,
+        workflowName,
+      },
+    ])
 
-      setWorkflowStack((prev) => [
-        ...prev,
-        {
-          workflowState: childWorkflowState,
-          traceSpans: childTraceSpans,
-          blockExecutions: childBlockExecutions,
-          workflowName,
-        },
-      ])
+    const leftmostId = getLeftmostBlockId(childWorkflowState)
+    setPinnedBlockId(leftmostId)
+  }
 
-      const leftmostId = getLeftmostBlockId(childWorkflowState)
-      setPinnedBlockId(leftmostId)
-    },
-    [blockExecutions]
-  )
-
-  const handleGoBack = useCallback(() => {
+  function handleGoBack() {
     setWorkflowStack((prev) => prev.slice(0, -1))
     setPinnedBlockId(null)
-  }, [])
+  }
 
-  const handleNodeClick = useCallback((blockId: string) => {
+  function handleNodeClick(blockId: string) {
     setPinnedBlockId(blockId)
-  }, [])
+  }
 
-  const handlePaneClick = useCallback(() => {
+  function handlePaneClick() {
     setPinnedBlockId(null)
-  }, [])
+  }
 
-  const handleEditorClose = useCallback(() => {
+  function handleEditorClose() {
     setPinnedBlockId(null)
-  }, [])
+  }
 
   const isNested = workflowStack.length > 0
 
@@ -289,19 +324,26 @@ export function Preview({
       </div>
 
       {pinnedBlockId && workflowState.blocks[pinnedBlockId] && (
-        <PreviewEditor
-          block={workflowState.blocks[pinnedBlockId]}
-          executionData={blockExecutions[pinnedBlockId]}
-          allBlockExecutions={blockExecutions}
-          workflowBlocks={workflowState.blocks}
-          workflowVariables={workflowState.variables}
-          loops={workflowState.loops}
-          parallels={workflowState.parallels}
-          isExecutionMode={isExecutionMode}
-          childWorkflowSnapshots={childWorkflowSnapshots}
-          onClose={handleEditorClose}
-          onDrillDown={handleDrillDown}
-        />
+        <div style={{ width: panelWidth }} className='relative h-full flex-shrink-0'>
+          {/* Left-edge resize handle */}
+          <div
+            className='absolute top-0 bottom-0 left-0 z-10 w-1 cursor-ew-resize transition-colors hover-hover:bg-[var(--border-1)]'
+            onMouseDown={handleResizeMouseDown}
+          />
+          <PreviewEditor
+            block={workflowState.blocks[pinnedBlockId]}
+            executionData={blockExecutions[pinnedBlockId]}
+            allBlockExecutions={blockExecutions}
+            workflowBlocks={workflowState.blocks}
+            workflowVariables={workflowState.variables}
+            loops={workflowState.loops}
+            parallels={workflowState.parallels}
+            isExecutionMode={isExecutionMode}
+            childWorkflowSnapshots={childWorkflowSnapshots}
+            onClose={showBlockCloseButton ? handleEditorClose : undefined}
+            onDrillDown={handleDrillDown}
+          />
+        </div>
       )}
     </div>
   )

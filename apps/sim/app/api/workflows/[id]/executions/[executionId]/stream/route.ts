@@ -3,6 +3,8 @@ import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
+import { streamWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -26,11 +28,11 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export const GET = withRouteHandler(
-  async (
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string; executionId: string }> }
-  ) => {
-    const { id: workflowId, executionId } = await params
+  async (req: NextRequest, context: { params: Promise<{ id: string; executionId: string }> }) => {
+    const parsed = await parseRequest(streamWorkflowExecutionContract, req, context)
+    if (!parsed.success) return parsed.response
+    const { id: workflowId, executionId } = parsed.data.params
+    const { from: fromEventId } = parsed.data.query
 
     try {
       const session = await getSession()
@@ -58,10 +60,6 @@ export const GET = withRouteHandler(
       if (meta.workflowId && meta.workflowId !== workflowId) {
         return NextResponse.json({ error: 'Run does not belong to this workflow' }, { status: 403 })
       }
-
-      const fromParam = req.nextUrl.searchParams.get('from')
-      const parsed = fromParam ? Number.parseInt(fromParam, 10) : 0
-      const fromEventId = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
 
       logger.info('Reconnection stream requested', {
         workflowId,

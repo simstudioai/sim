@@ -27,6 +27,8 @@ export interface BlockReferenceResult {
 }
 
 export class InvalidFieldError extends Error {
+  readonly statusCode = 400
+
   constructor(
     public readonly blockName: string,
     public readonly fieldPath: string,

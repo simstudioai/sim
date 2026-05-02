@@ -3,6 +3,8 @@ import { permissions, workflowExecutionLogs, workflowExecutionSnapshots } from '
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { v1GetExecutionContract } from '@/lib/api/contracts/v1/logs'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
@@ -10,7 +12,7 @@ import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware
 const logger = createLogger('V1ExecutionAPI')
 
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ executionId: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ executionId: string }> }) => {
     try {
       const rateLimit = await checkRateLimit(request, 'logs-detail')
       if (!rateLimit.allowed) {
@@ -18,7 +20,13 @@ export const GET = withRouteHandler(
       }
 
       const userId = rateLimit.userId!
-      const { executionId } = await params
+      const parsed = await parseRequest(v1GetExecutionContract, request, context, {
+        validationErrorResponse: () =>
+          NextResponse.json({ error: 'Invalid execution ID' }, { status: 400 }),
+      })
+      if (!parsed.success) return parsed.response
+
+      const { executionId } = parsed.data.params
 
       logger.debug(`Fetching execution data for: ${executionId}`)
 

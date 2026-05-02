@@ -4,6 +4,8 @@ import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { invitationParamsSchema } from '@/lib/api/contracts/invitations'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
@@ -23,7 +25,14 @@ const logger = createLogger('InvitationResendAPI')
 
 export const POST = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id } = await params
+    const parsedParams = invitationParamsSchema.safeParse(await params)
+    if (!parsedParams.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(parsedParams.error) },
+        { status: 400 }
+      )
+    }
+    const { id } = parsedParams.data
     const session = await getSession()
 
     if (!session?.user?.id) {

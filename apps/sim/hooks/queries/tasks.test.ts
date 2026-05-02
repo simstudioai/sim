@@ -89,9 +89,7 @@ describe('tasks query boundary parsing', () => {
       })
     )
 
-    await expect(fetchTasks('ws-1')).rejects.toThrow(
-      'Invalid tasks response: data[0].id must be a string'
-    )
+    await expect(fetchTasks('ws-1')).rejects.toThrow('Response failed contract validation')
   })
 
   it('parses valid mothership chat history responses', async () => {
@@ -169,6 +167,6 @@ describe('tasks query boundary parsing', () => {
         chatId: 'chat-1',
         resource: { type: 'file', id: 'file-1', title: 'Spec.md' },
       })
-    ).rejects.toThrow('Invalid chat resources response: resources must be an array')
+    ).rejects.toThrow('Response failed contract validation')
   })
 })

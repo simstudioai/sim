@@ -1,5 +1,5 @@
 import type { AshbyGetJobParams, AshbyGetJobResponse } from '@/tools/ashby/types'
-import { JOB_OUTPUTS, mapJob } from '@/tools/ashby/utils'
+import { ashbyAuthHeaders, ashbyErrorMessage, JOB_OUTPUTS, mapJob } from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getJobTool: ToolConfig<AshbyGetJobParams, AshbyGetJobResponse> = {
@@ -26,12 +26,10 @@ export const getJobTool: ToolConfig<AshbyGetJobParams, AshbyGetJobResponse> = {
   request: {
     url: 'https://api.ashbyhq.com/job.info',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => ({
       id: params.jobId.trim(),
+      expand: ['openings', 'location', 'compensation'],
     }),
   },
 
@@ -39,7 +37,7 @@ export const getJobTool: ToolConfig<AshbyGetJobParams, AshbyGetJobResponse> = {
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to get job')
+      throw new Error(ashbyErrorMessage(data, 'Failed to get job'))
     }
 
     return {

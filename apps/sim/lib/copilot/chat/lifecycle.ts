@@ -28,6 +28,7 @@ export async function getAccessibleCopilotChat(chatId: string, userId: string) {
     .limit(1)
 
   if (!chat) {
+    logger.warn('Copilot chat not found or not owned by user', { chatId, userId })
     return null
   }
 
@@ -38,11 +39,21 @@ export async function getAccessibleCopilotChat(chatId: string, userId: string) {
       action: 'read',
     })
     if (!authorization.allowed || !authorization.workflow) {
+      logger.warn('Copilot chat workflow not authorized for user', {
+        chatId,
+        userId,
+        workflowId: chat.workflowId,
+      })
       return null
     }
   } else if (chat.workspaceId) {
     const access = await checkWorkspaceAccess(chat.workspaceId, userId)
     if (!access.exists || !access.hasAccess) {
+      logger.warn('Copilot chat workspace not accessible to user', {
+        chatId,
+        userId,
+        workspaceId: chat.workspaceId,
+      })
       return null
     }
   }
@@ -74,16 +85,33 @@ export async function resolveOrCreateChat(params: {
 
     if (chat) {
       if (workflowId && chat.workflowId !== workflowId) {
+        logger.warn('Copilot chat workflow mismatch', {
+          chatId,
+          userId,
+          requestWorkflowId: workflowId,
+          chatWorkflowId: chat.workflowId,
+        })
         return { chatId, chat: null, conversationHistory: [], isNew: false }
       }
 
       if (workspaceId && chat.workspaceId !== workspaceId) {
+        logger.warn('Copilot chat workspace mismatch', {
+          chatId,
+          userId,
+          requestWorkspaceId: workspaceId,
+          chatWorkspaceId: chat.workspaceId,
+        })
         return { chatId, chat: null, conversationHistory: [], isNew: false }
       }
 
       if (chat.workflowId) {
         const activeWorkflow = await getActiveWorkflowRecord(chat.workflowId)
         if (!activeWorkflow) {
+          logger.warn('Copilot chat workflow no longer active', {
+            chatId,
+            userId,
+            workflowId: chat.workflowId,
+          })
           return { chatId, chat: null, conversationHistory: [], isNew: false }
         }
       }

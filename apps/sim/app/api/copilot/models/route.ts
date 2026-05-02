@@ -1,18 +1,19 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { copilotModelsContract } from '@/lib/api/contracts/copilot'
+import { parseRequest } from '@/lib/api/server'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
+import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 interface AvailableModel {
   id: string
   friendlyName: string
   provider: string
 }
-
-import { env } from '@/lib/core/config/env'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotModelsAPI')
 
@@ -32,7 +33,10 @@ function isRawAvailableModel(item: unknown): item is RawAvailableModel {
   )
 }
 
-export const GET = withRouteHandler(async (_req: NextRequest) => {
+export const GET = withRouteHandler(async (req: NextRequest) => {
+  const parsed = await parseRequest(copilotModelsContract, req, {})
+  if (!parsed.success) return parsed.response
+
   const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
   if (!isAuthenticated || !userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
