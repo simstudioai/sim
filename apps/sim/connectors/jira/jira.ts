@@ -165,7 +165,25 @@ export const jiraConnector: ConnectorConfig = {
       jql = `project = "${safeKey}" AND (${jqlFilter.trim()}) ORDER BY updated DESC`
     }
 
-    const collectedSoFar = (syncContext?.collectedCount as number | undefined) ?? 0
+    /**
+     * Collected-count is encoded in the cursor as `${pageToken}|${count}` so
+     * the maxIssues cap works correctly even when the caller doesn't pass
+     * syncContext. Falls back to syncContext.collectedCount for backwards
+     * compatibility with cursors emitted before this format existed.
+     */
+    let pageToken: string | undefined
+    let collectedSoFar = (syncContext?.collectedCount as number | undefined) ?? 0
+    if (cursor) {
+      const sep = cursor.lastIndexOf('|')
+      if (sep > 0) {
+        pageToken = cursor.slice(0, sep)
+        const parsed = Number(cursor.slice(sep + 1))
+        if (Number.isFinite(parsed) && parsed >= 0) collectedSoFar = parsed
+      } else {
+        pageToken = cursor
+      }
+    }
+
     const remaining = maxIssues > 0 ? Math.max(0, maxIssues - collectedSoFar) : PAGE_SIZE
     if (maxIssues > 0 && remaining === 0) {
       return { documents: [], hasMore: false }
@@ -178,7 +196,7 @@ export const jiraConnector: ConnectorConfig = {
       'fields',
       'summary,issuetype,status,priority,assignee,reporter,project,labels,created,updated'
     )
-    if (cursor) params.append('nextPageToken', cursor)
+    if (pageToken) params.append('nextPageToken', pageToken)
 
     const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`
 
@@ -220,7 +238,7 @@ export const jiraConnector: ConnectorConfig = {
 
     return {
       documents,
-      nextCursor: hasMore ? nextPageToken : undefined,
+      nextCursor: hasMore && nextPageToken ? `${nextPageToken}|${newCollected}` : undefined,
       hasMore,
     }
   },
