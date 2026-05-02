@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { convert } from 'html-to-text'
 import { type NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { mailSendContract } from '@/lib/api/contracts/tools/mail'
@@ -74,7 +75,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       emailData = {
         ...emailBase,
         html: validatedData.body,
-        text: validatedData.body.replace(/<[^>]*>/g, ''),
+        text: convert(validatedData.body, { wordwrap: false }),
       }
     } else {
       emailData = {
