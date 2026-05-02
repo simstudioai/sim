@@ -144,16 +144,22 @@ function getPreviousIds(): PreviousIdsResult {
   return { kind: 'ok', map }
 }
 
-function checkSubblockIdStability(): string[] {
+type CheckResult =
+  | { kind: 'pass'; message: string }
+  | { kind: 'skip'; message: string }
+  | { kind: 'fail'; errors: string[] }
+
+function checkSubblockIdStability(): CheckResult {
   const previous = getPreviousIds()
 
   if (previous.kind === 'skip') {
-    console.log(`⚠ ${previous.reason} — skipping subblock ID stability check`)
-    return []
+    return { kind: 'skip', message: `${previous.reason} — skipping subblock ID stability check` }
   }
   if (previous.kind === 'noop') {
-    console.log('✓ No block definition changes detected — skipping subblock ID stability check')
-    return []
+    return {
+      kind: 'skip',
+      message: 'No block definition changes detected — skipping subblock ID stability check',
+    }
   }
 
   const current = getCurrentIds()
@@ -177,10 +183,13 @@ function checkSubblockIdStability(): string[] {
     }
   }
 
-  return errors
+  if (errors.length === 0) {
+    return { kind: 'pass', message: 'Subblock ID stability check passed' }
+  }
+  return { kind: 'fail', errors }
 }
 
-function checkCanonicalIdContract(): string[] {
+function checkCanonicalIdContract(): CheckResult {
   const errors: string[] = []
 
   for (const block of getAllBlocks()) {
@@ -215,36 +224,42 @@ function checkCanonicalIdContract(): string[] {
     }
   }
 
-  return errors
+  if (errors.length === 0) {
+    return { kind: 'pass', message: 'Canonical-id contract check passed' }
+  }
+  return { kind: 'fail', errors }
 }
 
-const stabilityErrors = checkSubblockIdStability()
-const canonicalErrors = checkCanonicalIdContract()
-
-if (stabilityErrors.length > 0) {
-  console.error('\n✗ Subblock ID stability check FAILED\n')
-  console.error(
-    'Removing subblock IDs breaks deployed workflows.\n' +
-      'Either revert the rename or add a migration entry.\n'
-  )
-  for (const err of stabilityErrors) {
+function reportResult(label: string, failureHeader: string, result: CheckResult): boolean {
+  if (result.kind === 'pass') {
+    console.log(`✓ ${result.message}`)
+    return true
+  }
+  if (result.kind === 'skip') {
+    console.log(`⚠ ${result.message}`)
+    return true
+  }
+  console.error(`\n✗ ${label} FAILED\n`)
+  if (failureHeader) console.error(`${failureHeader}\n`)
+  for (const err of result.errors) {
     console.error(`  ${err}\n`)
   }
-} else {
-  console.log('✓ Subblock ID stability check passed')
+  return false
 }
 
-if (canonicalErrors.length > 0) {
-  console.error('\n✗ Canonical-id contract check FAILED\n')
-  for (const err of canonicalErrors) {
-    console.error(`  ${err}\n`)
-  }
-} else {
-  console.log('✓ Canonical-id contract check passed')
-}
+const stabilityResult = checkSubblockIdStability()
+const canonicalResult = checkCanonicalIdContract()
 
-if (stabilityErrors.length > 0 || canonicalErrors.length > 0) {
-  process.exit(1)
-}
+const stabilityOk = reportResult(
+  'Subblock ID stability check',
+  'Removing subblock IDs breaks deployed workflows.\nEither revert the rename or add a migration entry.',
+  stabilityResult
+)
 
-process.exit(0)
+const canonicalOk = reportResult(
+  'Canonical-id contract check',
+  "Misaligned ids cause the serializer's pre-execution validator to false-flag fields as missing at submit time.",
+  canonicalResult
+)
+
+process.exit(stabilityOk && canonicalOk ? 0 : 1)
