@@ -360,6 +360,7 @@ export const GET = withRouteHandler(
 
       if (
         deployment.authType !== 'public' &&
+        deployment.authType !== 'sso' &&
         authCookie &&
         validateAuthToken(authCookie.value, deployment.id, deployment.password)
       ) {

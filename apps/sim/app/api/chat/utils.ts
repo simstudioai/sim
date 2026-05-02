@@ -175,12 +175,8 @@ export async function validateChatAuth(
   }
 
   if (authType === 'sso') {
-    if (request.method === 'GET') {
-      return { authorized: false, error: 'auth_required_sso' }
-    }
-
     try {
-      if (!parsedBody) {
+      if (request.method !== 'GET' && !parsedBody) {
         return { authorized: false, error: 'SSO authentication is required' }
       }
 
