@@ -435,6 +435,23 @@ export class Serializer {
 
     // Validate tool parameters (for blocks with tools)
     if (currentTool) {
+      // Apply the block's tools.config.params transform to mirror execution-time
+      // canonical → tool-param renaming (e.g. canonical `document` → tool param `file`).
+      // Without this, validation looks up the pre-rename name and incorrectly reports
+      // a missing field for blocks that rename inputs in tools.config.params.
+      let mappedParams: Record<string, any> = params
+      try {
+        const paramsMapper = blockConfig.tools?.config?.params
+        if (typeof paramsMapper === 'function') {
+          const result = paramsMapper({ ...params })
+          if (result && typeof result === 'object') {
+            mappedParams = { ...params, ...result }
+          }
+        }
+      } catch {
+        // Mapper may throw on placeholder/runtime values — fall back to raw params.
+      }
+
       Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]) => {
         if (paramConfig.required && paramConfig.visibility === 'user-only') {
           const matchingConfigs =
@@ -468,7 +485,7 @@ export class Serializer {
             return
           }
 
-          const fieldValue = params[paramId]
+          const fieldValue = mappedParams[paramId] ?? params[paramId]
           if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
             const activeConfig = matchingConfigs.find((config: any) =>
               shouldSerializeSubBlock(
