@@ -221,8 +221,14 @@ export const jiraConnector: ConnectorConfig = {
 
     const data = await response.json()
     let issues = (data.issues || []) as Record<string, unknown>[]
+    /**
+     * `/rest/api/3/search/jql` signals end-of-results purely by the absence
+     * of `nextPageToken`. `data.isLast` is unreliable on this endpoint and
+     * has been observed returning `true` alongside a valid token
+     * (JRACLOUD-95477), so we ignore it.
+     */
     const nextPageToken = data.nextPageToken as string | undefined
-    const isLast = Boolean(data.isLast) || !nextPageToken
+    const isLast = !nextPageToken
 
     if (maxIssues > 0 && issues.length > remaining) {
       issues = issues.slice(0, remaining)
