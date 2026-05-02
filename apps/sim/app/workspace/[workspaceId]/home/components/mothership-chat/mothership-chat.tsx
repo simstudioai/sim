@@ -1,6 +1,6 @@
 'use client'
 
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
@@ -111,17 +111,14 @@ export function MothershipChat({
   const { staged: stagedMessages, isStaging } = useProgressiveList(messages, stagingKey)
   const stagedMessageCount = stagedMessages.length
   const stagedOffset = messages.length - stagedMessages.length
-  const precedingUserContentByIndex = useMemo(() => {
-    const contentByIndex: Array<string | undefined> = []
-    let lastUserContent: string | undefined
-    for (const [index, message] of messages.entries()) {
-      contentByIndex[index] = lastUserContent
-      if (message.role === 'user') {
-        lastUserContent = message.content
-      }
+  const precedingUserContentByIndex: Array<string | undefined> = []
+  let lastUserContent: string | undefined
+  for (const [index, message] of messages.entries()) {
+    precedingUserContentByIndex[index] = lastUserContent
+    if (message.role === 'user') {
+      lastUserContent = message.content
     }
-    return contentByIndex
-  }, [messages])
+  }
   const initialScrollDoneRef = useRef(false)
   const userInputRef = useRef<UserInputHandle>(null)
 

@@ -153,12 +153,13 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const overlayRef = useRef<HTMLDivElement>(null)
   const plusMenuRef = useRef<PlusMenuHandle>(null)
 
-  const prevDefaultValueRef = useRef(defaultValue)
-  useEffect(() => {
-    if (defaultValue === prevDefaultValueRef.current) return
-    prevDefaultValueRef.current = defaultValue
-    if (defaultValue) setValue(defaultValue)
-  }, [defaultValue])
+  const [prevDefaultValue, setPrevDefaultValue] = useState(defaultValue)
+  if (defaultValue && defaultValue !== prevDefaultValue) {
+    setPrevDefaultValue(defaultValue)
+    setValue(defaultValue)
+  } else if (!defaultValue && prevDefaultValue) {
+    setPrevDefaultValue(defaultValue)
+  }
 
   const files = useFileAttachments({
     userId: userId || session?.user?.id,
@@ -206,10 +207,15 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         }))
       )
     }
+    if (draft.text) {
+      const textarea = textareaRef.current
+      if (textarea) {
+        textarea.focus()
+        textarea.setSelectionRange(draft.text.length, draft.text.length)
+      }
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
 
-  // Skip the initial save — restore's setState calls haven't propagated yet, so
-  // files/contexts are still empty and would transiently wipe a file-only draft.
   const isFirstSaveRef = useRef(true)
   useEffect(() => {
     if (isFirstSaveRef.current) {
@@ -418,7 +424,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
         const newValue = `${before}${insertText}${after}`
         pendingCursorRef.current = newPos
-        // Eagerly sync refs so successive drop-handler iterations see the updated position
         valueRef.current = newValue
         atInsertPosRef.current = newPos
         mentionRangeRef.current = null
