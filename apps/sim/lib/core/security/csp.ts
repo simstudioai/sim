@@ -131,20 +131,7 @@ export const buildTimeCSPDirectives: CSPDirectives = {
   'script-src': [...STATIC_SCRIPT_SRC],
   'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
 
-  'img-src': [
-    ...STATIC_IMG_SRC,
-    ...(env.S3_BUCKET_NAME && env.AWS_REGION
-      ? [`https://${env.S3_BUCKET_NAME}.s3.${env.AWS_REGION}.amazonaws.com`]
-      : []),
-    ...(env.S3_KB_BUCKET_NAME && env.AWS_REGION
-      ? [`https://${env.S3_KB_BUCKET_NAME}.s3.${env.AWS_REGION}.amazonaws.com`]
-      : []),
-    ...(env.S3_CHAT_BUCKET_NAME && env.AWS_REGION
-      ? [`https://${env.S3_CHAT_BUCKET_NAME}.s3.${env.AWS_REGION}.amazonaws.com`]
-      : []),
-    ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_LOGO_URL),
-    ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_FAVICON_URL),
-  ],
+  'img-src': [...STATIC_IMG_SRC],
 
   'media-src': ["'self'", 'blob:'],
   'worker-src': ["'self'", 'blob:'],
@@ -200,14 +187,13 @@ export function generateRuntimeCSP(): string {
   const ollamaUrl = getEnv('OLLAMA_URL') || (isDev ? DEFAULT_OLLAMA_URL : '')
 
   const brandLogoDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL'))
-  const brandFaviconDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_BRAND_FAVICON_URL'))
   const privacyDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_PRIVACY_URL'))
   const termsDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_TERMS_URL'))
 
   const runtimeDirectives: CSPDirectives = {
     ...buildTimeCSPDirectives,
 
-    'img-src': [...STATIC_IMG_SRC, ...brandLogoDomains, ...brandFaviconDomains],
+    'img-src': [...STATIC_IMG_SRC],
 
     'connect-src': [
       ...STATIC_CONNECT_SRC,
