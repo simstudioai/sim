@@ -3,29 +3,31 @@
  *
  * @vitest-environment node
  */
-import { auditMock, authMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
+import {
+  auditMock,
+  authMockFns,
+  permissionsMock,
+  permissionsMockFns,
+  posthogServerMock,
+  posthogServerMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockRegisterUploadedWorkspaceFile,
-  mockParseWorkspaceFileKey,
-  mockCaptureServerEvent,
-  FileConflictErrorImpl,
-} = vi.hoisted(() => {
-  class FileConflictErrorImpl extends Error {
-    constructor(message: string) {
-      super(message)
-      this.name = 'FileConflictError'
+const { mockRegisterUploadedWorkspaceFile, mockParseWorkspaceFileKey, FileConflictErrorImpl } =
+  vi.hoisted(() => {
+    class FileConflictErrorImpl extends Error {
+      constructor(message: string) {
+        super(message)
+        this.name = 'FileConflictError'
+      }
     }
-  }
-  return {
-    mockRegisterUploadedWorkspaceFile: vi.fn(),
-    mockParseWorkspaceFileKey: vi.fn(),
-    mockCaptureServerEvent: vi.fn(),
-    FileConflictErrorImpl,
-  }
-})
+    return {
+      mockRegisterUploadedWorkspaceFile: vi.fn(),
+      mockParseWorkspaceFileKey: vi.fn(),
+      FileConflictErrorImpl,
+    }
+  })
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   registerUploadedWorkspaceFile: mockRegisterUploadedWorkspaceFile,
@@ -33,10 +35,7 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
   FileConflictError: FileConflictErrorImpl,
 }))
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
-
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@sim/audit', () => auditMock)
 
@@ -152,7 +151,7 @@ describe('POST /api/workspaces/[id]/files/register', () => {
       size: 10 * 1024 * 1024,
     })
 
-    expect(mockCaptureServerEvent).toHaveBeenCalledWith(
+    expect(posthogServerMockFns.mockCaptureServerEvent).toHaveBeenCalledWith(
       'user-1',
       'file_uploaded',
       expect.objectContaining({ workspace_id: WS, file_type: 'video/mp4' }),

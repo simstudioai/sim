@@ -3,7 +3,14 @@
  *
  * @vitest-environment node
  */
-import { authMockFns, hybridAuthMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
+import {
+  authMockFns,
+  hybridAuthMockFns,
+  permissionsMock,
+  permissionsMockFns,
+  storageServiceMock,
+  storageServiceMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,8 +23,6 @@ const mocks = vi.hoisted(() => {
   const mockGetStorageProvider = vi.fn()
   const mockIsUsingCloudStorage = vi.fn()
   const mockUploadFile = vi.fn()
-  const mockHasCloudStorage = vi.fn()
-  const mockStorageUploadFile = vi.fn()
 
   return {
     mockVerifyFileAccess,
@@ -28,8 +33,6 @@ const mocks = vi.hoisted(() => {
     mockGetStorageProvider,
     mockIsUsingCloudStorage,
     mockUploadFile,
-    mockHasCloudStorage,
-    mockStorageUploadFile,
   }
 })
 
@@ -85,10 +88,7 @@ vi.mock('@/lib/uploads', () => ({
   uploadFile: mocks.mockUploadFile,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  uploadFile: mocks.mockStorageUploadFile,
-  hasCloudStorage: mocks.mockHasCloudStorage,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/uploads/setup.server', () => ({
   UPLOAD_DIR_SERVER: '/tmp/test-uploads',
@@ -153,8 +153,8 @@ function setupFileApiMocks(
     type: 'text/plain',
   })
 
-  mocks.mockHasCloudStorage.mockReturnValue(cloudEnabled)
-  mocks.mockStorageUploadFile.mockResolvedValue({
+  storageServiceMockFns.mockHasCloudStorage.mockReturnValue(cloudEnabled)
+  storageServiceMockFns.mockUploadFile.mockResolvedValue({
     key: 'test-key',
     path: '/test/path',
   })
@@ -325,8 +325,8 @@ describe('File Upload Security Tests', () => {
       user: { id: 'test-user-id' },
     })
 
-    mocks.mockHasCloudStorage.mockReturnValue(false)
-    mocks.mockStorageUploadFile.mockResolvedValue({
+    storageServiceMockFns.mockHasCloudStorage.mockReturnValue(false)
+    storageServiceMockFns.mockUploadFile.mockResolvedValue({
       key: 'test-key',
       path: '/test/path',
     })
