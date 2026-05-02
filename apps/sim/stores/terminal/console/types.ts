@@ -32,8 +32,6 @@ export interface ConsoleEntry {
   childWorkflowName?: string
   /** Per-invocation unique ID linking this workflow block to its child block events */
   childWorkflowInstanceId?: string
-  /** Per-invocation unique ID for this block execution (distinct across loop/parallel iterations) */
-  blockExecutionId?: string
 }
 
 export interface ConsoleUpdate {
@@ -58,7 +56,6 @@ export interface ConsoleUpdate {
   childWorkflowBlockId?: string
   childWorkflowName?: string
   childWorkflowInstanceId?: string
-  blockExecutionId?: string
 }
 
 export interface ConsoleEntryLocation {
@@ -69,7 +66,6 @@ export interface ConsoleEntryLocation {
 export interface ConsoleStore {
   workflowEntries: Record<string, ConsoleEntry[]>
   entryIdsByBlockExecution: Record<string, string[]>
-  entryIdByBlockExecutionId: Record<string, string>
   entryLocationById: Record<string, ConsoleEntryLocation>
   isOpen: boolean
   addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry | undefined

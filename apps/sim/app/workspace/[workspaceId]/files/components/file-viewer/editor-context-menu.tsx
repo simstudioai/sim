@@ -9,7 +9,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Clipboard, Copy, Search } from '@/components/emcn/icons'
+import { Clipboard, Copy, Search, SelectAll } from '@/components/emcn/icons'
 
 interface EditorContextMenuProps {
   isOpen: boolean
@@ -88,6 +88,7 @@ export function EditorContextMenu({
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onSelectAll}>
+          <SelectAll />
           Select all
           <DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
         </DropdownMenuItem>

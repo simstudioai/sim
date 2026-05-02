@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { FolderLockedError } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { duplicateWorkflowContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
@@ -94,6 +95,10 @@ export const POST = withRouteHandler(
       return NextResponse.json(result, { status: 201 })
     } catch (error) {
       if (error instanceof Error) {
+        if (error instanceof FolderLockedError) {
+          return NextResponse.json({ error: error.message }, { status: error.status })
+        }
+
         if (error.message === 'Source workflow not found') {
           logger.warn(`[${requestId}] Source workflow ${sourceWorkflowId} not found`)
           return NextResponse.json({ error: 'Source workflow not found' }, { status: 404 })
@@ -104,6 +109,21 @@ export const POST = withRouteHandler(
             `[${requestId}] User ${userId} denied access to source workflow ${sourceWorkflowId}`
           )
           return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+        }
+
+        if (error.message === 'Cross-workspace workflow duplication is not supported') {
+          logger.warn(
+            `[${requestId}] User ${userId} attempted cross-workspace workflow duplication for ${sourceWorkflowId}`
+          )
+          return NextResponse.json({ error: error.message }, { status: 400 })
+        }
+
+        if (error.message === 'Folder is locked') {
+          return NextResponse.json({ error: error.message }, { status: 423 })
+        }
+
+        if (error.message === 'Target folder not found') {
+          return NextResponse.json({ error: error.message }, { status: 400 })
         }
       }
 

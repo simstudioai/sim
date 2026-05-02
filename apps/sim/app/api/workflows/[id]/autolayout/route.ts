@@ -1,5 +1,9 @@
 import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import {
+  assertWorkflowMutable,
+  authorizeWorkflowByWorkspacePermission,
+  WorkflowLockedError,
+} from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { workflowAutoLayoutContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
@@ -72,6 +76,8 @@ export const POST = withRouteHandler(
         )
       }
 
+      await assertWorkflowMutable(workflowId)
+
       let currentWorkflowData: NormalizedWorkflowData | null
 
       if (layoutOptions.blocks && layoutOptions.edges) {
@@ -141,6 +147,10 @@ export const POST = withRouteHandler(
         },
       })
     } catch (error) {
+      if (error instanceof WorkflowLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
+
       const elapsed = Date.now() - startTime
 
       logger.error(`[${requestId}] Autolayout failed after ${elapsed}ms:`, error)

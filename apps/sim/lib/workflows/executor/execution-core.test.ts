@@ -239,6 +239,37 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(findStartBlockMock).toHaveBeenCalledWith(expect.anything(), 'external', false)
   })
 
+  it('does not await user block start callback after persistence completes', async () => {
+    let releaseCallback: (() => void) | undefined
+    const callbackPromise = new Promise<void>((resolve) => {
+      releaseCallback = resolve
+    })
+
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {
+        onBlockStart: vi.fn(() => callbackPromise),
+      },
+      loggingSession: loggingSession as any,
+    })
+
+    const contextExtensions = executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions
+
+    await expect(
+      contextExtensions.onBlockStart('block-1', 'Fetch', 'api', 1)
+    ).resolves.toBeUndefined()
+
+    releaseCallback?.()
+  })
+
   it('awaits terminal completion before updating run counts and returning', async () => {
     const callOrder: string[] = []
 

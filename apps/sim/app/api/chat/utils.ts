@@ -95,11 +95,13 @@ export async function validateChatAuth(
     return { authorized: true }
   }
 
-  const cookieName = `chat_auth_${deployment.id}`
-  const authCookie = request.cookies.get(cookieName)
+  if (authType !== 'sso') {
+    const cookieName = `chat_auth_${deployment.id}`
+    const authCookie = request.cookies.get(cookieName)
 
-  if (authCookie && validateAuthToken(authCookie.value, deployment.id, deployment.password)) {
-    return { authorized: true }
+    if (authCookie && validateAuthToken(authCookie.value, deployment.id, deployment.password)) {
+      return { authorized: true }
+    }
   }
 
   if (authType === 'password') {
@@ -173,33 +175,9 @@ export async function validateChatAuth(
   }
 
   if (authType === 'sso') {
-    if (request.method === 'GET') {
-      return { authorized: false, error: 'auth_required_sso' }
-    }
-
     try {
-      if (!parsedBody) {
+      if (request.method !== 'GET' && !parsedBody) {
         return { authorized: false, error: 'SSO authentication is required' }
-      }
-
-      const { email, input, checkSSOAccess } = parsedBody
-
-      if (input && !checkSSOAccess) {
-        return { authorized: false, error: 'auth_required_sso' }
-      }
-
-      if (checkSSOAccess) {
-        if (!email) {
-          return { authorized: false, error: 'Email is required' }
-        }
-
-        const allowedEmails = deployment.allowedEmails || []
-
-        if (isEmailAllowed(email, allowedEmails)) {
-          return { authorized: true }
-        }
-
-        return { authorized: false, error: 'Email not authorized for SSO access' }
       }
 
       const { getSession } = await import('@/lib/auth')

@@ -72,6 +72,8 @@ import {
   copilotChatsKeys,
   useCopilotChats,
 } from '@/hooks/queries/copilot-chats'
+import { useFolderMap } from '@/hooks/queries/folders'
+import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useDuplicateWorkflowMutation, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -150,6 +152,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })
   const duplicateWorkflowMutation = useDuplicateWorkflowMutation()
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
+  const { data: folders = {} } = useFolderMap(workspaceId)
   const { activeWorkflowId, hydration } = useWorkflowRegistry(
     useShallow((state) => ({
       activeWorkflowId: state.activeWorkflowId,
@@ -234,6 +237,8 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   )
 
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
+  const workflowLocked = isWorkflowEffectivelyLocked(currentWorkflow, folders)
+  const canMutateWorkflow = userPermissions.canEdit && !workflowLocked
   const { isSnapshotView } = useCurrentWorkflow()
 
   const { chatId: copilotChatId, setChatId: setCopilotChatId } = useCopilotChatSelection(
@@ -481,7 +486,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
    * Handles auto-layout of workflow blocks
    */
   const handleAutoLayout = useCallback(async () => {
-    if (isExecuting || !userPermissions.canEdit || isAutoLayouting) {
+    if (isExecuting || !canMutateWorkflow || isAutoLayouting) {
       return
     }
 
@@ -498,13 +503,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     } finally {
       setIsAutoLayouting(false)
     }
-  }, [
-    isExecuting,
-    userPermissions.canEdit,
-    isAutoLayouting,
-    autoLayoutWithFitView,
-    activeWorkflowId,
-  ])
+  }, [isExecuting, canMutateWorkflow, isAutoLayouting, autoLayoutWithFitView, activeWorkflowId])
 
   /**
    * Handles exporting workflow as JSON
@@ -656,7 +655,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   <DropdownMenuItem
                     onSelect={handleAutoLayout}
                     disabled={
-                      isExecuting || !userPermissions.canEdit || isAutoLayouting || hasLockedBlocks
+                      isExecuting || !canMutateWorkflow || isAutoLayouting || hasLockedBlocks
                     }
                     title={hasLockedBlocks ? 'Unlock blocks to use auto-layout' : undefined}
                   >
@@ -668,7 +667,15 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     Variables
                   </DropdownMenuItem>
                   {userPermissions.canAdmin && !isSnapshotView && (
-                    <DropdownMenuItem onSelect={handleToggleWorkflowLock} disabled={!hasBlocks}>
+                    <DropdownMenuItem
+                      onSelect={handleToggleWorkflowLock}
+                      disabled={!hasBlocks || workflowLocked}
+                      title={
+                        workflowLocked
+                          ? 'Workflow is locked at the row or folder level — release it from the workflow notification or folder menu'
+                          : undefined
+                      }
+                    >
                       {allBlocksLocked ? <Unlock /> : <Lock />}
                       {allBlocksLocked ? 'Unlock workflow' : 'Lock workflow'}
                     </DropdownMenuItem>
@@ -691,7 +698,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     onSelect={() => {
                       setIsDeleteModalOpen(true)
                     }}
-                    disabled={!userPermissions.canEdit || Object.keys(workflows).length <= 1}
+                    disabled={!canMutateWorkflow || Object.keys(workflows).length <= 1}
                   >
                     <Trash />
                     Delete workflow
@@ -709,7 +716,11 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
             {/* Deploy and Run */}
             <div className='flex gap-1.5' data-tour='deploy-run'>
-              <Deploy activeWorkflowId={activeWorkflowId} userPermissions={userPermissions} />
+              <Deploy
+                activeWorkflowId={activeWorkflowId}
+                userPermissions={userPermissions}
+                disabled={workflowLocked}
+              />
               <Button
                 className='h-[30px] gap-2 px-2.5'
                 data-tour='run-button'
@@ -943,7 +954,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       </Modal>
 
       {/* Floating Variables Modal */}
-      <Variables />
+      <Variables readOnly={workflowLocked} />
     </>
   )
 })

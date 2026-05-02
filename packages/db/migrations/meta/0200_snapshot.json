@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
   "id": "d977729a-274f-49b3-89eb-a31b3843385e",
+=======
+  "id": "c3b13ff7-cc49-4fa2-bb5a-4efcddd787dc",
+>>>>>>> staging
   "prevId": "2f0094a8-ee5a-48f3-946f-f0c7abc2a0d7",
   "version": "7",
   "dialect": "postgresql",
@@ -11103,6 +11107,7 @@
           "primaryKey": false,
           "notNull": true
         },
+<<<<<<< HEAD
         "executions": {
           "name": "executions",
           "type": "jsonb",
@@ -11110,6 +11115,8 @@
           "notNull": true,
           "default": "'{}'::jsonb"
         },
+=======
+>>>>>>> staging
         "position": {
           "name": "position",
           "type": "integer",
@@ -11696,6 +11703,16 @@
           "notNull": true,
           "default": false
         },
+<<<<<<< HEAD
+=======
+        "locked": {
+          "name": "locked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+>>>>>>> staging
         "run_count": {
           "name": "run_count",
           "type": "integer",
@@ -13063,6 +13080,16 @@
           "notNull": true,
           "default": true
         },
+<<<<<<< HEAD
+=======
+        "locked": {
+          "name": "locked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+>>>>>>> staging
         "sort_order": {
           "name": "sort_order",
           "type": "integer",

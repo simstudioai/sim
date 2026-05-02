@@ -23,6 +23,7 @@ import type {
   SerializedSnapshot,
   StreamingExecution,
 } from '@/executor/types'
+import { hasExecutionResult } from '@/executor/utils/errors'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import type { SerializedConnection } from '@/serializer/types'
 
@@ -1039,6 +1040,7 @@ export class PauseResumeManager {
           data: {
             error: timeoutErrorMessage,
             duration: result.metadata?.duration || 0,
+            finalBlockLogs: result.logs,
           },
         } as ExecutionEvent)
         finalMetaStatus = 'error'
@@ -1048,7 +1050,10 @@ export class PauseResumeManager {
           timestamp: new Date().toISOString(),
           executionId: resumeExecutionId,
           workflowId,
-          data: { duration: result.metadata?.duration || 0 },
+          data: {
+            duration: result.metadata?.duration || 0,
+            finalBlockLogs: result.logs,
+          },
         } as ExecutionEvent)
         finalMetaStatus = 'cancelled'
       } else if (result.status === 'paused') {
@@ -1077,11 +1082,13 @@ export class PauseResumeManager {
             duration: result.metadata?.duration || 0,
             startTime: result.metadata?.startTime || new Date().toISOString(),
             endTime: result.metadata?.endTime || new Date().toISOString(),
+            finalBlockLogs: result.logs,
           },
         } as ExecutionEvent)
         finalMetaStatus = 'complete'
       }
     } catch (execError) {
+      const execErrorResult = hasExecutionResult(execError) ? execError.executionResult : undefined
       writeBufferedEvent({
         type: 'execution:error',
         timestamp: new Date().toISOString(),
@@ -1090,6 +1097,7 @@ export class PauseResumeManager {
         data: {
           error: toError(execError).message,
           duration: 0,
+          finalBlockLogs: execErrorResult?.logs,
         },
       } as ExecutionEvent)
       finalMetaStatus = 'error'

@@ -1,4 +1,11 @@
-import { db, permissions, type permissionTypeEnum, workflow, workspace } from '@sim/db'
+import {
+  db,
+  permissions,
+  type permissionTypeEnum,
+  workflow,
+  workflowFolder,
+  workspace,
+} from '@sim/db'
 import { and, eq, isNull } from 'drizzle-orm'
 
 export type ActiveWorkflowRecord = typeof workflow.$inferSelect
@@ -53,6 +60,136 @@ export async function assertActiveWorkflowContext(
 export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
 type WorkflowRecord = typeof workflow.$inferSelect
+
+export class WorkflowLockedError extends Error {
+  readonly status = 423
+
+  constructor(message = 'Workflow is locked') {
+    super(message)
+    this.name = 'WorkflowLockedError'
+  }
+}
+
+export class FolderLockedError extends Error {
+  readonly status = 423
+
+  constructor(message = 'Folder is locked') {
+    super(message)
+    this.name = 'FolderLockedError'
+  }
+}
+
+export interface LockStatus {
+  locked: boolean
+  directLocked: boolean
+  inheritedLocked: boolean
+  lockedBy: 'workflow' | 'folder' | null
+  lockedFolderId: string | null
+}
+
+export async function getFolderLockStatus(folderId: string | null): Promise<LockStatus> {
+  if (!folderId) {
+    return {
+      locked: false,
+      directLocked: false,
+      inheritedLocked: false,
+      lockedBy: null,
+      lockedFolderId: null,
+    }
+  }
+
+  let currentFolderId: string | null = folderId
+  let isDirect = true
+  const visited = new Set<string>()
+
+  while (currentFolderId && !visited.has(currentFolderId)) {
+    visited.add(currentFolderId)
+    const [folder] = await db
+      .select({
+        id: workflowFolder.id,
+        parentId: workflowFolder.parentId,
+        locked: workflowFolder.locked,
+      })
+      .from(workflowFolder)
+      .where(and(eq(workflowFolder.id, currentFolderId), isNull(workflowFolder.archivedAt)))
+      .limit(1)
+
+    if (!folder) break
+    if (folder.locked) {
+      return {
+        locked: true,
+        directLocked: isDirect,
+        inheritedLocked: !isDirect,
+        lockedBy: 'folder',
+        lockedFolderId: folder.id,
+      }
+    }
+
+    currentFolderId = folder.parentId
+    isDirect = false
+  }
+
+  return {
+    locked: false,
+    directLocked: false,
+    inheritedLocked: false,
+    lockedBy: null,
+    lockedFolderId: null,
+  }
+}
+
+export async function getWorkflowLockStatus(workflowId: string): Promise<LockStatus> {
+  const [wf] = await db
+    .select({
+      locked: workflow.locked,
+      folderId: workflow.folderId,
+    })
+    .from(workflow)
+    .where(and(eq(workflow.id, workflowId), isNull(workflow.archivedAt)))
+    .limit(1)
+
+  if (!wf) {
+    return {
+      locked: false,
+      directLocked: false,
+      inheritedLocked: false,
+      lockedBy: null,
+      lockedFolderId: null,
+    }
+  }
+
+  if (wf.locked) {
+    return {
+      locked: true,
+      directLocked: true,
+      inheritedLocked: false,
+      lockedBy: 'workflow',
+      lockedFolderId: null,
+    }
+  }
+
+  return getFolderLockStatus(wf.folderId)
+}
+
+export async function assertWorkflowMutable(workflowId: string): Promise<void> {
+  const status = await getWorkflowLockStatus(workflowId)
+  if (status.locked) {
+    throw new WorkflowLockedError(
+      status.lockedBy === 'folder'
+        ? 'Workflow is locked by its containing folder'
+        : 'Workflow is locked'
+    )
+  }
+}
+
+export async function assertFolderMutable(folderId: string | null): Promise<void> {
+  const status = await getFolderLockStatus(folderId)
+  if (status.locked) {
+    throw new FolderLockedError(
+      status.inheritedLocked ? 'Folder is locked by an ancestor folder' : 'Folder is locked'
+    )
+  }
+}
 
 export interface WorkflowWorkspaceAuthorizationResult {
   allowed: boolean

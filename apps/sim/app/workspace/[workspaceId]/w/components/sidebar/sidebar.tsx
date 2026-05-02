@@ -79,12 +79,7 @@ import {
   createSidebarDragGhost,
   groupWorkflowsByFolder,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
-import {
-  useDuplicateWorkspace,
-  useExportWorkspace,
-  useImportWorkflow,
-  useImportWorkspace,
-} from '@/app/workspace/[workspaceId]/w/hooks'
+import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
@@ -392,14 +387,9 @@ export const Sidebar = memo(function Sidebar() {
     setShowCollapsedTooltips(false)
   }, [isCollapsed])
 
-  const workspaceFileInputRef = useRef<HTMLInputElement>(null)
-
   const { isImporting, handleFileChange: handleImportFileChange } = useImportWorkflow({
     workspaceId,
   })
-  const { isImporting: isImportingWorkspace, handleImportWorkspace: importWorkspace } =
-    useImportWorkspace()
-  const { handleExportWorkspace: exportWorkspace } = useExportWorkspace()
 
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false)
@@ -669,10 +659,6 @@ export const Sidebar = memo(function Sidebar() {
       tasksHover,
     ]
   )
-
-  const { handleDuplicateWorkspace: duplicateWorkspace } = useDuplicateWorkspace({
-    workspaceId,
-  })
 
   const searchModalWorkflows = useMemo(
     () =>
@@ -1109,29 +1095,6 @@ export const Sidebar = memo(function Sidebar() {
     [workspaces, handleLeaveWorkspace]
   )
 
-  const handleDuplicateWorkspace = useCallback(
-    async (_workspaceIdToDuplicate: string, workspaceName: string) => {
-      await duplicateWorkspace(workspaceName)
-    },
-    [duplicateWorkspace]
-  )
-
-  const handleImportWorkspace = useCallback(() => {
-    workspaceFileInputRef.current?.click()
-  }, [])
-
-  const handleWorkspaceFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files || files.length === 0) return
-
-    const zipFile = files[0]
-    await importWorkspace(zipFile)
-
-    if (event.target) {
-      event.target.value = ''
-    }
-  }
-
   const tasksCollapsedIcon = useMemo(
     () => <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />,
     []
@@ -1392,10 +1355,6 @@ export const Sidebar = memo(function Sidebar() {
                 onRenameWorkspace={handleRenameWorkspace}
                 onDeleteWorkspace={handleDeleteWorkspace}
                 isDeletingWorkspace={isDeletingWorkspace}
-                onDuplicateWorkspace={handleDuplicateWorkspace}
-                onExportWorkspace={exportWorkspace}
-                onImportWorkspace={handleImportWorkspace}
-                isImportingWorkspace={isImportingWorkspace}
                 onColorChange={handleColorChangeWorkspace}
                 onUploadLogo={handleUploadLogo}
                 onRemoveLogo={handleRemoveLogo}
@@ -1865,13 +1824,6 @@ export const Sidebar = memo(function Sidebar() {
         onOpenChange={setIsHelpModalOpen}
         workflowId={workflowId}
         workspaceId={workspaceId}
-      />
-      <input
-        ref={workspaceFileInputRef}
-        type='file'
-        accept='.zip'
-        style={HIDDEN_STYLE}
-        onChange={handleWorkspaceFileChange}
       />
     </>
   )
