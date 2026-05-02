@@ -98,6 +98,33 @@ export const PreviewPanel = memo(function PreviewPanel({
 
 const CALLOUT_TYPES = new Set(['NOTE', 'TIP', 'WARNING', 'IMPORTANT', 'CAUTION'])
 
+function remarkMermaid() {
+  return (tree: { type: string; children?: unknown[] }) => {
+    function processNode(node: {
+      type: string
+      children?: unknown[]
+      lang?: string
+      value?: string
+      data?: Record<string, unknown>
+    }) {
+      if (!node.children) return
+      for (const child of node.children) {
+        const c = child as typeof node
+        if (c.type === 'code' && c.lang === 'mermaid') {
+          c.data = {
+            hName: 'mermaid-diagram',
+            hProperties: { definition: c.value ?? '' },
+            hChildren: [],
+          }
+        } else {
+          processNode(c)
+        }
+      }
+    }
+    processNode(tree)
+  }
+}
+
 function remarkCallouts() {
   return (tree: { type: string; children?: unknown[] }) => {
     function processNode(node: { type: string; children?: unknown[] }) {
@@ -142,7 +169,7 @@ function remarkCallouts() {
   }
 }
 
-const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkCallouts]
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkMermaid, remarkCallouts]
 const REHYPE_PLUGINS = [rehypeSlug]
 
 /**
@@ -439,6 +466,10 @@ function resolveSimFileUrl(src: string | undefined): string | undefined {
 
 const STATIC_MARKDOWN_COMPONENTS = {
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  'mermaid-diagram': ({ definition }: { definition?: string }) => {
+    const isStreaming = useContext(MermaidStreamingCtx)
+    return <MermaidDiagram definition={definition ?? ''} isStreaming={isStreaming} />
+  },
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className='mb-3 break-words text-[14px] text-[var(--text-primary)] leading-[1.6] last:mb-0'>
       {children}
@@ -507,14 +538,9 @@ const STATIC_MARKDOWN_COMPONENTS = {
     )
   },
   code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
-    const isMarkdownStreaming = useContext(MermaidStreamingCtx)
     const langMatch = className?.match(/language-(\w+)/)
     const langRaw = langMatch?.[1] ?? ''
     const codeString = extractTextContent(children)
-
-    if (langRaw === 'mermaid') {
-      return <MermaidDiagram definition={codeString} isStreaming={isMarkdownStreaming} />
-    }
 
     if (!codeString) {
       return (
@@ -849,6 +875,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
           remarkPlugins={REMARK_PLUGINS}
           rehypePlugins={REHYPE_PLUGINS}
           components={MARKDOWN_COMPONENTS}
+          allowedTags={{ 'mermaid-diagram': ['definition'] }}
         >
           {markdownContent}
         </Streamdown>
