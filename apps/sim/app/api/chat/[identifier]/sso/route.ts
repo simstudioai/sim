@@ -47,7 +47,7 @@ export const POST = withRouteHandler(
       )
     }
 
-    const eligible = isEmailAllowed(email, deployment.allowedEmails || [])
+    const eligible = isEmailAllowed(email, (deployment.allowedEmails as string[]) || [])
 
     return addCorsHeaders(createSuccessResponse({ eligible }), request)
   }
