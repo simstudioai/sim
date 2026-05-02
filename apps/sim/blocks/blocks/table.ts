@@ -230,6 +230,7 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
       title: 'Row ID',
       type: 'short-input',
       placeholder: 'row_xxxxx',
+      dependsOn: ['tableId'],
       condition: { field: 'operation', value: ['get_row', 'update_row', 'delete_row'] },
       required: true,
     },

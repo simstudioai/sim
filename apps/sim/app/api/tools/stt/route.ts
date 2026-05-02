@@ -20,6 +20,7 @@ import {
 import type { TranscriptSegment } from '@/tools/stt/types'
 
 const logger = createLogger('SttProxyAPI')
+const ELEVENLABS_STT_MODEL = 'scribe_v2'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes for large files
@@ -222,13 +223,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         duration = result.duration
         confidence = result.confidence
       } else if (provider === 'elevenlabs') {
-        const result = await transcribeWithElevenLabs(
-          audioBuffer,
-          apiKey,
-          language,
-          timestamps,
-          model
-        )
+        const result = await transcribeWithElevenLabs(audioBuffer, apiKey, language, timestamps)
         transcript = result.transcript
         segments = result.segments
         detectedLanguage = result.language
@@ -470,8 +465,7 @@ async function transcribeWithElevenLabs(
   audioBuffer: Buffer,
   apiKey: string,
   language?: string,
-  timestamps?: 'none' | 'sentence' | 'word',
-  model?: string
+  timestamps?: 'none' | 'sentence' | 'word'
 ): Promise<{
   transcript: string
   segments?: TranscriptSegment[]
@@ -481,7 +475,7 @@ async function transcribeWithElevenLabs(
   const formData = new FormData()
   const blob = new Blob([new Uint8Array(audioBuffer)], { type: 'audio/mpeg' })
   formData.append('file', blob, 'audio.mp3')
-  formData.append('model_id', model || 'scribe_v1')
+  formData.append('model_id', ELEVENLABS_STT_MODEL)
 
   if (language && language !== 'auto') {
     formData.append('language_code', language)

@@ -1,6 +1,7 @@
 import { toError } from '@sim/utils/errors'
 import { isAzureConfigured, isHosted, isOllamaConfigured } from '@/lib/core/config/feature-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
 import {
   getBaseModelProviders,
@@ -64,16 +65,6 @@ export function getModelOptions() {
 }
 
 /**
- * Checks if a field is included in the dependsOn config.
- * Handles both simple array format and object format with all/any fields.
- */
-export function isDependency(dependsOn: SubBlockConfig['dependsOn'], field: string): boolean {
-  if (!dependsOn) return false
-  if (Array.isArray(dependsOn)) return dependsOn.includes(field)
-  return dependsOn.all?.includes(field) || dependsOn.any?.includes(field) || false
-}
-
-/**
  * Gets all dependency fields as a flat array.
  * Handles both simple array format and object format with all/any fields.
  */
@@ -81,6 +72,29 @@ export function getDependsOnFields(dependsOn: SubBlockConfig['dependsOn']): stri
   if (!dependsOn) return []
   if (Array.isArray(dependsOn)) return dependsOn
   return [...(dependsOn.all || []), ...(dependsOn.any || [])]
+}
+
+/**
+ * Finds subblocks that depend on a changed field, accounting for canonical pairs.
+ */
+export function getSubBlocksDependingOnChange(
+  allSubBlocks: SubBlockConfig[],
+  changedSubBlockId: string
+): SubBlockConfig[] {
+  const canonicalIndex = buildCanonicalIndex(allSubBlocks)
+  const canonicalId = canonicalIndex.canonicalIdBySubBlockId[changedSubBlockId]
+  const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+  const changedFields = new Set<string>([changedSubBlockId])
+
+  if (canonicalId) changedFields.add(canonicalId)
+  if (group?.basicId) changedFields.add(group.basicId)
+  for (const advancedId of group?.advancedIds || []) {
+    changedFields.add(advancedId)
+  }
+
+  return allSubBlocks.filter((subBlock) =>
+    getDependsOnFields(subBlock.dependsOn).some((field) => changedFields.has(field))
+  )
 }
 
 export function resolveOutputType(

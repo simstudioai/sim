@@ -79,6 +79,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'short-input',
       canonicalParamId: 'pageId',
       placeholder: 'Enter Notion page ID',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -108,6 +109,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'short-input',
       canonicalParamId: 'databaseId',
       placeholder: 'Enter Notion database ID',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -134,6 +136,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'short-input',
       canonicalParamId: 'parentId',
       placeholder: 'ID of parent page',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: { field: 'operation', value: ['notion_create_page', 'notion_create_database'] },
       required: true,
