@@ -146,7 +146,6 @@ export const POST = withRouteHandler(
           foldersCount: folderMapping.size,
           workflowsCount: workflowStats.total,
           workflowsSucceeded: workflowStats.succeeded,
-          workflowsFailed: workflowStats.failed,
         }
       )
 
@@ -344,8 +343,8 @@ async function duplicateWorkflowsInFolderTree(
   folderMapping: Map<string, string>,
   userId: string,
   requestId: string
-): Promise<{ total: number; succeeded: number; failed: number }> {
-  const stats = { total: 0, succeeded: 0, failed: 0 }
+): Promise<{ total: number; succeeded: number }> {
+  const stats = { total: 0, succeeded: 0 }
   const workflowsByNewFolder = new Map<string, Array<typeof workflow.$inferSelect>>()
   const workflowIdMap = new Map<string, string>()
 
