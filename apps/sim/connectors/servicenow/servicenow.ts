@@ -22,7 +22,13 @@ const PAGE_SIZE = 100
  */
 const SYS_ID_PATTERN = /^[a-f0-9]{32}$/i
 const NUMERIC_ID_PATTERN = /^\d+$/
-const KB_CATEGORY_PATTERN = /^[\w \-./]+$/
+/**
+ * Reject characters that have meaning in a ServiceNow encoded query
+ * (`^` is the operator separator; control chars and quotes can break the
+ * URL). All other Unicode characters — including accented letters used in
+ * categories like "Général" or "Ação" — are allowed.
+ */
+const KB_CATEGORY_DISALLOWED = /[\^"'`\u0000-\u001f\u007f]/
 const VALID_WORKFLOW_STATES = new Set(['published', 'draft', 'review', 'retired', 'outdated'])
 
 interface ServiceNowRecord {
@@ -377,7 +383,7 @@ function buildKBQuery(sourceConfig: Record<string, unknown>): string {
   const kbCategory = sourceConfig.kbCategory as string | undefined
   const trimmedCategory = kbCategory?.trim()
   if (trimmedCategory) {
-    if (KB_CATEGORY_PATTERN.test(trimmedCategory)) {
+    if (!KB_CATEGORY_DISALLOWED.test(trimmedCategory)) {
       parts.push(`kb_category.label=${trimmedCategory}`)
     } else {
       logger.warn('Skipping kbCategory filter: value contains disallowed characters', {
