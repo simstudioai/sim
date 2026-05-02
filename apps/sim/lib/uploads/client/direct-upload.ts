@@ -56,7 +56,8 @@ export class DirectUploadError extends Error {
   constructor(
     message: string,
     public code: DirectUploadErrorCode,
-    public details?: unknown
+    public details?: unknown,
+    public status?: number
   ) {
     super(message)
     this.name = 'DirectUploadError'
@@ -65,13 +66,15 @@ export class DirectUploadError extends Error {
 
 /**
  * Transport-level upload errors worth retrying at the outer level: timeouts,
- * 5xx from the storage backend, and per-part failures whose inner retry was
- * exhausted. Excludes deterministic failures (`PRESIGNED_URL_ERROR`,
- * `FALLBACK_REQUIRED`) and aborts.
+ * network failures, and 5xx from the storage backend. Excludes deterministic
+ * client failures (4xx, `PRESIGNED_URL_ERROR`, `FALLBACK_REQUIRED`) and aborts.
  */
-export const isTransientUploadError = (error: unknown): boolean =>
-  error instanceof DirectUploadError &&
-  (error.code === 'DIRECT_UPLOAD_ERROR' || error.code === 'MULTIPART_ERROR')
+export const isTransientUploadError = (error: unknown): boolean => {
+  if (!(error instanceof DirectUploadError)) return false
+  if (error.code !== 'DIRECT_UPLOAD_ERROR' && error.code !== 'MULTIPART_ERROR') return false
+  if (error.status === undefined) return true
+  return error.status >= 500 && error.status < 600
+}
 
 const calculateUploadTimeoutMs = (fileSize: number): number => {
   const sizeInMb = fileSize / (1024 * 1024)
@@ -269,7 +272,9 @@ const uploadViaPresignedPut = (opts: UploadViaPutOptions): Promise<void> => {
         reject(
           new DirectUploadError(
             `Direct upload failed for ${file.name}: ${xhr.status} ${xhr.statusText}`,
-            'DIRECT_UPLOAD_ERROR'
+            'DIRECT_UPLOAD_ERROR',
+            undefined,
+            xhr.status
           )
         )
       }
@@ -349,7 +354,9 @@ const uploadViaMultipart = async (
     }
     throw new DirectUploadError(
       `Failed to initiate multipart upload: ${initiateResponse.statusText}`,
-      'MULTIPART_ERROR'
+      'MULTIPART_ERROR',
+      undefined,
+      initiateResponse.status
     )
   }
 
@@ -387,7 +394,9 @@ const uploadViaMultipart = async (
     await abortMultipart()
     throw new DirectUploadError(
       `Failed to get part URLs: ${partUrlsResponse.statusText}`,
-      'MULTIPART_ERROR'
+      'MULTIPART_ERROR',
+      undefined,
+      partUrlsResponse.status
     )
   }
 
@@ -423,7 +432,9 @@ const uploadViaMultipart = async (
           if (!partResponse.ok) {
             throw new DirectUploadError(
               `Failed to upload part ${partNumber}: ${partResponse.statusText}`,
-              'MULTIPART_ERROR'
+              'MULTIPART_ERROR',
+              undefined,
+              partResponse.status
             )
           }
 
@@ -433,7 +444,14 @@ const uploadViaMultipart = async (
 
           return { partNumber, etag: etag?.replace(/"/g, '') }
         } catch (partError) {
-          if (isAbortError(partError) || attempt >= MULTIPART_MAX_RETRIES) throw partError
+          const isClientError =
+            partError instanceof DirectUploadError &&
+            partError.status !== undefined &&
+            partError.status >= 400 &&
+            partError.status < 500
+          if (isAbortError(partError) || isClientError || attempt >= MULTIPART_MAX_RETRIES) {
+            throw partError
+          }
           const delay = MULTIPART_RETRY_DELAY_MS * MULTIPART_RETRY_BACKOFF ** attempt
           logger.warn(
             `Part ${partNumber} failed (attempt ${attempt + 1}), retrying in ${Math.round(delay / 1000)}s`
@@ -475,7 +493,9 @@ const uploadViaMultipart = async (
     await abortMultipart()
     throw new DirectUploadError(
       `Failed to complete multipart upload: ${completeResponse.statusText}`,
-      'MULTIPART_ERROR'
+      'MULTIPART_ERROR',
+      undefined,
+      completeResponse.status
     )
   }
 
