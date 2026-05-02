@@ -486,25 +486,30 @@ const uploadViaMultipart = async (
     throw error
   }
 
-  // boundary-raw-fetch: multipart upload control plane uses action query strings; sequenced with initiate/get-part-urls/abort outside the contract layer
-  const completeResponse = await fetch('/api/files/multipart?action=complete', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ uploadToken, parts: uploadedParts }),
-    signal,
-  })
+  let path: string
+  try {
+    // boundary-raw-fetch: multipart upload control plane uses action query strings; sequenced with initiate/get-part-urls/abort outside the contract layer
+    const completeResponse = await fetch('/api/files/multipart?action=complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uploadToken, parts: uploadedParts }),
+      signal,
+    })
 
-  if (!completeResponse.ok) {
+    if (!completeResponse.ok) {
+      throw new DirectUploadError(
+        `Failed to complete multipart upload: ${completeResponse.statusText}`,
+        'MULTIPART_ERROR',
+        undefined,
+        completeResponse.status
+      )
+    }
+
+    ;({ path } = (await completeResponse.json()) as { path: string })
+  } catch (err) {
     await abortMultipart()
-    throw new DirectUploadError(
-      `Failed to complete multipart upload: ${completeResponse.statusText}`,
-      'MULTIPART_ERROR',
-      undefined,
-      completeResponse.status
-    )
+    throw err
   }
-
-  const { path } = (await completeResponse.json()) as { path: string }
   return { key, path }
 }
 
