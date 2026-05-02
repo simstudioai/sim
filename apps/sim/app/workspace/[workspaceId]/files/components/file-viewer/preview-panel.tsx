@@ -562,14 +562,17 @@ const STATIC_MARKDOWN_COMPONENTS = {
     )
   },
   hr: () => <hr className='my-6 border-[var(--border)]' />,
-  img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-    <img
-      src={src as string}
-      alt={alt ?? ''}
-      className='my-3 max-w-full rounded-md'
-      loading='lazy'
-    />
-  ),
+  img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) => {
+    const resolvedSrc = resolveSimFileUrl(src)
+    return (
+      <img
+        src={resolvedSrc}
+        alt={alt ?? ''}
+        className='my-3 max-w-full rounded-md'
+        loading='lazy'
+      />
+    )
+  },
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className='my-4 max-w-full overflow-x-auto'>
       <table className='w-full border-collapse text-[13px]'>{children}</table>
@@ -734,6 +737,16 @@ function AnchorRenderer({ href, children }: { href?: string; children?: React.Re
       {children}
     </a>
   )
+}
+
+const SIM_FILES_PAGE_PATTERN =
+  /(?:https?:\/\/[^/]+)?\/workspace\/[a-f0-9-]{36}\/files\/([a-f0-9-]{36})(?:[?#].*)?$/
+
+function resolveSimFileUrl(src: string | undefined): string | undefined {
+  if (!src) return src
+  const match = SIM_FILES_PAGE_PATTERN.exec(src)
+  if (!match) return src
+  return `/api/files/view/${match[1]}`
 }
 
 const MARKDOWN_COMPONENTS = {
