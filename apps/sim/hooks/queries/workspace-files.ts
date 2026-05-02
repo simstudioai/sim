@@ -7,6 +7,7 @@ import { getUsageLimitsContract } from '@/lib/api/contracts/usage-limits'
 import {
   deleteWorkspaceFileContract,
   listWorkspaceFilesContract,
+  registerWorkspaceFileContract,
   renameWorkspaceFileContract,
   restoreWorkspaceFileContract,
   updateWorkspaceFileContentContract,
@@ -217,6 +218,7 @@ async function uploadViaApiFallback(
   const formData = new FormData()
   formData.append('file', file)
 
+  // boundary-raw-fetch: multipart/form-data fallback upload, requestJson only supports JSON bodies
   const response = await fetch(`/api/workspaces/${workspaceId}/files`, {
     method: 'POST',
     body: formData,
@@ -264,19 +266,21 @@ async function uploadWorkspaceFile(
     throw error
   }
 
-  const registerResponse = await fetch(`/api/workspaces/${workspaceId}/files/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const data = await requestJson(registerWorkspaceFileContract, {
+    params: { id: workspaceId },
+    body: {
       key: result.key,
       name: result.name,
       size: result.size,
       contentType: result.contentType,
-    }),
+    },
     signal,
   })
 
-  return parseUploadResponse(registerResponse, 'Failed to register file')
+  if (!data.success || !data.file) {
+    throw new Error(data.error || 'Failed to register file')
+  }
+  return { success: true, file: data.file }
 }
 
 export function useUploadWorkspaceFile() {

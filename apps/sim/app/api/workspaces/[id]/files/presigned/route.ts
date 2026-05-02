@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { workspacePresignedUploadContract } from '@/lib/api/contracts/workspace-files'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { checkStorageQuota } from '@/lib/billing/storage'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -11,12 +13,6 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspacePresignedAPI')
 
-interface WorkspacePresignedRequest {
-  fileName: string
-  contentType: string
-  fileSize: number
-}
-
 /**
  * POST /api/workspaces/[id]/files/presigned
  * Returns a presigned PUT URL for a workspace-scoped object key. The client
@@ -24,14 +20,18 @@ interface WorkspacePresignedRequest {
  * insert metadata.
  */
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: workspaceId } = await params
-
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     const userId = session.user.id
+
+    const parsed = await parseRequest(workspacePresignedUploadContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { params, body } = parsed.data
+    const workspaceId = params.id
+    const { fileName, contentType, fileSize } = body
 
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (permission !== 'admin' && permission !== 'write') {
@@ -39,23 +39,6 @@ export const POST = withRouteHandler(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    let body: WorkspacePresignedRequest
-    try {
-      body = (await request.json()) as WorkspacePresignedRequest
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-    }
-
-    const { fileName, contentType, fileSize } = body
-    if (!fileName?.trim()) {
-      return NextResponse.json({ error: 'fileName is required' }, { status: 400 })
-    }
-    if (!contentType?.trim()) {
-      return NextResponse.json({ error: 'contentType is required' }, { status: 400 })
-    }
-    if (typeof fileSize !== 'number' || !Number.isFinite(fileSize) || fileSize < 0) {
-      return NextResponse.json({ error: 'fileSize must be a non-negative number' }, { status: 400 })
-    }
     if (fileSize > MAX_WORKSPACE_FILE_SIZE) {
       return NextResponse.json(
         { error: `File size exceeds maximum of ${MAX_WORKSPACE_FILE_SIZE} bytes` },

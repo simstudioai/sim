@@ -300,6 +300,7 @@ const uploadViaMultipart = async (
 ): Promise<{ key: string; path: string }> => {
   const { file, workspaceId, context, signal, onProgress } = opts
 
+  // boundary-raw-fetch: multipart upload control plane uses action query strings; client lifecycle (initiate/get-part-urls/complete/abort) is sequenced manually and not modeled by a single contract
   const initiateResponse = await fetch('/api/files/multipart?action=initiate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -346,6 +347,7 @@ const uploadViaMultipart = async (
 
   const abortMultipart = async () => {
     try {
+      // boundary-raw-fetch: fire-and-forget abort during multipart cleanup; intentionally avoids contract response parsing so cleanup cannot mask the original error
       await fetch('/api/files/multipart?action=abort', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -356,6 +358,7 @@ const uploadViaMultipart = async (
     }
   }
 
+  // boundary-raw-fetch: multipart upload control plane uses action query strings; sequenced with initiate/complete/abort outside the contract layer
   const partUrlsResponse = await fetch('/api/files/multipart?action=get-part-urls', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -443,6 +446,7 @@ const uploadViaMultipart = async (
     throw error
   }
 
+  // boundary-raw-fetch: multipart upload control plane uses action query strings; sequenced with initiate/get-part-urls/abort outside the contract layer
   const completeResponse = await fetch('/api/files/multipart?action=complete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

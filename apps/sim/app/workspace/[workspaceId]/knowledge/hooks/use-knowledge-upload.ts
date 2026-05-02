@@ -353,6 +353,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       setUploadProgress((prev) => ({ ...prev, stage: 'processing' }))
 
+      // boundary-raw-fetch: bulk document-processing kickoff with dynamic recipe payload; response is consumed alongside the upload progress lifecycle and not modeled by a single contract
       const processResponse = await fetch(`/api/knowledge/${knowledgeBaseId}/documents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

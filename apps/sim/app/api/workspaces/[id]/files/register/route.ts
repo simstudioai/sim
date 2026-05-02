@@ -1,6 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { registerWorkspaceFileContract } from '@/lib/api/contracts/workspace-files'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -13,13 +15,6 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceRegisterAPI')
 
-interface RegisterRequestBody {
-  key: string
-  name: string
-  size: number
-  contentType: string
-}
-
 /**
  * POST /api/workspaces/[id]/files/register
  * Finalize a direct-to-storage upload by inserting metadata, updating quota,
@@ -27,40 +22,23 @@ interface RegisterRequestBody {
  * caller's workspace to prevent cross-tenant key smuggling.
  */
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: workspaceId } = await params
-
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     const userId = session.user.id
 
+    const parsed = await parseRequest(registerWorkspaceFileContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { params, body } = parsed.data
+    const workspaceId = params.id
+    const { key, name, size, contentType } = body
+
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (permission !== 'admin' && permission !== 'write') {
       logger.warn(`User ${userId} lacks write permission for ${workspaceId}`)
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    let body: RegisterRequestBody
-    try {
-      body = (await request.json()) as RegisterRequestBody
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-    }
-
-    const { key, name, size, contentType } = body
-    if (!key?.trim()) {
-      return NextResponse.json({ error: 'key is required' }, { status: 400 })
-    }
-    if (!name?.trim()) {
-      return NextResponse.json({ error: 'name is required' }, { status: 400 })
-    }
-    if (typeof size !== 'number' || !Number.isFinite(size) || size < 0) {
-      return NextResponse.json({ error: 'size must be a non-negative number' }, { status: 400 })
-    }
-    if (!contentType?.trim()) {
-      return NextResponse.json({ error: 'contentType is required' }, { status: 400 })
     }
 
     if (parseWorkspaceFileKey(key) !== workspaceId) {
