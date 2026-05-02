@@ -9,12 +9,6 @@ export interface MermaidValidationResult {
 export async function validateMermaidSource(source: string): Promise<MermaidValidationResult> {
   try {
     const { default: mermaid } = await import('mermaid')
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: 'strict',
-      theme: 'default',
-    })
-    mermaid.setParseErrorHandler?.(() => undefined)
     await mermaid.parse(source)
     return { ok: true }
   } catch (error) {
