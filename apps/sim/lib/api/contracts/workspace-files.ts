@@ -188,9 +188,19 @@ export const registerWorkspaceFileBodySchema = z.object({
 
 export type RegisterWorkspaceFileBody = z.input<typeof registerWorkspaceFileBodySchema>
 
+const registeredWorkspaceFileSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  url: z.string(),
+  size: z.number(),
+  type: z.string(),
+  key: z.string(),
+  context: z.string().optional(),
+})
+
 const registerWorkspaceFileResponseSchema = z.object({
   success: z.boolean(),
-  file: workspaceFileRecordSchema.optional(),
+  file: registeredWorkspaceFileSchema.optional(),
   error: z.string().optional(),
   isDuplicate: z.boolean().optional(),
 })

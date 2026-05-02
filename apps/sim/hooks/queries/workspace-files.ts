@@ -18,6 +18,7 @@ import {
   type UploadProgressEvent,
 } from '@/lib/uploads/client/direct-upload'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('WorkspaceFilesQuery')
 
@@ -207,7 +208,7 @@ interface UploadFileParams {
 
 interface UploadFileResponse {
   success: boolean
-  file: WorkspaceFileRecord
+  file: UserFile
 }
 
 async function uploadViaApiFallback(
@@ -232,7 +233,7 @@ async function parseUploadResponse(
   response: Response,
   fallbackMessage: string
 ): Promise<UploadFileResponse> {
-  let data: { success?: boolean; error?: string; file?: WorkspaceFileRecord } | null = null
+  let data: { success?: boolean; error?: string; file?: UserFile } | null = null
   try {
     data = await response.json()
   } catch {}

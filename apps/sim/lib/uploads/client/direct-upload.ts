@@ -5,7 +5,7 @@ import { getFileContentType, isAbortError } from '@/lib/uploads/utils/file-utils
 const logger = createLogger('DirectUpload')
 
 const CHUNK_SIZE = 8 * 1024 * 1024
-const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024
+export const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024
 const BASE_TIMEOUT_MS = 2 * 60 * 1000
 const TIMEOUT_PER_MB_MS = 1500
 const MAX_TIMEOUT_MS = 10 * 60 * 1000

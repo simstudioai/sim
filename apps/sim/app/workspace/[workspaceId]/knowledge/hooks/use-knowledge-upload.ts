@@ -4,6 +4,7 @@ import { sleep } from '@sim/utils/helpers'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   DirectUploadError,
+  LARGE_FILE_THRESHOLD,
   MULTIPART_MAX_RETRIES,
   MULTIPART_RETRY_BACKOFF,
   MULTIPART_RETRY_DELAY_MS,
@@ -98,43 +99,49 @@ interface BatchPresignedFile {
 }
 
 /**
- * Fetch presigned upload data for many files in one round trip.
- * Returns one PresignedUploadInfo per input file (in order).
+ * Fetch presigned upload data for the small files in `files`. Returns a sparse
+ * array aligned with the input: entries for files >= LARGE_FILE_THRESHOLD are
+ * `undefined` because those uploads use multipart and never consume a presigned
+ * single-PUT URL.
  */
-const fetchBatchPresignedData = async (files: File[]): Promise<PresignedUploadInfo[]> => {
-  const batches: File[][] = []
-  for (let start = 0; start < files.length; start += BATCH_REQUEST_SIZE) {
-    batches.push(files.slice(start, start + BATCH_REQUEST_SIZE))
+const fetchBatchPresignedData = async (
+  files: File[]
+): Promise<(PresignedUploadInfo | undefined)[]> => {
+  const result: (PresignedUploadInfo | undefined)[] = new Array(files.length).fill(undefined)
+  const smallFileIndices: number[] = []
+  for (let i = 0; i < files.length; i++) {
+    if (files[i].size < LARGE_FILE_THRESHOLD) smallFileIndices.push(i)
+  }
+  if (smallFileIndices.length === 0) return result
+
+  for (let start = 0; start < smallFileIndices.length; start += BATCH_REQUEST_SIZE) {
+    const batchIndices = smallFileIndices.slice(start, start + BATCH_REQUEST_SIZE)
+    const batchFiles = batchIndices.map((i) => files[i])
+    const body: { files: BatchPresignedFile[] } = {
+      files: batchFiles.map((file) => ({
+        fileName: file.name,
+        contentType: getFileContentType(file),
+        fileSize: file.size,
+      })),
+    }
+
+    const response = await fetch(KB_BATCH_PRESIGNED_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Batch presigned URL generation failed: ${response.statusText}`)
+    }
+
+    const { files: presignedItems } = (await response.json()) as { files: unknown[] }
+    batchIndices.forEach((fileIdx, batchPos) => {
+      result[fileIdx] = normalizePresignedData(presignedItems[batchPos], batchFiles[batchPos].name)
+    })
   }
 
-  const batchResults = await Promise.all(
-    batches.map(async (batch, batchIndex) => {
-      const body: { files: BatchPresignedFile[] } = {
-        files: batch.map((file) => ({
-          fileName: file.name,
-          contentType: getFileContentType(file),
-          fileSize: file.size,
-        })),
-      }
-
-      const response = await fetch(KB_BATCH_PRESIGNED_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-
-      if (!response.ok) {
-        throw new Error(
-          `Batch ${batchIndex + 1} presigned URL generation failed: ${response.statusText}`
-        )
-      }
-
-      const { files: presignedItems } = (await response.json()) as { files: unknown[] }
-      return batch.map((file, idx) => normalizePresignedData(presignedItems[idx], file.name))
-    })
-  )
-
-  return batchResults.flat()
+  return result
 }
 
 /**
@@ -232,7 +239,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   const uploadOneFile = async (
     file: File,
     fileIndex: number,
-    presigned: PresignedUploadInfo
+    presigned: PresignedUploadInfo | undefined
   ): Promise<UploadedFile> => {
     if (!options.workspaceId) {
       throw new KnowledgeUploadError('workspaceId is required for upload', 'MISSING_WORKSPACE_ID')
