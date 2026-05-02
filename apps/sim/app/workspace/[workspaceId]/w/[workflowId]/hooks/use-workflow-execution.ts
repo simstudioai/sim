@@ -230,25 +230,31 @@ export function useWorkflowExecution() {
       durationMs?: number
       blockLogs: BlockLog[]
       isPreExecutionError?: boolean
+      finalBlockLogs?: BlockLog[]
     }) => {
       if (!params.workflowId) return
       sharedHandleExecutionErrorConsole(
-        { addConsole, updateConsole },
+        { addConsole, updateConsole, cancelRunningEntries },
         { ...params, workflowId: params.workflowId }
       )
     },
-    [addConsole, updateConsole]
+    [addConsole, cancelRunningEntries, updateConsole]
   )
 
   const handleExecutionCancelledConsole = useCallback(
-    (params: { workflowId?: string; executionId?: string; durationMs?: number }) => {
+    (params: {
+      workflowId?: string
+      executionId?: string
+      durationMs?: number
+      finalBlockLogs?: BlockLog[]
+    }) => {
       if (!params.workflowId) return
       sharedHandleExecutionCancelledConsole(
-        { addConsole, updateConsole },
+        { addConsole, updateConsole, cancelRunningEntries },
         { ...params, workflowId: params.workflowId }
       )
     },
-    [addConsole, updateConsole]
+    [addConsole, cancelRunningEntries, updateConsole]
   )
 
   const buildBlockEventHandlers = useCallback(
@@ -1030,6 +1036,8 @@ export function useWorkflowExecution() {
           accumulatedBlockLogs,
           accumulatedBlockStates,
           executedBlockIds,
+          consoleMode: 'update',
+          includeStartConsoleEntry: true,
           onBlockCompleteCallback: onBlockComplete,
         })
 
@@ -1232,6 +1240,7 @@ export function useWorkflowExecution() {
                 durationMs: data.duration,
                 blockLogs: accumulatedBlockLogs,
                 isPreExecutionError,
+                finalBlockLogs: data.finalBlockLogs,
               })
 
               if (activeWorkflowId && !isExecutingFromChat) {
@@ -1258,6 +1267,7 @@ export function useWorkflowExecution() {
                 workflowId: activeWorkflowId,
                 executionId: executionIdRef.current,
                 durationMs: data?.duration,
+                finalBlockLogs: data?.finalBlockLogs,
               })
 
               if (activeWorkflowId && !isExecutingFromChat) {
@@ -1674,6 +1684,8 @@ export function useWorkflowExecution() {
           accumulatedBlockLogs,
           accumulatedBlockStates,
           executedBlockIds,
+          consoleMode: 'update',
+          includeStartConsoleEntry: true,
         })
 
         await executionStream.executeFromBlock({
@@ -1743,6 +1755,7 @@ export function useWorkflowExecution() {
                 error: data.error,
                 durationMs: data.duration,
                 blockLogs: accumulatedBlockLogs,
+                finalBlockLogs: data.finalBlockLogs,
               })
 
               setCurrentExecutionId(workflowId, null)
@@ -1755,6 +1768,7 @@ export function useWorkflowExecution() {
                 workflowId,
                 executionId: executionIdRef.current,
                 durationMs: data?.duration,
+                finalBlockLogs: data?.finalBlockLogs,
               })
 
               setCurrentExecutionId(workflowId, null)
@@ -1901,6 +1915,8 @@ export function useWorkflowExecution() {
         accumulatedBlockLogs,
         accumulatedBlockStates,
         executedBlockIds,
+        consoleMode: 'update',
+        includeStartConsoleEntry: true,
       })
 
       const capturedExecutionId = executionId
@@ -2001,6 +2017,7 @@ export function useWorkflowExecution() {
                   executionId: capturedExecutionId,
                   error: data.error,
                   blockLogs: accumulatedBlockLogs,
+                  finalBlockLogs: data.finalBlockLogs,
                 })
               },
               onExecutionCancelled: (data) => {
@@ -2021,6 +2038,7 @@ export function useWorkflowExecution() {
                   workflowId: reconnectWorkflowId,
                   executionId: capturedExecutionId,
                   durationMs: data?.duration,
+                  finalBlockLogs: data?.finalBlockLogs,
                 })
               },
             },

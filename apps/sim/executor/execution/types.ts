@@ -118,8 +118,7 @@ export interface ExecutionCallbacks {
     blockType: string,
     executionOrder: number,
     iterationContext?: IterationContext,
-    childWorkflowContext?: ChildWorkflowContext,
-    blockExecutionId?: string
+    childWorkflowContext?: ChildWorkflowContext
   ) => Promise<void>
   onBlockComplete?: (
     blockId: string,
@@ -127,8 +126,7 @@ export interface ExecutionCallbacks {
     blockType: string,
     output: any,
     iterationContext?: IterationContext,
-    childWorkflowContext?: ChildWorkflowContext,
-    blockExecutionId?: string
+    childWorkflowContext?: ChildWorkflowContext
   ) => Promise<void>
   /** Fires immediately after instanceId is generated, before child execution begins. */
   onChildWorkflowInstanceReady?: (
@@ -174,8 +172,7 @@ export interface ContextExtensions {
     blockType: string,
     executionOrder: number,
     iterationContext?: IterationContext,
-    childWorkflowContext?: ChildWorkflowContext,
-    blockExecutionId?: string
+    childWorkflowContext?: ChildWorkflowContext
   ) => Promise<void>
   onBlockComplete?: (
     blockId: string,
@@ -190,8 +187,6 @@ export interface ContextExtensions {
       endedAt: string
       /** Per-invocation unique ID linking this workflow block execution to its child block events. */
       childWorkflowInstanceId?: string
-      /** Per-invocation unique ID for this block execution (distinct across loop/parallel iterations). */
-      blockExecutionId?: string
     },
     iterationContext?: IterationContext,
     childWorkflowContext?: ChildWorkflowContext
