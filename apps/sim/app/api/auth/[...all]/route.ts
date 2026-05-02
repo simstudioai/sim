@@ -10,13 +10,17 @@ export const dynamic = 'force-dynamic'
 const { GET: betterAuthGET, POST: betterAuthPOST } = toNextJsHandler(auth.handler)
 const SAFE_ORGANIZATION_POST_PATHS = new Set(['organization/check-slug', 'organization/set-active'])
 
+function getAuthPath(request: NextRequest): string {
+  const pathname = request.nextUrl?.pathname ?? new URL(request.url).pathname
+  return pathname.replace('/api/auth/', '')
+}
+
 function isBlockedOrganizationMutationPath(path: string): boolean {
   return path.startsWith('organization/') && !SAFE_ORGANIZATION_POST_PATHS.has(path)
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const url = new URL(request.url)
-  const path = url.pathname.replace('/api/auth/', '')
+  const path = getAuthPath(request)
 
   if (path === 'get-session' && isAuthDisabled) {
     await ensureAnonymousUserExists()
@@ -27,8 +31,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 })
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const url = new URL(request.url)
-  const path = url.pathname.replace('/api/auth/', '')
+  const path = getAuthPath(request)
 
   if (isBlockedOrganizationMutationPath(path)) {
     return NextResponse.json(

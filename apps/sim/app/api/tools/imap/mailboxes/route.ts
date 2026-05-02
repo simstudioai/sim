@@ -1,19 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { ImapFlow } from 'imapflow'
 import { type NextRequest, NextResponse } from 'next/server'
+import { imapMailboxesContract } from '@/lib/api/contracts/tools/imap'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('ImapMailboxesAPI')
-
-interface ImapMailboxRequest {
-  host: string
-  port: number
-  secure: boolean
-  username: string
-  password: string
-}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
@@ -21,17 +15,33 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
   }
 
-  try {
-    const body = (await request.json()) as ImapMailboxRequest
-    const { host, port, secure, username, password } = body
-
-    if (!host || !username || !password) {
-      return NextResponse.json(
-        { success: false, message: 'Missing required fields: host, username, password' },
-        { status: 400 }
-      )
+  const parsed = await parseRequest(
+    imapMailboxesContract,
+    request,
+    {},
+    {
+      validationErrorResponse: (error) =>
+        NextResponse.json(
+          {
+            success: false,
+            message: getValidationErrorMessage(
+              error,
+              'Missing required fields: host, username, password'
+            ),
+          },
+          { status: 400 }
+        ),
+      invalidJsonResponse: () =>
+        NextResponse.json(
+          { success: false, message: 'Request body must be valid JSON' },
+          { status: 400 }
+        ),
     }
+  )
+  if (!parsed.success) return parsed.response
+  const { host, port, secure, username, password } = parsed.data.body
 
+  try {
     const hostValidation = await validateDatabaseHost(host, 'host')
     if (!hostValidation.isValid) {
       return NextResponse.json({ success: false, message: hostValidation.error }, { status: 400 })
@@ -40,8 +50,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const client = new ImapFlow({
       host: hostValidation.resolvedIP!,
       servername: host,
-      port: port || 993,
-      secure: secure ?? true,
+      port,
+      secure,
       auth: {
         user: username,
         pass: password,

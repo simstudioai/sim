@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { attioObjectsSelectorContract } from '@/lib/api/contracts/selectors/attio'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -9,16 +11,26 @@ const logger = createLogger('AttioObjectsAPI')
 
 export const dynamic = 'force-dynamic'
 
-export const POST = withRouteHandler(async (request: Request) => {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   try {
-    const body = await request.json()
-    const { credential, workflowId } = body
+    const parsed = await parseRequest(
+      attioObjectsSelectorContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.error('Missing credential in request')
+          return NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Invalid request') },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!credential) {
-      logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-    }
+    const { credential, workflowId } = parsed.data.body
 
     const authz = await authorizeCredentialUse(request as any, {
       credentialId: credential,

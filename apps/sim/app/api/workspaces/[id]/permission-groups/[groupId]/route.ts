@@ -4,25 +4,18 @@ import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updatePermissionGroupContract } from '@/lib/api/contracts/permission-groups'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
-  permissionGroupConfigSchema,
 } from '@/lib/permission-groups/types'
 import { checkWorkspaceAccess, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspacePermissionGroup')
-
-const updateSchema = z.object({
-  name: z.string().trim().min(1).max(100).optional(),
-  description: z.string().max(500).nullable().optional(),
-  config: permissionGroupConfigSchema.optional(),
-  autoAddNewMembers: z.boolean().optional(),
-})
 
 async function loadGroupInWorkspace(groupId: string, workspaceId: string) {
   const [group] = await db
@@ -85,13 +78,13 @@ export const GET = withRouteHandler(
 )
 
 export const PUT = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string; groupId: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string; groupId: string }> }) => {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id: workspaceId, groupId: id } = await params
+    const { id: workspaceId, groupId: id } = await context.params
 
     try {
       const isWorkspaceAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
@@ -112,8 +105,12 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
       }
 
-      const body = await req.json()
-      const updates = updateSchema.parse(body)
+      const parsed = await parseRequest(updatePermissionGroupContract, req, context, {
+        validationErrorResponse: (error) =>
+          NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+      })
+      if (!parsed.success) return parsed.response
+      const updates = parsed.data.body
 
       if (updates.name) {
         const existingGroup = await db
@@ -201,9 +198,6 @@ export const PUT = withRouteHandler(
         },
       })
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
-      }
       logger.error('Error updating permission group', error)
       return NextResponse.json({ error: 'Failed to update permission group' }, { status: 500 })
     }

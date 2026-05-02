@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { GmailIcon } from '@/components/icons'
+import { requestJson } from '@/lib/api/client/request'
+import { gmailLabelsSelectorContract } from '@/lib/api/contracts/selectors/google'
 import { isCredentialSetValue } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
@@ -66,18 +68,13 @@ export const gmailPollingTrigger: TriggerConfig = {
           return GMAIL_SYSTEM_LABELS
         }
         try {
-          const response = await fetch(`/api/tools/gmail/labels?credentialId=${credentialId}`)
-          if (!response.ok) {
-            throw new Error('Failed to fetch Gmail labels')
-          }
-          const data = await response.json()
-          if (data.labels && Array.isArray(data.labels)) {
-            return data.labels.map((label: { id: string; name: string }) => ({
-              id: label.id,
-              label: label.name,
-            }))
-          }
-          return []
+          const data = await requestJson(gmailLabelsSelectorContract, {
+            query: { credentialId },
+          })
+          return data.labels.map((label) => ({
+            id: label.id,
+            label: label.name,
+          }))
         } catch (error) {
           logger.error('Error fetching Gmail labels:', error)
           throw error

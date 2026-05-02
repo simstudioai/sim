@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { jiraWriteContract } from '@/lib/api/contracts/selectors/jira'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -16,6 +18,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
+
+    const parsed = await parseRequest(jiraWriteContract, request, {})
+    if (!parsed.success) return parsed.response
 
     const {
       domain,
@@ -36,7 +41,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       customFieldValue,
       components,
       fixVersions,
-    } = await request.json()
+    } = parsed.data.body
 
     if (!domain) {
       logger.error('Missing domain in request')
@@ -91,7 +96,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (parent !== undefined && parent !== null && parent !== '') {
-      fields.parent = parent
+      if (typeof parent === 'string') {
+        fields.parent = /^\d+$/.test(parent) ? { id: parent } : { key: parent }
+      } else if (typeof parent === 'object') {
+        fields.parent = parent
+      }
     }
 
     if (priority !== undefined && priority !== null && priority !== '') {

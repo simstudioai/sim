@@ -33,7 +33,7 @@ import { Serializer } from '@/serializer'
 
 const logger = createLogger('ExecutionCore')
 
-const EnvVarsSchema = z.record(z.string())
+const EnvVarsSchema = z.record(z.string(), z.string())
 
 export interface ExecuteWorkflowCoreOptions {
   snapshot: ExecutionSnapshot

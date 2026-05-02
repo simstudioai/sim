@@ -9,7 +9,15 @@ import {
   SendBulkEmailCommand,
   SendEmailCommand,
 } from '@aws-sdk/client-sesv2'
+import { z } from 'zod'
 import type { SESConnectionConfig } from '@/tools/ses/types'
+
+const SesBulkEmailDestinationSchema = z.object({
+  toAddresses: z.array(z.string().email()),
+  templateData: z.string().optional(),
+})
+
+type SesBulkEmailDestination = z.infer<typeof SesBulkEmailDestinationSchema>
 
 export function createSESClient(config: SESConnectionConfig): SESv2Client {
   return new SESv2Client({
@@ -97,12 +105,17 @@ export async function sendTemplatedEmail(
   }
 }
 
+export function parseBulkEmailDestinations(destinationsJson: string): SesBulkEmailDestination[] {
+  const destinations = JSON.parse(destinationsJson)
+  return z.array(SesBulkEmailDestinationSchema).parse(destinations)
+}
+
 export async function sendBulkEmail(
   client: SESv2Client,
   params: {
     fromAddress: string
     templateName: string
-    destinations: Array<{ toAddresses: string[]; templateData?: string }>
+    destinations: SesBulkEmailDestination[]
     defaultTemplateData?: string | null
     configurationSetName?: string | null
   }

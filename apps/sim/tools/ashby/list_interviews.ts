@@ -1,5 +1,10 @@
 import type { AshbyUserSummary } from '@/tools/ashby/types'
-import { mapUserSummary, USER_SUMMARY_OUTPUT } from '@/tools/ashby/utils'
+import {
+  ashbyAuthHeaders,
+  ashbyErrorMessage,
+  mapUserSummary,
+  USER_SUMMARY_OUTPUT,
+} from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListInterviewSchedulesParams {
@@ -8,6 +13,7 @@ interface AshbyListInterviewSchedulesParams {
   interviewStageId?: string
   cursor?: string
   perPage?: number
+  createdAfter?: string
 }
 
 interface AshbyInterviewEvent {
@@ -126,21 +132,29 @@ export const listInterviewsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Number of results per page (default 100)',
     },
+    createdAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Only return interview schedules created after this ISO 8601 timestamp (e.g. 2024-01-01T00:00:00Z)',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/interviewSchedule.list',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.applicationId) body.applicationId = params.applicationId.trim()
       if (params.interviewStageId) body.interviewStageId = params.interviewStageId.trim()
       if (params.cursor) body.cursor = params.cursor
       if (params.perPage) body.limit = params.perPage
+      if (params.createdAfter) {
+        const ms = new Date(params.createdAfter).getTime()
+        if (!Number.isNaN(ms)) body.createdAfter = ms
+      }
       return body
     },
   },
@@ -149,7 +163,7 @@ export const listInterviewsTool: ToolConfig<
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to list interview schedules')
+      throw new Error(ashbyErrorMessage(data, 'Failed to list interview schedules'))
     }
 
     return {

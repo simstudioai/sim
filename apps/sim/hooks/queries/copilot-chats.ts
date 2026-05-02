@@ -1,12 +1,9 @@
 import { skipToken, useQuery } from '@tanstack/react-query'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import { type CopilotChatListItem, listCopilotChatsContract } from '@/lib/api/contracts/copilot'
 
-export interface CopilotChatListItem {
-  id: string
-  title: string | null
-  workflowId?: string
-  updatedAt: string
-  activeStreamId: string | null
-}
+export type { CopilotChatListItem }
 
 export const copilotChatsKeys = {
   all: ['copilot-chats'] as const,
@@ -18,11 +15,13 @@ async function fetchCopilotChats(
   workflowId: string,
   signal?: AbortSignal
 ): Promise<CopilotChatListItem[]> {
-  const res = await fetch('/api/copilot/chats', { signal })
-  if (!res.ok) return []
-  const data = await res.json()
-  const all = Array.isArray(data?.chats) ? (data.chats as CopilotChatListItem[]) : []
-  return all.filter((c) => c.workflowId === workflowId)
+  try {
+    const data = await requestJson(listCopilotChatsContract, { signal })
+    return data.chats.filter((c) => c.workflowId === workflowId)
+  } catch (error) {
+    if (error instanceof ApiClientError) return []
+    throw error
+  }
 }
 
 /**

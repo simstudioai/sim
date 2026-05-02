@@ -3,7 +3,8 @@ import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { validateCopilotApiKeyContract } from '@/lib/api/contracts/copilot'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { CopilotValidateOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -14,14 +15,12 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotApiKeysValidate')
 
-const ValidateApiKeySchema = z.object({
-  userId: z.string().min(1, 'userId is required'),
-})
-
-// Incoming-from-Go: extracts traceparent so this handler's work shows
-// up as a child of the Go-side `sim.validate_api_key` span in the same
-// trace. If there's no traceparent (manual curl / browser), the helper
-// falls back to a new root span.
+/**
+ * Incoming-from-Go: extracts traceparent so this handler's work shows up as
+ * a child of the Go-side `sim.validate_api_key` span in the same trace. If
+ * there's no traceparent (manual curl / browser), the helper falls back to a
+ * new root span.
+ */
 export const POST = withRouteHandler((req: NextRequest) =>
   withIncomingGoSpan(
     req.headers,
@@ -42,22 +41,37 @@ export const POST = withRouteHandler((req: NextRequest) =>
           return new NextResponse(null, { status: 401 })
         }
 
-        const body = await req.json().catch(() => null)
-        const validationResult = ValidateApiKeySchema.safeParse(body)
-        if (!validationResult.success) {
-          logger.warn('Invalid validation request', { errors: validationResult.error.errors })
-          span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.InvalidBody)
-          span.setAttribute(TraceAttr.HttpStatusCode, 400)
-          return NextResponse.json(
-            {
-              error: 'userId is required',
-              details: validationResult.error.errors,
+        const parsed = await parseRequest(
+          validateCopilotApiKeyContract,
+          req,
+          {},
+          {
+            validationErrorResponse: (error) => {
+              logger.warn('Invalid validation request', { errors: error.issues })
+              span.setAttribute(
+                TraceAttr.CopilotValidateOutcome,
+                CopilotValidateOutcome.InvalidBody
+              )
+              span.setAttribute(TraceAttr.HttpStatusCode, 400)
+              return validationErrorResponse(error, 'userId is required')
             },
-            { status: 400 }
-          )
-        }
+            invalidJsonResponse: () => {
+              logger.warn('Invalid validation request: invalid JSON')
+              span.setAttribute(
+                TraceAttr.CopilotValidateOutcome,
+                CopilotValidateOutcome.InvalidBody
+              )
+              span.setAttribute(TraceAttr.HttpStatusCode, 400)
+              return NextResponse.json(
+                { error: 'userId is required', details: [] },
+                { status: 400 }
+              )
+            },
+          }
+        )
+        if (!parsed.success) return parsed.response
 
-        const { userId } = validationResult.data
+        const { userId } = parsed.data.body
         span.setAttribute(TraceAttr.UserId, userId)
 
         const [existingUser] = await db.select().from(user).where(eq(user.id, userId)).limit(1)

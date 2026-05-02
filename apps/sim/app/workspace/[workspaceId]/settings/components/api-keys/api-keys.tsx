@@ -117,7 +117,7 @@ export function ApiKeys() {
     }
   }
 
-  const formatLastUsed = (dateString?: string) => {
+  const formatLastUsed = (dateString?: string | null) => {
     if (!dateString) return 'Never'
     return formatDate(new Date(dateString))
   }

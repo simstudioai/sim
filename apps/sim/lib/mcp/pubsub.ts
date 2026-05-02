@@ -38,9 +38,9 @@ const workflowToolsChannel =
         label: 'mcp-workflow-tools',
       })
 
-export const mcpPubSub: McpPubSubAdapter =
+export const mcpPubSub: McpPubSubAdapter | null =
   typeof window !== 'undefined' || !toolsChannel || !workflowToolsChannel
-    ? (null as unknown as McpPubSubAdapter)
+    ? null
     : {
         publishToolsChanged: (event) => toolsChannel.publish(event),
         publishWorkflowToolsChanged: (event) => workflowToolsChannel.publish(event),

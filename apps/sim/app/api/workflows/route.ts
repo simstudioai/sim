@@ -5,41 +5,33 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { createWorkflowContract, workflowListQuerySchema } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { deduplicateWorkflowName, listWorkflows, type WorkflowScope } from '@/lib/workflows/utils'
+import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowAPI')
-
-const CreateWorkflowSchema = z.object({
-  id: z.string().uuid().optional(),
-  name: z.string().min(1, 'Name is required'),
-  description: z.string().optional().default(''),
-  color: z
-    .string()
-    .optional()
-    .transform((c) => c || getNextWorkflowColor()),
-  workspaceId: z.string().optional(),
-  folderId: z.string().nullable().optional(),
-  sortOrder: z.number().int().optional(),
-  deduplicate: z.boolean().optional(),
-})
 
 // GET /api/workflows - Get workflows for user (optionally filtered by workspaceId)
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   const startTime = Date.now()
   const url = new URL(request.url)
-  const workspaceId = url.searchParams.get('workspaceId')
-  const scope = (url.searchParams.get('scope') ?? 'active') as WorkflowScope
+  const query = workflowListQuerySchema.safeParse(Object.fromEntries(url.searchParams.entries()))
+  if (!query.success) {
+    return NextResponse.json(
+      { error: 'Invalid query parameters', details: query.error.issues },
+      { status: 400 }
+    )
+  }
+  const { workspaceId, scope } = query.data
 
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -75,16 +67,42 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
-    if (!['active', 'archived', 'all'].includes(scope)) {
-      return NextResponse.json({ error: 'Invalid scope' }, { status: 400 })
-    }
-
     let workflows
 
+    /**
+     * Project only the columns declared in `workflowListItemSchema` so the
+     * wire response matches the contract shape exactly. The full row is
+     * larger (`state`, `variables`, `apiKey`, `runCount`, etc.) and would
+     * be dropped client-side by Zod parse anyway — narrowing here saves
+     * bytes over the wire. Keep this list aligned with the contract.
+     */
+    const listColumns = {
+      id: workflow.id,
+      name: workflow.name,
+      description: workflow.description,
+      color: workflow.color,
+      workspaceId: workflow.workspaceId,
+      folderId: workflow.folderId,
+      sortOrder: workflow.sortOrder,
+      createdAt: workflow.createdAt,
+      updatedAt: workflow.updatedAt,
+      archivedAt: workflow.archivedAt,
+      locked: workflow.locked,
+    } as const
     const orderByClause = [asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id)]
 
     if (workspaceId) {
-      workflows = await listWorkflows(workspaceId, { scope })
+      workflows = await db
+        .select(listColumns)
+        .from(workflow)
+        .where(
+          scope === 'all'
+            ? eq(workflow.workspaceId, workspaceId)
+            : scope === 'archived'
+              ? and(eq(workflow.workspaceId, workspaceId), sql`${workflow.archivedAt} IS NOT NULL`)
+              : and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt))
+        )
+        .orderBy(...orderByClause)
     } else {
       const workspacePermissionRows = await db
         .select({ workspaceId: permissions.entityId })
@@ -95,7 +113,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json({ data: [] }, { status: 200 })
       }
       workflows = await db
-        .select()
+        .select(listColumns)
         .from(workflow)
         .where(
           scope === 'all'
@@ -114,7 +132,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   } catch (error: any) {
     const elapsed = Date.now() - startTime
     logger.error(`[${requestId}] Workflow fetch error after ${elapsed}ms`, error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })
 
@@ -129,7 +147,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   const userId = auth.userId
 
   try {
-    const body = await req.json()
+    const parsed = await parseRequest(createWorkflowContract, req, {})
+    if (!parsed.success) return parsed.response
     const {
       id: clientId,
       name: requestedName,
@@ -139,7 +158,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       folderId,
       sortOrder: providedSortOrder,
       deduplicate,
-    } = CreateWorkflowSchema.parse(body)
+    } = parsed.data.body
 
     if (!workspaceId) {
       logger.warn(`[${requestId}] Workflow creation blocked: missing workspaceId`)
@@ -322,16 +341,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       subBlockValues,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid workflow creation data`, {
-        errors: error.errors,
-      })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error creating workflow`, error)
     return NextResponse.json({ error: 'Failed to create workflow' }, { status: 500 })
   }

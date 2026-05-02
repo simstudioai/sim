@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import type { NextRequest } from 'next/server'
+import { workflowDeploymentVersionParamSchema } from '@/lib/api/contracts/workflows'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performRevertToVersion } from '@/lib/workflows/orchestration'
@@ -28,15 +30,16 @@ export const POST = withRouteHandler(
       if (error) {
         return createErrorResponse(error.message, error.status)
       }
+      await assertWorkflowMutable(id)
 
-      const versionSelector = version === 'active' ? null : Number(version)
-      if (version !== 'active' && !Number.isFinite(versionSelector)) {
+      const versionValidation = workflowDeploymentVersionParamSchema.safeParse(version)
+      if (!versionValidation.success) {
         return createErrorResponse('Invalid version', 400)
       }
 
       const result = await performRevertToVersion({
         workflowId: id,
-        version: version === 'active' ? 'active' : (versionSelector as number),
+        version: versionValidation.data,
         userId: session!.user.id,
         workflow: (workflowRecord ?? {}) as Record<string, unknown>,
         request,
@@ -56,6 +59,10 @@ export const POST = withRouteHandler(
         lastSaved: result.lastSaved,
       })
     } catch (error: any) {
+      if (error instanceof WorkflowLockedError) {
+        return createErrorResponse(error.message, error.status)
+      }
+
       logger.error('Error reverting to deployment version', error)
       return createErrorResponse(error.message || 'Failed to revert', 500)
     }

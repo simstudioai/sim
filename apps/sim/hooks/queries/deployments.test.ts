@@ -29,12 +29,14 @@ describe('deployment query helpers', () => {
   })
 
   it('fetches deployment version state through the shared helper', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        deployedState: { blocks: {}, edges: [], loops: {}, parallels: {}, lastSaved: 1 },
-      }),
-    }) as typeof fetch
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          deployedState: { blocks: {}, edges: [], loops: {}, parallels: {}, lastSaved: 1 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    ) as typeof fetch
 
     await expect(fetchDeploymentVersionState('wf-1', 3)).resolves.toEqual({
       blocks: {},
@@ -45,6 +47,9 @@ describe('deployment query helpers', () => {
     })
 
     expect(global.fetch).toHaveBeenCalledWith('/api/workflows/wf-1/deployments/3', {
+      method: 'GET',
+      headers: {},
+      body: undefined,
       signal: undefined,
     })
   })

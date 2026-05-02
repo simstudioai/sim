@@ -5,20 +5,27 @@ import { createLogger } from '@sim/logger'
 import { Mail } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { GmailIcon, OutlookIcon } from '@/components/icons'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  acceptCredentialSetInvitationContract,
+  type CredentialSetInvitePreview,
+  getCredentialSetInvitationContract,
+} from '@/lib/api/contracts'
+import { listOAuthConnectionsContract } from '@/lib/api/contracts/oauth-connections'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { getProviderDisplayName, isPollingProvider } from '@/lib/credential-sets/providers'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 
 const logger = createLogger('CredentialAccount')
 
-interface InvitationInfo {
-  credentialSetName: string
-  organizationName: string
-  providerId: string | null
-  email: string | null
-}
-
 type AcceptedState = 'connecting' | 'already-connected'
+
+function getErrorMessageFromBody(body: unknown): string | undefined {
+  if (!body || typeof body !== 'object') return undefined
+  const error = (body as { error?: unknown }).error
+  return typeof error === 'string' ? error : undefined
+}
 
 export default function CredentialAccountInvitePage() {
   const params = useParams()
@@ -27,7 +34,7 @@ export default function CredentialAccountInvitePage() {
 
   const { data: session, isPending: sessionLoading } = useSession()
 
-  const [invitation, setInvitation] = useState<InvitationInfo | null>(null)
+  const [invitation, setInvitation] = useState<CredentialSetInvitePreview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [accepting, setAccepting] = useState(false)
@@ -36,16 +43,16 @@ export default function CredentialAccountInvitePage() {
   useEffect(() => {
     async function fetchInvitation() {
       try {
-        const res = await fetch(`/api/credential-sets/invite/${token}`)
-        if (!res.ok) {
-          const data = await res.json()
-          setError(data.error || 'Failed to load invitation')
-          return
-        }
-        const data = await res.json()
+        const data = await requestJson(getCredentialSetInvitationContract, {
+          params: { token },
+        })
         setInvitation(data.invitation)
-      } catch {
-        setError('Failed to load invitation')
+      } catch (fetchError) {
+        if (fetchError instanceof ApiClientError) {
+          setError(getErrorMessageFromBody(fetchError.body) || fetchError.message)
+        } else {
+          setError('Failed to load invitation')
+        }
       } finally {
         setLoading(false)
       }
@@ -64,34 +71,33 @@ export default function CredentialAccountInvitePage() {
 
     setAccepting(true)
     try {
-      const res = await fetch(`/api/credential-sets/invite/${token}`, {
-        method: 'POST',
+      const acceptResponse = await requestJson(acceptCredentialSetInvitationContract, {
+        params: { token },
+      }).catch((acceptError: unknown) => {
+        const fallback = 'Failed to accept invitation'
+        if (acceptError instanceof ApiClientError) {
+          setError(getErrorMessageFromBody(acceptError.body) || acceptError.message || fallback)
+        } else {
+          setError(fallback)
+        }
+        return null
       })
 
-      if (!res.ok) {
-        const data = await res.json()
-        setError(data.error || 'Failed to accept invitation')
+      if (!acceptResponse) {
         return
       }
 
-      const data = await res.json()
-      const credentialSetProviderId = data.providerId || invitation?.providerId
+      const credentialSetProviderId = acceptResponse.providerId || invitation?.providerId
 
       // Check if user already has this provider connected
       let isAlreadyConnected = false
       if (credentialSetProviderId && isPollingProvider(credentialSetProviderId)) {
         try {
-          const connectionsRes = await fetch('/api/auth/oauth/connections')
-          if (connectionsRes.ok) {
-            const connectionsData = await connectionsRes.json()
-            const connections = connectionsData.connections || []
-            isAlreadyConnected = connections.some(
-              (conn: { provider: string; accounts?: { id: string }[] }) =>
-                conn.provider === credentialSetProviderId &&
-                conn.accounts &&
-                conn.accounts.length > 0
-            )
-          }
+          const connectionsData = await requestJson(listOAuthConnectionsContract, {})
+          isAlreadyConnected = (connectionsData.connections ?? []).some(
+            (conn) =>
+              conn.provider === credentialSetProviderId && conn.accounts && conn.accounts.length > 0
+          )
         } catch {
           // If we can't check connections, proceed with OAuth flow
         }

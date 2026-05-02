@@ -146,15 +146,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       mode: 'advanced',
       required: false,
     },
-    {
-      id: 'conversationId',
-      title: 'Conversation ID',
-      type: 'short-input',
-      placeholder: 'Conversation ID for threading',
-      condition: { field: 'operation', value: ['send_outlook'] },
-      mode: 'advanced',
-      required: false,
-    },
     // Advanced Settings - Additional Recipients
     {
       id: 'cc',

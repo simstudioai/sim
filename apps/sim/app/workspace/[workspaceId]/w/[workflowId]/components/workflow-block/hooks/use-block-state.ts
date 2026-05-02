@@ -1,4 +1,3 @@
-import { useCallback } from 'react'
 import type { DiffStatus } from '@/lib/workflows/diff/types'
 import { hasDiffStatus } from '@/lib/workflows/diff/types'
 import { useIsBlockActive } from '@/stores/execution'
@@ -54,15 +53,8 @@ export function useBlockState(
       : undefined
 
   // Get diff-related data
-  const { diffAnalysis, isShowingDiff } = useWorkflowDiffStore(
-    useCallback(
-      (state) => ({
-        diffAnalysis: state.diffAnalysis,
-        isShowingDiff: state.isShowingDiff,
-      }),
-      []
-    )
-  )
+  const diffAnalysis = useWorkflowDiffStore((state) => state.diffAnalysis)
+  const isShowingDiff = useWorkflowDiffStore((state) => state.isShowingDiff)
 
   const isDeletedBlock = !isShowingDiff && diffAnalysis?.deleted_blocks?.includes(blockId)
 

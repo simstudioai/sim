@@ -285,7 +285,7 @@ describe('Knowledge Base By ID API Route', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data.error).toBe('Invalid request data')
+      expect(data.error).toBe('Validation error')
       expect(data.details).toBeDefined()
     })
 

@@ -154,6 +154,7 @@ async function applyStrategy(
       const chunker = new RegexChunker({
         ...baseOptions,
         pattern: strategyOptions.pattern,
+        strictBoundaries: strategyOptions.strictBoundaries,
       })
       return chunker.chunk(content)
     }

@@ -21,6 +21,11 @@ import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, inArray } from 'drizzle-orm'
 import {
+  adminV1GetOrganizationContract,
+  adminV1UpdateOrganizationContract,
+} from '@/lib/api/contracts/v1/admin'
+import { parseRequest } from '@/lib/api/server'
+import {
   ensureOrganizationSlugAvailable,
   OrganizationSlugInvalidError,
   OrganizationSlugTakenError,
@@ -30,6 +35,8 @@ import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/util
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminInvalidJsonResponse,
+  adminValidationErrorResponse,
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
@@ -49,7 +56,12 @@ interface RouteParams {
 
 export const GET = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: organizationId } = await context.params
+    const parsed = await parseRequest(adminV1GetOrganizationContract, request, context, {
+      validationErrorResponse: adminValidationErrorResponse,
+    })
+    if (!parsed.success) return parsed.response
+
+    const { id: organizationId } = parsed.data.params
 
     try {
       const [orgData] = await db
@@ -94,11 +106,15 @@ export const GET = withRouteHandler(
 
 export const PATCH = withRouteHandler(
   withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: organizationId } = await context.params
+    const parsed = await parseRequest(adminV1UpdateOrganizationContract, request, context, {
+      validationErrorResponse: adminValidationErrorResponse,
+      invalidJsonResponse: adminInvalidJsonResponse,
+    })
+    if (!parsed.success) return parsed.response
+
+    const { id: organizationId } = parsed.data.params
 
     try {
-      const body = await request.json()
-
       const [existing] = await db
         .select()
         .from(organization)
@@ -113,18 +129,14 @@ export const PATCH = withRouteHandler(
         updatedAt: new Date(),
       }
 
-      if (body.name !== undefined) {
-        if (typeof body.name !== 'string' || body.name.trim().length === 0) {
-          return badRequestResponse('name must be a non-empty string')
-        }
-        updateData.name = body.name.trim()
+      const validatedBody = parsed.data.body
+
+      if (validatedBody.name !== undefined) {
+        updateData.name = validatedBody.name
       }
 
-      if (body.slug !== undefined) {
-        if (typeof body.slug !== 'string' || body.slug.trim().length === 0) {
-          return badRequestResponse('slug must be a non-empty string')
-        }
-        const nextSlug = body.slug.trim()
+      if (validatedBody.slug !== undefined) {
+        const nextSlug = validatedBody.slug
         validateOrganizationSlugOrThrow(nextSlug)
         await ensureOrganizationSlugAvailable({
           slug: nextSlug,

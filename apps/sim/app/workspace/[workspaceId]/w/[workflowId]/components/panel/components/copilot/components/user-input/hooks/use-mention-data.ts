@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useShallow } from 'zustand/react/shallow'
+import { requestJson } from '@/lib/api/client/request'
+import { listCopilotChatsContract } from '@/lib/api/contracts/copilot'
+import { listKnowledgeBasesContract } from '@/lib/api/contracts/knowledge/base'
+import { listLogsContract } from '@/lib/api/contracts/logs'
+import { listTemplatesContract } from '@/lib/api/contracts/templates'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -222,19 +227,17 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
     if (isLoadingPastChats || pastChats.length > 0) return
     try {
       setIsLoadingPastChats(true)
-      const resp = await fetch('/api/copilot/chats')
-      if (!resp.ok) throw new Error(`Failed to load chats: ${resp.status}`)
-      const data = await resp.json()
-      const items = Array.isArray(data?.chats) ? data.chats : []
+      const data = await requestJson(listCopilotChatsContract, {})
+      const items = data.chats
 
-      const currentWorkflowChats = items.filter((c: any) => c.workflowId === workflowId)
+      const currentWorkflowChats = items.filter((c) => c.workflowId === workflowId)
 
       setPastChats(
-        currentWorkflowChats.map((c: any) => ({
+        currentWorkflowChats.map((c) => ({
           id: c.id,
           title: c.title ?? null,
           workflowId: c.workflowId ?? null,
-          updatedAt: c.updatedAt,
+          updatedAt: c.updatedAt ?? undefined,
         }))
       )
     } catch {
@@ -250,16 +253,16 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
     if (isLoadingKnowledge || knowledgeBases.length > 0) return
     try {
       setIsLoadingKnowledge(true)
-      const resp = await fetch(`/api/knowledge?workspaceId=${workspaceId}`)
-      if (!resp.ok) throw new Error(`Failed to load knowledge bases: ${resp.status}`)
-      const data = await resp.json()
-      const items = Array.isArray(data?.data) ? data.data : []
-      const sorted = [...items].sort((a: any, b: any) => {
+      const result = await requestJson(listKnowledgeBasesContract, {
+        query: { workspaceId },
+      })
+      const items = result.data
+      const sorted = [...items].sort((a, b) => {
         const ta = new Date(a.updatedAt || a.createdAt || 0).getTime()
         const tb = new Date(b.updatedAt || b.createdAt || 0).getTime()
         return tb - ta
       })
-      setKnowledgeBases(sorted.map((k: any) => ({ id: k.id, name: k.name || 'Untitled' })))
+      setKnowledgeBases(sorted.map((k) => ({ id: k.id, name: k.name || 'Untitled' })))
     } catch {
     } finally {
       setIsLoadingKnowledge(false)
@@ -321,13 +324,13 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
     if (isLoadingTemplates || templatesList.length > 0) return
     try {
       setIsLoadingTemplates(true)
-      const resp = await fetch('/api/templates?limit=50&offset=0')
-      if (!resp.ok) throw new Error(`Failed to load templates: ${resp.status}`)
-      const data = await resp.json()
-      const items = Array.isArray(data?.data) ? data.data : []
+      const data = await requestJson(listTemplatesContract, {
+        query: { limit: 50, offset: 0 },
+      })
+      const items = data.data
       const mapped = items
-        .map((t: any) => ({ id: t.id, name: t.name || 'Untitled Template', stars: t.stars || 0 }))
-        .sort((a: any, b: any) => b.stars - a.stars)
+        .map((t) => ({ id: t.id, name: t.name || 'Untitled Template', stars: t.stars || 0 }))
+        .sort((a, b) => b.stars - a.stars)
       setTemplatesList(mapped)
     } catch {
     } finally {
@@ -342,20 +345,17 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
     if (isLoadingLogs || logsList.length > 0) return
     try {
       setIsLoadingLogs(true)
-      const resp = await fetch(`/api/logs?workspaceId=${workspaceId}&limit=50&details=full`)
-      if (!resp.ok) throw new Error(`Failed to load logs: ${resp.status}`)
-      const data = await resp.json()
-      const items = Array.isArray(data?.data) ? data.data : []
-      const mapped = items.map((l: any) => ({
+      const data = await requestJson(listLogsContract, {
+        query: { workspaceId, limit: 50, details: 'full' },
+      })
+      const items = data.data
+      const mapped = items.map((l) => ({
         id: l.id,
         executionId: l.executionId || l.id,
         level: l.level,
         trigger: l.trigger || null,
         createdAt: l.createdAt,
-        workflowName:
-          (l.workflow && (l.workflow.name || l.workflow.title)) ||
-          l.workflowName ||
-          'Untitled Workflow',
+        workflowName: l.workflow?.name ?? 'Untitled Workflow',
       }))
       setLogsList(mapped)
     } catch {

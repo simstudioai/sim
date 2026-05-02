@@ -6,6 +6,8 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { Button } from '@/components/emcn'
 import { PanelLeft } from '@/components/emcn/icons'
+import { requestJson } from '@/lib/api/client/request'
+import { createWorkflowContract } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
 import {
   LandingPromptStorage,
@@ -54,24 +56,15 @@ export function Home({ chatId }: HomeProps = {}) {
           descriptionOverride: seed.workflowDescription || 'Imported from landing template',
           colorOverride: seed.color,
           createWorkflow: async ({ name, description, color, workspaceId }) => {
-            const response = await fetch('/api/workflows', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
+            return requestJson(createWorkflowContract, {
+              body: {
                 name,
                 description,
                 color,
                 workspaceId,
                 deduplicate: true,
-              }),
+              },
             })
-
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({}))
-              throw new Error(errorData.error || 'Failed to create workflow')
-            }
-
-            return response.json()
           },
         })
 
@@ -282,6 +275,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
   const hasMessages = messages.length > 0
   const showChatSkeleton = Boolean(chatId) && !hasMessages && isChatHistoryPending
+  const draftScopeKey = `${workspaceId}:${chatId ?? 'new'}`
 
   useEffect(() => {
     if (hasMessages) return
@@ -299,7 +293,7 @@ export function Home({ chatId }: HomeProps = {}) {
     return () => ro.disconnect()
   }, [hasMessages])
 
-  if (!hasMessages && !chatId) {
+  if (!hasMessages && !showChatSkeleton) {
     return (
       <div className='h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable_both-edges]'>
         <div className='flex min-h-full flex-col items-center justify-center px-6 pb-[2vh]'>
@@ -313,6 +307,7 @@ export function Home({ chatId }: HomeProps = {}) {
           <div ref={initialViewInputRef} className='w-full' data-tour='home-chat-input'>
             <UserInput
               defaultValue={initialPrompt}
+              draftScopeKey={draftScopeKey}
               onSubmit={handleSubmit}
               isSending={isSending}
               onStopGeneration={handleStopGeneration}
@@ -351,6 +346,7 @@ export function Home({ chatId }: HomeProps = {}) {
           chatId={resolvedChatId}
           onContextAdd={handleContextAdd}
           onWorkspaceResourceSelect={handleWorkspaceResourceSelect}
+          draftScopeKey={draftScopeKey}
           animateInput={isInputEntering}
           onInputAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
           initialScrollBlocked={resources.length > 0 && isResourceCollapsed}

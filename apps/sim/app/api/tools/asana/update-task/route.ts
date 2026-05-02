@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { asanaUpdateTaskContract } from '@/lib/api/contracts/tools/asana'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -16,17 +18,9 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const { accessToken, taskGid, name, notes, assignee, completed, due_on } = await request.json()
-
-    if (!accessToken) {
-      logger.error('Missing access token in request')
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-    }
-
-    if (!taskGid) {
-      logger.error('Missing task GID in request')
-      return NextResponse.json({ error: 'Task GID is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(asanaUpdateTaskContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { accessToken, taskGid, name, notes, assignee, completed, due_on } = parsed.data.body
 
     const taskGidValidation = validateAlphanumericId(taskGid, 'taskGid', 100)
     if (!taskGidValidation.isValid) {
@@ -35,7 +29,7 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
 
     const url = `https://app.asana.com/api/1.0/tasks/${taskGid}`
 
-    const taskData: Record<string, any> = {}
+    const taskData: Record<string, unknown> = {}
 
     if (name !== undefined) {
       taskData.name = name
@@ -114,7 +108,7 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
       completed: task.completed || false,
       modified_at: task.modified_at,
     })
-  } catch (error: any) {
+  } catch (error) {
     logger.error('Error updating Asana task:', {
       error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,

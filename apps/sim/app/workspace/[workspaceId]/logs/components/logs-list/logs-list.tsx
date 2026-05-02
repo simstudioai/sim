@@ -2,10 +2,10 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
-import { ArrowUpRight, Loader2 } from 'lucide-react'
+import { ArrowUpRight } from 'lucide-react'
 import Link from 'next/link'
 import { List, type RowComponentProps, useListRef } from 'react-window'
-import { Badge, buttonVariants } from '@/components/emcn'
+import { Badge, buttonVariants, Loader } from '@/components/emcn'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
@@ -196,7 +196,7 @@ function Row({
         <div ref={loaderRef} className='flex items-center gap-2 text-[var(--text-secondary)]'>
           {isFetchingNextPage ? (
             <>
-              <Loader2 className='h-[16px] w-[16px] animate-spin' />
+              <Loader className='h-[16px] w-[16px]' animate />
               <span className='text-small'>Loading more...</span>
             </>
           ) : (

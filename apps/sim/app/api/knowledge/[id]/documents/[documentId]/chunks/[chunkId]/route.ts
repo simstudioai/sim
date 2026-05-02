@@ -1,18 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteChunk, updateChunk } from '@/lib/knowledge/chunks/service'
 import { checkChunkAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('ChunkByIdAPI')
-
-const UpdateChunkSchema = z.object({
-  content: z.string().min(1, 'Content is required').optional(),
-  enabled: z.boolean().optional(),
-})
 
 export const GET = withRouteHandler(
   async (
@@ -67,10 +63,10 @@ export const GET = withRouteHandler(
 export const PUT = withRouteHandler(
   async (
     req: NextRequest,
-    { params }: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
+    context: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
   ) => {
     const requestId = generateId().slice(0, 8)
-    const { id: knowledgeBaseId, documentId, chunkId } = await params
+    const { id: knowledgeBaseId, documentId, chunkId } = await context.params
 
     try {
       const session = await getSession()
@@ -109,38 +105,26 @@ export const PUT = withRouteHandler(
         )
       }
 
-      const body = await req.json()
+      const parsed = await parseRequest(updateKnowledgeChunkContract, req, context)
+      if (!parsed.success) return parsed.response
 
-      try {
-        const validatedData = UpdateChunkSchema.parse(body)
+      const validatedData = parsed.data.body
 
-        const updatedChunk = await updateChunk(
-          chunkId,
-          validatedData,
-          requestId,
-          accessCheck.knowledgeBase?.workspaceId
-        )
+      const updatedChunk = await updateChunk(
+        chunkId,
+        validatedData,
+        requestId,
+        accessCheck.knowledgeBase?.workspaceId
+      )
 
-        logger.info(
-          `[${requestId}] Chunk updated: ${chunkId} in document ${documentId} in knowledge base ${knowledgeBaseId}`
-        )
+      logger.info(
+        `[${requestId}] Chunk updated: ${chunkId} in document ${documentId} in knowledge base ${knowledgeBaseId}`
+      )
 
-        return NextResponse.json({
-          success: true,
-          data: updatedChunk,
-        })
-      } catch (validationError) {
-        if (validationError instanceof z.ZodError) {
-          logger.warn(`[${requestId}] Invalid chunk update data`, {
-            errors: validationError.errors,
-          })
-          return NextResponse.json(
-            { error: 'Invalid request data', details: validationError.errors },
-            { status: 400 }
-          )
-        }
-        throw validationError
-      }
+      return NextResponse.json({
+        success: true,
+        data: updatedChunk,
+      })
     } catch (error) {
       logger.error(`[${requestId}] Error updating chunk`, error)
       return NextResponse.json({ error: 'Failed to update chunk' }, { status: 500 })

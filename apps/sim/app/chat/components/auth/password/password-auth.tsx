@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
-import { Input, Label } from '@/components/emcn'
+import { Eye, EyeOff } from 'lucide-react'
+import { Input, Label, Loader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
@@ -135,7 +135,7 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
                 >
                   {authenticate.isPending ? (
                     <span className='flex items-center gap-2'>
-                      <Loader2 className='h-4 w-4 animate-spin' />
+                      <Loader className='h-4 w-4' animate />
                       Authenticating...
                     </span>
                   ) : (

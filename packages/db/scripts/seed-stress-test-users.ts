@@ -6,6 +6,7 @@
  *   cd packages/db && bun run scripts/seed-stress-test-users.ts
  */
 
+import { generateId } from '@sim/utils/id'
 import { eq, type InferInsertModel } from 'drizzle-orm'
 import { db, userTableDefinitions, userTableRows } from '../index'
 
@@ -152,7 +153,7 @@ async function main() {
       .where(eq(userTableDefinitions.id, tableId))
   } else {
     // Create table
-    tableId = `tbl_${crypto.randomUUID().replace(/-/g, '')}`
+    tableId = `tbl_${generateId().replace(/-/g, '')}`
     const now = new Date()
 
     const tableSchema = {
@@ -195,7 +196,7 @@ async function main() {
 
     for (let j = i; j < endIdx; j++) {
       batch.push({
-        id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+        id: `row_${generateId().replace(/-/g, '')}`,
         tableId,
         workspaceId: WORKSPACE_ID,
         data: generateUserRow(j),

@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { evernoteSearchNotesContract } from '@/lib/api/contracts/tools/evernote'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { searchNotes } from '@/app/api/tools/evernote/lib/client'
@@ -15,16 +17,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-    const { apiKey, query, notebookGuid, offset = 0, maxNotes = 25 } = body
+    const parsed = await parseRequest(
+      evernoteSearchNotesContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { success: false, error: getValidationErrorMessage(error, 'Invalid request') },
+            { status: 400 }
+          ),
+        invalidJsonResponse: () =>
+          NextResponse.json({ success: false, error: 'Invalid request' }, { status: 400 }),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!apiKey || !query) {
-      return NextResponse.json(
-        { success: false, error: 'apiKey and query are required' },
-        { status: 400 }
-      )
-    }
-
+    const { apiKey, query, notebookGuid, offset, maxNotes } = parsed.data.body
     const clampedMaxNotes = Math.min(Math.max(Number(maxNotes) || 25, 1), 250)
 
     const result = await searchNotes(

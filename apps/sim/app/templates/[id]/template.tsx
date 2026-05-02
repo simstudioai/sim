@@ -31,6 +31,13 @@ import {
   Skeleton,
 } from '@/components/emcn'
 import { VerifiedBadge } from '@/components/ui/verified-badge'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  listCreatorOrganizationsContract,
+  updateCreatorProfileContract,
+} from '@/lib/api/contracts/creator-profile'
+import { updateTemplateContract, useTemplateContract } from '@/lib/api/contracts/templates'
+import { listWorkspacesContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -170,18 +177,15 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       if (!currentUserId) return
 
       try {
-        const response = await fetch('/api/organizations')
-        if (response.ok) {
-          const data = await response.json()
-          const orgs = data.organizations || []
-          const orgIds = orgs.map((org: any) => org.id)
-          const orgRoles = orgs.map((org: any) => ({
+        const data = await requestJson(listCreatorOrganizationsContract, {})
+        const orgs = data.organizations
+        setCurrentUserOrgs(orgs.map((org) => org.id))
+        setCurrentUserOrgRoles(
+          orgs.map((org) => ({
             organizationId: org.id,
             role: org.role,
           }))
-          setCurrentUserOrgs(orgIds)
-          setCurrentUserOrgRoles(orgRoles)
-        }
+        )
       } catch (error) {
         logger.error('Error fetching organizations:', error)
       }
@@ -196,18 +200,13 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     const fetchWorkspaces = async () => {
       try {
         setIsLoadingWorkspaces(true)
-        const response = await fetch('/api/workspaces')
-        if (response.ok) {
-          const data = await response.json()
-          const availableWorkspaces = data.workspaces
-            .filter((ws: any) => ws.permissions === 'write' || ws.permissions === 'admin')
-            .map((ws: any) => ({
-              id: ws.id,
-              name: ws.name,
-              permissions: ws.permissions,
-            }))
-          setWorkspaces(availableWorkspaces)
-        }
+        const data = await requestJson(listWorkspacesContract, { query: { scope: 'active' } })
+        const availableWorkspaces = data.workspaces.flatMap((ws) =>
+          ws.permissions === 'write' || ws.permissions === 'admin'
+            ? [{ id: ws.id, name: ws.name, permissions: ws.permissions }]
+            : []
+        )
+        setWorkspaces(availableWorkspaces)
       } catch (error) {
         logger.error('Error fetching workspaces:', error)
       } finally {
@@ -262,6 +261,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       }
 
       try {
+        // boundary-raw-fetch: workflow access probe needs HTTP status discrimination (200 vs 403 vs other) without parsing the body
         const checkResponse = await fetch(`/api/workflows/${template.workflowId}`)
         if (checkResponse.status === 403) {
           setHasWorkspaceAccess(false)
@@ -391,6 +391,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     if (isWorkspaceContext && workspaceId && template.workflowId) {
       setIsEditing(true)
       try {
+        // boundary-raw-fetch: workflow access probe needs HTTP status check (200 vs not-ok) without parsing the body
         const checkResponse = await fetch(`/api/workflows/${template.workflowId}`)
 
         if (checkResponse.ok) {
@@ -407,6 +408,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     if (template.workflowId && !isWorkspaceContext) {
       setIsEditing(true)
       try {
+        // boundary-raw-fetch: workflow probe reads passthrough data.workspaceId (not in getWorkflowStateContract typed response) and discriminates 403 vs 200
         const checkResponse = await fetch(`/api/workflows/${template.workflowId}`)
 
         if (checkResponse.status === 403) {
@@ -441,17 +443,10 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
     setIsUsing(true)
     try {
-      const response = await fetch(`/api/templates/${template.id}/use`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId }),
+      const { workflowId } = await requestJson(useTemplateContract, {
+        params: { id: template.id },
+        body: { workspaceId },
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to use template')
-      }
-
-      const { workflowId } = await response.json()
 
       window.location.href = `/workspace/${workspaceId}/w/${workflowId}`
     } catch (error) {
@@ -467,17 +462,10 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     setIsUsing(true)
     setShowWorkspaceSelectorForEdit(false)
     try {
-      const response = await fetch(`/api/templates/${template.id}/use`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, connectToTemplate: true }),
+      const { workflowId } = await requestJson(useTemplateContract, {
+        params: { id: template.id },
+        body: { workspaceId, connectToTemplate: true },
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to import template for editing')
-      }
-
-      const { workflowId } = await response.json()
 
       window.location.href = `/workspace/${workspaceId}/w/${workflowId}`
     } catch (error) {
@@ -492,18 +480,14 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
     setIsApproving(true)
     try {
-      const response = await fetch(`/api/templates/${template.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'approved' }),
+      await requestJson(updateTemplateContract, {
+        params: { id: template.id },
+        body: { status: 'approved' },
       })
-
-      if (response.ok) {
-        if (isWorkspaceContext && workspaceId) {
-          router.push(`/workspace/${workspaceId}/templates`)
-        } else {
-          router.push('/templates')
-        }
+      if (isWorkspaceContext && workspaceId) {
+        router.push(`/workspace/${workspaceId}/templates`)
+      } else {
+        router.push('/templates')
       }
     } catch (error) {
       logger.error('Error approving template:', error)
@@ -517,18 +501,14 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
     setIsRejecting(true)
     try {
-      const response = await fetch(`/api/templates/${template.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'rejected' }),
+      await requestJson(updateTemplateContract, {
+        params: { id: template.id },
+        body: { status: 'rejected' },
       })
-
-      if (response.ok) {
-        if (isWorkspaceContext && workspaceId) {
-          router.push(`/workspace/${workspaceId}/templates`)
-        } else {
-          router.push('/templates')
-        }
+      if (isWorkspaceContext && workspaceId) {
+        router.push(`/workspace/${workspaceId}/templates`)
+      } else {
+        router.push('/templates')
       }
     } catch (error) {
       logger.error('Error rejecting template:', error)
@@ -542,23 +522,14 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
     setIsVerifying(true)
     try {
-      const response = await fetch(`/api/creators/${template.creator.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ verified: !template.creator.verified }),
+      await requestJson(updateCreatorProfileContract, {
+        params: { id: template.creator.id },
+        body: { verified: !template.creator.verified },
       })
-
-      if (response.ok) {
-        // Refresh page to show updated verification status
-        window.location.reload()
-      } else {
-        const error = await response.json()
-        logger.error('Error toggling verification:', error)
-        alert(`Failed to ${template.creator.verified ? 'unverify' : 'verify'} creator`)
-      }
+      window.location.reload()
     } catch (error) {
       logger.error('Error toggling verification:', error)
-      alert('An error occurred while toggling verification')
+      alert(`Failed to ${template.creator.verified ? 'unverify' : 'verify'} creator`)
     } finally {
       setIsVerifying(false)
     }

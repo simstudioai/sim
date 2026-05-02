@@ -6,74 +6,12 @@ import {
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { awsCloudwatchPutMetricDataContract } from '@/lib/api/contracts/tools/aws/cloudwatch-put-metric-data'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { validateAwsRegion } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CloudWatchPutMetricData')
-
-const VALID_UNITS = [
-  'Seconds',
-  'Microseconds',
-  'Milliseconds',
-  'Bytes',
-  'Kilobytes',
-  'Megabytes',
-  'Gigabytes',
-  'Terabytes',
-  'Bits',
-  'Kilobits',
-  'Megabits',
-  'Gigabits',
-  'Terabits',
-  'Percent',
-  'Count',
-  'Bytes/Second',
-  'Kilobytes/Second',
-  'Megabytes/Second',
-  'Gigabytes/Second',
-  'Terabytes/Second',
-  'Bits/Second',
-  'Kilobits/Second',
-  'Megabits/Second',
-  'Gigabits/Second',
-  'Terabits/Second',
-  'Count/Second',
-  'None',
-] as const
-
-const PutMetricDataSchema = z.object({
-  region: z
-    .string()
-    .min(1, 'AWS region is required')
-    .refine((v) => validateAwsRegion(v).isValid, {
-      message: 'Invalid AWS region format (e.g., us-east-1, eu-west-2)',
-    }),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  namespace: z.string().min(1, 'Namespace is required'),
-  metricName: z.string().min(1, 'Metric name is required'),
-  value: z.number({ coerce: true }).refine((v) => Number.isFinite(v), {
-    message: 'Metric value must be a finite number',
-  }),
-  unit: z.enum(VALID_UNITS).optional(),
-  dimensions: z
-    .string()
-    .optional()
-    .refine(
-      (val) => {
-        if (!val) return true
-        try {
-          const parsed = JSON.parse(val)
-          return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-        } catch {
-          return false
-        }
-      },
-      { message: 'dimensions must be a valid JSON object string' }
-    ),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -82,8 +20,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validatedData = PutMetricDataSchema.parse(body)
+    const parsed = await parseToolRequest(awsCloudwatchPutMetricDataContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`Publishing metric ${validatedData.namespace}/${validatedData.metricName}`)
 
@@ -138,13 +80,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       client.destroy()
     }
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn('Invalid request data', { errors: error.errors })
-      return NextResponse.json(
-        { error: error.errors[0]?.message ?? 'Invalid request' },
-        { status: 400 }
-      )
-    }
     logger.error('PutMetricData failed', { error: toError(error).message })
     return NextResponse.json(
       { error: `Failed to publish CloudWatch metric: ${toError(error).message}` },

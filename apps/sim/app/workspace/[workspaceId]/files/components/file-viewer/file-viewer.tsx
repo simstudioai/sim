@@ -175,6 +175,7 @@ const IframePreview = memo(function IframePreview({
       try {
         setRendering(true)
 
+        // boundary-raw-fetch: route returns binary PDF (read via response.arrayBuffer()), not JSON
         const response = await fetch(`/api/workspaces/${workspaceId}/pdf/preview`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -224,7 +225,11 @@ const IframePreview = memo(function IframePreview({
   )
 
   if (streamingContent !== undefined) {
-    if (!streamingSource) {
+    if (
+      !streamingSource ||
+      streamingSource.kind !== 'buffer' ||
+      streamingSource.buffer.byteLength === 0
+    ) {
       return <div className='relative flex flex-1 overflow-hidden'>{PDF_PAGE_SKELETON}</div>
     }
     return <PdfViewerCore key={streamingBufferSeq} source={streamingSource} filename={file.name} />

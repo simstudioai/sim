@@ -106,12 +106,10 @@ describe('SimStudioClient', () => {
         status: 202,
         json: vi.fn().mockResolvedValue({
           success: true,
-          taskId: 'task-123',
-          status: 'queued',
-          createdAt: '2024-01-01T00:00:00Z',
-          links: {
-            status: '/api/jobs/task-123',
-          },
+          jobId: 'job-123',
+          statusUrl: 'https://test.sim.ai/api/jobs/job-123',
+          message: 'Workflow execution queued',
+          async: true,
         }),
         headers: {
           get: vi.fn().mockReturnValue(null),
@@ -125,10 +123,9 @@ describe('SimStudioClient', () => {
         { async: true }
       )
 
-      expect(result).toHaveProperty('taskId', 'task-123')
-      expect(result).toHaveProperty('status', 'queued')
-      expect(result).toHaveProperty('links')
-      expect((result as any).links.status).toBe('/api/jobs/task-123')
+      expect(result).toHaveProperty('jobId', 'job-123')
+      expect(result).toHaveProperty('statusUrl', 'https://test.sim.ai/api/jobs/job-123')
+      expect(result).toHaveProperty('async', true)
 
       // Verify headers were set correctly
       const calls = vi.mocked(fetch.default).mock.calls
@@ -161,7 +158,7 @@ describe('SimStudioClient', () => {
 
       expect(result).toHaveProperty('success', true)
       expect(result).toHaveProperty('output')
-      expect(result).not.toHaveProperty('taskId')
+      expect(result).not.toHaveProperty('jobId')
     })
 
     it('should not set X-Execution-Mode header when async is undefined', async () => {
@@ -413,13 +410,15 @@ describe('SimStudioClient', () => {
           rateLimit: {
             sync: {
               isLimited: false,
-              limit: 100,
+              requestsPerMinute: 100,
+              maxBurst: 200,
               remaining: 95,
               resetAt: '2024-01-01T01:00:00Z',
             },
             async: {
               isLimited: false,
-              limit: 50,
+              requestsPerMinute: 50,
+              maxBurst: 100,
               remaining: 48,
               resetAt: '2024-01-01T01:00:00Z',
             },
@@ -429,6 +428,11 @@ describe('SimStudioClient', () => {
             currentPeriodCost: 1.23,
             limit: 100.0,
             plan: 'pro',
+          },
+          storage: {
+            usedBytes: 1024,
+            limitBytes: 10240,
+            percentUsed: 10,
           },
         }),
         headers: {
@@ -441,10 +445,13 @@ describe('SimStudioClient', () => {
       const result = await client.getUsageLimits()
 
       expect(result.success).toBe(true)
-      expect(result.rateLimit.sync.limit).toBe(100)
-      expect(result.rateLimit.async.limit).toBe(50)
+      expect(result.rateLimit.sync.requestsPerMinute).toBe(100)
+      expect(result.rateLimit.sync.maxBurst).toBe(200)
+      expect(result.rateLimit.async.requestsPerMinute).toBe(50)
       expect(result.usage.currentPeriodCost).toBe(1.23)
       expect(result.usage.plan).toBe('pro')
+      expect(result.storage.usedBytes).toBe(1024)
+      expect(result.storage.percentUsed).toBe(10)
 
       // Verify correct endpoint was called
       const calls = vi.mocked(fetch.default).mock.calls

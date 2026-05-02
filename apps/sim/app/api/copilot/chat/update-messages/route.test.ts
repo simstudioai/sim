@@ -98,9 +98,9 @@ describe('Copilot Chat Update Messages API Route', () => {
 
       const response = await POST(req)
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(400)
       const responseData = await response.json()
-      expect(responseData.error).toBe('Failed to update chat messages')
+      expect(responseData.error).toBe('Validation error')
     })
 
     it('should return 400 for invalid request body - missing messages', async () => {
@@ -112,9 +112,9 @@ describe('Copilot Chat Update Messages API Route', () => {
 
       const response = await POST(req)
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(400)
       const responseData = await response.json()
-      expect(responseData.error).toBe('Failed to update chat messages')
+      expect(responseData.error).toBe('Validation error')
     })
 
     it('should return 400 for invalid message structure - missing required fields', async () => {
@@ -131,9 +131,9 @@ describe('Copilot Chat Update Messages API Route', () => {
 
       const response = await POST(req)
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(400)
       const responseData = await response.json()
-      expect(responseData.error).toBe('Failed to update chat messages')
+      expect(responseData.error).toBe('Validation error')
     })
 
     it('should return 400 for invalid message role', async () => {
@@ -153,9 +153,9 @@ describe('Copilot Chat Update Messages API Route', () => {
 
       const response = await POST(req)
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(400)
       const responseData = await response.json()
-      expect(responseData.error).toBe('Failed to update chat messages')
+      expect(responseData.error).toBe('Validation error')
     })
 
     it('should return 404 when chat is not found', async () => {

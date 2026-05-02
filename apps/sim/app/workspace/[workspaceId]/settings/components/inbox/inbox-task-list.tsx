@@ -27,6 +27,8 @@ const STATUS_OPTIONS = [
   { value: 'rejected', label: 'Rejected' },
 ] as const
 
+type StatusFilter = (typeof STATUS_OPTIONS)[number]['value']
+
 const STATUS_BADGES: Record<
   string,
   { label: string; variant: 'gray' | 'amber' | 'green' | 'red' | 'gray-secondary' }
@@ -43,7 +45,7 @@ export function InboxTaskList() {
   const router = useRouter()
   const workspaceId = params.workspaceId as string
 
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [searchTerm, setSearchTerm] = useState('')
 
   const { data: config } = useInboxConfig(workspaceId)
@@ -98,7 +100,14 @@ export function InboxTaskList() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
-            <DropdownMenuRadioGroup value={statusFilter} onValueChange={setStatusFilter}>
+            <DropdownMenuRadioGroup
+              value={statusFilter}
+              onValueChange={(value) => {
+                if (STATUS_OPTIONS.some((option) => option.value === value)) {
+                  setStatusFilter(value as StatusFilter)
+                }
+              }}
+            >
               {STATUS_OPTIONS.map((opt) => (
                 <DropdownMenuRadioItem key={opt.value} value={opt.value}>
                   {opt.label}

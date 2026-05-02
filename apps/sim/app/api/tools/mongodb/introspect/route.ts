@@ -1,22 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { mongodbIntrospectContract } from '@/lib/api/contracts/tools/databases/mongodb'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createMongoDBConnection, executeIntrospect } from '../utils'
+import { createMongoDBConnection, executeIntrospect } from '@/app/api/tools/mongodb/utils'
 
 const logger = createLogger('MongoDBIntrospectAPI')
-
-const IntrospectSchema = z.object({
-  host: z.string().min(1, 'Host is required'),
-  port: z.coerce.number().int().positive('Port must be a positive integer'),
-  database: z.string().optional(),
-  username: z.string().optional(),
-  password: z.string().optional(),
-  authSource: z.string().optional(),
-  ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
@@ -29,8 +20,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const body = await request.json()
-    const params = IntrospectSchema.parse(body)
+    const parsed = await parseToolRequest(mongodbIntrospectContract, request, { logger })
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
 
     logger.info(
       `[${requestId}] Introspecting MongoDB at ${params.host}:${params.port}${params.database ? `/${params.database}` : ''}`
@@ -58,14 +50,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       collections: result.collections,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     logger.error(`[${requestId}] MongoDB introspect failed:`, error)
 

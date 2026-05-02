@@ -6,6 +6,8 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { createMcpServerBodySchema, deleteMcpServerByQuerySchema } from '@/lib/api/contracts/mcp'
+import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   McpDnsResolutionError,
@@ -65,21 +67,20 @@ export const POST = withRouteHandler(
   withMcpAuth('write')(
     async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
       try {
-        const body = getParsedBody(request) || (await request.json())
+        const rawBody = getParsedBody(request) ?? (await request.json())
+        const parsedBody = createMcpServerBodySchema.safeParse(rawBody)
+
+        if (!parsedBody.success) {
+          return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
+        }
+
+        const body = parsedBody.data
 
         logger.info(`[${requestId}] Registering MCP server:`, {
           name: body.name,
           transport: body.transport,
           workspaceId,
         })
-
-        if (!body.name || !body.transport) {
-          return createMcpErrorResponse(
-            new Error('Missing required fields: name or transport'),
-            'Missing required fields',
-            400
-          )
-        }
 
         try {
           validateMcpDomain(body.url)
@@ -233,8 +234,13 @@ export const DELETE = withRouteHandler(
     async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
       try {
         const { searchParams } = new URL(request.url)
-        const serverId = searchParams.get('serverId')
-        const sourceParam = searchParams.get('source')
+        const queryValidation = deleteMcpServerByQuerySchema.safeParse(
+          Object.fromEntries(searchParams)
+        )
+        if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
+        const query = queryValidation.data
+        const serverId = query.serverId
+        const sourceParam = query.source
         const source =
           sourceParam === 'settings' || sourceParam === 'tool_input' ? sourceParam : undefined
 

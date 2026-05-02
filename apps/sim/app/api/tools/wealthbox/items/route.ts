@@ -3,8 +3,10 @@ import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { wealthboxItemsSelectorContract } from '@/lib/api/contracts/selectors/wealthbox'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { validateEnum, validatePathSegment } from '@/lib/core/security/input-validation'
+import { validatePathSegment } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
@@ -36,15 +38,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-    const type = searchParams.get('type') || 'contact'
-    const query = searchParams.get('query') || ''
-
-    if (!credentialId) {
-      logger.warn(`[${requestId}] Missing credential ID`)
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(wealthboxItemsSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credentialId, type } = parsed.data.query
+    const query = parsed.data.query.query ?? ''
 
     const credentialIdValidation = validatePathSegment(credentialId, {
       paramName: 'credentialId',
@@ -56,13 +53,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!credentialIdValidation.isValid) {
       logger.warn(`[${requestId}] Invalid credentialId format: ${credentialId}`)
       return NextResponse.json({ error: credentialIdValidation.error }, { status: 400 })
-    }
-
-    const ALLOWED_TYPES = ['contact'] as const
-    const typeValidation = validateEnum(type, ALLOWED_TYPES, 'type')
-    if (!typeValidation.isValid) {
-      logger.warn(`[${requestId}] Invalid item type: ${type}`)
-      return NextResponse.json({ error: typeValidation.error }, { status: 400 })
     }
 
     const resolved = await resolveOAuthAccountId(credentialId)
@@ -142,7 +132,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as { contacts?: Array<Record<string, unknown>> } & Record<
+      string,
+      unknown
+    >
 
     logger.info(`[${requestId}] Wealthbox API raw response`, {
       type,
@@ -164,14 +157,19 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json({ items: [] }, { status: 200 })
       }
 
-      items = contacts.map((item: any) => ({
-        id: item.id?.toString() || '',
-        name: `${item.first_name || ''} ${item.last_name || ''}`.trim() || `Contact ${item.id}`,
-        type: 'contact',
-        content: item.background_information || '',
-        createdAt: item.created_at,
-        updatedAt: item.updated_at,
-      }))
+      items = contacts.map((item) => {
+        const firstName = typeof item.first_name === 'string' ? item.first_name : ''
+        const lastName = typeof item.last_name === 'string' ? item.last_name : ''
+        return {
+          id: item.id?.toString() || '',
+          name: `${firstName} ${lastName}`.trim() || `Contact ${item.id ?? ''}`,
+          type: 'contact',
+          content:
+            typeof item.background_information === 'string' ? item.background_information : '',
+          createdAt: typeof item.created_at === 'string' ? item.created_at : '',
+          updatedAt: typeof item.updated_at === 'string' ? item.updated_at : '',
+        }
+      })
     }
 
     if (query.trim()) {

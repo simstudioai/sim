@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { SUBBLOCK_OPERATIONS } from '@sim/realtime-protocol/constants'
+import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { checkRolePermission } from '@/middleware/permissions'
@@ -151,6 +152,28 @@ export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager:
         return
       }
 
+      try {
+        await assertWorkflowMutable(workflowId)
+      } catch (error) {
+        if (error instanceof WorkflowLockedError) {
+          socket.emit('operation-forbidden', {
+            type: 'WORKFLOW_LOCKED',
+            message: error.message,
+            operation: SUBBLOCK_OPERATIONS.UPDATE,
+            target: 'subblock',
+          })
+          if (operationId) {
+            socket.emit('operation-failed', {
+              operationId,
+              error: error.message,
+              retryable: false,
+            })
+          }
+          return
+        }
+        throw error
+      }
+
       // Update user activity
       await roomManager.updateUserActivity(workflowId, socket.id, { lastActivity: Date.now() })
 
@@ -229,6 +252,22 @@ async function flushSubblockUpdate(
         })
       })
       return
+    }
+
+    try {
+      await assertWorkflowMutable(workflowId)
+    } catch (error) {
+      if (error instanceof WorkflowLockedError) {
+        pending.opToSocket.forEach((socketId, opId) => {
+          io.to(socketId).emit('operation-failed', {
+            operationId: opId,
+            error: error.message,
+            retryable: false,
+          })
+        })
+        return
+      }
+      throw error
     }
 
     let updateSuccessful = false

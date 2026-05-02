@@ -157,6 +157,7 @@ export const PptxPreview = memo(function PptxPreview({
       try {
         setRendering(true)
 
+        // boundary-raw-fetch: route returns binary PPTX (read via response.arrayBuffer()), not JSON
         const response = await fetch(`/api/workspaces/${workspaceId}/pptx/preview`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowLeftRight, ExternalLink, Loader2, RotateCcw } from 'lucide-react'
+import { ArrowLeftRight, ExternalLink, RotateCcw } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
@@ -10,6 +10,7 @@ import {
   Combobox,
   Input,
   Label,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
@@ -200,7 +201,7 @@ export function EditConnectorModal({
             <Button variant='primary' onClick={handleSave} disabled={!hasChanges || isSaving}>
               {isSaving ? (
                 <>
-                  <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                  <Loader className='mr-1.5 h-3.5 w-3.5' animate />
                   Saving...
                 </>
               ) : (

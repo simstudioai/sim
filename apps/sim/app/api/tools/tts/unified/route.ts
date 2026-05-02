@@ -2,6 +2,11 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import {
+  playHtOutputFormatSchema,
+  ttsUnifiedToolContract,
+} from '@/lib/api/contracts/tools/media/tts'
+import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -15,7 +20,6 @@ import type {
   GoogleTtsParams,
   OpenAiTtsParams,
   PlayHtTtsParams,
-  TtsProvider,
   TtsResponse,
 } from '@/tools/tts/types'
 import { getFileExtension, getMimeType } from '@/tools/tts/types'
@@ -24,65 +28,6 @@ const logger = createLogger('TtsUnifiedProxyAPI')
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // 1 minute
-
-interface TtsUnifiedRequestBody {
-  provider: TtsProvider
-  text: string
-  apiKey: string
-
-  // OpenAI specific
-  model?: 'tts-1' | 'tts-1-hd' | 'gpt-4o-mini-tts'
-  voice?: string
-  responseFormat?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
-  speed?: number
-
-  // Deepgram specific
-  encoding?: 'linear16' | 'mp3' | 'opus' | 'aac' | 'flac' | 'mulaw' | 'alaw'
-  sampleRate?: number
-  bitRate?: number
-  container?: 'none' | 'wav' | 'ogg'
-
-  // ElevenLabs specific
-  voiceId?: string
-  modelId?: string
-  stability?: number
-  similarityBoost?: number
-  style?: number | string
-  useSpeakerBoost?: boolean
-
-  // Cartesia specific
-  language?: string
-  outputFormat?: object
-  emotion?: string[]
-
-  // Google Cloud specific
-  languageCode?: string
-  gender?: 'MALE' | 'FEMALE' | 'NEUTRAL'
-  audioEncoding?: 'LINEAR16' | 'MP3' | 'OGG_OPUS' | 'MULAW' | 'ALAW'
-  speakingRate?: number
-  pitch?: number
-  volumeGainDb?: number
-  sampleRateHertz?: number
-  effectsProfileId?: string[]
-
-  // Azure specific
-  region?: string
-  rate?: string
-  styleDegree?: number
-  role?: string
-
-  // PlayHT specific
-  userId?: string
-  quality?: 'draft' | 'standard' | 'premium'
-  temperature?: number
-  voiceGuidance?: number
-  textGuidance?: number
-
-  // Execution context
-  workspaceId?: string
-  workflowId?: string
-  executionId?: string
-}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId()
@@ -95,19 +40,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body: TtsUnifiedRequestBody = await request.json()
+    const parsed = await parseRequest(
+      ttsUnifiedToolContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid TTS unified request:`, error.issues)
+          return validationErrorResponse(
+            error,
+            getValidationErrorMessage(error, 'Invalid request data')
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const body = parsed.data.body
     const { provider, text, apiKey, workspaceId, workflowId, executionId } = body
 
-    if (!provider || !text || !apiKey) {
-      return NextResponse.json(
-        { error: 'Missing required fields: provider, text, and apiKey' },
-        { status: 400 }
-      )
-    }
-
-    const hasExecutionContext = workspaceId && workflowId && executionId
+    const executionContext =
+      workspaceId && workflowId && executionId ? { workspaceId, workflowId, executionId } : null
     logger.info(`[${requestId}] Processing TTS with ${provider}`, {
-      hasExecutionContext,
+      hasExecutionContext: Boolean(executionContext),
       textLength: text.length,
     })
 
@@ -174,7 +129,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           modelId: body.modelId,
           voice: body.voice,
           language: body.language,
-          outputFormat: body.outputFormat,
+          outputFormat:
+            body.outputFormat &&
+            typeof body.outputFormat === 'object' &&
+            !Array.isArray(body.outputFormat)
+              ? (body.outputFormat as CartesiaTtsParams['outputFormat'])
+              : undefined,
           speed: body.speed,
           emotion: body.emotion,
         })
@@ -190,7 +150,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           gender: body.gender,
           audioEncoding: body.audioEncoding,
           speakingRate: body.speakingRate,
-          pitch: body.pitch,
+          pitch: typeof body.pitch === 'number' ? body.pitch : undefined,
           volumeGainDb: body.volumeGainDb,
           sampleRateHertz: body.sampleRateHertz,
           effectsProfileId: body.effectsProfileId,
@@ -204,7 +164,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           apiKey,
           voiceId: body.voiceId,
           region: body.region,
-          outputFormat: body.outputFormat as AzureTtsParams['outputFormat'],
+          outputFormat:
+            typeof body.outputFormat === 'string'
+              ? (body.outputFormat as AzureTtsParams['outputFormat'])
+              : undefined,
           rate: body.rate,
           pitch: body.pitch as string | undefined,
           style: body.style as string | undefined,
@@ -221,13 +184,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             { status: 400 }
           )
         }
+        const playHtOutputFormat = playHtOutputFormatSchema.safeParse(body.outputFormat)
         const result = await synthesizeWithPlayHT({
           text,
           apiKey,
           userId: body.userId,
           voice: body.voice,
           quality: body.quality,
-          outputFormat: typeof body.outputFormat === 'string' ? body.outputFormat : undefined,
+          outputFormat: playHtOutputFormat.success ? playHtOutputFormat.data : undefined,
           speed: body.speed,
           temperature: body.temperature,
           voiceGuidance: body.voiceGuidance,
@@ -250,11 +214,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const fileExtension = getFileExtension(format)
     const fileName = `tts-${provider}-${timestamp}.${fileExtension}`
 
-    if (hasExecutionContext) {
+    if (executionContext) {
       const { uploadExecutionFile } = await import('@/lib/uploads/contexts/execution')
 
       const userFile = await uploadExecutionFile(
-        { workspaceId, workflowId, executionId },
+        executionContext,
         audioBuffer,
         fileName,
         mimeType,

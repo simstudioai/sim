@@ -79,7 +79,7 @@ import {
   isSignupEmailValidationEnabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
@@ -145,6 +145,20 @@ const blockedSignupDomains = env.BLOCKED_SIGNUP_DOMAINS
   ? new Set(env.BLOCKED_SIGNUP_DOMAINS.split(',').map((d) => d.trim().toLowerCase()))
   : null
 
+const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
+  logger.warn('Ignoring invalid entry in TRUSTED_ORIGINS', { value })
+)
+
+if (env.NODE_ENV === 'production') {
+  const baseUrl = getBaseUrl()
+  if (isLocalhostUrl(baseUrl)) {
+    logger.warn(
+      'NEXT_PUBLIC_APP_URL points to localhost in production. Self-hosted deployments must set NEXT_PUBLIC_APP_URL to the public URL users access (e.g. https://sim.example.com), otherwise auth POST requests from any non-localhost origin will be rejected by trustedOrigins. Set TRUSTED_ORIGINS to allow additional public origins.',
+      { baseUrl }
+    )
+  }
+}
+
 const validStripeKey = env.STRIPE_SECRET_KEY
 
 let stripeClient = null
@@ -159,6 +173,7 @@ export const auth = betterAuth({
   trustedOrigins: [
     getBaseUrl(),
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
+    ...additionalTrustedOrigins,
     'https://claude.ai',
     'https://claude.com',
   ].filter(Boolean),

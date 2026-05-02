@@ -188,7 +188,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
   const [lifecycle, setLifecycle] = useState<'persistent' | 'until_complete'>(
     schedule?.lifecycle === 'until_complete' ? 'until_complete' : 'persistent'
   )
-  const [maxRuns, setMaxRuns] = useState(schedule?.maxRuns ? String(schedule.maxRuns) : '')
+  const [maxRuns, setMaxRuns] = useState(schedule?.maxRuns != null ? String(schedule.maxRuns) : '')
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const computedCron = useMemo(

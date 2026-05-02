@@ -1,5 +1,10 @@
 import type { AshbyGetCandidateResponse } from '@/tools/ashby/types'
-import { CANDIDATE_OUTPUTS, mapCandidate } from '@/tools/ashby/utils'
+import {
+  ashbyAuthHeaders,
+  ashbyErrorMessage,
+  CANDIDATE_OUTPUTS,
+  mapCandidate,
+} from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface AshbyUpdateCandidateParams {
@@ -11,7 +16,12 @@ interface AshbyUpdateCandidateParams {
   linkedInUrl?: string
   githubUrl?: string
   websiteUrl?: string
+  alternateEmail?: string
   sourceId?: string
+  creditedToUserId?: string
+  createdAt?: string
+  sendNotifications?: boolean
+  socialLinks?: Array<{ type: string; url: string }>
 }
 
 export const updateCandidateTool: ToolConfig<
@@ -72,21 +82,50 @@ export const updateCandidateTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Personal website URL',
     },
+    alternateEmail: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'An additional email address to add to the candidate',
+    },
     sourceId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'UUID of the source to attribute the candidate to',
     },
+    creditedToUserId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'UUID of the Ashby user to credit with sourcing this candidate',
+    },
+    createdAt: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Backdated creation timestamp in ISO 8601. Only updatable if originally backdated.',
+    },
+    sendNotifications: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to send a notification when the source is updated (default true)',
+    },
+    socialLinks: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Array of social link objects to set on the candidate, e.g. [{"type":"LinkedIn","url":"https://..."}]. Replaces existing social links.',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/candidate.update',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {
         candidateId: params.candidateId.trim(),
@@ -97,7 +136,13 @@ export const updateCandidateTool: ToolConfig<
       if (params.linkedInUrl) body.linkedInUrl = params.linkedInUrl
       if (params.githubUrl) body.githubUrl = params.githubUrl
       if (params.websiteUrl) body.websiteUrl = params.websiteUrl
+      if (params.alternateEmail) body.alternateEmail = params.alternateEmail
       if (params.sourceId) body.sourceId = params.sourceId.trim()
+      if (params.creditedToUserId) body.creditedToUserId = params.creditedToUserId.trim()
+      if (params.createdAt) body.createdAt = params.createdAt
+      if (params.sendNotifications !== undefined) body.sendNotifications = params.sendNotifications
+      if (Array.isArray(params.socialLinks) && params.socialLinks.length > 0)
+        body.socialLinks = params.socialLinks
       return body
     },
   },
@@ -106,7 +151,7 @@ export const updateCandidateTool: ToolConfig<
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to update candidate')
+      throw new Error(ashbyErrorMessage(data, 'Failed to update candidate'))
     }
 
     return {

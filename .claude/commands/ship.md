@@ -17,7 +17,9 @@ When the user runs `/ship`:
    - Scope: short identifier (e.g., `undo-redo`, `api`, `ui`)
    - Keep it concise
 
-3. **Run lint** - Run `bun run lint` from the repo root to fix formatting issues before staging
+3. **Run pre-ship checks** from the repo root before staging:
+   - `bun run lint` to fix formatting issues
+   - `bun run check:api-validation:strict` to catch boundary contract failures before CI
 
 4. **Stage and commit** the changes with the generated message
 
@@ -77,6 +79,6 @@ gh pr create --base staging --title "COMMIT_MESSAGE" --body "PR_BODY"
 
 - Short, direct bullet points
 - No unnecessary explanation
-- "Tested manually" is acceptable for testing section
+- "Tested manually" is acceptable for testing section; include lint and boundary validation results when run
 - Checkboxes filled in appropriately
 - No screenshots section unless UI changes

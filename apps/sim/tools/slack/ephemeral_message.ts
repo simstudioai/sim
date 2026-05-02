@@ -81,10 +81,10 @@ export const slackEphemeralMessageTool: ToolConfig<
     }),
     body: (params: SlackEphemeralMessageParams) => ({
       accessToken: params.accessToken || params.botToken,
-      channel: params.channel,
+      channel: params.channel?.trim(),
       user: params.user?.trim(),
       text: params.text,
-      thread_ts: params.threadTs || undefined,
+      thread_ts: params.threadTs?.trim() || undefined,
       blocks:
         typeof params.blocks === 'string' ? JSON.parse(params.blocks) : params.blocks || undefined,
     }),

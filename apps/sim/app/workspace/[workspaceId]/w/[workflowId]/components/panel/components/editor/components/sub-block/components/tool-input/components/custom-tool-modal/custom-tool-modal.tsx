@@ -191,6 +191,36 @@ Example 2:
     },
   })
 
+  const schemaParameters = useMemo(() => {
+    try {
+      if (!jsonSchema) return []
+      const parsed = JSON.parse(jsonSchema)
+      const properties = parsed?.function?.parameters?.properties
+      if (!properties) return []
+
+      return Object.keys(properties).map((key) => ({
+        name: key,
+        type: properties[key].type || 'any',
+        description: properties[key].description || '',
+        required: parsed?.function?.parameters?.required?.includes(key) || false,
+      }))
+    } catch {
+      return []
+    }
+  }, [jsonSchema])
+
+  const codeGenerationSchemaContext = useMemo(() => {
+    if (schemaParameters.length === 0) {
+      return 'Schema parameters: (none defined yet — the user has not added any parameters to the schema)'
+    }
+    const lines = schemaParameters.map((p) => {
+      const requiredLabel = p.required ? 'required' : 'optional'
+      const description = p.description ? `: ${p.description}` : ''
+      return `- ${p.name} (${p.type}, ${requiredLabel})${description}`
+    })
+    return `Schema parameters (reference these directly by name in the generated code):\n${lines.join('\n')}`
+  }, [schemaParameters])
+
   const codeGeneration = useWand({
     wandConfig: {
       enabled: true,
@@ -200,6 +230,8 @@ Generate ONLY the raw body of a JavaScript function based on the user's request.
 The code should be executable within an 'async function(params, environmentVariables) {...}' context.
 - 'params' (object): Contains input parameters derived from the JSON schema. Reference these directly by name (e.g., 'userId', 'cityName'). Do NOT use 'params.paramName'.
 - 'environmentVariables' (object): Contains environment variables. Reference these using the double curly brace syntax: '{{ENV_VAR_NAME}}'. Do NOT use 'environmentVariables.VAR_NAME' or env.
+
+${codeGenerationSchemaContext}
 
 Current code: {context}
 
@@ -372,24 +404,6 @@ try {
       return { isValid: false, error: 'Invalid JSON format' }
     }
   }
-
-  const schemaParameters = useMemo(() => {
-    try {
-      if (!jsonSchema) return []
-      const parsed = JSON.parse(jsonSchema)
-      const properties = parsed?.function?.parameters?.properties
-      if (!properties) return []
-
-      return Object.keys(properties).map((key) => ({
-        name: key,
-        type: properties[key].type || 'any',
-        description: properties[key].description || '',
-        required: parsed?.function?.parameters?.required?.includes(key) || false,
-      }))
-    } catch {
-      return []
-    }
-  }, [jsonSchema])
 
   const isSchemaValid = useMemo(() => validateSchema(jsonSchema).isValid, [jsonSchema])
 

@@ -19,6 +19,22 @@ export interface PollWebhookContext {
 export type WebhookRecord = typeof webhook.$inferSelect
 export type WorkflowRecord = typeof workflow.$inferSelect
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function getProviderConfigRecord(
+  providerConfig: WebhookRecord['providerConfig']
+): Record<string, unknown> {
+  return isRecord(providerConfig) ? providerConfig : {}
+}
+
+export function getProviderConfig<T extends object>(
+  providerConfig: WebhookRecord['providerConfig']
+): T {
+  return getProviderConfigRecord(providerConfig) as T
+}
+
 /**
  * Strategy interface for provider-specific polling behavior.
  * Mirrors `WebhookProviderHandler` from `providers/types.ts`.

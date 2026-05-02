@@ -64,7 +64,7 @@ export const replyTool: ToolConfig<RedditReplyParams, RedditWriteResponse> = {
       if (params.return_rtjson !== undefined)
         formData.append('return_rtjson', params.return_rtjson.toString())
 
-      return formData.toString() as unknown as Record<string, any>
+      return formData.toString()
     },
   },
 

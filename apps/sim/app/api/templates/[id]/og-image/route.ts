@@ -3,6 +3,8 @@ import { templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { updateTemplateOgImageContract } from '@/lib/api/contracts/templates'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -19,16 +21,20 @@ const logger = createLogger('TemplateOGImageAPI')
  * Accepts base64-encoded image data in the request body.
  */
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
 
     try {
       const session = await getSession()
       if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized OG image upload attempt for template: ${id}`)
+        logger.warn(`[${requestId}] Unauthorized OG image upload attempt`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
+
+      const parsed = await parseRequest(updateTemplateOgImageContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id } = parsed.data.params
+      const { imageData } = parsed.data.body
 
       const { authorized, error, status } = await verifyTemplateOwnership(
         id,
@@ -38,16 +44,6 @@ export const PUT = withRouteHandler(
       if (!authorized) {
         logger.warn(`[${requestId}] User denied permission to upload OG image for template ${id}`)
         return NextResponse.json({ error }, { status: status || 403 })
-      }
-
-      const body = await request.json()
-      const { imageData } = body
-
-      if (!imageData || typeof imageData !== 'string') {
-        return NextResponse.json(
-          { error: 'Missing or invalid imageData (expected base64 string)' },
-          { status: 400 }
-        )
       }
 
       const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData
@@ -97,7 +93,7 @@ export const PUT = withRouteHandler(
         ogImageUrl,
       })
     } catch (error: unknown) {
-      logger.error(`[${requestId}] Error uploading OG image for template ${id}:`, error)
+      logger.error(`[${requestId}] Error uploading OG image:`, error)
       return NextResponse.json({ error: 'Failed to upload OG image' }, { status: 500 })
     }
   }

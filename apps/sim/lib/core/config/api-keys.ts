@@ -7,7 +7,12 @@ import { env } from '@/lib/core/config/env'
  * @throws Error if no API keys are configured for rotation
  */
 export function getRotatingApiKey(provider: string): string {
-  if (provider !== 'openai' && provider !== 'anthropic' && provider !== 'gemini') {
+  if (
+    provider !== 'openai' &&
+    provider !== 'anthropic' &&
+    provider !== 'gemini' &&
+    provider !== 'cohere'
+  ) {
     throw new Error(`No rotation implemented for provider: ${provider}`)
   }
 
@@ -25,6 +30,10 @@ export function getRotatingApiKey(provider: string): string {
     if (env.GEMINI_API_KEY_1) keys.push(env.GEMINI_API_KEY_1)
     if (env.GEMINI_API_KEY_2) keys.push(env.GEMINI_API_KEY_2)
     if (env.GEMINI_API_KEY_3) keys.push(env.GEMINI_API_KEY_3)
+  } else if (provider === 'cohere') {
+    if (env.COHERE_API_KEY_1) keys.push(env.COHERE_API_KEY_1)
+    if (env.COHERE_API_KEY_2) keys.push(env.COHERE_API_KEY_2)
+    if (env.COHERE_API_KEY_3) keys.push(env.COHERE_API_KEY_3)
   }
 
   if (keys.length === 0) {

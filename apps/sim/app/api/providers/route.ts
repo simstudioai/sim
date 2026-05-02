@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { executeProviderContract } from '@/lib/api/contracts/providers'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -44,7 +46,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       contentType: request.headers.get('Content-Type'),
     })
 
-    const body = await request.json()
+    const validation = await parseRequest(
+      executeProviderContract,
+      request,
+      {},
+      {
+        validationErrorResponse: () =>
+          NextResponse.json({ error: 'Invalid request body' }, { status: 400 }),
+        invalidJsonResponse: () =>
+          NextResponse.json({ error: 'Invalid request body' }, { status: 400 }),
+      }
+    )
+    if (!validation.success) return validation.response
+
+    const body = validation.data.body
     const {
       provider,
       model,

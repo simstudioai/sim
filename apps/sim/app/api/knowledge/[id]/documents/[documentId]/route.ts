@@ -1,7 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateKnowledgeDocumentContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -15,39 +16,6 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('DocumentByIdAPI')
-
-const UpdateDocumentSchema = z.object({
-  filename: z.string().min(1, 'Filename is required').optional(),
-  enabled: z.boolean().optional(),
-  chunkCount: z.number().min(0).optional(),
-  tokenCount: z.number().min(0).optional(),
-  characterCount: z.number().min(0).optional(),
-  processingStatus: z.enum(['pending', 'processing', 'completed', 'failed']).optional(),
-  processingError: z.string().optional(),
-  markFailedDueToTimeout: z.boolean().optional(),
-  retryProcessing: z.boolean().optional(),
-  // Text tag fields
-  tag1: z.string().optional(),
-  tag2: z.string().optional(),
-  tag3: z.string().optional(),
-  tag4: z.string().optional(),
-  tag5: z.string().optional(),
-  tag6: z.string().optional(),
-  tag7: z.string().optional(),
-  // Number tag fields
-  number1: z.string().optional(),
-  number2: z.string().optional(),
-  number3: z.string().optional(),
-  number4: z.string().optional(),
-  number5: z.string().optional(),
-  // Date tag fields
-  date1: z.string().optional(),
-  date2: z.string().optional(),
-  // Boolean tag fields
-  boolean1: z.string().optional(),
-  boolean2: z.string().optional(),
-  boolean3: z.string().optional(),
-})
 
 export const GET = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ id: string; documentId: string }> }) => {
@@ -120,122 +88,122 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const body = await req.json()
-
-      try {
-        const validatedData = UpdateDocumentSchema.parse(body)
-
-        const updateData: any = {}
-
-        if (validatedData.markFailedDueToTimeout) {
-          const doc = accessCheck.document
-
-          if (doc.processingStatus !== 'processing') {
+      const parsed = await parseRequest(
+        updateKnowledgeDocumentContract,
+        req,
+        { params },
+        {
+          validationErrorResponse: (error) => {
+            logger.warn(`[${requestId}] Invalid document update data`, { errors: error.issues })
             return NextResponse.json(
-              { error: `Document is not in processing state (current: ${doc.processingStatus})` },
+              { error: 'Invalid request data', details: error.issues },
               { status: 400 }
             )
-          }
+          },
+        }
+      )
+      if (!parsed.success) return parsed.response
 
-          if (!doc.processingStartedAt) {
-            return NextResponse.json(
-              { error: 'Document has no processing start time' },
-              { status: 400 }
-            )
-          }
+      const validatedData = parsed.data.body
 
-          try {
-            await markDocumentAsFailedTimeout(documentId, doc.processingStartedAt, requestId)
+      const updateData: any = {}
 
-            return NextResponse.json({
-              success: true,
-              data: {
-                documentId,
-                status: 'failed',
-                message: 'Document marked as failed due to timeout',
-              },
-            })
-          } catch (error) {
-            if (error instanceof Error) {
-              return NextResponse.json({ error: error.message }, { status: 400 })
-            }
-            throw error
-          }
-        } else if (validatedData.retryProcessing) {
-          const doc = accessCheck.document
+      if (validatedData.markFailedDueToTimeout) {
+        const doc = accessCheck.document
 
-          if (doc.processingStatus !== 'failed') {
-            return NextResponse.json({ error: 'Document is not in failed state' }, { status: 400 })
-          }
-
-          const docData = {
-            filename: doc.filename,
-            fileUrl: doc.fileUrl,
-            fileSize: doc.fileSize,
-            mimeType: doc.mimeType,
-          }
-
-          const result = await retryDocumentProcessing(
-            knowledgeBaseId,
-            documentId,
-            docData,
-            requestId
+        if (doc.processingStatus !== 'processing') {
+          return NextResponse.json(
+            { error: `Document is not in processing state (current: ${doc.processingStatus})` },
+            { status: 400 }
           )
+        }
+
+        if (!doc.processingStartedAt) {
+          return NextResponse.json(
+            { error: 'Document has no processing start time' },
+            { status: 400 }
+          )
+        }
+
+        try {
+          await markDocumentAsFailedTimeout(documentId, doc.processingStartedAt, requestId)
 
           return NextResponse.json({
             success: true,
             data: {
               documentId,
-              status: result.status,
-              message: result.message,
+              status: 'failed',
+              message: 'Document marked as failed due to timeout',
             },
           })
-        } else {
-          const updatedDocument = await updateDocument(documentId, validatedData, requestId)
-
-          logger.info(
-            `[${requestId}] Document updated: ${documentId} in knowledge base ${knowledgeBaseId}`
-          )
-
-          recordAudit({
-            workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
-            actorId: userId,
-            actorName: auth.userName,
-            actorEmail: auth.userEmail,
-            action: AuditAction.DOCUMENT_UPDATED,
-            resourceType: AuditResourceType.DOCUMENT,
-            resourceId: documentId,
-            resourceName: validatedData.filename ?? accessCheck.document?.filename,
-            description: `Updated document "${validatedData.filename ?? accessCheck.document?.filename}" in knowledge base "${knowledgeBaseId}"`,
-            metadata: {
-              knowledgeBaseId,
-              knowledgeBaseName: accessCheck.knowledgeBase?.name,
-              fileName: validatedData.filename ?? accessCheck.document?.filename,
-              updatedFields: Object.keys(validatedData).filter(
-                (k) => validatedData[k as keyof typeof validatedData] !== undefined
-              ),
-              ...(validatedData.enabled !== undefined && { enabled: validatedData.enabled }),
-            },
-            request: req,
-          })
-
-          return NextResponse.json({
-            success: true,
-            data: updatedDocument,
-          })
+        } catch (error) {
+          if (error instanceof Error) {
+            return NextResponse.json({ error: error.message }, { status: 400 })
+          }
+          throw error
         }
-      } catch (validationError) {
-        if (validationError instanceof z.ZodError) {
-          logger.warn(`[${requestId}] Invalid document update data`, {
-            errors: validationError.errors,
+      } else if (validatedData.retryProcessing) {
+        const doc = accessCheck.document
+
+        if (doc.processingStatus !== 'failed') {
+          return NextResponse.json({ error: 'Document is not in failed state' }, { status: 400 })
+        }
+
+        const docData = {
+          filename: doc.filename,
+          fileUrl: doc.fileUrl,
+          fileSize: doc.fileSize,
+          mimeType: doc.mimeType,
+        }
+
+        const result = await retryDocumentProcessing(
+          knowledgeBaseId,
+          documentId,
+          docData,
+          requestId
+        )
+
+        return NextResponse.json({
+          success: true,
+          data: {
             documentId,
-          })
-          return NextResponse.json(
-            { error: 'Invalid request data', details: validationError.errors },
-            { status: 400 }
-          )
-        }
-        throw validationError
+            status: result.status,
+            message: result.message,
+          },
+        })
+      } else {
+        const updatedDocument = await updateDocument(documentId, validatedData, requestId)
+
+        logger.info(
+          `[${requestId}] Document updated: ${documentId} in knowledge base ${knowledgeBaseId}`
+        )
+
+        recordAudit({
+          workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
+          actorId: userId,
+          actorName: auth.userName,
+          actorEmail: auth.userEmail,
+          action: AuditAction.DOCUMENT_UPDATED,
+          resourceType: AuditResourceType.DOCUMENT,
+          resourceId: documentId,
+          resourceName: validatedData.filename ?? accessCheck.document?.filename,
+          description: `Updated document "${validatedData.filename ?? accessCheck.document?.filename}" in knowledge base "${knowledgeBaseId}"`,
+          metadata: {
+            knowledgeBaseId,
+            knowledgeBaseName: accessCheck.knowledgeBase?.name,
+            fileName: validatedData.filename ?? accessCheck.document?.filename,
+            updatedFields: Object.keys(validatedData).filter(
+              (k) => validatedData[k as keyof typeof validatedData] !== undefined
+            ),
+            ...(validatedData.enabled !== undefined && { enabled: validatedData.enabled }),
+          },
+          request: req,
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: updatedDocument,
+        })
       }
     } catch (error) {
       logger.error(`[${requestId}] Error updating document ${documentId}`, error)

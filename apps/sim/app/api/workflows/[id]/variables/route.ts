@@ -2,10 +2,15 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import {
+  assertWorkflowMutable,
+  authorizeWorkflowByWorkspacePermission,
+  WorkflowLockedError,
+} from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { workflowVariablesContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -13,28 +18,10 @@ import type { Variable } from '@/stores/variables/types'
 
 const logger = createLogger('WorkflowVariablesAPI')
 
-const VariableSchema = z.object({
-  id: z.string(),
-  workflowId: z.string(),
-  name: z.string(),
-  type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
-  value: z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.record(z.unknown()),
-    z.array(z.unknown()),
-  ]),
-})
-
-const VariablesSchema = z.object({
-  variables: z.record(z.string(), VariableSchema),
-})
-
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const workflowId = (await params).id
+    const workflowId = (await context.params).id
 
     try {
       const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
@@ -67,53 +54,50 @@ export const POST = withRouteHandler(
         )
       }
 
-      const body = await req.json()
+      await assertWorkflowMutable(workflowId)
 
-      try {
-        const { variables } = VariablesSchema.parse(body)
+      const parsed = await parseRequest(workflowVariablesContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { variables } = parsed.data.body
+      // Note: prior versions cross-checked that each variable's `workflowId`
+      // equalled the path param. The write contract does not carry `workflowId`
+      // per variable (the path param is the source of truth), so the check
+      // is unreachable and was removed.
 
-        // Variables are already in Record format - use directly
-        // The frontend is the source of truth for what variables should exist
-        await db
-          .update(workflow)
-          .set({
-            variables,
-            updatedAt: new Date(),
-          })
-          .where(eq(workflow.id, workflowId))
-
-        recordAudit({
-          workspaceId: workflowData.workspaceId ?? null,
-          actorId: userId,
-          actorName: auth.userName,
-          actorEmail: auth.userEmail,
-          action: AuditAction.WORKFLOW_VARIABLES_UPDATED,
-          resourceType: AuditResourceType.WORKFLOW,
-          resourceId: workflowId,
-          resourceName: workflowData.name ?? undefined,
-          description: `Updated workflow variables`,
-          metadata: {
-            variableCount: Object.keys(variables).length,
-            variableNames: Object.values(variables).map((v) => v.name),
-            workflowName: workflowData.name ?? undefined,
-          },
-          request: req,
+      // Variables are already in Record format - use directly
+      // The frontend is the source of truth for what variables should exist
+      await db
+        .update(workflow)
+        .set({
+          variables,
+          updatedAt: new Date(),
         })
+        .where(eq(workflow.id, workflowId))
 
-        return NextResponse.json({ success: true })
-      } catch (validationError) {
-        if (validationError instanceof z.ZodError) {
-          logger.warn(`[${requestId}] Invalid workflow variables data`, {
-            errors: validationError.errors,
-          })
-          return NextResponse.json(
-            { error: 'Invalid request data', details: validationError.errors },
-            { status: 400 }
-          )
-        }
-        throw validationError
-      }
+      recordAudit({
+        workspaceId: workflowData.workspaceId ?? null,
+        actorId: userId,
+        actorName: auth.userName,
+        actorEmail: auth.userEmail,
+        action: AuditAction.WORKFLOW_VARIABLES_UPDATED,
+        resourceType: AuditResourceType.WORKFLOW,
+        resourceId: workflowId,
+        resourceName: workflowData.name ?? undefined,
+        description: `Updated workflow variables`,
+        metadata: {
+          variableCount: Object.keys(variables).length,
+          variableNames: Object.values(variables).map((v) => v.name),
+          workflowName: workflowData.name ?? undefined,
+        },
+        request: req,
+      })
+
+      return NextResponse.json({ success: true })
     } catch (error) {
+      if (error instanceof WorkflowLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
+
       logger.error(`[${requestId}] Error updating workflow variables`, error)
       return NextResponse.json({ error: 'Failed to update workflow variables' }, { status: 500 })
     }
@@ -156,8 +140,17 @@ export const GET = withRouteHandler(
         )
       }
 
-      // Return variables if they exist
-      const variables = (workflowData.variables as Record<string, Variable>) || {}
+      // Return variables if they exist. Stamp `workflowId` from the path
+      // param on each entry so the global client-side variables store can
+      // filter by workflow; the read contract requires this stamped field.
+      const persistedVariables =
+        (workflowData.variables as Record<string, Record<string, unknown>>) || {}
+      const variables: Record<string, Variable> = {}
+      for (const [variableId, variable] of Object.entries(persistedVariables)) {
+        if (variable && typeof variable === 'object') {
+          variables[variableId] = { ...variable, workflowId } as Variable
+        }
+      }
 
       // Add cache headers to prevent frequent reloading
       const variableHash = JSON.stringify(variables).length

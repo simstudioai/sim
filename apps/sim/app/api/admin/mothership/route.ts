@@ -2,6 +2,8 @@ import { db } from '@sim/db'
 import { user } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { adminMothershipQuerySchema } from '@/lib/api/contracts/mothership-tasks'
+import { searchParamsToObject, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -58,12 +60,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   }
 
   const { searchParams } = new URL(req.url)
-  const environment = searchParams.get('env') || 'dev'
-  const endpoint = searchParams.get('endpoint')
-
-  if (!endpoint) {
-    return NextResponse.json({ error: 'endpoint query param required' }, { status: 400 })
-  }
+  const queryValidation = adminMothershipQuerySchema.safeParse(searchParamsToObject(searchParams))
+  if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
+  const { env: environment, endpoint } = queryValidation.data
 
   if (!isValidEndpoint(endpoint)) {
     return NextResponse.json({ error: 'invalid endpoint' }, { status: 400 })
@@ -113,12 +112,9 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
   }
 
   const { searchParams } = new URL(req.url)
-  const environment = searchParams.get('env') || 'dev'
-  const endpoint = searchParams.get('endpoint')
-
-  if (!endpoint) {
-    return NextResponse.json({ error: 'endpoint query param required' }, { status: 400 })
-  }
+  const queryValidation = adminMothershipQuerySchema.safeParse(searchParamsToObject(searchParams))
+  if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
+  const { env: environment, endpoint } = queryValidation.data
 
   if (!isValidEndpoint(endpoint)) {
     return NextResponse.json({ error: 'invalid endpoint' }, { status: 400 })

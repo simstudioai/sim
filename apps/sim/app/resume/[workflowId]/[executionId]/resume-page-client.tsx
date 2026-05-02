@@ -29,6 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { requestJson } from '@/lib/api/client/request'
+import { resumeWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import Navbar from '@/app/(landing)/components/navbar/navbar'
 import { useBrandConfig } from '@/ee/whitelabeling'
 import type { ResumeStatus } from '@/executor/types'
@@ -533,6 +535,7 @@ export default function ResumeExecutionPage({
     const loadDetail = async () => {
       setLoadingDetail(true)
       try {
+        // boundary-raw-fetch: GET /api/resume/[workflowId]/[executionId]/[contextId] has no contract (server route only models POST resume submission)
         const response = await fetch(
           `/api/resume/${workflowId}/${executionId}/${selectedContextId}`,
           {
@@ -615,13 +618,11 @@ export default function ResumeExecutionPage({
   const refreshExecutionDetail = useCallback(async () => {
     setRefreshingExecution(true)
     try {
-      const response = await fetch(`/api/resume/${workflowId}/${executionId}`, {
-        method: 'GET',
-        credentials: 'include',
-        cache: 'no-store',
+      const raw = await requestJson(resumeWorkflowExecutionContract, {
+        params: { workflowId, executionId },
       })
-      if (!response.ok) return
-      const data: PausedExecutionDetail = await response.json()
+      // double-cast-allowed: contract pause-point shape is z.record(z.string(), z.unknown()) but the page works against the more specific local PausedExecutionDetail / PausePointWithQueue interfaces
+      const data = raw as unknown as PausedExecutionDetail
       setExecutionDetail(data)
       if (!selectedContextId) {
         const first =
@@ -640,6 +641,7 @@ export default function ResumeExecutionPage({
     async (contextId: string, showLoader = true) => {
       try {
         if (showLoader) setLoadingDetail(true)
+        // boundary-raw-fetch: GET /api/resume/[workflowId]/[executionId]/[contextId] has no contract (server route only models POST resume submission)
         const response = await fetch(`/api/resume/${workflowId}/${executionId}/${contextId}`, {
           method: 'GET',
           credentials: 'include',
@@ -750,6 +752,7 @@ export default function ResumeExecutionPage({
       resumePayload = parsedInput
     }
     try {
+      // boundary-raw-fetch: resume-context POST contract has no body schema (route uses tolerant raw JSON parse for resume input forwarded to PauseResumeManager)
       const response = await fetch(
         `/api/resume/${workflowId}/${executionId}/${selectedContextId}`,
         {

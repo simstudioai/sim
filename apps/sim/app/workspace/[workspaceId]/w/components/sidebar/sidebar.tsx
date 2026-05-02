@@ -79,17 +79,13 @@ import {
   createSidebarDragGhost,
   groupWorkflowsByFolder,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
-import {
-  useDuplicateWorkspace,
-  useExportWorkspace,
-  useImportWorkflow,
-  useImportWorkspace,
-} from '@/app/workspace/[workspaceId]/w/hooks'
+import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import {
+  useCreateTask,
   useDeleteTask,
   useDeleteTasks,
   useMarkTaskRead,
@@ -106,6 +102,7 @@ import { useTaskEvents } from '@/hooks/use-task-events'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
@@ -197,7 +194,6 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           (isCurrentRoute || isSelected || isMenuOpen) && 'bg-[var(--surface-active)]'
         )}
         onClick={(e) => {
-          if (task.id === 'new') return
           if (e.metaKey || e.ctrlKey) return
           if (e.shiftKey) {
             e.preventDefault()
@@ -206,42 +202,40 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
             useFolderStore.getState().selectTaskOnly(task.id)
           }
         }}
-        onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}
-        draggable={task.id !== 'new'}
-        onDragStart={task.id !== 'new' ? handleDragStart : undefined}
-        onDragEnd={task.id !== 'new' ? handleDragEnd : undefined}
+        onContextMenu={(e) => onContextMenu(e, task.id)}
+        draggable
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
       >
         <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
         <div className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>{task.name}</div>
-        {task.id !== 'new' && (
-          <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
-            {isActive && !isCurrentRoute && !isMenuOpen && (
-              <span className='absolute h-[7px] w-[7px] animate-ping rounded-full bg-amber-400 opacity-30 group-hover:hidden' />
+        <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
+          {isActive && !isCurrentRoute && !isMenuOpen && (
+            <span className='absolute h-[7px] w-[7px] animate-ping rounded-full bg-amber-400 opacity-30 group-hover:hidden' />
+          )}
+          {isActive && !isCurrentRoute && !isMenuOpen && (
+            <span className='absolute h-[7px] w-[7px] rounded-full bg-amber-400 group-hover:hidden' />
+          )}
+          {!isActive && isUnread && !isCurrentRoute && !isMenuOpen && (
+            <span className='absolute h-[7px] w-[7px] rounded-full bg-[var(--brand-accent)] group-hover:hidden' />
+          )}
+          <button
+            type='button'
+            aria-label='Task options'
+            onPointerDown={onMorePointerDown}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onMoreClick(e, task.id)
+            }}
+            className={cn(
+              'flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
+              isMenuOpen && 'opacity-100'
             )}
-            {isActive && !isCurrentRoute && !isMenuOpen && (
-              <span className='absolute h-[7px] w-[7px] rounded-full bg-amber-400 group-hover:hidden' />
-            )}
-            {!isActive && isUnread && !isCurrentRoute && !isMenuOpen && (
-              <span className='absolute h-[7px] w-[7px] rounded-full bg-[var(--brand-accent)] group-hover:hidden' />
-            )}
-            <button
-              type='button'
-              aria-label='Task options'
-              onPointerDown={onMorePointerDown}
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                onMoreClick(e, task.id)
-              }}
-              className={cn(
-                'flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
-                isMenuOpen && 'opacity-100'
-              )}
-            >
-              <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
-            </button>
-          </div>
-        )}
+          >
+            <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+          </button>
+        </div>
       </Link>
     </SidebarTooltip>
   )
@@ -321,6 +315,14 @@ const SidebarNavItem = memo(function SidebarNavItem({
 /** Event name for sidebar scroll operations - centralized for consistency */
 export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
 
+const HIDDEN_STYLE = { display: 'none' } as const
+
+const WORKFLOW_ICON_STYLE: React.CSSProperties = {
+  backgroundColor: 'var(--text-icon)',
+  borderColor: 'color-mix(in srgb, var(--text-icon) 60%, transparent)',
+  backgroundClip: 'padding-box',
+}
+
 /**
  * Sidebar component with resizable width that persists across page refreshes.
  *
@@ -368,7 +370,7 @@ export const Sidebar = memo(function Sidebar() {
     isCollapsedRef.current = isCollapsed
   }, [isCollapsed])
 
-  const isMac = useMemo(() => isMacPlatform(), [])
+  const isMac = isMacPlatform()
 
   const [showCollapsedTooltips, setShowCollapsedTooltips] = useState(isCollapsed)
 
@@ -385,14 +387,9 @@ export const Sidebar = memo(function Sidebar() {
     setShowCollapsedTooltips(false)
   }, [isCollapsed])
 
-  const workspaceFileInputRef = useRef<HTMLInputElement>(null)
-
   const { isImporting, handleFileChange: handleImportFileChange } = useImportWorkflow({
     workspaceId,
   })
-  const { isImporting: isImportingWorkspace, handleImportWorkspace: importWorkspace } =
-    useImportWorkspace()
-  const { handleExportWorkspace: exportWorkspace } = useExportWorkspace()
 
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false)
@@ -578,6 +575,8 @@ export const Sidebar = memo(function Sidebar() {
     }
   }, [activeNavItemHref])
 
+  const createTaskMutation = useCreateTask(workspaceId)
+  const isCreatingTaskRef = useRef(false)
   const deleteTaskMutation = useDeleteTask(workspaceId)
   const deleteTasksMutation = useDeleteTasks(workspaceId)
   const markTaskReadMutation = useMarkTaskRead(workspaceId)
@@ -660,10 +659,6 @@ export const Sidebar = memo(function Sidebar() {
       tasksHover,
     ]
   )
-
-  const { handleDuplicateWorkspace: duplicateWorkspace } = useDuplicateWorkspace({
-    workspaceId,
-  })
 
   const searchModalWorkflows = useMemo(
     () =>
@@ -775,32 +770,24 @@ export const Sidebar = memo(function Sidebar() {
     [navigateToSettings, getSettingsHref, setSidebarWidth]
   )
 
-  const handleStartTour = useCallback(() => {
+  const handleStartTour = () => {
     window.dispatchEvent(
       new CustomEvent(isOnWorkflowPage ? START_WORKFLOW_TOUR_EVENT : START_NAV_TOUR_EVENT)
     )
-  }, [isOnWorkflowPage])
+  }
 
-  const { data: fetchedTasks = [], isLoading: tasksLoading } = useTasks(workspaceId)
+  const { data: fetchedTasks, isLoading: tasksLoading } = useTasks(workspaceId)
 
   useTaskEvents(workspaceId)
 
   const tasks = useMemo(
     () =>
-      fetchedTasks.length > 0
+      fetchedTasks
         ? fetchedTasks.map((t) => ({
             ...t,
             href: `/workspace/${workspaceId}/task/${t.id}`,
           }))
-        : [
-            {
-              id: 'new',
-              name: 'New task',
-              href: `/workspace/${workspaceId}/home`,
-              isActive: false,
-              isUnread: false,
-            },
-          ],
+        : [],
     [fetchedTasks, workspaceId]
   )
 
@@ -844,7 +831,7 @@ export const Sidebar = memo(function Sidebar() {
     [fetchedKnowledgeBases, workspaceId, permissionConfig.hideKnowledgeBaseTab]
   )
 
-  const taskIds = useMemo(() => tasks.map((t) => t.id).filter((id) => id !== 'new'), [tasks])
+  const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks])
 
   const { selectedTasks, handleTaskClick } = useTaskSelection({ taskIds })
 
@@ -874,7 +861,7 @@ export const Sidebar = memo(function Sidebar() {
     [setSidebarWidth, router]
   )
 
-  const handleConfirmDeleteTasks = useCallback(() => {
+  const handleConfirmDeleteTasks = () => {
     const { taskIds: taskIdsToDelete } = contextMenuSelectionRef.current
     if (taskIdsToDelete.length === 0) return
 
@@ -896,7 +883,7 @@ export const Sidebar = memo(function Sidebar() {
       deleteTasksMutation.mutate(taskIdsToDelete, { onSuccess: onDeleteSuccess })
     }
     setIsTaskDeleteModalOpen(false)
-  }, [pathname, workspaceId, deleteTaskMutation, deleteTasksMutation, navigateToPage])
+  }
 
   const [visibleTaskCount, setVisibleTaskCount] = useState(5)
   const taskFlyoutRename = useFlyoutInlineRename({
@@ -935,13 +922,13 @@ export const Sidebar = memo(function Sidebar() {
     const { taskIds: ids } = contextMenuSelectionRef.current
     if (ids.length !== 1) return
     markTaskReadMutation.mutate(ids[0])
-  }, [markTaskReadMutation])
+  }, [])
 
   const handleMarkTaskAsUnread = useCallback(() => {
     const { taskIds: ids } = contextMenuSelectionRef.current
     if (ids.length !== 1) return
     markTaskUnreadMutation.mutate(ids[0])
-  }, [markTaskUnreadMutation])
+  }, [])
 
   const handleStartTaskRename = useCallback(() => {
     const { taskIds: ids } = contextMenuSelectionRef.current
@@ -1033,9 +1020,9 @@ export const Sidebar = memo(function Sidebar() {
     }
   }, [createFolder])
 
-  const handleImportWorkflow = useCallback(() => {
+  const handleImportWorkflow = () => {
     fileInputRef.current?.click()
-  }, [])
+  }
 
   const handleWorkspaceSwitch = useCallback(
     async (workspace: Workspace) => {
@@ -1049,17 +1036,14 @@ export const Sidebar = memo(function Sidebar() {
     [workspaceId, switchWorkspace]
   )
 
-  const handleSidebarClick = useCallback(
-    (e: React.MouseEvent<HTMLElement>) => {
-      const target = e.target as HTMLElement
-      if (target.tagName === 'BUTTON' || target.closest('button, [role="button"], a')) {
-        return
-      }
-      const { selectOnly, clearAllSelection } = useFolderStore.getState()
-      workflowId ? selectOnly(workflowId) : clearAllSelection()
-    },
-    [workflowId]
-  )
+  const handleSidebarClick = (e: React.MouseEvent<HTMLElement>) => {
+    const target = e.target as HTMLElement
+    if (target.tagName === 'BUTTON' || target.closest('button, [role="button"], a')) {
+      return
+    }
+    const { selectOnly, clearAllSelection } = useFolderStore.getState()
+    workflowId ? selectOnly(workflowId) : clearAllSelection()
+  }
 
   const handleRenameWorkspace = useCallback(
     async (workspaceIdToRename: string, newName: string) => {
@@ -1111,43 +1095,8 @@ export const Sidebar = memo(function Sidebar() {
     [workspaces, handleLeaveWorkspace]
   )
 
-  const handleDuplicateWorkspace = useCallback(
-    async (_workspaceIdToDuplicate: string, workspaceName: string) => {
-      await duplicateWorkspace(workspaceName)
-    },
-    [duplicateWorkspace]
-  )
-
-  const handleImportWorkspace = useCallback(() => {
-    workspaceFileInputRef.current?.click()
-  }, [])
-
-  const handleWorkspaceFileChange = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const files = event.target.files
-      if (!files || files.length === 0) return
-
-      const zipFile = files[0]
-      await importWorkspace(zipFile)
-
-      if (event.target) {
-        event.target.value = ''
-      }
-    },
-    [importWorkspace]
-  )
-
   const tasksCollapsedIcon = useMemo(
     () => <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />,
-    []
-  )
-
-  const workflowIconStyle = useMemo<React.CSSProperties>(
-    () => ({
-      backgroundColor: 'var(--text-icon)',
-      borderColor: 'color-mix(in srgb, var(--text-icon) 60%, transparent)',
-      backgroundClip: 'padding-box',
-    }),
     []
   )
 
@@ -1155,18 +1104,10 @@ export const Sidebar = memo(function Sidebar() {
     () => (
       <div
         className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
-        style={workflowIconStyle}
+        style={WORKFLOW_ICON_STYLE}
       />
     ),
-    [workflowIconStyle]
-  )
-
-  const tasksPrimaryAction = useMemo(
-    () => ({
-      label: 'New task',
-      onSelect: () => navigateToPage(`/workspace/${workspaceId}/home`),
-    }),
-    [navigateToPage, workspaceId]
+    []
   )
 
   const workflowsPrimaryAction = useMemo(
@@ -1177,53 +1118,56 @@ export const Sidebar = memo(function Sidebar() {
     [handleCreateWorkflow]
   )
 
-  const handleExpandSidebar = useCallback(
-    (e: React.MouseEvent) => {
+  const handleExpandSidebar = (e: React.MouseEvent) => {
+    e.preventDefault()
+    toggleCollapsed()
+  }
+
+  const handleNewTask = useCallback(async () => {
+    if (!workspaceId || isCreatingTaskRef.current) return
+    isCreatingTaskRef.current = true
+    try {
+      const { id } = await createTaskMutation.mutateAsync()
+      useMothershipDraftsStore.getState().clearDraft(`${workspaceId}:new`)
+      navigateToPage(`/workspace/${workspaceId}/task/${id}`)
+    } catch {
+      navigateToPage(`/workspace/${workspaceId}/home`)
+    } finally {
+      isCreatingTaskRef.current = false
+    }
+  }, [workspaceId, navigateToPage])
+
+  const tasksPrimaryAction = useMemo(
+    () => ({
+      label: 'New task',
+      onSelect: handleNewTask,
+    }),
+    [handleNewTask]
+  )
+
+  const handleSeeMoreTasks = () => setVisibleTaskCount((prev) => prev + 5)
+
+  const handleCloseTaskDeleteModal = () => setIsTaskDeleteModalOpen(false)
+
+  const handleEdgeKeyDown = (e: React.KeyboardEvent) => {
+    if (isCollapsed && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault()
       toggleCollapsed()
-    },
-    [toggleCollapsed]
-  )
+    }
+  }
 
-  const handleNewTask = useCallback(
-    () => navigateToPage(`/workspace/${workspaceId}/home`),
-    [navigateToPage, workspaceId]
-  )
+  const handleOpenHelpFromMenu = () => setIsHelpModalOpen(true)
 
-  const handleSeeMoreTasks = useCallback(() => setVisibleTaskCount((prev) => prev + 5), [])
-
-  const handleCloseTaskDeleteModal = useCallback(() => setIsTaskDeleteModalOpen(false), [])
-
-  const handleEdgeKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (isCollapsed && (e.key === 'Enter' || e.key === ' ')) {
-        e.preventDefault()
-        toggleCollapsed()
-      }
-    },
-    [isCollapsed, toggleCollapsed]
-  )
-
-  const handleOpenHelpFromMenu = useCallback(() => setIsHelpModalOpen(true), [])
-
-  const handleOpenDocs = useCallback(() => {
+  const handleOpenDocs = () => {
     window.open('https://docs.sim.ai', '_blank', 'noopener,noreferrer')
     captureEvent(posthog, 'docs_opened', { source: 'help_menu' })
-  }, [posthog])
+  }
 
-  const handleTaskRenameBlur = useCallback(
-    () => void taskFlyoutRename.saveRename(),
-    [taskFlyoutRename.saveRename]
-  )
+  const handleTaskRenameBlur = () => void taskFlyoutRename.saveRename()
 
-  const handleWorkflowRenameBlur = useCallback(
-    () => void workflowFlyoutRename.saveRename(),
-    [workflowFlyoutRename.saveRename]
-  )
+  const handleWorkflowRenameBlur = () => void workflowFlyoutRename.saveRename()
 
-  const hiddenStyle = useMemo(() => ({ display: 'none' }) as const, [])
-
-  const resolveWorkspaceIdFromPath = useCallback((): string | undefined => {
+  const resolveWorkspaceIdFromPath = (): string | undefined => {
     if (workspaceId) return workspaceId
     if (typeof window === 'undefined') return undefined
 
@@ -1232,7 +1176,7 @@ export const Sidebar = memo(function Sidebar() {
     if (idx === -1) return undefined
 
     return parts[idx + 1]
-  }, [workspaceId])
+  }
 
   useRegisterGlobalCommands(() =>
     createCommands([
@@ -1411,10 +1355,6 @@ export const Sidebar = memo(function Sidebar() {
                 onRenameWorkspace={handleRenameWorkspace}
                 onDeleteWorkspace={handleDeleteWorkspace}
                 isDeletingWorkspace={isDeletingWorkspace}
-                onDuplicateWorkspace={handleDuplicateWorkspace}
-                onExportWorkspace={exportWorkspace}
-                onImportWorkspace={handleImportWorkspace}
-                isImportingWorkspace={isImportingWorkspace}
                 onColorChange={handleColorChangeWorkspace}
                 onUploadLogo={handleUploadLogo}
                 onRemoveLogo={handleRemoveLogo}
@@ -1485,6 +1425,7 @@ export const Sidebar = memo(function Sidebar() {
                                   variant='ghost'
                                   className='h-[18px] w-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-hover)]'
                                   onClick={handleNewTask}
+                                  disabled={createTaskMutation.isPending}
                                 >
                                   <Plus className='h-[16px] w-[16px]' />
                                 </Button>
@@ -1516,7 +1457,7 @@ export const Sidebar = memo(function Sidebar() {
                               <CollapsedTaskFlyoutItem
                                 key={task.id}
                                 task={task}
-                                isCurrentRoute={task.id !== 'new' && pathname === task.href}
+                                isCurrentRoute={pathname === task.href}
                                 isMenuOpen={menuOpenTaskId === task.id}
                                 isEditing={task.id === taskFlyoutRename.editingId}
                                 editValue={taskFlyoutRename.value}
@@ -1539,9 +1480,9 @@ export const Sidebar = memo(function Sidebar() {
                           ) : (
                             <>
                               {tasks.slice(0, visibleTaskCount).map((task) => {
-                                const isCurrentRoute = task.id !== 'new' && pathname === task.href
+                                const isCurrentRoute = pathname === task.href
                                 const isRenaming = taskFlyoutRename.editingId === task.id
-                                const isSelected = task.id !== 'new' && selectedTasks.has(task.id)
+                                const isSelected = selectedTasks.has(task.id)
 
                                 if (isRenaming) {
                                   return (
@@ -1883,13 +1824,6 @@ export const Sidebar = memo(function Sidebar() {
         onOpenChange={setIsHelpModalOpen}
         workflowId={workflowId}
         workspaceId={workspaceId}
-      />
-      <input
-        ref={workspaceFileInputRef}
-        type='file'
-        accept='.zip'
-        style={hiddenStyle}
-        onChange={handleWorkspaceFileChange}
       />
     </>
   )

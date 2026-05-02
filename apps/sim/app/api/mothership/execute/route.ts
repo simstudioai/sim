@@ -2,7 +2,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { mothershipExecuteContract } from '@/lib/api/contracts/mothership-tasks'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
@@ -17,23 +18,6 @@ import {
 export const maxDuration = 3600
 
 const logger = createLogger('MothershipExecuteAPI')
-
-const MessageSchema = z.object({
-  role: z.enum(['system', 'user', 'assistant']),
-  content: z.string(),
-})
-
-const ExecuteRequestSchema = z.object({
-  messages: z.array(MessageSchema).min(1, 'At least one message is required'),
-  responseFormat: z.any().optional(),
-  workspaceId: z.string().min(1, 'workspaceId is required'),
-  userId: z.string().min(1, 'userId is required'),
-  chatId: z.string().optional(),
-  messageId: z.string().optional(),
-  requestId: z.string().optional(),
-  workflowId: z.string().optional(),
-  executionId: z.string().optional(),
-})
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
@@ -56,7 +40,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
+    const validation = await parseRequest(mothershipExecuteContract, req, {})
+    if (!validation.success) return validation.response
     const {
       messages,
       responseFormat,
@@ -67,7 +52,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       requestId: providedRequestId,
       workflowId,
       executionId,
-    } = ExecuteRequestSchema.parse(body)
+    } = validation.data.body
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
 
@@ -190,13 +175,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       await explicitAbortRequest
     }
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     if (req.signal.aborted || isAbortError(error)) {
       logger.info(
         messageId

@@ -5,6 +5,10 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import {
+  updateWorkflowMcpToolBodySchema,
+  workflowMcpToolParamsSchema,
+} from '@/lib/api/contracts/workflow-mcp-servers'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
@@ -27,7 +31,7 @@ export const GET = withRouteHandler(
   withMcpAuth<RouteParams>('read')(
     async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
       try {
-        const { id: serverId, toolId } = await params
+        const { id: serverId, toolId } = workflowMcpToolParamsSchema.parse(await params)
 
         logger.info(`[${requestId}] Getting tool ${toolId} from server ${serverId}`)
 
@@ -83,8 +87,15 @@ export const PATCH = withRouteHandler(
       { params }
     ) => {
       try {
-        const { id: serverId, toolId } = await params
-        const body = getParsedBody(request) || (await request.json())
+        const { id: serverId, toolId } = workflowMcpToolParamsSchema.parse(await params)
+        const rawBody = getParsedBody(request) ?? (await request.json())
+        const parsedBody = updateWorkflowMcpToolBodySchema.safeParse(rawBody)
+
+        if (!parsedBody.success) {
+          return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
+        }
+
+        const body = parsedBody.data
 
         logger.info(`[${requestId}] Updating tool ${toolId} in server ${serverId}`)
 
@@ -182,7 +193,7 @@ export const DELETE = withRouteHandler(
       { params }
     ) => {
       try {
-        const { id: serverId, toolId } = await params
+        const { id: serverId, toolId } = workflowMcpToolParamsSchema.parse(await params)
 
         logger.info(`[${requestId}] Deleting tool ${toolId} from server ${serverId}`)
 

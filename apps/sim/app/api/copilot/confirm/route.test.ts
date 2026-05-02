@@ -189,8 +189,9 @@ describe('Copilot Confirm API Route', () => {
     )
 
     expect(acceptedResponse.status).toBe(400)
-    expect(await acceptedResponse.json()).toEqual({
+    expect(await acceptedResponse.json()).toMatchObject({
       error: 'Invalid request data: Invalid notification status',
+      details: expect.any(Array),
     })
 
     const rejectedResponse = await POST(
@@ -201,8 +202,9 @@ describe('Copilot Confirm API Route', () => {
     )
 
     expect(rejectedResponse.status).toBe(400)
-    expect(await rejectedResponse.json()).toEqual({
+    expect(await rejectedResponse.json()).toMatchObject({
       error: 'Invalid request data: Invalid notification status',
+      details: expect.any(Array),
     })
   })
 

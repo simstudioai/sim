@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
+import { requestRaw } from '@/lib/api/client'
+import { wandGenerateStreamContract } from '@/lib/api/contracts'
 import { readSSEStream } from '@/lib/core/utils/sse'
 import type { GenerationType } from '@/blocks/types'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
@@ -177,29 +179,27 @@ export function useWand({
 
         const currentPrompt = prompt
 
-        const response = await fetch('/api/wand', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache, no-transform',
+        const response = await requestRaw(
+          wandGenerateStreamContract,
+          {
+            body: {
+              prompt: userMessage,
+              systemPrompt: systemPrompt,
+              stream: true,
+              history: wandConfig?.maintainHistory ? conversationHistory : [],
+              generationType: wandConfig?.generationType,
+              workflowId: workflowId ?? undefined,
+              wandContext: contextParams?.tableId ? { tableId: contextParams.tableId } : undefined,
+            },
+            signal: abortControllerRef.current.signal,
           },
-          body: JSON.stringify({
-            prompt: userMessage,
-            systemPrompt: systemPrompt,
-            stream: true,
-            history: wandConfig?.maintainHistory ? conversationHistory : [],
-            generationType: wandConfig?.generationType,
-            workflowId,
-            wandContext: contextParams?.tableId ? { tableId: contextParams.tableId } : undefined,
-          }),
-          signal: abortControllerRef.current.signal,
-          cache: 'no-store',
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(errorText || `HTTP error! status: ${response.status}`)
-        }
+          {
+            headers: {
+              'Cache-Control': 'no-cache, no-transform',
+            },
+            cache: 'no-store',
+          }
+        )
 
         if (!response.body) {
           throw new Error('Response body is null')

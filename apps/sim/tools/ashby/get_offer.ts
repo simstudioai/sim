@@ -1,5 +1,5 @@
 import type { AshbyOffer } from '@/tools/ashby/types'
-import { mapOffer, OFFER_OUTPUTS } from '@/tools/ashby/utils'
+import { ashbyAuthHeaders, ashbyErrorMessage, mapOffer, OFFER_OUTPUTS } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyGetOfferParams {
@@ -35,10 +35,7 @@ export const getOfferTool: ToolConfig<AshbyGetOfferParams, AshbyGetOfferResponse
   request: {
     url: 'https://api.ashbyhq.com/offer.info',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => ({
       offerId: params.offerId.trim(),
     }),
@@ -48,7 +45,7 @@ export const getOfferTool: ToolConfig<AshbyGetOfferParams, AshbyGetOfferResponse
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to get offer')
+      throw new Error(ashbyErrorMessage(data, 'Failed to get offer'))
     }
 
     return {

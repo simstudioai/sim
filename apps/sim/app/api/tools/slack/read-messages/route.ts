@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { slackReadMessagesContract } from '@/lib/api/contracts/tools/communication/slack'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -9,24 +10,6 @@ import { openDMChannel } from '../utils'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SlackReadMessagesAPI')
-
-const SlackReadMessagesSchema = z
-  .object({
-    accessToken: z.string().min(1, 'Access token is required'),
-    channel: z.string().optional().nullable(),
-    userId: z.string().optional().nullable(),
-    limit: z.coerce
-      .number()
-      .min(1, 'Limit must be at least 1')
-      .max(15, 'Limit cannot exceed 15')
-      .optional()
-      .nullable(),
-    oldest: z.string().optional().nullable(),
-    latest: z.string().optional().nullable(),
-  })
-  .refine((data) => data.channel || data.userId, {
-    message: 'Either channel or userId is required',
-  })
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -52,8 +35,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
-    const body = await request.json()
-    const validatedData = SlackReadMessagesSchema.parse(body)
+    const parsed = await parseRequest(slackReadMessagesContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     let channel = validatedData.channel
     if (!channel && validatedData.userId) {
@@ -189,18 +173,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error reading Slack messages:`, error)
     return NextResponse.json(
       {

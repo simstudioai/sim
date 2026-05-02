@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { teamsWriteChannelContract } from '@/lib/api/contracts/tools/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { uploadFilesForTeamsMessage } from '@/tools/microsoft_teams/server-utils'
 import type { GraphApiErrorResponse, GraphChatMessage } from '@/tools/microsoft_teams/types'
 import { resolveMentionsForChannel, type TeamsMention } from '@/tools/microsoft_teams/utils'
@@ -13,14 +13,6 @@ import { resolveMentionsForChannel, type TeamsMention } from '@/tools/microsoft_
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('TeamsWriteChannelAPI')
-
-const TeamsWriteChannelSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  teamId: z.string().min(1, 'Team ID is required'),
-  channelId: z.string().min(1, 'Channel ID is required'),
-  content: z.string().min(1, 'Message content is required'),
-  files: RawFileInputArraySchema.optional().nullable(),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -46,8 +38,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
-    const body = await request.json()
-    const validatedData = TeamsWriteChannelSchema.parse(body)
+    const parsed = await parseRequest(teamsWriteChannelContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Sending Teams channel message`, {
       teamId: validatedData.teamId,

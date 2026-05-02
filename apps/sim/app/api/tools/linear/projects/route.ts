@@ -1,7 +1,9 @@
 import type { Project } from '@linear/sdk'
 import { LinearClient } from '@linear/sdk'
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { linearProjectsSelectorContract } from '@/lib/api/contracts/selectors'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -11,18 +13,14 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('LinearProjectsAPI')
 
-export const POST = withRouteHandler(async (request: Request) => {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    const body = await request.json()
-    const { credential, teamId, workflowId } = body
-
-    if (!credential || !teamId) {
-      logger.error('Missing credential or teamId in request')
-      return NextResponse.json({ error: 'Credential and teamId are required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(linearProjectsSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, teamId, workflowId } = parsed.data.body
 
     const requestId = generateRequestId()
-    const authz = await authorizeCredentialUse(request as any, {
+    const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
       workflowId,
     })
@@ -41,16 +39,13 @@ export const POST = withRouteHandler(async (request: Request) => {
         userId: authz.credentialOwnerUserId,
       })
       return NextResponse.json(
-        {
-          error: 'Could not retrieve access token',
-          authRequired: true,
-        },
+        { error: 'Could not retrieve access token', authRequired: true },
         { status: 401 }
       )
     }
 
     const linearClient = new LinearClient({ accessToken })
-    let projects = []
+    let projects: Array<{ id: string; name: string }> = []
 
     const team = await linearClient.team(teamId)
     const projectsResult = await team.projects()

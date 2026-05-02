@@ -4,6 +4,8 @@ import type React from 'react'
 import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import { listCreatorOrganizationsContract } from '@/lib/api/contracts/creator-profile'
 import { client } from '@/lib/auth/auth-client'
 import { extractSessionDataFromAuthClientResult } from '@/lib/auth/session-response'
 
@@ -92,14 +94,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const response = await fetch('/api/organizations')
-        if (!response.ok) {
-          return
-        }
+        const orgData = await requestJson(listCreatorOrganizationsContract, {}).catch(() => null)
+        if (!orgData) return
 
-        const orgData = (await response.json()) as {
-          organizations?: Array<{ id: string }>
-        }
         const organizationId = orgData.organizations?.[0]?.id
 
         if (!organizationId || isCancelled) {

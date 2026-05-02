@@ -45,7 +45,7 @@ export function useDeployment({ workflowId, isDeployed }: UseDeploymentProps) {
     }
 
     try {
-      await mutateAsync({ workflowId, deployChatEnabled: false })
+      await mutateAsync({ workflowId })
       return { success: true, shouldOpenModal: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to deploy workflow'

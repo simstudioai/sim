@@ -35,6 +35,12 @@ import {
 } from '@/components/emcn'
 import { Lock, Unlock, Upload } from '@/components/emcn/icons'
 import { VariableIcon } from '@/components/icons'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  createWorkflowCopilotChatContract,
+  deleteCopilotChatContract,
+} from '@/lib/api/contracts/copilot'
+import { getWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
 import { useSession } from '@/lib/auth/auth-client'
 import { captureEvent } from '@/lib/posthog/client'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
@@ -66,6 +72,8 @@ import {
   copilotChatsKeys,
   useCopilotChats,
 } from '@/hooks/queries/copilot-chats'
+import { useFolderMap } from '@/hooks/queries/folders'
+import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useDuplicateWorkflowMutation, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -144,6 +152,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })
   const duplicateWorkflowMutation = useDuplicateWorkflowMutation()
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
+  const { data: folders = {} } = useFolderMap(workspaceId)
   const { activeWorkflowId, hydration } = useWorkflowRegistry(
     useShallow((state) => ({
       activeWorkflowId: state.activeWorkflowId,
@@ -228,6 +237,8 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   )
 
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
+  const workflowLocked = isWorkflowEffectivelyLocked(currentWorkflow, folders)
+  const canMutateWorkflow = userPermissions.canEdit && !workflowLocked
   const { isSnapshotView } = useCurrentWorkflow()
 
   const { chatId: copilotChatId, setChatId: setCopilotChatId } = useCopilotChatSelection(
@@ -284,18 +295,16 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
   const handleCopilotDeleteChat = useCallback(
     (chatId: string) => {
-      fetch('/api/copilot/chat/delete', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId }),
-      })
+      requestJson(deleteCopilotChatContract, { body: { chatId } })
         .then(() => {
           if (copilotChatId === chatId) {
             setCopilotChatId(undefined)
           }
           loadCopilotChats()
         })
-        .catch(() => {})
+        .catch((err) => {
+          logger.error('Failed to delete copilot chat', { error: toError(err).message, chatId })
+        })
     },
     [copilotChatId, loadCopilotChats, setCopilotChatId]
   )
@@ -308,11 +317,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
       const baselineWorkflow = captureBaselineSnapshot(workflowId)
 
-      fetch(`/api/workflows/${workflowId}/state`)
-        .then((res) => {
-          if (!res.ok) throw new Error(`State fetch failed: ${res.status}`)
-          return res.json()
-        })
+      requestJson(getWorkflowNormalizedStateContract, { params: { id: workflowId } })
         .then((freshState) => {
           const diffStore = useWorkflowDiffStore.getState()
           return diffStore.setProposedChanges(freshState as WorkflowState, undefined, {
@@ -353,14 +358,10 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
   const handleCopilotNewChat = useCallback(() => {
     if (!activeWorkflowId || !workspaceId) return
-    fetch('/api/copilot/chats', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspaceId, workflowId: activeWorkflowId }),
+    requestJson(createWorkflowCopilotChatContract, {
+      body: { workspaceId, workflowId: activeWorkflowId },
     })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('create chat failed'))))
-      .then((data: { id?: string }) => {
-        if (!data?.id) return
+      .then((data) => {
         // Seed the new chat into the list cache before selecting it. Without this, the
         // auto-select effect sees a selected id that isn't in the (still-stale) list and
         // deselects it, which leaves the panel detached from the freshly created row.
@@ -368,7 +369,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
           copilotChatsKeys.list(activeWorkflowId),
           (prev) => [
             {
-              id: data.id!,
+              id: data.id,
               title: null,
               workflowId: activeWorkflowId,
               updatedAt: new Date().toISOString(),
@@ -381,7 +382,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         loadCopilotChats()
       })
       .catch((err) => {
-        logger.error('Failed to create copilot chat', err)
+        logger.error('Failed to create copilot chat', { error: toError(err).message })
       })
   }, [activeWorkflowId, workspaceId, loadCopilotChats, setCopilotChatId, queryClient])
 
@@ -485,7 +486,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
    * Handles auto-layout of workflow blocks
    */
   const handleAutoLayout = useCallback(async () => {
-    if (isExecuting || !userPermissions.canEdit || isAutoLayouting) {
+    if (isExecuting || !canMutateWorkflow || isAutoLayouting) {
       return
     }
 
@@ -502,13 +503,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     } finally {
       setIsAutoLayouting(false)
     }
-  }, [
-    isExecuting,
-    userPermissions.canEdit,
-    isAutoLayouting,
-    autoLayoutWithFitView,
-    activeWorkflowId,
-  ])
+  }, [isExecuting, canMutateWorkflow, isAutoLayouting, autoLayoutWithFitView, activeWorkflowId])
 
   /**
    * Handles exporting workflow as JSON
@@ -660,7 +655,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   <DropdownMenuItem
                     onSelect={handleAutoLayout}
                     disabled={
-                      isExecuting || !userPermissions.canEdit || isAutoLayouting || hasLockedBlocks
+                      isExecuting || !canMutateWorkflow || isAutoLayouting || hasLockedBlocks
                     }
                     title={hasLockedBlocks ? 'Unlock blocks to use auto-layout' : undefined}
                   >
@@ -672,7 +667,15 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     Variables
                   </DropdownMenuItem>
                   {userPermissions.canAdmin && !isSnapshotView && (
-                    <DropdownMenuItem onSelect={handleToggleWorkflowLock} disabled={!hasBlocks}>
+                    <DropdownMenuItem
+                      onSelect={handleToggleWorkflowLock}
+                      disabled={!hasBlocks || workflowLocked}
+                      title={
+                        workflowLocked
+                          ? 'Workflow is locked at the row or folder level — release it from the workflow notification or folder menu'
+                          : undefined
+                      }
+                    >
                       {allBlocksLocked ? <Unlock /> : <Lock />}
                       {allBlocksLocked ? 'Unlock workflow' : 'Lock workflow'}
                     </DropdownMenuItem>
@@ -695,7 +698,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     onSelect={() => {
                       setIsDeleteModalOpen(true)
                     }}
-                    disabled={!userPermissions.canEdit || Object.keys(workflows).length <= 1}
+                    disabled={!canMutateWorkflow || Object.keys(workflows).length <= 1}
                   >
                     <Trash />
                     Delete workflow
@@ -713,7 +716,11 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
             {/* Deploy and Run */}
             <div className='flex gap-1.5' data-tour='deploy-run'>
-              <Deploy activeWorkflowId={activeWorkflowId} userPermissions={userPermissions} />
+              <Deploy
+                activeWorkflowId={activeWorkflowId}
+                userPermissions={userPermissions}
+                disabled={workflowLocked}
+              />
               <Button
                 className='h-[30px] gap-2 px-2.5'
                 data-tour='run-button'
@@ -947,7 +954,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       </Modal>
 
       {/* Floating Variables Modal */}
-      <Variables />
+      <Variables readOnly={workflowLocked} />
     </>
   )
 })

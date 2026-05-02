@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { onedriveFolderQuerySchema } from '@/lib/api/contracts/selectors/microsoft'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -23,12 +25,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-    const fileId = searchParams.get('fileId')
-
-    if (!credentialId || !fileId) {
-      return NextResponse.json({ error: 'Credential ID and File ID are required' }, { status: 400 })
+    const validation = onedriveFolderQuerySchema.safeParse({
+      credentialId: searchParams.get('credentialId') ?? '',
+      fileId: searchParams.get('fileId') ?? '',
+    })
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(validation.error, 'Invalid request') },
+        { status: 400 }
+      )
     }
+    const { credentialId, fileId } = validation.data
 
     const fileIdValidation = validateMicrosoftGraphId(fileId, 'fileId')
     if (!fileIdValidation.isValid) {

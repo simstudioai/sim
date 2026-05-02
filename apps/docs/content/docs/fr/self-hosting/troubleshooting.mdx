@@ -27,7 +27,7 @@ OLLAMA_URL=http://192.168.1.x:11434           # Linux (use actual IP)
 
 ## WebSocket/Temps réel ne fonctionne pas
 
-1. Vérifiez que `NEXT_PUBLIC_SOCKET_URL` correspond à votre domaine
+1. Vérifiez que le reverse proxy route `/socket.io` vers le service realtime (port 3002 par défaut). `NEXT_PUBLIC_SOCKET_URL` n'est nécessaire que si realtime est sur un hôte séparé.
 2. Vérifiez que le service temps réel est en cours d'exécution : `docker compose ps realtime`
 3. Assurez-vous que le proxy inverse transmet les mises à niveau WebSocket (voir [Guide Docker](/self-hosting/docker))
 

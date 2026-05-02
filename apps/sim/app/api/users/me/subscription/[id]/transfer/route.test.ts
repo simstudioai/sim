@@ -4,6 +4,7 @@
 import {
   authMock,
   authMockFns,
+  createMockRequest,
   createSession,
   dbChainMock,
   dbChainMockFns,
@@ -27,11 +28,12 @@ import { POST } from '@/app/api/users/me/subscription/[id]/transfer/route'
 
 function makeRequest(body: unknown, id = 'sub-1') {
   return POST(
-    new Request(`http://localhost/api/users/me/subscription/${id}/transfer`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }) as any,
+    createMockRequest(
+      'POST',
+      body,
+      {},
+      `http://localhost/api/users/me/subscription/${id}/transfer`
+    ),
     { params: Promise.resolve({ id }) }
   )
 }

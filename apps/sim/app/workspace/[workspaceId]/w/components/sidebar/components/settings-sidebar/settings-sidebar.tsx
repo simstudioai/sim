@@ -104,9 +104,7 @@ export function SettingsSidebar({
   const isSSOProviderOwner = useMemo(() => {
     if (isHosted) return null
     if (!userId || isLoadingSSO) return null
-    return (
-      ssoProvidersData?.providers?.some((p: { userId?: string }) => p.userId === userId) || false
-    )
+    return ssoProvidersData?.providers?.some((p) => p.userId === userId) || false
   }, [userId, ssoProvidersData?.providers, isLoadingSSO])
 
   const navigationItems = useMemo(() => {
@@ -214,7 +212,7 @@ export function SettingsSidebar({
           break
         case 'secrets':
           prefetchWorkspaceCredentials(queryClient, workspaceId)
-          void import('@/app/workspace/[workspaceId]/settings/components/credentials/credentials')
+          void import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets')
           break
         case 'subscription':
           prefetchSubscriptionData(queryClient)

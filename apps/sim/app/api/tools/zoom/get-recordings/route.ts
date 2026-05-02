@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { zoomGetRecordingsContract } from '@/lib/api/contracts/tools/zoom'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -48,14 +49,6 @@ interface ZoomErrorResponse {
   code?: number
 }
 
-const ZoomGetRecordingsSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  meetingId: z.string().min(1, 'Meeting ID is required'),
-  includeFolderItems: z.boolean().optional(),
-  ttl: z.number().optional(),
-  downloadFiles: z.boolean().optional().default(false),
-})
-
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
@@ -73,10 +66,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const body = await request.json()
-    const validatedData = ZoomGetRecordingsSchema.parse(body)
+    const parsed = await parseRequest(zoomGetRecordingsContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const { accessToken, meetingId, includeFolderItems, ttl, downloadFiles } = validatedData
+    const { accessToken, meetingId, includeFolderItems, ttl, downloadFiles } = parsed.data.body
 
     const baseUrl = `https://api.zoom.us/v2/meetings/${encodeURIComponent(meetingId)}/recordings`
     const queryParams = new URLSearchParams()

@@ -15,13 +15,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Eye,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
   Pencil,
-  Skeleton,
   Trash,
   Upload,
 } from '@/components/emcn'
@@ -373,45 +373,42 @@ export function Files() {
     filteredFiles,
   ])
 
-  const uploadFiles = useCallback(
-    async (filesToUpload: File[]) => {
-      if (!workspaceId || filesToUpload.length === 0) return
+  const uploadFiles = async (filesToUpload: File[]) => {
+    if (!workspaceId || filesToUpload.length === 0) return
 
-      const unsupported: string[] = []
-      const allowedFiles = filesToUpload.filter((f) => {
-        const ext = getFileExtension(f.name)
-        const ok = SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number])
-        if (!ok) unsupported.push(f.name)
-        return ok
-      })
+    const unsupported: string[] = []
+    const allowedFiles = filesToUpload.filter((f) => {
+      const ext = getFileExtension(f.name)
+      const ok = SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number])
+      if (!ok) unsupported.push(f.name)
+      return ok
+    })
 
-      if (unsupported.length > 0) {
-        logger.warn('Unsupported file types skipped:', unsupported)
-      }
+    if (unsupported.length > 0) {
+      logger.warn('Unsupported file types skipped:', unsupported)
+    }
 
-      if (allowedFiles.length === 0) return
+    if (allowedFiles.length === 0) return
 
-      try {
-        setUploading(true)
-        setUploadProgress({ completed: 0, total: allowedFiles.length })
+    try {
+      setUploading(true)
+      setUploadProgress({ completed: 0, total: allowedFiles.length })
 
-        for (let i = 0; i < allowedFiles.length; i++) {
-          try {
-            await uploadFile.mutateAsync({ workspaceId, file: allowedFiles[i] })
-            setUploadProgress({ completed: i + 1, total: allowedFiles.length })
-          } catch (err) {
-            logger.error('Error uploading file:', err)
-          }
+      for (let i = 0; i < allowedFiles.length; i++) {
+        try {
+          await uploadFile.mutateAsync({ workspaceId, file: allowedFiles[i] })
+          setUploadProgress({ completed: i + 1, total: allowedFiles.length })
+        } catch (err) {
+          logger.error('Error uploading file:', err)
         }
-      } catch (err) {
-        logger.error('Error uploading file:', err)
-      } finally {
-        setUploading(false)
-        setUploadProgress({ completed: 0, total: 0 })
       }
-    },
-    [workspaceId]
-  )
+    } catch (err) {
+      logger.error('Error uploading file:', err)
+    } finally {
+      setUploading(false)
+      setUploadProgress({ completed: 0, total: 0 })
+    }
+  }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = e.target.files
@@ -685,7 +682,7 @@ export function Files() {
     if (isNewFile && fileIdFromRoute) {
       router.replace(`/workspace/${workspaceId}/files/${fileIdFromRoute}`)
     }
-  }, [])
+  }, [isNewFile, fileIdFromRoute, router, workspaceId])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1036,28 +1033,12 @@ export function Files() {
     return tags
   }, [typeFilter, sizeFilter, uploadedByFilter, members])
 
-  if (fileIdFromRoute && !selectedFile) {
+  if (fileIdFromRoute && !selectedFile && isLoading) {
     return (
       <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
         <ResourceHeader icon={FilesIcon} breadcrumbs={loadingBreadcrumbs} />
-        <div className='flex flex-1 flex-col items-center gap-4 overflow-y-auto bg-[var(--surface-1)] p-6'>
-          {[0, 1].map((i) => (
-            <div
-              key={i}
-              className='w-full max-w-[640px] shrink-0 rounded-md bg-[var(--surface-2)] p-8 shadow-medium'
-              style={{ aspectRatio: '1 / 1.414' }}
-            >
-              <div className='flex flex-col gap-3'>
-                <Skeleton className='h-[14px] w-[60%]' />
-                <Skeleton className='h-[14px] w-[80%]' />
-                <Skeleton className='h-[14px] w-[55%]' />
-                <Skeleton className='mt-2 h-[14px] w-[75%]' />
-                <Skeleton className='h-[14px] w-[65%]' />
-                <Skeleton className='h-[14px] w-[85%]' />
-                <Skeleton className='h-[14px] w-[50%]' />
-              </div>
-            </div>
-          ))}
+        <div className='flex flex-1 items-center justify-center bg-[var(--surface-1)]'>
+          <Loader className='h-[20px] w-[20px] text-[var(--text-secondary)]' animate />
         </div>
       </div>
     )

@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { workspaceFileStyleContract } from '@/lib/api/contracts/workspace-files'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -19,8 +21,10 @@ const logger = createLogger('WorkspaceFileStyleAPI')
  * Only works on binary OOXML files (ZIP format) — not on JS source files.
  */
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) => {
-    const { id: workspaceId, fileId } = await params
+  async (request: NextRequest, context: { params: Promise<{ id: string; fileId: string }> }) => {
+    const parsed = await parseRequest(workspaceFileStyleContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { id: workspaceId, fileId } = parsed.data.params
 
     const session = await getSession()
     if (!session?.user?.id) {

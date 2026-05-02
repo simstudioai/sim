@@ -303,6 +303,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   )
 
   const generateSocketToken = async (): Promise<string> => {
+    // boundary-raw-fetch: pre-bootstrap one-time socket token mint — Better Auth's
+    // generateOneTimeToken handler (in INDIRECT_ZOD_ROUTES baseline) has no client
+    // contract; called from Socket.IO auth callback before any contract-bound client.
     const res = await fetch('/api/auth/socket-token', {
       method: 'POST',
       credentials: 'include',

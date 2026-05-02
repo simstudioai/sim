@@ -53,7 +53,7 @@ Adds a tag to a candidate in Ashby and returns the updated candidate.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
-| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion\) |
 | `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
 | `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
 | `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
@@ -64,20 +64,20 @@ Adds a tag to a candidate in Ashby and returns the updated candidate.
 | `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
 | `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
 | `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
-| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt\) |
 | `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
 | `tags` | json | List of candidate tags \(id, title, isArchived\) |
 | `id` | string | Resource UUID |
 | `name` | string | Resource name |
 | `title` | string | Job title or job posting title |
 | `status` | string | Status |
-| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
-| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `candidate` | json | Candidate summary \(id, name, primaryEmailAddress, primaryPhoneNumber\). For full candidate fields use the candidates list output or the get/create/update candidate operations. |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], createdAt, updatedAt\) |
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
-| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt, job \[included when expandJob=true\]\) |
 | `content` | string | Note content |
-| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `author` | json | Note author \(id, firstName, lastName, email\) |
 | `isPrivate` | boolean | Whether the note is private |
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `moreDataAvailable` | boolean | Whether more pages exist |
@@ -102,7 +102,7 @@ Moves an application to a different interview stage. Requires an archive reason 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
-| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion\) |
 | `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
 | `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
 | `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
@@ -113,20 +113,20 @@ Moves an application to a different interview stage. Requires an archive reason 
 | `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
 | `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
 | `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
-| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt\) |
 | `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
 | `tags` | json | List of candidate tags \(id, title, isArchived\) |
 | `id` | string | Resource UUID |
 | `name` | string | Resource name |
 | `title` | string | Job title or job posting title |
 | `status` | string | Status |
-| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
-| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `candidate` | json | Candidate summary \(id, name, primaryEmailAddress, primaryPhoneNumber\). For full candidate fields use the candidates list output or the get/create/update candidate operations. |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], createdAt, updatedAt\) |
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
-| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt, job \[included when expandJob=true\]\) |
 | `content` | string | Note content |
-| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `author` | json | Note author \(id, firstName, lastName, email\) |
 | `isPrivate` | boolean | Whether the note is private |
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `moreDataAvailable` | boolean | Whether more pages exist |
@@ -155,7 +155,7 @@ Creates a new application for a candidate on a job. Optionally specify interview
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
-| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion\) |
 | `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
 | `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
 | `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
@@ -166,20 +166,20 @@ Creates a new application for a candidate on a job. Optionally specify interview
 | `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
 | `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
 | `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
-| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt\) |
 | `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
 | `tags` | json | List of candidate tags \(id, title, isArchived\) |
 | `id` | string | Resource UUID |
 | `name` | string | Resource name |
 | `title` | string | Job title or job posting title |
 | `status` | string | Status |
-| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
-| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `candidate` | json | Candidate summary \(id, name, primaryEmailAddress, primaryPhoneNumber\). For full candidate fields use the candidates list output or the get/create/update candidate operations. |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], createdAt, updatedAt\) |
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
-| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt, job \[included when expandJob=true\]\) |
 | `content` | string | Note content |
-| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `author` | json | Note author \(id, firstName, lastName, email\) |
 | `isPrivate` | boolean | Whether the note is private |
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `moreDataAvailable` | boolean | Whether more pages exist |
@@ -200,14 +200,18 @@ Creates a new candidate record in Ashby.
 | `phoneNumber` | string | No | Primary phone number for the candidate |
 | `linkedInUrl` | string | No | LinkedIn profile URL |
 | `githubUrl` | string | No | GitHub profile URL |
+| `website` | string | No | Personal website URL |
 | `sourceId` | string | No | UUID of the source to attribute the candidate to |
+| `creditedToUserId` | string | No | UUID of the Ashby user to credit with sourcing this candidate |
+| `createdAt` | string | No | Backdated creation timestamp in ISO 8601 \(e.g. 2024-01-01T00:00:00Z\). Defaults to now. |
+| `alternateEmailAddresses` | json | No | Array of additional email address strings to add to the candidate, e.g. \["a@x.com","b@y.com"\] |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
-| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion\) |
 | `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
 | `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
 | `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
@@ -218,20 +222,20 @@ Creates a new candidate record in Ashby.
 | `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
 | `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
 | `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
-| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt\) |
 | `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
 | `tags` | json | List of candidate tags \(id, title, isArchived\) |
 | `id` | string | Resource UUID |
 | `name` | string | Resource name |
 | `title` | string | Job title or job posting title |
 | `status` | string | Status |
-| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
-| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `candidate` | json | Candidate summary \(id, name, primaryEmailAddress, primaryPhoneNumber\). For full candidate fields use the candidates list output or the get/create/update candidate operations. |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], createdAt, updatedAt\) |
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
-| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt, job \[included when expandJob=true\]\) |
 | `content` | string | Note content |
-| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `author` | json | Note author \(id, firstName, lastName, email\) |
 | `isPrivate` | boolean | Whether the note is private |
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `moreDataAvailable` | boolean | Whether more pages exist |
@@ -251,6 +255,8 @@ Creates a note on a candidate in Ashby. Supports plain text and HTML content (bo
 | `note` | string | Yes | The note content. If noteType is text/html, supports: &lt;b&gt;, &lt;i&gt;, &lt;u&gt;, &lt;a&gt;, &lt;ul&gt;, &lt;ol&gt;, &lt;li&gt;, &lt;code&gt;, &lt;pre&gt; |
 | `noteType` | string | No | Content type of the note: text/plain \(default\) or text/html |
 | `sendNotifications` | boolean | No | Whether to send notifications to subscribed users \(default false\) |
+| `isPrivate` | boolean | No | Whether the note is private \(only visible to the author\) |
+| `createdAt` | string | No | Backdated creation timestamp in ISO 8601 \(e.g. 2024-01-01T00:00:00Z\). Defaults to now. |
 
 #### Output
 
@@ -282,7 +288,7 @@ Retrieves full details about a single application by its ID.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
-| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion\) |
 | `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
 | `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
 | `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
@@ -293,20 +299,20 @@ Retrieves full details about a single application by its ID.
 | `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
 | `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
 | `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
-| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt\) |
 | `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
 | `tags` | json | List of candidate tags \(id, title, isArchived\) |
 | `id` | string | Resource UUID |
 | `name` | string | Resource name |
 | `title` | string | Job title or job posting title |
 | `status` | string | Status |
-| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
-| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `candidate` | json | Candidate summary \(id, name, primaryEmailAddress, primaryPhoneNumber\). For full candidate fields use the candidates list output or the get/create/update candidate operations. |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], createdAt, updatedAt\) |
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
-| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt, job \[included when expandJob=true\]\) |
 | `content` | string | Note content |
-| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `author` | json | Note author \(id, firstName, lastName, email\) |
 | `isPrivate` | boolean | Whether the note is private |
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `moreDataAvailable` | boolean | Whether more pages exist |
@@ -329,7 +335,7 @@ Retrieves full details about a single candidate by their ID.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
-| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion\) |
 | `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
 | `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
 | `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
@@ -340,20 +346,20 @@ Retrieves full details about a single candidate by their ID.
 | `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
 | `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
 | `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
-| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt\) |
 | `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
 | `tags` | json | List of candidate tags \(id, title, isArchived\) |
 | `id` | string | Resource UUID |
 | `name` | string | Resource name |
 | `title` | string | Job title or job posting title |
 | `status` | string | Status |
-| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
-| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `candidate` | json | Candidate summary \(id, name, primaryEmailAddress, primaryPhoneNumber\). For full candidate fields use the candidates list output or the get/create/update candidate operations. |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], createdAt, updatedAt\) |
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
-| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt, job \[included when expandJob=true\]\) |
 | `content` | string | Note content |
-| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `author` | json | Note author \(id, firstName, lastName, email\) |
 | `isPrivate` | boolean | Whether the note is private |
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `moreDataAvailable` | boolean | Whether more pages exist |
@@ -376,7 +382,7 @@ Retrieves full details about a single job by its ID.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
-| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion\) |
 | `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
 | `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
 | `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
@@ -387,20 +393,20 @@ Retrieves full details about a single job by its ID.
 | `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
 | `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
 | `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
-| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt\) |
 | `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
 | `tags` | json | List of candidate tags \(id, title, isArchived\) |
 | `id` | string | Resource UUID |
 | `name` | string | Resource name |
 | `title` | string | Job title or job posting title |
 | `status` | string | Status |
-| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
-| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `candidate` | json | Candidate summary \(id, name, primaryEmailAddress, primaryPhoneNumber\). For full candidate fields use the candidates list output or the get/create/update candidate operations. |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], createdAt, updatedAt\) |
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
-| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt, job \[included when expandJob=true\]\) |
 | `content` | string | Note content |
-| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `author` | json | Note author \(id, firstName, lastName, email\) |
 | `isPrivate` | boolean | Whether the note is private |
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `moreDataAvailable` | boolean | Whether more pages exist |
@@ -417,8 +423,8 @@ Retrieves full details about a single job posting by its ID.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Ashby API Key |
 | `jobPostingId` | string | Yes | The UUID of the job posting to fetch |
-| `expandApplicationFormDefinition` | boolean | No | Include application form definition in the response |
-| `expandSurveyFormDefinitions` | boolean | No | Include survey form definitions in the response |
+| `jobBoardId` | string | No | Optional job board UUID. If omitted, returns posting for the external job board. |
+| `expandJob` | boolean | No | Whether to expand and include the related job object in the response |
 
 #### Output
 
@@ -474,8 +480,9 @@ Retrieves full details about a single job posting by its ID.
 |     ↳ `minValue` | number | Minimum value |
 |     ↳ `maxValue` | number | Maximum value |
 |   ↳ `shouldDisplayCompensationOnJobBoard` | boolean | Whether compensation is shown on the job board |
-| `applicationLimitCalloutHtml` | string | HTML callout shown when application limit is reached |
+| `applicationLimitCalloutHtml` | string | HTML callout shown when the application limit is reached |
 | `updatedAt` | string | ISO 8601 last update timestamp |
+| `job` | object | The expanded job object, only present when the request was made with expandJob=true |
 
 ### `ashby_get_offer`
 
@@ -493,7 +500,7 @@ Retrieves full details about a single offer by its ID.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
-| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion\) |
 | `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
 | `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
 | `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
@@ -504,20 +511,20 @@ Retrieves full details about a single offer by its ID.
 | `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
 | `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
 | `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
-| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt\) |
 | `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
 | `tags` | json | List of candidate tags \(id, title, isArchived\) |
 | `id` | string | Resource UUID |
 | `name` | string | Resource name |
 | `title` | string | Job title or job posting title |
 | `status` | string | Status |
-| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
-| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `candidate` | json | Candidate summary \(id, name, primaryEmailAddress, primaryPhoneNumber\). For full candidate fields use the candidates list output or the get/create/update candidate operations. |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], createdAt, updatedAt\) |
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
-| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt, job \[included when expandJob=true\]\) |
 | `content` | string | Note content |
-| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `author` | json | Note author \(id, firstName, lastName, email\) |
 | `isPrivate` | boolean | Whether the note is private |
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `moreDataAvailable` | boolean | Whether more pages exist |
@@ -537,6 +544,7 @@ Lists all applications in an Ashby organization with pagination and optional fil
 | `perPage` | number | No | Number of results per page \(default 100\) |
 | `status` | string | No | Filter by application status: Active, Hired, Archived, or Lead |
 | `jobId` | string | No | Filter applications by a specific job UUID |
+| `candidateId` | string | No | Filter applications by a specific candidate UUID |
 | `createdAfter` | string | No | Filter to applications created after this ISO 8601 timestamp \(e.g. 2024-01-01T00:00:00Z\) |
 
 #### Output
@@ -605,6 +613,7 @@ Lists all candidates in an Ashby organization with cursor-based pagination.
 | `apiKey` | string | Yes | Ashby API Key |
 | `cursor` | string | No | Opaque pagination cursor from a previous response nextCursor value |
 | `perPage` | number | No | Number of results per page \(default 100\) |
+| `createdAfter` | string | No | Only return candidates created after this ISO 8601 timestamp \(e.g. 2024-01-01T00:00:00Z\) |
 
 #### Output
 
@@ -623,6 +632,10 @@ Lists all custom field definitions configured in Ashby.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Ashby API Key |
+| `cursor` | string | No | Opaque pagination cursor from a previous response nextCursor value |
+| `perPage` | number | No | Number of results per page \(default and max 100\) |
+| `syncToken` | string | No | Opaque token from a prior sync to fetch only items changed since then |
+| `includeArchived` | boolean | No | When true, includes archived custom fields in results \(default false\) |
 
 #### Output
 
@@ -640,6 +653,9 @@ Lists all custom field definitions configured in Ashby.
 |     ↳ `label` | string | Display label |
 |     ↳ `value` | string | Stored value |
 |     ↳ `isArchived` | boolean | Whether archived |
+| `moreDataAvailable` | boolean | Whether more pages of results exist |
+| `nextCursor` | string | Opaque cursor for fetching the next page |
+| `syncToken` | string | Opaque sync token returned after the last page; pass on next sync |
 
 ### `ashby_list_departments`
 
@@ -650,6 +666,10 @@ Lists all departments in Ashby.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Ashby API Key |
+| `cursor` | string | No | Opaque pagination cursor from a previous response nextCursor value |
+| `perPage` | number | No | Number of results per page \(default and max 100\) |
+| `syncToken` | string | No | Opaque token from a prior sync to fetch only items changed since then |
+| `includeArchived` | boolean | No | When true, includes archived departments in results \(default false\) |
 
 #### Output
 
@@ -663,6 +683,10 @@ Lists all departments in Ashby.
 |   ↳ `parentId` | string | Parent department UUID |
 |   ↳ `createdAt` | string | ISO 8601 creation timestamp |
 |   ↳ `updatedAt` | string | ISO 8601 last update timestamp |
+|   ↳ `extraData` | json | Free-form key-value metadata |
+| `moreDataAvailable` | boolean | Whether more pages of results exist |
+| `nextCursor` | string | Opaque cursor for fetching the next page |
+| `syncToken` | string | Opaque sync token returned after the last page; pass on next sync |
 
 ### `ashby_list_interviews`
 
@@ -677,6 +701,7 @@ Lists interview schedules in Ashby, optionally filtered by application or interv
 | `interviewStageId` | string | No | The UUID of the interview stage to list interview schedules for |
 | `cursor` | string | No | Opaque pagination cursor from a previous response nextCursor value |
 | `perPage` | number | No | Number of results per page \(default 100\) |
+| `createdAfter` | string | No | Only return interview schedules created after this ISO 8601 timestamp \(e.g. 2024-01-01T00:00:00Z\) |
 
 #### Output
 
@@ -714,6 +739,10 @@ Lists all job postings in Ashby.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Ashby API Key |
+| `location` | string | No | Filter by location name \(case sensitive\) |
+| `department` | string | No | Filter by department name \(case sensitive\) |
+| `listedOnly` | boolean | No | When true, only returns listed \(publicly visible\) job postings \(default false\) |
+| `jobBoardId` | string | No | UUID of a specific job board to filter postings to. If omitted, returns postings on the primary external job board. |
 
 #### Output
 
@@ -752,6 +781,11 @@ Lists all jobs in an Ashby organization. By default returns Open, Closed, and Ar
 | `cursor` | string | No | Opaque pagination cursor from a previous response nextCursor value |
 | `perPage` | number | No | Number of results per page \(default 100\) |
 | `status` | string | No | Filter by job status: Open, Closed, Archived, or Draft |
+| `createdAfter` | string | No | Only return jobs created after this ISO 8601 timestamp \(e.g. 2024-01-01T00:00:00Z\) |
+| `openedAfter` | string | No | Only return jobs opened after this ISO 8601 timestamp |
+| `openedBefore` | string | No | Only return jobs opened before this ISO 8601 timestamp |
+| `closedAfter` | string | No | Only return jobs closed after this ISO 8601 timestamp |
+| `closedBefore` | string | No | Only return jobs closed before this ISO 8601 timestamp |
 
 #### Output
 
@@ -770,6 +804,11 @@ Lists all locations configured in Ashby.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Ashby API Key |
+| `cursor` | string | No | Opaque pagination cursor from a previous response nextCursor value |
+| `perPage` | number | No | Number of results per page \(default and max 100\) |
+| `syncToken` | string | No | Opaque token from a prior sync to fetch only items changed since then |
+| `includeArchived` | boolean | No | When true, includes archived locations in results \(default false\) |
+| `includeLocationHierarchy` | boolean | No | When true, includes location hierarchy components/regions \(default false\) |
 
 #### Output
 
@@ -790,6 +829,10 @@ Lists all locations configured in Ashby.
 |     ↳ `addressLocality` | string | City or locality |
 |     ↳ `postalCode` | string | Postal code |
 |     ↳ `streetAddress` | string | Street address |
+|   ↳ `extraData` | json | Free-form key-value metadata |
+| `moreDataAvailable` | boolean | Whether more pages of results exist |
+| `nextCursor` | string | Opaque cursor for fetching the next page |
+| `syncToken` | string | Opaque sync token returned after the last page; pass on next sync |
 
 ### `ashby_list_notes`
 
@@ -832,6 +875,9 @@ Lists all offers with their latest version in an Ashby organization.
 | `apiKey` | string | Yes | Ashby API Key |
 | `cursor` | string | No | Opaque pagination cursor from a previous response nextCursor value |
 | `perPage` | number | No | Number of results per page |
+| `createdAfter` | string | No | Only return offers created after this ISO 8601 timestamp \(e.g. 2024-01-01T00:00:00Z\) |
+| `syncToken` | string | No | Opaque token from a prior sync to fetch only items changed since then |
+| `applicationId` | string | No | Return only offers for the specified application UUID |
 
 #### Output
 
@@ -852,6 +898,7 @@ Lists all openings in Ashby with pagination.
 | `apiKey` | string | Yes | Ashby API Key |
 | `cursor` | string | No | Opaque pagination cursor from a previous response nextCursor value |
 | `perPage` | number | No | Number of results per page \(default 100\) |
+| `createdAfter` | string | No | Only return openings created after this ISO 8601 timestamp \(e.g. 2024-01-01T00:00:00Z\) |
 
 #### Output
 
@@ -869,6 +916,7 @@ Lists all candidate sources configured in Ashby.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Ashby API Key |
+| `includeArchived` | boolean | No | When true, includes archived sources in results \(default false\) |
 
 #### Output
 
@@ -894,6 +942,7 @@ Lists all users in Ashby with pagination.
 | `apiKey` | string | Yes | Ashby API Key |
 | `cursor` | string | No | Opaque pagination cursor from a previous response nextCursor value |
 | `perPage` | number | No | Number of results per page \(default 100\) |
+| `includeDeactivated` | boolean | No | When true, includes deactivated users in results \(default false\) |
 
 #### Output
 
@@ -920,7 +969,7 @@ Removes a tag from a candidate in Ashby and returns the updated candidate.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
-| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion\) |
 | `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
 | `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
 | `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
@@ -931,20 +980,20 @@ Removes a tag from a candidate in Ashby and returns the updated candidate.
 | `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
 | `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
 | `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
-| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt\) |
 | `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
 | `tags` | json | List of candidate tags \(id, title, isArchived\) |
 | `id` | string | Resource UUID |
 | `name` | string | Resource name |
 | `title` | string | Job title or job posting title |
 | `status` | string | Status |
-| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
-| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `candidate` | json | Candidate summary \(id, name, primaryEmailAddress, primaryPhoneNumber\). For full candidate fields use the candidates list output or the get/create/update candidate operations. |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], createdAt, updatedAt\) |
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
-| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt, job \[included when expandJob=true\]\) |
 | `content` | string | Note content |
-| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `author` | json | Note author \(id, firstName, lastName, email\) |
 | `isPrivate` | boolean | Whether the note is private |
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `moreDataAvailable` | boolean | Whether more pages exist |
@@ -985,14 +1034,19 @@ Updates an existing candidate record in Ashby. Only provided fields are changed.
 | `linkedInUrl` | string | No | LinkedIn profile URL |
 | `githubUrl` | string | No | GitHub profile URL |
 | `websiteUrl` | string | No | Personal website URL |
+| `alternateEmail` | string | No | An additional email address to add to the candidate |
 | `sourceId` | string | No | UUID of the source to attribute the candidate to |
+| `creditedToUserId` | string | No | UUID of the Ashby user to credit with sourcing this candidate |
+| `createdAt` | string | No | Backdated creation timestamp in ISO 8601. Only updatable if originally backdated. |
+| `sendNotifications` | boolean | No | Whether to send a notification when the source is updated \(default true\) |
+| `socialLinks` | json | No | Array of social link objects to set on the candidate, e.g. \[\{"type":"LinkedIn","url":"https://..."\}\]. Replaces existing social links. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
-| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion, compensation with compensationTiers\[\]\) |
+| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion\) |
 | `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
 | `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
 | `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
@@ -1003,20 +1057,20 @@ Updates an existing candidate record in Ashby. Only provided fields are changed.
 | `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
 | `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
 | `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
-| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt, managerId\) |
+| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt\) |
 | `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
 | `tags` | json | List of candidate tags \(id, title, isArchived\) |
 | `id` | string | Resource UUID |
 | `name` | string | Resource name |
 | `title` | string | Job title or job posting title |
 | `status` | string | Status |
-| `candidate` | json | Candidate details \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], customFields\[\], source, creditedToUser, createdAt, updatedAt\) |
-| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], compensation, createdAt, updatedAt\) |
+| `candidate` | json | Candidate summary \(id, name, primaryEmailAddress, primaryPhoneNumber\). For full candidate fields use the candidates list output or the get/create/update candidate operations. |
+| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], createdAt, updatedAt\) |
 | `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
 | `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
-| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, linkedData, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt\) |
+| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt, job \[included when expandJob=true\]\) |
 | `content` | string | Note content |
-| `author` | json | Note author \(id, firstName, lastName, email, globalRole, isEnabled\) |
+| `author` | json | Note author \(id, firstName, lastName, email\) |
 | `isPrivate` | boolean | Whether the note is private |
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `moreDataAvailable` | boolean | Whether more pages exist |

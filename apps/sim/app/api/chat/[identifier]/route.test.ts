@@ -29,9 +29,12 @@ function createMockNextRequest(
     ...headers,
   })
 
+  const parsedUrl = new URL(url)
+
   return {
     method,
     headers: headersObj,
+    nextUrl: parsedUrl,
     cookies: {
       get: vi.fn().mockReturnValue(undefined),
     },
@@ -441,6 +444,8 @@ describe('Chat Identifier API Route', () => {
       const req = {
         method: 'POST',
         headers: new Headers(),
+        nextUrl: new URL('http://localhost:3000/api/test'),
+        cookies: { get: vi.fn().mockReturnValue(undefined) },
         json: vi.fn().mockRejectedValue(new Error('Invalid JSON')),
       } as any
 

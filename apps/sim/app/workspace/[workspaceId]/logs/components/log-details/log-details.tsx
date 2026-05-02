@@ -254,6 +254,370 @@ export const WorkflowOutputSection = memo(
   (prev, next) => prev.output === next.output
 )
 
+export type LogDetailsTab = 'overview' | 'trace'
+
+interface LogDetailsContentProps {
+  /** The log to display */
+  log: WorkflowLog
+  /** Fires when the active tab changes, so embedders can gate their own keyboard handlers */
+  onActiveTabChange?: (tab: LogDetailsTab) => void
+}
+
+/**
+ * Tabbed body for a single log: overview details and trace spans, plus the
+ * execution snapshot modal. Used as the body of the `LogDetails` sidebar and
+ * embedded directly inside the Mothership resource panel — keep the two in
+ * sync by editing this component, not by re-implementing it elsewhere.
+ */
+export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentProps) {
+  const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<LogDetailsTab>('overview')
+  const [prevLogId, setPrevLogId] = useState(log.id)
+  const [copiedRunId, setCopiedRunId] = useState(false)
+
+  if (prevLogId !== log.id) {
+    setPrevLogId(log.id)
+    setActiveTab('overview')
+  }
+
+  const copiedRunIdTimerRef = useRef<number | null>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    return () => {
+      if (copiedRunIdTimerRef.current !== null) window.clearTimeout(copiedRunIdTimerRef.current)
+    }
+  }, [])
+
+  const { config: permissionConfig } = usePermissionConfig()
+
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTop = 0
+    }
+  }, [log.id])
+
+  const isWorkflowExecutionLog =
+    (log.trigger === 'manual' && !!log.duration) ||
+    !!(log.executionData?.enhanced && log.executionData?.traceSpans)
+
+  const hasCostInfo = !!(isWorkflowExecutionLog && log.cost)
+  const showWorkflowState =
+    isWorkflowExecutionLog &&
+    !!log.executionId &&
+    log.trigger !== 'mothership' &&
+    !permissionConfig.hideTraceSpans
+  const showTraceTab =
+    isWorkflowExecutionLog && !!log.executionData?.traceSpans && !permissionConfig.hideTraceSpans
+
+  const resolvedTab: LogDetailsTab = activeTab === 'trace' && !showTraceTab ? 'overview' : activeTab
+
+  const prevResolvedTabRef = useRef<LogDetailsTab>(resolvedTab)
+  if (prevResolvedTabRef.current !== resolvedTab) {
+    prevResolvedTabRef.current = resolvedTab
+    onActiveTabChange?.(resolvedTab)
+  }
+
+  const workflowOutput = useMemo(() => {
+    const executionData = log.executionData as { finalOutput?: Record<string, unknown> } | undefined
+    if (!executionData?.finalOutput) return null
+    return filterHiddenOutputKeys(executionData.finalOutput) as Record<string, unknown>
+  }, [log.executionData])
+
+  const workflowInput = useMemo(() => {
+    const executionData = log.executionData as { workflowInput?: unknown } | undefined
+    const raw = executionData?.workflowInput
+    if (raw === undefined || raw === null) return null
+    if (typeof raw === 'object' && !Array.isArray(raw)) {
+      return raw as Record<string, unknown>
+    }
+    return { input: raw } as Record<string, unknown>
+  }, [log.executionData])
+
+  const formattedTimestamp = formatDate(log.createdAt)
+  const logStatus = getDisplayStatus(log.status)
+
+  return (
+    <>
+      <SModalTabs
+        value={resolvedTab}
+        onValueChange={(v) => {
+          const tab = v as LogDetailsTab
+          setActiveTab(tab)
+          onActiveTabChange?.(tab)
+        }}
+        className='mt-4 flex min-h-0 flex-1 flex-col'
+      >
+        <SModalTabsList activeValue={resolvedTab} className='!px-0 border-[var(--border)] border-b'>
+          <SModalTabsTrigger value='overview'>Overview</SModalTabsTrigger>
+          {showTraceTab && <SModalTabsTrigger value='trace'>Trace</SModalTabsTrigger>}
+        </SModalTabsList>
+
+        {/* Overview Tab */}
+        <SModalTabsContent
+          ref={scrollAreaRef}
+          value='overview'
+          className='mt-4 min-h-0 flex-1 overflow-y-auto'
+        >
+          <div className='flex flex-col gap-2.5 pb-4'>
+            {/* Timestamp + Workflow header */}
+            <div className='grid grid-cols-2 gap-x-3 pb-0.5'>
+              <div className='flex min-w-0 flex-col gap-0.5'>
+                <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                  Timestamp
+                </span>
+                <span className='font-medium text-[var(--text-secondary)] text-sm tabular-nums'>
+                  {formattedTimestamp
+                    ? `${formattedTimestamp.compactDate} ${formattedTimestamp.compactTime}`
+                    : '—'}
+                </span>
+              </div>
+              <div className='flex min-w-0 flex-col gap-0.5'>
+                <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                  {log.trigger === 'mothership' ? 'Job' : 'Workflow'}
+                </span>
+                <div className='flex min-w-0 items-center gap-1.5'>
+                  {(() => {
+                    const c =
+                      log.trigger === 'mothership'
+                        ? '#ec4899'
+                        : log.workflow?.color ||
+                          (!log.workflowId ? DELETED_WORKFLOW_COLOR : undefined)
+                    return (
+                      <div
+                        className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px] border-[1.5px]'
+                        style={{
+                          backgroundColor: c,
+                          borderColor: c ? workflowBorderColor(c) : undefined,
+                          backgroundClip: 'padding-box',
+                        }}
+                      />
+                    )
+                  })()}
+                  <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-sm'>
+                    {log.trigger === 'mothership'
+                      ? log.jobTitle || 'Untitled Job'
+                      : log.workflow?.name ||
+                        (!log.workflowId ? DELETED_WORKFLOW_LABEL : 'Unknown')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Details Section */}
+            <div className='divide-y divide-[var(--border)] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
+              {/* Run ID — click to copy */}
+              {log.executionId && (
+                <div
+                  className='flex h-10 min-w-0 cursor-pointer items-center justify-between gap-4 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'
+                  onClick={() => {
+                    navigator.clipboard.writeText(log.executionId!)
+                    if (copiedRunIdTimerRef.current) clearTimeout(copiedRunIdTimerRef.current)
+                    setCopiedRunId(true)
+                    copiedRunIdTimerRef.current = window.setTimeout(
+                      () => setCopiedRunId(false),
+                      1500
+                    )
+                  }}
+                >
+                  <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+                    Run ID
+                  </span>
+                  <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                    {copiedRunId ? 'Copied!' : log.executionId}
+                  </span>
+                </div>
+              )}
+
+              {/* Level */}
+              <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                <span className='font-medium text-[var(--text-tertiary)] text-caption'>Level</span>
+                <StatusBadge status={logStatus} />
+              </div>
+
+              {/* Trigger */}
+              <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                  Trigger
+                </span>
+                {log.trigger ? (
+                  <TriggerBadge trigger={log.trigger} />
+                ) : (
+                  <span className='font-medium text-[var(--text-secondary)] text-caption'>—</span>
+                )}
+              </div>
+
+              {/* Duration */}
+              <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                  Duration
+                </span>
+                <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                  {formatDuration(log.duration, { precision: 2 }) || '—'}
+                </span>
+              </div>
+
+              {/* Version */}
+              {log.deploymentVersion && (
+                <div className='flex h-10 items-center gap-2 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+                    Version
+                  </span>
+                  <div className='flex w-0 flex-1 justify-end'>
+                    <span className='max-w-full truncate rounded-md bg-[var(--badge-success-bg)] px-[9px] py-0.5 font-medium text-[var(--badge-success-text)] text-caption'>
+                      {log.deploymentVersionName || `v${log.deploymentVersion}`}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Snapshot */}
+              {showWorkflowState && (
+                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                    Snapshot
+                  </span>
+                  <Button
+                    variant='default'
+                    size='sm'
+                    className='gap-1'
+                    onClick={() => setIsExecutionSnapshotOpen(true)}
+                  >
+                    <Eye className='h-3 w-3' />
+                    View Snapshot
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Workflow Input */}
+            {isWorkflowExecutionLog && workflowInput && !permissionConfig.hideTraceSpans && (
+              <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
+                <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                  Workflow Input
+                </span>
+                <WorkflowOutputSection output={workflowInput} />
+              </div>
+            )}
+
+            {/* Workflow Output */}
+            {isWorkflowExecutionLog && workflowOutput && !permissionConfig.hideTraceSpans && (
+              <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
+                <span
+                  className={cn(
+                    'font-medium text-caption',
+                    workflowOutput.error
+                      ? 'text-[var(--text-error)]'
+                      : 'text-[var(--text-tertiary)]'
+                  )}
+                >
+                  Workflow Output
+                </span>
+                <WorkflowOutputSection output={workflowOutput} />
+              </div>
+            )}
+
+            {/* Files */}
+            {log.files && log.files.length > 0 && <FileCards files={log.files} isExecutionFile />}
+
+            {/* Cost Breakdown */}
+            {hasCostInfo && (
+              <div className='divide-y divide-[var(--border)] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
+                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                    Base Run
+                  </span>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                    {formatCost(BASE_EXECUTION_CHARGE)}
+                  </span>
+                </div>
+                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                    Model Input
+                  </span>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                    {formatCost(log.cost?.input || 0)}
+                  </span>
+                </div>
+                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                    Model Output
+                  </span>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                    {formatCost(log.cost?.output || 0)}
+                  </span>
+                </div>
+                {(() => {
+                  const models = (log.cost as Record<string, unknown>)?.models as
+                    | Record<string, { toolCost?: number }>
+                    | undefined
+                  const totalToolCost = models
+                    ? Object.values(models).reduce((sum, m) => sum + (m?.toolCost || 0), 0)
+                    : 0
+                  return totalToolCost > 0 ? (
+                    <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                        Tool Usage
+                      </span>
+                      <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                        {formatCost(totalToolCost)}
+                      </span>
+                    </div>
+                  ) : null
+                })()}
+                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption'>
+                    Total
+                  </span>
+                  <span className='font-semibold text-[var(--text-primary)] text-caption tabular-nums'>
+                    {formatCost(log.cost?.total || 0)}
+                  </span>
+                </div>
+                <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
+                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                    Tokens
+                  </span>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                    {log.cost?.tokens?.input || log.cost?.tokens?.prompt || 0} in ·{' '}
+                    {log.cost?.tokens?.output || log.cost?.tokens?.completion || 0} out
+                  </span>
+                </div>
+                <div className='px-3 py-2'>
+                  <p className='font-medium text-[var(--text-tertiary)] text-xs'>
+                    Total includes a {formatCost(BASE_EXECUTION_CHARGE)} base charge plus model and
+                    tool usage.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </SModalTabsContent>
+
+        {/* Trace Tab */}
+        {showTraceTab && log.executionData?.traceSpans && (
+          <SModalTabsContent
+            value='trace'
+            className='mt-3 min-h-0 flex-1 overflow-hidden focus-visible:outline-none'
+          >
+            <TraceView traceSpans={log.executionData.traceSpans} />
+          </SModalTabsContent>
+        )}
+      </SModalTabs>
+
+      {/* Frozen Canvas Modal */}
+      {log.executionId && (
+        <ExecutionSnapshot
+          executionId={log.executionId}
+          traceSpans={log.executionData?.traceSpans}
+          isModal
+          isOpen={isExecutionSnapshotOpen}
+          onClose={() => setIsExecutionSnapshotOpen(false)}
+        />
+      )}
+    </>
+  )
+}
+
 interface LogDetailsProps {
   /** The log to display details for */
   log: WorkflowLog | null
@@ -279,12 +643,9 @@ interface LogDetailsProps {
 
 /**
  * Sidebar panel displaying detailed information about a selected log.
- * Supports navigation between logs and expandable sections.
- * @param props - Component props
- * @returns Log details sidebar component
+ * Wraps `LogDetailsContent` with sidebar chrome — resize handle, header, and
+ * keyboard navigation between logs.
  */
-type LogDetailsTab = 'overview' | 'trace'
-
 export const LogDetails = memo(function LogDetails({
   log,
   isOpen,
@@ -297,75 +658,13 @@ export const LogDetails = memo(function LogDetails({
   isRetryPending = false,
   onActiveTabChange,
 }: LogDetailsProps) {
-  const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<LogDetailsTab>('overview')
-  const [prevLogId, setPrevLogId] = useState(log?.id)
-  const [copiedRunId, setCopiedRunId] = useState(false)
+  const activeTabRef = useRef<LogDetailsTab>('overview')
 
-  if (prevLogId !== log?.id) {
-    setPrevLogId(log?.id)
-    setActiveTab('overview')
-  }
-  const copiedRunIdTimerRef = useRef<number | null>(null)
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    return () => {
-      if (copiedRunIdTimerRef.current !== null) window.clearTimeout(copiedRunIdTimerRef.current)
-    }
-  }, [])
   const panelWidth = useLogDetailsUIStore((state) => state.panelWidth)
   const { handleMouseDown } = useLogDetailsResize()
-  const { config: permissionConfig } = usePermissionConfig()
 
   const maxVw = `${MAX_LOG_DETAILS_WIDTH_RATIO * 100}vw`
   const effectiveWidth = `clamp(${MIN_LOG_DETAILS_WIDTH}px, ${panelWidth}px, ${maxVw})`
-
-  useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = 0
-    }
-  }, [log?.id])
-
-  const isWorkflowExecutionLog =
-    !!log &&
-    ((log.trigger === 'manual' && !!log.duration) ||
-      !!(log.executionData?.enhanced && log.executionData?.traceSpans))
-
-  const hasCostInfo = !!(isWorkflowExecutionLog && log?.cost)
-  const showWorkflowState =
-    isWorkflowExecutionLog &&
-    !!log?.executionId &&
-    log?.trigger !== 'mothership' &&
-    !permissionConfig.hideTraceSpans
-  const showTraceTab =
-    isWorkflowExecutionLog && !!log?.executionData?.traceSpans && !permissionConfig.hideTraceSpans
-
-  const resolvedTab: LogDetailsTab = activeTab === 'trace' && !showTraceTab ? 'overview' : activeTab
-
-  const prevResolvedTabRef = useRef<LogDetailsTab>(resolvedTab)
-  if (prevResolvedTabRef.current !== resolvedTab) {
-    prevResolvedTabRef.current = resolvedTab
-    if (resolvedTab !== activeTab) onActiveTabChange?.(resolvedTab)
-  }
-
-  const workflowOutput = useMemo(() => {
-    const executionData = log?.executionData as
-      | { finalOutput?: Record<string, unknown> }
-      | undefined
-    if (!executionData?.finalOutput) return null
-    return filterHiddenOutputKeys(executionData.finalOutput) as Record<string, unknown>
-  }, [log?.executionData])
-
-  const workflowInput = useMemo(() => {
-    const executionData = log?.executionData as { workflowInput?: unknown } | undefined
-    const raw = executionData?.workflowInput
-    if (raw === undefined || raw === null) return null
-    if (typeof raw === 'object' && !Array.isArray(raw)) {
-      return raw as Record<string, unknown>
-    }
-    return { input: raw } as Record<string, unknown>
-  }, [log?.executionData])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -377,7 +676,7 @@ export const LogDetails = memo(function LogDetails({
 
       // When the Trace tab is active, arrow keys belong to TraceView's own
       // span-navigation handler. Log-to-log navigation should not hijack them.
-      if (resolvedTab === 'trace') return
+      if (activeTabRef.current === 'trace') return
 
       if (e.key === 'ArrowUp' && hasPrev && onNavigatePrev) {
         e.preventDefault()
@@ -392,11 +691,7 @@ export const LogDetails = memo(function LogDetails({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose, hasPrev, hasNext, onNavigatePrev, onNavigateNext, resolvedTab])
-
-  const formattedTimestamp = log ? formatDate(log.createdAt) : null
-
-  const logStatus = getDisplayStatus(log?.status)
+  }, [isOpen, onClose, hasPrev, hasNext, onNavigatePrev, onNavigateNext])
 
   return (
     <>
@@ -426,9 +721,9 @@ export const LogDetails = memo(function LogDetails({
             <div className='flex items-center justify-between'>
               <h2 className='font-medium text-[var(--text-primary)] text-sm'>Log Details</h2>
               <div className='flex items-center gap-[1px]'>
-                {log?.status === 'failed' &&
-                  (log?.workflow?.id || log?.workflowId) &&
-                  log?.trigger !== 'mothership' && (
+                {log.status === 'failed' &&
+                  (log.workflow?.id || log.workflowId) &&
+                  log.trigger !== 'mothership' && (
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
                         <Button
@@ -468,292 +763,14 @@ export const LogDetails = memo(function LogDetails({
               </div>
             </div>
 
-            {/* Tabs */}
-            <SModalTabs
-              value={resolvedTab}
-              onValueChange={(v) => {
-                const tab = v as LogDetailsTab
-                setActiveTab(tab)
+            <LogDetailsContent
+              log={log}
+              onActiveTabChange={(tab) => {
+                activeTabRef.current = tab
                 onActiveTabChange?.(tab)
               }}
-              className='mt-4 flex min-h-0 flex-1 flex-col'
-            >
-              <SModalTabsList
-                activeValue={resolvedTab}
-                className='!px-0 border-[var(--border)] border-b'
-              >
-                <SModalTabsTrigger value='overview'>Overview</SModalTabsTrigger>
-                {showTraceTab && <SModalTabsTrigger value='trace'>Trace</SModalTabsTrigger>}
-              </SModalTabsList>
-
-              {/* Overview Tab */}
-              <SModalTabsContent
-                ref={scrollAreaRef}
-                value='overview'
-                className='mt-4 min-h-0 flex-1 overflow-y-auto'
-              >
-                <div className='flex flex-col gap-2.5 pb-4'>
-                  {/* Timestamp + Workflow header */}
-                  <div className='grid grid-cols-2 gap-x-3 pb-0.5'>
-                    <div className='flex min-w-0 flex-col gap-0.5'>
-                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                        Timestamp
-                      </span>
-                      <span className='font-medium text-[var(--text-secondary)] text-sm tabular-nums'>
-                        {formattedTimestamp
-                          ? `${formattedTimestamp.compactDate} ${formattedTimestamp.compactTime}`
-                          : '—'}
-                      </span>
-                    </div>
-                    <div className='flex min-w-0 flex-col gap-0.5'>
-                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                        {log.trigger === 'mothership' ? 'Job' : 'Workflow'}
-                      </span>
-                      <div className='flex min-w-0 items-center gap-1.5'>
-                        {(() => {
-                          const c =
-                            log.trigger === 'mothership'
-                              ? '#ec4899'
-                              : log.workflow?.color ||
-                                (!log.workflowId ? DELETED_WORKFLOW_COLOR : undefined)
-                          return (
-                            <div
-                              className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px] border-[1.5px]'
-                              style={{
-                                backgroundColor: c,
-                                borderColor: c ? workflowBorderColor(c) : undefined,
-                                backgroundClip: 'padding-box',
-                              }}
-                            />
-                          )
-                        })()}
-                        <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-sm'>
-                          {log.trigger === 'mothership'
-                            ? log.jobTitle || 'Untitled Job'
-                            : log.workflow?.name ||
-                              (!log.workflowId ? DELETED_WORKFLOW_LABEL : 'Unknown')}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Details Section */}
-                  <div className='divide-y divide-[var(--border)] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
-                    {/* Run ID — click to copy */}
-                    {log.executionId && (
-                      <div
-                        className='flex h-10 min-w-0 cursor-pointer items-center justify-between gap-4 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'
-                        onClick={() => {
-                          navigator.clipboard.writeText(log.executionId!)
-                          if (copiedRunIdTimerRef.current) clearTimeout(copiedRunIdTimerRef.current)
-                          setCopiedRunId(true)
-                          copiedRunIdTimerRef.current = window.setTimeout(
-                            () => setCopiedRunId(false),
-                            1500
-                          )
-                        }}
-                      >
-                        <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
-                          Run ID
-                        </span>
-                        <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-                          {copiedRunId ? 'Copied!' : log.executionId}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Level */}
-                    <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                        Level
-                      </span>
-                      <StatusBadge status={logStatus} />
-                    </div>
-
-                    {/* Trigger */}
-                    <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                        Trigger
-                      </span>
-                      {log.trigger ? (
-                        <TriggerBadge trigger={log.trigger} />
-                      ) : (
-                        <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                          —
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Duration */}
-                    <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                        Duration
-                      </span>
-                      <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-                        {formatDuration(log.duration, { precision: 2 }) || '—'}
-                      </span>
-                    </div>
-
-                    {/* Version */}
-                    {log.deploymentVersion && (
-                      <div className='flex h-10 items-center gap-2 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                        <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
-                          Version
-                        </span>
-                        <div className='flex w-0 flex-1 justify-end'>
-                          <span className='max-w-full truncate rounded-md bg-[var(--badge-success-bg)] px-[9px] py-0.5 font-medium text-[var(--badge-success-text)] text-caption'>
-                            {log.deploymentVersionName || `v${log.deploymentVersion}`}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Snapshot */}
-                    {showWorkflowState && (
-                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                        <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                          Snapshot
-                        </span>
-                        <Button
-                          variant='default'
-                          size='sm'
-                          className='gap-1'
-                          onClick={() => setIsExecutionSnapshotOpen(true)}
-                        >
-                          <Eye className='h-3 w-3' />
-                          View Snapshot
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Workflow Input */}
-                  {isWorkflowExecutionLog && workflowInput && !permissionConfig.hideTraceSpans && (
-                    <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
-                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                        Workflow Input
-                      </span>
-                      <WorkflowOutputSection output={workflowInput} />
-                    </div>
-                  )}
-
-                  {/* Workflow Output */}
-                  {isWorkflowExecutionLog && workflowOutput && !permissionConfig.hideTraceSpans && (
-                    <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
-                      <span
-                        className={cn(
-                          'font-medium text-caption',
-                          workflowOutput.error
-                            ? 'text-[var(--text-error)]'
-                            : 'text-[var(--text-tertiary)]'
-                        )}
-                      >
-                        Workflow Output
-                      </span>
-                      <WorkflowOutputSection output={workflowOutput} />
-                    </div>
-                  )}
-
-                  {/* Files */}
-                  {log.files && log.files.length > 0 && (
-                    <FileCards files={log.files} isExecutionFile />
-                  )}
-
-                  {/* Cost Breakdown */}
-                  {hasCostInfo && (
-                    <div className='divide-y divide-[var(--border)] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
-                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                        <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                          Base Run
-                        </span>
-                        <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-                          {formatCost(BASE_EXECUTION_CHARGE)}
-                        </span>
-                      </div>
-                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                        <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                          Model Input
-                        </span>
-                        <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-                          {formatCost(log.cost?.input || 0)}
-                        </span>
-                      </div>
-                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                        <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                          Model Output
-                        </span>
-                        <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-                          {formatCost(log.cost?.output || 0)}
-                        </span>
-                      </div>
-                      {(() => {
-                        const models = (log.cost as Record<string, unknown>)?.models as
-                          | Record<string, { toolCost?: number }>
-                          | undefined
-                        const totalToolCost = models
-                          ? Object.values(models).reduce((sum, m) => sum + (m?.toolCost || 0), 0)
-                          : 0
-                        return totalToolCost > 0 ? (
-                          <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                            <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                              Tool Usage
-                            </span>
-                            <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-                              {formatCost(totalToolCost)}
-                            </span>
-                          </div>
-                        ) : null
-                      })()}
-                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                        <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                          Total
-                        </span>
-                        <span className='font-semibold text-[var(--text-primary)] text-caption tabular-nums'>
-                          {formatCost(log.cost?.total || 0)}
-                        </span>
-                      </div>
-                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-                        <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                          Tokens
-                        </span>
-                        <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
-                          {log.cost?.tokens?.input || log.cost?.tokens?.prompt || 0} in ·{' '}
-                          {log.cost?.tokens?.output || log.cost?.tokens?.completion || 0} out
-                        </span>
-                      </div>
-                      <div className='px-3 py-2'>
-                        <p className='font-medium text-[var(--text-tertiary)] text-xs'>
-                          Total includes a {formatCost(BASE_EXECUTION_CHARGE)} base charge plus
-                          model and tool usage.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </SModalTabsContent>
-
-              {/* Trace Tab */}
-              {showTraceTab && log.executionData?.traceSpans && (
-                <SModalTabsContent
-                  value='trace'
-                  className='mt-3 min-h-0 flex-1 overflow-hidden focus-visible:outline-none'
-                >
-                  <TraceView traceSpans={log.executionData.traceSpans} />
-                </SModalTabsContent>
-              )}
-            </SModalTabs>
+            />
           </div>
-        )}
-
-        {/* Frozen Canvas Modal */}
-        {log?.executionId && (
-          <ExecutionSnapshot
-            executionId={log.executionId}
-            traceSpans={log.executionData?.traceSpans}
-            isModal
-            isOpen={isExecutionSnapshotOpen}
-            onClose={() => setIsExecutionSnapshotOpen(false)}
-          />
         )}
       </div>
     </>

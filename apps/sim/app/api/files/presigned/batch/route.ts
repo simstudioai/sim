@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  batchPresignedUploadBodyContract,
+  uploadTypeSchema,
+} from '@/lib/api/contracts/storage-transfer'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { StorageContext } from '@/lib/uploads/config'
@@ -13,15 +18,7 @@ import { createErrorResponse } from '@/app/api/files/utils'
 
 const logger = createLogger('BatchPresignedUploadAPI')
 
-interface BatchFileRequest {
-  fileName: string
-  contentType: string
-  fileSize: number
-}
-
-interface BatchPresignedUrlRequest {
-  files: BatchFileRequest[]
-}
+const VALID_UPLOAD_TYPES = ['knowledge-base', 'chat', 'copilot', 'profile-pictures'] as const
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -30,69 +27,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    let data: BatchPresignedUrlRequest
-    try {
-      data = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
-    }
+    const parsed = await parseRequest(
+      batchPresignedUploadBodyContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Invalid request data') },
+            { status: 400 }
+          ),
+        invalidJsonResponse: () =>
+          NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 }),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const { files } = data
-
-    if (!files || !Array.isArray(files) || files.length === 0) {
-      return NextResponse.json(
-        { error: 'files array is required and cannot be empty' },
-        { status: 400 }
-      )
-    }
-
-    if (files.length > 100) {
-      return NextResponse.json(
-        { error: 'Cannot process more than 100 files at once' },
-        { status: 400 }
-      )
-    }
+    const { files } = parsed.data.body
 
     const uploadTypeParam = request.nextUrl.searchParams.get('type')
     if (!uploadTypeParam) {
       return NextResponse.json({ error: 'type query parameter is required' }, { status: 400 })
     }
 
-    const validTypes: StorageContext[] = ['knowledge-base', 'chat', 'copilot', 'profile-pictures']
-    if (!validTypes.includes(uploadTypeParam as StorageContext)) {
+    const uploadTypeResult = uploadTypeSchema.safeParse(uploadTypeParam)
+    if (!uploadTypeResult.success) {
       return NextResponse.json(
-        { error: `Invalid type parameter. Must be one of: ${validTypes.join(', ')}` },
+        { error: `Invalid type parameter. Must be one of: ${VALID_UPLOAD_TYPES.join(', ')}` },
         { status: 400 }
       )
     }
 
-    const uploadType = uploadTypeParam as StorageContext
+    const uploadType = uploadTypeResult.data as StorageContext
 
-    const MAX_FILE_SIZE = 100 * 1024 * 1024
-    for (const file of files) {
-      if (!file.fileName?.trim()) {
-        return NextResponse.json({ error: 'fileName is required for all files' }, { status: 400 })
-      }
-      if (!file.contentType?.trim()) {
-        return NextResponse.json(
-          { error: 'contentType is required for all files' },
-          { status: 400 }
-        )
-      }
-      if (!file.fileSize || file.fileSize <= 0) {
-        return NextResponse.json(
-          { error: 'fileSize must be positive for all files' },
-          { status: 400 }
-        )
-      }
-      if (file.fileSize > MAX_FILE_SIZE) {
-        return NextResponse.json(
-          { error: `File ${file.fileName} exceeds maximum size of ${MAX_FILE_SIZE} bytes` },
-          { status: 400 }
-        )
-      }
-
-      if (uploadType === 'knowledge-base') {
+    if (uploadType === 'knowledge-base') {
+      for (const file of files) {
         const fileValidationError = validateFileType(file.fileName, file.contentType)
         if (fileValidationError) {
           return NextResponse.json(
@@ -162,16 +131,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({
       files: presignedUrls.map((urlResponse, index) => {
         const finalPath = `/api/files/serve/${storagePrefix}/${encodeURIComponent(urlResponse.key)}?context=${uploadType}`
+        const file = files[index]
 
         return {
-          fileName: files[index].fileName,
+          fileName: file.fileName,
           presignedUrl: urlResponse.url,
           fileInfo: {
             path: finalPath,
             key: urlResponse.key,
-            name: files[index].fileName,
-            size: files[index].fileSize,
-            type: files[index].contentType,
+            name: file.fileName,
+            size: file.fileSize,
+            type: file.contentType,
           },
           uploadHeaders: urlResponse.uploadHeaders,
           directUploadSupported: true,

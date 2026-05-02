@@ -1,0 +1,137 @@
+---
+title: Chunking Strategies
+description: How Sim splits documents into searchable chunks, and which strategy to pick for your content
+---
+
+import { FAQ } from '@/components/ui/faq'
+
+Sim splits every uploaded document into chunks before generating embeddings. The strategy controls *where* those splits happen.
+
+## How chunking works
+
+Every chunker follows a two-phase pattern:
+
+1. **Split** — break the document at boundaries (paragraphs, sentences, tokens, or a custom regex)
+2. **Pack** — merge adjacent splits up to the maximum chunk size
+
+This is documented in [LangChain's text splitter guide](https://python.langchain.com/docs/concepts/text_splitters/), which states the principle: *"no resulting merged split should exceed the designated chunk size."* LlamaIndex, Chonkie, and Unstructured follow the same convention.
+
+The packing step is what keeps chunks roughly uniform. It also means a chunk usually spans multiple splits — a precise split boundary is not the same as a chunk boundary. Most "why is my regex not producing one chunk per match" surprises trace back to this.
+
+## Configuration shared by all strategies
+
+| Setting | Unit | Default | Range | Description |
+|---------|------|---------|-------|-------------|
+| Max Chunk Size | tokens | 1,024 | 100–4,000 | Upper bound on chunk size. 1 token ≈ 4 characters. |
+| Min Chunk Size | characters | 100 | 100–2,000 | Tiny fragments below this are dropped. |
+| Overlap | tokens | 200 | 0–500 | Tokens repeated between adjacent chunks to preserve context. |
+
+[Pinecone's chunking guide](https://www.pinecone.io/learn/chunking-strategies/) covers the tradeoffs in size and overlap.
+
+## Strategies
+
+### Auto
+
+Sim inspects the file and routes to the right chunker:
+
+- `.json`, `.jsonl`, `.yaml`, `.yml` → structural chunking (records are never split mid-way; small records may still be batched together up to the chunk size)
+- `.csv`, `.xlsx`, `.xls`, `.tsv` → grouped by row, with headers preserved
+- Everything else (`.pdf`, `.docx`, `.txt`, `.md`, `.html`, `.pptx`, …) → Text strategy
+
+Routing is based on detected MIME type and content shape, not just the extension — a `.txt` file containing valid JSON is still routed structurally.
+
+Pick Auto unless you've confirmed it isn't producing the chunks you want.
+
+### Text
+
+Hierarchical splitter that walks down a separator list: horizontal rules → markdown headings → paragraphs (`\n\n`) → lines (`\n`) → sentence punctuation (`. ! ?`) → clause punctuation (`; ,`) → spaces. It tries the largest separator first and falls back when a piece is still too large.
+
+Same algorithm as LangChain's [`RecursiveCharacterTextSplitter`](https://python.langchain.com/docs/concepts/text_splitters/#text-structured-based), the de facto standard for prose.
+
+Use it for general prose.
+
+### Recursive
+
+Same algorithm as Text, but you supply your own separator hierarchy or pick a built-in recipe (`plain`, `markdown`, `code`).
+
+The recipe pattern comes from [Chonkie](https://github.com/chonkie-inc/chonkie), which ships pre-built separator sets for common content types.
+
+Use Recursive when your content has structural markers the default Text separators miss — splitting code on `\nclass `, `\nfunction `, then `\n\n`, for example.
+
+### Sentence
+
+Splits on sentence boundaries (`. `, `! `, `? `, with abbreviation handling) and packs whole sentences up to the chunk size. A sentence is never split mid-way unless it individually exceeds the limit.
+
+This is the technique behind [LlamaIndex's `SentenceSplitter`](https://docs.llamaindex.ai/en/stable/module_guides/loading/node_parsers/modules/), which is the recommended default for prose in their stack.
+
+Use it when sentence integrity matters — Q&A, legal text, or anything where mid-sentence cuts hurt comprehension.
+
+### Token
+
+Fixed-size sliding window aligned to word boundaries. No awareness of paragraphs or sentences.
+
+LlamaIndex provides the same as `TokenTextSplitter`. Useful when downstream processing requires uniform chunk sizes; otherwise prefer Text or Sentence.
+
+### Regex
+
+Splits on every match of a regex pattern you supply, then packs splits up to the chunk size by default — the same merge behavior as every other chunker. A precise boundary regex like `(?=\n\s*\{\s*"id"\s*:)` will still produce chunks containing multiple matches if those matches are small enough to fit together. This is standard across LangChain, LlamaIndex, Chonkie, and [Unstructured](https://docs.unstructured.io/api-reference/partition/chunking-documents).
+
+Use Regex when your content has explicit delimiters that don't fit any other strategy.
+
+#### Strict boundaries
+
+The regex strategy has an opt-in **"Each match is its own chunk (don't merge)"** checkbox. When enabled:
+
+- Every regex match becomes its own chunk
+- Adjacent splits are not packed together
+- Overlap is disabled
+- Splits that exceed the chunk size are still sub-split at word boundaries
+
+This matches the `join=False` knob in [txtai](https://neuml.github.io/txtai/) and the `split_length=1` pattern in Haystack's `DocumentSplitter`. Most libraries don't expose this directly because they expect users to switch to a structural parser instead — see "One record per chunk" below.
+
+Turn it on when each match is a discrete record (one QA pair, one log entry) and you need each isolated for retrieval.
+
+## How to choose
+
+Pick **Auto** unless you have a reason not to.
+
+If Auto isn't right:
+
+- Sentence integrity matters → **Sentence**
+- Your content has structural markers Text doesn't know about → **Recursive**
+- You need uniform chunk sizes → **Token**
+- You have explicit delimiters → **Regex**
+- Each record must be its own chunk → see below
+
+## One record per chunk
+
+Each record (each QA pair, each log line, each row) as its own chunk is structural chunking, not regex chunking. Two paths:
+
+1. **Convert to JSONL** (one record per line) and upload. Sim's Auto strategy treats it as structured data and never splits a record mid-way. Small records may still be batched together up to the chunk size — to force one record per chunk, lower the max chunk size to roughly the size of one record. See [LlamaIndex's `JSONNodeParser`](https://docs.llamaindex.ai/en/stable/module_guides/loading/node_parsers/) and [Unstructured's element-based chunking](https://docs.unstructured.io/api-reference/partition/chunking-documents).
+
+2. **Use Regex with strict boundaries enabled** when you can't restructure the source.
+
+Prefer option 1. Structural parsers handle nested records, escaped delimiters, and malformed entries that regex won't.
+
+## Further reading
+
+- [LangChain — Text Splitters](https://python.langchain.com/docs/concepts/text_splitters/)
+- [LlamaIndex — Node Parsers](https://docs.llamaindex.ai/en/stable/module_guides/loading/node_parsers/)
+- [Chonkie](https://github.com/chonkie-inc/chonkie)
+- [Unstructured — Chunking](https://docs.unstructured.io/api-reference/partition/chunking-documents)
+- [Pinecone — Chunking Strategies](https://www.pinecone.io/learn/chunking-strategies/)
+
+## FAQ
+
+<FAQ items={[
+  { question: "Which strategy should I pick if I'm not sure?", answer: "Auto. JSON/JSONL/YAML go through structural chunking, CSVs are grouped by row, everything else uses Text. Only override Auto if you've confirmed it isn't producing the chunks you want." },
+  { question: "Why does my chunk contain multiple records even though my regex is precise?", answer: "Every chunker follows split-then-pack: small adjacent splits are merged up to the chunk size to keep chunks roughly uniform. To preserve every match as its own chunk, enable 'Each match is its own chunk (don't merge)' under the Regex strategy, or convert your file to JSONL." },
+  { question: "What's the difference between Text and Recursive?", answer: "Same algorithm. Text uses a built-in separator hierarchy for general prose. Recursive lets you supply your own separators or pick a recipe (plain, markdown, code) when the default doesn't capture your structure." },
+  { question: "When should I use Sentence over Text?", answer: "When sentence integrity matters — Q&A, legal text, or anything where mid-sentence cuts hurt comprehension. Text may split mid-sentence at lower levels of its hierarchy; Sentence never does unless a single sentence exceeds the chunk size." },
+  { question: "Does Token chunking respect any structure?", answer: "No. It's a fixed-size sliding window aligned to word boundaries. Use it only when downstream processing requires uniform chunk sizes." },
+  { question: "What does overlap actually do?", answer: "Overlap repeats tokens from the end of one chunk at the start of the next, so a query spanning a chunk boundary can still match. Higher values increase storage and may surface duplicate hits in search." },
+  { question: "How do I get one chunk per record?", answer: "Convert to JSONL and lower the max chunk size to roughly the size of one record — Auto handles the rest. If you can't restructure the source, use Regex with 'Each match is its own chunk' enabled." },
+  { question: "Do larger chunks always retrieve better?", answer: "No. Larger chunks dilute relevance — the embedding represents the average of more content, so specific queries match worse. 256–1,024 tokens is a typical range; experiment for your data." },
+  { question: "Can I change the chunking strategy on an existing knowledge base?", answer: "No. Chunking config is set at creation. To change it, create a new knowledge base and re-upload your documents." },
+  { question: "Why isn't my regex producing any splits?", answer: "Sim normalizes content before splitting: \\r\\n becomes \\n, runs of three or more newlines collapse to \\n\\n, and tabs become spaces. Patterns that depend on those characters won't match. Also: in non-strict mode, content that fits within the chunk size returns as a single chunk regardless of matches — enable strict boundaries to force splits." },
+]} />

@@ -167,18 +167,33 @@ vi.mock('zod', () => {
       this.errors = issues
     }
   }
-  const mockStringReturnValue = {
-    email: vi.fn().mockReturnThis(),
-    length: vi.fn().mockReturnThis(),
-  }
-  return {
-    z: {
-      object: vi.fn().mockReturnValue({
-        parse: mockZodParse,
-      }),
-      string: vi.fn().mockReturnValue(mockStringReturnValue),
-      ZodError,
+  const chainable: Record<string, unknown> = {}
+  const proxy: Record<string, unknown> = new Proxy(chainable, {
+    get(target, prop) {
+      if (prop === 'parse') return mockZodParse
+      if (prop === 'safeParse') {
+        return (data: unknown) => ({ success: true, data })
+      }
+      if (prop === 'then') return undefined
+      if (typeof prop === 'symbol') return Reflect.get(target, prop)
+      if (!(prop in target)) {
+        target[prop as string] = vi.fn().mockReturnValue(proxy)
+      }
+      return target[prop as string]
     },
+  })
+  const makeChain = vi.fn(() => proxy)
+  return {
+    z: new Proxy(
+      { ZodError },
+      {
+        get(target, prop) {
+          if (prop === 'ZodError') return ZodError
+          if (typeof prop === 'symbol') return Reflect.get(target, prop)
+          return makeChain
+        },
+      }
+    ),
   }
 })
 

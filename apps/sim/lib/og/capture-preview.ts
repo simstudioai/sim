@@ -1,5 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import { updateTemplateOgImageContract } from '@/lib/api/contracts/templates'
 
 const logger = createLogger('OGCapturePreview')
 
@@ -85,25 +88,19 @@ export async function uploadOGImage(templateId: string, imageData: string): Prom
   try {
     logger.info(`Uploading OG image for template: ${templateId}`)
 
-    const response = await fetch(`/api/templates/${templateId}/og-image`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ imageData }),
+    const data = await requestJson(updateTemplateOgImageContract, {
+      params: { id: templateId },
+      body: { imageData },
     })
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `Upload failed with status ${response.status}`)
-    }
-
-    const data = await response.json()
     logger.info(`OG image uploaded successfully: ${data.ogImageUrl}`)
-
     return data.ogImageUrl
   } catch (error) {
-    logger.error('Failed to upload OG image:', error)
+    if (error instanceof ApiClientError) {
+      logger.error('Failed to upload OG image', { status: error.status, message: error.message })
+    } else {
+      logger.error('Failed to upload OG image:', error)
+    }
     return null
   }
 }

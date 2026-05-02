@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { googleCalendarSelectorContract } from '@/lib/api/contracts/selectors/google'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -27,15 +29,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   logger.info(`[${requestId}] Google Calendar calendars request received`)
 
   try {
-    const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-    const workflowId = searchParams.get('workflowId') || undefined
-    const impersonateEmail = searchParams.get('impersonateEmail') || undefined
+    const parsed = await parseRequest(
+      googleCalendarSelectorContract,
+      request,
+      {},
+      {
+        validationErrorResponse: () => {
+          logger.warn(`[${requestId}] Missing credentialId parameter`)
+          return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!credentialId) {
-      logger.warn(`[${requestId}] Missing credentialId parameter`)
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
-    }
+    const { credentialId } = parsed.data.query
+    const workflowId = parsed.data.query.workflowId || undefined
+    const impersonateEmail = parsed.data.query.impersonateEmail || undefined
+
     const authz = await authorizeCredentialUse(request, { credentialId, workflowId })
     if (!authz.ok || !authz.credentialOwnerUserId) {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })

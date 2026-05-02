@@ -106,19 +106,29 @@ export interface A2AFile {
   bytes?: string
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object'
+}
+
+function getStringField(source: Record<string, unknown>, key: string): string | undefined {
+  const value = source[key]
+  return typeof value === 'string' ? value : undefined
+}
+
 export function extractFileContent(message: Message): A2AFile[] {
   return message.parts
     .filter((part): part is FilePart => part.kind === 'file')
     .map((part) => {
-      const file = part.file as unknown as Record<string, unknown>
-      const uri = (file.url as string) || (file.uri as string)
-      const hasBytes = Boolean(file.bytes)
+      const file = isRecord(part.file) ? part.file : {}
+      const uri = getStringField(file, 'url') || getStringField(file, 'uri')
+      const bytes = getStringField(file, 'bytes')
+      const hasBytes = Boolean(bytes)
       const canUseUri = Boolean(uri) && (!hasBytes || (uri ? !isInternalFileUrl(uri) : true))
       return {
-        name: file.name as string | undefined,
-        mimeType: file.mimeType as string | undefined,
+        name: getStringField(file, 'name'),
+        mimeType: getStringField(file, 'mimeType'),
         ...(canUseUri ? { uri } : {}),
-        ...(hasBytes ? { bytes: file.bytes as string } : {}),
+        ...(hasBytes ? { bytes } : {}),
       }
     })
 }

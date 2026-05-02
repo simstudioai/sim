@@ -193,7 +193,7 @@ export const extendParserV2Tool: ToolConfig<ExtendParserV2Input, ExtendParserOut
   directExecution: undefined,
   transformResponse: extendParserTool.transformResponse
     ? (response: Response, params?: ExtendParserV2Input) =>
-        extendParserTool.transformResponse!(response, params as unknown as ExtendParserInput)
+        extendParserTool.transformResponse!(response, params)
     : undefined,
   params: {
     file: {

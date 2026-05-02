@@ -23,10 +23,15 @@ import type {
   SerializedSnapshot,
   StreamingExecution,
 } from '@/executor/types'
+import { hasExecutionResult } from '@/executor/utils/errors'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import type { SerializedConnection } from '@/serializer/types'
 
 const logger = createLogger('HumanInTheLoopManager')
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
 
 interface ResumeQueueEntrySummary {
   id: string
@@ -958,8 +963,10 @@ export class PauseResumeManager {
           return
         }
 
-        const blockId = (streamingExec.execution as unknown as Record<string, unknown>)
-          .blockId as string
+        const blockIdValue = isRecord(streamingExec.execution)
+          ? streamingExec.execution.blockId
+          : undefined
+        const blockId = typeof blockIdValue === 'string' ? blockIdValue : ''
         const reader = streamingExec.stream.getReader()
         const decoder = new TextDecoder()
         try {
@@ -1033,6 +1040,7 @@ export class PauseResumeManager {
           data: {
             error: timeoutErrorMessage,
             duration: result.metadata?.duration || 0,
+            finalBlockLogs: result.logs,
           },
         } as ExecutionEvent)
         finalMetaStatus = 'error'
@@ -1042,7 +1050,10 @@ export class PauseResumeManager {
           timestamp: new Date().toISOString(),
           executionId: resumeExecutionId,
           workflowId,
-          data: { duration: result.metadata?.duration || 0 },
+          data: {
+            duration: result.metadata?.duration || 0,
+            finalBlockLogs: result.logs,
+          },
         } as ExecutionEvent)
         finalMetaStatus = 'cancelled'
       } else if (result.status === 'paused') {
@@ -1071,11 +1082,13 @@ export class PauseResumeManager {
             duration: result.metadata?.duration || 0,
             startTime: result.metadata?.startTime || new Date().toISOString(),
             endTime: result.metadata?.endTime || new Date().toISOString(),
+            finalBlockLogs: result.logs,
           },
         } as ExecutionEvent)
         finalMetaStatus = 'complete'
       }
     } catch (execError) {
+      const execErrorResult = hasExecutionResult(execError) ? execError.executionResult : undefined
       writeBufferedEvent({
         type: 'execution:error',
         timestamp: new Date().toISOString(),
@@ -1084,6 +1097,7 @@ export class PauseResumeManager {
         data: {
           error: toError(execError).message,
           duration: 0,
+          finalBlockLogs: execErrorResult?.logs,
         },
       } as ExecutionEvent)
       finalMetaStatus = 'error'

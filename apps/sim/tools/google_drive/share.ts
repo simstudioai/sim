@@ -104,10 +104,12 @@ export const shareTool: ToolConfig<GoogleDriveShareParams, GoogleDriveShareRespo
       if (params.transferOwnership) {
         url.searchParams.append('transferOwnership', 'true')
       }
-      if (params.moveToNewOwnersRoot) {
+      if (params.transferOwnership && params.moveToNewOwnersRoot) {
         url.searchParams.append('moveToNewOwnersRoot', 'true')
       }
-      if (params.sendNotification !== undefined) {
+      if (params.transferOwnership) {
+        url.searchParams.append('sendNotificationEmail', 'true')
+      } else if (params.sendNotification !== undefined) {
         url.searchParams.append('sendNotificationEmail', String(params.sendNotification))
       }
       if (params.emailMessage) {

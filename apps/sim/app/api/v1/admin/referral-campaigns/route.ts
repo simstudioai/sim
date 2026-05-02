@@ -27,48 +27,27 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import type Stripe from 'stripe'
+import {
+  type AdminV1PromoCode,
+  type AdminV1ReferralCampaignAppliesTo,
+  type AdminV1ReferralCampaignDuration,
+  adminV1CreateReferralCampaignContract,
+  adminV1ListReferralCampaignsContract,
+} from '@/lib/api/contracts/v1/admin'
+import { parseRequest } from '@/lib/api/server'
 import { isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
+  adminValidationErrorResponse,
   badRequestResponse,
   internalErrorResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
 const logger = createLogger('AdminPromoCodes')
-
-const VALID_DURATIONS = ['once', 'repeating', 'forever'] as const
-type Duration = (typeof VALID_DURATIONS)[number]
-
-/** Broad categories match all tiers; specific plan names match exactly. */
-const VALID_APPLIES_TO = [
-  'pro',
-  'team',
-  'pro_6000',
-  'pro_25000',
-  'team_6000',
-  'team_25000',
-] as const
-type AppliesTo = (typeof VALID_APPLIES_TO)[number]
-
-interface PromoCodeResponse {
-  id: string
-  code: string
-  couponId: string
-  name: string
-  percentOff: number
-  duration: string
-  durationInMonths: number | null
-  appliesToProductIds: string[] | null
-  maxRedemptions: number | null
-  expiresAt: string | null
-  active: boolean
-  timesRedeemed: number
-  createdAt: string
-}
 
 function formatPromoCode(promo: {
   id: string
@@ -86,7 +65,7 @@ function formatPromoCode(promo: {
   active: boolean
   times_redeemed: number
   created: number
-}): PromoCodeResponse {
+}): AdminV1PromoCode {
   return {
     id: promo.id,
     code: promo.code,
@@ -109,7 +88,10 @@ function formatPromoCode(promo: {
  * Broad categories ('pro', 'team') match all tiers via isPro/isTeam.
  * Specific plan names ('pro_6000', 'team_25000') match exactly.
  */
-async function resolveProductIds(stripe: Stripe, targets: AppliesTo[]): Promise<string[]> {
+async function resolveProductIds(
+  stripe: Stripe,
+  targets: AdminV1ReferralCampaignAppliesTo[]
+): Promise<string[]> {
   const plans = getPlans()
   const priceIds: string[] = []
 
@@ -156,20 +138,20 @@ export const GET = withRouteHandler(
   withAdminAuth(async (request) => {
     try {
       const stripe = requireStripeClient()
-      const url = new URL(request.url)
+      const parsed = await parseRequest(
+        adminV1ListReferralCampaignsContract,
+        request,
+        {},
+        {
+          validationErrorResponse: adminValidationErrorResponse,
+        }
+      )
+      if (!parsed.success) return parsed.response
+      const query = parsed.data.query
 
-      const limitParam = url.searchParams.get('limit')
-      let limit = limitParam ? Number.parseInt(limitParam, 10) : 50
-      if (Number.isNaN(limit) || limit < 1) limit = 50
-      if (limit > 100) limit = 100
-
-      const startingAfter = url.searchParams.get('starting_after') || undefined
-      const activeFilter = url.searchParams.get('active')
-
-      const listParams: Record<string, unknown> = { limit }
-      if (startingAfter) listParams.starting_after = startingAfter
-      if (activeFilter === 'true') listParams.active = true
-      else if (activeFilter === 'false') listParams.active = false
+      const listParams: Record<string, unknown> = { limit: query.limit }
+      if (query.starting_after) listParams.starting_after = query.starting_after
+      if (query.active !== undefined) listParams.active = query.active
 
       const promoCodes = await stripe.promotionCodes.list(listParams)
 
@@ -193,95 +175,25 @@ export const POST = withRouteHandler(
   withAdminAuth(async (request) => {
     try {
       const stripe = requireStripeClient()
-      const body = await request.json()
-
-      const {
-        name,
-        percentOff,
-        code,
-        duration,
-        durationInMonths,
-        maxRedemptions,
-        expiresAt,
-        appliesTo,
-      } = body
-
-      if (!name || typeof name !== 'string' || name.trim().length === 0) {
-        return badRequestResponse('name is required and must be a non-empty string')
-      }
-
-      if (
-        typeof percentOff !== 'number' ||
-        !Number.isFinite(percentOff) ||
-        percentOff < 1 ||
-        percentOff > 100
-      ) {
-        return badRequestResponse('percentOff must be a number between 1 and 100')
-      }
-
-      const effectiveDuration: Duration = duration ?? 'once'
-      if (!VALID_DURATIONS.includes(effectiveDuration)) {
-        return badRequestResponse(`duration must be one of: ${VALID_DURATIONS.join(', ')}`)
-      }
-
-      if (effectiveDuration === 'repeating') {
-        if (
-          typeof durationInMonths !== 'number' ||
-          !Number.isInteger(durationInMonths) ||
-          durationInMonths < 1
-        ) {
-          return badRequestResponse(
-            'durationInMonths is required and must be a positive integer when duration is "repeating"'
-          )
+      const parsed = await parseRequest(
+        adminV1CreateReferralCampaignContract,
+        request,
+        {},
+        {
+          validationErrorResponse: adminValidationErrorResponse,
+          invalidJson: 'throw',
         }
-      }
+      )
+      if (!parsed.success) return parsed.response
 
-      if (code !== undefined && code !== null) {
-        if (typeof code !== 'string') {
-          return badRequestResponse('code must be a string or null')
-        }
-        if (code.trim().length < 6) {
-          return badRequestResponse('code must be at least 6 characters')
-        }
-      }
-
-      if (maxRedemptions !== undefined && maxRedemptions !== null) {
-        if (
-          typeof maxRedemptions !== 'number' ||
-          !Number.isInteger(maxRedemptions) ||
-          maxRedemptions < 1
-        ) {
-          return badRequestResponse('maxRedemptions must be a positive integer')
-        }
-      }
-
-      if (expiresAt !== undefined && expiresAt !== null) {
-        const parsed = new Date(expiresAt)
-        if (Number.isNaN(parsed.getTime())) {
-          return badRequestResponse('expiresAt must be a valid ISO 8601 date string')
-        }
-        if (parsed.getTime() <= Date.now()) {
-          return badRequestResponse('expiresAt must be in the future')
-        }
-      }
-
-      if (appliesTo !== undefined && appliesTo !== null) {
-        if (!Array.isArray(appliesTo) || appliesTo.length === 0) {
-          return badRequestResponse('appliesTo must be a non-empty array')
-        }
-        const invalid = appliesTo.filter(
-          (v: unknown) => typeof v !== 'string' || !VALID_APPLIES_TO.includes(v as AppliesTo)
-        )
-        if (invalid.length > 0) {
-          return badRequestResponse(
-            `appliesTo contains invalid values: ${invalid.join(', ')}. Valid values: ${VALID_APPLIES_TO.join(', ')}`
-          )
-        }
-      }
+      const { name, percentOff, code, duration, durationInMonths, maxRedemptions, expiresAt } =
+        parsed.data.body
+      const appliesTo = parsed.data.body.appliesTo ?? undefined
+      const effectiveDuration: AdminV1ReferralCampaignDuration = duration
 
       let appliesToProducts: string[] | undefined
       if (appliesTo?.length) {
-        appliesToProducts = await resolveProductIds(stripe, appliesTo as AppliesTo[])
+        appliesToProducts = await resolveProductIds(stripe, appliesTo)
         if (appliesToProducts.length === 0) {
           return badRequestResponse(
             'Could not resolve any Stripe products for the specified plan categories. Ensure price IDs are configured.'

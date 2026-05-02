@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { gmailRemoveLabelContract } from '@/lib/api/contracts/tools/google'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -11,12 +12,6 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('GmailRemoveLabelAPI')
 
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
-
-const GmailRemoveLabelSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  messageId: z.string().min(1, 'Message ID is required'),
-  labelIds: z.string().min(1, 'At least one label ID is required'),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -42,8 +37,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
-    const body = await request.json()
-    const validatedData = GmailRemoveLabelSchema.parse(body)
+    const parsed = await parseRequest(gmailRemoveLabelContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Removing label(s) from Gmail email`, {
       messageId: validatedData.messageId,
@@ -120,18 +116,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error removing label from Gmail email:`, error)
 
     return NextResponse.json(

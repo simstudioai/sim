@@ -145,24 +145,26 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
             toTimestamp(a.lastSubmittedTime || a.createTime)
         )
       const normalized = sorted.map((r) => normalizeResponse(r))
+      const output: Record<string, unknown> = {
+        responses: normalized,
+        raw: listData,
+      }
       return {
         success: true,
-        output: {
-          responses: normalized,
-          raw: listData,
-        } as unknown as Record<string, unknown>,
+        output,
       }
     }
 
     const single = data as GoogleFormsResponse
     const normalizedSingle = normalizeResponse(single)
+    const output: Record<string, unknown> = {
+      response: normalizedSingle,
+      raw: single,
+    }
 
     return {
       success: true,
-      output: {
-        response: normalizedSingle,
-        raw: single,
-      } as unknown as Record<string, unknown>,
+      output,
     }
   },
 

@@ -1,12 +1,14 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
   Button,
   Checkbox,
   DatePicker,
+  Download,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -21,6 +23,7 @@ import {
   ModalFooter,
   ModalHeader,
   Skeleton,
+  toast,
   Upload,
 } from '@/components/emcn'
 import {
@@ -47,6 +50,7 @@ import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import {
+  downloadTableExport,
   useAddTableColumn,
   useBatchCreateTableRows,
   useBatchUpdateTableRows,
@@ -87,10 +91,13 @@ interface NormalizedSelection {
   anchorCol: number
 }
 
+const logger = createLogger('TableView')
+
 const EMPTY_COLUMNS: never[] = []
 const EMPTY_CHECKED_ROWS = new Set<number>()
 const COL_WIDTH = 160
 const COL_WIDTH_MIN = 80
+const COL_WIDTH_AUTO_FIT_MAX = 1000
 const CHECKBOX_COL_WIDTH = 40
 const ADD_COL_WIDTH = 120
 const SKELETON_COL_COUNT = 4
@@ -226,11 +233,27 @@ export function Table({
   const scrollRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
 
-  const { tableData, isLoadingTable, rows, isLoadingRows } = useTableData({
+  const {
+    tableData,
+    isLoadingTable,
+    rows,
+    isLoadingRows,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useTableData({
     workspaceId,
     tableId,
     queryOptions,
   })
+
+  const fetchNextPageRef = useRef(fetchNextPage)
+  fetchNextPageRef.current = fetchNextPage
+  const hasNextPageRef = useRef(hasNextPage)
+  hasNextPageRef.current = hasNextPage
+  const isFetchingNextPageRef = useRef(isFetchingNextPage)
+  isFetchingNextPageRef.current = isFetchingNextPage
+  const isAppendingRowRef = useRef(false)
 
   const userPermissions = useUserPermissionsContext()
   const canEditRef = useRef(userPermissions.canEdit)
@@ -577,7 +600,21 @@ export function Table({
     )
   }, [contextMenu.row, closeContextMenu])
 
-  const handleAppendRow = useCallback(() => {
+  const handleAppendRow = useCallback(async () => {
+    if (isAppendingRowRef.current) return
+    isAppendingRowRef.current = true
+    try {
+      while (hasNextPageRef.current) {
+        const result = await fetchNextPageRef.current()
+        if (!result.hasNextPage) break
+      }
+    } catch (error) {
+      isAppendingRowRef.current = false
+      logger.error('Failed to load remaining rows before appending', { error })
+      toast.error('Failed to load all rows. Try again.', { duration: 5000 })
+      return
+    }
+
     createRef.current(
       { data: {} },
       {
@@ -590,6 +627,9 @@ export function Table({
               position: maxPositionRef.current + 1,
             })
           }
+        },
+        onSettled: () => {
+          isAppendingRowRef.current = false
         },
       }
     )
@@ -791,7 +831,7 @@ export function Table({
       host.removeChild(measure)
     }
 
-    const newWidth = Math.min(Math.ceil(maxWidth), 600)
+    const newWidth = Math.min(Math.ceil(maxWidth), COL_WIDTH_AUTO_FIT_MAX)
     setColumnWidths((prev) => ({ ...prev, [columnName]: newWidth }))
     const updated = { ...columnWidthsRef.current, [columnName]: newWidth }
     columnWidthsRef.current = updated
@@ -888,6 +928,30 @@ export function Table({
   function handleScrollDrop(e: React.DragEvent) {
     e.preventDefault()
   }
+
+  useEffect(() => {
+    const scrollEl = scrollRef.current
+    if (!scrollEl) return
+
+    const SCROLL_PREFETCH_PX = 600
+
+    function maybeFetchNext() {
+      if (!hasNextPageRef.current || isFetchingNextPageRef.current) return
+      if (!scrollEl) return
+      const distanceFromBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight
+      if (distanceFromBottom <= SCROLL_PREFETCH_PX) {
+        fetchNextPageRef.current().catch((error) => {
+          logger.error('Failed to fetch next page of rows', { error })
+        })
+      }
+    }
+
+    maybeFetchNext()
+    scrollEl.addEventListener('scroll', maybeFetchNext, { passive: true })
+    return () => {
+      scrollEl.removeEventListener('scroll', maybeFetchNext)
+    }
+  }, [tableData?.id])
 
   useEffect(() => {
     if (!tableData?.metadata || metadataSeededRef.current) return
@@ -1666,7 +1730,7 @@ export function Table({
     )
   }, [generateColumnName])
 
-  const handleChangeType = useCallback((columnName: string, newType: string) => {
+  const handleChangeType = useCallback((columnName: string, newType: ColumnDefinition['type']) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
     const previousType = column?.type
     updateColumnMutation.mutate(
@@ -1954,6 +2018,16 @@ export function Table({
     [handleAddColumn, addColumnMutation.isPending]
   )
 
+  const handleExportCsv = useCallback(async () => {
+    if (!tableData) return
+    try {
+      await downloadTableExport(tableData.id, tableData.name)
+    } catch (err) {
+      logger.error('Failed to export table:', err)
+      toast.error('Failed to export table')
+    }
+  }, [tableData])
+
   const headerActions = useMemo(
     () =>
       tableData
@@ -1964,9 +2038,15 @@ export function Table({
               onClick: () => setIsImportCsvOpen(true),
               disabled: userPermissions.canEdit !== true,
             },
+            {
+              label: 'Export CSV',
+              icon: Download,
+              onClick: () => void handleExportCsv(),
+              disabled: tableData.rowCount === 0,
+            },
           ]
         : undefined,
-    [tableData, userPermissions.canEdit]
+    [tableData, userPermissions.canEdit, handleExportCsv]
   )
 
   const activeSortState = useMemo(() => {
@@ -3057,7 +3137,11 @@ const TableBodySkeleton = React.memo(function TableBodySkeleton({
   )
 })
 
-const COLUMN_TYPE_OPTIONS: { type: string; label: string; icon: React.ElementType }[] = [
+const COLUMN_TYPE_OPTIONS: {
+  type: ColumnDefinition['type']
+  label: string
+  icon: React.ElementType
+}[] = [
   { type: 'string', label: 'Text', icon: TypeText },
   { type: 'number', label: 'Number', icon: TypeNumber },
   { type: 'boolean', label: 'Boolean', icon: TypeBoolean },
@@ -3102,7 +3186,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onRenameCancel: () => void
   onRenameColumn: (columnName: string) => void
   onColumnSelect: (colIndex: number, shiftKey: boolean) => void
-  onChangeType: (columnName: string, newType: string) => void
+  onChangeType: (columnName: string, newType: ColumnDefinition['type']) => void
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
   onToggleUnique: (columnName: string) => void

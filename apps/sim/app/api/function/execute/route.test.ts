@@ -301,8 +301,7 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
-      expect(data.success).toBe(false)
+      expect(response.status).toBe(400)
       expect(data).toHaveProperty('error')
     })
 
@@ -466,7 +465,7 @@ describe('Function Execute API Route', () => {
 
       const response = await POST(req)
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(400)
     })
 
     it.concurrent('should handle timeout parameter', async () => {

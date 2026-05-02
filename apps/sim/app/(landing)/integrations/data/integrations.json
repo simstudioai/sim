@@ -4020,9 +4020,13 @@
       {
         "name": "Agent",
         "description": "Autonomous web data extraction agent. Searches and gathers information based on natural language prompts without requiring specific URLs."
+      },
+      {
+        "name": "Parse Document",
+        "description": "Parse uploaded documents (PDF, DOCX, HTML, etc.) into clean markdown using Firecrawl. Supports .html, .htm, .pdf, .docx, .doc, .odt, .rtf, .xlsx, .xls."
       }
     ],
-    "operationCount": 6,
+    "operationCount": 7,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -4659,6 +4663,10 @@
         "description": "Draft emails using Gmail"
       },
       {
+        "name": "Edit Draft",
+        "description": "Update an existing Gmail draft in place without deleting and recreating it."
+      },
+      {
         "name": "Search Email",
         "description": "Search emails in Gmail"
       },
@@ -4695,7 +4703,7 @@
         "description": "Remove label(s) from a Gmail message"
       }
     ],
-    "operationCount": 12,
+    "operationCount": 13,
     "triggers": [
       {
         "id": "gmail_poller",
@@ -5074,8 +5082,16 @@
         "description": "List Google Drive files"
       },
       {
+        "name": "Search Files",
+        "description": "Search for files in Google Drive using advanced query syntax (e.g., fullText contains, mimeType, modifiedTime, etc.)"
+      },
+      {
         "name": "Get File Info",
         "description": "Get metadata for a specific file in Google Drive by its ID"
+      },
+      {
+        "name": "Get File Content",
+        "description": "Get content from a file in Google Drive with complete metadata (exports Google Workspace files automatically)"
       },
       {
         "name": "Create Folder",
@@ -5098,12 +5114,20 @@
         "description": "Create a copy of a file in Google Drive"
       },
       {
+        "name": "Move File",
+        "description": "Move a file or folder to a different folder in Google Drive"
+      },
+      {
         "name": "Update File",
         "description": "Update file metadata in Google Drive (rename, move, star, add description)"
       },
       {
         "name": "Move to Trash",
         "description": "Move a file to the trash in Google Drive (can be restored later)"
+      },
+      {
+        "name": "Restore from Trash",
+        "description": "Restore a file from the trash in Google Drive"
       },
       {
         "name": "Delete Permanently",
@@ -5126,7 +5150,7 @@
         "description": "Get information about the user and their Google Drive (storage quota, capabilities)"
       }
     ],
-    "operationCount": 14,
+    "operationCount": 18,
     "triggers": [
       {
         "id": "google_drive_poller",
@@ -6959,6 +6983,10 @@
         "description": "Retrieve detailed information about a specific Jira issue"
       },
       {
+        "name": "Read Bulk Issues",
+        "description": "Retrieve multiple Jira issues from a project in bulk"
+      },
+      {
         "name": "Update Issue",
         "description": "Update a Jira issue"
       },
@@ -7051,7 +7079,7 @@
         "description": "Search for Jira users by email address or display name. Returns matching users with their accountId, displayName, and emailAddress."
       }
     ],
-    "operationCount": 24,
+    "operationCount": 25,
     "triggers": [
       {
         "id": "jira_issue_created",

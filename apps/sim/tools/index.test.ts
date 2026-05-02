@@ -453,8 +453,11 @@ describe('Custom Tools', () => {
   it('resolves custom tools through the async helper', async () => {
     mockGetCustomToolByIdOrTitle.mockResolvedValue({
       id: 'remote-tool-123',
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
       title: 'Custom Weather Tool',
       schema: {
+        type: 'function',
         function: {
           name: 'weather_tool',
           description: 'Get weather information',
@@ -468,6 +471,8 @@ describe('Custom Tools', () => {
         },
       },
       code: '',
+      createdAt: new Date('2024-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2024-01-01T00:00:00.000Z'),
     })
 
     const customTool = await getToolAsync('custom_remote-tool-123', {

@@ -2,6 +2,8 @@ import { db, user, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { listDeploymentVersionsContract } from '@/lib/api/contracts/deployments'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
@@ -13,9 +15,11 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const parsed = await parseRequest(listDeploymentVersionsContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { id } = parsed.data.params
 
     try {
       const { error } = await validateWorkflowPermissions(id, requestId, 'read')

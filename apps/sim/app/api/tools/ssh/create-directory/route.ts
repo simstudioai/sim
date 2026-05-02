@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { sshCreateDirectoryContract } from '@/lib/api/contracts/storage-transfer'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -13,18 +14,6 @@ import {
 
 const logger = createLogger('SSHCreateDirectoryAPI')
 
-const CreateDirectorySchema = z.object({
-  host: z.string().min(1, 'Host is required'),
-  port: z.coerce.number().int().positive().default(22),
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().nullish(),
-  privateKey: z.string().nullish(),
-  passphrase: z.string().nullish(),
-  path: z.string().min(1, 'Path is required'),
-  recursive: z.boolean().default(true),
-  permissions: z.string().default('0755'),
-})
-
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
@@ -35,15 +24,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const params = CreateDirectorySchema.parse(body)
-
-    if (!params.password && !params.privateKey) {
-      return NextResponse.json(
-        { error: 'Either password or privateKey must be provided' },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(sshCreateDirectoryContract, request, {})
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
 
     logger.info(`[${requestId}] Creating directory ${params.path} on ${params.host}:${params.port}`)
 
@@ -96,14 +79,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       client.end()
     }
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     logger.error(`[${requestId}] SSH create directory failed:`, error)
 

@@ -2,11 +2,20 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Loader2, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { Modal, ModalClose, ModalContent, ModalTitle, ModalTrigger } from '@/components/emcn'
+import {
+  Loader,
+  Modal,
+  ModalClose,
+  ModalContent,
+  ModalTitle,
+  ModalTrigger,
+} from '@/components/emcn'
 import { GithubIcon, GoogleIcon } from '@/components/icons'
+import { requestJson } from '@/lib/api/client/request'
+import { type AuthProviderStatusResponse, getAuthProvidersContract } from '@/lib/api/contracts/auth'
 import { client } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { captureClientEvent } from '@/lib/posthog/client'
@@ -23,13 +32,9 @@ interface AuthModalProps {
   source: PostHogEventMap['auth_modal_opened']['source']
 }
 
-interface ProviderStatus {
-  githubAvailable: boolean
-  googleAvailable: boolean
-  registrationDisabled: boolean
-}
+type ProviderStatus = AuthProviderStatusResponse
 
-let fetchPromise: Promise<ProviderStatus> | null = null
+let fetchPromise: Promise<AuthProviderStatusResponse> | null = null
 
 const FALLBACK_STATUS: ProviderStatus = {
   githubAvailable: false,
@@ -42,12 +47,8 @@ const SOCIAL_BTN =
 
 function fetchProviderStatus(): Promise<ProviderStatus> {
   if (fetchPromise) return fetchPromise
-  fetchPromise = fetch('/api/auth/providers')
-    .then((r) => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      return r.json()
-    })
-    .then(({ githubAvailable, googleAvailable, registrationDisabled }: ProviderStatus) => ({
+  fetchPromise = requestJson(getAuthProvidersContract, {})
+    .then(({ githubAvailable, googleAvailable, registrationDisabled }) => ({
       githubAvailable,
       googleAvailable,
       registrationDisabled,
@@ -142,7 +143,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
 
           {!providerStatus ? (
             <div className='flex items-center justify-center py-16'>
-              <Loader2 className='h-5 w-5 animate-spin text-[var(--landing-text-muted)]' />
+              <Loader className='h-5 w-5 text-[var(--landing-text-muted)]' animate />
             </div>
           ) : (
             <>

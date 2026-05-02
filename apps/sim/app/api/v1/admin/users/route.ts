@@ -14,22 +14,32 @@ import { db } from '@sim/db'
 import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count } from 'drizzle-orm'
+import { adminV1ListUsersContract } from '@/lib/api/contracts/v1/admin'
+import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
-import { internalErrorResponse, listResponse } from '@/app/api/v1/admin/responses'
 import {
-  type AdminUser,
-  createPaginationMeta,
-  parsePaginationParams,
-  toAdminUser,
-} from '@/app/api/v1/admin/types'
+  adminValidationErrorResponse,
+  internalErrorResponse,
+  listResponse,
+} from '@/app/api/v1/admin/responses'
+import { type AdminUser, createPaginationMeta, toAdminUser } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminUsersAPI')
 
 export const GET = withRouteHandler(
   withAdminAuth(async (request) => {
-    const url = new URL(request.url)
-    const { limit, offset } = parsePaginationParams(url)
+    const parsed = await parseRequest(
+      adminV1ListUsersContract,
+      request,
+      {},
+      {
+        validationErrorResponse: adminValidationErrorResponse,
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const { limit, offset } = parsed.data.query
 
     try {
       const [countResult, users] = await Promise.all([

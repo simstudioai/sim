@@ -1,8 +1,13 @@
+import type { Logger } from '@sim/logger'
 import type { FetchMessageObject, MailboxLockObject } from 'imapflow'
 import { ImapFlow } from 'imapflow'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
-import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
+import {
+  getProviderConfig,
+  type PollingProviderHandler,
+  type PollWebhookContext,
+} from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
@@ -17,7 +22,7 @@ interface ImapWebhookConfig {
   username: string
   password: string
   mailbox: string | string[]
-  searchCriteria: string
+  searchCriteria: string | Record<string, unknown>
   markAsRead: boolean
   includeAttachments: boolean
   lastProcessedUid?: number
@@ -74,7 +79,7 @@ export const imapPollingHandler: PollingProviderHandler = {
     const webhookId = webhookData.id
 
     try {
-      const config = webhookData.providerConfig as unknown as ImapWebhookConfig
+      const config = getProviderConfig<ImapWebhookConfig>(webhookData.providerConfig)
 
       if (!config.host || !config.username || !config.password) {
         logger.error(`[${requestId}] Missing IMAP credentials for webhook ${webhookId}`)
@@ -188,7 +193,7 @@ async function updateImapState(
   uidByMailbox: Record<string, number>,
   timestamp: string,
   config: ImapWebhookConfig,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>,
+  logger: Logger,
   uidValidityByMailbox: Record<string, string>
 ) {
   const existingUidByMailbox = config.lastProcessedUidByMailbox || {}
@@ -234,7 +239,7 @@ async function fetchNewEmails(
   client: ImapFlow,
   config: ImapWebhookConfig,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ) {
   const emails: Array<{
     uid: number
@@ -271,7 +276,7 @@ async function fetchNewEmails(
       let searchCriteria: Record<string, unknown> = { unseen: true }
       if (config.searchCriteria) {
         if (typeof config.searchCriteria === 'object') {
-          searchCriteria = config.searchCriteria as unknown as Record<string, unknown>
+          searchCriteria = config.searchCriteria
         } else if (typeof config.searchCriteria === 'string') {
           try {
             searchCriteria = JSON.parse(config.searchCriteria)
@@ -482,7 +487,7 @@ async function processEmails(
   config: ImapWebhookConfig,
   client: ImapFlow,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ) {
   let processedCount = 0
   let failedCount = 0

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { cursorDownloadArtifactContract } from '@/lib/api/contracts/tools/cursor'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -12,12 +13,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('CursorDownloadArtifactAPI')
-
-const DownloadArtifactSchema = z.object({
-  apiKey: z.string().min(1, 'API key is required'),
-  agentId: z.string().min(1, 'Agent ID is required'),
-  path: z.string().min(1, 'Artifact path is required'),
-})
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -42,8 +37,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
-    const body = await request.json()
-    const { apiKey, agentId, path } = DownloadArtifactSchema.parse(body)
+    const parsed = await parseRequest(
+      cursorDownloadArtifactContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request data'),
+              details: error.issues,
+            },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const { apiKey, agentId, path } = parsed.data.body
 
     const authHeader = `Basic ${Buffer.from(`${apiKey}:`).toString('base64')}`
 

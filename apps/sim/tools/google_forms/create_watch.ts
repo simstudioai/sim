@@ -3,7 +3,7 @@ import type {
   GoogleFormsCreateWatchResponse,
   GoogleFormsWatch,
 } from '@/tools/google_forms/types'
-import { buildCreateWatchUrl } from '@/tools/google_forms/utils'
+import { buildCreateWatchUrl, getGoogleFormsErrorMessage } from '@/tools/google_forms/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createWatchTool: ToolConfig<
@@ -77,7 +77,6 @@ export const createWatchTool: ToolConfig<
     const data = (await response.json()) as GoogleFormsWatch
 
     if (!response.ok) {
-      const errorData = data as unknown as { error?: { message?: string } }
       return {
         success: false,
         output: {
@@ -88,7 +87,7 @@ export const createWatchTool: ToolConfig<
           expireTime: null,
           state: null,
         },
-        error: errorData.error?.message ?? 'Failed to create watch',
+        error: getGoogleFormsErrorMessage(data, 'Failed to create watch'),
       }
     }
 

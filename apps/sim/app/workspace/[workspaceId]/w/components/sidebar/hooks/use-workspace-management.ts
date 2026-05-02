@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { requestJson } from '@/lib/api/client/request'
+import { updateUserSettingsContract } from '@/lib/api/contracts'
 import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
 import { useLeaveWorkspace } from '@/hooks/queries/invitations'
 import {
@@ -80,10 +82,8 @@ export function useWorkspaceManagement({
 
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
     syncTimerRef.current = setTimeout(() => {
-      fetch('/api/users/me/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lastActiveWorkspaceId: id }),
+      requestJson(updateUserSettingsContract, {
+        body: { lastActiveWorkspaceId: id },
       }).catch(() => {})
     }, 1000)
   }, [])

@@ -1,7 +1,19 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import type { ContractBodyInput } from '@/lib/api/contracts'
+import {
+  type BatchInvitationResult as BatchInvitationResultContract,
+  batchWorkspaceInvitationsContract,
+  cancelInvitationContract,
+  listWorkspaceInvitationsContract,
+  type PendingInvitationRow,
+  removeWorkspaceMemberContract,
+  resendInvitationContract,
+} from '@/lib/api/contracts/invitations'
+import { updateWorkspacePermissionsContract } from '@/lib/api/contracts/workspaces'
 import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
 import { organizationKeys } from '@/hooks/queries/organization'
-import { workspaceKeys } from './workspace'
+import { workspaceKeys } from '@/hooks/queries/workspace'
 
 export const invitationKeys = {
   all: ['invitations'] as const,
@@ -9,15 +21,7 @@ export const invitationKeys = {
   list: (workspaceId: string) => [...invitationKeys.lists(), workspaceId] as const,
 }
 
-export interface PendingInvitationRow {
-  id: string
-  workspaceId: string
-  email: string
-  permission: 'admin' | 'write' | 'read'
-  membershipIntent?: 'internal' | 'external'
-  status: string
-  createdAt: string
-}
+export type { PendingInvitationRow }
 
 export interface WorkspaceInvitation {
   email: string
@@ -31,13 +35,7 @@ async function fetchPendingInvitations(
   workspaceId: string,
   signal?: AbortSignal
 ): Promise<WorkspaceInvitation[]> {
-  const response = await fetch('/api/workspaces/invitations', { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch pending invitations')
-  }
-
-  const data = await response.json()
+  const data = await requestJson(listWorkspaceInvitationsContract, { signal })
 
   return (
     data.invitations
@@ -68,16 +66,11 @@ export function usePendingInvitations(workspaceId: string | undefined) {
   })
 }
 
-interface BatchSendInvitationsParams {
-  workspaceId: string
+type BatchSendInvitationsParams = ContractBodyInput<typeof batchWorkspaceInvitationsContract> & {
   organizationId?: string | null
-  invitations: Array<{ email: string; permission: 'admin' | 'write' | 'read' }>
 }
 
-interface BatchInvitationResult {
-  successful: string[]
-  failed: Array<{ email: string; error: string }>
-}
+type BatchInvitationResult = Pick<BatchInvitationResultContract, 'successful' | 'failed'>
 
 /**
  * Sends workspace invitations through the server-side batch endpoint.
@@ -91,20 +84,12 @@ export function useBatchSendWorkspaceInvitations() {
       workspaceId,
       invitations,
     }: BatchSendInvitationsParams): Promise<BatchInvitationResult> => {
-      const response = await fetch('/api/workspaces/invitations/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const result = await requestJson(batchWorkspaceInvitationsContract, {
+        body: {
           workspaceId,
           invitations,
-        }),
+        },
       })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to send invitations')
-      }
 
       return {
         successful: result.successful ?? [],
@@ -142,17 +127,9 @@ export function useCancelWorkspaceInvitation() {
 
   return useMutation({
     mutationFn: async ({ invitationId }: CancelInvitationParams) => {
-      const response = await fetch(`/api/invitations/${invitationId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+      return requestJson(cancelInvitationContract, {
+        params: { id: invitationId },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to cancel invitation')
-      }
-
-      return response.json()
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
@@ -184,17 +161,9 @@ export function useResendWorkspaceInvitation() {
 
   return useMutation({
     mutationFn: async ({ invitationId }: ResendInvitationParams) => {
-      const response = await fetch(`/api/invitations/${invitationId}/resend`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      return requestJson(resendInvitationContract, {
+        params: { id: invitationId },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to resend invitation')
-      }
-
-      return response.json()
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
@@ -204,9 +173,8 @@ export function useResendWorkspaceInvitation() {
   })
 }
 
-interface RemoveMemberParams {
+type RemoveMemberParams = ContractBodyInput<typeof removeWorkspaceMemberContract> & {
   userId: string
-  workspaceId: string
   organizationId?: string | null
 }
 
@@ -219,18 +187,10 @@ export function useRemoveWorkspaceMember() {
 
   return useMutation({
     mutationFn: async ({ userId, workspaceId }: RemoveMemberParams) => {
-      const response = await fetch(`/api/workspaces/members/${userId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId }),
+      return requestJson(removeWorkspaceMemberContract, {
+        params: { id: userId },
+        body: { workspaceId },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to remove member')
-      }
-
-      return response.json()
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
@@ -251,9 +211,8 @@ export function useRemoveWorkspaceMember() {
   })
 }
 
-interface LeaveWorkspaceParams {
+type LeaveWorkspaceParams = ContractBodyInput<typeof removeWorkspaceMemberContract> & {
   userId: string
-  workspaceId: string
 }
 
 /**
@@ -265,18 +224,10 @@ export function useLeaveWorkspace() {
 
   return useMutation({
     mutationFn: async ({ userId, workspaceId }: LeaveWorkspaceParams) => {
-      const response = await fetch(`/api/workspaces/members/${userId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId }),
+      return requestJson(removeWorkspaceMemberContract, {
+        params: { id: userId },
+        body: { workspaceId },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to leave workspace')
-      }
-
-      return response.json()
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
@@ -289,29 +240,20 @@ export function useLeaveWorkspace() {
   })
 }
 
-interface UpdatePermissionsParams {
+type UpdatePermissionsParams = {
   workspaceId: string
-  updates: Array<{ userId: string; permissions: 'admin' | 'write' | 'read' }>
   organizationId?: string
-}
+} & ContractBodyInput<typeof updateWorkspacePermissionsContract>
 
 export function useUpdateWorkspacePermissions() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async ({ workspaceId, updates }: UpdatePermissionsParams) => {
-      const response = await fetch(`/api/workspaces/${workspaceId}/permissions`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updates }),
+      return requestJson(updateWorkspacePermissionsContract, {
+        params: { id: workspaceId },
+        body: { updates },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to update permissions')
-      }
-
-      return response.json()
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({

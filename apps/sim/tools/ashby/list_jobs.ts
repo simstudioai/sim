@@ -1,5 +1,5 @@
 import type { AshbyListJobsParams, AshbyListJobsResponse } from '@/tools/ashby/types'
-import { JOB_OUTPUTS, mapJob } from '@/tools/ashby/utils'
+import { ashbyAuthHeaders, ashbyErrorMessage, JOB_OUTPUTS, mapJob } from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listJobsTool: ToolConfig<AshbyListJobsParams, AshbyListJobsResponse> = {
@@ -34,20 +34,72 @@ export const listJobsTool: ToolConfig<AshbyListJobsParams, AshbyListJobsResponse
       visibility: 'user-or-llm',
       description: 'Filter by job status: Open, Closed, Archived, or Draft',
     },
+    createdAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Only return jobs created after this ISO 8601 timestamp (e.g. 2024-01-01T00:00:00Z)',
+    },
+    openedAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only return jobs opened after this ISO 8601 timestamp',
+    },
+    openedBefore: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only return jobs opened before this ISO 8601 timestamp',
+    },
+    closedAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only return jobs closed after this ISO 8601 timestamp',
+    },
+    closedBefore: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only return jobs closed before this ISO 8601 timestamp',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/job.list',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
-      const body: Record<string, unknown> = {}
+      const body: Record<string, unknown> = { expand: ['openings', 'location'] }
       if (params.cursor) body.cursor = params.cursor
       if (params.perPage) body.limit = params.perPage
       if (params.status) body.status = [params.status]
+      const isoToMs = (iso: string): number | null => {
+        const ms = new Date(iso).getTime()
+        return Number.isNaN(ms) ? null : ms
+      }
+      if (params.createdAfter) {
+        const ms = isoToMs(params.createdAfter)
+        if (ms !== null) body.createdAfter = ms
+      }
+      if (params.openedAfter) {
+        const ms = isoToMs(params.openedAfter)
+        if (ms !== null) body.openedAfter = ms
+      }
+      if (params.openedBefore) {
+        const ms = isoToMs(params.openedBefore)
+        if (ms !== null) body.openedBefore = ms
+      }
+      if (params.closedAfter) {
+        const ms = isoToMs(params.closedAfter)
+        if (ms !== null) body.closedAfter = ms
+      }
+      if (params.closedBefore) {
+        const ms = isoToMs(params.closedBefore)
+        if (ms !== null) body.closedBefore = ms
+      }
       return body
     },
   },
@@ -56,7 +108,7 @@ export const listJobsTool: ToolConfig<AshbyListJobsParams, AshbyListJobsResponse
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to list jobs')
+      throw new Error(ashbyErrorMessage(data, 'Failed to list jobs'))
     }
 
     return {

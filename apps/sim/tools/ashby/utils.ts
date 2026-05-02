@@ -17,6 +17,33 @@ import type { OutputProperty } from '@/tools/types'
 
 type Unknown = Record<string, unknown>
 
+/**
+ * Build the standard Ashby Authorization header. Ashby uses HTTP Basic auth
+ * with the API key as the username and an empty password.
+ */
+export function ashbyAuthHeaders(apiKey: string): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    Accept: 'application/json; version=1',
+    Authorization: `Basic ${btoa(`${apiKey}:`)}`,
+  }
+}
+
+/**
+ * Extract a human-readable error message from an Ashby error response. Ashby
+ * returns errors as either `errorInfo.message` or an `errors` string array.
+ */
+export function ashbyErrorMessage(data: unknown, fallback: string): string {
+  if (!data || typeof data !== 'object') return fallback
+  const d = data as Unknown
+  const info = d.errorInfo as Unknown | undefined
+  if (info && typeof info.message === 'string' && info.message) return info.message
+  if (Array.isArray(d.errors) && d.errors.length > 0) {
+    return d.errors.map((e) => String(e)).join('; ')
+  }
+  return fallback
+}
+
 function mapContact(raw: unknown): AshbyContactInfo | null {
   if (!raw || typeof raw !== 'object') return null
   const c = raw as Unknown
@@ -322,6 +349,16 @@ export function mapApplication(raw: unknown): AshbyApplication {
     appliedViaJobPostingId: (a.appliedViaJobPostingId as string) ?? null,
     submitterClientIp: (a.submitterClientIp as string) ?? null,
     submitterUserAgent: (a.submitterUserAgent as string) ?? null,
+    applicationHistory: Array.isArray(a.applicationHistory)
+      ? (a.applicationHistory as Unknown[]).map((h) => ({
+          id: (h.id as string) ?? '',
+          stageId: (h.stageId as string) ?? null,
+          stageNumber: (h.stageNumber as number) ?? null,
+          title: (h.title as string) ?? null,
+          enteredStageAt: (h.enteredStageAt as string) ?? null,
+          actorId: (h.actorId as string) ?? null,
+        }))
+      : [],
   }
 }
 
@@ -387,7 +424,7 @@ export const USER_SUMMARY_OUTPUT = {
     globalRole: { type: 'string', description: 'Role', optional: true },
     isEnabled: { type: 'boolean', description: 'Whether enabled' },
     updatedAt: { type: 'string', description: 'Last update timestamp', optional: true },
-    managerId: { type: 'string', description: 'Manager user UUID', optional: true },
+    managerId: { type: 'string', description: "User ID of the user's manager", optional: true },
   },
 } as const satisfies OutputProperty
 
@@ -591,6 +628,29 @@ export const APPLICATION_OUTPUTS = {
   },
   createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
   updatedAt: { type: 'string', description: 'ISO 8601 last update timestamp' },
+  applicationHistory: {
+    type: 'array',
+    description: 'Stage history (only populated by application.info, empty for list endpoints)',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'History entry UUID' },
+        stageId: { type: 'string', description: 'Interview stage UUID', optional: true },
+        stageNumber: { type: 'number', description: 'Stage order number', optional: true },
+        title: { type: 'string', description: 'Stage title at the time', optional: true },
+        enteredStageAt: {
+          type: 'string',
+          description: 'ISO 8601 timestamp the stage was entered',
+          optional: true,
+        },
+        actorId: {
+          type: 'string',
+          description: 'User UUID who triggered the stage change',
+          optional: true,
+        },
+      },
+    },
+  },
 } as const satisfies Record<string, OutputProperty>
 
 export const OPENINGS_OUTPUT = {
@@ -823,23 +883,28 @@ export const JOB_OUTPUTS = {
   openings: OPENINGS_OUTPUT,
   compensation: {
     type: 'object',
-    description: 'Job compensation structure',
+    description:
+      'Compensation tiers for the job. Only present when the request includes the `compensation` expand parameter.',
     optional: true,
     properties: {
       compensationTiers: {
         type: 'array',
-        description: 'Compensation tiers',
+        description: 'List of compensation tiers',
         items: {
           type: 'object',
           properties: {
-            id: { type: 'string', description: 'Tier UUID', optional: true },
+            id: { type: 'string', description: 'Tier ID', optional: true },
             title: { type: 'string', description: 'Tier title', optional: true },
             additionalInformation: {
               type: 'string',
-              description: 'Additional info',
+              description: 'Additional information about the tier',
               optional: true,
             },
-            tierSummary: { type: 'string', description: 'Tier summary', optional: true },
+            tierSummary: {
+              type: 'string',
+              description: 'Human-readable summary of the tier',
+              optional: true,
+            },
           },
         },
       },

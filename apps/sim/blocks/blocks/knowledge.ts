@@ -1,4 +1,5 @@
 import { PackageSearchIcon } from '@/components/icons'
+import { DEFAULT_RERANKER_MODEL, SUPPORTED_RERANKER_MODELS } from '@/lib/knowledge/reranker-models'
 import type { BlockConfig } from '@/blocks/types'
 
 export const KnowledgeBlock: BlockConfig = {
@@ -85,6 +86,24 @@ export const KnowledgeBlock: BlockConfig = {
       placeholder: 'Add tag filters',
       dependsOn: ['knowledgeBaseSelector'],
       condition: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'rerankerEnabled',
+      title: 'Rerank Results',
+      type: 'switch',
+      condition: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'rerankerModel',
+      title: 'Rerank Model',
+      type: 'dropdown',
+      options: SUPPORTED_RERANKER_MODELS.map((id) => ({ label: id, id })),
+      value: () => DEFAULT_RERANKER_MODEL,
+      condition: {
+        field: 'operation',
+        value: 'search',
+        and: { field: 'rerankerEnabled', value: true },
+      },
     },
 
     // --- List Documents ---
@@ -397,6 +416,8 @@ export const KnowledgeBlock: BlockConfig = {
     limit: { type: 'number', description: 'Max items to return' },
     offset: { type: 'number', description: 'Pagination offset' },
     tagFilters: { type: 'string', description: 'Tag filter criteria' },
+    rerankerEnabled: { type: 'boolean', description: 'Apply Cohere reranking to search results' },
+    rerankerModel: { type: 'string', description: 'Cohere rerank model identifier' },
     documentTags: { type: 'string', description: 'Document tags' },
     chunkSearch: { type: 'string', description: 'Search filter for chunks' },
     chunkEnabledFilter: { type: 'string', description: 'Filter chunks by enabled status' },

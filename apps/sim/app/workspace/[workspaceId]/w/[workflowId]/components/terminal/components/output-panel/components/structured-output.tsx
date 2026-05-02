@@ -682,6 +682,7 @@ export const StructuredOutput = memo(function StructuredOutput({
     computeInitialPaths(data, isError)
   )
   const prevDataRef = useRef(data)
+  const prevDataJsonRef = useRef<string | null>(null)
   const prevIsErrorRef = useRef(isError)
   const internalRef = useRef<HTMLDivElement>(null)
   const listRef = useListRef(null)
@@ -712,10 +713,22 @@ export const StructuredOutput = memo(function StructuredOutput({
 
   // Reset expanded paths when data changes
   useEffect(() => {
-    if (prevDataRef.current !== data || prevIsErrorRef.current !== isError) {
+    if (prevIsErrorRef.current !== isError) {
       prevDataRef.current = data
       prevIsErrorRef.current = isError
+      prevDataJsonRef.current = JSON.stringify(data)
       setExpandedPaths(computeInitialPaths(data, isError))
+      return
+    }
+
+    if (prevDataRef.current !== data) {
+      const newJson = JSON.stringify(data)
+      const prevJson = prevDataJsonRef.current ?? JSON.stringify(prevDataRef.current)
+      if (prevJson !== newJson) {
+        setExpandedPaths(computeInitialPaths(data, isError))
+      }
+      prevDataJsonRef.current = newJson
+      prevDataRef.current = data
     }
   }, [data, isError])
 

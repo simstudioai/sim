@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
+import { nextAvailableSlotContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getNextAvailableSlot, getTagDefinitions } from '@/lib/knowledge/tags/service'
@@ -10,15 +12,14 @@ const logger = createLogger('NextAvailableSlotAPI')
 
 // GET /api/knowledge/[id]/next-available-slot - Get the next available tag slot for a knowledge base and field type
 export const GET = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateId().slice(0, 8)
-    const { id: knowledgeBaseId } = await params
-    const { searchParams } = new URL(req.url)
-    const fieldType = searchParams.get('fieldType')
-
-    if (!fieldType) {
+    const parsed = await parseRequest(nextAvailableSlotContract, req, context)
+    if (!parsed.success) {
       return NextResponse.json({ error: 'fieldType parameter is required' }, { status: 400 })
     }
+    const { id: knowledgeBaseId } = parsed.data.params
+    const { fieldType } = parsed.data.query
 
     try {
       logger.info(

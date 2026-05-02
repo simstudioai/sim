@@ -113,9 +113,7 @@ export interface OutlookSendParams {
   subject: string
   body: string
   contentType?: 'text' | 'html'
-  // Thread support parameters
   replyToMessageId?: string
-  conversationId?: string
   cc?: string
   bcc?: string
   attachments?: UserFile[]

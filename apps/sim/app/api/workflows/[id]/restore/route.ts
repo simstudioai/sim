@@ -1,6 +1,9 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { assertFolderMutable, FolderLockedError, WorkflowLockedError } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
+import { restoreWorkflowContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -12,9 +15,11 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 const logger = createLogger('RestoreWorkflowAPI')
 
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id: workflowId } = await params
+    const parsed = await parseRequest(restoreWorkflowContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { id: workflowId } = parsed.data.params
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -39,6 +44,11 @@ export const POST = withRouteHandler(
       } else if (workflowData.userId !== auth.userId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
+
+      if (workflowData.locked) {
+        throw new WorkflowLockedError('Workflow is locked')
+      }
+      await assertFolderMutable(workflowData.folderId)
 
       const result = await restoreWorkflow(workflowId, { requestId })
 
@@ -74,6 +84,10 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ success: true })
     } catch (error) {
+      if (error instanceof WorkflowLockedError || error instanceof FolderLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
+
       logger.error(`[${requestId}] Error restoring workflow ${workflowId}`, error)
       return NextResponse.json(
         { error: error instanceof Error ? error.message : 'Internal server error' },

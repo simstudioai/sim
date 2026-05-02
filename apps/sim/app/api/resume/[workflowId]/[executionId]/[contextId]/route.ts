@@ -2,6 +2,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
+import { resumeWorkflowExecutionContextContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { AuthType } from '@/lib/auth/hybrid'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -42,13 +44,13 @@ function getStoredSnapshotConfig(pausedExecution: { executionSnapshot: unknown }
 export const POST = withRouteHandler(
   async (
     request: NextRequest,
-    {
-      params,
-    }: {
+    context: {
       params: Promise<{ workflowId: string; executionId: string; contextId: string }>
     }
   ) => {
-    const { workflowId, executionId, contextId } = await params
+    const parsed = await parseRequest(resumeWorkflowExecutionContextContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { workflowId, executionId, contextId } = parsed.data.params
 
     const access = await validateWorkflowAccess(request, workflowId, false)
     if (access.error) {
@@ -57,14 +59,17 @@ export const POST = withRouteHandler(
 
     const workflow = access.workflow
 
-    let payload: Record<string, unknown> = {}
+    let payload: unknown = {}
     try {
       payload = await request.json()
     } catch {
       payload = {}
     }
 
-    const resumeInput = payload?.input ?? payload ?? {}
+    const resumeInput =
+      typeof payload === 'object' && payload !== null && 'input' in payload
+        ? payload.input
+        : (payload ?? {})
     const isPersonalApiKeyCaller =
       access.auth?.authType === AuthType.API_KEY && access.auth?.apiKeyType === 'personal'
 
@@ -294,13 +299,13 @@ export const POST = withRouteHandler(
 export const GET = withRouteHandler(
   async (
     request: NextRequest,
-    {
-      params,
-    }: {
+    context: {
       params: Promise<{ workflowId: string; executionId: string; contextId: string }>
     }
   ) => {
-    const { workflowId, executionId, contextId } = await params
+    const parsed = await parseRequest(resumeWorkflowExecutionContextContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { workflowId, executionId, contextId } = parsed.data.params
 
     const access = await validateWorkflowAccess(request, workflowId, false)
     if (access.error) {

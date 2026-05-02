@@ -5,7 +5,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateWorkspaceCredentialContract } from '@/lib/api/contracts/credentials'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -17,24 +18,6 @@ import {
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialByIdAPI')
-
-const updateCredentialSchema = z
-  .object({
-    displayName: z.string().trim().min(1).max(255).optional(),
-    description: z.string().trim().max(500).nullish(),
-    serviceAccountJson: z.string().min(1).optional(),
-  })
-  .strict()
-  .refine(
-    (data) =>
-      data.displayName !== undefined ||
-      data.description !== undefined ||
-      data.serviceAccountJson !== undefined,
-    {
-      message: 'At least one field must be provided',
-      path: ['displayName'],
-    }
-  )
 
 async function getCredentialResponse(credentialId: string, userId: string) {
   const [row] = await db
@@ -93,19 +76,21 @@ export const GET = withRouteHandler(
 )
 
 export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = await params
-
     try {
-      const parseResult = updateCredentialSchema.safeParse(await request.json())
-      if (!parseResult.success) {
-        return NextResponse.json({ error: parseResult.error.errors[0]?.message }, { status: 400 })
-      }
+      const parsed = await parseRequest(updateWorkspaceCredentialContract, request, context, {
+        validationErrorResponse: (error) =>
+          NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
+      })
+      if (!parsed.success) return parsed.response
+
+      const { id } = parsed.data.params
+      const body = parsed.data.body
 
       const access = await getCredentialActorContext(id, session.user.id)
       if (!access.credential) {
@@ -117,36 +102,33 @@ export const PUT = withRouteHandler(
 
       const updates: Record<string, unknown> = {}
 
-      if (parseResult.data.description !== undefined) {
-        updates.description = parseResult.data.description ?? null
+      if (body.description !== undefined) {
+        updates.description = body.description ?? null
       }
 
       if (
-        parseResult.data.displayName !== undefined &&
+        body.displayName !== undefined &&
         (access.credential.type === 'oauth' || access.credential.type === 'service_account')
       ) {
-        updates.displayName = parseResult.data.displayName
+        updates.displayName = body.displayName
       }
 
-      if (
-        parseResult.data.serviceAccountJson !== undefined &&
-        access.credential.type === 'service_account'
-      ) {
-        let parsed: Record<string, unknown>
+      if (body.serviceAccountJson !== undefined && access.credential.type === 'service_account') {
+        let parsedJson: Record<string, unknown>
         try {
-          parsed = JSON.parse(parseResult.data.serviceAccountJson)
+          parsedJson = JSON.parse(body.serviceAccountJson)
         } catch {
           return NextResponse.json({ error: 'Invalid JSON format' }, { status: 400 })
         }
         if (
-          parsed.type !== 'service_account' ||
-          typeof parsed.client_email !== 'string' ||
-          typeof parsed.private_key !== 'string' ||
-          typeof parsed.project_id !== 'string'
+          parsedJson.type !== 'service_account' ||
+          typeof parsedJson.client_email !== 'string' ||
+          typeof parsedJson.private_key !== 'string' ||
+          typeof parsedJson.project_id !== 'string'
         ) {
           return NextResponse.json({ error: 'Invalid service account JSON key' }, { status: 400 })
         }
-        const { encrypted } = await encryptSecret(parseResult.data.serviceAccountJson)
+        const { encrypted } = await encryptSecret(body.serviceAccountJson)
         updates.encryptedServiceAccountKey = encrypted
       }
 

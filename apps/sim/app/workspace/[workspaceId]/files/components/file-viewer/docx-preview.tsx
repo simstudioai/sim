@@ -141,6 +141,7 @@ export const DocxPreview = memo(function DocxPreview({
       try {
         setRendering(true)
 
+        // boundary-raw-fetch: route returns binary DOCX (read via response.arrayBuffer()), not JSON
         const response = await fetch(`/api/workspaces/${workspaceId}/docx/preview`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

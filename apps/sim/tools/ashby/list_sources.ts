@@ -1,8 +1,10 @@
 import type { AshbySourceSummary } from '@/tools/ashby/types'
+import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListSourcesParams {
   apiKey: string
+  includeArchived?: boolean
 }
 
 interface AshbyListSourcesResponse extends ToolResponse {
@@ -24,23 +26,30 @@ export const listSourcesTool: ToolConfig<AshbyListSourcesParams, AshbyListSource
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    includeArchived: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When true, includes archived sources in results (default false)',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/source.list',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
-    body: () => ({}),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    body: (params) => {
+      const body: Record<string, unknown> = {}
+      if (params.includeArchived !== undefined) body.includeArchived = params.includeArchived
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to list sources')
+      throw new Error(ashbyErrorMessage(data, 'Failed to list sources'))
     }
 
     return {

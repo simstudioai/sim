@@ -2,18 +2,21 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Input,
   Label,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
   ModalDescription,
   ModalHeader,
 } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import { forgetPasswordContract } from '@/lib/api/contracts'
 import { client } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
@@ -281,20 +284,16 @@ export default function LoginPage({
       setIsSubmittingReset(true)
       setResetStatus({ type: null, message: '' })
 
-      const response = await fetch('/api/auth/forget-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: forgotPasswordEmail,
-          redirectTo: `${getBaseUrl()}/reset-password`,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        let errorMessage = errorData.message || 'Failed to request password reset'
+      try {
+        await requestJson(forgetPasswordContract, {
+          body: {
+            email: forgotPasswordEmail,
+            redirectTo: `${getBaseUrl()}/reset-password`,
+          },
+        })
+      } catch (requestError) {
+        let errorMessage =
+          requestError instanceof Error ? requestError.message : 'Failed to request password reset'
 
         if (
           errorMessage.includes('Invalid body parameters') ||
@@ -455,7 +454,7 @@ export default function LoginPage({
           <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
             {isLoading ? (
               <span className='flex items-center gap-2'>
-                <Loader2 className='h-4 w-4 animate-spin' />
+                <Loader className='h-4 w-4' animate />
                 Signing in...
               </span>
             ) : (
@@ -570,7 +569,7 @@ export default function LoginPage({
                 <button type='submit' disabled={isSubmittingReset} className={AUTH_SUBMIT_BTN}>
                   {isSubmittingReset ? (
                     <span className='flex items-center gap-2'>
-                      <Loader2 className='h-4 w-4 animate-spin' />
+                      <Loader className='h-4 w-4' animate />
                       Sending...
                     </span>
                   ) : (

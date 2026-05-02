@@ -27,7 +27,7 @@ OLLAMA_URL=http://192.168.1.x:11434           # Linux (use actual IP)
 
 ## WebSocket/Realtime Not Working
 
-1. Check `NEXT_PUBLIC_SOCKET_URL` matches your domain
+1. Verify reverse proxy routes `/socket.io` to the realtime service (default port 3002). `NEXT_PUBLIC_SOCKET_URL` is only needed if realtime is on a separate host.
 2. Verify realtime service is running: `docker compose ps realtime`
 3. Ensure reverse proxy passes WebSocket upgrades (see [Docker guide](/self-hosting/docker))
 

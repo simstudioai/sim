@@ -1,5 +1,10 @@
 import type { AshbyGetCandidateParams, AshbyGetCandidateResponse } from '@/tools/ashby/types'
-import { CANDIDATE_OUTPUTS, mapCandidate } from '@/tools/ashby/utils'
+import {
+  ashbyAuthHeaders,
+  ashbyErrorMessage,
+  CANDIDATE_OUTPUTS,
+  mapCandidate,
+} from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getCandidateTool: ToolConfig<AshbyGetCandidateParams, AshbyGetCandidateResponse> = {
@@ -26,10 +31,7 @@ export const getCandidateTool: ToolConfig<AshbyGetCandidateParams, AshbyGetCandi
   request: {
     url: 'https://api.ashbyhq.com/candidate.info',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => ({
       id: params.candidateId.trim(),
     }),
@@ -39,7 +41,7 @@ export const getCandidateTool: ToolConfig<AshbyGetCandidateParams, AshbyGetCandi
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to get candidate')
+      throw new Error(ashbyErrorMessage(data, 'Failed to get candidate'))
     }
 
     return {

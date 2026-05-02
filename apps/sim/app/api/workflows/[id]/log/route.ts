@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
-import { z } from 'zod'
+import { workflowLogContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -12,30 +13,12 @@ import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('WorkflowLogAPI')
 
-const postBodySchema = z.object({
-  logs: z.array(z.any()).optional(),
-  executionId: z.string().min(1, 'Execution ID is required').optional(),
-  result: z
-    .object({
-      success: z.boolean(),
-      error: z.string().optional(),
-      output: z.any(),
-      metadata: z
-        .object({
-          source: z.string().optional(),
-          duration: z.number().optional(),
-        })
-        .optional(),
-    })
-    .optional(),
-})
-
 export const dynamic = 'force-dynamic'
 
 export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
-    const { id } = await params
+    const { id } = await context.params
 
     try {
       const accessValidation = await validateWorkflowAccess(request, id, false)
@@ -46,18 +29,10 @@ export const POST = withRouteHandler(
         return createErrorResponse(accessValidation.error.message, accessValidation.error.status)
       }
 
-      const body = await request.json()
-      const validation = postBodySchema.safeParse(body)
+      const parsed = await parseRequest(workflowLogContract, request, context)
+      if (!parsed.success) return parsed.response
 
-      if (!validation.success) {
-        logger.warn(`[${requestId}] Invalid request body: ${validation.error.message}`)
-        return createErrorResponse(
-          validation.error.errors[0]?.message || 'Invalid request body',
-          400
-        )
-      }
-
-      const { logs, executionId, result } = validation.data
+      const { logs, executionId, result } = parsed.data.body
 
       if (result) {
         if (!executionId) {

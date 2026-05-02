@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  getDemoRequestCompanySizeLabel,
+  submitDemoRequestContract,
+} from '@/lib/api/contracts/demo-requests'
+import { parseRequest } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -8,10 +13,6 @@ import { getEmailDomain } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
-import {
-  demoRequestSchema,
-  getDemoRequestCompanySizeLabel,
-} from '@/app/(landing)/components/demo-request/consts'
 
 const logger = createLogger('DemoRequestAPI')
 const rateLimiter = new RateLimiter()
@@ -45,21 +46,14 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
-    const body = await req.json()
-    const validationResult = demoRequestSchema.safeParse(body)
-
-    if (!validationResult.success) {
-      logger.warn(`[${requestId}] Invalid demo request data`, {
-        errors: validationResult.error.format(),
-      })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: validationResult.error.format() },
-        { status: 400 }
-      )
+    const parsed = await parseRequest(submitDemoRequestContract, req, {})
+    if (!parsed.success) {
+      logger.warn(`[${requestId}] Invalid demo request data`)
+      return parsed.response
     }
 
     const { firstName, lastName, companyEmail, phoneNumber, companySize, details } =
-      validationResult.data
+      parsed.data.body
 
     logger.info(`[${requestId}] Processing demo request`, {
       email: `${companyEmail.substring(0, 3)}***`,

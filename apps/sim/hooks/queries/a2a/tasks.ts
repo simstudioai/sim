@@ -4,7 +4,7 @@
  * Hooks for interacting with A2A tasks in the UI.
  */
 
-import type { Artifact, Message, TaskState } from '@a2a-js/sdk'
+import type { Artifact, Message, TaskState, TextPart } from '@a2a-js/sdk'
 import { generateId } from '@sim/utils/id'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isTerminalState } from '@/lib/a2a/utils'
@@ -54,9 +54,9 @@ export interface SendA2ATaskParams {
 }
 
 /**
- * Send task response
+ * Result of sending a message to an A2A agent.
  */
-export interface SendA2ATaskResponse {
+export interface SendA2ATaskOutcome {
   content: string
   taskId: string
   contextId?: string
@@ -68,7 +68,7 @@ export interface SendA2ATaskResponse {
 /**
  * Send a message to an A2A agent (v0.3)
  */
-async function sendA2ATask(params: SendA2ATaskParams): Promise<SendA2ATaskResponse> {
+async function sendA2ATask(params: SendA2ATaskParams): Promise<SendA2ATaskOutcome> {
   const userMessage: Message = {
     kind: 'message',
     messageId: generateId(),
@@ -78,6 +78,7 @@ async function sendA2ATask(params: SendA2ATaskParams): Promise<SendA2ATaskRespon
     ...(params.contextId && { contextId: params.contextId }),
   }
 
+  // boundary-raw-fetch: external-origin A2A agent endpoint, JSON-RPC payload not modeled by a same-origin contract
   const response = await fetch(params.agentUrl, {
     method: 'POST',
     headers: {
@@ -109,7 +110,7 @@ async function sendA2ATask(params: SendA2ATaskParams): Promise<SendA2ATaskRespon
   const lastAgentMessage = task.history?.filter((m) => m.role === 'agent').pop()
   const content = lastAgentMessage
     ? lastAgentMessage.parts
-        .filter((p): p is import('@a2a-js/sdk').TextPart => p.kind === 'text')
+        .filter((p): p is TextPart => p.kind === 'text')
         .map((p) => p.text)
         .join('')
     : ''
@@ -156,6 +157,7 @@ export interface GetA2ATaskParams {
  * Fetch a task from an A2A agent
  */
 async function fetchA2ATask(params: GetA2ATaskParams, signal?: AbortSignal): Promise<A2ATask> {
+  // boundary-raw-fetch: external-origin A2A agent endpoint, JSON-RPC payload not modeled by a same-origin contract
   const response = await fetch(params.agentUrl, {
     method: 'POST',
     signal,
@@ -220,6 +222,7 @@ export interface CancelA2ATaskParams {
  * Cancel a task
  */
 async function cancelA2ATask(params: CancelA2ATaskParams): Promise<A2ATask> {
+  // boundary-raw-fetch: external-origin A2A agent endpoint, JSON-RPC payload not modeled by a same-origin contract
   const response = await fetch(params.agentUrl, {
     method: 'POST',
     headers: {

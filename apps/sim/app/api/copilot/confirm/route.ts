@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { copilotConfirmContract } from '@/lib/api/contracts/copilot'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   ASYNC_TOOL_STATUS,
@@ -20,7 +21,6 @@ import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { publishToolConfirmation } from '@/lib/copilot/persistence/tool-confirm'
 import {
   authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createRequestTracker,
@@ -30,22 +30,6 @@ import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotConfirmAPI')
-
-// Schema for confirmation request
-const ConfirmationSchema = z.object({
-  toolCallId: z.string().min(1, 'Tool call ID is required'),
-  status: z.enum(
-    Object.values(ASYNC_TOOL_CONFIRMATION_STATUS) as [
-      AsyncConfirmationStatus,
-      ...AsyncConfirmationStatus[],
-    ],
-    {
-      errorMap: () => ({ message: 'Invalid notification status' }),
-    }
-  ),
-  message: z.string().optional(),
-  data: z.unknown().optional(),
-})
 
 /**
  * Persist terminal durable tool status, then publish a wakeup event.
@@ -138,8 +122,25 @@ export const POST = withRouteHandler((req: NextRequest) => {
           return createUnauthorizedResponse()
         }
 
-        const body = await req.json()
-        const { toolCallId, status, message, data } = ConfirmationSchema.parse(body)
+        const parsed = await parseRequest(
+          copilotConfirmContract,
+          req,
+          {},
+          {
+            validationErrorResponse: (error) => {
+              span.setAttribute(
+                TraceAttr.CopilotConfirmOutcome,
+                CopilotConfirmOutcome.ValidationError
+              )
+              return validationErrorResponse(
+                error,
+                `Invalid request data: ${error.issues.map((e) => e.message).join(', ')}`
+              )
+            },
+          }
+        )
+        if (!parsed.success) return parsed.response
+        const { toolCallId, status, message, data } = parsed.data.body
         span.setAttributes({
           [TraceAttr.ToolCallId]: toolCallId,
           [TraceAttr.ToolConfirmationStatus]: status,
@@ -201,17 +202,6 @@ export const POST = withRouteHandler((req: NextRequest) => {
         })
       } catch (error) {
         const duration = tracker.getDuration()
-
-        if (error instanceof z.ZodError) {
-          logger.error(`[${tracker.requestId}] Request validation error:`, {
-            duration,
-            errors: error.errors,
-          })
-          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ValidationError)
-          return createBadRequestResponse(
-            `Invalid request data: ${error.errors.map((e) => e.message).join(', ')}`
-          )
-        }
 
         logger.error(`[${tracker.requestId}] Unexpected error:`, {
           duration,

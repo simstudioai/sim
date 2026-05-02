@@ -88,10 +88,10 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
       const isDM = params.destinationType === 'dm'
       return {
         accessToken: params.accessToken || params.botToken,
-        channel: isDM ? undefined : params.channel,
-        userId: isDM ? params.dmUserId : params.userId,
+        channel: isDM ? undefined : params.channel?.trim(),
+        userId: isDM ? params.dmUserId?.trim() : undefined,
         text: params.text,
-        thread_ts: params.threadTs || undefined,
+        thread_ts: params.threadTs?.trim() || undefined,
         blocks:
           typeof params.blocks === 'string'
             ? JSON.parse(params.blocks)
