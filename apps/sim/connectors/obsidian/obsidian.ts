@@ -216,12 +216,13 @@ export const obsidianConnector: ConnectorConfig = {
     const pageFiles = allFiles.slice(offset, offset + DOCS_PER_PAGE)
 
     /**
-     * Stub hash uses path only because the Obsidian Local REST API directory
-     * listing returns just `{ files: string[] }` — no `stat`/`mtime` and no
-     * `HEAD` support to read `Last-Modified`. A path-only stub is stable
-     * across syncs, so unchanged paths short-circuit re-hydration in the
-     * sync engine. `getDocument` always re-hashes with `mtime`, which
-     * triggers a refresh whenever the file actually changes.
+     * The Obsidian Local REST API directory listing returns just
+     * `{ files: string[] }` — no `stat`/`mtime` and no `HEAD` support to read
+     * `Last-Modified`, so the stub cannot encode change-detection state. Every
+     * file is therefore re-hydrated via `getDocument` on every sync. The
+     * post-hydration hash compare in the sync engine
+     * (`existing.contentHash === hydratedHash`) prevents redundant DB writes
+     * when `mtime` is unchanged.
      */
     const documents: ExternalDocument[] = pageFiles.map((filePath) => ({
       externalId: filePath,
