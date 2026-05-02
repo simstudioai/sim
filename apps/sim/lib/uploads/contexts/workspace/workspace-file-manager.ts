@@ -7,6 +7,7 @@ import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
   checkStorageQuota,
@@ -16,7 +17,13 @@ import {
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { getServePathPrefix } from '@/lib/uploads'
-import { downloadFile, hasCloudStorage, uploadFile } from '@/lib/uploads/core/storage-service'
+import {
+  deleteFile,
+  downloadFile,
+  hasCloudStorage,
+  headObject,
+  uploadFile,
+} from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKey, insertFileMetadata } from '@/lib/uploads/server/metadata'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
@@ -152,7 +159,7 @@ export async function uploadWorkspaceFile(
   for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
     const uniqueName = await allocateUniqueWorkspaceFileName(workspaceId, fileName)
     const storageKey = generateWorkspaceFileKey(workspaceId, uniqueName)
-    let fileId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+    let fileId = `wf_${generateShortId()}`
 
     try {
       logger.info(`Generated storage key: ${storageKey}`)
@@ -262,6 +269,99 @@ export async function uploadWorkspaceFile(
 }
 
 /**
+ * Finalize a workspace file that was uploaded directly to cloud storage
+ * (presigned PUT or completed multipart). Verifies the object exists,
+ * checks quota, allocates a non-colliding display name, inserts metadata,
+ * and increments storage usage.
+ *
+ * Throws if the object is missing in storage, quota is exceeded, or the
+ * caller cannot resolve a unique name within the retry budget.
+ */
+export async function registerUploadedWorkspaceFile(params: {
+  workspaceId: string
+  userId: string
+  key: string
+  originalName: string
+  contentType: string
+  /** Caller-supplied size; verified against storage HEAD when cloud storage is configured. */
+  size: number
+}): Promise<UserFile> {
+  const { workspaceId, userId, key, originalName, contentType, size } = params
+
+  if (parseWorkspaceFileKey(key) !== workspaceId) {
+    throw new Error('Storage key does not belong to this workspace')
+  }
+
+  let verifiedSize = size
+  if (hasCloudStorage()) {
+    const head = await headObject(key, 'workspace')
+    if (!head) {
+      throw new Error('Uploaded object not found in storage')
+    }
+    verifiedSize = head.size ?? size
+  }
+
+  const quotaCheck = await checkStorageQuota(userId, verifiedSize)
+  if (!quotaCheck.allowed) {
+    throw new Error(quotaCheck.error || 'Storage limit exceeded')
+  }
+
+  const uniqueName = await allocateUniqueWorkspaceFileName(workspaceId, originalName)
+
+  let fileId = `wf_${generateShortId()}`
+  const existing = await getFileMetadataByKey(key, 'workspace')
+  if (existing) {
+    fileId = existing.id
+    logger.info(`Using existing metadata record for direct upload: ${key}`)
+  } else {
+    try {
+      await insertFileMetadata({
+        id: fileId,
+        key,
+        userId,
+        workspaceId,
+        context: 'workspace',
+        originalName: uniqueName,
+        contentType,
+        size: verifiedSize,
+      })
+    } catch (insertError) {
+      logger.error(
+        'Failed to insert metadata after direct upload; cleaning up storage object',
+        insertError
+      )
+      if (hasCloudStorage()) {
+        try {
+          await deleteFile({ key, context: 'workspace' })
+        } catch (deleteError) {
+          logger.error('Failed to clean up orphaned storage object', deleteError)
+        }
+      }
+      throw insertError
+    }
+  }
+
+  try {
+    await incrementStorageUsage(userId, verifiedSize)
+  } catch (storageError) {
+    logger.error('Failed to update storage tracking:', storageError)
+  }
+
+  const pathPrefix = getServePathPrefix()
+  const serveUrl = `${pathPrefix}${encodeURIComponent(key)}?context=workspace`
+
+  return {
+    id: fileId,
+    name: uniqueName,
+    size: verifiedSize,
+    type: contentType,
+    url: serveUrl,
+    key,
+    context: 'workspace',
+  }
+}
+
+/**
  * Track a file that was already uploaded to workspace S3 as a chat-scoped upload.
  * Links the existing workspaceFiles metadata record (created by the storage service
  * during upload) to the chat by setting chatId and context='mothership'.
@@ -293,7 +393,7 @@ export async function trackChatUpload(
     return
   }
 
-  const fileId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+  const fileId = `wf_${generateShortId()}`
 
   await db.insert(workspaceFiles).values({
     id: fileId,

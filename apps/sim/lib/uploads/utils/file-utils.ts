@@ -281,6 +281,49 @@ export function resolveFileType(file: { type: string; name: string }): string {
     : getMimeTypeFromExtension(getFileExtension(file.name))
 }
 
+/**
+ * Resolve the upload `Content-Type` for a `File`. Trusts the browser-reported
+ * type when present, otherwise falls back to the extension map. Unlike
+ * {@link resolveFileType}, this preserves `application/octet-stream` if the
+ * browser explicitly set it — relevant for direct PUT uploads where we want
+ * the exact content-type the user's browser handshakes with the bucket on.
+ */
+export function getFileContentType(file: File): string {
+  if (file.type?.trim()) return file.type
+  return getMimeTypeFromExtension(getFileExtension(file.name))
+}
+
+/**
+ * Whether `error` is a DOM `AbortError` (XHR `abort()`, fetch `signal.aborted`,
+ * etc). Used in upload retry loops so aborts short-circuit instead of retrying.
+ */
+export function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'name' in error &&
+    String((error as { name?: unknown }).name) === 'AbortError'
+  )
+}
+
+/**
+ * Heuristic: whether `error` is a transient network/connection failure that's
+ * worth retrying (vs. a deterministic 4xx/auth/validation error). Sniffs the
+ * message because browsers and servers report these without standardized codes.
+ */
+export function isNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const message = error.message.toLowerCase()
+  return (
+    message.includes('network') ||
+    message.includes('fetch') ||
+    message.includes('connection') ||
+    message.includes('timeout') ||
+    message.includes('timed out') ||
+    message.includes('ecconnreset')
+  )
+}
+
 const MIME_TO_EXTENSION: Record<string, string> = {
   // Images
   'image/jpeg': 'jpg',
