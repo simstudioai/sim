@@ -8,7 +8,7 @@ import { createLogger } from '@sim/logger'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
-import { type PlanName, TABLE_PLAN_LIMITS, type TablePlanLimits } from './constants'
+import { getTablePlanLimits, type PlanName, type TablePlanLimits } from './constants'
 
 const logger = createLogger('TableBilling')
 
@@ -22,18 +22,20 @@ const logger = createLogger('TableBilling')
  * @returns Table limits based on the workspace's billing plan
  */
 export async function getWorkspaceTableLimits(workspaceId: string): Promise<TablePlanLimits> {
+  const planLimits = getTablePlanLimits()
+
   try {
     const billedAccountUserId = await getWorkspaceBilledAccountUserId(workspaceId)
 
     if (!billedAccountUserId) {
       logger.warn('No billed account found for workspace, using free tier limits', { workspaceId })
-      return TABLE_PLAN_LIMITS.free
+      return planLimits.free
     }
 
     const subscription = await getHighestPrioritySubscription(billedAccountUserId)
     const planName = getPlanTypeForLimits(subscription?.plan) as PlanName
 
-    const limits = TABLE_PLAN_LIMITS[planName] ?? TABLE_PLAN_LIMITS.free
+    const limits = planLimits[planName] ?? planLimits.free
 
     logger.info('Retrieved workspace table limits', {
       workspaceId,
@@ -48,7 +50,7 @@ export async function getWorkspaceTableLimits(workspaceId: string): Promise<Tabl
       workspaceId,
       error,
     })
-    return TABLE_PLAN_LIMITS.free
+    return planLimits.free
   }
 }
 
