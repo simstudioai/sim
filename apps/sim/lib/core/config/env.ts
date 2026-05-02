@@ -517,7 +517,9 @@ export { getEnv }
 
 /**
  * Coerce an env-derived value to a positive finite number, falling back to the
- * provided default when the value is unset, empty, non-finite, or ≤ 0.
+ * provided default when the value is unset, empty, non-finite, or negative.
+ * Zero is accepted — some configs (e.g. `KB_CONFIG_DELAY_BETWEEN_BATCHES`)
+ * use `0` to mean "no delay / max throughput".
  *
  * `createEnv` is configured with `skipValidation: true`, so values declared as
  * `z.number()` arrive as raw strings when sourced from `process.env` or Helm.
@@ -525,8 +527,8 @@ export { getEnv }
  * type at the boundary instead of relying on JS implicit coercion.
  */
 export function envNumber(value: number | string | undefined | null, fallback: number): number {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value
   if (value === undefined || value === null || value === '') return fallback
   const parsed = Number(value)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
 }

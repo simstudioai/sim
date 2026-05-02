@@ -54,10 +54,10 @@ export function createEnvMock(overrides: Record<string, string | undefined> = {}
         ? value.toLowerCase() === 'false' || value === '0'
         : value === false,
     envNumber: (value: number | string | undefined | null, fallback: number): number => {
-      if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
+      if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value
       if (value === undefined || value === null || value === '') return fallback
       const parsed = Number(value)
-      return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+      return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
     },
   }
 }
