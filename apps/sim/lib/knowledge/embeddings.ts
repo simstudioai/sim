@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
-import { env } from '@/lib/core/config/env'
+import { env, envNumber } from '@/lib/core/config/env'
 import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import {
   DEFAULT_EMBEDDING_MODEL,
@@ -15,7 +15,7 @@ import { batchByTokenLimit, estimateTokenCount } from '@/lib/tokenization'
 const logger = createLogger('EmbeddingUtils')
 
 const MAX_TOKENS_PER_REQUEST = 8000
-const MAX_CONCURRENT_BATCHES = env.KB_CONFIG_CONCURRENCY_LIMIT || 50
+const MAX_CONCURRENT_BATCHES = envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 50)
 const EMBEDDING_REQUEST_TIMEOUT_MS = 60_000
 
 export type { EmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
