@@ -1,22 +1,14 @@
 'use client'
 
 import { useMemo } from 'react'
-import type {
-  ColumnDefinition,
-  TableDefinition,
-  TableRow,
-  WorkflowGroup,
-} from '@/lib/table'
+import type { ColumnDefinition, TableDefinition, TableRow, WorkflowGroup } from '@/lib/table'
 import type { FlattenOutputsBlockInput } from '@/lib/workflows/blocks/flatten-outputs'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { useTable as useTableQuery, useTableRows } from '@/hooks/queries/tables'
-import { useWorkflows, useWorkflowStates } from '@/hooks/queries/workflows'
-import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { getBlock } from '@/blocks'
-import type {
-  BlockIconInfo,
-  ColumnSourceInfo,
-} from '../components/table/types'
+import { useTable as useTableQuery, useTableRows } from '@/hooks/queries/tables'
+import { useWorkflowStates, useWorkflows } from '@/hooks/queries/workflows'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { BlockIconInfo, ColumnSourceInfo } from '../components/table/types'
 import type { QueryOptions } from '../types'
 
 const EMPTY_COLUMNS: ColumnDefinition[] = []
@@ -101,8 +93,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     const map = new Map<string, ColumnSourceInfo>()
     for (const group of tableWorkflowGroups) {
       const state = workflowStates.get(group.workflowId)
-      const blocks = (state as { blocks?: Record<string, FlattenOutputsBlockInput> } | null)
-        ?.blocks
+      const blocks = (state as { blocks?: Record<string, FlattenOutputsBlockInput> } | null)?.blocks
       for (const out of group.outputs) {
         const block = blocks?.[out.blockId]
         const blockConfig = block?.type ? getBlock(block.type) : undefined

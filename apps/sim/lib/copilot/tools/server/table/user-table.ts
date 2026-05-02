@@ -23,6 +23,7 @@ import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-na
 import {
   addTableColumn,
   addWorkflowGroup,
+  addWorkflowGroupOutput,
   batchInsertRows,
   batchUpdateRows,
   createTable,
@@ -33,6 +34,7 @@ import {
   deleteRowsByIds,
   deleteTable,
   deleteWorkflowGroup,
+  deleteWorkflowGroupOutput,
   getRowById,
   getTableById,
   insertRow,
@@ -1308,6 +1310,64 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return {
             success: true,
             message: `Deleted workflow group ${groupId}`,
+            data: { schema: updated.schema },
+          }
+        }
+
+        case 'add_workflow_group_output': {
+          if (!args.tableId) return { success: false, message: 'Table ID is required' }
+          if (!workspaceId) return { success: false, message: 'Workspace ID is required' }
+          const groupId = args.groupId as string | undefined
+          const blockId = args.blockId as string | undefined
+          const path = args.path as string | undefined
+          const columnName = args.columnName as string | undefined
+          if (!groupId || !blockId || !path) {
+            return {
+              success: false,
+              message: 'groupId, blockId, and path are required for add_workflow_group_output',
+            }
+          }
+          const tableForAdd = await getTableById(args.tableId)
+          if (!tableForAdd || tableForAdd.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+          const requestId = generateId().slice(0, 8)
+          assertNotAborted()
+          const updated = await addWorkflowGroupOutput(
+            { tableId: args.tableId, groupId, blockId, path, columnName },
+            requestId
+          )
+          return {
+            success: true,
+            message: `Added output to workflow group ${groupId}`,
+            data: { schema: updated.schema },
+          }
+        }
+
+        case 'delete_workflow_group_output': {
+          if (!args.tableId) return { success: false, message: 'Table ID is required' }
+          if (!workspaceId) return { success: false, message: 'Workspace ID is required' }
+          const groupId = args.groupId as string | undefined
+          const columnName = args.columnName as string | undefined
+          if (!groupId || !columnName) {
+            return {
+              success: false,
+              message: 'groupId and columnName are required for delete_workflow_group_output',
+            }
+          }
+          const tableForRemove = await getTableById(args.tableId)
+          if (!tableForRemove || tableForRemove.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+          const requestId = generateId().slice(0, 8)
+          assertNotAborted()
+          const updated = await deleteWorkflowGroupOutput(
+            { tableId: args.tableId, groupId, columnName },
+            requestId
+          )
+          return {
+            success: true,
+            message: `Removed output "${columnName}" from workflow group ${groupId}`,
             data: { schema: updated.schema },
           }
         }

@@ -108,9 +108,13 @@ export function CellContent({
     } else {
       displayContent = <span className='text-[var(--text-tertiary)]'>—</span>
     }
-    return displayContent
-  }
-  if (column.type === 'boolean') {
+    // Workflow-output cells are hand-editable: hide the status content under
+    // the InlineEditor when the user opts to edit, then fall through to the
+    // common return that renders the editor overlay.
+    if (isEditing) {
+      displayContent = <div className='invisible'>{displayContent}</div>
+    }
+  } else if (column.type === 'boolean') {
     displayContent = (
       <div
         className={cn('flex min-h-[20px] items-center justify-center', isEditing && 'invisible')}

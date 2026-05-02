@@ -1,14 +1,11 @@
 'use client'
 
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type React from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/emcn'
 import type { TableRow as TableRowType } from '@/lib/table'
 import type { EditingCell, SaveReason } from '../../../types'
-import {
-  cleanCellValue,
-  displayToStorage,
-  formatValueForInput,
-} from '../../../utils'
+import { cleanCellValue, displayToStorage, formatValueForInput } from '../../../utils'
 import type { DisplayColumn } from '../types'
 
 interface ExpandedCellPopoverProps {
@@ -61,9 +58,11 @@ export function ExpandedCellPopover({
     return { row, column, colIndex, value: row.data[column.name] }
   }, [expandedCell, rows, columns])
 
-  const isWorkflowCell = !!target?.column.workflowGroupId
   const isBooleanCell = target?.column.type === 'boolean'
-  const isEditable = Boolean(target) && canEdit && !isWorkflowCell && !isBooleanCell
+  // Workflow-output cells are editable in the expanded view too — the user
+  // can override the workflow's value. Booleans toggle inline; the expanded
+  // popover only handles text-shaped inputs.
+  const isEditable = Boolean(target) && canEdit && !isBooleanCell
 
   const displayText = useMemo(() => {
     if (!target) return ''

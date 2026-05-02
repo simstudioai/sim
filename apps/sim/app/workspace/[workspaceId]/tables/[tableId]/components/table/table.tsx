@@ -1,21 +1,12 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Circle, Square } from 'lucide-react'
+import { Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
   Button,
   Checkbox,
-  DatePicker,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
   Modal,
   ModalBody,
   ModalContent,
@@ -25,32 +16,17 @@ import {
   Upload,
 } from '@/components/emcn'
 import {
-  ArrowLeft,
-  ArrowRight,
-  Calendar as CalendarIcon,
-  ChevronDown,
-  EyeOff,
   Pencil,
   PlayOutline,
   Plus,
   Table as TableIcon,
   TableX,
   Trash,
-  TypeBoolean,
-  TypeJson,
-  TypeNumber,
-  TypeText,
 } from '@/components/emcn/icons'
 import { Loader } from '@/components/emcn/icons/loader'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
-import type {
-  ColumnDefinition,
-  Filter,
-  SortDirection,
-  TableRow as TableRowType,
-  WorkflowGroup,
-} from '@/lib/table'
+import type { ColumnDefinition, Filter, SortDirection, TableRow as TableRowType } from '@/lib/table'
 import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
 import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
@@ -77,7 +53,6 @@ import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
-import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useContextMenu, useRowExecution, useTable } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
 import { cleanCellValue, storageToDisplay } from '../../utils'
@@ -89,9 +64,9 @@ import { CellContent } from './cells/cell-content'
 import { ExpandedCellPopover } from './cells/expanded-cell-popover'
 import { COL_WIDTH, SELECTION_TINT_BG } from './constants'
 import { ColumnHeaderMenu } from './headers/column-header-menu'
-import { COLUMN_TYPE_ICONS, ColumnTypeIcon } from './headers/column-type-icon'
+import { COLUMN_TYPE_ICONS } from './headers/column-type-icon'
 import { WorkflowGroupMetaCell } from './headers/workflow-group-meta-cell'
-import type { BlockIconInfo, ColumnSourceInfo, DisplayColumn } from './types'
+import type { DisplayColumn } from './types'
 import {
   areRowDepsSatisfied,
   buildHeaderGroups,
@@ -99,7 +74,6 @@ import {
   collectRowSnapshots,
   computeNormalizedSelection,
   expandToDisplayColumns,
-  type HeaderGroup,
   moveCell,
   type NormalizedSelection,
   readExecution,
@@ -1558,7 +1532,10 @@ export function Table({
       if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
         if (!canEditRef.current) return
         const col = cols[anchor.colIndex]
-        if (!col || col.type === 'boolean' || col.workflowGroupId) return
+        // Workflow-output cells are editable: the user can override the
+        // workflow's value if they want. Booleans toggle on space/click —
+        // typeahead doesn't apply to them.
+        if (!col || col.type === 'boolean') return
         if (col.type === 'number' && !/[\d.-]/.test(e.key)) return
         if (col.type === 'date' && !/[\d\-/]/.test(e.key)) return
         e.preventDefault()
@@ -2346,7 +2323,6 @@ export function Table({
     [columns]
   )
   const hasWorkflowColumns = workflowColumnNames.length > 0
-
 
   const { runningByRowId, totalRunning } = useMemo(() => {
     const byRow = new Map<string, number>()
@@ -3298,7 +3274,6 @@ const DataRow = React.memo(function DataRow({
   )
 }, dataRowPropsAreEqual)
 
-
 const TableBodySkeleton = React.memo(function TableBodySkeleton({
   colCount,
 }: {
@@ -3330,8 +3305,6 @@ const TableBodySkeleton = React.memo(function TableBodySkeleton({
     </>
   )
 })
-
-
 
 interface RunStatusControlProps {
   running: number
@@ -3436,7 +3409,6 @@ const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: ()
     </div>
   )
 })
-
 
 /**
  * Reuses the logs page's `LogDetails` slideout inside the tables view so a user

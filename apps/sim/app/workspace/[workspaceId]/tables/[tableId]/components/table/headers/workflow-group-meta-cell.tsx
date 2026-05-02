@@ -12,14 +12,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import {
-  ArrowLeft,
-  ArrowRight,
-  EyeOff,
-  Pencil,
-  PlayOutline,
-  Trash,
-} from '@/components/emcn/icons'
+import { ArrowLeft, ArrowRight, EyeOff, Pencil, PlayOutline, Trash } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { SELECTION_TINT_BG } from '../constants'

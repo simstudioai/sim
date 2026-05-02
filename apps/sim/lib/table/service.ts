@@ -2705,12 +2705,6 @@ export async function updateWorkflowGroup(
   const removedColumnNames = new Set(removed.map((o) => o.columnName))
   let nextColumns = schema.columns.filter((c) => !removedColumnNames.has(c.name))
   if (newColDefs.length > 0) {
-    const existingNames = new Set(nextColumns.map((c) => c.name.toLowerCase()))
-    for (const col of newColDefs) {
-      if (existingNames.has(col.name.toLowerCase())) {
-        throw new Error(`Column "${col.name}" already exists`)
-      }
-    }
     // Splice the new column defs into the group's contiguous run rather than
     // appending at the end. The desired in-group order is `newOutputs` (the
     // sidebar's BFS-of-the-workflow ordering); we walk it, anchor at the first
@@ -2829,6 +2823,282 @@ export async function updateWorkflowGroup(
   }
 
   return updatedTable
+}
+
+/**
+ * Adds a single output to an existing workflow group. Mirrors `addTableColumn`
+ * for plain columns: one canonical op, one column created, type inferred from
+ * the workflow's flattened outputs (`leafType` for `(blockId, path)`). The
+ * column is spliced into the group's contiguous run so the table renders the
+ * new output next to its siblings.
+ */
+export async function addWorkflowGroupOutput(
+  data: {
+    tableId: string
+    groupId: string
+    blockId: string
+    path: string
+    /** Optional override; defaults to a slug derived from `path`. */
+    columnName?: string
+  },
+  requestId: string
+): Promise<TableDefinition> {
+  const table = await getTableById(data.tableId)
+  if (!table) throw new Error('Table not found')
+
+  const schema = table.schema
+  const groups = schema.workflowGroups ?? []
+  const groupIndex = groups.findIndex((g) => g.id === data.groupId)
+  if (groupIndex === -1) {
+    throw new Error(`Workflow group "${data.groupId}" not found`)
+  }
+  const group = groups[groupIndex]
+
+  if (group.outputs.some((o) => o.blockId === data.blockId && o.path === data.path)) {
+    throw new Error(
+      `Workflow group "${data.groupId}" already has an output at ${data.blockId}::${data.path}`
+    )
+  }
+
+  const [
+    { loadWorkflowFromNormalizedTables },
+    { flattenWorkflowOutputs, getBlockExecutionOrder },
+    { columnTypeForLeaf, deriveOutputColumnName },
+  ] = await Promise.all([
+    import('@/lib/workflows/persistence/utils'),
+    import('@/lib/workflows/blocks/flatten-outputs'),
+    import('./column-naming'),
+  ])
+  const normalized = await loadWorkflowFromNormalizedTables(group.workflowId)
+  if (!normalized) {
+    throw new Error(`Workflow ${group.workflowId} not found`)
+  }
+  const blocks = Object.values(normalized.blocks ?? {}).map((b) => ({
+    id: b.id,
+    type: b.type,
+    name: b.name,
+    triggerMode: (b as { triggerMode?: boolean }).triggerMode,
+    subBlocks: b.subBlocks as Record<string, unknown> | undefined,
+  }))
+  const flattened = flattenWorkflowOutputs(blocks, normalized.edges ?? [])
+  const match = flattened.find((f) => f.blockId === data.blockId && f.path === data.path)
+  if (!match) {
+    throw new Error(
+      `Output ${data.blockId}::${data.path} is not a valid pickable output on workflow ${group.workflowId}`
+    )
+  }
+  const distances = getBlockExecutionOrder(blocks, normalized.edges ?? [])
+  const flatIndex = new Map(flattened.map((f, i) => [`${f.blockId}::${f.path}`, i]))
+
+  const taken = new Set(schema.columns.map((c) => c.name))
+  const columnName = data.columnName ?? deriveOutputColumnName(data.path, taken)
+  if (!NAME_PATTERN.test(columnName)) {
+    throw new Error(`Invalid column name "${columnName}". Must satisfy ${NAME_PATTERN.source}.`)
+  }
+  if (taken.has(columnName)) {
+    throw new Error(`Column "${columnName}" already exists`)
+  }
+  if (schema.columns.length + 1 > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
+    throw new Error(
+      `Adding a column would exceed the maximum (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE}).`
+    )
+  }
+
+  const newColDef: ColumnDefinition = {
+    name: columnName,
+    type: columnTypeForLeaf(match.leafType),
+    required: false,
+    unique: false,
+    workflowGroupId: data.groupId,
+  }
+  const newOutput: WorkflowGroupOutput = {
+    blockId: data.blockId,
+    path: data.path,
+    columnName,
+  }
+
+  // Sort all of the group's outputs (existing + new) in workflow execution
+  // order: BFS distance from the start block ASC, with discovery order as
+  // tiebreak. This matches what the column-sidebar does at create time, so
+  // columns from the same workflow always read in the order their blocks run
+  // — regardless of whether they were added at create time or one-by-one.
+  const groupColNamesBefore = new Set(group.outputs.map((o) => o.columnName))
+  const orderKey = (o: { blockId: string; path: string }) => {
+    const d = distances[o.blockId]
+    const dist = d === undefined || d < 0 ? Number.POSITIVE_INFINITY : d
+    const idx = flatIndex.get(`${o.blockId}::${o.path}`) ?? Number.POSITIVE_INFINITY
+    return [dist, idx] as const
+  }
+  const allGroupOutputs = [...group.outputs, newOutput].sort((a, b) => {
+    const [da, ia] = orderKey(a)
+    const [db, ib] = orderKey(b)
+    return da !== db ? da - db : ia - ib
+  })
+  const orderedGroupColNames = allGroupOutputs.map((o) => o.columnName)
+  const updatedGroup: WorkflowGroup = {
+    ...group,
+    outputs: allGroupOutputs,
+  }
+  const nextGroups = groups.map((g, i) => (i === groupIndex ? updatedGroup : g))
+
+  // Splice the new column run into nextColumns: keep the columns outside the
+  // group where they were, replace the group's contiguous run with the
+  // BFS-ordered list. Anchor at the position of the first existing sibling
+  // (or append if the group was empty).
+  const colByName = new Map(schema.columns.map((c) => [c.name, c]))
+  const orderedGroupCols: ColumnDefinition[] = orderedGroupColNames.map((name) => {
+    if (name === columnName) return newColDef
+    const existing = colByName.get(name)
+    if (!existing) {
+      throw new Error(`Internal: column "${name}" missing while splicing group outputs`)
+    }
+    return existing
+  })
+  const remainingCols = schema.columns.filter((c) => !groupColNamesBefore.has(c.name))
+  const firstGroupIdx = schema.columns.findIndex((c) => groupColNamesBefore.has(c.name))
+  const colAnchor = firstGroupIdx === -1 ? remainingCols.length : firstGroupIdx
+  const nextColumns = [
+    ...remainingCols.slice(0, colAnchor),
+    ...orderedGroupCols,
+    ...remainingCols.slice(colAnchor),
+  ]
+
+  const updatedSchema: TableSchema = {
+    ...schema,
+    columns: nextColumns,
+    workflowGroups: nextGroups,
+  }
+
+  const updatedColumnOrder = table.metadata?.columnOrder
+    ? (() => {
+        const orderWithoutGroup = table.metadata!.columnOrder!.filter(
+          (n) => !groupColNamesBefore.has(n)
+        )
+        const firstGroupOrderIdx = table.metadata!.columnOrder!.findIndex((n) =>
+          groupColNamesBefore.has(n)
+        )
+        const orderAnchor =
+          firstGroupOrderIdx === -1 ? orderWithoutGroup.length : firstGroupOrderIdx
+        return [
+          ...orderWithoutGroup.slice(0, orderAnchor),
+          ...orderedGroupColNames,
+          ...orderWithoutGroup.slice(orderAnchor),
+        ]
+      })()
+    : undefined
+
+  assertValidSchema(updatedSchema, updatedColumnOrder)
+
+  const updatedMetadata: TableMetadata | null =
+    updatedColumnOrder && table.metadata
+      ? { ...table.metadata, columnOrder: updatedColumnOrder }
+      : table.metadata
+        ? { ...table.metadata }
+        : null
+
+  const now = new Date()
+  await db
+    .update(userTableDefinitions)
+    .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
+    .where(eq(userTableDefinitions.id, data.tableId))
+
+  logger.info(
+    `[${requestId}] Added output "${columnName}" (${newColDef.type}) to workflow group "${data.groupId}" in table ${data.tableId}`
+  )
+
+  // Backfill: re-run the group on every dep-satisfied row (including ones
+  // that previously completed) so the new column actually gets populated.
+  // Adding an output without values defeats the point — the user wants the
+  // values, not just the empty header.
+  void (async () => {
+    try {
+      const { triggerWorkflowGroupRun } = await import('./workflow-columns')
+      const { triggered } = await triggerWorkflowGroupRun({
+        tableId: data.tableId,
+        groupId: data.groupId,
+        workspaceId: table.workspaceId,
+        mode: 'all',
+        requestId,
+      })
+      logger.info(
+        `[${requestId}] Backfilled ${triggered} row(s) after adding output "${columnName}"`
+      )
+    } catch (err) {
+      logger.error(
+        `[${requestId}] Failed to backfill rows after adding output "${columnName}":`,
+        err
+      )
+    }
+  })()
+
+  return { ...table, schema: updatedSchema, metadata: updatedMetadata, updatedAt: now }
+}
+
+/**
+ * Removes a single output from a workflow group. Drops the bound column and
+ * strips the value from every row's `data` JSONB. If the output is the
+ * group's last, the empty group is left in place — drop it explicitly with
+ * `deleteWorkflowGroup` if needed.
+ */
+export async function deleteWorkflowGroupOutput(
+  data: { tableId: string; groupId: string; columnName: string },
+  requestId: string
+): Promise<TableDefinition> {
+  const table = await getTableById(data.tableId)
+  if (!table) throw new Error('Table not found')
+
+  const schema = table.schema
+  const groups = schema.workflowGroups ?? []
+  const groupIndex = groups.findIndex((g) => g.id === data.groupId)
+  if (groupIndex === -1) {
+    throw new Error(`Workflow group "${data.groupId}" not found`)
+  }
+  const group = groups[groupIndex]
+  if (!group.outputs.some((o) => o.columnName === data.columnName)) {
+    throw new Error(
+      `Workflow group "${data.groupId}" has no output bound to column "${data.columnName}"`
+    )
+  }
+
+  const updatedGroup: WorkflowGroup = {
+    ...group,
+    outputs: group.outputs.filter((o) => o.columnName !== data.columnName),
+  }
+  const nextGroups = groups.map((g, i) => (i === groupIndex ? updatedGroup : g))
+  const nextColumns = schema.columns.filter((c) => c.name !== data.columnName)
+  const updatedSchema: TableSchema = {
+    ...schema,
+    columns: nextColumns,
+    workflowGroups: nextGroups,
+  }
+
+  const updatedColumnOrder = table.metadata?.columnOrder?.filter((n) => n !== data.columnName)
+  assertValidSchema(updatedSchema, updatedColumnOrder)
+
+  const updatedMetadata: TableMetadata | null =
+    updatedColumnOrder && table.metadata
+      ? { ...table.metadata, columnOrder: updatedColumnOrder }
+      : table.metadata
+        ? { ...table.metadata }
+        : null
+
+  const now = new Date()
+  await db.transaction(async (trx) => {
+    await setTableTxTimeouts(trx, { statementMs: 60_000 })
+    await trx
+      .update(userTableDefinitions)
+      .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
+      .where(eq(userTableDefinitions.id, data.tableId))
+    await trx.execute(
+      sql`UPDATE user_table_rows SET data = data - ${data.columnName}::text WHERE table_id = ${data.tableId} AND data ? ${data.columnName}::text`
+    )
+  })
+
+  logger.info(
+    `[${requestId}] Removed output "${data.columnName}" from workflow group "${data.groupId}" in table ${data.tableId}`
+  )
+
+  return { ...table, schema: updatedSchema, metadata: updatedMetadata, updatedAt: now }
 }
 
 /**
