@@ -39,7 +39,6 @@ export const GET = withRouteHandler(
       if (error) {
         return createErrorResponse(error.message, error.status)
       }
-      await assertWorkflowMutable(id)
 
       if (!workflowData.isDeployed) {
         logger.info(`[${requestId}] Workflow is not deployed: ${id}`)

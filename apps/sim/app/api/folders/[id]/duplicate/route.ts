@@ -11,6 +11,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import type { DbOrTx } from '@/lib/db/types'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -216,10 +217,8 @@ export const POST = withRouteHandler(
   }
 )
 
-type FolderDuplicateTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
-
 async function assertTargetParentFolderMutable(
-  tx: FolderDuplicateTransaction,
+  tx: DbOrTx,
   parentId: string | null,
   targetWorkspaceId: string,
   sourceFolderId: string
@@ -256,7 +255,7 @@ async function assertTargetParentFolderMutable(
 }
 
 async function deduplicateFolderName(
-  tx: FolderDuplicateTransaction,
+  tx: DbOrTx,
   workspaceId: string,
   parentId: string | null,
   requestedName: string
@@ -287,7 +286,7 @@ async function deduplicateFolderName(
 }
 
 async function duplicateFolderStructure(
-  tx: FolderDuplicateTransaction,
+  tx: DbOrTx,
   sourceFolderId: string,
   newParentFolderId: string,
   sourceWorkspaceId: string,
@@ -339,7 +338,7 @@ async function duplicateFolderStructure(
 }
 
 async function duplicateWorkflowsInFolderTree(
-  tx: FolderDuplicateTransaction,
+  tx: DbOrTx,
   sourceWorkspaceId: string,
   targetWorkspaceId: string,
   folderMapping: Map<string, string>,

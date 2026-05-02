@@ -10,6 +10,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission, FolderLockedError } from '@sim/workflow-authz'
 import { and, eq, isNull, min } from 'drizzle-orm'
+import type { DbOrTx } from '@/lib/db/types'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -29,7 +30,7 @@ interface DuplicateWorkflowOptions {
   folderId?: string | null
   requestId?: string
   newWorkflowId?: string
-  tx?: WorkflowDuplicateTransaction
+  tx?: DbOrTx
   workflowIdMap?: Map<string, string>
 }
 
@@ -46,9 +47,18 @@ interface DuplicateWorkflowResult {
   edgesCount: number
   subflowsCount: number
 }
-
-type WorkflowDuplicateTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
+/**
+ * Untrusted shape of a persisted block subBlocks JSON column. We narrow `type`/`value`
+ * with runtime checks before mutating; the index signature exists because callers pass
+ * the raw record back to drizzle without knowing which subBlock keys it contains.
+ */
 type SubBlockRecord = Record<string, { type?: unknown; value?: unknown; [key: string]: unknown }>
+
+/**
+ * Untrusted shape of a single entry inside a `variables-input` value array. The
+ * `variableId` slot is widened to `unknown` so we are forced to type-narrow before
+ * trusting it as a remap key — persisted JSON may legitimately predate the field.
+ */
 type VariableAssignment = Record<string, unknown> & { variableId?: unknown }
 const DUPLICATE_STRIPPED_SYSTEM_SUBBLOCK_IDS = new Set(
   SYSTEM_SUBBLOCK_IDS.filter((id) => id !== 'triggerCredentials')
@@ -76,7 +86,7 @@ function sanitizeSubBlocksForDuplicate(subBlocks: SubBlockRecord): SubBlockRecor
 }
 
 async function assertTargetFolderMutable(
-  tx: WorkflowDuplicateTransaction,
+  tx: DbOrTx,
   folderId: string | null,
   targetWorkspaceId: string
 ): Promise<void> {
@@ -271,7 +281,7 @@ export async function duplicateWorkflow(
   const newWorkflowId = clientNewWorkflowId || workflowIdMap?.get(sourceWorkflowId) || generateId()
   const now = new Date()
 
-  const duplicateWithinTransaction = async (tx: WorkflowDuplicateTransaction) => {
+  const duplicateWithinTransaction = async (tx: DbOrTx) => {
     // First verify the source workflow exists
     const sourceWorkflowRow = await tx
       .select()

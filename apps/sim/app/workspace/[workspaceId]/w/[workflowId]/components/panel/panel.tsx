@@ -73,7 +73,7 @@ import {
   useCopilotChats,
 } from '@/hooks/queries/copilot-chats'
 import { useFolderMap } from '@/hooks/queries/folders'
-import { isFolderOrAncestorLocked } from '@/hooks/queries/utils/folder-locks'
+import { isFolderOrAncestorLocked } from '@/hooks/queries/utils/folder-tree'
 import { useDuplicateWorkflowMutation, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'

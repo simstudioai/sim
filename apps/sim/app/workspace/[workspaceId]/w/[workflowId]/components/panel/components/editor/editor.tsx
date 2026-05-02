@@ -49,7 +49,7 @@ import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/prev
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockType } from '@/blocks/types'
 import { useFolderMap } from '@/hooks/queries/folders'
-import { isFolderOrAncestorLocked } from '@/hooks/queries/utils/folder-locks'
+import { isFolderOrAncestorLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap, useWorkflowState } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePanelEditorStore } from '@/stores/panel'

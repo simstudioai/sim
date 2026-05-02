@@ -80,7 +80,10 @@ import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-settings'
-import { isFolderOrAncestorLocked } from '@/hooks/queries/utils/folder-locks'
+import {
+  findLockedAncestorFolder,
+  isFolderOrAncestorLocked,
+} from '@/hooks/queries/utils/folder-tree'
 import { useUpdateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -1240,15 +1243,30 @@ const WorkflowContent = React.memo(
       }
     }, [activeWorkflowId, clearLockNotification])
 
+    /**
+     * Locate the folder ancestor that supplies the inherited lock so the
+     * notification can name it. Null when the lock is row/block-level instead.
+     */
+    const inheritedLockFolderName = useMemo(() => {
+      if (!workflowFolderLocked) return null
+      return findLockedAncestorFolder(workflowMetadata?.folderId, folders)?.name ?? null
+    }, [workflowFolderLocked, workflowMetadata?.folderId, folders])
+
     const prevCanAdminRef = useRef(effectivePermissions.canAdmin)
+    const prevLockSignatureRef = useRef<string | null>(null)
     useEffect(() => {
       if (!isWorkflowReady) return
 
       const canAdminChanged = prevCanAdminRef.current !== effectivePermissions.canAdmin
       prevCanAdminRef.current = effectivePermissions.canAdmin
 
-      // Clear stale notification when admin status changes so it recreates with correct message
-      if (canAdminChanged) {
+      const lockSignature = workflowReadOnly
+        ? `${workflowRowLocked ? 'row' : workflowFolderLocked ? `folder:${inheritedLockFolderName ?? ''}` : 'blocks'}`
+        : null
+      const lockSignatureChanged = prevLockSignatureRef.current !== lockSignature
+      prevLockSignatureRef.current = lockSignature
+
+      if (canAdminChanged || lockSignatureChanged) {
         clearLockNotification()
       }
 
@@ -1256,19 +1274,33 @@ const WorkflowContent = React.memo(
         if (lockNotificationIdRef.current) return
 
         const isAdmin = effectivePermissions.canAdmin
+        const isFolderInherited = workflowFolderLocked && !workflowRowLocked
+        const message = isFolderInherited
+          ? inheritedLockFolderName
+            ? `This workflow is locked by folder "${inheritedLockFolderName}"`
+            : 'This workflow is locked by a parent folder'
+          : isAdmin
+            ? 'This workflow is locked'
+            : 'This workflow is locked. Ask an admin to unlock it.'
+
+        const showInlineUnlock = isAdmin && !isFolderInherited
+
         lockNotificationIdRef.current = addNotification({
           level: 'info',
-          message: isAdmin
-            ? 'This workflow is locked'
-            : 'This workflow is locked. Ask an admin to unlock it.',
+          message,
           workflowId: activeWorkflowId || undefined,
-          ...(isAdmin ? { action: { type: 'unlock-workflow' as const, message: '' } } : {}),
+          ...(showInlineUnlock
+            ? { action: { type: 'unlock-workflow' as const, message: '' } }
+            : {}),
         })
       } else {
         clearLockNotification()
       }
     }, [
       workflowReadOnly,
+      workflowRowLocked,
+      workflowFolderLocked,
+      inheritedLockFolderName,
       isWorkflowReady,
       effectivePermissions.canAdmin,
       addNotification,
@@ -1291,6 +1323,8 @@ const WorkflowContent = React.memo(
           return
         }
 
+        if (workflowFolderLocked) return
+
         const currentBlocks = useWorkflowStore.getState().blocks
         const ids = getWorkflowLockToggleIds(currentBlocks, false)
         if (ids.length > 0) collaborativeBatchToggleLocked(ids)
@@ -1302,6 +1336,7 @@ const WorkflowContent = React.memo(
       activeWorkflowId,
       collaborativeBatchToggleLocked,
       updateWorkflowMutation,
+      workflowFolderLocked,
       workflowRowLocked,
       workspaceId,
     ])
