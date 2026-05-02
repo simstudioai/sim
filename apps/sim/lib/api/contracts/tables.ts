@@ -10,7 +10,7 @@ import type {
   TableRow,
 } from '@/lib/table'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
-import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/csv-import'
+import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -563,6 +563,42 @@ export const csvExtensionSchema = z.enum(['csv', 'tsv'], {
 })
 
 /**
+ * `createColumns` form field — a JSON-encoded array of CSV header names that
+ * the import should auto-create as new columns on the target table.
+ */
+export const csvImportCreateColumnsSchema = z.unknown().transform((value, ctx): string[] => {
+  if (typeof value !== 'string') {
+    ctx.addIssue({ code: 'custom', message: 'createColumns must be valid JSON' })
+    return z.NEVER
+  }
+  try {
+    const parsed: unknown = JSON.parse(value)
+    if (!Array.isArray(parsed) || parsed.some((h) => typeof h !== 'string')) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'createColumns must be a JSON array of CSV header names',
+      })
+      return z.NEVER
+    }
+    return parsed as string[]
+  } catch {
+    ctx.addIssue({ code: 'custom', message: 'createColumns must be valid JSON' })
+    return z.NEVER
+  }
+})
+
+/**
+ * `format` query param for the table export route. Lower-cases the input
+ * before validating against the supported formats and defaults to `'csv'`.
+ */
+export const tableExportFormatSchema = z
+  .preprocess(
+    (value) => (typeof value === 'string' ? value.toLowerCase() : value),
+    z.enum(['csv', 'json'])
+  )
+  .default('csv')
+
+/**
  * `mapping` form field — a JSON-encoded `CsvHeaderMapping` (CSV header →
  * column name, or `null` to skip the header).
  */
@@ -804,16 +840,19 @@ export const cancelTableRunsContract = defineRouteContract({
 })
 
 /**
- * Trigger modes for `POST /api/table/[tableId]/groups/[groupId]/run`:
+ * Run modes for `POST /api/table/[tableId]/groups/[groupId]/run`:
  *  - `all`        — every dep-satisfied row not already running/pending
  *  - `incomplete` — same, but additionally restricted to rows whose group has
  *    never run, or whose last run ended in `failed`/`aborted`
+ *
+ * Field is named `runMode` (not `mode`) to disambiguate from the table-import
+ * `mode` arg (`append` / `replace`) which lives on a different op.
  */
 export const runWorkflowGroupBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  mode: z.enum(['all', 'incomplete']).default('all'),
+  runMode: z.enum(['all', 'incomplete']).default('all'),
   /** Optional row scope. When provided, only these rows are candidates — the
-   *  same eligibility predicate (deps satisfied, not in-flight, mode filter)
+   *  same eligibility predicate (deps satisfied, not in-flight, runMode filter)
    *  still applies, so a passed-in row that's mid-run or has unmet deps is
    *  silently skipped. Omit to run across the entire table. */
   rowIds: z.array(z.string().min(1)).min(1).optional(),

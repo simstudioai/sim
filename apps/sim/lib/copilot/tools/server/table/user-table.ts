@@ -1379,11 +1379,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!groupId) {
             return { success: false, message: 'groupId is required for run_workflow_group' }
           }
-          const mode = (args.mode as 'all' | 'incomplete' | undefined) ?? 'incomplete'
-          if (mode !== 'all' && mode !== 'incomplete') {
+          const runMode = (args.runMode as 'all' | 'incomplete' | undefined) ?? 'incomplete'
+          if (runMode !== 'all' && runMode !== 'incomplete') {
             return {
               success: false,
-              message: `Invalid mode "${mode}". Must be "all" or "incomplete"`,
+              message: `Invalid runMode "${runMode}". Must be "all" or "incomplete"`,
             }
           }
           const rawRowIds = args.rowIds as unknown
@@ -1407,11 +1407,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             tableId: args.tableId,
             groupId,
             workspaceId,
-            mode,
+            mode: runMode,
             requestId,
             rowIds,
           })
-          const scopeLabel = rowIds ? `${rowIds.length} row(s) by id` : `${mode}`
+          const scopeLabel = rowIds ? `${rowIds.length} row(s) by id` : runMode
           return {
             success: true,
             message: `Triggered ${triggered} row(s) for workflow group ${groupId} (${scopeLabel})`,

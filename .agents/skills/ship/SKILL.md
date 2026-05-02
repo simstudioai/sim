@@ -13,21 +13,20 @@ When the user runs `/ship`:
 
 1. **Check git status** - See what files have changed
 2. **Generate a commit message** following this format: `type(scope): description`
-   - Types: `fix`, `feat`, `improvement`, `chore`
-   - Scope: short identifier (e.g., `undo-redo`, `api`, `ui`)
-   - Keep it concise
-
-3. **Run lint** - Run `bun run lint` from the repo root to fix formatting issues before staging
-
+  - Types: `fix`, `feat`, `improvement`, `chore`
+  - Scope: short identifier (e.g., `undo-redo`, `api`, `ui`)
+  - Keep it concise
+3. **Run pre-ship checks** from the repo root before staging:
+  - `bun run lint` to fix formatting issues
+  - `bun run check:api-validation:strict` to catch boundary contract failures before CI
 4. **Stage and commit** the changes with the generated message
-
 5. **Push to origin** using the current branch name
-
 6. **Create a PR** to staging with a description in the user's voice
 
 ## Commit Message Format
 
 Based on the repo's commit history:
+
 ```
 fix(scope): description for bug fixes
 feat(scope): description for new features
@@ -61,6 +60,7 @@ Tested manually (or describe testing)
 ## PR Creation Command
 
 Use this command structure:
+
 ```bash
 gh pr create --base staging --title "COMMIT_MESSAGE" --body "PR_BODY"
 ```
@@ -77,6 +77,7 @@ gh pr create --base staging --title "COMMIT_MESSAGE" --body "PR_BODY"
 
 - Short, direct bullet points
 - No unnecessary explanation
-- "Tested manually" is acceptable for testing section
+- "Tested manually" is acceptable for testing section; include lint and boundary validation results when run
 - Checkboxes filled in appropriately
 - No screenshots section unless UI changes
+

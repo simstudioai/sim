@@ -12,21 +12,12 @@ const NOTIFICATION_WIDTH = 240
 const NOTIFICATION_GAP = 16
 
 export const DiffControls = memo(function DiffControls() {
-  const { isDiffReady, hasActiveDiff, acceptChanges, rejectChanges } = useWorkflowDiffStore(
-    useCallback(
-      (state) => ({
-        isDiffReady: state.isDiffReady,
-        hasActiveDiff: state.hasActiveDiff,
-        acceptChanges: state.acceptChanges,
-        rejectChanges: state.rejectChanges,
-      }),
-      []
-    )
-  )
+  const isDiffReady = useWorkflowDiffStore((state) => state.isDiffReady)
+  const hasActiveDiff = useWorkflowDiffStore((state) => state.hasActiveDiff)
+  const acceptChanges = useWorkflowDiffStore((state) => state.acceptChanges)
+  const rejectChanges = useWorkflowDiffStore((state) => state.rejectChanges)
 
-  const { activeWorkflowId } = useWorkflowRegistry(
-    useCallback((state) => ({ activeWorkflowId: state.activeWorkflowId }), [])
-  )
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
   const allNotifications = useNotificationStore((state) => state.notifications)
   const hasVisibleNotifications = useMemo(() => {

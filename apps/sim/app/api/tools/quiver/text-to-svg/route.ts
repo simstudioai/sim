@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { quiverTextToSvgContract } from '@/lib/api/contracts/tools/internal/quiver'
+import { quiverTextToSvgContract } from '@/lib/api/contracts/tools/quiver'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'

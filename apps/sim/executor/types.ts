@@ -208,6 +208,12 @@ export interface NormalizedBlockOutput {
 
 export interface BlockLog {
   blockId: string
+  /**
+   * Unique per-invocation ID. Same `blockId` can appear multiple times across loop/parallel
+   * iterations and across runs; `blockExecutionId` is unique for each individual execution
+   * and survives across `block:started` → `block:completed | block:error`.
+   */
+  blockExecutionId?: string
   blockName?: string
   blockType?: string
   startedAt: string

@@ -6,7 +6,14 @@
 
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  type InfiniteData,
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
@@ -89,8 +96,8 @@ export const tableKeys = {
   details: () => [...tableKeys.all, 'detail'] as const,
   detail: (tableId: string) => [...tableKeys.details(), tableId] as const,
   rowsRoot: (tableId: string) => [...tableKeys.detail(tableId), 'rows'] as const,
-  rows: (tableId: string, paramsKey: string) =>
-    [...tableKeys.rowsRoot(tableId), paramsKey] as const,
+  infiniteRows: (tableId: string, paramsKey: string) =>
+    [...tableKeys.rowsRoot(tableId), 'infinite', paramsKey] as const,
 }
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
@@ -118,22 +125,6 @@ type TableRowsDeleteResult = Pick<
   ContractJsonResponse<typeof deleteTableRowsContract>['data'],
   'deletedRowIds'
 >
-
-function createRowsParamsKey({
-  limit,
-  offset,
-  filter,
-  sort,
-  includeTotal,
-}: Omit<TableRowsParams, 'workspaceId' | 'tableId'>): string {
-  return JSON.stringify({
-    limit,
-    offset,
-    filter: filter ?? null,
-    sort: sort ?? null,
-    includeTotal: includeTotal ?? true,
-  })
-}
 
 async function fetchTable(
   workspaceId: string,
@@ -223,8 +214,17 @@ export function useTable(workspaceId: string | undefined, tableId: string | unde
   })
 }
 
+interface InfiniteTableRowsParams {
+  workspaceId: string
+  tableId: string
+  pageSize: number
+  filter?: Filter | null
+  sort?: Sort | null
+  enabled?: boolean
+}
+
 /**
- * Fetch rows for a table with pagination/filter/sort.
+ * Fetch a single page of rows for a table with pagination/filter/sort.
  *
  * Subscribes to the realtime `table-row-updated` / `table-row-deleted` socket
  * events for this `tableId`; on receipt, merges the delta into every cached
@@ -242,7 +242,13 @@ export function useTableRows({
   enabled = true,
 }: TableRowsParams & { enabled?: boolean }) {
   const queryClient = useQueryClient()
-  const paramsKey = createRowsParamsKey({ limit, offset, filter, sort, includeTotal })
+  const paramsKey = JSON.stringify({
+    limit,
+    offset,
+    filter: filter ?? null,
+    sort: sort ?? null,
+    includeTotal,
+  })
   const {
     isConnected: socketConnected,
     joinTable,
@@ -336,20 +342,11 @@ export function useTableRows({
   }, [tableId])
 
   return useQuery({
-    queryKey: tableKeys.rows(tableId, paramsKey),
+    queryKey: [...tableKeys.rowsRoot(tableId), paramsKey] as const,
     queryFn: ({ signal }) =>
-      fetchTableRows({
-        workspaceId,
-        tableId,
-        limit,
-        offset,
-        filter,
-        sort,
-        includeTotal,
-        signal,
-      }),
+      fetchTableRows({ workspaceId, tableId, limit, offset, filter, sort, includeTotal, signal }),
     enabled: Boolean(workspaceId && tableId) && enabled,
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
     // Polling is the fallback for when the socket isn't carrying updates.
     // - Pause while any mutation is in flight (optimistic-update guard).
@@ -363,6 +360,50 @@ export function useTableRows({
         : false
     },
     refetchIntervalInBackground: false,
+  })
+}
+
+/**
+ * Paginated row fetching with `useInfiniteQuery`. Each page requests `pageSize`
+ * rows at the next offset; `getNextPageParam` returns `undefined` once the last
+ * page comes back short, signalling end-of-list.
+ *
+ * Page 0 includes a server `COUNT(*)`; subsequent pages skip it.
+ */
+export function useInfiniteTableRows({
+  workspaceId,
+  tableId,
+  pageSize,
+  filter,
+  sort,
+  enabled = true,
+}: InfiniteTableRowsParams) {
+  const paramsKey = JSON.stringify({
+    pageSize,
+    filter: filter ?? null,
+    sort: sort ?? null,
+  })
+
+  return useInfiniteQuery({
+    queryKey: tableKeys.infiniteRows(tableId, paramsKey),
+    queryFn: ({ pageParam, signal }) =>
+      fetchTableRows({
+        workspaceId,
+        tableId,
+        limit: pageSize,
+        offset: pageParam,
+        filter,
+        sort,
+        includeTotal: pageParam === 0,
+        signal,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, _allPages, lastPageParam) => {
+      if (lastPage.rows.length < pageSize) return undefined
+      return lastPageParam + pageSize
+    },
+    enabled: Boolean(workspaceId && tableId) && enabled,
+    staleTime: 30 * 1000,
   })
 }
 
@@ -470,27 +511,92 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       const row = response.data.row
       if (!row) return
 
-      queryClient.setQueriesData<TableRowsResponse>(
-        { queryKey: tableKeys.rowsRoot(tableId) },
-        (old) => {
-          if (!old) return old
-          if (old.rows.some((r) => r.id === row.id)) return old
-          const shifted = old.rows.map((r) =>
-            r.position >= row.position ? { ...r, position: r.position + 1 } : r
-          )
-          const rows: TableRow[] = [...shifted, row].sort((a, b) => a.position - b.position)
-          return {
-            ...old,
-            rows,
-            totalCount: old.totalCount === null ? null : old.totalCount + 1,
-          }
-        }
-      )
+      reconcileCreatedRow(queryClient, tableId, row)
     },
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
     },
   })
+}
+
+/**
+ * Apply a row-level transformation to all cached infinite row queries for this
+ * table. Used for cell edits where positions don't change.
+ */
+function patchCachedRows(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string,
+  patchRow: (row: TableRow) => TableRow
+) {
+  queryClient.setQueriesData<InfiniteData<TableRowsResponse, number>>(
+    { queryKey: tableKeys.rowsRoot(tableId), exact: false },
+    (old) => {
+      if (!old) return old
+      return {
+        ...old,
+        pages: old.pages.map((page) => ({ ...page, rows: page.rows.map(patchRow) })),
+      }
+    }
+  )
+}
+
+/**
+ * Splice a server-returned new row into the paginated row cache. Bumps the
+ * `position` of any cached row at or past the new row's position, then inserts
+ * the row into the overlapping page (or appends to the last page when the
+ * position lies past everything fetched). `onSettled` invalidation reconciles
+ * drift after the next refetch.
+ */
+function reconcileCreatedRow(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string,
+  row: TableRow
+) {
+  queryClient.setQueriesData<InfiniteData<TableRowsResponse, number>>(
+    { queryKey: tableKeys.rowsRoot(tableId), exact: false },
+    (old) => {
+      if (!old) return old
+      if (old.pages.some((p) => p.rows.some((r) => r.id === row.id))) return old
+
+      const pages = old.pages.map((page) =>
+        page.rows.some((r) => r.position >= row.position)
+          ? {
+              ...page,
+              rows: page.rows.map((r) =>
+                r.position >= row.position ? { ...r, position: r.position + 1 } : r
+              ),
+            }
+          : page
+      )
+
+      let inserted = false
+      const nextPages = pages.map((page) => {
+        if (inserted) return page
+        const last = page.rows[page.rows.length - 1]
+        const fits = last === undefined || last.position >= row.position
+        if (!fits) return page
+        inserted = true
+        const merged = [...page.rows, row].sort((a, b) => a.position - b.position)
+        return { ...page, rows: merged }
+      })
+
+      if (!inserted && nextPages.length > 0) {
+        const lastIdx = nextPages.length - 1
+        const lastPage = nextPages[lastIdx]
+        nextPages[lastIdx] = {
+          ...lastPage,
+          rows: [...lastPage.rows, row].sort((a, b) => a.position - b.position),
+        }
+      }
+
+      const firstPage = nextPages[0]
+      if (firstPage && firstPage.totalCount !== null && firstPage.totalCount !== undefined) {
+        nextPages[0] = { ...firstPage, totalCount: firstPage.totalCount + 1 }
+      }
+
+      return { ...old, pages: nextPages }
+    }
+  )
 }
 
 type BatchCreateTableRowsParams = Omit<BatchInsertTableRowsBodyInput, 'workspaceId' | 'rows'> & {
@@ -541,21 +647,12 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
     onMutate: ({ rowId, data }) => {
       void queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 
-      const previousQueries = queryClient.getQueriesData<TableRowsResponse>({
+      const previousQueries = queryClient.getQueriesData<InfiniteData<TableRowsResponse, number>>({
         queryKey: tableKeys.rowsRoot(tableId),
       })
 
-      queryClient.setQueriesData<TableRowsResponse>(
-        { queryKey: tableKeys.rowsRoot(tableId) },
-        (old) => {
-          if (!old) return old
-          return {
-            ...old,
-            rows: old.rows.map((row) =>
-              row.id === rowId ? { ...row, data: { ...row.data, ...data } as RowData } : row
-            ),
-          }
-        }
+      patchCachedRows(queryClient, tableId, (row) =>
+        row.id === rowId ? { ...row, data: { ...row.data, ...data } as RowData } : row
       )
 
       return { previousQueries }
@@ -596,26 +693,17 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
     onMutate: ({ updates }) => {
       void queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 
-      const previousQueries = queryClient.getQueriesData<TableRowsResponse>({
+      const previousQueries = queryClient.getQueriesData<InfiniteData<TableRowsResponse, number>>({
         queryKey: tableKeys.rowsRoot(tableId),
       })
 
       const updateMap = new Map(updates.map((u) => [u.rowId, u.data]))
 
-      queryClient.setQueriesData<TableRowsResponse>(
-        { queryKey: tableKeys.rowsRoot(tableId) },
-        (old) => {
-          if (!old) return old
-          return {
-            ...old,
-            rows: old.rows.map((row) => {
-              const patch = updateMap.get(row.id)
-              if (!patch) return row
-              return { ...row, data: { ...row.data, ...patch } as RowData }
-            }),
-          }
-        }
-      )
+      patchCachedRows(queryClient, tableId, (row) => {
+        const patch = updateMap.get(row.id)
+        if (!patch) return row
+        return { ...row, data: { ...row.data, ...patch } as RowData }
+      })
 
       return { previousQueries }
     },
@@ -810,7 +898,7 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
 }
 
 /**
- * Delete a column from a table.
+ * Restore an archived table.
  */
 export function useRestoreTable() {
   const queryClient = useQueryClient()
@@ -874,9 +962,11 @@ interface ImportCsvIntoTableParams {
   file: File
   mode: CsvImportMode
   mapping?: CsvHeaderMapping
+  /** CSV headers to auto-create as new columns on the target table. */
+  createColumns?: string[]
 }
 
-interface ImportCsvIntoTableOutcome {
+interface ImportCsvIntoTableResponse {
   success: boolean
   data?: {
     tableId: string
@@ -905,7 +995,8 @@ export function useImportCsvIntoTable() {
       file,
       mode,
       mapping,
-    }: ImportCsvIntoTableParams): Promise<ImportCsvIntoTableOutcome> => {
+      createColumns,
+    }: ImportCsvIntoTableParams): Promise<ImportCsvIntoTableResponse> => {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('workspaceId', workspaceId)
@@ -913,9 +1004,12 @@ export function useImportCsvIntoTable() {
       if (mapping) {
         formData.append('mapping', JSON.stringify(mapping))
       }
+      if (createColumns && createColumns.length > 0) {
+        formData.append('createColumns', JSON.stringify(createColumns))
+      }
 
       // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
-      const response = await fetch(`/api/table/${tableId}/import-csv`, {
+      const response = await fetch(`/api/table/${tableId}/import`, {
         method: 'POST',
         body: formData,
       })
@@ -935,6 +1029,34 @@ export function useImportCsvIntoTable() {
       logger.error('Failed to import CSV into table:', error)
     },
   })
+}
+
+/**
+ * Downloads the full contents of a table to the user's device by streaming
+ * `/api/table/[tableId]/export`. Defaults to CSV; pass `'json'` for JSON.
+ */
+export async function downloadTableExport(
+  tableId: string,
+  fileName: string,
+  format: 'csv' | 'json' = 'csv'
+): Promise<void> {
+  const url = `/api/table/${tableId}/export?format=${format}&t=${Date.now()}`
+  // boundary-raw-fetch: streaming download to a Blob, requestJson cannot consume non-JSON streams
+  const response = await fetch(url, { cache: 'no-store' })
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.error || `Failed to export table: ${response.statusText}`)
+  }
+  const blob = await response.blob()
+  const objectUrl = URL.createObjectURL(blob)
+  const safeName = fileName.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'table'
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = `${safeName}.${format}`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(objectUrl)
 }
 
 export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
@@ -963,7 +1085,7 @@ interface RunGroupVariables {
    * `incomplete` — only rows that have never run or whose last run ended in
    * `failed`/`aborted`. Mirrored by the server-side filter.
    */
-  mode?: 'all' | 'incomplete'
+  runMode?: 'all' | 'incomplete'
 }
 
 type RowsCacheSnapshots = Array<[ReadonlyArray<unknown>, TableRowsResponse]>
@@ -1021,19 +1143,19 @@ export function useRunGroup({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ groupId, mode = 'all' }: RunGroupVariables) => {
+    mutationFn: async ({ groupId, runMode = 'all' }: RunGroupVariables) => {
       return requestJson(runWorkflowGroupContract, {
         params: { tableId, groupId },
-        body: { workspaceId, mode },
+        body: { workspaceId, runMode },
       })
     },
-    onMutate: async ({ groupId, workflowId, mode = 'all' }) => {
+    onMutate: async ({ groupId, workflowId, runMode = 'all' }) => {
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
         const exec = r.executions?.[groupId] as RowExecutionMetadata | undefined
         if (exec?.status === 'running' || exec?.status === 'pending') return null
         // Mirror the server-side `incomplete` filter so the optimistic update
         // doesn't flash `pending` on rows the server is going to skip.
-        if (mode === 'incomplete' && exec?.status === 'completed') return null
+        if (runMode === 'incomplete' && exec?.status === 'completed') return null
         const pending: RowExecutionMetadata = {
           status: 'pending',
           executionId: exec?.executionId ?? null,

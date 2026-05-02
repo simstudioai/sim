@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { internalToolResponseSchema } from '@/lib/api/contracts/tools/internal/shared'
+import { genericToolResponseSchema } from '@/lib/api/contracts/tools/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const a2aBaseBodySchema = z.object({
@@ -53,7 +53,7 @@ export const a2aGetAgentCardContract = defineRouteContract({
   body: a2aGetAgentCardBodySchema,
   response: {
     mode: 'json',
-    schema: internalToolResponseSchema,
+    schema: genericToolResponseSchema,
   },
 })
 
@@ -63,7 +63,7 @@ export const a2aSendMessageContract = defineRouteContract({
   body: a2aSendMessageBodySchema,
   response: {
     mode: 'json',
-    schema: internalToolResponseSchema,
+    schema: genericToolResponseSchema,
   },
 })
 
@@ -73,7 +73,7 @@ export const a2aGetTaskContract = defineRouteContract({
   body: a2aGetTaskBodySchema,
   response: {
     mode: 'json',
-    schema: internalToolResponseSchema,
+    schema: genericToolResponseSchema,
   },
 })
 
@@ -83,7 +83,7 @@ export const a2aCancelTaskContract = defineRouteContract({
   body: a2aCancelTaskBodySchema,
   response: {
     mode: 'json',
-    schema: internalToolResponseSchema,
+    schema: genericToolResponseSchema,
   },
 })
 
@@ -93,7 +93,7 @@ export const a2aResubscribeContract = defineRouteContract({
   body: a2aResubscribeBodySchema,
   response: {
     mode: 'json',
-    schema: internalToolResponseSchema,
+    schema: genericToolResponseSchema,
   },
 })
 
@@ -103,7 +103,7 @@ export const a2aSetPushNotificationContract = defineRouteContract({
   body: a2aSetPushNotificationBodySchema,
   response: {
     mode: 'json',
-    schema: internalToolResponseSchema,
+    schema: genericToolResponseSchema,
   },
 })
 
@@ -113,7 +113,7 @@ export const a2aGetPushNotificationContract = defineRouteContract({
   body: a2aGetPushNotificationBodySchema,
   response: {
     mode: 'json',
-    schema: internalToolResponseSchema,
+    schema: genericToolResponseSchema,
   },
 })
 
@@ -123,6 +123,6 @@ export const a2aDeletePushNotificationContract = defineRouteContract({
   body: a2aDeletePushNotificationBodySchema,
   response: {
     mode: 'json',
-    schema: internalToolResponseSchema,
+    schema: genericToolResponseSchema,
   },
 })

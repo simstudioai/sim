@@ -82,7 +82,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           {
             error: errorMessage,
             authRequired: true,
-            requiredScopes: ['read:jira-work', 'read:project:jira'],
+            requiredScopes: ['read:jira-work'],
           },
           { status: response.status }
         )
@@ -202,7 +202,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               {
                 error: errorMessage,
                 authRequired: true,
-                requiredScopes: ['read:jira-work', 'read:project:jira'],
+                requiredScopes: ['read:jira-work'],
               },
               { status: response.status }
             )

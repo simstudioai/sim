@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const internalToolResponseSchema = z
+export const genericToolResponseSchema = z
   .object({
     success: z.boolean().optional(),
     output: z.unknown().optional(),

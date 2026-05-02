@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { internalToolResponseSchema } from '@/lib/api/contracts/tools/internal/shared'
+import { genericToolResponseSchema } from '@/lib/api/contracts/tools/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const sapHttpMethodSchema = z.enum(['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'MERGE'])
@@ -270,6 +270,6 @@ export const sapS4HanaProxyContract = defineRouteContract({
   body: sapS4HanaProxyBodySchema,
   response: {
     mode: 'json',
-    schema: internalToolResponseSchema,
+    schema: genericToolResponseSchema,
   },
 })

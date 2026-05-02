@@ -1,18 +1,21 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
   Button,
   Checkbox,
+  Download,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
   Skeleton,
+  toast,
   Upload,
 } from '@/components/emcn'
 import {
@@ -34,6 +37,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
+  downloadTableExport,
   useAddTableColumn,
   useBatchCreateTableRows,
   useBatchUpdateTableRows,
@@ -79,9 +83,12 @@ import {
   readExecution,
 } from './utils'
 
+const logger = createLogger('TableView')
+
 const EMPTY_CHECKED_ROWS = new Set<number>()
 const COL_WIDTH_MIN = 80
-const CHECKBOX_COL_WIDTH = 56
+const COL_WIDTH_AUTO_FIT_MAX = 1000
+const CHECKBOX_COL_WIDTH = 40
 const ADD_COL_WIDTH = 120
 /** Width of the column-config slideout (matches `column-sidebar.tsx`'s `w-[400px]`). */
 const COLUMN_SIDEBAR_WIDTH = 400
@@ -168,6 +175,9 @@ export function Table({
     isLoadingTable,
     rows,
     isLoadingRows,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
     workflows,
     columns,
     tableWorkflowGroups,
@@ -175,6 +185,14 @@ export function Table({
     columnSourceInfo,
     workflowNameById,
   } = useTable({ workspaceId, tableId, queryOptions })
+
+  const fetchNextPageRef = useRef(fetchNextPage)
+  fetchNextPageRef.current = fetchNextPage
+  const hasNextPageRef = useRef(hasNextPage)
+  hasNextPageRef.current = hasNextPage
+  const isFetchingNextPageRef = useRef(isFetchingNextPage)
+  isFetchingNextPageRef.current = isFetchingNextPage
+  const isAppendingRowRef = useRef(false)
 
   const userPermissions = useUserPermissionsContext()
   const canEditRef = useRef(userPermissions.canEdit)
@@ -204,8 +222,8 @@ export function Table({
   const updateWorkflowGroupMutation = useUpdateWorkflowGroup({ workspaceId, tableId })
 
   const handleRunGroup = useCallback(
-    (groupId: string, workflowId: string, mode: 'all' | 'incomplete' = 'all') => {
-      runGroupMutation.mutate({ groupId, workflowId, mode })
+    (groupId: string, workflowId: string, runMode: 'all' | 'incomplete' = 'all') => {
+      runGroupMutation.mutate({ groupId, workflowId, runMode })
     },
     // mutate is stable; intentionally excluded from deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -602,7 +620,21 @@ export function Table({
     )
   }, [contextMenu.row, closeContextMenu])
 
-  const handleAppendRow = useCallback(() => {
+  const handleAppendRow = useCallback(async () => {
+    if (isAppendingRowRef.current) return
+    isAppendingRowRef.current = true
+    try {
+      while (hasNextPageRef.current) {
+        const result = await fetchNextPageRef.current()
+        if (!result.hasNextPage) break
+      }
+    } catch (error) {
+      isAppendingRowRef.current = false
+      logger.error('Failed to load remaining rows before appending', { error })
+      toast.error('Failed to load all rows. Try again.', { duration: 5000 })
+      return
+    }
+
     createRef.current(
       { data: {} },
       {
@@ -615,6 +647,9 @@ export function Table({
               position: maxPositionRef.current + 1,
             })
           }
+        },
+        onSettled: () => {
+          isAppendingRowRef.current = false
         },
       }
     )
@@ -835,7 +870,7 @@ export function Table({
       host.removeChild(measure)
     }
 
-    const newWidth = Math.min(Math.ceil(maxWidth), 600)
+    const newWidth = Math.min(Math.ceil(maxWidth), COL_WIDTH_AUTO_FIT_MAX)
     setColumnWidths((prev) => ({ ...prev, [columnKey]: newWidth }))
     const updated = { ...columnWidthsRef.current, [columnKey]: newWidth }
     columnWidthsRef.current = updated
@@ -1042,7 +1077,31 @@ export function Table({
   }
 
   useEffect(() => {
-    if (!tableData?.metadata) return
+    const scrollEl = scrollRef.current
+    if (!scrollEl) return
+
+    const SCROLL_PREFETCH_PX = 600
+
+    function maybeFetchNext() {
+      if (!hasNextPageRef.current || isFetchingNextPageRef.current) return
+      if (!scrollEl) return
+      const distanceFromBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight
+      if (distanceFromBottom <= SCROLL_PREFETCH_PX) {
+        fetchNextPageRef.current().catch((error) => {
+          logger.error('Failed to fetch next page of rows', { error })
+        })
+      }
+    }
+
+    maybeFetchNext()
+    scrollEl.addEventListener('scroll', maybeFetchNext, { passive: true })
+    return () => {
+      scrollEl.removeEventListener('scroll', maybeFetchNext)
+    }
+  }, [tableData?.id])
+
+  useEffect(() => {
+    if (!tableData?.metadata || metadataSeededRef.current) return
     if (!tableData.metadata.columnWidths && !tableData.metadata.columnOrder) return
     // First load: seed both from the server and remember we've seeded.
     if (!metadataSeededRef.current) {
@@ -2257,6 +2316,16 @@ export function Table({
     [handleAddColumn, addColumnMutation.isPending, userPermissions.canEdit]
   )
 
+  const handleExportCsv = useCallback(async () => {
+    if (!tableData) return
+    try {
+      await downloadTableExport(tableData.id, tableData.name)
+    } catch (err) {
+      logger.error('Failed to export table:', err)
+      toast.error('Failed to export table')
+    }
+  }, [tableData])
+
   const headerActions = useMemo(
     () =>
       tableData
@@ -2267,9 +2336,15 @@ export function Table({
               onClick: () => setIsImportCsvOpen(true),
               disabled: userPermissions.canEdit !== true,
             },
+            {
+              label: 'Export CSV',
+              icon: Download,
+              onClick: () => void handleExportCsv(),
+              disabled: tableData.rowCount === 0,
+            },
           ]
         : undefined,
-    [tableData, userPermissions.canEdit]
+    [tableData, userPermissions.canEdit, handleExportCsv]
   )
 
   const activeSortState = useMemo(() => {

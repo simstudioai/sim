@@ -70,6 +70,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'read:hierarchical-content:confluence': 'View page hierarchy (children and ancestors)',
   'read:content.metadata:confluence': 'View content metadata (required for ancestors)',
   'read:user:confluence': 'View Confluence user profiles',
+  'read:confluence-user': 'View Confluence user profiles (v1 API)',
   'read:task:confluence': 'View Confluence inline tasks',
   'write:task:confluence': 'Update Confluence inline tasks',
   'delete:blogpost:confluence': 'Delete Confluence blog posts',
@@ -200,6 +201,9 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
     'Add and remove participants from customer requests',
   'read:request.approval:jira-service-management': 'View approvals on customer requests',
   'write:request.approval:jira-service-management': 'Approve or decline customer requests',
+  'read:form:jira-service-management': 'View JSM forms and templates',
+  'write:form:jira-service-management': 'Attach, save, and submit JSM forms',
+  'delete:form:jira-service-management': 'Delete JSM forms',
 
   // Microsoft scopes
   'User.Read': 'Read Microsoft user',

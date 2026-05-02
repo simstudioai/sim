@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
@@ -52,6 +53,7 @@ const logger = createLogger('BlockExecutor')
 
 export class BlockExecutor {
   private execLogger: Logger
+  private pendingCallbacks: Set<Promise<void>> = new Set()
 
   constructor(
     private blockHandlers: BlockHandler[],
@@ -95,7 +97,13 @@ export class BlockExecutor {
     if (!isSentinel) {
       blockLog = this.createBlockLog(ctx, node.id, block, node, startedAt)
       ctx.blockLogs.push(blockLog)
-      this.fireBlockStartCallback(ctx, node, block, blockLog.executionOrder)
+      this.fireBlockStartCallback(
+        ctx,
+        node,
+        block,
+        blockLog.executionOrder,
+        blockLog.blockExecutionId
+      )
     }
 
     let resolvedInputs: Record<string, any> = {}
@@ -207,7 +215,8 @@ export class BlockExecutor {
           blockLog.startedAt,
           blockLog.executionOrder,
           blockLog.endedAt,
-          childWorkflowInstanceId
+          childWorkflowInstanceId,
+          blockLog.blockExecutionId
         )
       }
 
@@ -316,7 +325,8 @@ export class BlockExecutor {
         blockLog.startedAt,
         blockLog.executionOrder,
         blockLog.endedAt,
-        childWorkflowInstanceId
+        childWorkflowInstanceId,
+        blockLog.blockExecutionId
       )
     }
 
@@ -390,6 +400,7 @@ export class BlockExecutor {
 
     return {
       blockId,
+      blockExecutionId: generateId(),
       blockName,
       blockType: block.metadata?.id ?? DEFAULTS.BLOCK_TYPE,
       startedAt,
@@ -467,7 +478,8 @@ export class BlockExecutor {
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
-    executionOrder: number
+    executionOrder: number,
+    blockExecutionId: string | undefined
   ): void {
     if (!this.contextExtensions.onBlockStart) return
 
@@ -476,14 +488,15 @@ export class BlockExecutor {
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
     const iterationContext = getIterationContext(ctx, node?.metadata)
 
-    void this.contextExtensions
+    const promise = this.contextExtensions
       .onBlockStart(
         blockId,
         blockName,
         blockType,
         executionOrder,
         iterationContext,
-        ctx.childWorkflowContext
+        ctx.childWorkflowContext,
+        blockExecutionId
       )
       .catch((error) => {
         this.execLogger.warn('Block start callback failed', {
@@ -492,6 +505,7 @@ export class BlockExecutor {
           error: toError(error).message,
         })
       })
+    this.trackCallback(promise)
   }
 
   /**
@@ -509,7 +523,8 @@ export class BlockExecutor {
     startedAt: string,
     executionOrder: number,
     endedAt: string,
-    childWorkflowInstanceId?: string
+    childWorkflowInstanceId?: string,
+    blockExecutionId?: string
   ): void {
     if (!this.contextExtensions.onBlockComplete) return
 
@@ -518,7 +533,7 @@ export class BlockExecutor {
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
     const iterationContext = getIterationContext(ctx, node?.metadata)
 
-    void this.contextExtensions
+    const promise = this.contextExtensions
       .onBlockComplete(
         blockId,
         blockName,
@@ -531,6 +546,7 @@ export class BlockExecutor {
           executionOrder,
           endedAt,
           childWorkflowInstanceId,
+          blockExecutionId,
         },
         iterationContext,
         ctx.childWorkflowContext
@@ -542,6 +558,24 @@ export class BlockExecutor {
           error: toError(error).message,
         })
       })
+    this.trackCallback(promise)
+  }
+
+  private trackCallback(promise: Promise<void>): void {
+    this.pendingCallbacks.add(promise)
+    promise.finally(() => {
+      this.pendingCallbacks.delete(promise)
+    })
+  }
+
+  /**
+   * Resolves once every in-flight `onBlockStart` / `onBlockComplete` callback has settled.
+   * Drained at terminal-event boundaries so block events land before `execution:*` events.
+   */
+  async awaitPendingCallbacks(): Promise<void> {
+    while (this.pendingCallbacks.size > 0) {
+      await Promise.allSettled([...this.pendingCallbacks])
+    }
   }
 
   private preparePauseResumeSelfReference(

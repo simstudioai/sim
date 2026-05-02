@@ -919,7 +919,8 @@ async function handleExecutePost(
             blockType: string,
             executionOrder: number,
             iterationContext?: IterationContext,
-            childWorkflowContext?: ChildWorkflowContext
+            childWorkflowContext?: ChildWorkflowContext,
+            blockExecutionId?: string
           ) => {
             reqLogger.info('onBlockStart called', { blockId, blockName, blockType })
             sendEvent({
@@ -945,6 +946,7 @@ async function handleExecutePost(
                   childWorkflowBlockId: childWorkflowContext.parentBlockId,
                   childWorkflowName: childWorkflowContext.workflowName,
                 }),
+                ...(blockExecutionId && { blockExecutionId }),
               },
             })
           }
@@ -955,7 +957,8 @@ async function handleExecutePost(
             blockType: string,
             callbackData: any,
             iterationContext?: IterationContext,
-            childWorkflowContext?: ChildWorkflowContext
+            childWorkflowContext?: ChildWorkflowContext,
+            blockExecutionId?: string
           ) => {
             const hasError = callbackData.output?.error
             const childWorkflowData = childWorkflowContext
@@ -967,6 +970,11 @@ async function handleExecutePost(
 
             const instanceData = callbackData.childWorkflowInstanceId
               ? { childWorkflowInstanceId: callbackData.childWorkflowInstanceId }
+              : {}
+
+            const resolvedBlockExecutionId = blockExecutionId ?? callbackData.blockExecutionId
+            const blockExecData = resolvedBlockExecutionId
+              ? { blockExecutionId: resolvedBlockExecutionId }
               : {}
 
             if (hasError) {
@@ -1002,6 +1010,7 @@ async function handleExecutePost(
                   }),
                   ...childWorkflowData,
                   ...instanceData,
+                  ...blockExecData,
                 },
               })
             } else {
@@ -1036,6 +1045,7 @@ async function handleExecutePost(
                   }),
                   ...childWorkflowData,
                   ...instanceData,
+                  ...blockExecData,
                 },
               })
             }
@@ -1165,7 +1175,6 @@ async function handleExecutePost(
                 data: {
                   error: timeoutErrorMessage,
                   duration: result.metadata?.duration || 0,
-                  finalBlockLogs: result.logs,
                 },
               })
               finalMetaStatus = 'error'
@@ -1179,7 +1188,6 @@ async function handleExecutePost(
                 workflowId,
                 data: {
                   duration: result.metadata?.duration || 0,
-                  finalBlockLogs: result.logs,
                 },
               })
               finalMetaStatus = 'cancelled'
@@ -1244,7 +1252,6 @@ async function handleExecutePost(
             data: {
               error: executionResult?.error || errorMessage,
               duration: executionResult?.metadata?.duration || 0,
-              finalBlockLogs: executionResult?.logs,
             },
           })
           finalMetaStatus = 'error'
