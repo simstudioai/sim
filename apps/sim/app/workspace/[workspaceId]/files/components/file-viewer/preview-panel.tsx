@@ -22,7 +22,6 @@ import 'prismjs/components/prism-sql'
 import 'prismjs/components/prism-python'
 import { cn } from '@/lib/core/utils/cn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
-import { getBrowserOrigin } from '@/lib/core/utils/urls'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import { DataTable } from './data-table'
@@ -477,11 +476,7 @@ function resolveSimFileUrl(src: string | undefined): string | undefined {
   if (!src) return src
   try {
     const parsed = new URL(src, 'http://placeholder')
-    const isRelative = parsed.origin === 'http://placeholder'
-    const browserOrigin = getBrowserOrigin()
-    // null means SSR — treat as same-origin so server and client produce identical output
-    const isSameOrigin = browserOrigin === null || parsed.origin === browserOrigin
-    if (!isRelative && !isSameOrigin) return src
+    if (parsed.origin !== 'http://placeholder') return src
     const [, seg1, , seg3, fileId] = parsed.pathname.split('/')
     if (seg1 === 'workspace' && seg3 === 'files' && fileId) {
       return `/api/files/view/${fileId}`
