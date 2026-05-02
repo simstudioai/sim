@@ -382,4 +382,97 @@ describe('duplicateWorkflow ordering', () => {
     expect(remappedVarId).toBe(newVarIds[0])
     expect(copiedSubBlocks.variables.value[0].variableName).toBe('customerName')
   })
+
+  it('preserves stale variable references instead of failing the duplicate', async () => {
+    let insertedBlocks: Array<Record<string, unknown>> | null = null
+    const tx = createMockTx(
+      [
+        [
+          {
+            id: 'source-workflow-id',
+            workspaceId: 'workspace-123',
+            folderId: null,
+            description: 'source',
+            color: '#000000',
+            variables: {
+              'live-var-id': {
+                id: 'live-var-id',
+                workflowId: 'source-workflow-id',
+                name: 'customerName',
+                type: 'string',
+                value: 'Ada',
+              },
+            },
+          },
+        ],
+        [],
+        [],
+        [
+          {
+            id: 'source-block-id',
+            workflowId: 'source-workflow-id',
+            type: 'agent',
+            name: 'Agent',
+            parentId: null,
+            extent: null,
+            data: {},
+            subBlocks: {
+              variables: {
+                id: 'variables',
+                type: 'variables-input',
+                value: [
+                  {
+                    id: 'assignment-1',
+                    variableId: 'deleted-var-id',
+                    variableName: 'customerName',
+                    type: 'string',
+                    value: 'Grace',
+                    isExisting: true,
+                  },
+                ],
+              },
+            },
+            position: { x: 0, y: 0 },
+            enabled: true,
+            horizontalHandles: true,
+            isWide: false,
+            height: 0,
+            advancedMode: false,
+            triggerMode: false,
+            locked: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+        [],
+        [],
+      ],
+      undefined,
+      (values) => {
+        if (Array.isArray(values)) {
+          insertedBlocks = values as Array<Record<string, unknown>>
+        }
+      }
+    )
+
+    mockDb.transaction.mockImplementation(async (callback: (txArg: unknown) => Promise<unknown>) =>
+      callback(tx)
+    )
+
+    await expect(
+      duplicateWorkflow({
+        sourceWorkflowId: 'source-workflow-id',
+        userId: 'user-123',
+        name: 'Duplicated',
+        workspaceId: 'workspace-123',
+        folderId: null,
+        requestId: 'req-stale',
+      })
+    ).resolves.toBeDefined()
+
+    expect(insertedBlocks).toHaveLength(1)
+    const copiedSubBlocks = insertedBlocks?.[0].subBlocks as Record<string, any>
+    expect(copiedSubBlocks.variables.value[0].variableId).toBe('deleted-var-id')
+    expect(copiedSubBlocks.variables.value[0].variableName).toBe('customerName')
+  })
 })

@@ -134,10 +134,13 @@ function remapVariableAssignment(value: unknown, varIdMap: Map<string, string>):
 
   if (typeof assignment.variableId === 'string') {
     const newVarId = varIdMap.get(assignment.variableId)
-    if (!newVarId) {
-      throw new Error(`Variable reference ${assignment.variableId} could not be remapped`)
+    if (newVarId) {
+      next.variableId = newVarId
+    } else {
+      logger.warn('Skipping unknown variable reference during duplication', {
+        variableId: assignment.variableId,
+      })
     }
-    next.variableId = newVarId
   }
 
   return next
