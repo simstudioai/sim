@@ -245,7 +245,8 @@ export const PlusMenuDropdown = React.memo(
             align='start'
             side='top'
             sideOffset={8}
-            avoidCollisions={!isMention}
+            avoidCollisions
+            collisionPadding={8}
             className={cn(
               'flex flex-col overflow-hidden',
               // Plus-click shows short fixed labels (Workflows, Tables, …) — let it size
