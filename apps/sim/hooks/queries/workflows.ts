@@ -405,7 +405,7 @@ export function useDuplicateWorkflowMutation() {
                   workspaceId: data.workspaceId,
                   folderId: data.folderId,
                   sortOrder: data.sortOrder,
-                  locked: false,
+                  locked: data.locked,
                 }
               : w
           )
