@@ -320,7 +320,7 @@ export function isNetworkError(error: unknown): boolean {
     message.includes('connection') ||
     message.includes('timeout') ||
     message.includes('timed out') ||
-    message.includes('ecconnreset')
+    message.includes('econnreset')
   )
 }
 

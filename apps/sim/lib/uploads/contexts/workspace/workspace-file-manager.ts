@@ -349,12 +349,12 @@ export async function registerUploadedWorkspaceFile(params: {
       await cleanupOrphan('metadata insert failure')
       throw insertError
     }
-  }
 
-  try {
-    await incrementStorageUsage(userId, verifiedSize)
-  } catch (storageError) {
-    logger.error('Failed to update storage tracking:', storageError)
+    try {
+      await incrementStorageUsage(userId, verifiedSize)
+    } catch (storageError) {
+      logger.error('Failed to update storage tracking:', storageError)
+    }
   }
 
   const pathPrefix = getServePathPrefix()

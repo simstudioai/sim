@@ -455,6 +455,7 @@ const uploadViaMultipart = async (
   })
 
   if (!completeResponse.ok) {
+    await abortMultipart()
     throw new DirectUploadError(
       `Failed to complete multipart upload: ${completeResponse.statusText}`,
       'MULTIPART_ERROR'
