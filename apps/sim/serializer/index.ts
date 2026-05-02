@@ -436,7 +436,7 @@ export class Serializer {
     // Validate tool parameters (for blocks with tools).
     // Lookup contract: a tool param's value lives under its own paramId in `params`.
     // Block subBlocks must align via either `id === paramId` or `canonicalParamId === paramId`
-    // (enforced by `bun run check:block-canonical`), so this validator never has to invoke
+    // (enforced by apps/sim/scripts/check-block-registry.ts), so this validator never has to invoke
     // the block's `tools.config.params` mapper.
     if (currentTool) {
       Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]) => {
