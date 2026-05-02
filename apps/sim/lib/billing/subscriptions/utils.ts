@@ -14,7 +14,7 @@ import {
   isTeam,
 } from '@/lib/billing/plan-helpers'
 import { parseEnterpriseSubscriptionMetadata } from '@/lib/billing/types'
-import { env } from '@/lib/core/config/env'
+import { env, envNumber } from '@/lib/core/config/env'
 
 export const ENTITLED_SUBSCRIPTION_STATUSES = ['active', 'past_due'] as const
 
@@ -52,28 +52,28 @@ export function hasUsableSubscriptionAccess(
  * Get the free tier limit from env or fallback to default
  */
 export function getFreeTierLimit(): number {
-  return env.FREE_TIER_COST_LIMIT || DEFAULT_FREE_CREDITS
+  return envNumber(env.FREE_TIER_COST_LIMIT, DEFAULT_FREE_CREDITS)
 }
 
 /**
  * Get the pro tier limit from env or fallback to default
  */
 export function getProTierLimit(): number {
-  return env.PRO_TIER_COST_LIMIT || DEFAULT_PRO_TIER_COST_LIMIT
+  return envNumber(env.PRO_TIER_COST_LIMIT, DEFAULT_PRO_TIER_COST_LIMIT)
 }
 
 /**
  * Get the team tier limit per seat from env or fallback to default
  */
 export function getTeamTierLimitPerSeat(): number {
-  return env.TEAM_TIER_COST_LIMIT || DEFAULT_TEAM_TIER_COST_LIMIT
+  return envNumber(env.TEAM_TIER_COST_LIMIT, DEFAULT_TEAM_TIER_COST_LIMIT)
 }
 
 /**
  * Get the enterprise tier limit per seat from env or fallback to default
  */
 export function getEnterpriseTierLimitPerSeat(): number {
-  return env.ENTERPRISE_TIER_COST_LIMIT || DEFAULT_ENTERPRISE_TIER_COST_LIMIT
+  return envNumber(env.ENTERPRISE_TIER_COST_LIMIT, DEFAULT_ENTERPRISE_TIER_COST_LIMIT)
 }
 
 export function checkEnterprisePlan(subscription: any): boolean {
