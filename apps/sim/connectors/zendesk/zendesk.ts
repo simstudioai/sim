@@ -134,17 +134,23 @@ async function fetchTickets(
   const limit = maxTickets || DEFAULT_MAX_TICKETS
   let url: string | null = `${baseUrl}/api/v2/tickets.json?per_page=${TICKETS_PER_PAGE}`
 
-  if (statusFilter && statusFilter !== 'all' && VALID_TICKET_STATUSES.has(statusFilter)) {
-    if (limit > SEARCH_API_RESULT_CAP) {
+  if (statusFilter && statusFilter !== 'all') {
+    if (VALID_TICKET_STATUSES.has(statusFilter)) {
+      if (limit > SEARCH_API_RESULT_CAP) {
+        logger.warn(
+          `Zendesk Search API caps at ${SEARCH_API_RESULT_CAP} results; requested limit ${limit} will be truncated. Remove status filter to use the unbounded tickets endpoint.`
+        )
+      }
+      const params = new URLSearchParams({
+        query: `type:ticket status:${statusFilter}`,
+        per_page: String(TICKETS_PER_PAGE),
+      })
+      url = `${baseUrl}/api/v2/search.json?${params.toString()}`
+    } else {
       logger.warn(
-        `Zendesk Search API caps at ${SEARCH_API_RESULT_CAP} results; requested limit ${limit} will be truncated. Remove status filter to use the unbounded tickets endpoint.`
+        `Invalid Zendesk statusFilter "${statusFilter}"; falling back to all tickets. Valid values: ${[...VALID_TICKET_STATUSES].join(', ')}.`
       )
     }
-    const params = new URLSearchParams({
-      query: `type:ticket status:${statusFilter}`,
-      per_page: String(TICKETS_PER_PAGE),
-    })
-    url = `${baseUrl}/api/v2/search.json?${params.toString()}`
   }
 
   while (url && allTickets.length < limit) {

@@ -464,7 +464,6 @@ export const evernoteConnector: ConnectorConfig = {
       const plainText = htmlToPlainText(note.content)
       const title = note.title || 'Untitled'
       const content = plainText.trim() ? plainText : title
-      if (!content.trim()) return null
 
       const shardId = extractShardId(accessToken)
       const userId = extractUserId(accessToken)

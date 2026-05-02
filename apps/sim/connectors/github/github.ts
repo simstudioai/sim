@@ -312,7 +312,7 @@ export const githubConnector: ConnectorConfig = {
       let content: string
       if (encoding === 'base64' && rawContent.length > 0) {
         content = Buffer.from(rawContent, 'base64').toString('utf8')
-      } else if ((encoding === 'none' || rawContent.length === 0) && data.sha) {
+      } else if (encoding === 'none' && data.sha && size > 0) {
         content = await fetchBlobContent(accessToken, owner, repo, data.sha as string)
       } else {
         content = ''

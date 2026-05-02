@@ -479,7 +479,7 @@ export const salesforceConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      return { valid: false, error: toError(error).message }
+      return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
     }
   },
 
