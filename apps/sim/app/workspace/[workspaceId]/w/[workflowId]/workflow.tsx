@@ -349,7 +349,7 @@ const WorkflowContent = React.memo(
     const workflowReadOnly = workflowLocked && !sandbox
     const canvasOpacityClass = isCanvasReady
       ? workflowReadOnly
-        ? 'opacity-60'
+        ? 'opacity-75'
         : 'opacity-100'
       : 'opacity-0'
 
@@ -2182,6 +2182,18 @@ const WorkflowContent = React.memo(
         }
       },
       [screenToFlowPosition, handleToolbarDrop]
+    )
+
+    const onDropLocked = useCallback(
+      (event: React.DragEvent) => {
+        event.preventDefault()
+        if (!event.dataTransfer?.types.includes('application/json')) return
+        const message = effectivePermissions.canAdmin
+          ? 'Unlock the workflow to add blocks.'
+          : 'This workflow is locked. Ask an admin to unlock it.'
+        addNotification({ level: 'info', message, workflowId: activeWorkflowId || undefined })
+      },
+      [effectivePermissions.canAdmin, addNotification, activeWorkflowId]
     )
 
     const handleCanvasPointerMove = useCallback(
@@ -4074,8 +4086,16 @@ const WorkflowContent = React.memo(
                   nodeTypes={nodeTypes}
                   edgeTypes={edgeTypes}
                   onMouseDown={handleCanvasMouseDown}
-                  onDrop={effectivePermissions.canEdit ? onDrop : undefined}
-                  onDragOver={effectivePermissions.canEdit ? onDragOver : undefined}
+                  onDrop={
+                    effectivePermissions.canEdit
+                      ? onDrop
+                      : workflowReadOnly
+                        ? onDropLocked
+                        : undefined
+                  }
+                  onDragOver={
+                    effectivePermissions.canEdit || workflowReadOnly ? onDragOver : undefined
+                  }
                   onInit={(instance) => {
                     if (embedded) {
                       return
