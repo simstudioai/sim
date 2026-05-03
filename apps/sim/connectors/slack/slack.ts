@@ -541,8 +541,9 @@ export const slackConnector: ConnectorConfig = {
     try {
       const trimmed = channelInput.trim().replace(/^#/, '')
 
-      // If it looks like a channel ID, verify directly
-      if (/^[CDG][A-Z0-9]+$/.test(trimmed)) {
+      // If it looks like a channel ID, verify directly. DMs (D...) are excluded
+      // because we don't request im:*/mpim:* scopes — see resolveChannel.
+      if (/^[CG][A-Z0-9]+$/.test(trimmed)) {
         await slackApiGet(
           'conversations.info',
           accessToken,
