@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import JSZip from 'jszip'
@@ -7,6 +8,7 @@ import { fileExportContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import type { StorageContext } from '@/lib/uploads/config'
 import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
@@ -18,11 +20,28 @@ const MARKDOWN_MIME_TYPES = new Set(['text/markdown', 'text/x-markdown'])
 const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown'])
 const VIEW_URL_RE =
   /\/api\/files\/view\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi
+const MAX_EMBEDDED_IMAGES = 50
 
 function isMarkdown(originalName: string, contentType: string): boolean {
   if (MARKDOWN_MIME_TYPES.has(contentType)) return true
   const ext = originalName.split('.').pop()?.toLowerCase() ?? ''
   return MARKDOWN_EXTENSIONS.has(ext)
+}
+
+/** Strip characters that would break Content-Disposition header or zip entry paths. */
+function safeFilename(name: string): string {
+  return path
+    .basename(name)
+    .replace(/["\\]/g, '_')
+    .replace(/[\r\n\t]/g, '')
+}
+
+/** Deduplicate asset filename by appending the first 8 chars of its UUID when a collision exists. */
+function deduplicatedFilename(preferred: string, existing: Set<string>, imageId: string): string {
+  if (!existing.has(preferred)) return preferred
+  const ext = path.extname(preferred)
+  const base = path.basename(preferred, ext)
+  return `${base}_${imageId.slice(0, 8)}${ext}`
 }
 
 export const GET = withRouteHandler(
@@ -55,13 +74,21 @@ export const GET = withRouteHandler(
       return NextResponse.redirect(new URL(servePath, request.url), { status: 302 })
     }
 
-    const mdBuffer = await downloadFile({ key: record.key, context: record.context as 'workspace' })
+    const mdBuffer = await downloadFile({
+      key: record.key,
+      context: record.context as StorageContext,
+    })
     let mdContent = mdBuffer.toString('utf-8')
 
-    const imageIds = [...new Set([...mdContent.matchAll(VIEW_URL_RE)].map((m) => m[1]))]
+    const imageIds = [...new Set([...mdContent.matchAll(VIEW_URL_RE)].map((m) => m[1]))].slice(
+      0,
+      MAX_EMBEDDED_IMAGES
+    )
+
     logger.info('Exporting markdown with embedded images', { id, imageCount: imageIds.length })
 
     const assetMap = new Map<string, { filename: string; buffer: Buffer }>()
+    const usedFilenames = new Set<string>()
 
     await Promise.allSettled(
       imageIds.map(async (imageId) => {
@@ -72,9 +99,12 @@ export const GET = withRouteHandler(
           if (!imgHasAccess) return
           const imgBuffer = await downloadFile({
             key: imgRecord.key,
-            context: imgRecord.context as 'workspace',
+            context: imgRecord.context as StorageContext,
           })
-          assetMap.set(imageId, { filename: imgRecord.originalName, buffer: imgBuffer })
+          const preferred = safeFilename(imgRecord.originalName)
+          const filename = deduplicatedFilename(preferred, usedFilenames, imageId)
+          usedFilenames.add(filename)
+          assetMap.set(imageId, { filename, buffer: imgBuffer })
         } catch (err) {
           logger.warn('Failed to fetch asset for export', { imageId, error: toError(err).message })
         }
@@ -91,13 +121,13 @@ export const GET = withRouteHandler(
 
     const zip = new JSZip()
     zip.file(record.originalName, mdContent)
-    const assets = zip.folder('assets')!
+    const assetsFolder = zip.folder('assets')!
     for (const { filename, buffer } of assetMap.values()) {
-      assets.file(filename, buffer)
+      assetsFolder.file(filename, buffer)
     }
 
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
-    const zipName = `${record.originalName.replace(/\.[^.]+$/, '')}.zip`
+    const zipName = safeFilename(`${record.originalName.replace(/\.[^.]+$/, '')}.zip`)
 
     return new NextResponse(zipBuffer, {
       status: 200,
