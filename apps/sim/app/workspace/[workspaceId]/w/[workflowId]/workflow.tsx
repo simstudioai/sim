@@ -1274,7 +1274,7 @@ const WorkflowContent = React.memo(
       if (workflowReadOnly) {
         if (lockNotificationIdRef.current) return
 
-        const isAdmin = effectivePermissions.canAdmin
+        const isAdmin = workspacePermissions?.viewer?.isAdmin ?? effectivePermissions.canAdmin
         const isFolderInherited = workflowFolderLocked && !workflowRowLocked
         const message = isFolderInherited
           ? inheritedLockFolderName
@@ -1304,6 +1304,7 @@ const WorkflowContent = React.memo(
       inheritedLockFolderName,
       isWorkflowReady,
       effectivePermissions.canAdmin,
+      workspacePermissions,
       addNotification,
       activeWorkflowId,
       clearLockNotification,
@@ -4176,7 +4177,7 @@ const WorkflowContent = React.memo(
                         edges.filter((e) => e.target === contextMenuBlocks[0]?.id).length === 0
                       }
                       onToggleLocked={handleContextToggleLocked}
-                      canAdmin={effectivePermissions.canAdmin}
+                      canAdmin={effectivePermissions.canAdmin && !workflowReadOnly}
                     />
 
                     <CanvasMenu
@@ -4202,7 +4203,7 @@ const WorkflowContent = React.memo(
                       hasLockedBlocks={hasLockedBlocks}
                       onToggleWorkflowLock={handleToggleWorkflowLock}
                       allBlocksLocked={allBlocksLocked}
-                      canAdmin={effectivePermissions.canAdmin}
+                      canAdmin={effectivePermissions.canAdmin && !workflowReadOnly}
                       hasBlocks={hasBlocks}
                     />
                   </>
