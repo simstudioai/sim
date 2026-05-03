@@ -10,7 +10,7 @@ import {
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
-  downloadWorkspaceFile,
+  fetchWorkspaceFileBuffer,
   getWorkspaceFile,
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
@@ -94,7 +94,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
             const fileRecord = await getWorkspaceFile(workspaceId, fileId)
             if (fileRecord) {
               referenceRecords.push({ id: fileRecord.id, name: fileRecord.name })
-              const buffer = await downloadWorkspaceFile(fileRecord)
+              const buffer = await fetchWorkspaceFileBuffer(fileRecord)
               const base64 = buffer.toString('base64')
               const mime = fileRecord.type || 'image/png'
               parts.push({

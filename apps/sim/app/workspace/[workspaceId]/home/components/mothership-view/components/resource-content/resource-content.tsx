@@ -19,11 +19,8 @@ import {
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
-import {
-  downloadWorkspaceFile,
-  getFileExtension,
-  getMimeTypeFromExtension,
-} from '@/lib/uploads/utils/file-utils'
+import { triggerFileDownload } from '@/lib/uploads/client/download'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   FileViewer,
@@ -422,7 +419,7 @@ function EmbeddedFileActions({ workspaceId, fileId }: EmbeddedFileActionsProps) 
   const handleDownload = async () => {
     if (!file) return
     try {
-      await downloadWorkspaceFile(file)
+      await triggerFileDownload(file)
     } catch (err) {
       fileLogger.error('Failed to download file:', err)
     }

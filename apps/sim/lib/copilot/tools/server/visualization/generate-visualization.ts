@@ -10,7 +10,7 @@ import { CodeLanguage } from '@/lib/execution/languages'
 import { getTableById, queryRows } from '@/lib/table/service'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
-  downloadWorkspaceFile,
+  fetchWorkspaceFileBuffer,
   findWorkspaceFileRecord,
   getSandboxWorkspaceFilePath,
   getWorkspaceFile,
@@ -100,7 +100,7 @@ async function collectSandboxFiles(
         logger.warn('Sandbox input total size limit reached, skipping remaining files')
         break
       }
-      const buffer = await downloadWorkspaceFile(record)
+      const buffer = await fetchWorkspaceFileBuffer(record)
       totalSize += buffer.length
       const textContent = buffer.toString('utf-8')
       sandboxFiles.push({

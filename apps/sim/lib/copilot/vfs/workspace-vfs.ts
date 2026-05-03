@@ -64,7 +64,7 @@ import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { listTables } from '@/lib/table/service'
 import {
-  downloadWorkspaceFile,
+  fetchWorkspaceFileBuffer,
   findWorkspaceFileRecord,
   getWorkspaceFile,
   listWorkspaceFiles,
@@ -473,7 +473,7 @@ export class WorkspaceVFS {
         const taskId = BINARY_DOC_TASKS[ext]
         const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
         if (!taskId && !isMermaidFile) return null
-        const buffer = await downloadWorkspaceFile(record)
+        const buffer = await fetchWorkspaceFileBuffer(record)
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
           return {
@@ -520,7 +520,7 @@ export class WorkspaceVFS {
         const rawExt = record.name.split('.').pop()?.toLowerCase()
         if (rawExt !== 'docx' && rawExt !== 'pptx') return null
         const ext: 'docx' | 'pptx' = rawExt
-        const buffer = await downloadWorkspaceFile(record)
+        const buffer = await fetchWorkspaceFileBuffer(record)
         const summary = await extractDocumentStyle(buffer, ext)
         if (!summary) return null
         const json = JSON.stringify(summary, null, 2)

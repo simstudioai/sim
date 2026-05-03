@@ -7,7 +7,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   deleteWorkspaceFile,
-  downloadWorkspaceFile,
+  fetchWorkspaceFileBuffer,
   getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace'
 import {
@@ -50,7 +50,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: FileRo
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
-    const buffer = await downloadWorkspaceFile(fileRecord)
+    const buffer = await fetchWorkspaceFileBuffer(fileRecord)
 
     return new Response(new Uint8Array(buffer), {
       status: 200,
