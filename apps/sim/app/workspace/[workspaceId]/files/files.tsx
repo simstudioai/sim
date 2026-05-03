@@ -28,10 +28,10 @@ import {
 } from '@/components/emcn'
 import { File as FilesIcon } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
-  downloadWorkspaceFile,
   formatFileSize,
   getFileExtension,
   getMimeTypeFromExtension,
@@ -475,7 +475,7 @@ export function Files() {
 
   const handleDownload = useCallback(async (file: WorkspaceFileRecord) => {
     try {
-      await downloadWorkspaceFile(file)
+      await triggerFileDownload(file)
     } catch (err) {
       logger.error('Failed to download file:', err)
     }

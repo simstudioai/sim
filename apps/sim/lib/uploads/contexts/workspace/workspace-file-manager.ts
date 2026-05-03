@@ -720,7 +720,7 @@ export async function getWorkspaceFile(
 /**
  * Download workspace file content
  */
-export async function downloadWorkspaceFile(fileRecord: WorkspaceFileRecord): Promise<Buffer> {
+export async function fetchWorkspaceFileBuffer(fileRecord: WorkspaceFileRecord): Promise<Buffer> {
   logger.info(`Downloading workspace file: ${fileRecord.name}`)
 
   try {

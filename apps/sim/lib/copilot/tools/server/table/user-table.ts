@@ -58,7 +58,7 @@ import type {
 } from '@/lib/table/types'
 import { cancelWorkflowGroupRuns, triggerWorkflowGroupRun } from '@/lib/table/workflow-columns'
 import {
-  downloadWorkspaceFile,
+  fetchWorkspaceFileBuffer,
   resolveWorkspaceFileReference,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
@@ -92,7 +92,7 @@ async function resolveWorkspaceFile(
       `File not found: "${fileReference}". Use glob("files/by-id/*/meta.json") to list canonical file IDs.`
     )
   }
-  const buffer = await downloadWorkspaceFile(record)
+  const buffer = await fetchWorkspaceFileBuffer(record)
   return { buffer, name: record.name, type: record.type }
 }
 

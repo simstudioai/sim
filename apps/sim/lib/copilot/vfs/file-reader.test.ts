@@ -6,13 +6,13 @@ import { randomFillSync } from 'node:crypto'
 import { loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
-const { downloadWorkspaceFile } = vi.hoisted(() => ({
-  downloadWorkspaceFile: vi.fn(),
+const { fetchWorkspaceFileBuffer } = vi.hoisted(() => ({
+  fetchWorkspaceFileBuffer: vi.fn(),
 }))
 
 vi.mock('@sim/logger', () => loggerMock)
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  downloadWorkspaceFile,
+  fetchWorkspaceFileBuffer,
 }))
 
 import { readFileRecord } from '@/lib/copilot/vfs/file-reader'
@@ -37,7 +37,7 @@ describe('readFileRecord', () => {
       const largePng = await makeNoisePng(1800, 1800)
       expect(largePng.length).toBeGreaterThan(MAX_IMAGE_READ_BYTES)
 
-      downloadWorkspaceFile.mockResolvedValue(largePng)
+      fetchWorkspaceFileBuffer.mockResolvedValue(largePng)
 
       const result = await readFileRecord({
         id: 'wf_large',

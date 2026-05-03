@@ -845,24 +845,3 @@ export function getViewerUrl(fileKey: string, workspaceId?: string): string | nu
 
   return `/workspace/${resolvedWorkspaceId}/files/${fileKey}`
 }
-
-/**
- * Downloads a workspace file to the user's device via the serve API.
- * Fetches the file as a blob and triggers a browser download.
- */
-export async function downloadWorkspaceFile(file: { key: string; name: string }): Promise<void> {
-  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace&t=${Date.now()}`
-  const response = await fetch(serveUrl, { cache: 'no-store' })
-  if (!response.ok) {
-    throw new Error(`Failed to download file: ${response.statusText}`)
-  }
-  const blob = await response.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = file.name
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-}

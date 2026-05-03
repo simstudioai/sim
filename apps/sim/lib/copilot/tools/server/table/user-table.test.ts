@@ -26,7 +26,7 @@ vi.mock('@sim/utils/id', () => ({
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
-  downloadWorkspaceFile: mockDownloadWorkspaceFile,
+  fetchWorkspaceFileBuffer: mockDownloadWorkspaceFile,
 }))
 
 vi.mock('@/lib/table/service', () => ({
