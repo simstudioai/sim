@@ -229,6 +229,7 @@ const uploadViaPresignedPut = (opts: UploadViaPutOptions): Promise<void> => {
     const timeoutId = setTimeout(() => {
       if (isCompleted) return
       isCompleted = true
+      signal?.removeEventListener('abort', abortHandler)
       xhr.abort()
       reject(new DirectUploadError(`Upload timeout for ${file.name}`, 'DIRECT_UPLOAD_ERROR'))
     }, timeoutMs)
