@@ -1251,13 +1251,16 @@ const WorkflowContent = React.memo(
       return findLockedAncestorFolder(workflowMetadata?.folderId, folders)?.name ?? null
     }, [workflowFolderLocked, workflowMetadata?.folderId, folders])
 
-    const prevCanAdminRef = useRef(effectivePermissions.canAdmin)
+    const prevIsAdminRef = useRef(
+      workspacePermissions?.viewer?.isAdmin ?? effectivePermissions.canAdmin
+    )
     const prevLockSignatureRef = useRef<string | null>(null)
     useEffect(() => {
       if (!isWorkflowReady) return
 
-      const canAdminChanged = prevCanAdminRef.current !== effectivePermissions.canAdmin
-      prevCanAdminRef.current = effectivePermissions.canAdmin
+      const isAdmin = workspacePermissions?.viewer?.isAdmin ?? effectivePermissions.canAdmin
+      const canAdminChanged = prevIsAdminRef.current !== isAdmin
+      prevIsAdminRef.current = isAdmin
 
       const lockSignature = workflowReadOnly
         ? workflowRowLocked
@@ -1273,8 +1276,6 @@ const WorkflowContent = React.memo(
 
       if (workflowReadOnly) {
         if (lockNotificationIdRef.current) return
-
-        const isAdmin = workspacePermissions?.viewer?.isAdmin ?? effectivePermissions.canAdmin
         const isFolderInherited = workflowFolderLocked && !workflowRowLocked
         const message = isFolderInherited
           ? inheritedLockFolderName
