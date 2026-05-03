@@ -1,3 +1,6 @@
+import { db } from '@sim/db'
+import { apiKey as apiKeyTable } from '@sim/db/schema'
+import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteCopilotApiKeyQuerySchema } from '@/lib/api/contracts'
 import { getSession } from '@/lib/auth'
@@ -5,6 +8,7 @@ import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { env } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -15,6 +19,33 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = session.user.id
+
+    // Self-hosted: list user's personal keys directly from the api_key
+    // table. These are the same keys the generate endpoint creates and
+    // are valid for X-API-Key auth on /api/mcp/copilot (via the
+    // local-first lookup in route.ts).
+    if (!isHosted) {
+      const rows = await db
+        .select({
+          id: apiKeyTable.id,
+          name: apiKeyTable.name,
+          keyHash: apiKeyTable.keyHash,
+          createdAt: apiKeyTable.createdAt,
+          lastUsed: apiKeyTable.lastUsed,
+        })
+        .from(apiKeyTable)
+        .where(and(eq(apiKeyTable.userId, userId), eq(apiKeyTable.type, 'personal')))
+        .orderBy(desc(apiKeyTable.createdAt))
+      const keys = rows.map((k) => ({
+        id: k.id,
+        // Last 6 of keyHash for display (we don't decrypt the stored key here)
+        displayKey: `•••••${(k.keyHash || '').slice(-6)}`,
+        name: k.name,
+        createdAt: k.createdAt ? k.createdAt.toISOString() : null,
+        lastUsed: k.lastUsed ? k.lastUsed.toISOString() : null,
+      }))
+      return NextResponse.json({ keys }, { status: 200 })
+    }
 
     const res = await fetchGo(`${SIM_AGENT_API_URL}/api/validate-key/get-api-keys`, {
       method: 'POST',
@@ -74,6 +105,19 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
     }
     const { id } = queryResult.data
+
+    // Self-hosted: delete the row directly. Scoped to the requesting user
+    // so callers can only delete their own keys.
+    if (!isHosted) {
+      const deleted = await db
+        .delete(apiKeyTable)
+        .where(and(eq(apiKeyTable.id, id), eq(apiKeyTable.userId, userId)))
+        .returning({ id: apiKeyTable.id })
+      if (deleted.length === 0) {
+        return NextResponse.json({ error: 'Key not found' }, { status: 404 })
+      }
+      return NextResponse.json({ success: true }, { status: 200 })
+    }
 
     const res = await fetchGo(`${SIM_AGENT_API_URL}/api/validate-key/delete`, {
       method: 'POST',
