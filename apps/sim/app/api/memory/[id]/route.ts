@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { memory } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   agentMemoryDataSchemaContract,
@@ -75,7 +75,13 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Memory
     const memories = await db
       .select()
       .from(memory)
-      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
+      .where(
+        and(
+          eq(memory.key, id),
+          eq(memory.workspaceId, validatedWorkspaceId),
+          isNull(memory.deletedAt)
+        )
+      )
       .orderBy(memory.createdAt)
       .limit(1)
 
