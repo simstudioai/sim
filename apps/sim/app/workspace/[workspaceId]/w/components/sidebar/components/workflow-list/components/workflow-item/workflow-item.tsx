@@ -468,31 +468,38 @@ export function WorkflowItem({
                 {workflow.name}
               </div>
             )}
-            {!isEditing && workflow.locked && (
-              <Lock
-                className='pointer-events-none h-[12px] w-[12px] flex-shrink-0 text-[var(--text-icon)]'
-                aria-label='Workflow is locked'
-              />
-            )}
             {!isEditing && <Avatars workflowId={workflow.id} />}
           </div>
         </div>
         {!isEditing && (
-          <>
+          <div className='relative h-[18px] w-[18px] flex-shrink-0'>
+            {workflow.locked && (
+              <span
+                role='img'
+                aria-label='Workflow is locked'
+                className={clsx(
+                  'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
+                  !isAnyDragActive && 'group-hover:opacity-0',
+                  isContextMenuOpen && 'opacity-0'
+                )}
+              >
+                <Lock className='h-[14px] w-[14px] text-[var(--text-icon)]' aria-hidden='true' />
+              </span>
+            )}
             <button
               type='button'
               aria-label='Workflow options'
               onPointerDown={handleMorePointerDown}
               onClick={handleMoreClick}
               className={clsx(
-                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity',
-                !isAnyDragActive && 'group-hover:opacity-100',
-                isContextMenuOpen && 'opacity-100'
+                'pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity',
+                !isAnyDragActive && 'group-hover:pointer-events-auto group-hover:opacity-100',
+                isContextMenuOpen && 'pointer-events-auto opacity-100'
               )}
             >
               <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
             </button>
-          </>
+          </div>
         )}
       </Link>
 
