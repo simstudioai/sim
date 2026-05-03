@@ -11,7 +11,7 @@ import {
   type RequestId,
 } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
-import { userStats } from '@sim/db/schema'
+import { apiKey as apiKeyTable, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -23,6 +23,7 @@ import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { ORCHESTRATION_TIMEOUT_MS, SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { createRequestId } from '@/lib/copilot/request/http'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { orchestrateSubagentStream } from '@/lib/copilot/request/subagent'
@@ -52,8 +53,32 @@ interface CopilotKeyAuthResult {
 /**
  * Validates a copilot API key by forwarding it to the Go copilot service's
  * `/api/validate-key` endpoint. Returns the associated userId on success.
+ *
+ * On self-hosted instances, also accepts local workspace/personal API keys
+ * (sk-sim-...) by looking them up directly in the api_key table — the
+ * Mothership service does not trust self-hosted INTERNAL_API_SECRETs, so
+ * remote validation always fails. The local lookup gives external MCP
+ * clients (claude.ai, etc.) a way to authenticate using the same
+ * workspace API key they use for /api/v1/workflows execution.
  */
 async function authenticateCopilotApiKey(apiKey: string): Promise<CopilotKeyAuthResult> {
+  if (!isHosted) {
+    try {
+      const [row] = await db
+        .select({ userId: apiKeyTable.userId })
+        .from(apiKeyTable)
+        .where(eq(apiKeyTable.key, apiKey))
+        .limit(1)
+      if (row?.userId) {
+        return { success: true, userId: row.userId }
+      }
+    } catch (error) {
+      logger.warn('Local Copilot API key lookup failed, falling through to remote validation', {
+        error: toError(error).message,
+      })
+    }
+  }
+
   try {
     const internalSecret = env.INTERNAL_API_SECRET
     if (!internalSecret) {

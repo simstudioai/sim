@@ -213,7 +213,11 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       placeholder: 'Enter your API key',
       password: true,
       connectionDroppable: false,
-      required: true,
+      // On self-hosted, BYOK keys (workspace_byok_keys table) provide
+      // credentials at execution time — see lib/api-key/byok.ts. Per-block
+      // apiKey override stays available but is no longer required, so
+      // workflows authored without one don't fail serializer validation.
+      required: isHosted,
       condition: getApiKeyCondition(),
     },
     {
