@@ -242,8 +242,9 @@ async function resolveChannel(
 ): Promise<SlackChannel | null> {
   const trimmed = channelInput.trim().replace(/^#/, '')
 
-  // If it looks like a channel ID (starts with C, D, or G), try direct lookup
-  if (/^[CDG][A-Z0-9]+$/.test(trimmed)) {
+  // If it looks like a channel ID (public C / private G), try direct lookup.
+  // DMs (D...) and MPIMs require im:*/mpim:* scopes, which we do not request.
+  if (/^[CG][A-Z0-9]+$/.test(trimmed)) {
     try {
       const data = await slackApiGet('conversations.info', accessToken, { channel: trimmed })
       return data.channel as SlackChannel
