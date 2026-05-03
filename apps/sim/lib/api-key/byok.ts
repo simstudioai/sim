@@ -114,6 +114,21 @@ export async function getApiKeyWithBYOK(
 
   const byokProviderId = isGeminiModel ? 'google' : (provider as BYOKProviderId)
 
+  // On self-hosted, BYOK keys take precedence over a per-block apiKey for any
+  // supported provider — no hosted-model gate. Hosted environments retain the
+  // original behavior (BYOK only consulted for hosted-tier models).
+  if (
+    !isHosted &&
+    workspaceId &&
+    (isOpenAIModel || isClaudeModel || isGeminiModel || isMistralModel)
+  ) {
+    const byokResult = await getBYOKKey(workspaceId, byokProviderId)
+    if (byokResult) {
+      logger.info('Using BYOK key (self-hosted)', { provider, model, workspaceId })
+      return byokResult
+    }
+  }
+
   if (
     isHosted &&
     workspaceId &&
