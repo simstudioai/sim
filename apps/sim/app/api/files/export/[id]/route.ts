@@ -39,7 +39,9 @@ function deduplicatedFilename(preferred: string, existing: Set<string>, imageId:
   if (!existing.has(preferred)) return preferred
   const ext = path.extname(preferred)
   const base = path.basename(preferred, ext)
-  return `${base}_${imageId.slice(0, 8)}${ext}`
+  const short = `${base}_${imageId.slice(0, 8)}${ext}`
+  if (!existing.has(short)) return short
+  return `${base}_${imageId}${ext}`
 }
 
 export const GET = withRouteHandler(
@@ -128,7 +130,7 @@ export const GET = withRouteHandler(
     }
 
     const zip = new JSZip()
-    zip.file(record.originalName, mdContent)
+    zip.file(safeFilename(record.originalName), mdContent)
     const assetsFolder = zip.folder('assets')!
     for (const { filename, buffer } of assetMap.values()) {
       assetsFolder.file(filename, buffer)
