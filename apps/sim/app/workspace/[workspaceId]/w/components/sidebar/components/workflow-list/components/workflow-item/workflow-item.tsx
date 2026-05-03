@@ -5,6 +5,7 @@ import clsx from 'clsx'
 import { MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { Tooltip } from '@/components/emcn'
 import { Lock } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
@@ -431,14 +432,31 @@ export function WorkflowItem({
         onClick={handleClick}
         onContextMenu={handleContextMenu}
       >
-        <div
-          className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
-          style={{
-            backgroundColor: workflow.color,
-            borderColor: workflowBorderColor(workflow.color),
-            backgroundClip: 'padding-box',
-          }}
-        />
+        <span className='relative flex-shrink-0'>
+          <div
+            className='h-[16px] w-[16px] rounded-sm border-[2.5px]'
+            style={{
+              backgroundColor: workflow.color,
+              borderColor: workflowBorderColor(workflow.color),
+              backgroundClip: 'padding-box',
+            }}
+          />
+          {workflow.locked && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <span className='-right-[4px] -bottom-[4px] absolute flex h-[12px] w-[12px] items-center justify-center rounded-full bg-[var(--surface-1)]'>
+                  <Lock
+                    className='pointer-events-none h-[10px] w-[10px] text-[var(--text-icon)]'
+                    aria-hidden='true'
+                  />
+                </span>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='bottom'>
+                <span>Locked</span>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          )}
+        </span>
         <div className='min-w-0 flex-1'>
           <div className='flex min-w-0 items-center gap-2'>
             {isEditing ? (
@@ -467,12 +485,6 @@ export function WorkflowItem({
               >
                 {workflow.name}
               </div>
-            )}
-            {!isEditing && workflow.locked && (
-              <Lock
-                className='pointer-events-none h-[12px] w-[12px] flex-shrink-0 text-[var(--text-icon)]'
-                aria-label='Workflow is locked'
-              />
             )}
             {!isEditing && <Avatars workflowId={workflow.id} />}
           </div>

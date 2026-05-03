@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { Tooltip } from '@/components/emcn'
 import { Lock } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
@@ -513,17 +514,28 @@ export function FolderItem({
           )}
           aria-hidden='true'
         />
-        {isExpanded ? (
-          <FolderOpen
-            className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]'
-            aria-hidden='true'
-          />
-        ) : (
-          <Folder
-            className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]'
-            aria-hidden='true'
-          />
-        )}
+        <span className='relative flex-shrink-0'>
+          {isExpanded ? (
+            <FolderOpen className='h-[16px] w-[16px] text-[var(--text-icon)]' aria-hidden='true' />
+          ) : (
+            <Folder className='h-[16px] w-[16px] text-[var(--text-icon)]' aria-hidden='true' />
+          )}
+          {folder.locked && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <span className='-right-[4px] -bottom-[4px] absolute flex h-[12px] w-[12px] items-center justify-center rounded-full bg-[var(--surface-1)]'>
+                  <Lock
+                    className='pointer-events-none h-[10px] w-[10px] text-[var(--text-icon)]'
+                    aria-hidden='true'
+                  />
+                </span>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='bottom'>
+                <span>Locked</span>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          )}
+        </span>
         {isEditing ? (
           <input
             ref={inputRef}
@@ -552,12 +564,6 @@ export function FolderItem({
               >
                 {folder.name}
               </span>
-              {folder.locked && (
-                <Lock
-                  className='pointer-events-none h-[12px] w-[12px] flex-shrink-0 text-[var(--text-icon)]'
-                  aria-label='Folder is locked'
-                />
-              )}
             </div>
             <button
               type='button'
