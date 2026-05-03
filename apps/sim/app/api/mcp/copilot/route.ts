@@ -22,6 +22,7 @@ import { mcpRequestBodySchema, mcpToolCallParamsSchema } from '@/lib/api/contrac
 import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { hashApiKey } from '@/lib/api-key/crypto'
 import { ORCHESTRATION_TIMEOUT_MS, SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { createRequestId } from '@/lib/copilot/request/http'
@@ -64,12 +65,13 @@ interface CopilotKeyAuthResult {
 async function authenticateCopilotApiKey(apiKey: string): Promise<CopilotKeyAuthResult> {
   if (!isHosted) {
     try {
+      const keyHash = hashApiKey(apiKey)
       const [row] = await db
-        .select({ userId: apiKeyTable.userId })
+        .select({ userId: apiKeyTable.userId, expiresAt: apiKeyTable.expiresAt })
         .from(apiKeyTable)
-        .where(eq(apiKeyTable.key, apiKey))
+        .where(eq(apiKeyTable.keyHash, keyHash))
         .limit(1)
-      if (row?.userId) {
+      if (row?.userId && (!row.expiresAt || row.expiresAt > new Date())) {
         return { success: true, userId: row.userId }
       }
     } catch (error) {
