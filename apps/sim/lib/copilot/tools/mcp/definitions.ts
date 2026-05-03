@@ -404,94 +404,14 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
     annotations: { destructiveHint: false },
   },
 
-  // === Execution ===
-  {
-    name: 'run_workflow',
-    toolId: 'run_workflow',
-    description:
-      "Execute a workflow end-to-end. By default runs the draft state — set useDeployedState: true to run the deployed snapshot. Pass workflow inputs via the input field.",
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workflowId: { type: 'string', description: 'Workflow ID to execute.' },
-        input: {
-          description: "Inputs to pass to the start trigger. Shape matches the workflow's defined input format.",
-        },
-        triggerBlockId: {
-          type: 'string',
-          description: 'Optional trigger block ID when the workflow has multiple entrypoints.',
-        },
-        useDeployedState: {
-          type: 'boolean',
-          description: 'true to run the deployed version, false (default) for the draft.',
-        },
-      },
-      required: ['workflowId'],
-    },
-    annotations: { destructiveHint: true, openWorldHint: true },
-  },
-  {
-    name: 'run_workflow_until_block',
-    toolId: 'run_workflow_until_block',
-    description:
-      'Execute a workflow but halt after a specific block completes. Useful for inspecting intermediate state during debugging.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workflowId: { type: 'string', description: 'Workflow ID.' },
-        stopAfterBlockId: { type: 'string', description: 'Block ID to stop after.' },
-        input: { description: "Inputs for the start trigger." },
-        triggerBlockId: { type: 'string', description: 'Optional explicit trigger block ID.' },
-        useDeployedState: { type: 'boolean', description: 'Default: false (draft).' },
-      },
-      required: ['workflowId', 'stopAfterBlockId'],
-    },
-    annotations: { destructiveHint: true, openWorldHint: true },
-  },
-  {
-    name: 'run_from_block',
-    toolId: 'run_from_block',
-    description:
-      'Resume execution of a workflow starting from a specific block, using a previous execution snapshot for upstream values. Pass executionId to pin to a specific snapshot, otherwise the latest is used.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workflowId: { type: 'string', description: 'Workflow ID.' },
-        startBlockId: { type: 'string', description: 'Block ID to start execution from.' },
-        executionId: {
-          type: 'string',
-          description: 'Optional execution ID to load the snapshot from (latest if omitted).',
-        },
-        input: { description: 'Optional fresh inputs.' },
-        useDeployedState: { type: 'boolean', description: 'Default: false (draft).' },
-      },
-      required: ['workflowId', 'startBlockId'],
-    },
-    annotations: { destructiveHint: true, openWorldHint: true },
-  },
-  {
-    name: 'run_block',
-    toolId: 'run_block',
-    description:
-      'Execute a single block in isolation, reusing cached upstream outputs from a previous execution. Useful for fast iteration on a single block during debugging.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workflowId: { type: 'string', description: 'Workflow ID.' },
-        blockId: { type: 'string', description: 'Block ID to run.' },
-        executionId: {
-          type: 'string',
-          description: 'Optional execution ID for upstream snapshot (latest if omitted).',
-        },
-        input: { description: 'Optional fresh inputs.' },
-        useDeployedState: { type: 'boolean', description: 'Default: false (draft).' },
-      },
-      required: ['workflowId', 'blockId'],
-    },
-    annotations: { destructiveHint: true, openWorldHint: true },
-  },
-
   // === Deployment ===
+  // NOTE: run_workflow / run_workflow_until_block / run_from_block / run_block
+  // are intentionally NOT exposed via MCP. Their entries in
+  // tool-catalog-v1.ts are route: 'client' — sim's tool-executor only
+  // dispatches sim-routed tools to local handlers, so client-routed tools
+  // fail with "Built-in tool not found" when called via MCP. External
+  // callers should use the regular HTTP endpoint
+  // POST /api/workflows/{id}/execute for synchronous workflow execution.
   {
     name: 'deploy_api',
     toolId: 'deploy_api',
