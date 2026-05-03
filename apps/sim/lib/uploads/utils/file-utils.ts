@@ -165,6 +165,10 @@ export function createFileContent(fileBuffer: Buffer, mimeType: string): Message
     return null
   }
 
+  if (contentType === 'image' && !CLAUDE_SUPPORTED_IMAGE_MIME_TYPES.has(mimeType.toLowerCase())) {
+    return null
+  }
+
   return {
     type: contentType,
     source: {
@@ -174,6 +178,13 @@ export function createFileContent(fileBuffer: Buffer, mimeType: string): Message
     },
   }
 }
+
+const CLAUDE_SUPPORTED_IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+])
 
 /**
  * Extract file extension from filename
