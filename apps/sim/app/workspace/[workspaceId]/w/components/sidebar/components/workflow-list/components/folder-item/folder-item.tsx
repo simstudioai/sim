@@ -6,7 +6,6 @@ import { generateId } from '@sim/utils/id'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Tooltip } from '@/components/emcn'
 import { Lock } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
@@ -556,26 +555,16 @@ export function FolderItem({
             </div>
             <div className='relative h-[18px] w-[18px] flex-shrink-0'>
               {folder.locked && (
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <span
-                      aria-label='Folder is locked'
-                      className={clsx(
-                        'absolute inset-0 flex items-center justify-center transition-opacity',
-                        !isAnyDragActive && 'group-hover:opacity-0',
-                        isContextMenuOpen && 'opacity-0'
-                      )}
-                    >
-                      <Lock
-                        className='h-[14px] w-[14px] text-[var(--text-icon)]'
-                        aria-hidden='true'
-                      />
-                    </span>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='bottom'>
-                    <span>Locked</span>
-                  </Tooltip.Content>
-                </Tooltip.Root>
+                <span
+                  aria-label='Folder is locked'
+                  className={clsx(
+                    'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
+                    !isAnyDragActive && 'group-hover:opacity-0',
+                    isContextMenuOpen && 'opacity-0'
+                  )}
+                >
+                  <Lock className='h-[14px] w-[14px] text-[var(--text-icon)]' aria-hidden='true' />
+                </span>
               )}
               <button
                 type='button'
@@ -583,9 +572,9 @@ export function FolderItem({
                 onPointerDown={handleMorePointerDown}
                 onClick={handleMoreClick}
                 className={clsx(
-                  'absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity',
-                  !isAnyDragActive && 'group-hover:opacity-100',
-                  isContextMenuOpen && 'opacity-100'
+                  'pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity',
+                  !isAnyDragActive && 'group-hover:pointer-events-auto group-hover:opacity-100',
+                  isContextMenuOpen && 'pointer-events-auto opacity-100'
                 )}
               >
                 <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
