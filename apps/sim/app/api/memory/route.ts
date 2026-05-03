@@ -293,7 +293,13 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
 
     const result = await db
       .delete(memory)
-      .where(and(eq(memory.key, conversationId), eq(memory.workspaceId, workspaceId)))
+      .where(
+        and(
+          eq(memory.key, conversationId),
+          eq(memory.workspaceId, workspaceId),
+          isNull(memory.deletedAt)
+        )
+      )
       .returning({ id: memory.id })
 
     const deletedCount = result.length

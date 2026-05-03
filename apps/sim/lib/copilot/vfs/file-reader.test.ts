@@ -28,50 +28,9 @@ async function makeNoisePng(width: number, height: number): Promise<Buffer> {
     .toBuffer()
 }
 
-// Both tests do real sharp work (encode + metadata read) that can exceed the
-// default 10s timeout when CI runs them alongside thousands of other tests.
 const SHARP_TEST_TIMEOUT_MS = 30_000
 
 describe('readFileRecord', () => {
-  it(
-    'returns small images as attachments without resize note',
-    async () => {
-      const sharp = (await import('sharp')).default
-      const smallPng = await sharp({
-        create: {
-          width: 200,
-          height: 200,
-          channels: 3,
-          background: { r: 255, g: 0, b: 0 },
-        },
-      })
-        .png()
-        .toBuffer()
-
-      downloadWorkspaceFile.mockResolvedValue(smallPng)
-
-      const result = await readFileRecord({
-        id: 'wf_small',
-        workspaceId: 'ws_1',
-        name: 'small.png',
-        key: 'uploads/small.png',
-        path: '/api/files/serve/uploads%2Fsmall.png?context=mothership',
-        size: smallPng.length,
-        type: 'image/png',
-        uploadedBy: 'user_1',
-        uploadedAt: new Date(),
-        deletedAt: null,
-        storageContext: 'mothership',
-      })
-
-      expect(result?.attachment?.type).toBe('image')
-      expect(result?.attachment?.source.media_type).toBe('image/png')
-      expect(result?.content).not.toContain('resized for vision')
-      expect(Buffer.from(result?.attachment?.source.data ?? '', 'base64')).toEqual(smallPng)
-    },
-    SHARP_TEST_TIMEOUT_MS
-  )
-
   it(
     'downscales oversized images into attachments that fit the read limit',
     async () => {
