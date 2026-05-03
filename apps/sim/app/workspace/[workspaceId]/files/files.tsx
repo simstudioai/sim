@@ -43,6 +43,7 @@ import {
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_CODE_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
+  SUPPORTED_IMAGE_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
 import type {
@@ -89,6 +90,7 @@ const SUPPORTED_EXTENSIONS = [
   ...SUPPORTED_CODE_EXTENSIONS,
   ...SUPPORTED_AUDIO_EXTENSIONS,
   ...SUPPORTED_VIDEO_EXTENSIONS,
+  ...SUPPORTED_IMAGE_EXTENSIONS,
 ] as const
 
 const ACCEPT_ATTR = SUPPORTED_EXTENSIONS.map((ext) => `.${ext}`).join(',')
@@ -125,6 +127,7 @@ function formatFileType(mimeType: string | null, filename: string): string {
 
   if (mimeType?.startsWith('audio/')) return 'Audio'
   if (mimeType?.startsWith('video/')) return 'Video'
+  if (mimeType?.startsWith('image/')) return 'Image'
 
   const ext = getFileExtension(filename)
   if (ext) return ext.toUpperCase()
@@ -246,6 +249,7 @@ export function Files() {
         if (typeFilter.includes('document') && isSupportedExtension(ext)) return true
         if (typeFilter.includes('audio') && isAudioFileType(f.type)) return true
         if (typeFilter.includes('video') && isVideoFileType(f.type)) return true
+        if (typeFilter.includes('image') && f.type?.startsWith('image/')) return true
         return false
       })
     }
@@ -926,9 +930,14 @@ export function Files() {
       typeFilter.length === 0
         ? 'All'
         : typeFilter.length === 1
-          ? (({ document: 'Documents', audio: 'Audio', video: 'Video' } as Record<string, string>)[
-              typeFilter[0]
-            ] ?? typeFilter[0])
+          ? ((
+              {
+                document: 'Documents',
+                image: 'Images',
+                audio: 'Audio',
+                video: 'Video',
+              } as Record<string, string>
+            )[typeFilter[0]] ?? typeFilter[0])
           : `${typeFilter.length} selected`
 
     const sizeDisplayLabel =
@@ -954,6 +963,7 @@ export function Files() {
           <Combobox
             options={[
               { value: 'document', label: 'Documents' },
+              { value: 'image', label: 'Images' },
               { value: 'audio', label: 'Audio' },
               { value: 'video', label: 'Video' },
             ]}
@@ -1036,6 +1046,7 @@ export function Files() {
     if (typeFilter.length > 0) {
       const typeLabels: Record<string, string> = {
         document: 'Documents',
+        image: 'Images',
         audio: 'Audio',
         video: 'Video',
       }

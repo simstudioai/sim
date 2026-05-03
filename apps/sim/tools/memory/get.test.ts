@@ -36,6 +36,20 @@ describe('memoryGetTool', () => {
     expect(url).toBe('/api/memory/team%2Fuser%20123?workspaceId=workspace-1')
   })
 
+  it('returns empty memories when key is not found (null data)', async () => {
+    const result = await transformResponse(
+      new Response(JSON.stringify({ success: true, data: null }))
+    )
+
+    expect(result).toEqual({
+      success: true,
+      output: {
+        memories: [],
+        message: 'No memories found',
+      },
+    })
+  })
+
   it('wraps the exact memory response as a single result', async () => {
     const result = await transformResponse(
       new Response(

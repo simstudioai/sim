@@ -13,11 +13,12 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { isImageFileType } from '@/lib/uploads/utils/file-utils'
+import { isImageFileType, resolveFileType } from '@/lib/uploads/utils/file-utils'
 import {
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_CODE_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
+  SUPPORTED_IMAGE_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
   validateFileType,
 } from '@/lib/uploads/utils/validation'
@@ -28,12 +29,10 @@ import {
   InvalidRequestError,
 } from '@/app/api/files/utils'
 
-const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] as const
-
 const ALLOWED_EXTENSIONS = new Set<string>([
   ...SUPPORTED_DOCUMENT_EXTENSIONS,
   ...SUPPORTED_CODE_EXTENSIONS,
-  ...IMAGE_EXTENSIONS,
+  ...SUPPORTED_IMAGE_EXTENSIONS,
   ...SUPPORTED_AUDIO_EXTENSIONS,
   ...SUPPORTED_VIDEO_EXTENSIONS,
 ])
@@ -305,10 +304,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         context === 'profile-pictures' ||
         context === 'workspace-logos'
       ) {
-        if (context !== 'copilot' && !isImageFileType(file.type)) {
-          throw new InvalidRequestError(
-            `Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for ${context} uploads`
+        if (context !== 'copilot') {
+          const mimeType = file.type
+          const isGenericMime = !mimeType || mimeType === 'application/octet-stream'
+          const extension = originalName.split('.').pop()?.toLowerCase() ?? ''
+          const extensionIsImage = (SUPPORTED_IMAGE_EXTENSIONS as readonly string[]).includes(
+            extension
           )
+          const isImage = isGenericMime ? extensionIsImage : isImageFileType(mimeType)
+          if (!isImage) {
+            throw new InvalidRequestError(`Only image files are allowed for ${context} uploads`)
+          }
         }
 
         if (context === 'workspace-logos') {
@@ -344,6 +350,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         logger.info(`Uploading ${context} file: ${originalName}`)
 
+        const resolvedContentType = resolveFileType({ type: file.type, name: originalName })
+
         const timestamp = Date.now()
         const safeFileName = sanitizeFileName(originalName)
         const storageKey = `${context}/${timestamp}-${safeFileName}`
@@ -362,7 +370,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const fileInfo = await storageService.uploadFile({
           file: buffer,
           fileName: storageKey,
-          contentType: file.type,
+          contentType: resolvedContentType,
           context,
           preserveKey: true,
           customKey: storageKey,
@@ -379,7 +387,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             key: fileInfo.key,
             name: originalName,
             size: buffer.length,
-            type: file.type,
+            type: resolvedContentType,
           },
           directUploadSupported: false,
         }
@@ -400,7 +408,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               fileName: originalName,
               fileKey: fileInfo.key,
               fileSize: buffer.length,
-              fileType: file.type,
+              fileType: resolvedContentType,
             },
             request,
           })
