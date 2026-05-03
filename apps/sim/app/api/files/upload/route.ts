@@ -18,6 +18,7 @@ import {
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_CODE_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
+  SUPPORTED_IMAGE_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
   validateFileType,
 } from '@/lib/uploads/utils/validation'
@@ -28,12 +29,10 @@ import {
   InvalidRequestError,
 } from '@/app/api/files/utils'
 
-const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] as const
-
 const ALLOWED_EXTENSIONS = new Set<string>([
   ...SUPPORTED_DOCUMENT_EXTENSIONS,
   ...SUPPORTED_CODE_EXTENSIONS,
-  ...IMAGE_EXTENSIONS,
+  ...SUPPORTED_IMAGE_EXTENSIONS,
   ...SUPPORTED_AUDIO_EXTENSIONS,
   ...SUPPORTED_VIDEO_EXTENSIONS,
 ])
