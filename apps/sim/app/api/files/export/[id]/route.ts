@@ -124,9 +124,10 @@ export const GET = withRouteHandler(
 
     for (const [imageId, asset] of assetMap) {
       const escapedId = imageId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const replacement = `./assets/${asset.filename}`
       mdContent = mdContent.replace(
         new RegExp(`/api/files/view/${escapedId}`, 'g'),
-        `./assets/${asset.filename}`
+        () => replacement
       )
     }
 
