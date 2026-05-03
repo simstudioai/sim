@@ -847,12 +847,27 @@ export function getViewerUrl(fileKey: string, workspaceId?: string): string | nu
 }
 
 /**
- * Downloads a workspace file to the user's device via the serve API.
- * Fetches the file as a blob and triggers a browser download.
+ * Downloads a workspace file to the user's device.
+ * Markdown files with embedded images are exported as a zip with an assets/ folder.
+ * All other files are fetched directly from the serve API.
  */
-export async function downloadWorkspaceFile(file: { key: string; name: string }): Promise<void> {
-  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace&t=${Date.now()}`
-  const response = await fetch(serveUrl, { cache: 'no-store' })
+export async function downloadWorkspaceFile(file: {
+  id?: string
+  key: string
+  name: string
+  type?: string
+}): Promise<void> {
+  const isMarkdown =
+    file.type === 'text/markdown' ||
+    file.type === 'text/x-markdown' ||
+    /\.(?:md|markdown)$/i.test(file.name)
+
+  const fetchUrl =
+    isMarkdown && file.id
+      ? `/api/files/export/${encodeURIComponent(file.id)}`
+      : `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace&t=${Date.now()}`
+
+  const response = await fetch(fetchUrl, { cache: 'no-store' })
   if (!response.ok) {
     throw new Error(`Failed to download file: ${response.statusText}`)
   }
@@ -860,7 +875,9 @@ export async function downloadWorkspaceFile(file: { key: string; name: string })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = file.name
+  const contentDisposition = response.headers.get('Content-Disposition')
+  const filenameMatch = contentDisposition?.match(/filename="([^"]+)"/)
+  a.download = filenameMatch?.[1] ?? file.name
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
