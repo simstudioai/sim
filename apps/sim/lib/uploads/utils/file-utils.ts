@@ -33,6 +33,13 @@ export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document' | 'audio' | 
   'image/gif': 'image',
   'image/webp': 'image',
   'image/svg+xml': 'image', // SVG upload is allowed; createFileContent handles it separately for Claude API
+  'image/bmp': 'image',
+  'image/tiff': 'image',
+  'image/heic': 'image',
+  'image/heif': 'image',
+  'image/avif': 'image',
+  'image/x-icon': 'image',
+  'image/vnd.microsoft.icon': 'image',
 
   // Documents
   'application/pdf': 'document',
@@ -158,6 +165,10 @@ export function createFileContent(fileBuffer: Buffer, mimeType: string): Message
     return null
   }
 
+  if (contentType === 'image' && !CLAUDE_SUPPORTED_IMAGE_MIME_TYPES.has(mimeType.toLowerCase())) {
+    return null
+  }
+
   return {
     type: contentType,
     source: {
@@ -167,6 +178,14 @@ export function createFileContent(fileBuffer: Buffer, mimeType: string): Message
     },
   }
 }
+
+const CLAUDE_SUPPORTED_IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+])
 
 /**
  * Extract file extension from filename
@@ -184,6 +203,13 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   gif: 'image/gif',
   webp: 'image/webp',
   svg: 'image/svg+xml',
+  bmp: 'image/bmp',
+  tif: 'image/tiff',
+  tiff: 'image/tiff',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  avif: 'image/avif',
+  ico: 'image/x-icon',
 
   // Documents
   pdf: 'application/pdf',
@@ -339,6 +365,13 @@ const MIME_TO_EXTENSION: Record<string, string> = {
   'image/gif': 'gif',
   'image/webp': 'webp',
   'image/svg+xml': 'svg',
+  'image/bmp': 'bmp',
+  'image/tiff': 'tiff',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+  'image/avif': 'avif',
+  'image/x-icon': 'ico',
+  'image/vnd.microsoft.icon': 'ico',
 
   // Documents
   'application/pdf': 'pdf',
