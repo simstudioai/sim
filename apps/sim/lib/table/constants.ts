@@ -2,6 +2,8 @@
  * Limits and constants for user-defined tables.
  */
 
+import { env, envNumber } from '@/lib/core/config/env'
+
 export const TABLE_LIMITS = {
   MAX_TABLES_PER_WORKSPACE: 100,
   MAX_ROWS_PER_TABLE: 10000,
@@ -24,9 +26,11 @@ export const TABLE_LIMITS = {
 } as const
 
 /**
- * Plan-based table limits.
+ * Default plan-based table limits. Each value can be overridden via env vars
+ * (see `getTablePlanLimits`) so self-hosted deployments can raise the free-tier
+ * caps that apply when billing is disabled.
  */
-export const TABLE_PLAN_LIMITS = {
+export const DEFAULT_TABLE_PLAN_LIMITS = {
   free: {
     maxTables: 3,
     maxRowsPerTable: 1000,
@@ -45,11 +49,54 @@ export const TABLE_PLAN_LIMITS = {
   },
 } as const
 
-export type PlanName = keyof typeof TABLE_PLAN_LIMITS
+export type PlanName = keyof typeof DEFAULT_TABLE_PLAN_LIMITS
 
 export interface TablePlanLimits {
   maxTables: number
   maxRowsPerTable: number
+}
+
+export type TablePlanLimitsByPlan = Record<PlanName, TablePlanLimits>
+
+/**
+ * Returns plan-based table limits, applying env var overrides on top of the
+ * defaults. When no override is set the value falls back to the hosted-default
+ * constant so behavior is unchanged for the hosted product.
+ */
+export function getTablePlanLimits(): TablePlanLimitsByPlan {
+  return {
+    free: {
+      maxTables: envNumber(env.FREE_TABLES_LIMIT, DEFAULT_TABLE_PLAN_LIMITS.free.maxTables),
+      maxRowsPerTable: envNumber(
+        env.FREE_TABLE_ROWS_LIMIT,
+        DEFAULT_TABLE_PLAN_LIMITS.free.maxRowsPerTable
+      ),
+    },
+    pro: {
+      maxTables: envNumber(env.PRO_TABLES_LIMIT, DEFAULT_TABLE_PLAN_LIMITS.pro.maxTables),
+      maxRowsPerTable: envNumber(
+        env.PRO_TABLE_ROWS_LIMIT,
+        DEFAULT_TABLE_PLAN_LIMITS.pro.maxRowsPerTable
+      ),
+    },
+    team: {
+      maxTables: envNumber(env.TEAM_TABLES_LIMIT, DEFAULT_TABLE_PLAN_LIMITS.team.maxTables),
+      maxRowsPerTable: envNumber(
+        env.TEAM_TABLE_ROWS_LIMIT,
+        DEFAULT_TABLE_PLAN_LIMITS.team.maxRowsPerTable
+      ),
+    },
+    enterprise: {
+      maxTables: envNumber(
+        env.ENTERPRISE_TABLES_LIMIT,
+        DEFAULT_TABLE_PLAN_LIMITS.enterprise.maxTables
+      ),
+      maxRowsPerTable: envNumber(
+        env.ENTERPRISE_TABLE_ROWS_LIMIT,
+        DEFAULT_TABLE_PLAN_LIMITS.enterprise.maxRowsPerTable
+      ),
+    },
+  }
 }
 
 export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as const

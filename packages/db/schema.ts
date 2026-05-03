@@ -2873,6 +2873,13 @@ export const userTableRows = pgTable(
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
     data: jsonb('data').notNull(),
+    /**
+     * Per-row workflow-group execution state, keyed by `WorkflowGroup.id`.
+     * Each entry holds status / executionId / jobId / blockErrors /
+     * runningBlockIds for one group's run on this row. Empty `{}` means no
+     * group has run for this row yet.
+     */
+    executions: jsonb('executions').notNull().default({}),
     position: integer('position').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

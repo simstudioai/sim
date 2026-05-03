@@ -454,6 +454,10 @@ export const fileViewParamsSchema = z.object({
   id: z.string().uuid('File ID must be a valid UUID'),
 })
 
+export const fileExportParamsSchema = z.object({
+  id: z.string().uuid('File ID must be a valid UUID'),
+})
+
 export const boxUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/box/upload',
@@ -707,6 +711,13 @@ export const fileViewContract = defineRouteContract({
   response: { mode: 'binary' },
 })
 
+export const fileExportContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/files/export/[id]',
+  params: fileExportParamsSchema,
+  response: { mode: 'binary' },
+})
+
 export type BoxUploadBody = ContractBodyInput<typeof boxUploadContract>
 export type BoxUploadResponse = ContractJsonResponse<typeof boxUploadContract>
 export type DropboxUploadBody = ContractBodyInput<typeof dropboxUploadContract>
@@ -749,3 +760,4 @@ export type GetMultipartPartUrlsBody = z.output<typeof getMultipartPartUrlsBodyS
 export type FileServeParams = ContractParamsInput<typeof fileServeContract>
 export type FileServeQuery = ContractQueryInput<typeof fileServeContract>
 export type FileViewParams = ContractParamsInput<typeof fileViewContract>
+export type FileExportParams = ContractParamsInput<typeof fileExportContract>

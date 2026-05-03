@@ -707,3 +707,187 @@ export const deleteTableRowsContract = defineRouteContract({
     ),
   },
 })
+
+// ============================================================================
+// Workflow group contracts (`/api/table/[tableId]/groups`, `/cancel-runs`,
+// `/groups/[groupId]/run`, `/rows/[rowId]/run-workflow-group`)
+// ============================================================================
+
+const workflowGroupOutputSchema = z.object({
+  blockId: z.string().min(1),
+  path: z.string().min(1),
+  columnName: z.string().min(1),
+})
+
+const workflowGroupDependenciesSchema = z.object({
+  columns: z.array(z.string()).optional(),
+  workflowGroups: z.array(z.string()).optional(),
+})
+
+const workflowGroupOutputColumnSchema = z.object({
+  name: z.string().min(1),
+  type: columnTypeSchema,
+  required: z.boolean().optional(),
+  unique: z.boolean().optional(),
+  workflowGroupId: z.string().min(1),
+})
+
+export const groupIdParamsSchema = tableIdParamsSchema.extend({
+  groupId: z.string().min(1),
+})
+
+export const addWorkflowGroupBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  group: z.object({
+    id: z.string().min(1),
+    workflowId: z.string().min(1),
+    name: z.string().optional(),
+    dependencies: workflowGroupDependenciesSchema.optional(),
+    outputs: z.array(workflowGroupOutputSchema).min(1),
+  }),
+  outputColumns: z.array(workflowGroupOutputColumnSchema).min(1),
+  /** When false, skip auto-scheduling existing rows after the group is added.
+   *  Defaults to true so UI adds populate cells immediately; the Mothership
+   *  tool sends `false` so the AI can stage groups without firing runs. */
+  autoRun: z.boolean().optional(),
+})
+
+export const updateWorkflowGroupBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  groupId: z.string().min(1),
+  workflowId: z.string().min(1).optional(),
+  name: z.string().optional(),
+  dependencies: workflowGroupDependenciesSchema.optional(),
+  outputs: z.array(workflowGroupOutputSchema).optional(),
+  newOutputColumns: z.array(workflowGroupOutputColumnSchema).optional(),
+})
+
+export const deleteWorkflowGroupBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  groupId: z.string().min(1),
+})
+
+const workflowGroupColumnsResponseSchema = successResponseSchema(
+  z.object({
+    columns: z.array(z.unknown()),
+    workflowGroups: z.array(z.unknown()),
+  })
+)
+
+export const addWorkflowGroupContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/groups',
+  params: tableIdParamsSchema,
+  body: addWorkflowGroupBodySchema,
+  response: {
+    mode: 'json',
+    schema: workflowGroupColumnsResponseSchema,
+  },
+})
+
+export const updateWorkflowGroupContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/table/[tableId]/groups',
+  params: tableIdParamsSchema,
+  body: updateWorkflowGroupBodySchema,
+  response: {
+    mode: 'json',
+    schema: workflowGroupColumnsResponseSchema,
+  },
+})
+
+export const deleteWorkflowGroupContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/table/[tableId]/groups',
+  params: tableIdParamsSchema,
+  body: deleteWorkflowGroupBodySchema,
+  response: {
+    mode: 'json',
+    schema: workflowGroupColumnsResponseSchema,
+  },
+})
+
+/**
+ * Cancel scopes:
+ *  - `all`     — every running/pending cell in the table
+ *  - `row`     — every running/pending cell for a specific row (`rowId` required)
+ */
+export const cancelTableRunsBodySchema = z
+  .object({
+    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    scope: z.enum(['all', 'row']),
+    rowId: z.string().min(1).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.scope === 'row' && !value.rowId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['rowId'],
+        message: 'rowId is required when scope is "row"',
+      })
+    }
+  })
+
+export const cancelTableRunsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/cancel-runs',
+  params: tableIdParamsSchema,
+  body: cancelTableRunsBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ cancelled: z.number() })),
+  },
+})
+
+/**
+ * Run modes for `POST /api/table/[tableId]/groups/[groupId]/run`:
+ *  - `all`        — every dep-satisfied row not already running/pending
+ *  - `incomplete` — same, but additionally restricted to rows whose group has
+ *    never run, or whose last run ended in `failed`/`aborted`
+ *
+ * Field is named `runMode` (not `mode`) to disambiguate from the table-import
+ * `mode` arg (`append` / `replace`) which lives on a different op.
+ */
+export const runWorkflowGroupBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  runMode: z.enum(['all', 'incomplete']).default('all'),
+  /** Optional row scope. When provided, only these rows are candidates — the
+   *  same eligibility predicate (deps satisfied, not in-flight, runMode filter)
+   *  still applies, so a passed-in row that's mid-run or has unmet deps is
+   *  silently skipped. Omit to run across the entire table. */
+  rowIds: z.array(z.string().min(1)).min(1).optional(),
+})
+
+export const runWorkflowGroupContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/groups/[groupId]/run',
+  params: groupIdParamsSchema,
+  body: runWorkflowGroupBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ triggered: z.number() })),
+  },
+})
+
+export const runRowWorkflowGroupBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  groupId: z.string().min(1, 'Group ID is required'),
+})
+
+export const runRowWorkflowGroupContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/rows/[rowId]/run-workflow-group',
+  params: tableRowParamsSchema,
+  body: runRowWorkflowGroupBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ executionId: z.string() })),
+  },
+})
+
+export type AddWorkflowGroupBodyInput = z.input<typeof addWorkflowGroupBodySchema>
+export type UpdateWorkflowGroupBodyInput = z.input<typeof updateWorkflowGroupBodySchema>
+export type DeleteWorkflowGroupBodyInput = z.input<typeof deleteWorkflowGroupBodySchema>
+export type CancelTableRunsBodyInput = z.input<typeof cancelTableRunsBodySchema>
+export type RunWorkflowGroupBodyInput = z.input<typeof runWorkflowGroupBodySchema>
+export type RunRowWorkflowGroupBodyInput = z.input<typeof runRowWorkflowGroupBodySchema>

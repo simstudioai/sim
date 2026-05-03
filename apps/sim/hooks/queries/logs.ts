@@ -33,6 +33,9 @@ export const logKeys = {
     [...logKeys.lists(), workspaceId ?? '', filters] as const,
   details: () => [...logKeys.all, 'detail'] as const,
   detail: (logId: string | undefined) => [...logKeys.details(), logId ?? ''] as const,
+  byExecutionAll: () => [...logKeys.all, 'byExecution'] as const,
+  byExecution: (workspaceId: string | undefined, executionId: string | undefined) =>
+    [...logKeys.byExecutionAll(), workspaceId ?? '', executionId ?? ''] as const,
   stats: () => [...logKeys.all, 'stats'] as const,
   stat: (workspaceId: string | undefined, filters: object) =>
     [...logKeys.stats(), workspaceId ?? '', filters] as const,
@@ -136,6 +139,23 @@ export async function fetchLogDetail(logId: string, signal?: AbortSignal): Promi
   return toWorkflowLog(data)
 }
 
+async function fetchLogByExecutionId(
+  workspaceId: string,
+  executionId: string,
+  signal?: AbortSignal
+): Promise<WorkflowLog | null> {
+  const apiData = await requestJson(listLogsContract, {
+    query: {
+      workspaceId,
+      executionId,
+      details: 'full',
+      limit: 1,
+    },
+    signal,
+  })
+  return apiData.data?.[0] ? toWorkflowLog(apiData.data[0]) : null
+}
+
 interface UseLogsListOptions {
   enabled?: boolean
   refetchInterval?: number | false
@@ -173,6 +193,24 @@ export function useLogDetail(logId: string | undefined, options?: UseLogDetailOp
     queryFn: ({ signal }) => fetchLogDetail(logId as string, signal),
     enabled: Boolean(logId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
+    staleTime: 30 * 1000,
+  })
+}
+
+/**
+ * Looks up a workflow log by its `executionId` (the id stored on table workflow cells).
+ * Returns the full log shape so the LogDetails sidebar can render directly without
+ * an extra detail fetch.
+ */
+export function useLogByExecutionId(
+  workspaceId: string | undefined,
+  executionId: string | null | undefined
+) {
+  return useQuery({
+    queryKey: logKeys.byExecution(workspaceId, executionId ?? undefined),
+    queryFn: ({ signal }) =>
+      fetchLogByExecutionId(workspaceId as string, executionId as string, signal),
+    enabled: Boolean(workspaceId) && Boolean(executionId),
     staleTime: 30 * 1000,
   })
 }

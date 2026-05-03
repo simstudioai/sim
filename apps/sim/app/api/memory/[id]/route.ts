@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { memory } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   agentMemoryDataSchemaContract,
@@ -75,7 +75,13 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Memory
     const memories = await db
       .select()
       .from(memory)
-      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
+      .where(
+        and(
+          eq(memory.key, id),
+          eq(memory.workspaceId, validatedWorkspaceId),
+          isNull(memory.deletedAt)
+        )
+      )
       .orderBy(memory.createdAt)
       .limit(1)
 
@@ -125,7 +131,13 @@ export const DELETE = withRouteHandler(
       const existingMemory = await db
         .select({ id: memory.id })
         .from(memory)
-        .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
+        .where(
+          and(
+            eq(memory.key, id),
+            eq(memory.workspaceId, validatedWorkspaceId),
+            isNull(memory.deletedAt)
+          )
+        )
         .limit(1)
 
       if (existingMemory.length === 0) {
@@ -134,7 +146,13 @@ export const DELETE = withRouteHandler(
 
       await db
         .delete(memory)
-        .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
+        .where(
+          and(
+            eq(memory.key, id),
+            eq(memory.workspaceId, validatedWorkspaceId),
+            isNull(memory.deletedAt)
+          )
+        )
 
       logger.info(`[${requestId}] Memory deleted: ${id} for workspace: ${validatedWorkspaceId}`)
       return NextResponse.json(
@@ -177,7 +195,13 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Memory
     const existingMemories = await db
       .select()
       .from(memory)
-      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
+      .where(
+        and(
+          eq(memory.key, id),
+          eq(memory.workspaceId, validatedWorkspaceId),
+          isNull(memory.deletedAt)
+        )
+      )
       .limit(1)
 
     if (existingMemories.length === 0) {
@@ -196,12 +220,24 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Memory
     await db
       .update(memory)
       .set({ data: validatedData, updatedAt: now })
-      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
+      .where(
+        and(
+          eq(memory.key, id),
+          eq(memory.workspaceId, validatedWorkspaceId),
+          isNull(memory.deletedAt)
+        )
+      )
 
     const updatedMemories = await db
       .select()
       .from(memory)
-      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
+      .where(
+        and(
+          eq(memory.key, id),
+          eq(memory.workspaceId, validatedWorkspaceId),
+          isNull(memory.deletedAt)
+        )
+      )
       .limit(1)
 
     const mem = updatedMemories[0]

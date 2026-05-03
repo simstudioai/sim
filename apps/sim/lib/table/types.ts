@@ -26,13 +26,88 @@ export interface ColumnDefinition {
   type: (typeof COLUMN_TYPES)[number]
   required?: boolean
   unique?: boolean
+  /**
+   * When set, this column is one of a workflow group's outputs. The value in
+   * `row.data[name]` is populated by the group's per-cell run.
+   */
+  workflowGroupId?: string
 }
+
+/** One workflow output → one plain column. */
+export interface WorkflowGroupOutput {
+  /** Source block id within the configured workflow. */
+  blockId: string
+  /** Dot-path into that block's output (e.g. `summary`, `result.items[0]`). */
+  path: string
+  /** Plain column in `schema.columns` that receives the plucked value. */
+  columnName: string
+}
+
+export interface WorkflowGroupDependencies {
+  /** Plain columns that must be non-empty before this group runs. */
+  columns?: string[]
+  /**
+   * Other workflow groups that must reach `status: completed` before this
+   * group runs. The dep graph is a first-class concept — you depend on a
+   * producing group, never on a sibling output value (which can legitimately
+   * be null on success).
+   */
+  workflowGroups?: string[]
+}
+
+export interface WorkflowGroup {
+  id: string
+  workflowId: string
+  /** Display name; defaults to the workflow's name. */
+  name?: string
+  dependencies?: WorkflowGroupDependencies
+  outputs: WorkflowGroupOutput[]
+}
+
+/**
+ * Per-row execution state for one workflow group, stored in
+ * `userTableRows.executions[groupId]`. Holds run metadata only — picked
+ * values land in `row.data` directly.
+ */
+export interface RowExecutionMetadata {
+  status: 'pending' | 'running' | 'completed' | 'error' | 'cancelled'
+  executionId: string | null
+  /**
+   * Async-job id (e.g. trigger.dev run id) for the in-flight execution.
+   * Persisted on `running` / `pending` rows so the cancel API can call
+   * `backend.cancelJob(jobId)` from any pod regardless of which one
+   * initiated the run. Null for terminal states.
+   */
+  jobId: string | null
+  workflowId: string
+  error: string | null
+  /** Block ids currently mid-execution. Empty / absent on terminal states. */
+  runningBlockIds?: string[]
+  /**
+   * Per-block error messages keyed by `blockId`. Errors are a normal Sim
+   * concept (error-port edges) — only the column sourced from the failing
+   * block should render `Error`, not every output column.
+   */
+  blockErrors?: Record<string, string>
+}
+
+/** Map of `WorkflowGroup.id` → execution state. Stored on every row. */
+export type RowExecutions = Record<string, RowExecutionMetadata>
 
 export interface TableSchema {
   columns: ColumnDefinition[]
+  /**
+   * Workflow groups keyed by id. Each group has N output columns (each
+   * referenced by `outputs[].columnName` in this same schema).
+   */
+  workflowGroups?: WorkflowGroup[]
 }
 
-/** UI-only metadata stored alongside the table definition. */
+/**
+ * Table-level metadata stored alongside the table definition. UI state only
+ * (column widths, column order) — workflow-group concurrency is enforced at
+ * the trigger.dev queue layer, not via metadata.
+ */
 export interface TableMetadata {
   columnWidths?: Record<string, number>
   columnOrder?: string[]
@@ -65,6 +140,8 @@ export interface TableSummary {
 export interface TableRow {
   id: string
   data: RowData
+  /** Per-group execution state for this row. Empty `{}` if nothing has run. */
+  executions: RowExecutions
   position: number
   createdAt: Date | string
   updatedAt: Date | string
@@ -204,6 +281,7 @@ export interface UpsertRowData {
 export interface UpsertResult {
   row: TableRow
   operation: 'insert' | 'update'
+  previousData?: RowData
 }
 
 export interface UpdateRowData {
@@ -211,6 +289,20 @@ export interface UpdateRowData {
   rowId: string
   data: RowData
   workspaceId: string
+  /**
+   * Optional partial patch to merge into `userTableRows.executions`. Top-level
+   * keys are `WorkflowGroup.id`; pass `null` for a key to delete that group's
+   * execution state. Used by the cell task and cancel paths.
+   */
+  executionsPatch?: Record<string, RowExecutionMetadata | null>
+  /**
+   * Optional SQL-level guard: the update is a no-op if the row's
+   * `executions[groupId]` already shows `cancelled` for the same
+   * `executionId`. The cell task passes this so a `running` partial-write
+   * landing after a stop click can't clobber the authoritative `cancelled`
+   * state. `updateRow` returns `null` when the guard rejects the write.
+   */
+  cancellationGuard?: { groupId: string; executionId: string }
 }
 
 export interface BulkUpdateData {
@@ -223,7 +315,11 @@ export interface BulkUpdateData {
 
 export interface BatchUpdateByIdData {
   tableId: string
-  updates: Array<{ rowId: string; data: RowData }>
+  updates: Array<{
+    rowId: string
+    data: RowData
+    executionsPatch?: Record<string, RowExecutionMetadata | null>
+  }>
   workspaceId: string
 }
 
@@ -281,4 +377,33 @@ export interface UpdateColumnConstraintsData {
 export interface DeleteColumnData {
   tableId: string
   columnName: string
+}
+
+/** Payload for `addWorkflowGroup` — atomic insert of a group + its outputs. */
+export interface AddWorkflowGroupData {
+  tableId: string
+  group: WorkflowGroup
+  outputColumns: ColumnDefinition[]
+  /** When `false`, the post-add row-scheduling pass is skipped. Defaults to
+   *  `true` (UI behavior). Mothership passes `false` so groups can be staged
+   *  without firing every dep-satisfied row. */
+  autoRun?: boolean
+}
+
+/** Payload for `updateWorkflowGroup` — diffs outputs and writes columns. */
+export interface UpdateWorkflowGroupData {
+  tableId: string
+  groupId: string
+  workflowId?: string
+  name?: string
+  dependencies?: WorkflowGroupDependencies
+  /** Full replacement set; service computes adds/removes vs current state. */
+  outputs?: WorkflowGroupOutput[]
+  /** Column definitions for any newly-added outputs. */
+  newOutputColumns?: ColumnDefinition[]
+}
+
+export interface DeleteWorkflowGroupData {
+  tableId: string
+  groupId: string
 }

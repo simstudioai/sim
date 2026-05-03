@@ -149,7 +149,9 @@ export const POST = withRouteHandler(
           request
         )
 
-        setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
+        if (deployment.authType !== 'sso') {
+          setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
+        }
 
         return response
       }
@@ -358,6 +360,7 @@ export const GET = withRouteHandler(
 
       if (
         deployment.authType !== 'public' &&
+        deployment.authType !== 'sso' &&
         authCookie &&
         validateAuthToken(authCookie.value, deployment.id, deployment.password)
       ) {

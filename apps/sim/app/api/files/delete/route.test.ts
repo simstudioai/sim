@@ -1,28 +1,25 @@
 /**
  * @vitest-environment node
  */
-import { authMockFns, hybridAuthMockFns } from '@sim/testing'
+import {
+  authMockFns,
+  hybridAuthMockFns,
+  storageServiceMock,
+  storageServiceMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const mockVerifyFileAccess = vi.fn()
   const mockVerifyWorkspaceFileAccess = vi.fn()
-  const mockDeleteFile = vi.fn()
-  const mockHasCloudStorage = vi.fn()
   const mockGetStorageProvider = vi.fn()
   const mockIsUsingCloudStorage = vi.fn()
-  const mockUploadFile = vi.fn()
-  const mockDownloadFile = vi.fn()
 
   return {
     mockVerifyFileAccess,
     mockVerifyWorkspaceFileAccess,
-    mockDeleteFile,
-    mockHasCloudStorage,
     mockGetStorageProvider,
     mockIsUsingCloudStorage,
-    mockUploadFile,
-    mockDownloadFile,
   }
 })
 
@@ -68,23 +65,18 @@ vi.mock('@/lib/uploads', () => ({
   getStorageProvider: mocks.mockGetStorageProvider,
   isUsingCloudStorage: mocks.mockIsUsingCloudStorage,
   StorageService: {
-    uploadFile: mocks.mockUploadFile,
-    downloadFile: mocks.mockDownloadFile,
-    deleteFile: mocks.mockDeleteFile,
-    hasCloudStorage: mocks.mockHasCloudStorage,
+    uploadFile: storageServiceMockFns.mockUploadFile,
+    downloadFile: storageServiceMockFns.mockDownloadFile,
+    deleteFile: storageServiceMockFns.mockDeleteFile,
+    hasCloudStorage: storageServiceMockFns.mockHasCloudStorage,
   },
-  uploadFile: mocks.mockUploadFile,
-  downloadFile: mocks.mockDownloadFile,
-  deleteFile: mocks.mockDeleteFile,
-  hasCloudStorage: mocks.mockHasCloudStorage,
+  uploadFile: storageServiceMockFns.mockUploadFile,
+  downloadFile: storageServiceMockFns.mockDownloadFile,
+  deleteFile: storageServiceMockFns.mockDeleteFile,
+  hasCloudStorage: storageServiceMockFns.mockHasCloudStorage,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  uploadFile: mocks.mockUploadFile,
-  downloadFile: mocks.mockDownloadFile,
-  deleteFile: mocks.mockDeleteFile,
-  hasCloudStorage: mocks.mockHasCloudStorage,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/uploads/server/metadata', () => ({
   deleteFileMetadata: vi.fn().mockResolvedValue(undefined),
@@ -117,14 +109,14 @@ describe('File Delete API Route', () => {
     })
     mocks.mockVerifyFileAccess.mockResolvedValue(true)
     mocks.mockVerifyWorkspaceFileAccess.mockResolvedValue(true)
-    mocks.mockDeleteFile.mockResolvedValue(undefined)
-    mocks.mockHasCloudStorage.mockReturnValue(true)
+    storageServiceMockFns.mockDeleteFile.mockResolvedValue(undefined)
+    storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
     mocks.mockGetStorageProvider.mockReturnValue('s3')
     mocks.mockIsUsingCloudStorage.mockReturnValue(true)
   })
 
   it('should handle local file deletion successfully', async () => {
-    mocks.mockHasCloudStorage.mockReturnValue(false)
+    storageServiceMockFns.mockHasCloudStorage.mockReturnValue(false)
     mocks.mockGetStorageProvider.mockReturnValue('local')
     mocks.mockIsUsingCloudStorage.mockReturnValue(false)
 
@@ -142,7 +134,7 @@ describe('File Delete API Route', () => {
   })
 
   it('should handle file not found gracefully', async () => {
-    mocks.mockHasCloudStorage.mockReturnValue(false)
+    storageServiceMockFns.mockHasCloudStorage.mockReturnValue(false)
     mocks.mockGetStorageProvider.mockReturnValue('local')
     mocks.mockIsUsingCloudStorage.mockReturnValue(false)
 
@@ -170,7 +162,7 @@ describe('File Delete API Route', () => {
     expect(data).toHaveProperty('success', true)
     expect(data).toHaveProperty('message', 'File deleted successfully')
 
-    expect(mocks.mockDeleteFile).toHaveBeenCalledWith({
+    expect(storageServiceMockFns.mockDeleteFile).toHaveBeenCalledWith({
       key: 'workspace/test-workspace-id/1234567890-test-file.txt',
       context: 'workspace',
     })
@@ -190,7 +182,7 @@ describe('File Delete API Route', () => {
     expect(data).toHaveProperty('success', true)
     expect(data).toHaveProperty('message', 'File deleted successfully')
 
-    expect(mocks.mockDeleteFile).toHaveBeenCalledWith({
+    expect(storageServiceMockFns.mockDeleteFile).toHaveBeenCalledWith({
       key: 'workspace/test-workspace-id/1234567890-test-document.pdf',
       context: 'workspace',
     })

@@ -272,13 +272,63 @@ export function getMimeTypeFromExtension(extension: string): string {
 }
 
 /**
- * Resolve a reliable MIME type from a file, falling back to extension
- * when the browser reports empty or generic `application/octet-stream`
+ * Resolve a reliable MIME type from a file, falling back to the extension map
+ * when the browser reports an empty type. By default treats
+ * `application/octet-stream` as "unknown" and falls back to the extension —
+ * pass `{ preserveOctetStream: true }` for direct PUT uploads where the
+ * browser-supplied content-type must match the presigned handshake exactly.
  */
-export function resolveFileType(file: { type: string; name: string }): string {
-  return file.type && file.type !== 'application/octet-stream'
-    ? file.type
-    : getMimeTypeFromExtension(getFileExtension(file.name))
+export function resolveFileType(
+  file: { type: string; name: string },
+  options?: { preserveOctetStream?: boolean }
+): string {
+  const browserType = file.type?.trim()
+  if (browserType) {
+    if (options?.preserveOctetStream || browserType !== 'application/octet-stream') {
+      return browserType
+    }
+  }
+  return getMimeTypeFromExtension(getFileExtension(file.name))
+}
+
+/**
+ * Upload `Content-Type` for direct PUT — preserves the browser's reported type
+ * verbatim (including `application/octet-stream`) so it matches the presigned
+ * URL's signed Content-Type header.
+ */
+export function getFileContentType(file: File): string {
+  return resolveFileType(file, { preserveOctetStream: true })
+}
+
+/**
+ * Whether `error` is a DOM `AbortError` (XHR `abort()`, fetch `signal.aborted`,
+ * etc). Used in upload retry loops so aborts short-circuit instead of retrying.
+ */
+export function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'name' in error &&
+    String((error as { name?: unknown }).name) === 'AbortError'
+  )
+}
+
+/**
+ * Heuristic: whether `error` is a transient network/connection failure that's
+ * worth retrying (vs. a deterministic 4xx/auth/validation error). Sniffs the
+ * message because browsers and servers report these without standardized codes.
+ */
+export function isNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const message = error.message.toLowerCase()
+  return (
+    message.includes('network') ||
+    message.includes('fetch') ||
+    message.includes('connection') ||
+    message.includes('timeout') ||
+    message.includes('timed out') ||
+    message.includes('econnreset')
+  )
 }
 
 const MIME_TO_EXTENSION: Record<string, string> = {
@@ -794,25 +844,4 @@ export function getViewerUrl(fileKey: string, workspaceId?: string): string | nu
   }
 
   return `/workspace/${resolvedWorkspaceId}/files/${fileKey}`
-}
-
-/**
- * Downloads a workspace file to the user's device via the serve API.
- * Fetches the file as a blob and triggers a browser download.
- */
-export async function downloadWorkspaceFile(file: { key: string; name: string }): Promise<void> {
-  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace&t=${Date.now()}`
-  const response = await fetch(serveUrl, { cache: 'no-store' })
-  if (!response.ok) {
-    throw new Error(`Failed to download file: ${response.statusText}`)
-  }
-  const blob = await response.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = file.name
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
 }

@@ -8,7 +8,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
-import { downloadWorkspaceFile, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
+import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 export const dynamic = 'force-dynamic'
@@ -62,7 +62,7 @@ export const GET = withRouteHandler(
 
     let buffer: Buffer
     try {
-      buffer = await downloadWorkspaceFile(fileRecord)
+      buffer = await fetchWorkspaceFileBuffer(fileRecord)
     } catch (err) {
       logger.error('Failed to download file for compiled check', {
         fileId,

@@ -74,6 +74,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       type: 'short-input',
       canonicalParamId: 'baseId',
       placeholder: 'Enter your base ID (e.g., appXXXXXXXXXXXXXX)',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: { field: 'operation', value: 'listBases', not: true },
       required: { field: 'operation', value: 'listBases', not: true },

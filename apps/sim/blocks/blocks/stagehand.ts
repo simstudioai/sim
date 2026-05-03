@@ -351,6 +351,7 @@ Example 3 (Data Collection):
       type: 'short-input',
       placeholder: 'Enter your API key for the selected provider',
       password: true,
+      dependsOn: ['provider'],
       required: true,
     },
   ],
@@ -361,17 +362,34 @@ Example 3 (Data Collection):
         return params.operation === 'agent' ? 'stagehand_agent' : 'stagehand_extract'
       },
       params: (params) => {
-        const next: Record<string, any> = { ...params }
-        if (typeof next.maxSteps === 'string') {
-          const trimmed = next.maxSteps.trim()
-          if (trimmed === '') {
-            next.maxSteps = undefined
-          } else {
-            const n = Number(trimmed)
-            next.maxSteps = Number.isFinite(n) ? n : undefined
+        const baseParams = {
+          operation: params.operation,
+          provider: params.provider,
+          apiKey: params.apiKey,
+        }
+
+        if (params.operation !== 'agent') {
+          return {
+            ...baseParams,
+            url: params.url,
+            instruction: params.instruction,
+            schema: params.schema,
           }
         }
-        return next
+
+        const maxStepsInput =
+          typeof params.maxSteps === 'string' ? params.maxSteps.trim() : params.maxSteps
+        const maxSteps = maxStepsInput === '' ? Number.NaN : Number(maxStepsInput)
+
+        return {
+          ...baseParams,
+          startUrl: params.startUrl,
+          task: params.task,
+          variables: params.variables,
+          outputSchema: params.outputSchema,
+          mode: params.mode,
+          maxSteps: Number.isFinite(maxSteps) ? maxSteps : undefined,
+        }
       },
     },
   },

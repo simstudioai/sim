@@ -74,6 +74,7 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
       password: true,
       placeholder: 'Your SFTP password',
       condition: { field: 'authMethod', value: 'password' },
+      dependsOn: ['authMethod'],
     },
 
     {
@@ -82,6 +83,7 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
       type: 'code',
       placeholder: '-----BEGIN OPENSSH PRIVATE KEY-----\n...',
       condition: { field: 'authMethod', value: 'privateKey' },
+      dependsOn: ['authMethod'],
     },
     {
       id: 'passphrase',
@@ -90,6 +92,7 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
       password: true,
       placeholder: 'Passphrase for encrypted key (optional)',
       condition: { field: 'authMethod', value: 'privateKey' },
+      dependsOn: ['authMethod'],
     },
 
     {

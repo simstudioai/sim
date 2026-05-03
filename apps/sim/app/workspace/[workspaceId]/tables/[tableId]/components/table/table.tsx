@@ -2,21 +2,13 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
   Button,
   Checkbox,
-  DatePicker,
   Download,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
   Modal,
   ModalBody,
   ModalContent,
@@ -27,79 +19,83 @@ import {
   Upload,
 } from '@/components/emcn'
 import {
-  ArrowLeft,
-  ArrowRight,
-  Calendar as CalendarIcon,
-  ChevronDown,
-  Fingerprint,
   Pencil,
+  PlayOutline,
   Plus,
   Table as TableIcon,
   TableX,
   Trash,
-  TypeBoolean,
-  TypeJson,
-  TypeNumber,
-  TypeText,
 } from '@/components/emcn/icons'
+import { Loader } from '@/components/emcn/icons/loader'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, Filter, SortDirection, TableRow as TableRowType } from '@/lib/table'
 import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
 import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
+import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
+import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
   downloadTableExport,
   useAddTableColumn,
   useBatchCreateTableRows,
   useBatchUpdateTableRows,
+  useCancelTableRuns,
   useCreateTableRow,
   useDeleteColumn,
   useDeleteTable,
+  useDeleteWorkflowGroup,
   useRenameTable,
+  useRunGroup,
   useUpdateColumn,
   useUpdateTableMetadata,
   useUpdateTableRow,
+  useUpdateWorkflowGroup,
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
+import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
-import { useContextMenu, useTableData } from '../../hooks'
+import { useContextMenu, useRowExecution, useTable } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
-import {
-  cleanCellValue,
-  displayToStorage,
-  formatValueForInput,
-  storageToDisplay,
-} from '../../utils'
+import { cleanCellValue, storageToDisplay } from '../../utils'
+import { type ColumnConfigState, ColumnSidebar } from '../column-sidebar/column-sidebar'
 import { ContextMenu } from '../context-menu'
 import { RowModal } from '../row-modal'
 import { TableFilter } from '../table-filter'
-
-interface CellCoord {
-  rowIndex: number
-  colIndex: number
-}
-
-interface NormalizedSelection {
-  startRow: number
-  endRow: number
-  startCol: number
-  endCol: number
-  anchorRow: number
-  anchorCol: number
-}
+import { CellContent } from './cells/cell-content'
+import { ExpandedCellPopover } from './cells/expanded-cell-popover'
+import { COL_WIDTH, SELECTION_TINT_BG } from './constants'
+import { ColumnHeaderMenu } from './headers/column-header-menu'
+import { COLUMN_TYPE_ICONS } from './headers/column-type-icon'
+import { WorkflowGroupMetaCell } from './headers/workflow-group-meta-cell'
+import type { DisplayColumn } from './types'
+import {
+  areRowDepsSatisfied,
+  buildHeaderGroups,
+  type CellCoord,
+  collectRowSnapshots,
+  computeNormalizedSelection,
+  expandToDisplayColumns,
+  moveCell,
+  type NormalizedSelection,
+  readExecution,
+} from './utils'
 
 const logger = createLogger('TableView')
 
-const EMPTY_COLUMNS: never[] = []
 const EMPTY_CHECKED_ROWS = new Set<number>()
-const COL_WIDTH = 160
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
-const CHECKBOX_COL_WIDTH = 40
+// Wide enough to host the row-number + per-row run button side by side.
+// Single-digit row numbers (rows 1–9) and multi-digit (10+) need to render
+// with the play button at the same x-position so the column doesn't reflow
+// row-by-row.
+const CHECKBOX_COL_WIDTH = 56
 const ADD_COL_WIDTH = 120
+/** Width of the column-config slideout (matches `column-sidebar.tsx`'s `w-[400px]`). */
+const COLUMN_SIDEBAR_WIDTH = 400
 const SKELETON_COL_COUNT = 4
 const SKELETON_ROW_COUNT = 10
 const ROW_HEIGHT_ESTIMATE = 35
@@ -115,62 +111,6 @@ const CELL_CONTENT =
   'relative min-h-[20px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-small'
 const SELECTION_OVERLAY =
   'pointer-events-none absolute -top-px -right-px -bottom-px -left-px z-[5] border-[2px] border-[var(--selection)]'
-
-function moveCell(
-  anchor: CellCoord,
-  colCount: number,
-  totalRows: number,
-  direction: 1 | -1
-): CellCoord {
-  let newCol = anchor.colIndex + direction
-  let newRow = anchor.rowIndex
-  if (newCol >= colCount) {
-    newCol = 0
-    newRow = Math.min(totalRows - 1, newRow + 1)
-  } else if (newCol < 0) {
-    newCol = colCount - 1
-    newRow = Math.max(0, newRow - 1)
-  }
-  return { rowIndex: newRow, colIndex: newCol }
-}
-
-const COLUMN_TYPE_ICONS: Record<string, React.ElementType> = {
-  string: TypeText,
-  number: TypeNumber,
-  boolean: TypeBoolean,
-  date: CalendarIcon,
-  json: TypeJson,
-}
-
-function computeNormalizedSelection(
-  anchor: CellCoord | null,
-  focus: CellCoord | null
-): NormalizedSelection | null {
-  if (!anchor) return null
-  const f = focus ?? anchor
-  return {
-    startRow: Math.min(anchor.rowIndex, f.rowIndex),
-    endRow: Math.max(anchor.rowIndex, f.rowIndex),
-    startCol: Math.min(anchor.colIndex, f.colIndex),
-    endCol: Math.max(anchor.colIndex, f.colIndex),
-    anchorRow: anchor.rowIndex,
-    anchorCol: anchor.colIndex,
-  }
-}
-
-function collectRowSnapshots(
-  positions: Iterable<number>,
-  positionMap: Map<number, TableRowType>
-): DeletedRowSnapshot[] {
-  const snapshots: DeletedRowSnapshot[] = []
-  for (const pos of positions) {
-    const row = positionMap.get(pos)
-    if (row) {
-      snapshots.push({ rowId: row.id, data: { ...row.data }, position: row.position })
-    }
-  }
-  return snapshots
-}
 
 interface TableProps {
   workspaceId?: string
@@ -202,6 +142,7 @@ export function Table({
   const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null)
   const [initialCharacter, setInitialCharacter] = useState<string | null>(null)
+  const [expandedCell, setExpandedCell] = useState<EditingCell | null>(null)
   const [selectionAnchor, setSelectionAnchor] = useState<CellCoord | null>(null)
   const [selectionFocus, setSelectionFocus] = useState<CellCoord | null>(null)
   const [checkedRows, setCheckedRows] = useState(EMPTY_CHECKED_ROWS)
@@ -241,11 +182,13 @@ export function Table({
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useTableData({
-    workspaceId,
-    tableId,
-    queryOptions,
-  })
+    workflows,
+    columns,
+    tableWorkflowGroups,
+    workflowStates,
+    columnSourceInfo,
+    workflowNameById,
+  } = useTable({ workspaceId, tableId, queryOptions })
 
   const fetchNextPageRef = useRef(fetchNextPage)
   fetchNextPageRef.current = fetchNextPage
@@ -265,6 +208,10 @@ export function Table({
     closeContextMenu,
   } = useContextMenu()
 
+  const { runWorkflowGroup } = useRowExecution()
+  const workflowsRef = useRef(workflows)
+  workflowsRef.current = workflows
+
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const createRowMutation = useCreateTableRow({ workspaceId, tableId })
   const batchCreateRowsMutation = useBatchCreateTableRows({ workspaceId, tableId })
@@ -273,16 +220,43 @@ export function Table({
   const updateColumnMutation = useUpdateColumn({ workspaceId, tableId })
   const deleteColumnMutation = useDeleteColumn({ workspaceId, tableId })
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
+  const cancelRunsMutation = useCancelTableRuns({ workspaceId, tableId })
+  const runGroupMutation = useRunGroup({ workspaceId, tableId })
+  const deleteWorkflowGroupMutation = useDeleteWorkflowGroup({ workspaceId, tableId })
+  const updateWorkflowGroupMutation = useUpdateWorkflowGroup({ workspaceId, tableId })
+
+  const handleRunGroup = useCallback(
+    (groupId: string, workflowId: string, runMode: 'all' | 'incomplete' = 'all') => {
+      runGroupMutation.mutate({ groupId, workflowId, runMode })
+    },
+    // mutate is stable; intentionally excluded from deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  )
 
   function handleColumnOrderChange(order: string[]) {
     setColumnOrder(order)
   }
 
+  // Width keys are either the logical name or `${name}::${path}` (fanned-out
+  // workflow columns). Rename rewrites every key whose prefix matches.
   function handleColumnRename(oldName: string, newName: string) {
     let updatedWidths = columnWidthsRef.current
-    if (oldName in updatedWidths) {
-      const { [oldName]: width, ...rest } = updatedWidths
-      updatedWidths = { ...rest, [newName]: width }
+    let widthsChanged = false
+    const nextWidths: Record<string, number> = {}
+    for (const [key, width] of Object.entries(updatedWidths)) {
+      if (key === oldName) {
+        nextWidths[newName] = width
+        widthsChanged = true
+      } else if (key.startsWith(`${oldName}::`)) {
+        nextWidths[`${newName}${key.slice(oldName.length)}`] = width
+        widthsChanged = true
+      } else {
+        nextWidths[key] = width
+      }
+    }
+    if (widthsChanged) {
+      updatedWidths = nextWidths
       setColumnWidths(updatedWidths)
     }
     const updatedOrder = columnOrderRef.current?.map((n) => (n === oldName ? newName : n))
@@ -316,27 +290,35 @@ export function Table({
   const pushUndoRef = useRef(pushUndo)
   pushUndoRef.current = pushUndo
 
-  const columns = useMemo(
-    () => tableData?.schema?.columns || EMPTY_COLUMNS,
-    [tableData?.schema?.columns]
-  )
+  // `columns`, `tableWorkflowGroups`, `workflowStates`, `columnSourceInfo`,
+  // and `workflowNameById` come from `useTable` above.
 
-  const displayColumns = useMemo(() => {
-    if (!columnOrder || columnOrder.length === 0) return columns
-    const colMap = new Map(columns.map((c) => [c.name, c]))
-    const ordered: ColumnDefinition[] = []
-    for (const name of columnOrder) {
-      const col = colMap.get(name)
-      if (col) {
+  const displayColumns = useMemo<DisplayColumn[]>(() => {
+    let ordered: ColumnDefinition[]
+    if (!columnOrder || columnOrder.length === 0) {
+      ordered = columns
+    } else {
+      const colMap = new Map(columns.map((c) => [c.name, c]))
+      ordered = []
+      for (const name of columnOrder) {
+        const col = colMap.get(name)
+        if (col) {
+          ordered.push(col)
+          colMap.delete(name)
+        }
+      }
+      for (const col of colMap.values()) {
         ordered.push(col)
-        colMap.delete(name)
       }
     }
-    for (const col of colMap.values()) {
-      ordered.push(col)
-    }
-    return ordered
-  }, [columns, columnOrder])
+    return expandToDisplayColumns(ordered, tableWorkflowGroups)
+  }, [columns, columnOrder, tableWorkflowGroups])
+
+  const headerGroups = useMemo(
+    () => buildHeaderGroups(displayColumns, tableWorkflowGroups),
+    [displayColumns, tableWorkflowGroups]
+  )
+  const hasWorkflowGroup = headerGroups.some((g) => g.kind === 'workflow')
 
   const maxPosition = useMemo(() => (rows.length > 0 ? rows[rows.length - 1].position : -1), [rows])
   const maxPositionRef = useRef(maxPosition)
@@ -361,7 +343,7 @@ export function Table({
   const tableWidth = useMemo(() => {
     const colsWidth = isLoadingTable
       ? displayColCount * COL_WIDTH
-      : displayColumns.reduce((sum, col) => sum + (columnWidths[col.name] ?? COL_WIDTH), 0)
+      : displayColumns.reduce((sum, col) => sum + (columnWidths[col.key] ?? COL_WIDTH), 0)
     return CHECKBOX_COL_WIDTH + colsWidth + ADD_COL_WIDTH
   }, [isLoadingTable, displayColCount, displayColumns, columnWidths])
 
@@ -369,8 +351,8 @@ export function Table({
     if (!resizingColumn) return 0
     let left = CHECKBOX_COL_WIDTH
     for (const col of displayColumns) {
-      left += columnWidths[col.name] ?? COL_WIDTH
-      if (col.name === resizingColumn) return left
+      left += columnWidths[col.key] ?? COL_WIDTH
+      if (col.key === resizingColumn) return left
     }
     return 0
   }, [resizingColumn, displayColumns, columnWidths])
@@ -379,21 +361,36 @@ export function Table({
     if (!dropTargetColumnName || !dragColumnName) return null
     if (dropTargetColumnName === dragColumnName) return null
 
-    const dragIndex = displayColumns.findIndex((c) => c.name === dragColumnName)
-    const targetIndex = displayColumns.findIndex((c) => c.name === dropTargetColumnName)
-    if (dragIndex === -1 || targetIndex === -1) return null
+    // Drag/drop targets are LOGICAL columns; with fan-out, multiple visual columns
+    // share the same `name`. Compute the group's left edge and total width by
+    // accumulating across siblings.
+    const cols = displayColumns
+    const dragGroup = cols.findIndex((c) => c.name === dragColumnName)
+    const targetGroupStart = cols.findIndex((c) => c.name === dropTargetColumnName)
+    if (dragGroup === -1 || targetGroupStart === -1) return null
 
+    const dragGroupSize = cols[dragGroup].groupSize
+    const targetGroupSize = cols[targetGroupStart].groupSize
     const wouldBeNoOp =
-      (dropSide === 'right' && targetIndex === dragIndex - 1) ||
-      (dropSide === 'left' && targetIndex === dragIndex + 1)
+      (dropSide === 'right' && targetGroupStart + targetGroupSize === dragGroup) ||
+      (dropSide === 'left' && targetGroupStart === dragGroup + dragGroupSize)
     if (wouldBeNoOp) return null
 
     let left = CHECKBOX_COL_WIDTH
-    for (const col of displayColumns) {
-      const w = columnWidths[col.name] ?? COL_WIDTH
-      if (col.name === dropTargetColumnName) {
-        const lineLeft = dropSide === 'left' ? left : left + w
-        return { left, width: w, lineLeft }
+    for (let i = 0; i < cols.length; i++) {
+      const col = cols[i]
+      const w = columnWidths[col.key] ?? COL_WIDTH
+      if (i === targetGroupStart) {
+        // Clamp `targetGroupSize` to remaining columns — the memo's deps may not
+        // have settled in lockstep when a group shrinks (column removed) and we
+        // can briefly read past the end of `cols`.
+        const safeGroupSize = Math.min(targetGroupSize, cols.length - i)
+        let groupWidth = 0
+        for (let j = 0; j < safeGroupSize; j++) {
+          groupWidth += columnWidths[cols[i + j].key] ?? COL_WIDTH
+        }
+        const lineLeft = dropSide === 'left' ? left : left + groupWidth
+        return { left, width: groupWidth, lineLeft }
       }
       left += w
     }
@@ -422,6 +419,7 @@ export function Table({
 
   const columnsRef = useRef(displayColumns)
   const schemaColumnsRef = useRef(columns)
+  const workflowGroupsRef = useRef(tableWorkflowGroups)
   const rowsRef = useRef(rows)
   const selectionAnchorRef = useRef(selectionAnchor)
   const selectionFocusRef = useRef(selectionFocus)
@@ -431,6 +429,7 @@ export function Table({
 
   columnsRef.current = displayColumns
   schemaColumnsRef.current = columns
+  workflowGroupsRef.current = tableWorkflowGroups
   rowsRef.current = rows
   selectionAnchorRef.current = selectionAnchor
   selectionFocusRef.current = selectionFocus
@@ -573,6 +572,31 @@ export function Table({
 
   const handleInsertRowAbove = useCallback(() => handleInsertRow(0), [handleInsertRow])
   const handleInsertRowBelow = useCallback(() => handleInsertRow(1), [handleInsertRow])
+
+  const contextMenuColumnInfo = useMemo<{
+    isWorkflowColumn: boolean
+    executionId: string | null
+  }>(() => {
+    if (!contextMenu.row || !contextMenu.columnName) {
+      return { isWorkflowColumn: false, executionId: null }
+    }
+    const column = columnsRef.current.find((c) => c.name === contextMenu.columnName)
+    const groupId = column?.workflowGroupId
+    if (!column || !groupId) {
+      return { isWorkflowColumn: false, executionId: null }
+    }
+    const exec = contextMenu.row.executions?.[groupId]
+    return { isWorkflowColumn: true, executionId: exec?.executionId ?? null }
+  }, [contextMenu.row, contextMenu.columnName])
+  const contextMenuExecutionId = contextMenuColumnInfo.executionId
+  const contextMenuIsWorkflowColumn = contextMenuColumnInfo.isWorkflowColumn
+
+  const handleViewExecution = useCallback(() => {
+    if (!contextMenuExecutionId) return
+    setConfigState(null)
+    setExecutionDetailsId(contextMenuExecutionId)
+    closeContextMenu()
+  }, [contextMenuExecutionId, closeContextMenu])
 
   const handleDuplicateRow = useCallback(() => {
     if (!contextMenu.row) return
@@ -751,6 +775,21 @@ export function Table({
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
+  const handleGroupSelect = useCallback((startColIndex: number, size: number) => {
+    const lastRow = maxPositionRef.current
+    if (lastRow < 0) return
+
+    setEditingCell(null)
+    setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    lastCheckboxRowRef.current = null
+
+    setSelectionAnchor({ rowIndex: 0, colIndex: startColIndex })
+    setSelectionFocus({ rowIndex: lastRow, colIndex: startColIndex + size - 1 })
+    setIsColumnSelection(true)
+
+    scrollRef.current?.focus({ preventScroll: true })
+  }, [])
+
   const handleSelectAllRows = useCallback(() => {
     const rws = rowsRef.current
     const currentCols = columnsRef.current
@@ -774,12 +813,12 @@ export function Table({
     }
   }, [handleClearSelection, handleSelectAllRows])
 
-  const handleColumnResizeStart = useCallback((columnName: string) => {
-    setResizingColumn(columnName)
+  const handleColumnResizeStart = useCallback((columnKey: string) => {
+    setResizingColumn(columnKey)
   }, [])
 
-  const handleColumnResize = useCallback((columnName: string, width: number) => {
-    setColumnWidths((prev) => ({ ...prev, [columnName]: Math.max(COL_WIDTH_MIN, width) }))
+  const handleColumnResize = useCallback((columnKey: string, width: number) => {
+    setColumnWidths((prev) => ({ ...prev, [columnKey]: Math.max(COL_WIDTH_MIN, width) }))
   }, [])
 
   const handleColumnResizeEnd = useCallback(() => {
@@ -787,9 +826,9 @@ export function Table({
     updateMetadataRef.current({ columnWidths: columnWidthsRef.current })
   }, [])
 
-  const handleColumnAutoResize = useCallback((columnName: string) => {
+  const handleColumnAutoResize = useCallback((columnKey: string) => {
     const cols = columnsRef.current
-    const colIndex = cols.findIndex((c) => c.name === columnName)
+    const colIndex = cols.findIndex((c) => c.key === columnKey)
     if (colIndex === -1) return
 
     const column = cols[colIndex]
@@ -805,19 +844,23 @@ export function Table({
 
     try {
       measure.className = 'font-medium text-small'
-      measure.textContent = columnName
+      measure.textContent = column.headerLabel
       maxWidth = Math.max(maxWidth, measure.getBoundingClientRect().width + 57)
 
       measure.className = 'text-small'
       for (const row of currentRows) {
-        const val = row.data[columnName]
+        const val = row.data[column.name]
         if (val == null) continue
         let text: string
         if (column.type === 'json') {
-          try {
-            text = JSON.stringify(val)
-          } catch {
-            text = String(val)
+          if (typeof val === 'string') {
+            text = val
+          } else {
+            try {
+              text = JSON.stringify(val)
+            } catch {
+              text = String(val)
+            }
           }
         } else if (column.type === 'date') {
           text = storageToDisplay(String(val))
@@ -832,8 +875,8 @@ export function Table({
     }
 
     const newWidth = Math.min(Math.ceil(maxWidth), COL_WIDTH_AUTO_FIT_MAX)
-    setColumnWidths((prev) => ({ ...prev, [columnName]: newWidth }))
-    const updated = { ...columnWidthsRef.current, [columnName]: newWidth }
+    setColumnWidths((prev) => ({ ...prev, [columnKey]: newWidth }))
+    const updated = { ...columnWidthsRef.current, [columnKey]: newWidth }
     columnWidthsRef.current = updated
     updateMetadataRef.current({ columnWidths: updated })
   }, [])
@@ -847,6 +890,19 @@ export function Table({
   }, [])
 
   const handleColumnDragOver = useCallback((columnName: string, side: 'left' | 'right') => {
+    // Suppress drop targeting while hovering siblings of the dragged column's
+    // own group: reordering inside a group is meaningless (the group renders
+    // as a unit) and the chasing indicator just flickers.
+    const dragged = dragColumnNameRef.current
+    if (dragged) {
+      const cols = schemaColumnsRef.current
+      const draggedGid = cols.find((c) => c.name === dragged)?.workflowGroupId
+      const targetGid = cols.find((c) => c.name === columnName)?.workflowGroupId
+      if (draggedGid && draggedGid === targetGid) {
+        if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
+        return
+      }
+    }
     if (columnName === dropTargetColumnNameRef.current && side === dropSideRef.current) return
     setDropTargetColumnName(columnName)
     setDropSide(side)
@@ -864,28 +920,107 @@ export function Table({
     const target = dropTargetColumnNameRef.current
     const side = dropSideRef.current
     if (target && dragged !== target) {
-      const cols = columnsRef.current
-      const currentOrder = columnOrderRef.current ?? cols.map((c) => c.name)
-      const fromIndex = currentOrder.indexOf(dragged)
-      const toIndex = currentOrder.indexOf(target)
-      if (fromIndex !== -1 && toIndex !== -1) {
-        const newOrder = currentOrder.filter((n) => n !== dragged)
-        let insertIndex = newOrder.indexOf(target)
-        if (side === 'right') insertIndex += 1
-        newOrder.splice(insertIndex, 0, dragged)
-        const orderChanged = newOrder.some((name, i) => currentOrder[i] !== name)
-        if (orderChanged) {
-          pushUndoRef.current({
-            type: 'reorder-columns',
-            previousOrder: currentOrder,
-            newOrder,
-          })
-          setColumnOrder(newOrder)
-          updateMetadataRef.current({
-            columnWidths: columnWidthsRef.current,
-            columnOrder: newOrder,
-          })
+      const schemaCols = schemaColumnsRef.current
+      const currentOrder = columnOrderRef.current ?? schemaCols.map((c) => c.name)
+
+      // Group-aware reorder: a workflow group's outputs must stay contiguous in
+      // the persisted column order (`workflow-columns.ts` validates this on
+      // save). So we treat the entire group as the unit being moved when the
+      // dragged column belongs to one, and snap the drop position to the
+      // outside edge of any group the target belongs to.
+      const colByName = new Map(schemaCols.map((c) => [c.name, c]))
+      const draggedGid = colByName.get(dragged)?.workflowGroupId
+
+      const orderIndex = new Map<string, number>()
+      currentOrder.forEach((n, i) => orderIndex.set(n, i))
+
+      // Compute the contiguous run covering the dragged column. For a plain
+      // column this is just [fromIndex, fromIndex]. For a group member it spans
+      // every sibling sharing the same workflowGroupId.
+      const fromIndex = orderIndex.get(dragged) ?? -1
+      if (fromIndex === -1) {
+        setDragColumnName(null)
+        setDropTargetColumnName(null)
+        setDropSide('left')
+        return
+      }
+      let runStart = fromIndex
+      let runEnd = fromIndex
+      if (draggedGid) {
+        while (
+          runStart > 0 &&
+          colByName.get(currentOrder[runStart - 1])?.workflowGroupId === draggedGid
+        ) {
+          runStart--
         }
+        while (
+          runEnd < currentOrder.length - 1 &&
+          colByName.get(currentOrder[runEnd + 1])?.workflowGroupId === draggedGid
+        ) {
+          runEnd++
+        }
+      }
+      const movedNames = currentOrder.slice(runStart, runEnd + 1)
+
+      // Resolve the *anchor* index in `currentOrder` to drop next to. If the
+      // target belongs to a group (and not the dragged group), snap to that
+      // group's outer edge so we never split it.
+      const targetIdx = orderIndex.get(target) ?? -1
+      if (targetIdx === -1) {
+        setDragColumnName(null)
+        setDropTargetColumnName(null)
+        setDropSide('left')
+        return
+      }
+      const targetGid = colByName.get(target)?.workflowGroupId
+      let anchorStart = targetIdx
+      let anchorEnd = targetIdx
+      if (targetGid && targetGid !== draggedGid) {
+        while (
+          anchorStart > 0 &&
+          colByName.get(currentOrder[anchorStart - 1])?.workflowGroupId === targetGid
+        ) {
+          anchorStart--
+        }
+        while (
+          anchorEnd < currentOrder.length - 1 &&
+          colByName.get(currentOrder[anchorEnd + 1])?.workflowGroupId === targetGid
+        ) {
+          anchorEnd++
+        }
+      }
+      // No-op if dropping the dragged run onto itself.
+      if (anchorStart >= runStart && anchorEnd <= runEnd) {
+        setDragColumnName(null)
+        setDropTargetColumnName(null)
+        setDropSide('left')
+        return
+      }
+
+      const remaining = currentOrder.filter((_, i) => i < runStart || i > runEnd)
+      // After removing the moved run, recompute the anchor's name-based index.
+      const anchorName = side === 'left' ? currentOrder[anchorStart] : currentOrder[anchorEnd]
+      let insertIndex = remaining.indexOf(anchorName)
+      if (insertIndex === -1) insertIndex = remaining.length
+      if (side === 'right') insertIndex += 1
+      const newOrder = [
+        ...remaining.slice(0, insertIndex),
+        ...movedNames,
+        ...remaining.slice(insertIndex),
+      ]
+
+      const orderChanged = newOrder.some((name, i) => currentOrder[i] !== name)
+      if (orderChanged) {
+        pushUndoRef.current({
+          type: 'reorder-columns',
+          previousOrder: currentOrder,
+          newOrder,
+        })
+        setColumnOrder(newOrder)
+        updateMetadataRef.current({
+          columnWidths: columnWidthsRef.current,
+          columnOrder: newOrder,
+        })
       }
     }
     setDragColumnName(null)
@@ -909,11 +1044,26 @@ export function Table({
     const cursorX = e.clientX - scrollRect.left + scrollEl.scrollLeft
 
     const cols = columnsRef.current
+    const draggedGid = cols.find((c) => c.name === dragColumnNameRef.current)?.workflowGroupId
     let left = CHECKBOX_COL_WIDTH
-    for (const col of cols) {
-      const w = columnWidthsRef.current[col.name] ?? COL_WIDTH
-      if (cursorX < left + w) {
-        const midX = left + w / 2
+    let i = 0
+    while (i < cols.length) {
+      const col = cols[i]
+      // Treat fanned-out groups as monolithic drop targets; accumulate across siblings.
+      // Clamp `groupSize` to remaining columns: dragover fires constantly and can
+      // race a column removal where the cached `groupSize` outpaces `cols.length`.
+      const groupSize = Math.min(col.groupSize, cols.length - i)
+      let groupWidth = 0
+      for (let j = 0; j < groupSize; j++) {
+        groupWidth += columnWidthsRef.current[cols[i + j].key] ?? COL_WIDTH
+      }
+      if (cursorX < left + groupWidth) {
+        // Inside the dragged column's own group → no-op drop, no indicator.
+        if (draggedGid && col.workflowGroupId === draggedGid) {
+          if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
+          return
+        }
+        const midX = left + groupWidth / 2
         const side = cursorX < midX ? 'left' : 'right'
         if (col.name !== dropTargetColumnNameRef.current || side !== dropSideRef.current) {
           setDropTargetColumnName(col.name)
@@ -921,7 +1071,8 @@ export function Table({
         }
         return
       }
-      left += w
+      left += groupWidth
+      i += groupSize
     }
   }
 
@@ -956,12 +1107,31 @@ export function Table({
   useEffect(() => {
     if (!tableData?.metadata || metadataSeededRef.current) return
     if (!tableData.metadata.columnWidths && !tableData.metadata.columnOrder) return
-    metadataSeededRef.current = true
-    if (tableData.metadata.columnWidths) {
-      setColumnWidths(tableData.metadata.columnWidths)
+    // First load: seed both from the server and remember we've seeded.
+    if (!metadataSeededRef.current) {
+      metadataSeededRef.current = true
+      if (tableData.metadata.columnWidths) {
+        setColumnWidths(tableData.metadata.columnWidths)
+      }
+      if (tableData.metadata.columnOrder) {
+        setColumnOrder(tableData.metadata.columnOrder)
+      }
+      return
     }
-    if (tableData.metadata.columnOrder) {
-      setColumnOrder(tableData.metadata.columnOrder)
+    // After first load: only re-seed `columnOrder` when the *set of columns*
+    // changes (e.g. a workflow group adds/removes outputs server-side). Pure
+    // reorders are left alone so an in-flight optimistic drag isn't clobbered
+    // by a refetch returning the pre-drag order.
+    const serverOrder = tableData.metadata.columnOrder
+    if (serverOrder) {
+      const localOrder = columnOrderRef.current
+      const serverSet = new Set(serverOrder)
+      const localSet = new Set(localOrder ?? [])
+      const setChanged =
+        !localOrder || serverSet.size !== localSet.size || serverOrder.some((n) => !localSet.has(n))
+      if (setChanged) {
+        setColumnOrder(serverOrder)
+      }
     }
   }, [tableData?.metadata])
 
@@ -1014,16 +1184,54 @@ export function Table({
     setInitialCharacter(null)
   }, [])
 
-  const handleCellDoubleClick = useCallback((rowId: string, columnName: string) => {
-    if (!canEditRef.current) return
-    const column = columnsRef.current.find((c) => c.name === columnName)
-    if (!column || column.type === 'boolean') return
+  // Double-click highlights the cell's text and, only if the text is actually
+  // truncated, opens the expanded popover. The cell has `select-none` which
+  // suppresses the highlight even for programmatic selections, so we override
+  // `user-select` on the inner element until the next click. Workflow cells nest
+  // their text inside a span with its own `overflow-clip`, so we measure the leaf
+  // element's scroll dimensions, not just the wrapper div's.
+  const handleCellDoubleClick = useCallback(
+    (rowId: string, columnName: string, columnKey: string) => {
+      setSelectionFocus(null)
+      setIsColumnSelection(false)
 
-    setSelectionFocus(null)
-    setIsColumnSelection(false)
-    setEditingCell({ rowId, columnName })
-    setInitialCharacter(null)
-  }, [])
+      const row = rowsRef.current.find((r) => r.id === rowId)
+      const colIndex = columnsRef.current.findIndex((c) => c.key === columnKey)
+      let overflows = true
+      if (row && colIndex !== -1) {
+        const td = document.querySelector<HTMLElement>(
+          `[data-table-scroll] [data-row="${row.position}"][data-col="${colIndex}"]`
+        )
+        const inner = td?.querySelector<HTMLElement>(':scope > div:last-child')
+        if (inner) {
+          const candidates: HTMLElement[] = [inner]
+          const descendants = inner.querySelectorAll<HTMLElement>('*')
+          for (const el of descendants) candidates.push(el)
+          overflows = candidates.some(
+            (el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1
+          )
+
+          inner.style.userSelect = 'text'
+          const clear = () => {
+            inner.style.userSelect = ''
+            window.removeEventListener('mousedown', clear, true)
+          }
+          window.addEventListener('mousedown', clear, true)
+
+          const selection = window.getSelection()
+          if (selection) {
+            const range = document.createRange()
+            range.selectNodeContents(inner)
+            selection.removeAllRanges()
+            selection.addRange(range)
+          }
+        }
+      }
+
+      if (overflows) setExpandedCell({ rowId, columnName, columnKey })
+    },
+    []
+  )
 
   const mutateRef = useRef(updateRowMutation.mutate)
   mutateRef.current = updateRowMutation.mutate
@@ -1387,6 +1595,9 @@ export function Table({
       if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
         if (!canEditRef.current) return
         const col = cols[anchor.colIndex]
+        // Workflow-output cells are editable: the user can override the
+        // workflow's value if they want. Booleans toggle on space/click —
+        // typeahead doesn't apply to them.
         if (!col || col.type === 'boolean') return
         if (col.type === 'number' && !/[\d.-]/.test(e.key)) return
         if (col.type === 'date' && !/[\d\-/]/.test(e.key)) return
@@ -1718,16 +1929,12 @@ export function Table({
   }, [])
 
   const handleAddColumn = useCallback(() => {
+    // Open the sidebar in `'create'` mode — nothing is persisted until the
+    // user fills in name/type and hits Save. The sidebar's save flow handles
+    // both scalar (`addColumn`) and workflow-group (`addWorkflowGroup`) paths.
     const name = generateColumnName()
-    const position = schemaColumnsRef.current.length
-    addColumnMutation.mutate(
-      { name, type: 'string' },
-      {
-        onSuccess: () => {
-          pushUndoRef.current({ type: 'create-column', columnName: name, position })
-        },
-      }
-    )
+    setExecutionDetailsId(null)
+    setConfigState({ mode: 'create', columnName: name, proposedName: name })
   }, [generateColumnName])
 
   const handleChangeType = useCallback((columnName: string, newType: ColumnDefinition['type']) => {
@@ -1807,26 +2014,49 @@ export function Table({
     [generateColumnName, insertColumnInOrder]
   )
 
-  const handleToggleUnique = useCallback((columnName: string) => {
-    const column = columnsRef.current.find((c) => c.name === columnName)
-    if (!column) return
-    const previousValue = !!column.unique
-    pushUndoRef.current({
-      type: 'toggle-column-constraint',
-      columnName,
-      constraint: 'unique',
-      previousValue,
-      newValue: !previousValue,
-    })
-    updateColumnMutation.mutate({ columnName, updates: { unique: !previousValue } })
+  /**
+   * Config state for the side panel:
+   * - `null` → closed.
+   * - `{ mode: 'edit' }` → configuring an existing column (any type).
+   * - `{ mode: 'new' }` → user changed an existing column to workflow; not persisted until Save.
+   * - `{ mode: 'create' }` → user picked a workflow from "Add column"; column doesn't exist yet,
+   *   created on Save in a single POST.
+   */
+  const [configState, setConfigState] = useState<ColumnConfigState>(null)
+  /** Execution id whose run details are open in the slideout. */
+  const [executionDetailsId, setExecutionDetailsId] = useState<string | null>(null)
+  /**
+   * Right padding added to the table's scroll content while a slideout panel
+   * is open, equal to the panel's width. Without it, the rightmost columns are
+   * clipped under the panel and there's no way to scroll them into view.
+   * The two panels are mutually exclusive (each opener closes the other).
+   */
+  const logPanelWidth = useLogDetailsUIStore((state) => state.panelWidth)
+  const sidebarReservedPx = configState
+    ? COLUMN_SIDEBAR_WIDTH
+    : executionDetailsId
+      ? logPanelWidth
+      : 0
+
+  const handleConfigureColumn = useCallback((columnName: string) => {
+    setExecutionDetailsId(null)
+    setConfigState({ mode: 'edit', columnName })
   }, [])
 
-  const handleRenameColumn = useCallback(
-    (name: string) => columnRename.startRename(name, name),
-    [columnRename.startRename]
+  const handleDeleteWorkflowGroup = useCallback(
+    (groupId: string) => {
+      deleteWorkflowGroupMutation.mutate({ groupId })
+    },
+    [deleteWorkflowGroupMutation]
   )
 
-  const handleDeleteColumn = useCallback((columnName: string) => {
+  /**
+   * Computes the names slated for deletion given a click on `columnName` and
+   * the current column selection. If the click landed inside a multi-column
+   * selection, the entire selection is the target; otherwise it's just the
+   * clicked column.
+   */
+  const resolveDeletionNames = useCallback((columnName: string): string[] => {
     const cols = columnsRef.current
     if (isColumnSelectionRef.current && selectionAnchorRef.current) {
       const sel = computeNormalizedSelection(selectionAnchorRef.current, selectionFocusRef.current)
@@ -1837,15 +2067,62 @@ export function Table({
           for (let c = sel.startCol; c <= sel.endCol; c++) {
             if (c < cols.length) names.push(cols[c].name)
           }
-          if (names.length > 0) {
-            setDeletingColumns(names)
-            return
-          }
+          if (names.length > 0) return names
         }
       }
     }
-    setDeletingColumns([columnName])
+    return [columnName]
   }, [])
+
+  /**
+   * Hide a workflow-output column by removing it from its group's `outputs`
+   * via `updateWorkflowGroup`. Server-side this drops the schema column AND
+   * wipes the cell data on every row. The user can re-add the output from
+   * the sidebar's picker; the existing backfill repopulates from execution
+   * logs. Only valid when removing the columns leaves every affected group
+   * with at least one surviving output — caller must check first.
+   */
+  const hideWorkflowOutputColumns = useCallback(
+    (names: string[]) => {
+      const schemaCols = schemaColumnsRef.current
+      const groups = workflowGroupsRef.current
+      const removalsByGroup = new Map<string, Set<string>>()
+      for (const name of names) {
+        const def = schemaCols.find((c) => c.name === name)
+        if (!def?.workflowGroupId) return false
+        const set = removalsByGroup.get(def.workflowGroupId) ?? new Set<string>()
+        set.add(name)
+        removalsByGroup.set(def.workflowGroupId, set)
+      }
+      for (const [groupId, removed] of removalsByGroup) {
+        const group = groups.find((g) => g.id === groupId)
+        if (!group) return false
+        const remaining = group.outputs.filter((o) => !removed.has(o.columnName))
+        if (remaining.length === 0) return false
+        updateWorkflowGroupMutation.mutate({
+          groupId: group.id,
+          workflowId: group.workflowId,
+          name: group.name,
+          dependencies: group.dependencies,
+          outputs: remaining,
+        })
+      }
+      return true
+    },
+    [updateWorkflowGroupMutation]
+  )
+
+  const handleDeleteColumn = useCallback(
+    (columnName: string) => {
+      const names = resolveDeletionNames(columnName)
+      // If every target is a workflow output AND removing them all leaves each
+      // group with ≥1 output, hide them directly — no destructive-confirm
+      // modal, since the workflow can re-produce the value any time.
+      if (hideWorkflowOutputColumns(names)) return
+      setDeletingColumns(names)
+    },
+    [resolveDeletionNames, hideWorkflowOutputColumns]
+  )
 
   const handleDeleteColumnConfirm = useCallback(() => {
     if (!deletingColumns || deletingColumns.length === 0) return
@@ -1877,39 +2154,65 @@ export function Table({
       const previousWidth = columnWidthsRef.current[columnToDelete] ?? null
       const orderSnapshot = currentOrder ? [...currentOrder] : null
 
-      deleteColumnMutation.mutate(columnToDelete, {
-        onSuccess: () => {
-          deletedOriginalPositions.push(entry.position)
-          pushUndoRef.current({
-            type: 'delete-column',
-            columnName: columnToDelete,
-            columnType: entry.def?.type ?? 'string',
-            columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
-            columnUnique: entry.def?.unique ?? false,
-            columnRequired: entry.def?.required ?? false,
-            cellData,
-            previousOrder: orderSnapshot,
-            previousWidth,
+      const onDeleted = () => {
+        deletedOriginalPositions.push(entry.position)
+        pushUndoRef.current({
+          type: 'delete-column',
+          columnName: columnToDelete,
+          columnType: entry.def?.type ?? 'string',
+          columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
+          columnUnique: entry.def?.unique ?? false,
+          columnRequired: entry.def?.required ?? false,
+          cellData,
+          previousOrder: orderSnapshot,
+          previousWidth,
+        })
+
+        const { [columnToDelete]: _removedWidth, ...cleanedWidths } = columnWidthsRef.current
+        setColumnWidths(cleanedWidths)
+        columnWidthsRef.current = cleanedWidths
+
+        if (currentOrder) {
+          currentOrder = currentOrder.filter((n) => n !== columnToDelete)
+          setColumnOrder(currentOrder)
+          updateMetadataRef.current({
+            columnWidths: cleanedWidths,
+            columnOrder: currentOrder,
           })
+        } else {
+          updateMetadataRef.current({ columnWidths: cleanedWidths })
+        }
 
-          const { [columnToDelete]: _removedWidth, ...cleanedWidths } = columnWidthsRef.current
-          setColumnWidths(cleanedWidths)
-          columnWidthsRef.current = cleanedWidths
+        deleteNext(index + 1)
+      }
 
-          if (currentOrder) {
-            currentOrder = currentOrder.filter((n) => n !== columnToDelete)
-            setColumnOrder(currentOrder)
-            updateMetadataRef.current({
-              columnWidths: cleanedWidths,
-              columnOrder: currentOrder,
-            })
-          } else {
-            updateMetadataRef.current({ columnWidths: cleanedWidths })
-          }
+      // Workflow-output columns are owned by a group: route the delete through
+      // `updateWorkflowGroup` so the same code path fires whether the user
+      // deselects the output in the sidebar or right-clicks Delete column.
+      // Falls back to deleting the whole group when this is its last output,
+      // since a group with zero outputs is invalid.
+      const groupId = entry.def?.workflowGroupId
+      const group = groupId ? workflowGroupsRef.current.find((g) => g.id === groupId) : undefined
+      if (group) {
+        const remainingOutputs = group.outputs.filter((o) => o.columnName !== columnToDelete)
+        if (remainingOutputs.length === 0) {
+          deleteWorkflowGroupMutation.mutate({ groupId: group.id }, { onSuccess: onDeleted })
+        } else {
+          updateWorkflowGroupMutation.mutate(
+            {
+              groupId: group.id,
+              workflowId: group.workflowId,
+              name: group.name,
+              dependencies: group.dependencies,
+              outputs: remainingOutputs,
+            },
+            { onSuccess: onDeleted }
+          )
+        }
+        return
+      }
 
-          deleteNext(index + 1)
-        },
-      })
+      deleteColumnMutation.mutate(columnToDelete, { onSuccess: onDeleted })
     }
 
     setSelectionAnchor(null)
@@ -2009,13 +2312,12 @@ export function Table({
     ]
   )
 
-  const createAction = useMemo(
-    () => ({
-      label: 'New column',
-      onClick: handleAddColumn,
-      disabled: addColumnMutation.isPending,
-    }),
-    [handleAddColumn, addColumnMutation.isPending]
+  const createTrigger = useMemo(
+    () =>
+      userPermissions.canEdit ? (
+        <HeaderAddColumnTrigger onClick={handleAddColumn} disabled={addColumnMutation.isPending} />
+      ) : null,
+    [handleAddColumn, addColumnMutation.isPending, userPermissions.canEdit]
   )
 
   const handleExportCsv = useCallback(async () => {
@@ -2095,6 +2397,67 @@ export function Table({
 
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
+  const workflowColumnNames = useMemo(
+    () => columns.filter((c) => !!c.workflowGroupId).map((c) => c.name),
+    [columns]
+  )
+  const hasWorkflowColumns = workflowColumnNames.length > 0
+
+  const { runningByRowId, totalRunning } = useMemo(() => {
+    const byRow = new Map<string, number>()
+    let total = 0
+    for (const row of rows) {
+      let count = 0
+      const executions = row.executions ?? {}
+      for (const gid in executions) {
+        if (executions[gid]?.status === 'running') count++
+      }
+      if (count > 0) {
+        byRow.set(row.id, count)
+        total += count
+      }
+    }
+    return { runningByRowId: byRow, totalRunning: total }
+  }, [rows])
+
+  const cancelRunsMutate = cancelRunsMutation.mutate
+
+  const handleStopAll = useCallback(() => {
+    if (totalRunning === 0) return
+    cancelRunsMutate({ scope: 'all' })
+  }, [totalRunning, cancelRunsMutate])
+
+  const handleStopRow = useCallback(
+    (rowId: string) => {
+      cancelRunsMutate({ scope: 'row', rowId })
+    },
+    [cancelRunsMutate]
+  )
+
+  const handleRunRow = useCallback(
+    (rowId: string) => {
+      if (tableWorkflowGroups.length === 0) return
+      const target = rowsRef.current.find((r) => r.id === rowId)
+      if (!target) return
+      // Only fire groups whose deps are already satisfied for THIS row. The
+      // cascade picks up downstream groups: when an upstream group completes,
+      // `scheduleWorkflowGroupRuns` evaluates eligibility and enqueues the
+      // newly-ready successors automatically.
+      for (const group of tableWorkflowGroups) {
+        if (!areRowDepsSatisfied(group, target)) continue
+        void runWorkflowGroup({
+          tableId,
+          rowId,
+          workspaceId,
+          groupId: group.id,
+          workflowId: group.workflowId,
+          outputColumnNames: group.outputs.map((o) => o.columnName),
+        })
+      }
+    },
+    [runWorkflowGroup, tableId, workspaceId, tableWorkflowGroups]
+  )
+
   if (!isLoadingTable && !tableData) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
@@ -2116,8 +2479,17 @@ export function Table({
           <ResourceHeader
             icon={TableIcon}
             breadcrumbs={breadcrumbs}
-            create={createAction}
+            createTrigger={createTrigger}
             actions={headerActions}
+            trailingActions={
+              totalRunning > 0 ? (
+                <RunStatusControl
+                  running={totalRunning}
+                  onStopAll={handleStopAll}
+                  isStopping={cancelRunsMutation.isPending}
+                />
+              ) : null
+            }
           />
 
           <ResourceOptionsBar
@@ -2136,184 +2508,285 @@ export function Table({
         </>
       )}
 
-      <div
-        ref={scrollRef}
-        tabIndex={-1}
-        className={cn(
-          'min-h-0 flex-1 overflow-auto overscroll-none outline-none',
-          resizingColumn && 'select-none'
-        )}
-        data-table-scroll
-        onDragOver={handleScrollDragOver}
-        onDrop={handleScrollDrop}
-      >
-        <div className='relative h-fit' style={{ width: `${tableWidth}px` }}>
-          <table
-            className='table-fixed border-separate border-spacing-0 text-small'
-            style={{ width: `${tableWidth}px` }}
+      {embedded && totalRunning > 0 && (
+        <div className='flex shrink-0 items-center justify-end border-[var(--border)] border-b px-3 py-1.5'>
+          <RunStatusControl
+            running={totalRunning}
+            onStopAll={handleStopAll}
+            isStopping={cancelRunsMutation.isPending}
+          />
+        </div>
+      )}
+
+      <div className='relative flex min-h-0 flex-1'>
+        <div
+          ref={scrollRef}
+          tabIndex={-1}
+          className={cn(
+            'min-h-0 flex-1 overflow-auto overscroll-none outline-none',
+            resizingColumn && 'select-none'
+          )}
+          data-table-scroll
+          onDragOver={handleScrollDragOver}
+          onDrop={handleScrollDrop}
+        >
+          <div
+            className='relative h-fit'
+            style={{
+              width: `${tableWidth + sidebarReservedPx}px`,
+              paddingRight: sidebarReservedPx,
+            }}
           >
-            {isLoadingTable ? (
-              <colgroup>
-                <col style={{ width: CHECKBOX_COL_WIDTH }} />
-                {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
-                  <col key={i} style={{ width: COL_WIDTH }} />
-                ))}
-                <col style={{ width: ADD_COL_WIDTH }} />
-              </colgroup>
-            ) : (
-              <TableColGroup columns={displayColumns} columnWidths={columnWidths} />
-            )}
-            <thead className='sticky top-0 z-10'>
+            <table
+              className='table-fixed border-separate border-spacing-0 text-small'
+              style={{ width: `${tableWidth}px` }}
+            >
               {isLoadingTable ? (
-                <tr>
-                  <th className={CELL_HEADER_CHECKBOX}>
-                    <div className='flex items-center justify-center'>
-                      <Skeleton className='h-[14px] w-[14px] rounded-xs' />
-                    </div>
-                  </th>
+                <colgroup>
+                  <col style={{ width: CHECKBOX_COL_WIDTH }} />
                   {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
-                    <th key={i} className={CELL_HEADER}>
-                      <div className='flex h-[20px] min-w-0 items-center gap-1.5'>
-                        <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
-                        <Skeleton className='h-[14px]' style={{ width: `${56 + i * 16}px` }} />
+                    <col key={i} style={{ width: COL_WIDTH }} />
+                  ))}
+                  <col style={{ width: ADD_COL_WIDTH }} />
+                </colgroup>
+              ) : (
+                <TableColGroup columns={displayColumns} columnWidths={columnWidths} />
+              )}
+              <thead className='sticky top-0 z-10'>
+                {isLoadingTable ? (
+                  <tr>
+                    <th className={CELL_HEADER_CHECKBOX}>
+                      <div className='flex items-center justify-center'>
+                        <Skeleton className='h-[14px] w-[14px] rounded-xs' />
                       </div>
                     </th>
-                  ))}
-                  <th className={CELL_HEADER}>
-                    <div className='flex h-[20px] items-center gap-2'>
-                      <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
-                      <Skeleton className='h-[14px] w-[72px]' />
-                    </div>
-                  </th>
-                </tr>
-              ) : (
-                <tr>
-                  <SelectAllCheckbox
-                    checked={isAllRowsSelected}
-                    onCheckedChange={handleSelectAllToggle}
-                  />
-                  {displayColumns.map((column, idx) => (
-                    <ColumnHeaderMenu
-                      key={column.name}
-                      column={column}
-                      colIndex={idx}
-                      readOnly={!userPermissions.canEdit}
-                      isRenaming={columnRename.editingId === column.name}
-                      isColumnSelected={
-                        isColumnSelection &&
-                        normalizedSelection !== null &&
-                        idx >= normalizedSelection.startCol &&
-                        idx <= normalizedSelection.endCol
-                      }
-                      renameValue={
-                        columnRename.editingId === column.name ? columnRename.editValue : ''
-                      }
-                      onRenameValueChange={columnRename.setEditValue}
-                      onRenameSubmit={columnRename.submitRename}
-                      onRenameCancel={columnRename.cancelRename}
-                      onRenameColumn={handleRenameColumn}
-                      onColumnSelect={handleColumnSelect}
-                      onChangeType={handleChangeType}
-                      onInsertLeft={handleInsertColumnLeft}
-                      onInsertRight={handleInsertColumnRight}
-                      onToggleUnique={handleToggleUnique}
-                      onDeleteColumn={handleDeleteColumn}
-                      onResizeStart={handleColumnResizeStart}
-                      onResize={handleColumnResize}
-                      onResizeEnd={handleColumnResizeEnd}
-                      onAutoResize={handleColumnAutoResize}
-                      onDragStart={handleColumnDragStart}
-                      onDragOver={handleColumnDragOver}
-                      onDragEnd={handleColumnDragEnd}
-                      onDragLeave={handleColumnDragLeave}
-                    />
-                  ))}
-                  {userPermissions.canEdit && (
-                    <AddColumnButton
-                      onClick={handleAddColumn}
-                      disabled={addColumnMutation.isPending}
-                    />
-                  )}
-                </tr>
-              )}
-            </thead>
-            <tbody>
-              {isLoadingTable || isLoadingRows ? (
-                <TableBodySkeleton colCount={displayColCount} />
-              ) : (
-                <>
-                  {rows.map((row, index) => {
-                    const prevPosition = index > 0 ? rows[index - 1].position : -1
-                    const gapCount = queryOptions.filter ? 0 : row.position - prevPosition - 1
-                    return (
-                      <React.Fragment key={row.id}>
-                        {gapCount > 0 && (
-                          <PositionGapRows
-                            count={gapCount}
-                            startPosition={prevPosition + 1}
+                    {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
+                      <th key={i} className={CELL_HEADER}>
+                        <div className='flex h-[20px] min-w-0 items-center gap-1.5'>
+                          <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
+                          <Skeleton className='h-[14px]' style={{ width: `${56 + i * 16}px` }} />
+                        </div>
+                      </th>
+                    ))}
+                    <th className={CELL_HEADER}>
+                      <div className='flex h-[20px] items-center gap-2'>
+                        <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
+                        <Skeleton className='h-[14px] w-[72px]' />
+                      </div>
+                    </th>
+                  </tr>
+                ) : (
+                  <>
+                    {hasWorkflowGroup && (
+                      <tr>
+                        <th className='border-[var(--border)] border-b bg-[var(--bg)] px-1 py-[5px]' />
+                        {headerGroups.map((g) =>
+                          g.kind === 'workflow' ? (
+                            <WorkflowGroupMetaCell
+                              key={`meta-${g.startColIndex}`}
+                              workflowId={g.workflowId}
+                              size={g.size}
+                              startColIndex={g.startColIndex}
+                              columnName={displayColumns[g.startColIndex]?.name ?? ''}
+                              column={displayColumns[g.startColIndex]}
+                              workflows={workflows}
+                              isGroupSelected={
+                                isColumnSelection &&
+                                normalizedSelection !== null &&
+                                normalizedSelection.startCol <= g.startColIndex &&
+                                normalizedSelection.endCol >= g.startColIndex + g.size - 1
+                              }
+                              groupId={g.groupId}
+                              onSelectGroup={handleGroupSelect}
+                              onOpenConfig={handleConfigureColumn}
+                              onRunGroup={userPermissions.canEdit ? handleRunGroup : undefined}
+                              onInsertLeft={
+                                userPermissions.canEdit ? handleInsertColumnLeft : undefined
+                              }
+                              onInsertRight={
+                                userPermissions.canEdit ? handleInsertColumnRight : undefined
+                              }
+                              onDeleteColumn={
+                                userPermissions.canEdit ? handleDeleteColumn : undefined
+                              }
+                              onDeleteGroup={
+                                userPermissions.canEdit ? handleDeleteWorkflowGroup : undefined
+                              }
+                            />
+                          ) : (
+                            <th
+                              key={`meta-${g.startColIndex}`}
+                              className='border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]'
+                            />
+                          )
+                        )}
+                        {userPermissions.canEdit && (
+                          <th className='border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]' />
+                        )}
+                      </tr>
+                    )}
+                    <tr>
+                      <SelectAllCheckbox
+                        checked={isAllRowsSelected}
+                        onCheckedChange={handleSelectAllToggle}
+                      />
+                      {displayColumns.map((column, idx) => (
+                        <ColumnHeaderMenu
+                          key={column.key}
+                          column={column}
+                          colIndex={idx}
+                          readOnly={!userPermissions.canEdit}
+                          isRenaming={columnRename.editingId === column.name}
+                          isColumnSelected={
+                            isColumnSelection &&
+                            normalizedSelection !== null &&
+                            idx >= normalizedSelection.startCol &&
+                            idx <= normalizedSelection.endCol
+                          }
+                          renameValue={
+                            columnRename.editingId === column.name ? columnRename.editValue : ''
+                          }
+                          onRenameValueChange={columnRename.setEditValue}
+                          onRenameSubmit={columnRename.submitRename}
+                          onRenameCancel={columnRename.cancelRename}
+                          onColumnSelect={handleColumnSelect}
+                          onChangeType={handleChangeType}
+                          onInsertLeft={handleInsertColumnLeft}
+                          onInsertRight={handleInsertColumnRight}
+                          onDeleteColumn={handleDeleteColumn}
+                          onResizeStart={handleColumnResizeStart}
+                          onResize={handleColumnResize}
+                          onResizeEnd={handleColumnResizeEnd}
+                          onAutoResize={handleColumnAutoResize}
+                          onDragStart={handleColumnDragStart}
+                          onDragOver={handleColumnDragOver}
+                          onDragEnd={handleColumnDragEnd}
+                          onDragLeave={handleColumnDragLeave}
+                          workflows={workflows}
+                          workflowGroups={tableWorkflowGroups}
+                          sourceInfo={columnSourceInfo.get(column.name)}
+                          onOpenConfig={handleConfigureColumn}
+                        />
+                      ))}
+                      {userPermissions.canEdit && (
+                        <AddColumnButton
+                          onClick={handleAddColumn}
+                          disabled={addColumnMutation.isPending}
+                        />
+                      )}
+                    </tr>
+                  </>
+                )}
+              </thead>
+              <tbody>
+                {isLoadingTable || isLoadingRows ? (
+                  <TableBodySkeleton colCount={displayColCount} />
+                ) : (
+                  <>
+                    {rows.map((row, index) => {
+                      const prevPosition = index > 0 ? rows[index - 1].position : -1
+                      const gapCount = queryOptions.filter ? 0 : row.position - prevPosition - 1
+                      return (
+                        <React.Fragment key={row.id}>
+                          {gapCount > 0 && (
+                            <PositionGapRows
+                              count={gapCount}
+                              startPosition={prevPosition + 1}
+                              columns={displayColumns}
+                              normalizedSelection={normalizedSelection}
+                              checkedRows={checkedRows}
+                              firstRowUnderHeader={prevPosition === -1}
+                              onCellMouseDown={handleCellMouseDown}
+                              onCellMouseEnter={handleCellMouseEnter}
+                              onRowToggle={handleRowToggle}
+                            />
+                          )}
+                          <DataRow
+                            row={row}
                             columns={displayColumns}
+                            rowIndex={row.position}
+                            isFirstRow={row.position === 0}
+                            editingColumnName={
+                              editingCell?.rowId === row.id ? editingCell.columnName : null
+                            }
+                            initialCharacter={
+                              editingCell?.rowId === row.id ? initialCharacter : null
+                            }
+                            pendingCellValue={
+                              pendingUpdate && pendingUpdate.rowId === row.id
+                                ? pendingUpdate.data
+                                : null
+                            }
                             normalizedSelection={normalizedSelection}
-                            checkedRows={checkedRows}
-                            firstRowUnderHeader={prevPosition === -1}
+                            onClick={handleCellClick}
+                            onDoubleClick={handleCellDoubleClick}
+                            onSave={handleInlineSave}
+                            onCancel={handleInlineCancel}
+                            onContextMenu={handleRowContextMenu}
                             onCellMouseDown={handleCellMouseDown}
                             onCellMouseEnter={handleCellMouseEnter}
+                            isRowChecked={checkedRows.has(row.position)}
                             onRowToggle={handleRowToggle}
+                            runningCount={runningByRowId.get(row.id) ?? 0}
+                            hasWorkflowColumns={hasWorkflowColumns}
+                            onStopRow={handleStopRow}
+                            onRunRow={handleRunRow}
+                            workflowNameById={workflowNameById}
                           />
-                        )}
-                        <DataRow
-                          row={row}
-                          columns={displayColumns}
-                          rowIndex={row.position}
-                          isFirstRow={row.position === 0}
-                          editingColumnName={
-                            editingCell?.rowId === row.id ? editingCell.columnName : null
-                          }
-                          initialCharacter={editingCell?.rowId === row.id ? initialCharacter : null}
-                          pendingCellValue={
-                            pendingUpdate && pendingUpdate.rowId === row.id
-                              ? pendingUpdate.data
-                              : null
-                          }
-                          normalizedSelection={normalizedSelection}
-                          onClick={handleCellClick}
-                          onDoubleClick={handleCellDoubleClick}
-                          onSave={handleInlineSave}
-                          onCancel={handleInlineCancel}
-                          onContextMenu={handleRowContextMenu}
-                          onCellMouseDown={handleCellMouseDown}
-                          onCellMouseEnter={handleCellMouseEnter}
-                          isRowChecked={checkedRows.has(row.position)}
-                          onRowToggle={handleRowToggle}
-                        />
-                      </React.Fragment>
-                    )
-                  })}
-                </>
-              )}
-            </tbody>
-          </table>
-          {resizingColumn && (
-            <div
-              className='-translate-x-[1.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
-              style={{ left: resizeIndicatorLeft }}
-            />
-          )}
-          {dropColumnBounds !== null && (
-            <>
+                        </React.Fragment>
+                      )
+                    })}
+                  </>
+                )}
+              </tbody>
+            </table>
+            {resizingColumn && (
               <div
-                className='pointer-events-none absolute top-0 z-[15] h-full bg-[rgba(37,99,235,0.06)]'
-                style={{ left: dropColumnBounds.left, width: dropColumnBounds.width }}
+                className='-translate-x-[1.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
+                style={{ left: resizeIndicatorLeft }}
               />
-              <div
-                className='-translate-x-[1px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
-                style={{ left: dropColumnBounds.lineLeft }}
-              />
-            </>
+            )}
+            {dropColumnBounds !== null && (
+              <>
+                <div
+                  className={cn(
+                    'pointer-events-none absolute top-0 z-[15] h-full',
+                    SELECTION_TINT_BG
+                  )}
+                  style={{ left: dropColumnBounds.left, width: dropColumnBounds.width }}
+                />
+                <div
+                  className='-translate-x-[1px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
+                  style={{ left: dropColumnBounds.lineLeft }}
+                />
+              </>
+            )}
+          </div>
+          {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
+            <AddRowButton onClick={handleAppendRow} />
           )}
         </div>
-        {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
-          <AddRowButton onClick={handleAppendRow} />
-        )}
+
+        <ColumnSidebar
+          configState={configState}
+          onClose={() => setConfigState(null)}
+          existingColumn={
+            configState?.mode === 'edit'
+              ? (columns.find((c) => c.name === configState.columnName) ?? null)
+              : null
+          }
+          allColumns={columns}
+          workflowGroups={tableWorkflowGroups}
+          workflows={workflows}
+          workspaceId={workspaceId}
+          tableId={tableId}
+        />
+
+        <ExecutionDetailsSidebar
+          workspaceId={workspaceId}
+          executionId={executionDetailsId}
+          onClose={() => setExecutionDetailsId(null)}
+        />
       </div>
 
       {editingRow && tableData && (
@@ -2350,10 +2823,23 @@ export function Table({
         onInsertAbove={handleInsertRowAbove}
         onInsertBelow={handleInsertRowBelow}
         onDuplicate={handleDuplicateRow}
+        onViewExecution={handleViewExecution}
+        canViewExecution={Boolean(contextMenuExecutionId)}
+        canEditCell={!contextMenuIsWorkflowColumn}
         selectedRowCount={selectedRowCount}
         disableEdit={!userPermissions.canEdit}
         disableInsert={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit}
+      />
+
+      <ExpandedCellPopover
+        expandedCell={expandedCell}
+        onClose={() => setExpandedCell(null)}
+        rows={rows}
+        columns={displayColumns}
+        onSave={handleInlineSave}
+        canEdit={userPermissions.canEdit}
+        scrollContainer={scrollRef.current}
       />
 
       {!embedded && (
@@ -2457,7 +2943,7 @@ const GAP_CHECKBOX_CLASS = cn(CELL_CHECKBOX, 'group/checkbox cursor-pointer text
 interface PositionGapRowsProps {
   count: number
   startPosition: number
-  columns: ColumnDefinition[]
+  columns: DisplayColumn[]
   normalizedSelection: NormalizedSelection | null
   checkedRows: Set<number>
   firstRowUnderHeader?: boolean
@@ -2534,7 +3020,7 @@ const PositionGapRows = React.memo(
 
                 return (
                   <td
-                    key={col.name}
+                    key={col.key}
                     data-row={position}
                     data-col={colIndex}
                     className={cn(CELL, (isHighlighted || isAnchor) && 'relative')}
@@ -2547,7 +3033,8 @@ const PositionGapRows = React.memo(
                     {isHighlighted && (isMultiCell || isGapChecked) && (
                       <div
                         className={cn(
-                          '-top-px -right-px -bottom-px -left-px pointer-events-none absolute z-[4] bg-[rgba(37,99,235,0.06)]',
+                          '-top-px -right-px -bottom-px -left-px pointer-events-none absolute z-[4]',
+                          SELECTION_TINT_BG,
                           belowHeader && isTopEdge && 'top-0',
                           isTopEdge && 'border-t border-t-[var(--selection)]',
                           isBottomEdge && 'border-b border-b-[var(--selection)]',
@@ -2601,14 +3088,14 @@ const TableColGroup = React.memo(function TableColGroup({
   columns,
   columnWidths,
 }: {
-  columns: ColumnDefinition[]
+  columns: DisplayColumn[]
   columnWidths: Record<string, number>
 }) {
   return (
     <colgroup>
       <col style={{ width: CHECKBOX_COL_WIDTH }} />
       {columns.map((col) => (
-        <col key={col.name} style={{ width: columnWidths[col.name] ?? COL_WIDTH }} />
+        <col key={col.key} style={{ width: columnWidths[col.key] ?? COL_WIDTH }} />
       ))}
       <col style={{ width: ADD_COL_WIDTH }} />
     </colgroup>
@@ -2617,7 +3104,7 @@ const TableColGroup = React.memo(function TableColGroup({
 
 interface DataRowProps {
   row: TableRowType
-  columns: ColumnDefinition[]
+  columns: DisplayColumn[]
   rowIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
@@ -2625,7 +3112,7 @@ interface DataRowProps {
   pendingCellValue: Record<string, unknown> | null
   normalizedSelection: NormalizedSelection | null
   onClick: (rowId: string, columnName: string) => void
-  onDoubleClick: (rowId: string, columnName: string) => void
+  onDoubleClick: (rowId: string, columnName: string, columnKey: string) => void
   onSave: (rowId: string, columnName: string, value: unknown, reason: SaveReason) => void
   onCancel: () => void
   onContextMenu: (e: React.MouseEvent, row: TableRowType) => void
@@ -2633,6 +3120,14 @@ interface DataRowProps {
   onCellMouseEnter: (rowIndex: number, colIndex: number) => void
   isRowChecked: boolean
   onRowToggle: (rowIndex: number, shiftKey: boolean) => void
+  /** Number of workflow cells in this row currently in a running/queued state. */
+  runningCount: number
+  /** Whether the table has at least one workflow column — controls whether a run/stop icon is rendered. */
+  hasWorkflowColumns: boolean
+  onStopRow: (rowId: string) => void
+  onRunRow: (rowId: string) => void
+  /** Lookup from workflow id → human-readable name, used to label running cells. */
+  workflowNameById: Record<string, string>
 }
 
 function rowSelectionChanged(
@@ -2682,7 +3177,12 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.onCellMouseDown !== next.onCellMouseDown ||
     prev.onCellMouseEnter !== next.onCellMouseEnter ||
     prev.isRowChecked !== next.isRowChecked ||
-    prev.onRowToggle !== next.onRowToggle
+    prev.onRowToggle !== next.onRowToggle ||
+    prev.runningCount !== next.runningCount ||
+    prev.hasWorkflowColumns !== next.hasWorkflowColumns ||
+    prev.onStopRow !== next.onStopRow ||
+    prev.onRunRow !== next.onRunRow ||
+    prev.workflowNameById !== next.workflowNameById
   ) {
     return false
   }
@@ -2719,6 +3219,11 @@ const DataRow = React.memo(function DataRow({
   onCellMouseDown,
   onCellMouseEnter,
   onRowToggle,
+  runningCount,
+  hasWorkflowColumns,
+  onStopRow,
+  onRunRow,
+  workflowNameById,
 }: DataRowProps) {
   const sel = normalizedSelection
   const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
@@ -2732,28 +3237,53 @@ const DataRow = React.memo(function DataRow({
 
   return (
     <tr onContextMenu={(e) => onContextMenu(e, row)}>
-      <td
-        className={cn(CELL_CHECKBOX, 'group/checkbox cursor-pointer text-center')}
-        onMouseDown={(e) => {
-          if (e.button !== 0) return
-          onRowToggle(rowIndex, e.shiftKey)
-        }}
-      >
-        <span
-          className={cn(
-            'text-[var(--text-tertiary)] text-xs tabular-nums',
-            isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
+      <td className={cn(CELL_CHECKBOX, 'cursor-pointer')}>
+        <div className='flex items-center justify-between gap-1'>
+          <div
+            className='group/checkbox flex h-[20px] w-[24px] shrink-0 items-center justify-center'
+            onMouseDown={(e) => {
+              if (e.button !== 0) return
+              onRowToggle(rowIndex, e.shiftKey)
+            }}
+          >
+            <span
+              className={cn(
+                'text-[var(--text-tertiary)] text-xs tabular-nums',
+                isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
+              )}
+            >
+              {row.position + 1}
+            </span>
+            <div
+              className={cn(
+                'items-center justify-center',
+                isRowSelected ? 'flex' : 'hidden group-hover/checkbox:flex'
+              )}
+            >
+              <Checkbox size='sm' checked={isRowSelected} className='pointer-events-none' />
+            </div>
+          </div>
+          {hasWorkflowColumns && (
+            <button
+              type='button'
+              aria-label={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
+              title={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
+              className='flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded text-[var(--text-primary)] transition-colors hover-hover:bg-[var(--surface-2)]'
+              onClick={() => {
+                if (runningCount > 0) {
+                  onStopRow(row.id)
+                } else {
+                  onRunRow(row.id)
+                }
+              }}
+            >
+              {runningCount > 0 ? (
+                <Square className='h-[12px] w-[12px]' />
+              ) : (
+                <PlayOutline className='h-[12px] w-[12px]' />
+              )}
+            </button>
           )}
-        >
-          {row.position + 1}
-        </span>
-        <div
-          className={cn(
-            'items-center justify-center',
-            isRowSelected ? 'flex' : 'hidden group-hover/checkbox:flex'
-          )}
-        >
-          <Checkbox size='sm' checked={isRowSelected} className='pointer-events-none' />
         </div>
       </td>
       {columns.map((column, colIndex) => {
@@ -2774,7 +3304,7 @@ const DataRow = React.memo(function DataRow({
 
         return (
           <td
-            key={column.name}
+            key={column.key}
             data-row={rowIndex}
             data-col={colIndex}
             className={cn(CELL, (isHighlighted || isAnchor || isEditing) && 'relative')}
@@ -2784,12 +3314,13 @@ const DataRow = React.memo(function DataRow({
             }}
             onMouseEnter={() => onCellMouseEnter(rowIndex, colIndex)}
             onClick={() => onClick(row.id, column.name)}
-            onDoubleClick={() => onDoubleClick(row.id, column.name)}
+            onDoubleClick={() => onDoubleClick(row.id, column.name, column.key)}
           >
             {isHighlighted && (isMultiCell || isRowChecked) && (
               <div
                 className={cn(
-                  '-top-px -right-px -bottom-px -left-px pointer-events-none absolute z-[4] bg-[rgba(37,99,235,0.06)]',
+                  '-top-px -right-px -bottom-px -left-px pointer-events-none absolute z-[4]',
+                  SELECTION_TINT_BG,
                   isFirstRow && isTopEdge && 'top-0',
                   isTopEdge && 'border-t border-t-[var(--selection)]',
                   isBottomEdge && 'border-b border-b-[var(--selection)]',
@@ -2806,11 +3337,13 @@ const DataRow = React.memo(function DataRow({
                     ? pendingCellValue[column.name]
                     : row.data[column.name]
                 }
+                exec={readExecution(row, column.workflowGroupId)}
                 column={column}
                 isEditing={isEditing}
                 initialCharacter={isEditing ? initialCharacter : undefined}
                 onSave={(value, reason) => onSave(row.id, column.name, value, reason)}
                 onCancel={onCancel}
+                workflowNameById={workflowNameById}
               />
             </div>
           </td>
@@ -2819,291 +3352,6 @@ const DataRow = React.memo(function DataRow({
     </tr>
   )
 }, dataRowPropsAreEqual)
-
-function CellContent({
-  value,
-  column,
-  isEditing,
-  initialCharacter,
-  onSave,
-  onCancel,
-}: {
-  value: unknown
-  column: ColumnDefinition
-  isEditing: boolean
-  initialCharacter?: string | null
-  onSave: (value: unknown, reason: SaveReason) => void
-  onCancel: () => void
-}) {
-  const isNull = value === null || value === undefined
-
-  let displayContent: React.ReactNode = null
-  if (column.type === 'boolean') {
-    displayContent = (
-      <div
-        className={cn('flex min-h-[20px] items-center justify-center', isEditing && 'invisible')}
-      >
-        <Checkbox size='sm' checked={Boolean(value)} className='pointer-events-none' />
-      </div>
-    )
-  } else if (!isNull && column.type === 'json') {
-    displayContent = (
-      <span
-        className={cn(
-          'block overflow-clip text-ellipsis text-[var(--text-primary)]',
-          isEditing && 'invisible'
-        )}
-      >
-        {JSON.stringify(value)}
-      </span>
-    )
-  } else if (!isNull && column.type === 'date') {
-    displayContent = (
-      <span className={cn('text-[var(--text-primary)]', isEditing && 'invisible')}>
-        {storageToDisplay(String(value))}
-      </span>
-    )
-  } else if (!isNull) {
-    displayContent = (
-      <span
-        className={cn(
-          'block overflow-clip text-ellipsis text-[var(--text-primary)]',
-          isEditing && 'invisible'
-        )}
-      >
-        {String(value)}
-      </span>
-    )
-  }
-
-  return (
-    <>
-      {isEditing && (
-        <div className='absolute inset-0 z-10 flex items-start px-0'>
-          <InlineEditor
-            value={value}
-            column={column}
-            initialCharacter={initialCharacter ?? undefined}
-            onSave={onSave}
-            onCancel={onCancel}
-          />
-        </div>
-      )}
-      {displayContent}
-    </>
-  )
-}
-
-function InlineDateEditor({
-  value,
-  column,
-  initialCharacter,
-  onSave,
-  onCancel,
-}: {
-  value: unknown
-  column: ColumnDefinition
-  initialCharacter?: string
-  onSave: (value: unknown, reason: SaveReason) => void
-  onCancel: () => void
-}) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const doneRef = useRef(false)
-  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-
-  const storedValue = formatValueForInput(value, column.type)
-  const [draft, setDraft] = useState(() =>
-    initialCharacter !== undefined ? initialCharacter : storageToDisplay(storedValue)
-  )
-
-  const pickerValue = displayToStorage(draft) || storedValue || undefined
-
-  useEffect(() => {
-    const input = inputRef.current
-    if (!input) return
-    input.focus()
-    if (initialCharacter !== undefined) {
-      const len = input.value.length
-      input.setSelectionRange(len, len)
-    } else {
-      input.select()
-    }
-  }, [])
-
-  useEffect(() => () => clearTimeout(blurTimeoutRef.current), [])
-
-  const doSave = useCallback(
-    (reason: SaveReason, storageVal?: string) => {
-      if (doneRef.current) return
-      doneRef.current = true
-      clearTimeout(blurTimeoutRef.current)
-      const raw = storageVal ?? displayToStorage(draft) ?? draft
-      const val = raw && !Number.isNaN(Date.parse(raw)) ? raw : null
-      onSave(val, reason)
-    },
-    [draft, onSave]
-  )
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        e.preventDefault()
-        doSave('enter')
-      } else if (e.key === 'Tab') {
-        e.preventDefault()
-        doSave(e.shiftKey ? 'shift-tab' : 'tab')
-      } else if (e.key === 'Escape') {
-        e.preventDefault()
-        doneRef.current = true
-        clearTimeout(blurTimeoutRef.current)
-        onCancel()
-      }
-    },
-    [doSave, onCancel]
-  )
-
-  const handleBlur = useCallback(() => {
-    blurTimeoutRef.current = setTimeout(() => doSave('blur'), 200)
-  }, [doSave])
-
-  const handlePickerChange = useCallback(
-    (dateStr: string) => {
-      clearTimeout(blurTimeoutRef.current)
-      doSave('enter', dateStr)
-    },
-    [doSave]
-  )
-
-  const handlePickerOpenChange = useCallback((open: boolean) => {
-    if (!open && !doneRef.current) {
-      clearTimeout(blurTimeoutRef.current)
-      inputRef.current?.focus()
-    }
-  }, [])
-
-  return (
-    <>
-      <input
-        ref={inputRef}
-        type='text'
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onBlur={handleBlur}
-        placeholder='mm/dd/yyyy'
-        className={cn(
-          'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
-        )}
-      />
-      <div className='absolute top-full left-0 h-0 w-0'>
-        <DatePicker
-          mode='single'
-          value={pickerValue}
-          onChange={handlePickerChange}
-          open={true}
-          onOpenChange={handlePickerOpenChange}
-          showTrigger={false}
-          size='sm'
-        />
-      </div>
-    </>
-  )
-}
-
-function InlineTextEditor({
-  value,
-  column,
-  initialCharacter,
-  onSave,
-  onCancel,
-}: {
-  value: unknown
-  column: ColumnDefinition
-  initialCharacter?: string
-  onSave: (value: unknown, reason: SaveReason) => void
-  onCancel: () => void
-}) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [draft, setDraft] = useState(() =>
-    initialCharacter !== undefined ? initialCharacter : formatValueForInput(value, column.type)
-  )
-  const doneRef = useRef(false)
-
-  useEffect(() => {
-    const input = inputRef.current
-    if (!input) return
-
-    input.focus()
-    if (initialCharacter !== undefined) {
-      const len = input.value.length
-      input.setSelectionRange(len, len)
-    } else {
-      input.select()
-    }
-
-    const forwardWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      const container = input.closest('[data-table-scroll]') as HTMLElement | null
-      if (container) {
-        container.scrollBy(e.deltaX, e.deltaY)
-      }
-    }
-
-    input.addEventListener('wheel', forwardWheel, { passive: false })
-    return () => input.removeEventListener('wheel', forwardWheel)
-  }, [])
-
-  const doSave = (reason: SaveReason) => {
-    if (doneRef.current) return
-    doneRef.current = true
-    try {
-      onSave(cleanCellValue(draft, column), reason)
-    } catch {
-      onCancel()
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      doSave('enter')
-    } else if (e.key === 'Tab') {
-      e.preventDefault()
-      doSave(e.shiftKey ? 'shift-tab' : 'tab')
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      doneRef.current = true
-      onCancel()
-    }
-  }
-
-  return (
-    <input
-      ref={inputRef}
-      type='text'
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onKeyDown={handleKeyDown}
-      onBlur={() => doSave('blur')}
-      className={cn(
-        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
-      )}
-    />
-  )
-}
-
-function InlineEditor(props: {
-  value: unknown
-  column: ColumnDefinition
-  initialCharacter?: string
-  onSave: (value: unknown, reason: SaveReason) => void
-  onCancel: () => void
-}) {
-  if (props.column.type === 'date') {
-    return <InlineDateEditor {...props} />
-  }
-  return <InlineTextEditor {...props} />
-}
 
 const TableBodySkeleton = React.memo(function TableBodySkeleton({
   colCount,
@@ -3137,328 +3385,38 @@ const TableBodySkeleton = React.memo(function TableBodySkeleton({
   )
 })
 
-const COLUMN_TYPE_OPTIONS: {
-  type: ColumnDefinition['type']
-  label: string
-  icon: React.ElementType
-}[] = [
-  { type: 'string', label: 'Text', icon: TypeText },
-  { type: 'number', label: 'Number', icon: TypeNumber },
-  { type: 'boolean', label: 'Boolean', icon: TypeBoolean },
-  { type: 'date', label: 'Date', icon: CalendarIcon },
-  { type: 'json', label: 'JSON', icon: TypeJson },
-]
+interface RunStatusControlProps {
+  running: number
+  onStopAll: () => void
+  isStopping: boolean
+}
 
-const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
-  column,
-  colIndex,
-  readOnly,
-  isRenaming,
-  isColumnSelected,
-  renameValue,
-  onRenameValueChange,
-  onRenameSubmit,
-  onRenameCancel,
-  onRenameColumn,
-  onColumnSelect,
-  onChangeType,
-  onInsertLeft,
-  onInsertRight,
-  onToggleUnique,
-  onDeleteColumn,
-  onResizeStart,
-  onResize,
-  onResizeEnd,
-  onAutoResize,
-  onDragStart,
-  onDragOver,
-  onDragEnd,
-  onDragLeave,
-}: {
-  column: ColumnDefinition
-  colIndex: number
-  readOnly?: boolean
-  isRenaming: boolean
-  isColumnSelected: boolean
-  renameValue: string
-  onRenameValueChange: (value: string) => void
-  onRenameSubmit: () => void
-  onRenameCancel: () => void
-  onRenameColumn: (columnName: string) => void
-  onColumnSelect: (colIndex: number, shiftKey: boolean) => void
-  onChangeType: (columnName: string, newType: ColumnDefinition['type']) => void
-  onInsertLeft: (columnName: string) => void
-  onInsertRight: (columnName: string) => void
-  onToggleUnique: (columnName: string) => void
-  onDeleteColumn: (columnName: string) => void
-  onResizeStart: (columnName: string) => void
-  onResize: (columnName: string, width: number) => void
-  onResizeEnd: () => void
-  onAutoResize: (columnName: string) => void
-  onDragStart?: (columnName: string) => void
-  onDragOver?: (columnName: string, side: 'left' | 'right') => void
-  onDragEnd?: () => void
-  onDragLeave?: () => void
-}) {
-  const renameInputRef = useRef<HTMLInputElement>(null)
-  const didDragRef = useRef(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
-
-  useEffect(() => {
-    if (isRenaming && renameInputRef.current) {
-      renameInputRef.current.focus()
-      renameInputRef.current.select()
-    }
-  }, [isRenaming])
-
-  const handleResizePointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      const startX = e.clientX
-      const th = (e.currentTarget as HTMLElement).closest('th')
-      const startWidth = th ? th.getBoundingClientRect().width : COL_WIDTH
-
-      const target = e.currentTarget as HTMLElement
-      target.setPointerCapture(e.pointerId)
-
-      onResizeStart(column.name)
-
-      const handlePointerMove = (ev: PointerEvent) => {
-        onResize(column.name, startWidth + (ev.clientX - startX))
-      }
-
-      const cleanup = () => {
-        target.removeEventListener('pointermove', handlePointerMove)
-        target.removeEventListener('pointerup', cleanup)
-        target.removeEventListener('pointercancel', cleanup)
-        onResizeEnd()
-      }
-
-      target.addEventListener('pointermove', handlePointerMove)
-      target.addEventListener('pointerup', cleanup)
-      target.addEventListener('pointercancel', cleanup)
-    },
-    [column.name, onResizeStart, onResize, onResizeEnd]
-  )
-
-  const handleDragStart = useCallback(
-    (e: React.DragEvent) => {
-      if (readOnly || isRenaming) {
-        e.preventDefault()
-        return
-      }
-      didDragRef.current = true
-      e.dataTransfer.effectAllowed = 'move'
-      e.dataTransfer.setData('text/plain', column.name)
-
-      const ghost = document.createElement('div')
-      ghost.textContent = column.name
-      ghost.style.cssText =
-        'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:13px;font-weight:500;white-space:nowrap;color:var(--text-primary)'
-      document.body.appendChild(ghost)
-      e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
-      requestAnimationFrame(() => ghost.parentNode?.removeChild(ghost))
-
-      onDragStart?.(column.name)
-    },
-    [column.name, readOnly, isRenaming, onDragStart]
-  )
-
-  const handleDragOver = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault()
-      e.dataTransfer.dropEffect = 'move'
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-      const midX = rect.left + rect.width / 2
-      const side = e.clientX < midX ? 'left' : 'right'
-      onDragOver?.(column.name, side)
-    },
-    [column.name, onDragOver]
-  )
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-  }, [])
-
-  const handleDragEnd = useCallback(() => {
-    didDragRef.current = false
-    onDragEnd?.()
-  }, [onDragEnd])
-
-  const handleDragLeave = useCallback(
-    (e: React.DragEvent) => {
-      const th = e.currentTarget as HTMLElement
-      const related = e.relatedTarget as Node | null
-      if (related && th.contains(related)) return
-      onDragLeave?.()
-    },
-    [onDragLeave]
-  )
-
-  function handleHeaderClick(e: React.MouseEvent) {
-    if (didDragRef.current) {
-      didDragRef.current = false
-      return
-    }
-    if (isRenaming) return
-    onColumnSelect(colIndex, e.shiftKey)
-  }
-
-  function handleChevronClick(e: React.MouseEvent) {
-    e.stopPropagation()
-    const rect = (e.currentTarget as HTMLElement).closest('th')?.getBoundingClientRect()
-    if (rect) {
-      setMenuPosition({ x: rect.left, y: rect.bottom })
-    }
-    setMenuOpen(true)
-  }
-
-  function handleContextMenu(e: React.MouseEvent) {
-    if (readOnly || isRenaming) return
-    e.preventDefault()
-    setMenuPosition({ x: e.clientX, y: e.clientY })
-    setMenuOpen(true)
-  }
-
+/**
+ * Run-status + Stop-all control rendered in the header's trailing actions row.
+ * Matches the in-cell running indicator (`Loader` + tertiary text) for consistency.
+ */
+const RunStatusControl = React.memo(function RunStatusControl({
+  running,
+  onStopAll,
+  isStopping,
+}: RunStatusControlProps) {
   return (
-    <th
-      className={cn(
-        'group relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle',
-        isColumnSelected && 'bg-[rgba(37,99,235,0.06)]'
-      )}
-      draggable={!readOnly && !isRenaming}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      onDragLeave={handleDragLeave}
-      onContextMenu={handleContextMenu}
-    >
-      {isRenaming ? (
-        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
-          <ColumnTypeIcon type={column.type} />
-          <input
-            ref={renameInputRef}
-            type='text'
-            value={renameValue}
-            onChange={(e) => onRenameValueChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') onRenameSubmit()
-              if (e.key === 'Escape') onRenameCancel()
-            }}
-            onBlur={onRenameSubmit}
-            className='ml-1.5 min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-small outline-none focus:outline-none focus:ring-0'
-          />
-        </div>
-      ) : readOnly ? (
-        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
-          <ColumnTypeIcon type={column.type} />
-          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
-            {column.name}
-          </span>
-        </div>
-      ) : (
-        <div className='flex h-full w-full min-w-0 items-center'>
-          <button
-            type='button'
-            className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-none'
-            onClick={handleHeaderClick}
-            draggable={false}
-          >
-            <ColumnTypeIcon type={column.type} />
-            <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
-              {column.name}
-            </span>
-          </button>
-          <button
-            type='button'
-            className='flex h-full shrink-0 cursor-pointer items-center pr-2.5 pl-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--text-primary)] group-hover:opacity-100'
-            onClick={handleChevronClick}
-            draggable={false}
-            aria-label='Column options'
-          >
-            <ChevronDown className='h-[7px] w-[9px]' />
-          </button>
-          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-            <DropdownMenuTrigger asChild>
-              <div
-                style={{
-                  position: 'fixed',
-                  left: `${menuPosition.x}px`,
-                  top: `${menuPosition.y}px`,
-                  width: '1px',
-                  height: '1px',
-                  pointerEvents: 'none',
-                }}
-                tabIndex={-1}
-                aria-hidden='true'
-              />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align='start'
-              side='bottom'
-              sideOffset={4}
-              onCloseAutoFocus={(e) => e.preventDefault()}
-            >
-              <DropdownMenuItem onSelect={() => onRenameColumn(column.name)}>
-                <Pencil />
-                Rename column
-              </DropdownMenuItem>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  {React.createElement(COLUMN_TYPE_ICONS[column.type] ?? TypeText)}
-                  Change type
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  {COLUMN_TYPE_OPTIONS.map((option) => (
-                    <DropdownMenuItem
-                      key={option.type}
-                      disabled={column.type === option.type}
-                      onSelect={() => onChangeType(column.name, option.type)}
-                    >
-                      <option.icon />
-                      {option.label}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => onInsertLeft(column.name)}>
-                <ArrowLeft />
-                Insert column left
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onInsertRight(column.name)}>
-                <ArrowRight />
-                Insert column right
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => onToggleUnique(column.name)}>
-                <Fingerprint />
-                {column.unique ? 'Remove unique' : 'Set unique'}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => onDeleteColumn(column.name)}>
-                <Trash />
-                Delete column
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
-      <div
-        className='-right-[3px] absolute top-0 z-[1] h-full w-[6px] cursor-col-resize'
-        draggable={false}
-        onDragStart={(e) => e.stopPropagation()}
-        onPointerDown={handleResizePointerDown}
-        onDoubleClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          onAutoResize(column.name)
-        }}
-      />
-    </th>
+    <div className='flex items-center gap-1.5'>
+      <div className='flex items-center gap-1.5 px-1 text-[var(--text-tertiary)] text-caption'>
+        <Loader animate className='h-3.5 w-3.5 shrink-0' />
+        <span className='tabular-nums'>{running}</span>
+        <span>running</span>
+      </div>
+      <Button
+        variant='subtle'
+        className='px-2 py-1 text-caption'
+        onClick={onStopAll}
+        disabled={isStopping}
+      >
+        <Square className='mr-1.5 h-[14px] w-[14px] fill-current' />
+        Stop all
+      </Button>
+    </div>
   )
 })
 
@@ -3489,9 +3447,9 @@ const AddColumnButton = React.memo(function AddColumnButton({
     <th className={CELL_HEADER}>
       <button
         type='button'
-        className='flex h-[20px] cursor-pointer items-center gap-2'
-        onClick={onClick}
+        className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
         disabled={disabled}
+        onClick={onClick}
       >
         <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
         <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
@@ -3499,6 +3457,22 @@ const AddColumnButton = React.memo(function AddColumnButton({
     </th>
   )
 })
+
+const HEADER_ADD_COLUMN_ICON = <Plus className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+
+function HeaderAddColumnTrigger({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
+  return (
+    <Button
+      variant='subtle'
+      className='px-2 py-1 text-caption'
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {HEADER_ADD_COLUMN_ICON}
+      New column
+    </Button>
+  )
+}
 
 const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: () => void }) {
   return (
@@ -3515,7 +3489,20 @@ const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: ()
   )
 })
 
-function ColumnTypeIcon({ type }: { type: string }) {
-  const Icon = COLUMN_TYPE_ICONS[type] ?? TypeText
-  return <Icon className='h-3 w-3 shrink-0 text-[var(--text-icon)]' />
+/**
+ * Reuses the logs page's `LogDetails` slideout inside the tables view so a user
+ * can inspect a workflow run for a cell without leaving the table. The query is
+ * keyed on `executionId` because that's what's stored on the cell.
+ */
+function ExecutionDetailsSidebar({
+  workspaceId,
+  executionId,
+  onClose,
+}: {
+  workspaceId: string
+  executionId: string | null
+  onClose: () => void
+}) {
+  const { data: log } = useLogByExecutionId(workspaceId, executionId)
+  return <LogDetails log={log ?? null} isOpen={Boolean(executionId)} onClose={onClose} />
 }

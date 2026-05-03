@@ -1,12 +1,29 @@
-import type { Mem0Response } from '@/tools/mem0/types'
+import type { Mem0Response, Mem0SearchMemoriesParams } from '@/tools/mem0/types'
 import { SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/mem0/types'
+import { isRecord, type JsonRecord } from '@/tools/mem0/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const getSearchResults = (data: unknown): JsonRecord[] => {
+  if (!isRecord(data) || !Array.isArray(data.results)) return []
+  return data.results.filter(isRecord)
+}
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === 'string' ? value : undefined
+
+const getStringArray = (value: unknown): string[] | undefined =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : undefined
+
+const getNumber = (value: unknown, fallback = 0): number =>
+  typeof value === 'number' ? value : fallback
 
 /**
  * Search Memories Tool
  * @see https://docs.mem0.ai/api-reference/memory/search-memories
  */
-export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
+export const mem0SearchMemoriesTool: ToolConfig<Mem0SearchMemoriesParams, Mem0Response> = {
   id: 'mem0_search_memories',
   name: 'Search Memories',
   description: 'Search for memories in Mem0 using semantic search',
@@ -41,71 +58,46 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
   },
 
   request: {
-    url: 'https://api.mem0.ai/v2/memories/search/',
+    url: 'https://api.mem0.ai/v3/memories/search/',
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Token ${params.apiKey}`,
     }),
     body: (params) => {
-      // Create the request body with the format that the curl test confirms works
-      const body: Record<string, any> = {
-        query: params.query || 'test',
+      return {
+        query: params.query,
         filters: {
-          user_id: params.userId,
+          user_id: params.userId.trim(),
         },
         top_k: Number(params.limit || 10),
       }
-
-      return body
     },
   },
 
   transformResponse: async (response): Promise<Mem0Response> => {
     const data = await response.json()
-
-    if (!data || (Array.isArray(data) && data.length === 0)) {
-      return {
-        success: true,
-        output: {
-          searchResults: [],
-          ids: [],
-        },
-      }
-    }
-
-    if (Array.isArray(data)) {
-      const searchResults = data.map((item) => ({
-        id: item.id,
-        memory: item.memory || '',
-        user_id: item.user_id,
-        agent_id: item.agent_id,
-        app_id: item.app_id,
-        run_id: item.run_id,
-        hash: item.hash,
-        metadata: item.metadata,
-        categories: item.categories,
-        created_at: item.created_at,
-        updated_at: item.updated_at,
-        score: item.score || 0,
-      }))
-
-      const ids = data.map((item) => item.id).filter(Boolean)
-
-      return {
-        success: true,
-        output: {
-          searchResults,
-          ids,
-        },
-      }
-    }
+    const searchResults = getSearchResults(data).map((result) => ({
+      id: getString(result.id) ?? '',
+      memory: getString(result.memory) ?? '',
+      user_id: getString(result.user_id),
+      agent_id: getString(result.agent_id),
+      app_id: getString(result.app_id),
+      run_id: getString(result.run_id),
+      hash: getString(result.hash),
+      metadata: isRecord(result.metadata) ? result.metadata : undefined,
+      categories: getStringArray(result.categories),
+      created_at: getString(result.created_at),
+      updated_at: getString(result.updated_at),
+      score: getNumber(result.score),
+    }))
+    const ids = searchResults.map((result) => result.id).filter(Boolean)
 
     return {
       success: true,
       output: {
-        searchResults: [],
-        ids: [],
+        searchResults,
+        ids,
       },
     }
   },
