@@ -765,8 +765,13 @@ export function ColumnSidebar({
   }
 
   const typeOptions = useMemo(
-    () => COLUMN_TYPE_OPTIONS.map((o) => ({ label: o.label, value: o.type, icon: o.icon })),
-    []
+    () =>
+      COLUMN_TYPE_OPTIONS.filter((o) => o.type !== 'workflow' || !!existingGroup).map((o) => ({
+        label: o.label,
+        value: o.type,
+        icon: o.icon,
+      })),
+    [existingGroup]
   )
 
   /**
