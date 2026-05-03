@@ -304,8 +304,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         context === 'profile-pictures' ||
         context === 'workspace-logos'
       ) {
-        if (context !== 'copilot' && !isImageFileType(file.type)) {
-          throw new InvalidRequestError(`Only image files are allowed for ${context} uploads`)
+        if (context !== 'copilot') {
+          const mimeType = file.type
+          const isGenericMime = !mimeType || mimeType === 'application/octet-stream'
+          const extension = originalName.split('.').pop()?.toLowerCase() ?? ''
+          const extensionIsImage = (SUPPORTED_IMAGE_EXTENSIONS as readonly string[]).includes(
+            extension
+          )
+          const isImage = isGenericMime ? extensionIsImage : isImageFileType(mimeType)
+          if (!isImage) {
+            throw new InvalidRequestError(`Only image files are allowed for ${context} uploads`)
+          }
         }
 
         if (context === 'workspace-logos') {
