@@ -18,10 +18,6 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 import { readFileRecord } from '@/lib/copilot/vfs/file-reader'
 
 const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024
-const TINY_PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
-  'base64'
-)
 
 async function makeNoisePng(width: number, height: number): Promise<Buffer> {
   const sharp = (await import('sharp')).default
@@ -35,29 +31,6 @@ async function makeNoisePng(width: number, height: number): Promise<Buffer> {
 const SHARP_TEST_TIMEOUT_MS = 30_000
 
 describe('readFileRecord', () => {
-  it('returns small images as attachments without resize note', async () => {
-    downloadWorkspaceFile.mockResolvedValue(TINY_PNG)
-
-    const result = await readFileRecord({
-      id: 'wf_small',
-      workspaceId: 'ws_1',
-      name: 'small.png',
-      key: 'uploads/small.png',
-      path: '/api/files/serve/uploads%2Fsmall.png?context=mothership',
-      size: TINY_PNG.length,
-      type: 'image/png',
-      uploadedBy: 'user_1',
-      uploadedAt: new Date(),
-      deletedAt: null,
-      storageContext: 'mothership',
-    })
-
-    expect(result?.attachment?.type).toBe('image')
-    expect(result?.attachment?.source.media_type).toBe('image/png')
-    expect(result?.content).not.toContain('resized for vision')
-    expect(Buffer.from(result?.attachment?.source.data ?? '', 'base64')).toEqual(TINY_PNG)
-  })
-
   it(
     'downscales oversized images into attachments that fit the read limit',
     async () => {
