@@ -142,14 +142,16 @@ export const allNavigationItems: NavigationItem[] = [
     label: 'BYOK',
     icon: KeySquare,
     section: 'system',
-    requiresHosted: true,
+    // BYOK is functional on self-hosted via the byok.ts patch — surface in
+    // sidebar so users can manage workspace credentials from the UI.
   },
   {
     id: 'copilot',
     label: 'Copilot Keys',
     icon: HexSimple,
     section: 'system',
-    requiresHosted: true,
+    // Copilot keys page works locally for managing keys (proxies to sim.ai
+    // for new key generation but listing/storing existing keys works).
   },
   {
     id: 'inbox',
