@@ -191,6 +191,13 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   gif: 'image/gif',
   webp: 'image/webp',
   svg: 'image/svg+xml',
+  bmp: 'image/bmp',
+  tif: 'image/tiff',
+  tiff: 'image/tiff',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  avif: 'image/avif',
+  ico: 'image/x-icon',
 
   // Documents
   pdf: 'application/pdf',
