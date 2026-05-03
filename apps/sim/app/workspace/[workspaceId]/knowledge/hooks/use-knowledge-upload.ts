@@ -2,20 +2,36 @@ import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { useQueryClient } from '@tanstack/react-query'
-import { isApiClientError } from '@/lib/api/client/errors'
-import { requestJson } from '@/lib/api/client/request'
-import { createKnowledgeDocumentsContract } from '@/lib/api/contracts/knowledge/documents'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import {
+  calculateUploadTimeoutMs,
+  DirectUploadError,
+  isTransientUploadError,
+  LARGE_FILE_THRESHOLD,
+  MULTIPART_MAX_RETRIES,
+  MULTIPART_RETRY_BACKOFF,
+  MULTIPART_RETRY_DELAY_MS,
+  normalizePresignedData,
+  type PresignedUploadInfo,
+  runUploadStrategy,
+  runWithConcurrency,
+  type UploadProgressEvent,
+  WHOLE_FILE_PARALLEL_UPLOADS,
+} from '@/lib/uploads/client/direct-upload'
+import { getFileContentType, isAbortError, isNetworkError } from '@/lib/uploads/utils/file-utils'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('KnowledgeUpload')
+
+const KB_BATCH_PRESIGNED_ENDPOINT = '/api/files/presigned/batch?type=knowledge-base'
+const KB_API_UPLOAD_ENDPOINT = '/api/files/upload'
+
+const BATCH_REQUEST_SIZE = 50
 
 export interface UploadedFile {
   filename: string
   fileUrl: string
   fileSize: number
   mimeType: string
-  // Document tags
   tag1?: string
   tag2?: string
   tag3?: string
@@ -29,7 +45,7 @@ export interface FileUploadStatus {
   fileName: string
   fileSize: number
   status: 'pending' | 'uploading' | 'completed' | 'failed'
-  progress?: number // 0-100 percentage
+  progress?: number
   error?: string
 }
 
@@ -38,15 +54,15 @@ export interface UploadProgress {
   filesCompleted: number
   totalFiles: number
   currentFile?: string
-  currentFileProgress?: number // 0-100 percentage for current file
-  fileStatuses?: FileUploadStatus[] // Track each file's status
+  currentFileProgress?: number
+  fileStatuses?: FileUploadStatus[]
 }
 
 export interface UploadError {
   message: string
   timestamp: number
   code?: string
-  details?: any
+  details?: unknown
 }
 
 export interface ProcessingOptions {
@@ -69,323 +85,123 @@ class KnowledgeUploadError extends Error {
   }
 }
 
-class PresignedUrlError extends KnowledgeUploadError {
-  constructor(message: string, details?: unknown) {
-    super(message, 'PRESIGNED_URL_ERROR', details)
-  }
-}
-
-class DirectUploadError extends KnowledgeUploadError {
-  constructor(message: string, details?: unknown) {
-    super(message, 'DIRECT_UPLOAD_ERROR', details)
-  }
-}
-
 class ProcessingError extends KnowledgeUploadError {
   constructor(message: string, details?: unknown) {
     super(message, 'PROCESSING_ERROR', details)
   }
 }
 
-/**
- * Loosely-typed shape of a failed `Response` JSON body returned by routes
- * in this codebase. Routes generally surface `{ error?, message?, details? }`
- * where `details` is a Zod issue array (`{ message: string }[]`). Treated
- * as a structural read-only view; missing/undefined fields are tolerated.
- */
-interface ApiErrorBodyShape {
-  error?: unknown
-  message?: unknown
-  details?: unknown
-}
-
-/**
- * Reads a failed `Response`'s JSON body into a typed shape and returns the
- * parsed body plus a human-readable error string that combines the
- * top-level `error`/`message` with any Zod `details[].message` entries.
- * Falls back to `statusText` then status code when the body is unreadable.
- */
-async function readApiResponseError(
-  response: Response,
-  fallback = 'Unknown error'
-): Promise<{ message: string; body: ApiErrorBodyShape | null }> {
-  let body: ApiErrorBodyShape | null = null
-  try {
-    const parsed: unknown = await response.json()
-    if (parsed && typeof parsed === 'object') {
-      body = parsed as ApiErrorBodyShape
-    }
-  } catch {
-    body = null
-  }
-
-  const baseError =
-    (typeof body?.error === 'string' && body.error) ||
-    (typeof body?.message === 'string' && body.message) ||
-    response.statusText ||
-    `HTTP ${response.status}` ||
-    fallback
-
-  const detailMessages = Array.isArray(body?.details)
-    ? body.details
-        .map((d) =>
-          d && typeof d === 'object' && 'message' in d && typeof d.message === 'string'
-            ? d.message
-            : null
-        )
-        .filter((m): m is string => Boolean(m))
-        .join(', ')
-    : ''
-
-  return {
-    message: detailMessages ? `${baseError}: ${detailMessages}` : baseError,
-    body,
-  }
-}
-
-/**
- * Configuration constants for file upload operations
- */
-const UPLOAD_CONFIG = {
-  MAX_PARALLEL_UPLOADS: 3,
-  MAX_RETRIES: 3,
-  RETRY_DELAY_MS: 2000,
-  RETRY_BACKOFF: 2,
-  CHUNK_SIZE: 8 * 1024 * 1024,
-  DIRECT_UPLOAD_THRESHOLD: 4 * 1024 * 1024,
-  LARGE_FILE_THRESHOLD: 50 * 1024 * 1024,
-  BASE_TIMEOUT_MS: 2 * 60 * 1000,
-  TIMEOUT_PER_MB_MS: 1500,
-  MAX_TIMEOUT_MS: 10 * 60 * 1000,
-  MULTIPART_PART_CONCURRENCY: 3,
-  MULTIPART_MAX_RETRIES: 3,
-  BATCH_REQUEST_SIZE: 50,
-} as const
-
-/**
- * Calculates the upload timeout based on file size
- */
-const calculateUploadTimeoutMs = (fileSize: number) => {
-  const sizeInMb = fileSize / (1024 * 1024)
-  const dynamicBudget = UPLOAD_CONFIG.BASE_TIMEOUT_MS + sizeInMb * UPLOAD_CONFIG.TIMEOUT_PER_MB_MS
-  return Math.min(dynamicBudget, UPLOAD_CONFIG.MAX_TIMEOUT_MS)
-}
-
-/**
- * Gets high resolution timestamp for performance measurements
- */
-const getHighResTime = () =>
-  typeof performance !== 'undefined' && typeof performance.now === 'function'
-    ? performance.now()
-    : Date.now()
-
-/**
- * Formats bytes to megabytes with 2 decimal places
- */
-const formatMegabytes = (bytes: number) => Number((bytes / (1024 * 1024)).toFixed(2))
-
-/**
- * Calculates throughput in Mbps
- */
-const calculateThroughputMbps = (bytes: number, durationMs: number) => {
-  if (!bytes || !durationMs) return 0
-  return Number((((bytes * 8) / durationMs) * 0.001).toFixed(2))
-}
-
-/**
- * Formats duration from milliseconds to seconds
- */
-const formatDurationSeconds = (durationMs: number) => Number((durationMs / 1000).toFixed(2))
-
-/**
- * Gets the content type for a file, falling back to extension-based lookup if browser doesn't provide one
- */
-const getFileContentType = (file: File): string => {
-  if (file.type?.trim()) {
-    return file.type
-  }
-  const extension = getFileExtension(file.name)
-  return getMimeTypeFromExtension(extension)
-}
-
-/**
- * Runs async operations with concurrency limit
- */
-const runWithConcurrency = async <T, R>(
-  items: T[],
-  limit: number,
-  worker: (item: T, index: number) => Promise<R>
-): Promise<Array<PromiseSettledResult<R>>> => {
-  const results: Array<PromiseSettledResult<R>> = Array(items.length)
-
-  if (items.length === 0) {
-    return results
-  }
-
-  const concurrency = Math.max(1, Math.min(limit, items.length))
-  let nextIndex = 0
-
-  const runners = Array.from({ length: concurrency }, async () => {
-    while (true) {
-      const currentIndex = nextIndex++
-      if (currentIndex >= items.length) {
-        break
-      }
-
-      try {
-        const value = await worker(items[currentIndex], currentIndex)
-        results[currentIndex] = { status: 'fulfilled', value }
-      } catch (error) {
-        results[currentIndex] = { status: 'rejected', reason: error }
-      }
-    }
-  })
-
-  await Promise.all(runners)
-  return results
-}
-
-/**
- * Extracts the error name from an unknown error object
- */
-const getErrorName = (error: unknown) =>
-  typeof error === 'object' && error !== null && 'name' in error ? String((error as any).name) : ''
-
-/**
- * Extracts a human-readable message from an unknown error
- */
-const getErrorMessage = (error: unknown) =>
+const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error'
 
-/**
- * Checks if an error is an abort error
- */
-const isAbortError = (error: unknown) => getErrorName(error) === 'AbortError'
-
-/**
- * Checks if an error is a network-related error
- */
-const isNetworkError = (error: unknown) => {
-  if (!(error instanceof Error)) {
-    return false
-  }
-
-  const message = error.message.toLowerCase()
-  return (
-    message.includes('network') ||
-    message.includes('fetch') ||
-    message.includes('connection') ||
-    message.includes('timeout') ||
-    message.includes('timed out') ||
-    message.includes('ecconnreset')
-  )
-}
-
-interface PresignedFileInfo {
-  path: string
-  key: string
-  name: string
-  size: number
-  type: string
-}
-
-interface PresignedUploadInfo {
+interface BatchPresignedFile {
   fileName: string
-  presignedUrl: string
-  fileInfo: PresignedFileInfo
-  uploadHeaders?: Record<string, string>
-  directUploadSupported: boolean
-  presignedUrls?: any
+  contentType: string
+  fileSize: number
 }
 
 /**
- * Normalizes presigned URL response data into a consistent format
+ * Fetch presigned upload data for the small files in `files`. Returns a sparse
+ * array aligned with the input: entries for files >= LARGE_FILE_THRESHOLD are
+ * `undefined` because those uploads use multipart and never consume a presigned
+ * single-PUT URL.
  */
-const normalizePresignedData = (data: any, context: string): PresignedUploadInfo => {
-  const presignedUrl = data?.presignedUrl || data?.uploadUrl
-  const fileInfo = data?.fileInfo
-
-  if (!presignedUrl || !fileInfo?.path) {
-    throw new PresignedUrlError(`Invalid presigned response for ${context}`, data)
+const fetchBatchPresignedData = async (
+  files: File[]
+): Promise<(PresignedUploadInfo | undefined)[]> => {
+  const result: (PresignedUploadInfo | undefined)[] = new Array(files.length).fill(undefined)
+  const smallFileIndices: number[] = []
+  for (let i = 0; i < files.length; i++) {
+    if (files[i].size <= LARGE_FILE_THRESHOLD) smallFileIndices.push(i)
   }
+  if (smallFileIndices.length === 0) return result
 
-  return {
-    fileName: data.fileName || fileInfo.name || context,
-    presignedUrl,
-    fileInfo: {
-      path: fileInfo.path,
-      key: fileInfo.key,
-      name: fileInfo.name || context,
-      size: fileInfo.size || data.fileSize || 0,
-      type: fileInfo.type || data.contentType || '',
-    },
-    uploadHeaders: data.uploadHeaders || undefined,
-    directUploadSupported: data.directUploadSupported !== false,
-    presignedUrls: data.presignedUrls,
-  }
-}
-
-/**
- * Fetches presigned URL data for file upload
- */
-const getPresignedData = async (
-  file: File,
-  timeoutMs: number,
-  controller?: AbortController
-): Promise<PresignedUploadInfo> => {
-  const localController = controller ?? new AbortController()
-  const timeoutId = setTimeout(() => localController.abort(), timeoutMs)
-  const startTime = getHighResTime()
-
-  try {
-    // boundary-raw-fetch: presigned URL coordination is part of the multipart-signed-url upload flow tracked together with XHR PUT progress; keeping this on raw fetch preserves a single retry/timeout AbortController shared with the direct upload XHR
-    const presignedResponse = await fetch('/api/files/presigned?type=knowledge-base', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+  for (let start = 0; start < smallFileIndices.length; start += BATCH_REQUEST_SIZE) {
+    const batchIndices = smallFileIndices.slice(start, start + BATCH_REQUEST_SIZE)
+    const batchFiles = batchIndices.map((i) => files[i])
+    const body: { files: BatchPresignedFile[] } = {
+      files: batchFiles.map((file) => ({
         fileName: file.name,
         contentType: getFileContentType(file),
         fileSize: file.size,
-      }),
-      signal: localController.signal,
-    })
-
-    if (!presignedResponse.ok) {
-      const { message: fullError, body: errorDetails } =
-        await readApiResponseError(presignedResponse)
-
-      logger.error('Presigned URL request failed', {
-        status: presignedResponse.status,
-        fileSize: file.size,
-      })
-
-      throw new PresignedUrlError(
-        `Failed to get presigned URL for ${file.name}: ${fullError}`,
-        errorDetails
-      )
+      })),
     }
 
-    const presignedData = await presignedResponse.json()
-    const durationMs = getHighResTime() - startTime
-    logger.info('Fetched presigned URL', {
-      fileName: file.name,
-      sizeMB: formatMegabytes(file.size),
-      durationMs: formatDurationSeconds(durationMs),
+    const response = await fetch(KB_BATCH_PRESIGNED_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     })
-    return normalizePresignedData(presignedData, file.name)
-  } finally {
-    clearTimeout(timeoutId)
-    if (!controller) {
-      localController.abort()
+
+    if (!response.ok) {
+      throw new Error(`Batch presigned URL generation failed: ${response.statusText}`)
     }
+
+    const { files: presignedItems } = (await response.json()) as { files: unknown[] }
+    batchIndices.forEach((fileIdx, batchPos) => {
+      result[fileIdx] = normalizePresignedData(presignedItems[batchPos], batchFiles[batchPos].name)
+    })
   }
+
+  return result
 }
 
 /**
- * Hook for managing file uploads to knowledge bases
+ * Server-proxied fallback used when cloud storage isn't configured.
  */
+const uploadFileThroughAPI = async (
+  file: File,
+  workspaceId: string | undefined
+): Promise<{ filePath: string }> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('context', 'knowledge-base')
+  if (workspaceId) formData.append('workspaceId', workspaceId)
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), calculateUploadTimeoutMs(file.size))
+
+  try {
+    const response = await fetch(KB_API_UPLOAD_ENDPOINT, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      let errorData: { message?: string; error?: string } | null = null
+      try {
+        errorData = (await response.json()) as { message?: string; error?: string }
+      } catch {}
+      throw new KnowledgeUploadError(
+        `Failed to upload ${file.name}: ${errorData?.message || errorData?.error || response.statusText}`,
+        'API_UPLOAD_ERROR',
+        errorData
+      )
+    }
+
+    const result = (await response.json()) as {
+      fileInfo?: { path?: string }
+      path?: string
+    }
+    const filePath = result.fileInfo?.path ?? result.path
+    if (!filePath) {
+      throw new KnowledgeUploadError(
+        `Invalid upload response for ${file.name}: missing file path`,
+        'API_UPLOAD_ERROR',
+        result
+      )
+    }
+
+    return { filePath }
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
+const toAbsoluteUrl = (path: string): string =>
+  path.startsWith('http') ? path : `${window.location.origin}${path}`
+
 export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   const queryClient = useQueryClient()
   const [isUploading, setIsUploading] = useState(false)
@@ -396,642 +212,145 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   })
   const [uploadError, setUploadError] = useState<UploadError | null>(null)
 
-  /**
-   * Creates an UploadedFile object from file metadata
-   */
-  const createUploadedFile = (
-    filename: string,
-    fileUrl: string,
-    fileSize: number,
-    mimeType: string,
-    originalFile?: File
-  ): UploadedFile => ({
-    filename,
-    fileUrl,
-    fileSize,
-    mimeType,
-    tag1: (originalFile as any)?.tag1,
-    tag2: (originalFile as any)?.tag2,
-    tag3: (originalFile as any)?.tag3,
-    tag4: (originalFile as any)?.tag4,
-    tag5: (originalFile as any)?.tag5,
-    tag6: (originalFile as any)?.tag6,
-    tag7: (originalFile as any)?.tag7,
-  })
-
-  /**
-   * Creates an UploadError from an exception
-   */
-  const createErrorFromException = (error: unknown, defaultMessage: string): UploadError => {
-    if (error instanceof KnowledgeUploadError) {
-      return {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        timestamp: Date.now(),
-      }
+  const buildUploadedFile = (file: File, fileUrl: string): UploadedFile => {
+    const f = file as File & {
+      tag1?: string
+      tag2?: string
+      tag3?: string
+      tag4?: string
+      tag5?: string
+      tag6?: string
+      tag7?: string
     }
-
-    if (error instanceof Error) {
-      return {
-        message: error.message,
-        timestamp: Date.now(),
-      }
-    }
-
     return {
-      message: defaultMessage,
-      timestamp: Date.now(),
+      filename: file.name,
+      fileUrl,
+      fileSize: file.size,
+      mimeType: getFileContentType(file),
+      tag1: f.tag1,
+      tag2: f.tag2,
+      tag3: f.tag3,
+      tag4: f.tag4,
+      tag5: f.tag5,
+      tag6: f.tag6,
+      tag7: f.tag7,
     }
   }
 
-  /**
-   * Upload a single file with retry logic
-   */
-  const uploadSingleFileWithRetry = async (
+  const updateFileStatus = (fileIndex: number, patch: Partial<FileUploadStatus>) => {
+    setUploadProgress((prev) => ({
+      ...prev,
+      fileStatuses: prev.fileStatuses?.map((fs, idx) =>
+        idx === fileIndex ? { ...fs, ...patch } : fs
+      ),
+    }))
+  }
+
+  const uploadOneFile = async (
     file: File,
-    retryCount = 0,
-    fileIndex?: number,
-    presignedOverride?: PresignedUploadInfo
+    fileIndex: number,
+    presigned: PresignedUploadInfo | undefined
   ): Promise<UploadedFile> => {
-    const timeoutMs = calculateUploadTimeoutMs(file.size)
-    let presignedData: PresignedUploadInfo | undefined
-    const attempt = retryCount + 1
-    logger.info('Upload attempt started', {
-      fileName: file.name,
-      attempt,
-      sizeMB: formatMegabytes(file.size),
-      timeoutMs: formatDurationSeconds(timeoutMs),
-    })
+    if (!options.workspaceId) {
+      throw new KnowledgeUploadError('workspaceId is required for upload', 'MISSING_WORKSPACE_ID')
+    }
 
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    const onProgress = (event: UploadProgressEvent) => {
+      updateFileStatus(fileIndex, { progress: event.percent, status: 'uploading' })
+    }
 
+    let attempt = 0
+    while (true) {
       try {
-        if (file.size > UPLOAD_CONFIG.LARGE_FILE_THRESHOLD) {
-          presignedData = presignedOverride ?? (await getPresignedData(file, timeoutMs, controller))
-          return await uploadFileInChunks(file, presignedData, timeoutMs, fileIndex)
-        }
-
-        if (presignedOverride?.directUploadSupported && presignedOverride.presignedUrl) {
-          return await uploadFileDirectly(file, presignedOverride, timeoutMs, controller, fileIndex)
-        }
-
-        return await uploadFileThroughAPI(file, timeoutMs)
-      } finally {
-        clearTimeout(timeoutId)
-      }
-    } catch (error) {
-      const isTimeout = isAbortError(error)
-      const isNetwork = isNetworkError(error)
-
-      if (retryCount < UPLOAD_CONFIG.MAX_RETRIES) {
-        const delay = UPLOAD_CONFIG.RETRY_DELAY_MS * UPLOAD_CONFIG.RETRY_BACKOFF ** retryCount
-        if (isTimeout || isNetwork) {
-          logger.warn(
-            `Upload failed (${isTimeout ? 'timeout' : 'network'}), retrying in ${delay / 1000}s...`,
-            {
-              attempt: retryCount + 1,
-              fileSize: file.size,
-              delay: delay,
-            }
-          )
-        }
-
-        if (fileIndex !== undefined) {
-          setUploadProgress((prev) => ({
-            ...prev,
-            fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-              idx === fileIndex ? { ...fs, progress: 0, status: 'uploading' as const } : fs
-            ),
-          }))
-        }
-
-        await sleep(delay)
-        const shouldReusePresigned = (isTimeout || isNetwork) && presignedData
-        return uploadSingleFileWithRetry(
+        const result = await runUploadStrategy({
           file,
-          retryCount + 1,
-          fileIndex,
-          shouldReusePresigned ? presignedData : undefined
-        )
-      }
-
-      logger.error('Upload failed after retries', {
-        fileSize: file.size,
-        errorType: isTimeout ? 'timeout' : isNetwork ? 'network' : 'unknown',
-        attempts: UPLOAD_CONFIG.MAX_RETRIES + 1,
-      })
-      throw error
-    }
-  }
-
-  /**
-   * Upload file directly with timeout and progress tracking
-   */
-  const uploadFileDirectly = async (
-    file: File,
-    presignedData: PresignedUploadInfo,
-    timeoutMs: number,
-    outerController: AbortController,
-    fileIndex?: number
-  ): Promise<UploadedFile> => {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest()
-      let isCompleted = false
-      const startTime = getHighResTime()
-
-      const timeoutId = setTimeout(() => {
-        if (!isCompleted) {
-          isCompleted = true
-          xhr.abort()
-          reject(new Error('Upload timeout'))
-        }
-      }, timeoutMs)
-
-      const abortHandler = () => {
-        if (!isCompleted) {
-          isCompleted = true
-          clearTimeout(timeoutId)
-          xhr.abort()
-          reject(new DirectUploadError(`Upload aborted for ${file.name}`, {}))
-        }
-      }
-
-      outerController.signal.addEventListener('abort', abortHandler)
-
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable && fileIndex !== undefined && !isCompleted) {
-          const percentComplete = Math.round((event.loaded / event.total) * 100)
-          setUploadProgress((prev) => {
-            if (prev.fileStatuses?.[fileIndex]?.status === 'uploading') {
-              return {
-                ...prev,
-                fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-                  idx === fileIndex ? { ...fs, progress: percentComplete } : fs
-                ),
-              }
-            }
-            return prev
-          })
-        }
-      })
-
-      xhr.addEventListener('load', () => {
-        if (!isCompleted) {
-          isCompleted = true
-          clearTimeout(timeoutId)
-          outerController.signal.removeEventListener('abort', abortHandler)
-          const durationMs = getHighResTime() - startTime
-          if (xhr.status >= 200 && xhr.status < 300) {
-            const fullFileUrl = presignedData.fileInfo.path.startsWith('http')
-              ? presignedData.fileInfo.path
-              : `${window.location.origin}${presignedData.fileInfo.path}`
-            logger.info('Direct upload completed', {
-              fileName: file.name,
-              sizeMB: formatMegabytes(file.size),
-              durationMs: formatDurationSeconds(durationMs),
-              throughputMbps: calculateThroughputMbps(file.size, durationMs),
-              status: xhr.status,
-            })
-            resolve(
-              createUploadedFile(file.name, fullFileUrl, file.size, getFileContentType(file), file)
-            )
-          } else {
-            logger.error('S3 PUT request failed', {
-              status: xhr.status,
-              fileSize: file.size,
-            })
-            reject(
-              new DirectUploadError(
-                `Direct upload failed for ${file.name}: ${xhr.status} ${xhr.statusText}`,
-                {
-                  uploadResponse: xhr.statusText,
-                }
-              )
-            )
-          }
-        }
-      })
-
-      xhr.addEventListener('error', () => {
-        if (!isCompleted) {
-          isCompleted = true
-          clearTimeout(timeoutId)
-          outerController.signal.removeEventListener('abort', abortHandler)
-          const durationMs = getHighResTime() - startTime
-          logger.error('Direct upload network error', {
-            fileName: file.name,
-            sizeMB: formatMegabytes(file.size),
-            durationMs: formatDurationSeconds(durationMs),
-          })
-          reject(new DirectUploadError(`Network error uploading ${file.name}`, {}))
-        }
-      })
-
-      xhr.addEventListener('abort', abortHandler)
-
-      xhr.open('PUT', presignedData.presignedUrl)
-
-      xhr.setRequestHeader('Content-Type', file.type)
-      if (presignedData.uploadHeaders) {
-        Object.entries(presignedData.uploadHeaders).forEach(([key, value]) => {
-          xhr.setRequestHeader(key, value as string)
-        })
-      }
-
-      xhr.send(file)
-    })
-  }
-
-  /**
-   * Upload large file in chunks (multipart upload)
-   */
-  const uploadFileInChunks = async (
-    file: File,
-    presignedData: PresignedUploadInfo,
-    timeoutMs: number,
-    fileIndex?: number
-  ): Promise<UploadedFile> => {
-    logger.info(
-      `Uploading large file ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB) using multipart upload`
-    )
-    const startTime = getHighResTime()
-
-    try {
-      if (!options.workspaceId) {
-        throw new Error('workspaceId is required for multipart upload')
-      }
-
-      // boundary-raw-fetch: multipart-signed-url initiate step coordinates the cloud multipart upload token consumed by raw-fetch PUTs to provider-issued part URLs below
-      const initiateResponse = await fetch('/api/files/multipart?action=initiate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: file.name,
-          contentType: getFileContentType(file),
-          fileSize: file.size,
           workspaceId: options.workspaceId,
-        }),
-      })
-
-      if (!initiateResponse.ok) {
-        throw new Error(`Failed to initiate multipart upload: ${initiateResponse.statusText}`)
-      }
-
-      const { uploadId, key, uploadToken } = await initiateResponse.json()
-      logger.info(`Initiated multipart upload with ID: ${uploadId}`)
-
-      const chunkSize = UPLOAD_CONFIG.CHUNK_SIZE
-      const numParts = Math.ceil(file.size / chunkSize)
-      const partNumbers = Array.from({ length: numParts }, (_, i) => i + 1)
-
-      // boundary-raw-fetch: multipart-signed-url get-part-urls step issues provider-signed PUT URLs consumed by the raw-fetch PUT loop below; kept on raw fetch to preserve retry/abort coordination with the part PUTs
-      const partUrlsResponse = await fetch('/api/files/multipart?action=get-part-urls', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uploadToken,
-          partNumbers,
-        }),
-      })
-
-      if (!partUrlsResponse.ok) {
-        // boundary-raw-fetch: multipart-signed-url abort step issued from inside the multipart upload error path; keeps cleanup on the same raw-fetch path as the rest of the multipart flow
-        await fetch('/api/files/multipart?action=abort', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uploadToken }),
+          context: 'knowledge-base',
+          presignedEndpoint: '/api/files/presigned?type=knowledge-base',
+          presignedOverride: presigned,
+          onProgress,
         })
-        throw new Error(`Failed to get part URLs: ${partUrlsResponse.statusText}`)
-      }
-
-      const { presignedUrls } = await partUrlsResponse.json()
-
-      const uploadedParts: Array<{ ETag: string; PartNumber: number }> = []
-
-      const controller = new AbortController()
-      const multipartTimeoutId = setTimeout(() => controller.abort(), timeoutMs)
-
-      try {
-        const uploadPart = async ({ partNumber, url }: any) => {
-          const start = (partNumber - 1) * chunkSize
-          const end = Math.min(start + chunkSize, file.size)
-          const chunk = file.slice(start, end)
-
-          for (let attempt = 0; attempt <= UPLOAD_CONFIG.MULTIPART_MAX_RETRIES; attempt++) {
-            try {
-              const partResponse = await fetch(url, {
-                method: 'PUT',
-                body: chunk,
-                signal: controller.signal,
-                headers: {
-                  'Content-Type': file.type,
-                },
-              })
-
-              if (!partResponse.ok) {
-                throw new Error(`Failed to upload part ${partNumber}: ${partResponse.statusText}`)
-              }
-
-              const etag = partResponse.headers.get('ETag') || ''
-              logger.info(`Uploaded part ${partNumber}/${numParts}`)
-
-              if (fileIndex !== undefined) {
-                const partProgress = Math.min(100, Math.round((partNumber / numParts) * 100))
-                setUploadProgress((prev) => ({
-                  ...prev,
-                  fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-                    idx === fileIndex ? { ...fs, progress: partProgress } : fs
-                  ),
-                }))
-              }
-
-              return { ETag: etag.replace(/"/g, ''), PartNumber: partNumber }
-            } catch (partError) {
-              if (attempt >= UPLOAD_CONFIG.MULTIPART_MAX_RETRIES) {
-                throw partError
-              }
-
-              const delay = UPLOAD_CONFIG.RETRY_DELAY_MS * UPLOAD_CONFIG.RETRY_BACKOFF ** attempt
-              logger.warn(
-                `Part ${partNumber} failed (attempt ${attempt + 1}), retrying in ${Math.round(delay / 1000)}s`
-              )
-              await sleep(delay)
-            }
-          }
-
-          throw new Error(`Retries exhausted for part ${partNumber}`)
+        return buildUploadedFile(file, toAbsoluteUrl(result.path))
+      } catch (error) {
+        if (error instanceof DirectUploadError && error.code === 'FALLBACK_REQUIRED') {
+          const { filePath } = await uploadFileThroughAPI(file, options.workspaceId)
+          return buildUploadedFile(file, toAbsoluteUrl(filePath))
         }
 
-        const partResults = await runWithConcurrency(
-          presignedUrls,
-          UPLOAD_CONFIG.MULTIPART_PART_CONCURRENCY,
-          uploadPart
+        const retryable = isNetworkError(error) || isTransientUploadError(error)
+        if (isAbortError(error) || !retryable || attempt >= MULTIPART_MAX_RETRIES) {
+          throw error
+        }
+
+        const delay = MULTIPART_RETRY_DELAY_MS * MULTIPART_RETRY_BACKOFF ** attempt
+        attempt++
+        logger.warn(
+          `Upload retry ${attempt}/${MULTIPART_MAX_RETRIES} for ${file.name} in ${Math.round(delay / 1000)}s`
         )
-
-        partResults.forEach((result) => {
-          if (result?.status === 'fulfilled') {
-            uploadedParts.push(result.value)
-          } else if (result?.status === 'rejected') {
-            throw result.reason
-          }
-        })
-      } finally {
-        clearTimeout(multipartTimeoutId)
+        updateFileStatus(fileIndex, { progress: 0, status: 'uploading' })
+        await sleep(delay)
       }
-
-      // boundary-raw-fetch: multipart-signed-url complete step finalizes the multipart upload coordinated with raw-fetch part PUTs above
-      const completeResponse = await fetch('/api/files/multipart?action=complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uploadToken,
-          parts: uploadedParts,
-        }),
-      })
-
-      if (!completeResponse.ok) {
-        throw new Error(`Failed to complete multipart upload: ${completeResponse.statusText}`)
-      }
-
-      const { path } = await completeResponse.json()
-      logger.info(`Completed multipart upload for ${file.name}`)
-
-      const durationMs = getHighResTime() - startTime
-      logger.info('Multipart upload metrics', {
-        fileName: file.name,
-        sizeMB: formatMegabytes(file.size),
-        parts: uploadedParts.length,
-        durationMs: formatDurationSeconds(durationMs),
-        throughputMbps: calculateThroughputMbps(file.size, durationMs),
-      })
-
-      const fullFileUrl = path.startsWith('http') ? path : `${window.location.origin}${path}`
-
-      return createUploadedFile(file.name, fullFileUrl, file.size, getFileContentType(file), file)
-    } catch (error) {
-      logger.error(`Multipart upload failed for ${file.name}:`, error)
-      const durationMs = getHighResTime() - startTime
-      logger.warn('Falling back to direct upload after multipart failure', {
-        fileName: file.name,
-        sizeMB: formatMegabytes(file.size),
-        durationMs: formatDurationSeconds(durationMs),
-      })
-      return uploadFileDirectly(file, presignedData, timeoutMs, new AbortController(), fileIndex)
     }
   }
 
-  /**
-   * Fallback upload through API
-   */
-  const uploadFileThroughAPI = async (file: File, timeoutMs: number): Promise<UploadedFile> => {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('context', 'knowledge-base')
-
-      if (options.workspaceId) {
-        formData.append('workspaceId', options.workspaceId)
-      }
-
-      // boundary-raw-fetch: multipart/form-data upload (FileUpload boundary), incompatible with requestJson which JSON-stringifies bodies
-      const uploadResponse = await fetch('/api/files/upload', {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal,
-      })
-
-      if (!uploadResponse.ok) {
-        const { message: fullError, body: errorData } = await readApiResponseError(uploadResponse)
-        throw new DirectUploadError(`Failed to upload ${file.name}: ${fullError}`, errorData)
-      }
-
-      const uploadResult = await uploadResponse.json()
-
-      const filePath = uploadResult.fileInfo?.path || uploadResult.path
-
-      if (!filePath) {
-        throw new DirectUploadError(
-          `Invalid upload response for ${file.name}: missing file path`,
-          uploadResult
-        )
-      }
-
-      return createUploadedFile(
-        file.name,
-        filePath.startsWith('http') ? filePath : `${window.location.origin}${filePath}`,
-        file.size,
-        getFileContentType(file),
-        file
-      )
-    } finally {
-      clearTimeout(timeoutId)
-    }
-  }
-
-  /**
-   * Uploads files in batches using presigned URLs
-   */
   const uploadFilesInBatches = async (files: File[]): Promise<UploadedFile[]> => {
-    const results: UploadedFile[] = []
-    const failedFiles: Array<{ file: File; error: Error }> = []
-
     const fileStatuses: FileUploadStatus[] = files.map((file) => ({
       fileName: file.name,
       fileSize: file.size,
-      status: 'pending' as const,
+      status: 'pending',
       progress: 0,
     }))
 
-    setUploadProgress((prev) => ({
-      ...prev,
-      fileStatuses,
-    }))
+    setUploadProgress((prev) => ({ ...prev, fileStatuses }))
 
     logger.info(`Starting batch upload of ${files.length} files`)
 
-    try {
-      const batches = []
+    const presignedData = await fetchBatchPresignedData(files)
 
-      for (
-        let batchStart = 0;
-        batchStart < files.length;
-        batchStart += UPLOAD_CONFIG.BATCH_REQUEST_SIZE
-      ) {
-        const batchFiles = files.slice(batchStart, batchStart + UPLOAD_CONFIG.BATCH_REQUEST_SIZE)
-        const batchIndexOffset = batchStart
-        batches.push({ batchFiles, batchIndexOffset })
-      }
-
-      logger.info(`Starting parallel processing of ${batches.length} batches`)
-
-      const presignedPromises = batches.map(async ({ batchFiles }, batchIndex) => {
-        logger.info(
-          `Getting presigned URLs for batch ${batchIndex + 1}/${batches.length} (${batchFiles.length} files)`
-        )
-
-        const batchRequest = {
-          files: batchFiles.map((file) => ({
-            fileName: file.name,
-            contentType: getFileContentType(file),
-            fileSize: file.size,
-          })),
-        }
-
-        // boundary-raw-fetch: signed-URL batch coordination for direct uploads handed to raw-fetch PUTs against provider URLs; kept on raw fetch to preserve the same controller/timeout used by the multipart flow
-        const batchResponse = await fetch('/api/files/presigned/batch?type=knowledge-base', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(batchRequest),
-        })
-
-        if (!batchResponse.ok) {
-          const { message: fullError } = await readApiResponseError(batchResponse)
-          throw new Error(`Batch ${batchIndex + 1} presigned URL generation failed: ${fullError}`)
-        }
-
-        const { files: presignedData } = await batchResponse.json()
-        return { batchFiles, presignedData, batchIndex }
-      })
-
-      const allPresignedData = await Promise.all(presignedPromises)
-      logger.info(`Got all presigned URLs, starting uploads`)
-
-      const allUploads = allPresignedData.flatMap(({ batchFiles, presignedData, batchIndex }) => {
-        const batchIndexOffset = batchIndex * UPLOAD_CONFIG.BATCH_REQUEST_SIZE
-
-        return batchFiles.map((file, batchFileIndex) => {
-          const fileIndex = batchIndexOffset + batchFileIndex
-          const presigned = presignedData[batchFileIndex]
-
-          return { file, presigned, fileIndex }
-        })
-      })
-
-      const uploadResults = await runWithConcurrency(
-        allUploads,
-        UPLOAD_CONFIG.MAX_PARALLEL_UPLOADS,
-        async ({ file, presigned, fileIndex }) => {
-          if (!presigned) {
-            throw new Error(`No presigned data for file ${file.name}`)
-          }
-
+    const settled = await runWithConcurrency(
+      files,
+      WHOLE_FILE_PARALLEL_UPLOADS,
+      async (file, index) => {
+        updateFileStatus(index, { status: 'uploading' })
+        try {
+          const uploaded = await uploadOneFile(file, index, presignedData[index])
           setUploadProgress((prev) => ({
             ...prev,
-            fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-              idx === fileIndex ? { ...fs, status: 'uploading' as const } : fs
-            ),
+            filesCompleted: prev.filesCompleted + 1,
           }))
-
-          try {
-            const result = await uploadSingleFileWithRetry(file, 0, fileIndex, presigned)
-
-            setUploadProgress((prev) => ({
-              ...prev,
-              filesCompleted: prev.filesCompleted + 1,
-              fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-                idx === fileIndex ? { ...fs, status: 'completed' as const, progress: 100 } : fs
-              ),
-            }))
-
-            return result
-          } catch (error) {
-            setUploadProgress((prev) => ({
-              ...prev,
-              fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-                idx === fileIndex
-                  ? {
-                      ...fs,
-                      status: 'failed' as const,
-                      error: getErrorMessage(error),
-                    }
-                  : fs
-              ),
-            }))
-            throw error
-          }
+          updateFileStatus(index, { status: 'completed', progress: 100 })
+          return uploaded
+        } catch (error) {
+          updateFileStatus(index, { status: 'failed', error: getErrorMessage(error) })
+          throw error
         }
-      )
-
-      uploadResults.forEach((result, idx) => {
-        if (result?.status === 'fulfilled') {
-          results.push(result.value)
-        } else if (result?.status === 'rejected') {
-          failedFiles.push({
-            file: allUploads[idx].file,
-            error:
-              result.reason instanceof Error ? result.reason : new Error(String(result.reason)),
-          })
-        }
-      })
-
-      if (failedFiles.length > 0) {
-        logger.error(`Failed to upload ${failedFiles.length} files`)
-        throw new KnowledgeUploadError(
-          `Failed to upload ${failedFiles.length} file(s)`,
-          'PARTIAL_UPLOAD_FAILURE',
-          {
-            failedFiles,
-            uploadedFiles: results,
-          }
-        )
       }
+    )
 
-      return results
-    } catch (error) {
-      logger.error('Batch upload failed:', error)
-      throw error
+    const succeeded: UploadedFile[] = []
+    const failed: Array<{ file: File; error: Error }> = []
+    settled.forEach((result, idx) => {
+      if (result?.status === 'fulfilled') {
+        succeeded.push(result.value)
+      } else if (result?.status === 'rejected') {
+        failed.push({
+          file: files[idx],
+          error: result.reason instanceof Error ? result.reason : new Error(String(result.reason)),
+        })
+      }
+    })
+
+    if (failed.length > 0) {
+      throw new KnowledgeUploadError(
+        `Failed to upload ${failed.length} file(s)`,
+        'PARTIAL_UPLOAD_FAILURE',
+        { failedFiles: failed, uploadedFiles: succeeded }
+      )
     }
+
+    return succeeded
   }
 
-  /**
-   * Main upload function that handles file uploads and document processing
-   */
   const uploadFiles = async (
     files: File[],
     knowledgeBaseId: string,
@@ -1040,7 +359,6 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     if (files.length === 0) {
       throw new KnowledgeUploadError('No files provided for upload', 'NO_FILES')
     }
-
     if (!knowledgeBaseId?.trim()) {
       throw new KnowledgeUploadError('Knowledge base ID is required', 'INVALID_KB_ID')
     }
@@ -1054,43 +372,49 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       setUploadProgress((prev) => ({ ...prev, stage: 'processing' }))
 
-      const processPayload = {
-        documents: uploadedFiles.map((file) => ({
-          ...file,
-        })),
-        processingOptions: {
-          recipe: processingOptions.recipe ?? 'default',
-          lang: 'en',
-        },
-        bulk: true,
-      }
+      // boundary-raw-fetch: bulk document-processing kickoff with dynamic recipe payload; response is consumed alongside the upload progress lifecycle and not modeled by a single contract
+      const processResponse = await fetch(`/api/knowledge/${knowledgeBaseId}/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documents: uploadedFiles.map((f) => ({ ...f })),
+          processingOptions: {
+            recipe: processingOptions.recipe ?? 'default',
+            lang: 'en',
+          },
+          bulk: true,
+        }),
+      })
 
-      let processResult: Awaited<
-        ReturnType<typeof requestJson<typeof createKnowledgeDocumentsContract>>
-      >
-      try {
-        processResult = await requestJson(createKnowledgeDocumentsContract, {
-          params: { id: knowledgeBaseId },
-          body: processPayload,
+      if (!processResponse.ok) {
+        let errorData: { error?: string; message?: string } | null = null
+        try {
+          errorData = (await processResponse.json()) as { error?: string; message?: string }
+        } catch {}
+        logger.error('Document processing failed:', {
+          status: processResponse.status,
+          error: errorData,
         })
-      } catch (err) {
-        if (isApiClientError(err)) {
-          logger.error('Document processing failed:', {
-            status: err.status,
-            error: err.body,
-            uploadedFiles: uploadedFiles.map((f) => ({
-              filename: f.filename,
-              fileUrl: f.fileUrl,
-              fileSize: f.fileSize,
-              mimeType: f.mimeType,
-            })),
-          })
-          throw new ProcessingError(`Failed to start document processing: ${err.message}`, err.body)
-        }
-        throw err
+        throw new ProcessingError(
+          `Failed to start document processing: ${errorData?.error || errorData?.message || 'Unknown error'}`,
+          errorData
+        )
       }
 
-      if (!('documentsCreated' in processResult.data)) {
+      const processResult = (await processResponse.json()) as {
+        success?: boolean
+        error?: string
+        data?: { documentsCreated?: unknown }
+      }
+
+      if (!processResult.success) {
+        throw new ProcessingError(
+          `Document processing failed: ${processResult.error || 'Unknown error'}`,
+          processResult
+        )
+      }
+
+      if (!processResult.data?.documentsCreated) {
         throw new ProcessingError(
           'Invalid processing response: missing document data',
           processResult
@@ -1098,23 +422,25 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       }
 
       setUploadProgress((prev) => ({ ...prev, stage: 'completing' }))
-
       logger.info(`Successfully started processing ${uploadedFiles.length} documents`)
 
-      await queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
-      })
+      await queryClient.invalidateQueries({ queryKey: knowledgeKeys.detail(knowledgeBaseId) })
 
       return uploadedFiles
     } catch (err) {
       logger.error('Error uploading documents:', err)
 
-      const error = createErrorFromException(err, 'Unknown error occurred during upload')
+      const error: UploadError =
+        err instanceof KnowledgeUploadError
+          ? { message: err.message, code: err.code, details: err.details, timestamp: Date.now() }
+          : err instanceof DirectUploadError
+            ? { message: err.message, code: err.code, details: err.details, timestamp: Date.now() }
+            : err instanceof Error
+              ? { message: err.message, timestamp: Date.now() }
+              : { message: 'Unknown error occurred during upload', timestamp: Date.now() }
+
       setUploadError(error)
       options.onError?.(error)
-
-      logger.error('Document upload failed:', error.message)
-
       throw err
     } finally {
       setIsUploading(false)
@@ -1122,9 +448,6 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     }
   }
 
-  /**
-   * Clears the current upload error
-   */
   const clearError = useCallback(() => {
     setUploadError(null)
   }, [])

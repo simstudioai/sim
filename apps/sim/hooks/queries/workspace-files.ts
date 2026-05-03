@@ -1,17 +1,25 @@
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
-import { isApiClientError } from '@/lib/api/client/errors'
+import { ApiClientError, isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getUsageLimitsContract } from '@/lib/api/contracts/usage-limits'
 import {
   deleteWorkspaceFileContract,
   listWorkspaceFilesContract,
+  registerWorkspaceFileContract,
   renameWorkspaceFileContract,
   restoreWorkspaceFileContract,
   updateWorkspaceFileContentContract,
 } from '@/lib/api/contracts/workspace-files'
+import {
+  DirectUploadError,
+  runUploadStrategy,
+  type UploadProgressEvent,
+} from '@/lib/uploads/client/direct-upload'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('WorkspaceFilesQuery')
 
@@ -195,36 +203,134 @@ export function useStorageInfo(enabled = true) {
 interface UploadFileParams {
   workspaceId: string
   file: File
+  onProgress?: (event: UploadProgressEvent) => void
+  signal?: AbortSignal
+}
+
+interface UploadFileResponse {
+  success: boolean
+  file: UserFile
+}
+
+async function uploadViaApiFallback(
+  workspaceId: string,
+  file: File,
+  signal?: AbortSignal
+): Promise<UploadFileResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  // boundary-raw-fetch: multipart/form-data fallback upload, requestJson only supports JSON bodies
+  const response = await fetch(`/api/workspaces/${workspaceId}/files`, {
+    method: 'POST',
+    body: formData,
+    signal,
+  })
+
+  return parseUploadResponse(response, 'Upload failed')
+}
+
+async function parseUploadResponse(
+  response: Response,
+  fallbackMessage: string
+): Promise<UploadFileResponse> {
+  let data: { success?: boolean; error?: string; file?: UserFile } | null = null
+  try {
+    data = await response.json()
+  } catch {}
+
+  if (!response.ok || !data?.success) {
+    throw new Error(data?.error || `${fallbackMessage} (${response.status})`)
+  }
+  return data as UploadFileResponse
+}
+
+async function uploadWorkspaceFile(
+  workspaceId: string,
+  file: File,
+  onProgress?: (event: UploadProgressEvent) => void,
+  signal?: AbortSignal
+): Promise<UploadFileResponse> {
+  let result
+  try {
+    result = await runUploadStrategy({
+      file,
+      presignedEndpoint: `/api/workspaces/${workspaceId}/files/presigned`,
+      workspaceId,
+      context: 'workspace',
+      onProgress,
+      signal,
+    })
+  } catch (error) {
+    if (error instanceof DirectUploadError && error.code === 'FALLBACK_REQUIRED') {
+      return uploadViaApiFallback(workspaceId, file, signal)
+    }
+    throw error
+  }
+
+  const data = await registerWithRetry(workspaceId, result, signal)
+
+  if (!data.success || !data.file) {
+    throw new Error(data.error || 'Failed to register file')
+  }
+  return { success: true, file: data.file }
+}
+
+const REGISTER_MAX_ATTEMPTS = 3
+const REGISTER_RETRY_DELAY_MS = 500
+
+/**
+ * Register the uploaded object with bounded retries. The server-side handler
+ * is idempotent (existing-record short-circuit), so safely retrying handles
+ * dropped responses that would otherwise orphan the object in storage.
+ */
+async function registerWithRetry(
+  workspaceId: string,
+  result: { key: string; name: string; contentType: string },
+  signal?: AbortSignal
+) {
+  let lastError: unknown
+  for (let attempt = 1; attempt <= REGISTER_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await requestJson(registerWorkspaceFileContract, {
+        params: { id: workspaceId },
+        body: {
+          key: result.key,
+          name: result.name,
+          contentType: result.contentType,
+        },
+        signal,
+      })
+    } catch (error) {
+      lastError = error
+      if (signal?.aborted) throw error
+      const isTransient =
+        !(error instanceof ApiClientError) || (error.status >= 500 && error.status < 600)
+      if (!isTransient || attempt === REGISTER_MAX_ATTEMPTS) throw error
+      await sleep(REGISTER_RETRY_DELAY_MS * attempt)
+    }
+  }
+  throw lastError
 }
 
 export function useUploadWorkspaceFile() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, file }: UploadFileParams) => {
-      const formData = new FormData()
-      formData.append('file', file)
-
-      // boundary-raw-fetch: multipart/form-data file upload, requestJson only supports JSON bodies
-      const response = await fetch(`/api/workspaces/${workspaceId}/files`, {
-        method: 'POST',
-        body: formData,
-      })
-
-      const data = await response.json()
-
-      if (!data.success) {
-        throw new Error(data.error || 'Upload failed')
-      }
-
-      return data
-    },
+    mutationFn: ({ workspaceId, file, onProgress, signal }: UploadFileParams) =>
+      uploadWorkspaceFile(workspaceId, file, onProgress, signal),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
-    onError: (error) => {
+    onSuccess: (_data, variables) => {
+      toast.success(`Uploaded "${variables.file.name}"`)
+    },
+    onError: (error, variables) => {
       logger.error('Failed to upload file:', error)
+      toast.error(`Failed to upload "${variables.file.name}": ${error.message}`, {
+        duration: 5000,
+      })
     },
   })
 }

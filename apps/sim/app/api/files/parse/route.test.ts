@@ -10,6 +10,8 @@ import {
   inputValidationMock,
   permissionsMock,
   permissionsMockFns,
+  storageServiceMock,
+  storageServiceMockFns,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -22,8 +24,6 @@ const {
   mockIsSupportedFileType,
   mockParseFile,
   mockParseBuffer,
-  mockDownloadFile,
-  mockHasCloudStorage,
   mockFsAccess,
   mockFsStat,
   mockFsReadFile,
@@ -47,8 +47,6 @@ const {
       content: 'parsed buffer content',
       metadata: { pageCount: 1 },
     }),
-    mockDownloadFile: vi.fn(),
-    mockHasCloudStorage: vi.fn().mockReturnValue(true),
     mockFsAccess: vi.fn().mockResolvedValue(undefined),
     mockFsStat: vi.fn().mockImplementation(() => ({ isFile: () => true })),
     mockFsReadFile: vi.fn().mockResolvedValue(Buffer.from('test file content')),
@@ -79,10 +77,7 @@ vi.mock('@/lib/file-parsers', () => ({
   parseBuffer: mockParseBuffer,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-  hasCloudStorage: mockHasCloudStorage,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('path', () => ({
   default: actualPath,
@@ -176,6 +171,7 @@ describe('File Parse API Route', () => {
     })
 
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue({ canView: true })
+    storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
     mockIsSupportedFileType.mockReturnValue(true)
     mockParseFile.mockResolvedValue({
       content: 'parsed content',
@@ -325,8 +321,8 @@ describe('File Parse API Route', () => {
       authenticated: true,
     })
 
-    mockDownloadFile.mockRejectedValue(new Error('Access denied'))
-    mockHasCloudStorage.mockReturnValue(true)
+    storageServiceMockFns.mockDownloadFile.mockRejectedValue(new Error('Access denied'))
+    storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
 
     const req = new NextRequest('http://localhost:3000/api/files/parse', {
       method: 'POST',
