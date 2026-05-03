@@ -432,36 +432,14 @@ export function WorkflowItem({
         onClick={handleClick}
         onContextMenu={handleContextMenu}
       >
-        <div className='relative flex-shrink-0'>
-          <div
-            className='h-[16px] w-[16px] rounded-sm border-[2.5px]'
-            style={{
-              backgroundColor: workflow.color,
-              borderColor: workflowBorderColor(workflow.color),
-              backgroundClip: 'padding-box',
-            }}
-          />
-          {workflow.locked && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <button
-                  type='button'
-                  aria-label='Workflow is locked'
-                  className='-right-[4px] -bottom-[4px] absolute flex h-[12px] w-[12px] items-center justify-center rounded-full bg-[var(--surface-1)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-icon)]'
-                  onClick={(e) => e.preventDefault()}
-                >
-                  <Lock
-                    className='pointer-events-none h-[10px] w-[10px] text-[var(--text-icon)]'
-                    aria-hidden='true'
-                  />
-                </button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='bottom'>
-                <span>Locked</span>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          )}
-        </div>
+        <div
+          className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
+          style={{
+            backgroundColor: workflow.color,
+            borderColor: workflowBorderColor(workflow.color),
+            backgroundClip: 'padding-box',
+          }}
+        />
         <div className='min-w-0 flex-1'>
           <div className='flex min-w-0 items-center gap-2'>
             {isEditing ? (
@@ -495,21 +473,43 @@ export function WorkflowItem({
           </div>
         </div>
         {!isEditing && (
-          <>
+          <div className='relative h-[18px] w-[18px] flex-shrink-0'>
+            {workflow.locked && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <span
+                    aria-label='Workflow is locked'
+                    className={clsx(
+                      'absolute inset-0 flex items-center justify-center transition-opacity',
+                      !isAnyDragActive && 'group-hover:opacity-0',
+                      isContextMenuOpen && 'opacity-0'
+                    )}
+                  >
+                    <Lock
+                      className='h-[14px] w-[14px] text-[var(--text-icon)]'
+                      aria-hidden='true'
+                    />
+                  </span>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='bottom'>
+                  <span>Locked</span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
             <button
               type='button'
               aria-label='Workflow options'
               onPointerDown={handleMorePointerDown}
               onClick={handleMoreClick}
               className={clsx(
-                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity',
+                'absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity',
                 !isAnyDragActive && 'group-hover:opacity-100',
                 isContextMenuOpen && 'opacity-100'
               )}
             >
               <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
             </button>
-          </>
+          </div>
         )}
       </Link>
 

@@ -514,33 +514,17 @@ export function FolderItem({
           )}
           aria-hidden='true'
         />
-        <span className='relative flex-shrink-0'>
-          {isExpanded ? (
-            <FolderOpen className='h-[16px] w-[16px] text-[var(--text-icon)]' aria-hidden='true' />
-          ) : (
-            <Folder className='h-[16px] w-[16px] text-[var(--text-icon)]' aria-hidden='true' />
-          )}
-          {folder.locked && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <button
-                  type='button'
-                  aria-label='Folder is locked'
-                  className='-right-[4px] -bottom-[4px] absolute flex h-[12px] w-[12px] items-center justify-center rounded-full bg-[var(--surface-1)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-icon)]'
-                  onClick={(e) => e.preventDefault()}
-                >
-                  <Lock
-                    className='pointer-events-none h-[10px] w-[10px] text-[var(--text-icon)]'
-                    aria-hidden='true'
-                  />
-                </button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='bottom'>
-                <span>Locked</span>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          )}
-        </span>
+        {isExpanded ? (
+          <FolderOpen
+            className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]'
+            aria-hidden='true'
+          />
+        ) : (
+          <Folder
+            className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]'
+            aria-hidden='true'
+          />
+        )}
         {isEditing ? (
           <input
             ref={inputRef}
@@ -570,19 +554,43 @@ export function FolderItem({
                 {folder.name}
               </span>
             </div>
-            <button
-              type='button'
-              aria-label='Folder options'
-              onPointerDown={handleMorePointerDown}
-              onClick={handleMoreClick}
-              className={clsx(
-                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity',
-                !isAnyDragActive && 'group-hover:opacity-100',
-                isContextMenuOpen && 'opacity-100'
+            <div className='relative h-[18px] w-[18px] flex-shrink-0'>
+              {folder.locked && (
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <span
+                      aria-label='Folder is locked'
+                      className={clsx(
+                        'absolute inset-0 flex items-center justify-center transition-opacity',
+                        !isAnyDragActive && 'group-hover:opacity-0',
+                        isContextMenuOpen && 'opacity-0'
+                      )}
+                    >
+                      <Lock
+                        className='h-[14px] w-[14px] text-[var(--text-icon)]'
+                        aria-hidden='true'
+                      />
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom'>
+                    <span>Locked</span>
+                  </Tooltip.Content>
+                </Tooltip.Root>
               )}
-            >
-              <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
-            </button>
+              <button
+                type='button'
+                aria-label='Folder options'
+                onPointerDown={handleMorePointerDown}
+                onClick={handleMoreClick}
+                className={clsx(
+                  'absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity',
+                  !isAnyDragActive && 'group-hover:opacity-100',
+                  isContextMenuOpen && 'opacity-100'
+                )}
+              >
+                <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+              </button>
+            </div>
           </div>
         )}
       </div>
