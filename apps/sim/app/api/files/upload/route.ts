@@ -13,7 +13,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { isImageFileType } from '@/lib/uploads/utils/file-utils'
+import { isImageFileType, resolveFileType } from '@/lib/uploads/utils/file-utils'
 import {
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_CODE_EXTENSIONS,
@@ -350,6 +350,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         logger.info(`Uploading ${context} file: ${originalName}`)
 
+        const resolvedContentType = resolveFileType({ type: file.type, name: originalName })
+
         const timestamp = Date.now()
         const safeFileName = sanitizeFileName(originalName)
         const storageKey = `${context}/${timestamp}-${safeFileName}`
@@ -368,7 +370,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const fileInfo = await storageService.uploadFile({
           file: buffer,
           fileName: storageKey,
-          contentType: file.type,
+          contentType: resolvedContentType,
           context,
           preserveKey: true,
           customKey: storageKey,
@@ -385,7 +387,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             key: fileInfo.key,
             name: originalName,
             size: buffer.length,
-            type: file.type,
+            type: resolvedContentType,
           },
           directUploadSupported: false,
         }
