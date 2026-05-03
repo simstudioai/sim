@@ -257,6 +257,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           file,
           workspaceId: options.workspaceId,
           context: 'knowledge-base',
+          presignedEndpoint: '/api/files/presigned',
           presignedOverride: presigned,
           onProgress,
         })

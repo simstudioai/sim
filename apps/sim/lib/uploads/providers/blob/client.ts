@@ -341,14 +341,19 @@ export async function headBlobObject(
   const containerClient = blobServiceClient.getContainerClient(containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
-  if (!(await blockBlobClient.exists())) {
-    return null
-  }
-
-  const properties = await blockBlobClient.getProperties()
-  return {
-    size: properties.contentLength ?? 0,
-    contentType: properties.contentType,
+  try {
+    const properties = await blockBlobClient.getProperties()
+    return {
+      size: properties.contentLength ?? 0,
+      contentType: properties.contentType,
+    }
+  } catch (err) {
+    const status = (err as { statusCode?: number }).statusCode
+    const code = (err as { code?: string }).code
+    if (status === 404 || code === 'BlobNotFound') {
+      return null
+    }
+    throw err
   }
 }
 
