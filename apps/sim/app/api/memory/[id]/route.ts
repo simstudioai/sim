@@ -86,7 +86,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Memory
       .limit(1)
 
     if (memories.length === 0) {
-      return memoryEnvelopeError('Memory not found', 404)
+      return NextResponse.json({ success: true, data: null }, { status: 200 })
     }
 
     const mem = memories[0]
