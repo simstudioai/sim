@@ -1003,6 +1003,47 @@ export const PlatformEvents = {
   },
 
   /**
+   * Track a successful hosted-key acquisition that had to wait for capacity.
+   * Fires after the actor or dimension bucket refilled enough for the call to proceed.
+   */
+  hostedKeyQueueWaited: (attrs: {
+    provider: string
+    workspaceId: string
+    waitedMs: number
+    attempts: number
+    reason: 'actor_requests' | 'dimension'
+    dimension?: string
+  }) => {
+    trackPlatformEvent('platform.hosted_key.queue_waited', {
+      'provider.id': attrs.provider,
+      'workspace.id': attrs.workspaceId,
+      'queue.waited_ms': attrs.waitedMs,
+      'queue.attempts': attrs.attempts,
+      'queue.reason': attrs.reason,
+      ...(attrs.dimension && { 'queue.dimension': attrs.dimension }),
+    })
+  },
+
+  /**
+   * Track a hosted-key acquisition that exceeded the queue wait cap and fell back to a 429.
+   */
+  hostedKeyQueueWaitExceeded: (attrs: {
+    provider: string
+    workspaceId: string
+    waitedMs: number
+    reason: 'actor_requests' | 'dimension'
+    dimension?: string
+  }) => {
+    trackPlatformEvent('platform.hosted_key.queue_wait_exceeded', {
+      'provider.id': attrs.provider,
+      'workspace.id': attrs.workspaceId,
+      'queue.waited_ms': attrs.waitedMs,
+      'queue.reason': attrs.reason,
+      ...(attrs.dimension && { 'queue.dimension': attrs.dimension }),
+    })
+  },
+
+  /**
    * Track chat deployed (workflow deployed as chat interface)
    */
   chatDeployed: (attrs: {

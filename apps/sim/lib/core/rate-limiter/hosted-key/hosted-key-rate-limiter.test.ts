@@ -7,6 +7,10 @@ import type {
 import { HostedKeyRateLimiter } from './hosted-key-rate-limiter'
 import type { CustomRateLimit, PerRequestRateLimit } from './types'
 
+/** Force the queue wait to give up on the first iteration by reporting a retry time
+ *  larger than the 5-minute MAX_QUEUE_WAIT_MS cap. */
+const RETRY_PAST_CAP_MS = 6 * 60 * 1000
+
 interface MockAdapter {
   consumeTokens: Mock
   getTokenStatus: Mock
@@ -72,11 +76,12 @@ describe('HostedKeyRateLimiter', () => {
       expect(result.error).toContain('No hosted keys configured')
     })
 
-    it('should rate limit billing actor when they exceed their limit', async () => {
+    it('should rate limit billing actor when wait exceeds the queue cap', async () => {
+      // resetAt past the 5-minute cap forces the wait loop to bail immediately.
       const rateLimitedResult: ConsumeResult = {
         allowed: false,
         tokensRemaining: 0,
-        resetAt: new Date(Date.now() + 30000),
+        resetAt: new Date(Date.now() + RETRY_PAST_CAP_MS),
       }
       mockAdapter.consumeTokens.mockResolvedValue(rateLimitedResult)
 
@@ -91,6 +96,33 @@ describe('HostedKeyRateLimiter', () => {
       expect(result.billingActorRateLimited).toBe(true)
       expect(result.retryAfterMs).toBeDefined()
       expect(result.error).toContain('Rate limit exceeded')
+    })
+
+    it('should wait for capacity then succeed when bucket refills within the cap', async () => {
+      // First call: bucket empty, refills in 100ms (well under cap).
+      // Second call: bucket has capacity, consumed.
+      const blocked: ConsumeResult = {
+        allowed: false,
+        tokensRemaining: 0,
+        resetAt: new Date(Date.now() + 100),
+      }
+      const allowed: ConsumeResult = {
+        allowed: true,
+        tokensRemaining: 9,
+        resetAt: new Date(Date.now() + 60000),
+      }
+      mockAdapter.consumeTokens.mockResolvedValueOnce(blocked).mockResolvedValueOnce(allowed)
+
+      const result = await rateLimiter.acquireKey(
+        testProvider,
+        envKeyPrefix,
+        perRequestRateLimit,
+        'workspace-wait'
+      )
+
+      expect(result.success).toBe(true)
+      expect(result.key).toBe('test-key-1')
+      expect(mockAdapter.consumeTokens).toHaveBeenCalledTimes(2)
     })
 
     it('should allow billing actor within their rate limit', async () => {
@@ -197,11 +229,11 @@ describe('HostedKeyRateLimiter', () => {
       ],
     }
 
-    it('should enforce requestsPerMinute for custom mode', async () => {
+    it('should enforce requestsPerMinute for custom mode when wait exceeds the cap', async () => {
       const rateLimitedResult: ConsumeResult = {
         allowed: false,
         tokensRemaining: 0,
-        resetAt: new Date(Date.now() + 30000),
+        resetAt: new Date(Date.now() + RETRY_PAST_CAP_MS),
       }
       mockAdapter.consumeTokens.mockResolvedValue(rateLimitedResult)
 
@@ -246,7 +278,7 @@ describe('HostedKeyRateLimiter', () => {
       expect(mockAdapter.getTokenStatus).toHaveBeenCalledTimes(1)
     })
 
-    it('should block request when a dimension is depleted', async () => {
+    it('should block request when a dimension wait exceeds the cap', async () => {
       const allowedConsume: ConsumeResult = {
         allowed: true,
         tokensRemaining: 4,
@@ -258,7 +290,7 @@ describe('HostedKeyRateLimiter', () => {
         tokensAvailable: 0,
         maxTokens: 2000,
         lastRefillAt: new Date(),
-        nextRefillAt: new Date(Date.now() + 45000),
+        nextRefillAt: new Date(Date.now() + RETRY_PAST_CAP_MS),
       }
       mockAdapter.getTokenStatus.mockResolvedValue(depleted)
 
@@ -272,6 +304,39 @@ describe('HostedKeyRateLimiter', () => {
       expect(result.success).toBe(false)
       expect(result.billingActorRateLimited).toBe(true)
       expect(result.error).toContain('tokens')
+    })
+
+    it('should wait for dimension capacity then succeed when budget refills', async () => {
+      const allowedConsume: ConsumeResult = {
+        allowed: true,
+        tokensRemaining: 4,
+        resetAt: new Date(Date.now() + 60000),
+      }
+      mockAdapter.consumeTokens.mockResolvedValue(allowedConsume)
+
+      const depleted: TokenStatus = {
+        tokensAvailable: 0,
+        maxTokens: 2000,
+        lastRefillAt: new Date(),
+        nextRefillAt: new Date(Date.now() + 100),
+      }
+      const refilled: TokenStatus = {
+        tokensAvailable: 500,
+        maxTokens: 2000,
+        lastRefillAt: new Date(),
+        nextRefillAt: new Date(Date.now() + 60000),
+      }
+      mockAdapter.getTokenStatus.mockResolvedValueOnce(depleted).mockResolvedValueOnce(refilled)
+
+      const result = await rateLimiter.acquireKey(
+        testProvider,
+        envKeyPrefix,
+        customRateLimit,
+        'workspace-dim-wait'
+      )
+
+      expect(result.success).toBe(true)
+      expect(mockAdapter.getTokenStatus).toHaveBeenCalledTimes(2)
     })
 
     it('should pre-check all dimensions and block on first depleted one', async () => {
@@ -309,7 +374,7 @@ describe('HostedKeyRateLimiter', () => {
         tokensAvailable: 0,
         maxTokens: 100,
         lastRefillAt: new Date(),
-        nextRefillAt: new Date(Date.now() + 30000),
+        nextRefillAt: new Date(Date.now() + RETRY_PAST_CAP_MS),
       }
       mockAdapter.getTokenStatus
         .mockResolvedValueOnce(tokensBudget)

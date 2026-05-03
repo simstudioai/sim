@@ -1,9 +1,13 @@
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
+import { generateShortId } from '@sim/utils/id'
+import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import {
   createStorageAdapter,
   type RateLimitStorageAdapter,
   type TokenBucketConfig,
 } from '@/lib/core/rate-limiter/storage'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import {
   type AcquireKeyResult,
   type CustomRateLimit,
@@ -15,6 +19,24 @@ import {
 } from './types'
 
 const logger = createLogger('HostedKeyRateLimiter')
+
+/**
+ * Maximum time a hosted-key acquisition will wait for the per-workspace bucket
+ * to refill before falling back to a 429. Sized comfortably under the 90-min
+ * Trigger.dev container ceiling so a queued call still has time to actually
+ * execute after acquisition.
+ */
+const MAX_QUEUE_WAIT_MS = 5 * 60 * 1000
+
+/**
+ * Floor on per-iteration sleep when the bucket reports `retryAfterMs <= 0`,
+ * which can happen due to clock skew or sub-millisecond resets. Prevents a
+ * tight retry loop hammering the storage adapter.
+ */
+const MIN_QUEUE_RETRY_DELAY_MS = 50
+
+/** TTL slack on the FIFO lock — a crashed worker can't permanently block its workspace. */
+const QUEUE_LOCK_TTL_SECONDS = Math.ceil(MAX_QUEUE_WAIT_MS / 1000) + 30
 
 /**
  * Resolves env var names for a numbered key prefix using a `{PREFIX}_COUNT` env var.
@@ -179,11 +201,16 @@ export class HostedKeyRateLimiter {
    * Acquire an available key via round-robin selection.
    *
    * For both modes:
-   *   1. Per-billing-actor request rate limiting (enforced): blocks actors who exceed their request limit
+   *   1. Per-billing-actor request rate limiting (enforced): when the actor is over their
+   *      limit, the call blocks (waits for refill) up to `MAX_QUEUE_WAIT_MS`. A Redis
+   *      FIFO lock keyed on `{provider, billingActorId}` keeps callers in the same
+   *      workspace serialized so the bucket drains predictably.
    *   2. Round-robin key selection: cycles through available keys for even distribution
    *
    * For `custom` mode additionally:
-   *   3. Pre-checks dimension budgets: blocks if any dimension is already depleted
+   *   3. Pre-checks dimension budgets: same wait-for-refill behavior if a dimension is depleted
+   *
+   * If the wait exceeds the cap, the call falls back to today's 429 result.
    *
    * @param envKeyPrefix - Env var prefix (e.g. 'EXA_API_KEY'). Keys resolved via `{prefix}_COUNT`.
    * @param billingActorId - The billing actor (typically workspace ID) to rate limit against
@@ -194,56 +221,198 @@ export class HostedKeyRateLimiter {
     config: HostedKeyRateLimitConfig,
     billingActorId: string
   ): Promise<AcquireKeyResult> {
-    if (config.requestsPerMinute) {
-      const rateLimitResult = await this.checkActorRateLimit(provider, billingActorId, config)
-      if (rateLimitResult) {
-        return {
-          success: false,
-          billingActorRateLimited: true,
-          retryAfterMs: rateLimitResult.retryAfterMs,
-          error: `Rate limit exceeded. Please wait ${Math.ceil(rateLimitResult.retryAfterMs / 1000)} seconds. If you're getting throttled frequently, consider adding your own API key under Settings > BYOK to avoid shared rate limits.`,
+    const lockKey = `hosted-queue:${provider}:${billingActorId}`
+    const lockValue = generateShortId()
+    const lockHeld = await this.acquireFifoLock(lockKey, lockValue)
+
+    try {
+      if (config.requestsPerMinute) {
+        const rateLimitResult = await this.waitForActorCapacity(provider, billingActorId, config)
+        if (rateLimitResult.rateLimited) {
+          return {
+            success: false,
+            billingActorRateLimited: true,
+            retryAfterMs: rateLimitResult.retryAfterMs,
+            error: `Rate limit exceeded. Please wait ${Math.ceil(rateLimitResult.retryAfterMs / 1000)} seconds. If you're getting throttled frequently, consider adding your own API key under Settings > BYOK to avoid shared rate limits.`,
+          }
         }
       }
-    }
 
-    if (config.mode === 'custom' && config.dimensions.length > 0) {
-      const dimensionResult = await this.preCheckDimensions(provider, billingActorId, config)
-      if (dimensionResult) {
-        return {
-          success: false,
-          billingActorRateLimited: true,
-          retryAfterMs: dimensionResult.retryAfterMs,
-          error: `Rate limit exceeded for ${dimensionResult.dimension}. Please wait ${Math.ceil(dimensionResult.retryAfterMs / 1000)} seconds. If you're getting throttled frequently, consider adding your own API key under Settings > BYOK to avoid shared rate limits.`,
+      if (config.mode === 'custom' && config.dimensions.length > 0) {
+        const dimensionResult = await this.waitForDimensionCapacity(
+          provider,
+          billingActorId,
+          config
+        )
+        if (dimensionResult.rateLimited) {
+          return {
+            success: false,
+            billingActorRateLimited: true,
+            retryAfterMs: dimensionResult.retryAfterMs,
+            error: `Rate limit exceeded for ${dimensionResult.dimension}. Please wait ${Math.ceil(dimensionResult.retryAfterMs / 1000)} seconds. If you're getting throttled frequently, consider adding your own API key under Settings > BYOK to avoid shared rate limits.`,
+          }
         }
       }
-    }
 
-    const envKeys = resolveEnvKeys(envKeyPrefix)
-    const availableKeys = this.getAvailableKeys(envKeys)
+      const envKeys = resolveEnvKeys(envKeyPrefix)
+      const availableKeys = this.getAvailableKeys(envKeys)
 
-    if (availableKeys.length === 0) {
-      logger.warn(`No hosted keys configured for provider ${provider}`)
+      if (availableKeys.length === 0) {
+        logger.warn(`No hosted keys configured for provider ${provider}`)
+        return {
+          success: false,
+          error: `No hosted keys configured for ${provider}`,
+        }
+      }
+
+      const counter = this.roundRobinCounters.get(provider) ?? 0
+      const selected = availableKeys[counter % availableKeys.length]
+      this.roundRobinCounters.set(provider, counter + 1)
+
+      logger.debug(`Selected hosted key for ${provider}`, {
+        provider,
+        keyIndex: selected.keyIndex,
+        envVarName: selected.envVarName,
+      })
+
       return {
-        success: false,
-        error: `No hosted keys configured for ${provider}`,
+        success: true,
+        key: selected.key,
+        keyIndex: selected.keyIndex,
+        envVarName: selected.envVarName,
+      }
+    } finally {
+      if (lockHeld) {
+        await this.releaseFifoLock(lockKey, lockValue)
       }
     }
+  }
 
-    const counter = this.roundRobinCounters.get(provider) ?? 0
-    const selected = availableKeys[counter % availableKeys.length]
-    this.roundRobinCounters.set(provider, counter + 1)
+  /**
+   * Acquire the per-workspace+provider FIFO lock that serializes queue waits.
+   * Returns true if the lock was held by this caller (or Redis is unavailable, in which
+   * case the lock is a no-op and we proceed without fairness). Returns false if the lock
+   * is already held by another caller and we should still proceed without waiting on it
+   * (correctness is preserved by the token bucket; we just lose fairness).
+   */
+  private async acquireFifoLock(lockKey: string, lockValue: string): Promise<boolean> {
+    try {
+      return await acquireLock(lockKey, lockValue, QUEUE_LOCK_TTL_SECONDS)
+    } catch (error) {
+      logger.warn(`Failed to acquire hosted-queue FIFO lock ${lockKey}`, { error })
+      return false
+    }
+  }
 
-    logger.debug(`Selected hosted key for ${provider}`, {
-      provider,
-      keyIndex: selected.keyIndex,
-      envVarName: selected.envVarName,
-    })
+  /**
+   * Release the per-workspace+provider FIFO lock. Best-effort; logs but does not throw.
+   */
+  private async releaseFifoLock(lockKey: string, lockValue: string): Promise<void> {
+    try {
+      await releaseLock(lockKey, lockValue)
+    } catch (error) {
+      logger.warn(`Failed to release hosted-queue FIFO lock ${lockKey}`, { error })
+    }
+  }
 
-    return {
-      success: true,
-      key: selected.key,
-      keyIndex: selected.keyIndex,
-      envVarName: selected.envVarName,
+  /**
+   * Wait for actor request-rate capacity. Re-checks the bucket after each refill window
+   * up to `MAX_QUEUE_WAIT_MS`. Returns `{ rateLimited: false }` once a token has been
+   * consumed (the underlying check is consume-on-success, matching the original behavior).
+   */
+  private async waitForActorCapacity(
+    provider: string,
+    billingActorId: string,
+    config: HostedKeyRateLimitConfig
+  ): Promise<{ rateLimited: false } | { rateLimited: true; retryAfterMs: number }> {
+    const startedAt = Date.now()
+    let attempts = 0
+
+    while (true) {
+      const result = await this.checkActorRateLimit(provider, billingActorId, config)
+      attempts++
+
+      if (!result) {
+        if (attempts > 1) {
+          PlatformEvents.hostedKeyQueueWaited({
+            provider,
+            workspaceId: billingActorId,
+            waitedMs: Date.now() - startedAt,
+            attempts,
+            reason: 'actor_requests',
+          })
+        }
+        return { rateLimited: false }
+      }
+
+      const elapsed = Date.now() - startedAt
+      const remaining = MAX_QUEUE_WAIT_MS - elapsed
+      if (remaining <= 0 || result.retryAfterMs > remaining) {
+        PlatformEvents.hostedKeyQueueWaitExceeded({
+          provider,
+          workspaceId: billingActorId,
+          waitedMs: elapsed,
+          reason: 'actor_requests',
+        })
+        return { rateLimited: true, retryAfterMs: result.retryAfterMs }
+      }
+
+      const sleepMs = Math.max(MIN_QUEUE_RETRY_DELAY_MS, result.retryAfterMs)
+      await sleep(sleepMs)
+    }
+  }
+
+  /**
+   * Wait for custom-mode dimension capacity. `preCheckDimensions` is read-only — it does
+   * not consume — so re-running it after a sleep is safe and does not double-charge.
+   * Post-execution `reportUsage` performs the actual consumption.
+   */
+  private async waitForDimensionCapacity(
+    provider: string,
+    billingActorId: string,
+    config: CustomRateLimit
+  ): Promise<
+    { rateLimited: false } | { rateLimited: true; retryAfterMs: number; dimension: string }
+  > {
+    const startedAt = Date.now()
+    let attempts = 0
+
+    while (true) {
+      const result = await this.preCheckDimensions(provider, billingActorId, config)
+      attempts++
+
+      if (!result) {
+        if (attempts > 1) {
+          PlatformEvents.hostedKeyQueueWaited({
+            provider,
+            workspaceId: billingActorId,
+            waitedMs: Date.now() - startedAt,
+            attempts,
+            reason: 'dimension',
+          })
+        }
+        return { rateLimited: false }
+      }
+
+      const elapsed = Date.now() - startedAt
+      const remaining = MAX_QUEUE_WAIT_MS - elapsed
+      if (remaining <= 0 || result.retryAfterMs > remaining) {
+        PlatformEvents.hostedKeyQueueWaitExceeded({
+          provider,
+          workspaceId: billingActorId,
+          waitedMs: elapsed,
+          reason: 'dimension',
+          dimension: result.dimension,
+        })
+        return {
+          rateLimited: true,
+          retryAfterMs: result.retryAfterMs,
+          dimension: result.dimension,
+        }
+      }
+
+      const sleepMs = Math.max(MIN_QUEUE_RETRY_DELAY_MS, result.retryAfterMs)
+      await sleep(sleepMs)
     }
   }
 
