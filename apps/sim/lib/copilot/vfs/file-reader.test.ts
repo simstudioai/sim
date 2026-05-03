@@ -28,6 +28,10 @@ async function makeNoisePng(width: number, height: number): Promise<Buffer> {
     .toBuffer()
 }
 
+// Both tests do real sharp work (encode + metadata read) that can exceed the
+// default 10s timeout when CI runs them alongside thousands of other tests.
+const SHARP_TEST_TIMEOUT_MS = 30_000
+
 describe('readFileRecord', () => {
   it('returns small images as attachments without resize note', async () => {
     const sharp = (await import('sharp')).default
@@ -62,7 +66,7 @@ describe('readFileRecord', () => {
     expect(result?.attachment?.source.media_type).toBe('image/png')
     expect(result?.content).not.toContain('resized for vision')
     expect(Buffer.from(result?.attachment?.source.data ?? '', 'base64')).toEqual(smallPng)
-  })
+  }, SHARP_TEST_TIMEOUT_MS)
 
   it('downscales oversized images into attachments that fit the read limit', async () => {
     const largePng = await makeNoisePng(1800, 1800)
@@ -90,5 +94,5 @@ describe('readFileRecord', () => {
     const decoded = Buffer.from(result?.attachment?.source.data ?? '', 'base64')
     expect(decoded.length).toBeLessThanOrEqual(MAX_IMAGE_READ_BYTES)
     expect(result?.attachment?.source.media_type).toMatch(/^image\/(jpeg|webp|png)$/)
-  })
+  }, SHARP_TEST_TIMEOUT_MS)
 })
