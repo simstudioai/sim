@@ -43,6 +43,7 @@ import {
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_CODE_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
+  SUPPORTED_IMAGE_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
 import type {
@@ -89,6 +90,7 @@ const SUPPORTED_EXTENSIONS = [
   ...SUPPORTED_CODE_EXTENSIONS,
   ...SUPPORTED_AUDIO_EXTENSIONS,
   ...SUPPORTED_VIDEO_EXTENSIONS,
+  ...SUPPORTED_IMAGE_EXTENSIONS,
 ] as const
 
 const ACCEPT_ATTR = SUPPORTED_EXTENSIONS.map((ext) => `.${ext}`).join(',')
@@ -125,6 +127,7 @@ function formatFileType(mimeType: string | null, filename: string): string {
 
   if (mimeType?.startsWith('audio/')) return 'Audio'
   if (mimeType?.startsWith('video/')) return 'Video'
+  if (mimeType?.startsWith('image/')) return 'Image'
 
   const ext = getFileExtension(filename)
   if (ext) return ext.toUpperCase()
