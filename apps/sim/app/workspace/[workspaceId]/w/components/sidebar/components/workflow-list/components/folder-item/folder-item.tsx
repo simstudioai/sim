@@ -523,12 +523,17 @@ export function FolderItem({
           {folder.locked && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
-                <span className='-right-[4px] -bottom-[4px] absolute flex h-[12px] w-[12px] items-center justify-center rounded-full bg-[var(--surface-1)]'>
+                <button
+                  type='button'
+                  aria-label='Folder is locked'
+                  className='-right-[4px] -bottom-[4px] absolute flex h-[12px] w-[12px] items-center justify-center rounded-full bg-[var(--surface-1)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-icon)]'
+                  onClick={(e) => e.preventDefault()}
+                >
                   <Lock
                     className='pointer-events-none h-[10px] w-[10px] text-[var(--text-icon)]'
                     aria-hidden='true'
                   />
-                </span>
+                </button>
               </Tooltip.Trigger>
               <Tooltip.Content side='bottom'>
                 <span>Locked</span>

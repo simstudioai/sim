@@ -432,7 +432,7 @@ export function WorkflowItem({
         onClick={handleClick}
         onContextMenu={handleContextMenu}
       >
-        <span className='relative flex-shrink-0'>
+        <div className='relative flex-shrink-0'>
           <div
             className='h-[16px] w-[16px] rounded-sm border-[2.5px]'
             style={{
@@ -444,19 +444,24 @@ export function WorkflowItem({
           {workflow.locked && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
-                <span className='-right-[4px] -bottom-[4px] absolute flex h-[12px] w-[12px] items-center justify-center rounded-full bg-[var(--surface-1)]'>
+                <button
+                  type='button'
+                  aria-label='Workflow is locked'
+                  className='-right-[4px] -bottom-[4px] absolute flex h-[12px] w-[12px] items-center justify-center rounded-full bg-[var(--surface-1)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-icon)]'
+                  onClick={(e) => e.preventDefault()}
+                >
                   <Lock
                     className='pointer-events-none h-[10px] w-[10px] text-[var(--text-icon)]'
                     aria-hidden='true'
                   />
-                </span>
+                </button>
               </Tooltip.Trigger>
               <Tooltip.Content side='bottom'>
                 <span>Locked</span>
               </Tooltip.Content>
             </Tooltip.Root>
           )}
-        </span>
+        </div>
         <div className='min-w-0 flex-1'>
           <div className='flex min-w-0 items-center gap-2'>
             {isEditing ? (
