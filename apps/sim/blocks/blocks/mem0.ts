@@ -224,9 +224,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               throw new Error('Mem0 Block Error: Search requires a query parameter')
             }
 
-            if (params.limit) {
-              result.limit = Number(params.limit)
-            }
             break
           case 'get':
             if (params.memoryId) {

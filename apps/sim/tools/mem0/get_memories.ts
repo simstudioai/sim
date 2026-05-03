@@ -1,10 +1,6 @@
 import { MEMORY_OUTPUT_PROPERTIES, type Mem0GetMemoriesParams } from '@/tools/mem0/types'
+import { isRecord } from '@/tools/mem0/utils'
 import type { ToolConfig } from '@/tools/types'
-
-type JsonRecord = Record<string, unknown>
-
-const isRecord = (value: unknown): value is JsonRecord =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
 const getMemoriesFromResponse = (data: unknown): unknown[] => {
   if (Array.isArray(data)) return data

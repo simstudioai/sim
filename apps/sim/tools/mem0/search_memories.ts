@@ -1,11 +1,7 @@
 import type { Mem0Response, Mem0SearchMemoriesParams } from '@/tools/mem0/types'
 import { SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/mem0/types'
+import { isRecord, type JsonRecord } from '@/tools/mem0/utils'
 import type { ToolConfig } from '@/tools/types'
-
-type JsonRecord = Record<string, unknown>
-
-const isRecord = (value: unknown): value is JsonRecord =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
 const getSearchResults = (data: unknown): JsonRecord[] => {
   if (!isRecord(data) || !Array.isArray(data.results)) return []
