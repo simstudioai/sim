@@ -181,6 +181,7 @@ export function createFileContent(fileBuffer: Buffer, mimeType: string): Message
 
 const CLAUDE_SUPPORTED_IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
+  'image/jpg',
   'image/png',
   'image/gif',
   'image/webp',
@@ -364,6 +365,13 @@ const MIME_TO_EXTENSION: Record<string, string> = {
   'image/gif': 'gif',
   'image/webp': 'webp',
   'image/svg+xml': 'svg',
+  'image/bmp': 'bmp',
+  'image/tiff': 'tiff',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+  'image/avif': 'avif',
+  'image/x-icon': 'ico',
+  'image/vnd.microsoft.icon': 'ico',
 
   // Documents
   'application/pdf': 'pdf',

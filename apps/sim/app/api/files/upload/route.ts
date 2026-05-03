@@ -408,7 +408,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               fileName: originalName,
               fileKey: fileInfo.key,
               fileSize: buffer.length,
-              fileType: file.type,
+              fileType: resolvedContentType,
             },
             request,
           })
