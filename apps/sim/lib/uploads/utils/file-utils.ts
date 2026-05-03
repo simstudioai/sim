@@ -33,6 +33,13 @@ export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document' | 'audio' | 
   'image/gif': 'image',
   'image/webp': 'image',
   'image/svg+xml': 'image', // SVG upload is allowed; createFileContent handles it separately for Claude API
+  'image/bmp': 'image',
+  'image/tiff': 'image',
+  'image/heic': 'image',
+  'image/heif': 'image',
+  'image/avif': 'image',
+  'image/x-icon': 'image',
+  'image/vnd.microsoft.icon': 'image',
 
   // Documents
   'application/pdf': 'document',

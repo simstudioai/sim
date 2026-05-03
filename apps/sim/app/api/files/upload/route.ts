@@ -305,9 +305,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         context === 'workspace-logos'
       ) {
         if (context !== 'copilot' && !isImageFileType(file.type)) {
-          throw new InvalidRequestError(
-            `Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for ${context} uploads`
-          )
+          throw new InvalidRequestError(`Only image files are allowed for ${context} uploads`)
         }
 
         if (context === 'workspace-logos') {
