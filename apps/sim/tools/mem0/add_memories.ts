@@ -1,37 +1,10 @@
-import { toError } from '@sim/utils/errors'
 import {
   ADD_MEMORY_OUTPUT_PROPERTIES,
   type Mem0AddMemoriesParams,
   type Mem0AddMemoriesResponse,
-  type Mem0Message,
 } from '@/tools/mem0/types'
+import { parseMem0Messages } from '@/tools/mem0/utils'
 import type { ToolConfig } from '@/tools/types'
-
-function parseMessages(messages: Mem0AddMemoriesParams['messages']): Mem0Message[] {
-  let parsed: unknown
-  try {
-    parsed = typeof messages === 'string' ? JSON.parse(messages) : messages
-  } catch (error) {
-    throw new Error(`Messages must be valid JSON: ${toError(error).message}`)
-  }
-  if (!Array.isArray(parsed) || parsed.length === 0) {
-    throw new Error('Messages must be a non-empty array')
-  }
-
-  for (const message of parsed) {
-    if (
-      !message ||
-      typeof message !== 'object' ||
-      (message.role !== 'user' && message.role !== 'assistant') ||
-      typeof message.content !== 'string' ||
-      message.content.length === 0
-    ) {
-      throw new Error('Each message must have role user or assistant and non-empty content')
-    }
-  }
-
-  return parsed
-}
 
 /**
  * Add Memories Tool
@@ -73,7 +46,7 @@ export const mem0AddMemoriesTool: ToolConfig<Mem0AddMemoriesParams, Mem0AddMemor
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const messages = parseMessages(params.messages)
+      const messages = parseMem0Messages(params.messages)
       return {
         messages,
         user_id: params.userId.trim(),

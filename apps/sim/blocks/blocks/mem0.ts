@@ -1,46 +1,8 @@
 import { toError } from '@sim/utils/errors'
 import { Mem0Icon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
-import type { Mem0Message, Mem0Response } from '@/tools/mem0/types'
-
-function isMem0Message(value: unknown): value is Mem0Message {
-  return (
-    Boolean(value) &&
-    typeof value === 'object' &&
-    'role' in value &&
-    'content' in value &&
-    (value.role === 'user' || value.role === 'assistant') &&
-    typeof value.content === 'string' &&
-    value.content.length > 0
-  )
-}
-
-function parseMem0Messages(value: unknown): Mem0Message[] {
-  if (!value) {
-    throw new Error('Messages are required for add operation')
-  }
-
-  let messages: unknown
-  try {
-    messages = typeof value === 'string' ? JSON.parse(value) : value
-  } catch (error) {
-    throw new Error(`Messages must be valid JSON: ${toError(error).message}`)
-  }
-
-  if (!Array.isArray(messages) || messages.length === 0) {
-    throw new Error('Messages must be a non-empty array')
-  }
-
-  const validMessages: Mem0Message[] = []
-  for (const message of messages) {
-    if (!isMem0Message(message)) {
-      throw new Error('Each message must have role user or assistant and non-empty content')
-    }
-    validMessages.push(message)
-  }
-
-  return validMessages
-}
+import type { Mem0Response } from '@/tools/mem0/types'
+import { parseMem0Messages } from '@/tools/mem0/utils'
 
 export const Mem0Block: BlockConfig<Mem0Response> = {
   type: 'mem0',
@@ -164,6 +126,17 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       required: true,
     },
     {
+      id: 'page',
+      title: 'Page',
+      type: 'short-input',
+      placeholder: '1',
+      condition: {
+        field: 'operation',
+        value: 'get',
+      },
+      mode: 'advanced',
+    },
+    {
       id: 'limit',
       title: 'Result Limit',
       type: 'slider',
@@ -228,7 +201,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
         if (params.userId) result.userId = params.userId
 
-        if (params.limit) result.limit = params.limit
+        if (params.limit) result.limit = Number(params.limit)
 
         switch (operation) {
           case 'add':
@@ -260,6 +233,10 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               result.memoryId = params.memoryId
             }
 
+            if (params.page) {
+              result.page = Number(params.page)
+            }
+
             if (params.startDate) {
               result.startDate = params.startDate
             }
@@ -283,6 +260,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     memoryId: { type: 'string', description: 'Memory identifier' },
     startDate: { type: 'string', description: 'Start date filter' },
     endDate: { type: 'string', description: 'End date filter' },
+    page: { type: 'number', description: 'Page number for paginated get results' },
     limit: { type: 'number', description: 'Result limit' },
   },
   outputs: {

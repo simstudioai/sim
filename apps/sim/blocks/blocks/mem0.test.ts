@@ -32,4 +32,21 @@ describe('Mem0Block', () => {
       })
     ).toThrow('Each message must have role user or assistant and non-empty content')
   })
+
+  it('passes pagination params for get operations', () => {
+    const params = buildParams({
+      operation: 'get',
+      apiKey: 'test-key',
+      userId: 'alice',
+      page: '2',
+      limit: '25',
+    })
+
+    expect(params).toEqual({
+      apiKey: 'test-key',
+      userId: 'alice',
+      page: 2,
+      limit: 25,
+    })
+  })
 })

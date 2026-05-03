@@ -23,6 +23,7 @@ export interface Mem0GetMemoriesParams {
   memoryId?: string
   startDate?: string
   endDate?: string
+  page?: number
   limit?: number
   apiKey: string
 }

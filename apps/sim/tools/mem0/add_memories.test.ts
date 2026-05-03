@@ -40,6 +40,16 @@ describe('mem0AddMemoriesTool', () => {
     })
   })
 
+  it('rejects unsupported message roles before building the request body', () => {
+    expect(() =>
+      buildBody({
+        apiKey: 'test-key',
+        userId: 'alice',
+        messages: JSON.stringify([{ role: 'system', content: 'Remember this.' }]),
+      })
+    ).toThrow('Each message must have role user or assistant and non-empty content')
+  })
+
   it('extracts queued processing fields from v3 responses', async () => {
     const result = await transformResponse(
       new Response(

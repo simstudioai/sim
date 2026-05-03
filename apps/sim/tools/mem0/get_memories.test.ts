@@ -10,6 +10,7 @@ interface Mem0GetParams {
   memoryId?: string
   startDate?: string
   endDate?: string
+  page?: number
   limit?: number
 }
 
@@ -23,6 +24,7 @@ describe('mem0GetMemoriesTool', () => {
     const params = {
       apiKey: 'test-key',
       userId: 'user-123',
+      page: 3,
       limit: 25,
     }
 
@@ -32,7 +34,7 @@ describe('mem0GetMemoriesTool', () => {
       filters: {
         user_id: 'user-123',
       },
-      page: 1,
+      page: 3,
       page_size: 25,
     })
   })

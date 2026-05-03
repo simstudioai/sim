@@ -60,6 +60,13 @@ export const mem0GetMemoriesTool: ToolConfig<Mem0GetMemoriesParams> = {
       visibility: 'user-or-llm',
       description: 'Maximum number of results to return (e.g., 10, 50, 100)',
     },
+    page: {
+      type: 'number',
+      required: false,
+      default: 1,
+      visibility: 'user-or-llm',
+      description: 'Page number to retrieve for paginated list results',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -103,7 +110,7 @@ export const mem0GetMemoriesTool: ToolConfig<Mem0GetMemoriesParams> = {
 
       return {
         filters,
-        page: 1,
+        page: Number(params.page ?? 1),
         page_size: Number(params.limit || 10),
       }
     },
