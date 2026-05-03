@@ -36,7 +36,6 @@ import {
   getFileExtension,
   getMimeTypeFromExtension,
   isAudioFileType,
-  isImageFileType,
   isVideoFileType,
 } from '@/lib/uploads/utils/file-utils'
 import {
@@ -250,7 +249,7 @@ export function Files() {
         if (typeFilter.includes('document') && isSupportedExtension(ext)) return true
         if (typeFilter.includes('audio') && isAudioFileType(f.type)) return true
         if (typeFilter.includes('video') && isVideoFileType(f.type)) return true
-        if (typeFilter.includes('image') && isImageFileType(f.type)) return true
+        if (typeFilter.includes('image') && f.type?.startsWith('image/')) return true
         return false
       })
     }
