@@ -76,7 +76,7 @@ export const isTransientUploadError = (error: unknown): boolean => {
   return error.status >= 500 && error.status < 600
 }
 
-const calculateUploadTimeoutMs = (fileSize: number): number => {
+export const calculateUploadTimeoutMs = (fileSize: number): number => {
   const sizeInMb = fileSize / (1024 * 1024)
   const dynamicBudget = BASE_TIMEOUT_MS + sizeInMb * TIMEOUT_PER_MB_MS
   return Math.min(dynamicBudget, MAX_TIMEOUT_MS)

@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { useQueryClient } from '@tanstack/react-query'
 import {
+  calculateUploadTimeoutMs,
   DirectUploadError,
   isTransientUploadError,
   LARGE_FILE_THRESHOLD,
@@ -157,37 +158,45 @@ const uploadFileThroughAPI = async (
   formData.append('context', 'knowledge-base')
   if (workspaceId) formData.append('workspaceId', workspaceId)
 
-  const response = await fetch(KB_API_UPLOAD_ENDPOINT, {
-    method: 'POST',
-    body: formData,
-  })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), calculateUploadTimeoutMs(file.size))
 
-  if (!response.ok) {
-    let errorData: { message?: string; error?: string } | null = null
-    try {
-      errorData = (await response.json()) as { message?: string; error?: string }
-    } catch {}
-    throw new KnowledgeUploadError(
-      `Failed to upload ${file.name}: ${errorData?.message || errorData?.error || response.statusText}`,
-      'API_UPLOAD_ERROR',
-      errorData
-    )
-  }
+  try {
+    const response = await fetch(KB_API_UPLOAD_ENDPOINT, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    })
 
-  const result = (await response.json()) as {
-    fileInfo?: { path?: string }
-    path?: string
-  }
-  const filePath = result.fileInfo?.path ?? result.path
-  if (!filePath) {
-    throw new KnowledgeUploadError(
-      `Invalid upload response for ${file.name}: missing file path`,
-      'API_UPLOAD_ERROR',
-      result
-    )
-  }
+    if (!response.ok) {
+      let errorData: { message?: string; error?: string } | null = null
+      try {
+        errorData = (await response.json()) as { message?: string; error?: string }
+      } catch {}
+      throw new KnowledgeUploadError(
+        `Failed to upload ${file.name}: ${errorData?.message || errorData?.error || response.statusText}`,
+        'API_UPLOAD_ERROR',
+        errorData
+      )
+    }
 
-  return { filePath }
+    const result = (await response.json()) as {
+      fileInfo?: { path?: string }
+      path?: string
+    }
+    const filePath = result.fileInfo?.path ?? result.path
+    if (!filePath) {
+      throw new KnowledgeUploadError(
+        `Invalid upload response for ${file.name}: missing file path`,
+        'API_UPLOAD_ERROR',
+        result
+      )
+    }
+
+    return { filePath }
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 const toAbsoluteUrl = (path: string): string =>
