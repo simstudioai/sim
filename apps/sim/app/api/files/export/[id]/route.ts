@@ -87,29 +87,41 @@ export const GET = withRouteHandler(
 
     logger.info('Exporting markdown with embedded images', { id, imageCount: imageIds.length })
 
+    // Fetch all images in parallel, then deduplicate filenames serially to avoid
+    // a race where two concurrent callbacks both pass the "not yet seen" check.
+    const fetchResults = await Promise.allSettled(
+      imageIds.map(async (imageId) => {
+        const imgRecord = await getFileMetadataById(imageId)
+        if (!imgRecord) return null
+        const imgHasAccess = await verifyFileAccess(imgRecord.key, authResult.userId)
+        if (!imgHasAccess) return null
+        const imgBuffer = await downloadFile({
+          key: imgRecord.key,
+          context: imgRecord.context as StorageContext,
+        })
+        return { imageId, originalName: imgRecord.originalName, buffer: imgBuffer }
+      })
+    )
+
     const assetMap = new Map<string, { filename: string; buffer: Buffer }>()
     const usedFilenames = new Set<string>()
 
-    await Promise.allSettled(
-      imageIds.map(async (imageId) => {
-        try {
-          const imgRecord = await getFileMetadataById(imageId)
-          if (!imgRecord) return
-          const imgHasAccess = await verifyFileAccess(imgRecord.key, authResult.userId)
-          if (!imgHasAccess) return
-          const imgBuffer = await downloadFile({
-            key: imgRecord.key,
-            context: imgRecord.context as StorageContext,
-          })
-          const preferred = safeFilename(imgRecord.originalName)
-          const filename = deduplicatedFilename(preferred, usedFilenames, imageId)
-          usedFilenames.add(filename)
-          assetMap.set(imageId, { filename, buffer: imgBuffer })
-        } catch (err) {
-          logger.warn('Failed to fetch asset for export', { imageId, error: toError(err).message })
-        }
-      })
-    )
+    for (let i = 0; i < fetchResults.length; i++) {
+      const result = fetchResults[i]
+      if (result.status === 'rejected') {
+        logger.warn('Failed to fetch asset for export', {
+          imageId: imageIds[i],
+          error: toError(result.reason).message,
+        })
+        continue
+      }
+      if (!result.value) continue
+      const { imageId, originalName, buffer } = result.value
+      const preferred = safeFilename(originalName)
+      const filename = deduplicatedFilename(preferred, usedFilenames, imageId)
+      usedFilenames.add(filename)
+      assetMap.set(imageId, { filename, buffer })
+    }
 
     for (const [imageId, asset] of assetMap) {
       const escapedId = imageId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
