@@ -28,7 +28,6 @@ function isMarkdown(originalName: string, contentType: string): boolean {
   return MARKDOWN_EXTENSIONS.has(ext)
 }
 
-/** Strip characters that would break Content-Disposition header or zip entry paths. */
 function safeFilename(name: string): string {
   return path
     .basename(name)
@@ -36,7 +35,6 @@ function safeFilename(name: string): string {
     .replace(/[\r\n\t]/g, '')
 }
 
-/** Deduplicate asset filename by appending the first 8 chars of its UUID when a collision exists. */
 function deduplicatedFilename(preferred: string, existing: Set<string>, imageId: string): string {
   if (!existing.has(preferred)) return preferred
   const ext = path.extname(preferred)
@@ -87,8 +85,6 @@ export const GET = withRouteHandler(
 
     logger.info('Exporting markdown with embedded images', { id, imageCount: imageIds.length })
 
-    // Fetch all images in parallel, then deduplicate filenames serially to avoid
-    // a race where two concurrent callbacks both pass the "not yet seen" check.
     const fetchResults = await Promise.allSettled(
       imageIds.map(async (imageId) => {
         const imgRecord = await getFileMetadataById(imageId)
