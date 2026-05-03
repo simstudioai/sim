@@ -80,33 +80,55 @@ async function fetchLabelsForPages(
 }
 
 /**
+ * Produces a canonical metadata stub with a deterministic contentHash that
+ * does not depend on which API surface (v1 CQL or v2) returned the page.
+ */
+function pageToStub(
+  page: Record<string, unknown>,
+  options: {
+    spaceId?: unknown
+    labels?: string[]
+    sourceUrl?: string
+  } = {}
+): ExternalDocument {
+  const version = page.version as Record<string, unknown> | undefined
+  const versionNumber = version?.number as number | undefined
+  const lastModified = (version?.createdAt ?? version?.when ?? '') as string
+  const versionKey = versionNumber ?? lastModified
+
+  return {
+    externalId: String(page.id),
+    title: (page.title as string) || 'Untitled',
+    content: '',
+    contentDeferred: true,
+    mimeType: 'text/plain',
+    sourceUrl: options.sourceUrl,
+    contentHash: `confluence:${page.id}:${versionKey}`,
+    metadata: {
+      spaceId: options.spaceId,
+      status: page.status,
+      version: versionNumber,
+      labels: options.labels ?? [],
+      lastModified,
+    },
+  }
+}
+
+/**
  * Converts a v1 CQL search result item to a lightweight metadata stub.
  */
 function cqlResultToStub(item: Record<string, unknown>, domain: string): ExternalDocument {
-  const version = item.version as Record<string, unknown> | undefined
   const links = item._links as Record<string, string> | undefined
   const metadata = item.metadata as Record<string, unknown> | undefined
   const labelsWrapper = metadata?.labels as Record<string, unknown> | undefined
   const labelResults = (labelsWrapper?.results || []) as Record<string, unknown>[]
   const labels = labelResults.map((l) => l.name as string)
-  const versionNumber = version?.number
 
-  return {
-    externalId: String(item.id),
-    title: (item.title as string) || 'Untitled',
-    content: '',
-    contentDeferred: true,
-    mimeType: 'text/plain',
+  return pageToStub(item, {
+    spaceId: (item.space as Record<string, unknown>)?.key,
+    labels,
     sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
-    contentHash: `confluence:${item.id}:${versionNumber ?? ''}`,
-    metadata: {
-      spaceId: (item.space as Record<string, unknown>)?.key,
-      status: item.status,
-      version: versionNumber,
-      labels,
-      lastModified: version?.when,
-    },
-  }
+  })
 }
 
 export const confluenceConnector: ConnectorConfig = {
@@ -285,24 +307,16 @@ export const confluenceConnector: ConnectorConfig = {
     const labels = labelMap.get(String(page.id)) ?? []
 
     const links = page._links as Record<string, unknown> | undefined
-    const version = page.version as Record<string, unknown> | undefined
-    const versionNumber = version?.number
+    const stub = pageToStub(page, {
+      spaceId: page.spaceId,
+      labels,
+      sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+    })
 
     return {
-      externalId: String(page.id),
-      title: (page.title as string) || 'Untitled',
+      ...stub,
       content: plainText,
       contentDeferred: false,
-      mimeType: 'text/plain',
-      sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
-      contentHash: `confluence:${page.id}:${versionNumber ?? ''}`,
-      metadata: {
-        spaceId: page.spaceId,
-        status: page.status,
-        version: versionNumber,
-        labels,
-        lastModified: version?.createdAt,
-      },
     }
   },
 
@@ -323,7 +337,7 @@ export const confluenceConnector: ConnectorConfig = {
     }
 
     try {
-      const cloudId = await getConfluenceCloudId(domain, accessToken)
+      const cloudId = await getConfluenceCloudId(domain, accessToken, VALIDATE_RETRY_OPTIONS)
       const spaceUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces?keys=${encodeURIComponent(spaceKey)}&limit=1`
       const response = await fetchWithRetry(
         spaceUrl,
@@ -345,8 +359,7 @@ export const confluenceConnector: ConnectorConfig = {
       }
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
-      return { valid: false, error: message }
+      return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
     }
   },
 
@@ -420,28 +433,11 @@ async function listDocumentsV2(
   const results = data.results || []
 
   const documents: ExternalDocument[] = results.map((page: Record<string, unknown>) => {
-    const pageId = String(page.id)
-    const version = page.version as Record<string, unknown> | undefined
-    const versionNumber = version?.number
-
-    return {
-      externalId: pageId,
-      title: (page.title as string) || 'Untitled',
-      content: '',
-      contentDeferred: true,
-      mimeType: 'text/plain',
-      sourceUrl: (page._links as Record<string, string>)?.webui
-        ? `https://${domain}/wiki${(page._links as Record<string, string>).webui}`
-        : undefined,
-      contentHash: `confluence:${pageId}:${versionNumber ?? ''}`,
-      metadata: {
-        spaceId: page.spaceId,
-        status: page.status,
-        version: versionNumber,
-        labels: [],
-        lastModified: version?.createdAt,
-      },
-    }
+    const links = page._links as Record<string, string> | undefined
+    return pageToStub(page, {
+      spaceId: page.spaceId,
+      sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
+    })
   })
 
   let nextCursor: string | undefined
@@ -493,7 +489,11 @@ async function listAllContentTypes(
       pagesDone = parsed.pagesDone === true
       blogsDone = parsed.blogsDone === true
     } catch {
-      pageCursor = cursor
+      /**
+       * Older bare-string cursors are no longer emitted; fall through and
+       * restart instead of silently re-listing blogposts from page 0.
+       */
+      logger.warn('Ignoring unparseable Confluence cursor; restarting listing')
     }
   }
 

@@ -552,26 +552,35 @@ export function FolderItem({
               >
                 {folder.name}
               </span>
-              {folder.locked && (
-                <Lock
-                  className='pointer-events-none h-[12px] w-[12px] flex-shrink-0 text-[var(--text-icon)]'
-                  aria-label='Folder is locked'
-                />
-              )}
             </div>
-            <button
-              type='button'
-              aria-label='Folder options'
-              onPointerDown={handleMorePointerDown}
-              onClick={handleMoreClick}
-              className={clsx(
-                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity',
-                !isAnyDragActive && 'group-hover:opacity-100',
-                isContextMenuOpen && 'opacity-100'
+            <div className='relative h-[18px] w-[18px] flex-shrink-0'>
+              {folder.locked && (
+                <span
+                  role='img'
+                  aria-label='Folder is locked'
+                  className={clsx(
+                    'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
+                    !isAnyDragActive && 'group-hover:opacity-0',
+                    isContextMenuOpen && 'opacity-0'
+                  )}
+                >
+                  <Lock className='h-[14px] w-[14px] text-[var(--text-icon)]' aria-hidden='true' />
+                </span>
               )}
-            >
-              <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
-            </button>
+              <button
+                type='button'
+                aria-label='Folder options'
+                onPointerDown={handleMorePointerDown}
+                onClick={handleMoreClick}
+                className={clsx(
+                  'pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity',
+                  !isAnyDragActive && 'group-hover:pointer-events-auto group-hover:opacity-100',
+                  isContextMenuOpen && 'pointer-events-auto opacity-100'
+                )}
+              >
+                <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+              </button>
+            </div>
           </div>
         )}
       </div>

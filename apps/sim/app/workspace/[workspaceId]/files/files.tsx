@@ -23,11 +23,13 @@ import {
   ModalHeader,
   Pencil,
   Trash,
+  toast,
   Upload,
 } from '@/components/emcn'
 import { File as FilesIcon } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
   downloadWorkspaceFile,
   formatFileSize,
@@ -180,7 +182,11 @@ export function Files() {
   filesRef.current = files
 
   const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
+  const [uploadProgress, setUploadProgress] = useState({
+    completed: 0,
+    total: 0,
+    currentPercent: 0,
+  })
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const dragCounterRef = useRef(0)
   const [inputValue, setInputValue] = useState('')
@@ -376,8 +382,24 @@ export function Files() {
   const uploadFiles = async (filesToUpload: File[]) => {
     if (!workspaceId || filesToUpload.length === 0) return
 
+    const oversized: string[] = []
+    const sizeFiltered = filesToUpload.filter((f) => {
+      if (f.size > MAX_WORKSPACE_FILE_SIZE) {
+        oversized.push(f.name)
+        return false
+      }
+      return true
+    })
+    if (oversized.length > 0) {
+      toast.error(
+        oversized.length === 1
+          ? `${oversized[0]} exceeds the 5 GiB upload limit`
+          : `${oversized.length} files exceed the 5 GiB upload limit`
+      )
+    }
+
     const unsupported: string[] = []
-    const allowedFiles = filesToUpload.filter((f) => {
+    const allowedFiles = sizeFiltered.filter((f) => {
       const ext = getFileExtension(f.name)
       const ok = SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number])
       if (!ok) unsupported.push(f.name)
@@ -392,12 +414,22 @@ export function Files() {
 
     try {
       setUploading(true)
-      setUploadProgress({ completed: 0, total: allowedFiles.length })
+      setUploadProgress({ completed: 0, total: allowedFiles.length, currentPercent: 0 })
 
       for (let i = 0; i < allowedFiles.length; i++) {
         try {
-          await uploadFile.mutateAsync({ workspaceId, file: allowedFiles[i] })
-          setUploadProgress({ completed: i + 1, total: allowedFiles.length })
+          await uploadFile.mutateAsync({
+            workspaceId,
+            file: allowedFiles[i],
+            onProgress: ({ percent }) => {
+              setUploadProgress((prev) => ({ ...prev, currentPercent: percent }))
+            },
+          })
+          setUploadProgress({
+            completed: i + 1,
+            total: allowedFiles.length,
+            currentPercent: 0,
+          })
         } catch (err) {
           logger.error('Error uploading file:', err)
         }
@@ -406,7 +438,7 @@ export function Files() {
       logger.error('Error uploading file:', err)
     } finally {
       setUploading(false)
-      setUploadProgress({ completed: 0, total: 0 })
+      setUploadProgress({ completed: 0, total: 0, currentPercent: 0 })
     }
   }
 
@@ -824,7 +856,9 @@ export function Files() {
 
   const uploadButtonLabel =
     uploading && uploadProgress.total > 0
-      ? `${uploadProgress.completed}/${uploadProgress.total}`
+      ? uploadProgress.currentPercent > 0 && uploadProgress.currentPercent < 100
+        ? `${uploadProgress.completed}/${uploadProgress.total} · ${uploadProgress.currentPercent}%`
+        : `${uploadProgress.completed}/${uploadProgress.total}`
       : uploading
         ? 'Uploading...'
         : 'Upload'

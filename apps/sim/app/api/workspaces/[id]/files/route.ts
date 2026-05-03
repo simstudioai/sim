@@ -15,6 +15,7 @@ import {
   listWorkspaceFiles,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace'
+import { MAX_WORKSPACE_FORMDATA_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
@@ -129,13 +130,12 @@ export const POST = withRouteHandler(
 
       const fileName = rawFile.name || 'untitled.md'
 
-      const maxSize = 100 * 1024 * 1024
-      if (rawFile.size > maxSize) {
+      if (rawFile.size > MAX_WORKSPACE_FORMDATA_FILE_SIZE) {
         return NextResponse.json(
           {
-            error: `File size exceeds 100MB limit (${(rawFile.size / (1024 * 1024)).toFixed(2)}MB)`,
+            error: `File size exceeds maximum of ${MAX_WORKSPACE_FORMDATA_FILE_SIZE} bytes (${(rawFile.size / (1024 * 1024)).toFixed(2)}MB)`,
           },
-          { status: 400 }
+          { status: 413 }
         )
       }
 

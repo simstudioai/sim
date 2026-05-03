@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { hybridAuthMockFns } from '@sim/testing'
+import { hybridAuthMockFns, storageServiceMock, storageServiceMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,7 +11,6 @@ const {
   mockVerifyFileAccess,
   mockReadFile,
   mockIsUsingCloudStorage,
-  mockDownloadFile,
   mockDownloadCopilotFile,
   mockInferContextFromKey,
   mockGetContentType,
@@ -30,7 +29,6 @@ const {
     mockVerifyFileAccess: vi.fn(),
     mockReadFile: vi.fn(),
     mockIsUsingCloudStorage: vi.fn(),
-    mockDownloadFile: vi.fn(),
     mockDownloadCopilotFile: vi.fn(),
     mockInferContextFromKey: vi.fn(),
     mockGetContentType: vi.fn(),
@@ -58,10 +56,7 @@ vi.mock('@/lib/uploads', () => ({
   isUsingCloudStorage: mockIsUsingCloudStorage,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-  hasCloudStorage: vi.fn().mockReturnValue(true),
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/uploads/utils/file-utils', () => ({
   inferContextFromKey: mockInferContextFromKey,
@@ -104,6 +99,7 @@ describe('File Serve API Route', () => {
     mockVerifyFileAccess.mockResolvedValue(true)
     mockReadFile.mockResolvedValue(Buffer.from('test content'))
     mockIsUsingCloudStorage.mockReturnValue(false)
+    storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
     mockInferContextFromKey.mockReturnValue('workspace')
     mockGetContentType.mockReturnValue('text/plain')
     mockFindLocalFile.mockReturnValue('/test/uploads/test-file.txt')
@@ -161,7 +157,7 @@ describe('File Serve API Route', () => {
 
   it('should serve cloud file by downloading and proxying', async () => {
     mockIsUsingCloudStorage.mockReturnValue(true)
-    mockDownloadFile.mockResolvedValue(Buffer.from('test cloud file content'))
+    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('test cloud file content'))
     mockGetContentType.mockReturnValue('image/png')
 
     const req = new NextRequest(
@@ -174,7 +170,7 @@ describe('File Serve API Route', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('image/png')
 
-    expect(mockDownloadFile).toHaveBeenCalledWith({
+    expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledWith({
       key: 'workspace/test-workspace-id/1234567890-image.png',
       context: 'workspace',
     })

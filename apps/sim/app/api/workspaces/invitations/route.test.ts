@@ -8,6 +8,7 @@ import {
   createMockRequest,
   permissionsMock,
   permissionsMockFns,
+  posthogServerMock,
   schemaMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -94,9 +95,7 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
 
 vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: {
