@@ -84,11 +84,13 @@ export async function clearCredentialRefs(
 ): Promise<void> {
   const needle = `%${credentialId}%`
 
-  await clearInWorkflowBlocks(credentialId, workspaceId, needle)
-  await clearInDeploymentVersions(credentialId, workspaceId, needle)
-  await clearInPausedExecutions(credentialId, workspaceId, needle)
-  await clearInWorkflowCheckpoints(credentialId, workspaceId, needle)
-  await clearInKnowledgeConnectors(credentialId)
+  await Promise.all([
+    clearInWorkflowBlocks(credentialId, workspaceId, needle),
+    clearInDeploymentVersions(credentialId, workspaceId, needle),
+    clearInPausedExecutions(credentialId, workspaceId, needle),
+    clearInWorkflowCheckpoints(credentialId, workspaceId, needle),
+    clearInKnowledgeConnectors(credentialId),
+  ])
 }
 
 async function clearInWorkflowBlocks(
