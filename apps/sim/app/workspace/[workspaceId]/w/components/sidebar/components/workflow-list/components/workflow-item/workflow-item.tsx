@@ -475,6 +475,7 @@ export function WorkflowItem({
           <div className='relative h-[18px] w-[18px] flex-shrink-0'>
             {workflow.locked && (
               <span
+                role='img'
                 aria-label='Workflow is locked'
                 className={clsx(
                   'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',

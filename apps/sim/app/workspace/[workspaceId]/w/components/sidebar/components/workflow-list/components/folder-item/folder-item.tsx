@@ -556,6 +556,7 @@ export function FolderItem({
             <div className='relative h-[18px] w-[18px] flex-shrink-0'>
               {folder.locked && (
                 <span
+                  role='img'
                   aria-label='Folder is locked'
                   className={clsx(
                     'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
