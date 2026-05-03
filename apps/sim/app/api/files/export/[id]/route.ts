@@ -55,6 +55,7 @@ export const GET = withRouteHandler(
     if (!authResult.success || !authResult.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const userId = authResult.userId
 
     const record = await getFileMetadataById(id)
     if (!record) {
@@ -62,9 +63,9 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const hasAccess = await verifyFileAccess(record.key, authResult.userId)
+    const hasAccess = await verifyFileAccess(record.key, userId)
     if (!hasAccess) {
-      logger.warn('Unauthorized file export attempt', { id, userId: authResult.userId })
+      logger.warn('Unauthorized file export attempt', { id, userId })
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -91,7 +92,7 @@ export const GET = withRouteHandler(
       imageIds.map(async (imageId) => {
         const imgRecord = await getFileMetadataById(imageId)
         if (!imgRecord) return null
-        const imgHasAccess = await verifyFileAccess(imgRecord.key, authResult.userId)
+        const imgHasAccess = await verifyFileAccess(imgRecord.key, userId)
         if (!imgHasAccess) return null
         const imgBuffer = await downloadFile({
           key: imgRecord.key,
