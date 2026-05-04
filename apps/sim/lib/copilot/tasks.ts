@@ -13,6 +13,7 @@ interface TaskStatusEvent {
   workspaceId: string
   chatId: string
   type: 'started' | 'completed' | 'created' | 'deleted' | 'renamed'
+  streamId?: string
 }
 
 const channel =
