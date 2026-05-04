@@ -212,7 +212,7 @@ export class BlockExecutor {
         )
       }
 
-      return normalizedOutput
+      return outputForState as NormalizedBlockOutput
     } catch (error) {
       return await this.handleBlockError(
         error,
