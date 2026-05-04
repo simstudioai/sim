@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
 import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Eye, Search, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
@@ -22,9 +22,11 @@ import {
   SModalTabsTrigger,
   Tooltip,
 } from '@/components/emcn'
+import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { cn } from '@/lib/core/utils/cn'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
+import type { TraceSpan } from '@/lib/logs/types'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   ExecutionSnapshot,
@@ -43,13 +45,9 @@ import {
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
-import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
 
-/**
- * Workflow Output section with code viewer, copy, search, and context menu functionality
- */
 export const WorkflowOutputSection = memo(
   function WorkflowOutputSection({ output }: { output: Record<string, unknown> }) {
     const contentRef = useRef<HTMLDivElement>(null)
@@ -257,18 +255,10 @@ export const WorkflowOutputSection = memo(
 export type LogDetailsTab = 'overview' | 'trace'
 
 interface LogDetailsContentProps {
-  /** The log to display */
-  log: WorkflowLog
-  /** Fires when the active tab changes, so embedders can gate their own keyboard handlers */
+  log: WorkflowLogRow
   onActiveTabChange?: (tab: LogDetailsTab) => void
 }
 
-/**
- * Tabbed body for a single log: overview details and trace spans, plus the
- * execution snapshot modal. Used as the body of the `LogDetails` sidebar and
- * embedded directly inside the Mothership resource panel — keep the two in
- * sync by editing this component, not by re-implementing it elsewhere.
- */
 export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentProps) {
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<LogDetailsTab>('overview')
@@ -297,9 +287,9 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
     }
   }, [log.id])
 
+  const isLikelyExecution = !!log.executionId && log.trigger !== 'mothership'
   const isWorkflowExecutionLog =
-    (log.trigger === 'manual' && !!log.duration) ||
-    !!(log.executionData?.enhanced && log.executionData?.traceSpans)
+    (log.trigger === 'manual' && !!log.duration) || !!log.executionData?.traceSpans
 
   const hasCostInfo = !!(isWorkflowExecutionLog && log.cost)
   const showWorkflowState =
@@ -307,16 +297,16 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
     !!log.executionId &&
     log.trigger !== 'mothership' &&
     !permissionConfig.hideTraceSpans
-  const showTraceTab =
-    isWorkflowExecutionLog && !!log.executionData?.traceSpans && !permissionConfig.hideTraceSpans
+
+  const showTraceTab = !permissionConfig.hideTraceSpans && isLikelyExecution
+  // double-cast-allowed: contract schema makes duration/startTime optional for legacy persisted JSON; runtime data always supplies them.
+  const traceSpans = log.executionData?.traceSpans as unknown as TraceSpan[] | undefined
 
   const resolvedTab: LogDetailsTab = activeTab === 'trace' && !showTraceTab ? 'overview' : activeTab
 
-  const prevResolvedTabRef = useRef<LogDetailsTab>(resolvedTab)
-  if (prevResolvedTabRef.current !== resolvedTab) {
-    prevResolvedTabRef.current = resolvedTab
+  useLayoutEffect(() => {
     onActiveTabChange?.(resolvedTab)
-  }
+  }, [resolvedTab, onActiveTabChange])
 
   const workflowOutput = useMemo(() => {
     const executionData = log.executionData as { finalOutput?: Record<string, unknown> } | undefined
@@ -594,12 +584,26 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
         </SModalTabsContent>
 
         {/* Trace Tab */}
-        {showTraceTab && log.executionData?.traceSpans && (
+        {showTraceTab && (
           <SModalTabsContent
             value='trace'
             className='mt-3 min-h-0 flex-1 overflow-hidden focus-visible:outline-none'
           >
-            <TraceView traceSpans={log.executionData.traceSpans} />
+            {traceSpans?.length ? (
+              <TraceView traceSpans={traceSpans} />
+            ) : log.executionData ? (
+              <div className='flex h-full items-center justify-center px-4 text-center'>
+                <span className='font-medium text-[var(--text-tertiary)] text-sm'>
+                  No trace data available for this run
+                </span>
+              </div>
+            ) : (
+              <div className='flex h-full items-center justify-center px-4 text-center'>
+                <span className='font-medium text-[var(--text-tertiary)] text-sm'>
+                  Loading trace…
+                </span>
+              </div>
+            )}
           </SModalTabsContent>
         )}
       </SModalTabs>
@@ -608,7 +612,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
       {log.executionId && (
         <ExecutionSnapshot
           executionId={log.executionId}
-          traceSpans={log.executionData?.traceSpans}
+          traceSpans={traceSpans}
           isModal
           isOpen={isExecutionSnapshotOpen}
           onClose={() => setIsExecutionSnapshotOpen(false)}
@@ -619,33 +623,18 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 }
 
 interface LogDetailsProps {
-  /** The log to display details for */
-  log: WorkflowLog | null
-  /** Whether the sidebar is open */
+  log: WorkflowLogRow | null
   isOpen: boolean
-  /** Callback when closing the sidebar */
   onClose: () => void
-  /** Callback to navigate to next log */
   onNavigateNext?: () => void
-  /** Callback to navigate to previous log */
   onNavigatePrev?: () => void
-  /** Whether there is a next log available */
   hasNext?: boolean
-  /** Whether there is a previous log available */
   hasPrev?: boolean
-  /** Callback to retry a failed execution */
   onRetryExecution?: () => void
-  /** Whether a retry is currently in progress */
   isRetryPending?: boolean
-  /** Fires when the active tab changes, so the parent can gate its own keyboard handlers */
   onActiveTabChange?: (tab: LogDetailsTab) => void
 }
 
-/**
- * Sidebar panel displaying detailed information about a selected log.
- * Wraps `LogDetailsContent` with sidebar chrome — resize handle, header, and
- * keyboard navigation between logs.
- */
 export const LogDetails = memo(function LogDetails({
   log,
   isOpen,
@@ -660,13 +649,18 @@ export const LogDetails = memo(function LogDetails({
 }: LogDetailsProps) {
   const activeTabRef = useRef<LogDetailsTab>('overview')
 
+  const handleActiveTabChange = useCallback(
+    (tab: LogDetailsTab) => {
+      activeTabRef.current = tab
+      onActiveTabChange?.(tab)
+    },
+    [onActiveTabChange]
+  )
+
   const panelWidth = useLogDetailsUIStore((state) => state.panelWidth)
   const { handleMouseDown } = useLogDetailsResize()
 
   const maxVw = `${MAX_LOG_DETAILS_WIDTH_RATIO * 100}vw`
-  // CSS-side clamp matching `clampPanelWidth` in stores/logs/utils.ts: the
-  // floor is itself capped at the max-vw ratio so a narrow viewport doesn't
-  // let the min outpace the cap and cover the table behind the panel.
   const effectiveWidth = `clamp(min(${MIN_LOG_DETAILS_WIDTH}px, ${maxVw}), ${panelWidth}px, ${maxVw})`
 
   useEffect(() => {
@@ -677,8 +671,7 @@ export const LogDetails = memo(function LogDetails({
 
       if (!isOpen) return
 
-      // When the Trace tab is active, arrow keys belong to TraceView's own
-      // span-navigation handler. Log-to-log navigation should not hijack them.
+      // Trace tab owns arrow keys for span navigation.
       if (activeTabRef.current === 'trace') return
 
       if (e.key === 'ArrowUp' && hasPrev && onNavigatePrev) {
@@ -766,13 +759,7 @@ export const LogDetails = memo(function LogDetails({
               </div>
             </div>
 
-            <LogDetailsContent
-              log={log}
-              onActiveTabChange={(tab) => {
-                activeTabRef.current = tab
-                onActiveTabChange?.(tab)
-              }}
-            />
+            <LogDetailsContent log={log} onActiveTabChange={handleActiveTabChange} />
           </div>
         )}
       </div>

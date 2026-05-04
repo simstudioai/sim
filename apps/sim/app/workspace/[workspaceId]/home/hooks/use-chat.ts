@@ -5,6 +5,7 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
+import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
 import type {
@@ -12,6 +13,11 @@ import type {
   PersistedMessage,
 } from '@/lib/copilot/chat/persisted-message'
 import { normalizeMessage, withBlockTiming } from '@/lib/copilot/chat/persisted-message'
+import {
+  captureRevealedSimKeys,
+  type RevealedSimKeysByMessage,
+  restoreRevealedSimKeysForMessage,
+} from '@/lib/copilot/chat/sim-key-redaction'
 import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
 import { MOTHERSHIP_CHAT_API_PATH, STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
 import type {
@@ -1329,6 +1335,7 @@ export function useChat(
   )
   const [genericResourceData, setGenericResourceData] = useState<GenericResourceData | null>(null)
   const onResourceEventRef = useRef(options?.onResourceEvent)
+  const revealedSimKeysRef = useRef<RevealedSimKeysByMessage>(new Map())
   onResourceEventRef.current = options?.onResourceEvent
   const apiPathRef = useRef(options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH)
   apiPathRef.current = options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH
@@ -1715,10 +1722,10 @@ export function useChat(
   )
 
   const { data: chatHistory } = useChatHistory(resolvedChatId)
-  const messages = useMemo(
-    () => chatHistory?.messages.map(toDisplayMessage) ?? pendingMessages,
-    [chatHistory, pendingMessages]
-  )
+  const messages = useMemo(() => {
+    const source = chatHistory?.messages.map(toDisplayMessage) ?? pendingMessages
+    return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
+  }, [chatHistory, pendingMessages])
   const addResource = useCallback((resource: MothershipResource): boolean => {
     if (resourcesRef.current.some((r) => r.type === resource.type && r.id === resource.id)) {
       return false
@@ -1752,6 +1759,18 @@ export function useChat(
   const removeResource = useCallback((resourceType: MothershipResourceType, resourceId: string) => {
     setResources((prev) => prev.filter((r) => !(r.type === resourceType && r.id === resourceId)))
     setActiveResourceId((prev) => (prev === resourceId ? null : prev))
+
+    const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
+    if (persistChatId) {
+      // boundary-raw-fetch: fire-and-forget side-effect; intentionally avoids requestJson's response parsing/throw semantics so a transient failure cannot interrupt the caller
+      fetch('/api/mothership/chat/resources', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: persistChatId, resourceType, resourceId }),
+      }).catch((err) => {
+        logger.warn('Failed to persist resource removal', err)
+      })
+    }
   }, [])
 
   const reorderResources = useCallback((newOrder: MothershipResource[]) => {
@@ -2242,6 +2261,11 @@ export function useChat(
       const flush = () => {
         if (isStale()) return
         streamingBlocksRef.current = [...blocks]
+        captureRevealedSimKeys(
+          revealedSimKeysRef.current,
+          [assistantId, streamRequestId],
+          runningText
+        )
         const activeChatId = options?.targetChatId ?? chatIdRef.current
         if (!activeChatId) {
           const snapshot: Partial<ChatMessage> = {
@@ -4005,9 +4029,7 @@ export function useChat(
         filename: f.filename,
         media_type: f.media_type,
         size: f.size,
-        previewUrl: f.media_type.startsWith('image/')
-          ? `/api/files/serve/${encodeURIComponent(f.key)}?context=mothership`
-          : undefined,
+        previewUrl: getMothershipAttachmentPreviewUrl(f),
       }))
 
       const optimisticUserMessage: ChatMessage = {
