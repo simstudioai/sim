@@ -14,10 +14,12 @@ import {
   type ExecutionSnapshotData,
   getDashboardStatsContract,
   getExecutionSnapshotContract,
+  getLogByExecutionIdContract,
   getLogDetailContract,
   listLogsContract,
   type SegmentStats,
-  type WorkflowLogData,
+  type WorkflowLogDetail,
+  type WorkflowLogSummary,
   type WorkflowStats,
 } from '@/lib/api/contracts/logs'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
@@ -26,10 +28,13 @@ import type { TimeRange, WorkflowLog } from '@/stores/logs/filters/types'
 
 export type { DashboardStatsResponse, SegmentStats, WorkflowStats }
 
+export type LogSortBy = 'date' | 'duration' | 'cost' | 'status'
+export type LogSortOrder = 'asc' | 'desc'
+
 export const logKeys = {
   all: ['logs'] as const,
   lists: () => [...logKeys.all, 'list'] as const,
-  list: (workspaceId: string | undefined, filters: Omit<LogFilters, 'page'>) =>
+  list: (workspaceId: string | undefined, filters: LogFilters) =>
     [...logKeys.lists(), workspaceId ?? '', filters] as const,
   details: () => [...logKeys.all, 'detail'] as const,
   detail: (logId: string | undefined) => [...logKeys.details(), logId ?? ''] as const,
@@ -44,7 +49,7 @@ export const logKeys = {
     [...logKeys.executionSnapshots(), executionId ?? ''] as const,
 }
 
-interface LogFilters {
+export interface LogFilters {
   timeRange: TimeRange
   startDate?: string
   endDate?: string
@@ -54,15 +59,19 @@ interface LogFilters {
   triggers: string[]
   searchQuery: string
   limit: number
+  sortBy: LogSortBy
+  sortOrder: LogSortOrder
 }
 
-const toWorkflowLog = (log: WorkflowLogData): WorkflowLog => log as WorkflowLog
+// double-cast-allowed: bridge from contract type to legacy WorkflowLog used by stores/components
+const summaryToWorkflowLog = (log: WorkflowLogSummary): WorkflowLog => log as unknown as WorkflowLog
+// double-cast-allowed: bridge from contract type to legacy WorkflowLog used by stores/components
+const detailToWorkflowLog = (log: WorkflowLogDetail): WorkflowLog => log as unknown as WorkflowLog
 
-/**
- * Applies common filter parameters to a URLSearchParams object.
- * Shared between paginated and non-paginated log fetches.
- */
-function applyFilterParams(params: URLSearchParams, filters: Omit<LogFilters, 'limit'>): void {
+function applyFilterParams(
+  params: URLSearchParams,
+  filters: Omit<LogFilters, 'limit' | 'sortBy' | 'sortOrder'>
+): void {
   if (filters.level !== 'all') {
     params.set('level', filters.level)
   }
@@ -99,61 +108,53 @@ function applyFilterParams(params: URLSearchParams, filters: Omit<LogFilters, 'l
   }
 }
 
-function buildQueryParams(workspaceId: string, filters: LogFilters, page: number) {
+function buildListQuery(workspaceId: string, filters: LogFilters, cursor: string | null) {
   const params = new URLSearchParams()
-
   applyFilterParams(params, filters)
 
   return {
     workspaceId,
     limit: filters.limit,
-    offset: (page - 1) * filters.limit,
+    sortBy: filters.sortBy,
+    sortOrder: filters.sortOrder,
+    ...(cursor ? { cursor } : {}),
     ...Object.fromEntries(params.entries()),
   }
+}
+
+interface LogsPage {
+  logs: WorkflowLog[]
+  nextCursor: string | null
 }
 
 async function fetchLogsPage(
   workspaceId: string,
   filters: LogFilters,
-  page: number,
+  cursor: string | null,
   signal?: AbortSignal
-): Promise<{ logs: WorkflowLog[]; hasMore: boolean; nextPage: number | undefined }> {
+): Promise<LogsPage> {
   const apiData = await requestJson(listLogsContract, {
-    query: buildQueryParams(workspaceId, filters, page),
+    query: buildListQuery(workspaceId, filters, cursor),
     signal,
   })
-  const hasMore = apiData.data.length === filters.limit && apiData.page < apiData.totalPages
 
   return {
-    logs: apiData.data.map(toWorkflowLog),
-    hasMore,
-    nextPage: hasMore ? page + 1 : undefined,
+    logs: apiData.data.map(summaryToWorkflowLog),
+    nextCursor: apiData.nextCursor,
   }
 }
 
-export async function fetchLogDetail(logId: string, signal?: AbortSignal): Promise<WorkflowLog> {
+export async function fetchLogDetail(
+  logId: string,
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkflowLog> {
   const { data } = await requestJson(getLogDetailContract, {
     params: { id: logId },
+    query: { workspaceId },
     signal,
   })
-  return toWorkflowLog(data)
-}
-
-async function fetchLogByExecutionId(
-  workspaceId: string,
-  executionId: string,
-  signal?: AbortSignal
-): Promise<WorkflowLog | null> {
-  const apiData = await requestJson(listLogsContract, {
-    query: {
-      workspaceId,
-      executionId,
-      details: 'full',
-      limit: 1,
-    },
-    signal,
-  })
-  return apiData.data?.[0] ? toWorkflowLog(apiData.data[0]) : null
+  return detailToWorkflowLog(data)
 }
 
 interface UseLogsListOptions {
@@ -172,10 +173,10 @@ export function useLogsList(
       fetchLogsPage(workspaceId as string, filters, pageParam, signal),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
-    staleTime: 0,
+    staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
-    initialPageParam: 1,
-    getNextPageParam: (lastPage) => lastPage.nextPage,
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
   })
 }
 
@@ -187,52 +188,58 @@ interface UseLogDetailOptions {
     | ((query: { state: { data?: WorkflowLog } }) => number | false | undefined)
 }
 
-export function useLogDetail(logId: string | undefined, options?: UseLogDetailOptions) {
+export function useLogDetail(
+  logId: string | undefined,
+  workspaceId: string | undefined,
+  options?: UseLogDetailOptions
+) {
   return useQuery({
     queryKey: logKeys.detail(logId),
-    queryFn: ({ signal }) => fetchLogDetail(logId as string, signal),
-    enabled: Boolean(logId) && (options?.enabled ?? true),
+    queryFn: ({ signal }) => fetchLogDetail(logId as string, workspaceId as string, signal),
+    enabled: Boolean(logId) && Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
     staleTime: 30 * 1000,
   })
 }
 
 /**
- * Looks up a workflow log by its `executionId` (the id stored on table workflow cells).
- * Returns the full log shape so the LogDetails sidebar can render directly without
- * an extra detail fetch.
+ * Looks up a workflow log by its `executionId`. Writes the resulting detail
+ * through to the canonical `detail(id)` cache so subsequent `useLogDetail`
+ * reads hit instantly.
  */
 export function useLogByExecutionId(
   workspaceId: string | undefined,
   executionId: string | null | undefined
 ) {
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: logKeys.byExecution(workspaceId, executionId ?? undefined),
-    queryFn: ({ signal }) =>
-      fetchLogByExecutionId(workspaceId as string, executionId as string, signal),
+    queryFn: async ({ signal }) => {
+      const { data } = await requestJson(getLogByExecutionIdContract, {
+        params: { executionId: executionId as string },
+        query: { workspaceId: workspaceId as string },
+        signal,
+      })
+      const log = detailToWorkflowLog(data)
+      queryClient.setQueryData(logKeys.detail(log.id), log)
+      return log
+    },
     enabled: Boolean(workspaceId) && Boolean(executionId),
     staleTime: 30 * 1000,
   })
 }
 
-/**
- * Prefetches log detail data on hover for instant panel rendering on click.
- */
-export function prefetchLogDetail(queryClient: QueryClient, logId: string) {
+export function prefetchLogDetail(queryClient: QueryClient, logId: string, workspaceId: string) {
   queryClient.prefetchQuery({
     queryKey: logKeys.detail(logId),
-    queryFn: ({ signal }) => fetchLogDetail(logId, signal),
+    queryFn: ({ signal }) => fetchLogDetail(logId, workspaceId, signal),
     staleTime: 30 * 1000,
   })
 }
 
-/**
- * Fetches dashboard stats from the server-side aggregation endpoint.
- * Uses SQL aggregation for efficient computation without arbitrary limits.
- */
 async function fetchDashboardStats(
   workspaceId: string,
-  filters: Omit<LogFilters, 'limit'>,
+  filters: Omit<LogFilters, 'limit' | 'sortBy' | 'sortOrder'>,
   signal?: AbortSignal
 ): Promise<DashboardStatsResponse> {
   const params = new URLSearchParams()
@@ -252,13 +259,9 @@ interface UseDashboardStatsOptions {
   refetchInterval?: number | false
 }
 
-/**
- * Hook for fetching dashboard stats using server-side aggregation.
- * No arbitrary limits - uses SQL aggregation for accurate metrics.
- */
 export function useDashboardStats(
   workspaceId: string | undefined,
-  filters: Omit<LogFilters, 'limit'>,
+  filters: Omit<LogFilters, 'limit' | 'sortBy' | 'sortOrder'>,
   options?: UseDashboardStatsOptions
 ) {
   return useQuery({
@@ -266,7 +269,7 @@ export function useDashboardStats(
     queryFn: ({ signal }) => fetchDashboardStats(workspaceId as string, filters, signal),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
-    staleTime: 0,
+    staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
   })
 }
@@ -293,11 +296,9 @@ export function useExecutionSnapshot(executionId: string | undefined) {
     queryKey: logKeys.executionSnapshot(executionId),
     queryFn: ({ signal }) => fetchExecutionSnapshot(executionId as string, signal),
     enabled: Boolean(executionId),
-    staleTime: 5 * 60 * 1000, // 5 minutes - execution snapshots don't change
+    staleTime: 5 * 60 * 1000,
   })
 }
-
-type LogsPage = { logs: WorkflowLog[]; hasMore: boolean; nextPage: number | undefined }
 
 export function useCancelExecution() {
   const queryClient = useQueryClient()
@@ -345,7 +346,6 @@ export function useCancelExecution() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: logKeys.lists() })
       queryClient.invalidateQueries({ queryKey: logKeys.details() })
-      queryClient.invalidateQueries({ queryKey: logKeys.stats() })
     },
   })
 }
@@ -364,9 +364,6 @@ export function useRetryExecution() {
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error || 'Failed to retry execution')
       }
-      // The ReadableStream is lazy — start() only runs when read.
-      // Read one chunk to trigger execution, then cancel. Execution continues
-      // server-side after client disconnect.
       const reader = res.body?.getReader()
       if (reader) {
         await reader.read()
@@ -377,7 +374,6 @@ export function useRetryExecution() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: logKeys.lists() })
       queryClient.invalidateQueries({ queryKey: logKeys.details() })
-      queryClient.invalidateQueries({ queryKey: logKeys.stats() })
     },
   })
 }

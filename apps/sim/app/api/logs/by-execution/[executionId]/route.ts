@@ -10,25 +10,25 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getLogDetailContract } from '@/lib/api/contracts/logs'
+import { getLogByExecutionIdContract } from '@/lib/api/contracts/logs'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
-const logger = createLogger('LogDetailsByIdAPI')
+const logger = createLogger('LogDetailsByExecutionAPI')
 
 export const GET = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ executionId: string }> }) => {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const userId = session.user.id
-    const parsed = await parseRequest(getLogDetailContract, request, context)
+    const parsed = await parseRequest(getLogByExecutionIdContract, request, context)
     if (!parsed.success) return parsed.response
 
-    const { id } = parsed.data.params
+    const { executionId } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
     const rows = await db
@@ -80,7 +80,10 @@ export const GET = withRouteHandler(
         )
       )
       .where(
-        and(eq(workflowExecutionLogs.id, id), eq(workflowExecutionLogs.workspaceId, workspaceId))
+        and(
+          eq(workflowExecutionLogs.executionId, executionId),
+          eq(workflowExecutionLogs.workspaceId, workspaceId)
+        )
       )
       .limit(1)
 
@@ -110,7 +113,12 @@ export const GET = withRouteHandler(
             eq(permissions.userId, userId)
           )
         )
-        .where(and(eq(jobExecutionLogs.id, id), eq(jobExecutionLogs.workspaceId, workspaceId)))
+        .where(
+          and(
+            eq(jobExecutionLogs.executionId, executionId),
+            eq(jobExecutionLogs.workspaceId, workspaceId)
+          )
+        )
         .limit(1)
 
       const jobLog = jobRows[0]
@@ -197,7 +205,7 @@ export const GET = withRouteHandler(
       files: log.files ?? null,
     }
 
-    logger.debug('Fetched log detail', { id, workspaceId })
+    logger.debug('Fetched log by execution id', { executionId, workspaceId })
 
     return NextResponse.json({ data })
   }
