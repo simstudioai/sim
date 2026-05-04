@@ -30,13 +30,26 @@ export function ChatMessageAttachments(props: {
       )}
     >
       {attachments.map((att) => {
-        const isImage = att.media_type.startsWith('image/')
-        return isImage && att.previewUrl ? (
+        if (!att.previewUrl) {
+          return (
+            <FileAttachmentPill key={att.id} mediaType={att.media_type} filename={att.filename} />
+          )
+        }
+        const isVideo = att.media_type.startsWith('video/')
+        return (
           <div key={att.id} className='h-[56px] w-[56px] overflow-hidden rounded-[8px]'>
-            <img src={att.previewUrl} alt={att.filename} className='h-full w-full object-cover' />
+            {isVideo ? (
+              <video
+                src={att.previewUrl}
+                muted
+                playsInline
+                preload='metadata'
+                className='h-full w-full object-cover'
+              />
+            ) : (
+              <img src={att.previewUrl} alt={att.filename} className='h-full w-full object-cover' />
+            )}
           </div>
-        ) : (
-          <FileAttachmentPill key={att.id} mediaType={att.media_type} filename={att.filename} />
         )
       })}
     </div>
