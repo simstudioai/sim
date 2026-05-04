@@ -92,6 +92,7 @@ import {
 } from './utils'
 
 const LOGS_PER_PAGE = 50 as const
+const SORTABLE_COLUMNS: readonly LogSortBy[] = ['date', 'duration', 'cost', 'status'] as const
 const REFRESH_SPINNER_DURATION_MS = 1000 as const
 
 const LOG_COLUMNS: ResourceColumn[] = [
@@ -330,7 +331,10 @@ export default function Logs() {
     refetchInterval,
   })
 
-  const sortBy: LogSortBy = (activeSort?.column as LogSortBy | undefined) ?? 'date'
+  const sortBy: LogSortBy =
+    activeSort && SORTABLE_COLUMNS.includes(activeSort.column as LogSortBy)
+      ? (activeSort.column as LogSortBy)
+      : 'date'
   const sortOrder: LogSortOrder = activeSort?.direction ?? 'desc'
 
   const logFilters = useMemo(
