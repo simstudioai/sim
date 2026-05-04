@@ -1,3 +1,21 @@
+/**
+ * A read-only display for a one-time secret reveal: the value renders inside
+ * a bordered code box with a copy button, or as masked dots when redacted.
+ *
+ * @remarks
+ * Use for surfaces that show a freshly-generated credential (API key, signing
+ * secret, etc.) once and then need to fall back to a redacted state on
+ * subsequent renders. Pair with `redacted` (or simply omit `value`) to render
+ * the masked state without a copy affordance.
+ *
+ * @example
+ * ```tsx
+ * import { SecretReveal } from '@/components/emcn'
+ *
+ * <SecretReveal value={apiKey} />
+ * <SecretReveal redacted />
+ * ```
+ */
 'use client'
 
 import { Button, Check, Copy } from '@/components/emcn'
@@ -6,13 +24,15 @@ import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
 const REDACTED_DOTS = '••••••••••••••••••••••••••••••••'
 
-interface ApiKeyRevealProps {
+export interface SecretRevealProps {
+  /** Secret value to display. When absent or `redacted` is true, renders masked dots. */
   value?: string
-  className?: string
+  /** Force the masked state even when `value` is provided. */
   redacted?: boolean
+  className?: string
 }
 
-export function ApiKeyReveal({ value, className, redacted = false }: ApiKeyRevealProps) {
+export function SecretReveal({ value, className, redacted = false }: SecretRevealProps) {
   const { copied, copy } = useCopyToClipboard()
   const isHidden = redacted || !value
 

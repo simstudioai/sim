@@ -2,8 +2,13 @@
 
 import { createElement, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { ArrowRight, ChevronDown, Expandable, ExpandableContent } from '@/components/emcn'
-import { ApiKeyReveal } from '@/components/ui'
+import {
+  ArrowRight,
+  ChevronDown,
+  Expandable,
+  ExpandableContent,
+  SecretReveal,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
@@ -620,7 +625,7 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
   }
 
   if (data.type === 'sim_key') {
-    return <ApiKeyReveal value={data.value} redacted={data.redacted || !data.value} />
+    return <SecretReveal value={data.value} redacted={data.redacted || !data.value} />
   }
 
   return null

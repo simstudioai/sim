@@ -13,9 +13,10 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  SecretReveal,
   // Switch,
 } from '@/components/emcn'
-import { ApiKeyReveal, Input } from '@/components/ui'
+import { Input } from '@/components/ui'
 // import { useMcpServers, useUpdateMcpServer } from '@/hooks/queries/mcp'
 import { CopilotKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/copilot/copilot-skeleton'
 import {
@@ -322,7 +323,7 @@ export function Copilot() {
               </span>
             </p>
 
-            {newKey && <ApiKeyReveal value={newKey} className='mt-2.5' />}
+            {newKey && <SecretReveal value={newKey} className='mt-2.5' />}
           </ModalBody>
         </ModalContent>
       </Modal>

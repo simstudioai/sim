@@ -1,4 +1,3 @@
-export { ApiKeyReveal } from './api-key-reveal'
 export { Button, buttonVariants } from './button'
 export { Input } from './input'
 export { Label } from './label'

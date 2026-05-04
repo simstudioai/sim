@@ -12,8 +12,8 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  SecretReveal,
 } from '@/components/emcn'
-import { ApiKeyReveal } from '@/components/ui'
 import { type ApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
 
 const logger = createLogger('CreateApiKeyModal')
@@ -214,7 +214,7 @@ export function CreateApiKeyModal({
               </span>
             </p>
 
-            {newKey && <ApiKeyReveal value={newKey.key} className='mt-2.5' />}
+            {newKey && <SecretReveal value={newKey.key} className='mt-2.5' />}
           </ModalBody>
         </ModalContent>
       </Modal>
