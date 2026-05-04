@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { Checkbox } from '@/components/emcn'
+import { Badge, Checkbox } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { RowExecutionMetadata } from '@/lib/table'
 import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
@@ -57,11 +57,7 @@ export function CellContent({
     // reach a clean terminal state.
     const groupHasBlockErrors = !!(exec?.blockErrors && Object.keys(exec.blockErrors).length > 0)
     if (blockError) {
-      displayContent = (
-        <span title={blockError}>
-          <StatusBadge status='error' />
-        </span>
-      )
+      displayContent = <StatusBadge status='error' />
     } else if (hasValue) {
       displayContent = (
         <span className='block overflow-clip text-ellipsis text-[var(--text-primary)]'>
@@ -72,21 +68,25 @@ export function CellContent({
       (exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending') &&
       !(groupHasBlockErrors && !blockRunning)
     ) {
-      // Treat queued / pending / waiting (running but this block hasn't
-      // started) as a single "Pending" state — only the actively-executing
-      // block flips to "Running".
-      displayContent = <StatusBadge status={blockRunning ? 'running' : 'pending'} />
+      // `queued` is our own state with no logs analog: cell sits in trigger.dev's
+      // queue waiting for a worker. Gray makes it visually distinct from
+      // `pending`/`running` (amber via StatusBadge), so a row of side-by-side
+      // cells reads at a glance which are queued vs actively running.
+      if (exec?.status === 'queued') {
+        displayContent = (
+          <Badge variant='gray' dot size='sm'>
+            Queued
+          </Badge>
+        )
+      } else {
+        displayContent = <StatusBadge status={blockRunning ? 'running' : 'pending'} />
+      }
     } else if (exec?.status === 'cancelled') {
       displayContent = <StatusBadge status='cancelled' />
     } else if (exec?.status === 'error') {
       // Group-level failure (executor blew up, missing credentials, validation)
       // — no specific block produced the error so `blockErrors` is empty.
-      // Surface the top-level error on every output cell in the group.
-      displayContent = (
-        <span title={exec.error ?? undefined}>
-          <StatusBadge status='error' />
-        </span>
-      )
+      displayContent = <StatusBadge status='error' />
     } else {
       displayContent = <span className='text-[var(--text-tertiary)]'>—</span>
     }

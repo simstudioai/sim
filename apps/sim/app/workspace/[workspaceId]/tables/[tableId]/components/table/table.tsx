@@ -102,11 +102,11 @@ const ROW_HEIGHT_ESTIMATE = 35
 
 const CELL = 'border-[var(--border)] border-r border-b px-2 py-[7px] align-middle select-none'
 const CELL_CHECKBOX =
-  'border-[var(--border)] border-r border-b px-1 py-[7px] align-middle select-none'
+  'sticky left-0 z-[3] border-[var(--border)] border-r border-b bg-[var(--bg)] px-1 py-[7px] align-middle select-none'
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
 const CELL_HEADER_CHECKBOX =
-  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-1 py-[7px] text-center align-middle'
+  'sticky left-0 z-[12] border-[var(--border)] border-r border-b bg-[var(--bg)] px-1 py-[7px] text-center align-middle'
 const CELL_CONTENT =
   'relative min-h-[20px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-small'
 const SELECTION_OVERLAY =
@@ -1211,6 +1211,20 @@ export function Table({
       setIsColumnSelection(false)
 
       const row = rowsRef.current.find((r) => r.id === rowId)
+      const column = columnsRef.current.find((c) => c.key === columnKey)
+
+      // Workflow-output cell with no value (status pill showing) → enter edit
+      // mode with a blank input so the user can write a value over the status.
+      // Escape cancels without persisting.
+      if (column?.workflowGroupId && row && canEditRef.current) {
+        const cellValue = row.data[columnName]
+        if (cellValue === null || cellValue === undefined || cellValue === '') {
+          setEditingCell({ rowId, columnName })
+          setInitialCharacter('')
+          return
+        }
+      }
+
       const colIndex = columnsRef.current.findIndex((c) => c.key === columnKey)
       let overflows = true
       if (row && colIndex !== -1) {
@@ -2610,7 +2624,7 @@ export function Table({
                   <>
                     {hasWorkflowGroup && (
                       <tr>
-                        <th className='border-[var(--border)] border-b bg-[var(--bg)] px-1 py-[5px]' />
+                        <th className='sticky left-0 z-[12] border-[var(--border)] border-b bg-[var(--bg)] px-1 py-[5px]' />
                         {headerGroups.map((g) =>
                           g.kind === 'workflow' ? (
                             <WorkflowGroupMetaCell
