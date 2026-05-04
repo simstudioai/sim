@@ -30,7 +30,7 @@ import {
   validateRowData,
   validateRowSize,
 } from '@/lib/table'
-import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
+import { buildFilterClause, buildSortClause, TableQueryValidationError } from '@/lib/table/sql'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowsAPI')
@@ -336,6 +336,10 @@ export const GET = withRouteHandler(
         return validationErrorResponse(error)
       }
 
+      if (error instanceof TableQueryValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
+
       logger.error(`[${requestId}] Error querying rows:`, error)
       return NextResponse.json({ error: 'Failed to query rows' }, { status: 500 })
     }
@@ -419,6 +423,10 @@ export const PUT = withRouteHandler(
     } catch (error) {
       if (isZodError(error)) {
         return validationErrorResponse(error)
+      }
+
+      if (error instanceof TableQueryValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
       const errorMessage = toError(error).message
@@ -518,6 +526,10 @@ export const DELETE = withRouteHandler(
     } catch (error) {
       if (isZodError(error)) {
         return validationErrorResponse(error)
+      }
+
+      if (error instanceof TableQueryValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
       const errorMessage = toError(error).message
