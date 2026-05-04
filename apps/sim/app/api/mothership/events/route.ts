@@ -27,6 +27,7 @@ const mothershipEventsHandler = createWorkspaceSSE({
           send('task_status', {
             chatId: event.chatId,
             type: event.type,
+            ...(event.streamId ? { streamId: event.streamId } : {}),
             timestamp: Date.now(),
           })
         })
