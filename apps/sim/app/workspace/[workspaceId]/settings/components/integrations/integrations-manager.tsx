@@ -866,7 +866,7 @@ export function IntegrationsManager() {
             service={selectedOAuthService}
             serviceLabel={selectedOAuthService?.name || resolveProviderLabel(createOAuthProviderId)}
             workspaceId={workspaceId}
-            setupGuideHref='https://docs.sim.ai/credentials/google-service-account'
+            setupGuideHref='https://docs.sim.ai/integrations/google-service-account'
             onBack={() => setCreateStep(1)}
             onCreate={(input) => createCredential.mutateAsync(input)}
             onCreated={() => {

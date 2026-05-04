@@ -142,7 +142,7 @@ export function AtlassianServiceAccountForm({
                   'Use a scoped API token from a service account in admin.atlassian.com.'}
               </p>
               <a
-                href='https://support.atlassian.com/user-management/docs/manage-api-tokens-for-service-accounts/'
+                href='https://docs.sim.ai/integrations/atlassian-service-account'
                 target='_blank'
                 rel='noopener noreferrer'
                 className='text-[12px] text-[var(--accent)] hover:underline'
