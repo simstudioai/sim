@@ -185,6 +185,26 @@ export function getApiKeyCondition() {
 }
 
 /**
+ * Visibility condition for the Cohere reranker API key field on the Knowledge block.
+ * On hosted Sim, the platform supplies the Cohere key (via workspace BYOK or rotating
+ * env keys), so the field is hidden. On self-hosted deployments, the field is shown
+ * whenever reranking is enabled for a search operation, mirroring the agent block's
+ * `getApiKeyCondition` pattern.
+ */
+export function getCohereRerankerApiKeyCondition() {
+  return () => {
+    if (isHosted) {
+      return { field: 'operation', value: '__never_show__' }
+    }
+    return {
+      field: 'operation',
+      value: 'search',
+      and: { field: 'rerankerEnabled', value: true },
+    }
+  }
+}
+
+/**
  * Returns the standard provider credential subblocks used by LLM-based blocks.
  * This includes: Vertex AI OAuth, API Key, Azure (OpenAI + Anthropic), Vertex AI config, and Bedrock config.
  *
