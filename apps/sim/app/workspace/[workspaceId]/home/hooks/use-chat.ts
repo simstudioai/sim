@@ -13,6 +13,11 @@ import type {
   PersistedMessage,
 } from '@/lib/copilot/chat/persisted-message'
 import { normalizeMessage, withBlockTiming } from '@/lib/copilot/chat/persisted-message'
+import {
+  captureRevealedSimKeys,
+  type RevealedSimKeysByMessage,
+  restoreRevealedSimKeysForMessage,
+} from '@/lib/copilot/chat/sim-key-redaction'
 import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
 import { MOTHERSHIP_CHAT_API_PATH, STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
 import type {
@@ -1063,6 +1068,7 @@ export function useChat(
   )
   const [genericResourceData, setGenericResourceData] = useState<GenericResourceData | null>(null)
   const onResourceEventRef = useRef(options?.onResourceEvent)
+  const revealedSimKeysRef = useRef<RevealedSimKeysByMessage>(new Map())
   onResourceEventRef.current = options?.onResourceEvent
   const apiPathRef = useRef(options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH)
   apiPathRef.current = options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH
@@ -1384,10 +1390,10 @@ export function useChat(
   }, [clearActiveTurn, clearQueueDispatchState, resetEphemeralPreviewState, setTransportIdle])
 
   const { data: chatHistory } = useChatHistory(resolvedChatId)
-  const messages = useMemo(
-    () => chatHistory?.messages.map(toDisplayMessage) ?? pendingMessages,
-    [chatHistory, pendingMessages]
-  )
+  const messages = useMemo(() => {
+    const source = chatHistory?.messages.map(toDisplayMessage) ?? pendingMessages
+    return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
+  }, [chatHistory, pendingMessages])
   const addResource = useCallback((resource: MothershipResource): boolean => {
     if (resourcesRef.current.some((r) => r.type === resource.type && r.id === resource.id)) {
       return false
@@ -1888,6 +1894,11 @@ export function useChat(
       const flush = () => {
         if (isStale()) return
         streamingBlocksRef.current = [...blocks]
+        captureRevealedSimKeys(
+          revealedSimKeysRef.current,
+          [assistantId, streamRequestId],
+          runningText
+        )
         const activeChatId = chatIdRef.current
         if (!activeChatId) {
           const snapshot: Partial<ChatMessage> = {
