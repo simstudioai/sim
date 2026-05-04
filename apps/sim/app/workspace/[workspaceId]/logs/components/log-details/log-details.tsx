@@ -297,9 +297,9 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
     }
   }, [log.id])
 
+  const isLikelyExecution = !!log.executionId && log.trigger !== 'mothership'
   const isWorkflowExecutionLog =
-    (log.trigger === 'manual' && !!log.duration) ||
-    !!(log.executionData?.enhanced && log.executionData?.traceSpans)
+    (log.trigger === 'manual' && !!log.duration) || !!log.executionData?.traceSpans
 
   const hasCostInfo = !!(isWorkflowExecutionLog && log.cost)
   const showWorkflowState =
@@ -307,8 +307,9 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
     !!log.executionId &&
     log.trigger !== 'mothership' &&
     !permissionConfig.hideTraceSpans
-  const showTraceTab =
-    isWorkflowExecutionLog && !!log.executionData?.traceSpans && !permissionConfig.hideTraceSpans
+
+  const showTraceTab = !permissionConfig.hideTraceSpans && isLikelyExecution
+  const traceSpans = log.executionData?.traceSpans
 
   const resolvedTab: LogDetailsTab = activeTab === 'trace' && !showTraceTab ? 'overview' : activeTab
 
@@ -594,12 +595,20 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
         </SModalTabsContent>
 
         {/* Trace Tab */}
-        {showTraceTab && log.executionData?.traceSpans && (
+        {showTraceTab && (
           <SModalTabsContent
             value='trace'
             className='mt-3 min-h-0 flex-1 overflow-hidden focus-visible:outline-none'
           >
-            <TraceView traceSpans={log.executionData.traceSpans} />
+            {traceSpans?.length ? (
+              <TraceView traceSpans={traceSpans} />
+            ) : (
+              <div className='flex h-full items-center justify-center px-4 text-center'>
+                <span className='font-medium text-[var(--text-tertiary)] text-sm'>
+                  No trace data available for this run
+                </span>
+              </div>
+            )}
           </SModalTabsContent>
         )}
       </SModalTabs>

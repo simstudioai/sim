@@ -179,7 +179,7 @@ export const ResourceContent = memo(function ResourceContent({
       return <EmbeddedFolder key={resource.id} workspaceId={workspaceId} folderId={resource.id} />
 
     case 'log':
-      return <EmbeddedLog key={resource.id} logId={resource.id} />
+      return <EmbeddedLog key={resource.id} workspaceId={workspaceId} logId={resource.id} />
 
     case 'generic':
       return (
@@ -617,11 +617,12 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
 }
 
 interface EmbeddedLogProps {
+  workspaceId: string
   logId: string
 }
 
-function EmbeddedLog({ logId }: EmbeddedLogProps) {
-  const { data: log, isLoading } = useLogDetail(logId)
+function EmbeddedLog({ workspaceId, logId }: EmbeddedLogProps) {
+  const { data: log, isLoading } = useLogDetail(logId, workspaceId)
 
   if (isLoading) return LOADING_SKELETON
 
@@ -653,7 +654,7 @@ interface EmbeddedLogActionsProps {
 
 export function EmbeddedLogActions({ workspaceId, logId }: EmbeddedLogActionsProps) {
   const router = useRouter()
-  const { data: log } = useLogDetail(logId)
+  const { data: log } = useLogDetail(logId, workspaceId)
 
   const handleOpenInLogs = () => {
     const param = log?.executionId ? `?executionId=${log.executionId}` : ''
