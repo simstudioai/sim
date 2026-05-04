@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
 import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Eye, Search, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
@@ -304,7 +304,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 
   const resolvedTab: LogDetailsTab = activeTab === 'trace' && !showTraceTab ? 'overview' : activeTab
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     onActiveTabChange?.(resolvedTab)
   }, [resolvedTab, onActiveTabChange])
 
