@@ -49,6 +49,8 @@ Search for similar content in a knowledge base using vector similarity
 | `tagValue` | string | No | No description |
 | `rerankerEnabled` | boolean | No | Whether to apply Cohere reranking to vector search results |
 | `rerankerModel` | string | No | Cohere rerank model to use \(one of: rerank-v4.0-pro, rerank-v4.0-fast, rerank-v3.5\) |
+| `rerankerInputCount` | number | No | Number of vector results sent to the Cohere reranker \(1–100\). Defaults to topK × 4 capped at 100. |
+| `apiKey` | string | No | Cohere API key for reranker \(self-hosted deployments only\) |
 | `tagFilters` | string | No | No description |
 
 #### Output

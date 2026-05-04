@@ -192,14 +192,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
         const ALLOWED_SIZES: Record<string, string[]> = {
           'dall-e-3': ['1024x1024', '1024x1792', '1792x1024'],
           'gpt-image-1': ['auto', '1024x1024', '1536x1024', '1024x1536'],
-          'gpt-image-2': [
-            'auto',
-            '1024x1024',
-            '1536x1024',
-            '1024x1536',
-            '2560x1440',
-            '3840x2160',
-          ],
+          'gpt-image-2': ['auto', '1024x1024', '1536x1024', '1024x1536', '2560x1440', '3840x2160'],
         }
         const ALLOWED_QUALITIES: Record<string, string[]> = {
           'dall-e-3': ['standard', 'hd'],

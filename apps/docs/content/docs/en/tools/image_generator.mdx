@@ -29,7 +29,7 @@ In Sim, the DALL-E integration enables your agents to generate images programmat
 
 ## Usage Instructions
 
-Integrate Image Generator into the workflow. Can generate images using DALL-E 3 or GPT Image.
+Integrate Image Generator into the workflow. Can generate images using DALL-E 3, GPT Image 1, or GPT Image 2.
 
 
 
@@ -43,12 +43,14 @@ Generate images using OpenAI
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `model` | string | Yes | The model to use \(gpt-image-1 or dall-e-3\) |
+| `model` | string | Yes | The model to use \(dall-e-3, gpt-image-1, or gpt-image-2\) |
 | `prompt` | string | Yes | A text description of the desired image |
-| `size` | string | Yes | The size of the generated images \(1024x1024, 1024x1792, or 1792x1024\) |
-| `quality` | string | No | The quality of the image \(standard or hd\) |
-| `style` | string | No | The style of the image \(vivid or natural\) |
-| `background` | string | No | The background color, only for gpt-image-1 |
+| `size` | string | Yes | Image size. dall-e-3: 1024x1024, 1024x1792, or 1792x1024. gpt-image-1: auto, 1024x1024, 1536x1024, or 1024x1536. gpt-image-2: auto or any size with edges ≤3840px and multiples of 16 \(e.g. 1024x1024, 1536x1024, 1024x1536, 2560x1440, 3840x2160\). |
+| `quality` | string | No | Quality. dall-e-3: standard\|hd. gpt-image-1/gpt-image-2: auto\|low\|medium\|high |
+| `style` | string | No | The style of the image \(vivid or natural\), only for dall-e-3 |
+| `background` | string | No | Background. gpt-image-1: auto\|transparent\|opaque. gpt-image-2: auto\|opaque \(transparent not supported\) |
+| `outputFormat` | string | No | Output image format \(png, jpeg, webp\), only for gpt-image-1 and gpt-image-2 |
+| `moderation` | string | No | Moderation level \(auto or low\), only for gpt-image-1 and gpt-image-2 |
 | `n` | number | No | The number of images to generate \(1-10\) |
 | `apiKey` | string | Yes | Your OpenAI API key |
 
