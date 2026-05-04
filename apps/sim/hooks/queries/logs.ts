@@ -7,6 +7,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   cancelWorkflowExecutionContract,
@@ -194,6 +195,8 @@ export function useLogDetail(logId: string | undefined, options?: UseLogDetailOp
     enabled: Boolean(logId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
     staleTime: 30 * 1000,
+    retry: (failureCount, err) =>
+      !(isApiClientError(err) && err.status === 404) && failureCount < 3,
   })
 }
 
