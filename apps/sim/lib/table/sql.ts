@@ -11,6 +11,17 @@ import { NAME_PATTERN } from './constants'
 import type { ColumnDefinition, ConditionOperators, Filter, JsonValue, Sort } from './types'
 
 /**
+ * Error thrown when caller-supplied filter or sort input is malformed.
+ * Routes should map this to HTTP 400 with the message preserved.
+ */
+export class TableQueryValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'TableQueryValidationError'
+  }
+}
+
+/**
  * Whitelist of allowed operators for query filtering.
  * Only these operators can be used in filter conditions.
  */
@@ -133,7 +144,9 @@ export function buildSortClause(
     validateFieldName(field)
 
     if (direction !== 'asc' && direction !== 'desc') {
-      throw new Error(`Invalid sort direction "${direction}". Must be "asc" or "desc".`)
+      throw new TableQueryValidationError(
+        `Invalid sort direction "${direction}". Must be "asc" or "desc".`
+      )
     }
 
     const columnType = columnTypeMap.get(field)
@@ -152,11 +165,11 @@ export function buildSortClause(
  */
 function validateFieldName(field: string): void {
   if (!field || typeof field !== 'string') {
-    throw new Error('Field name must be a non-empty string')
+    throw new TableQueryValidationError('Field name must be a non-empty string')
   }
 
   if (!NAME_PATTERN.test(field)) {
-    throw new Error(
+    throw new TableQueryValidationError(
       `Invalid field name "${field}". Field names must start with a letter or underscore, followed by alphanumeric characters or underscores.`
     )
   }
@@ -170,7 +183,7 @@ function validateFieldName(field: string): void {
  */
 function validateOperator(operator: string): void {
   if (!ALLOWED_OPERATORS.has(operator)) {
-    throw new Error(
+    throw new TableQueryValidationError(
       `Invalid operator "${operator}". Allowed operators: ${Array.from(ALLOWED_OPERATORS).join(', ')}`
     )
   }
@@ -261,7 +274,7 @@ function buildFieldCondition(
 
         default:
           // This should never happen due to validateOperator, but added for completeness
-          throw new Error(`Unsupported operator: ${op}`)
+          throw new TableQueryValidationError(`Unsupported operator: ${op}`)
       }
     }
   } else {
