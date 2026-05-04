@@ -7,23 +7,11 @@ export interface OAuthTokenBundle {
   domain?: string
 }
 
-export async function fetchOAuthToken(
-  credentialId: string,
-  workflowId?: string
-): Promise<string | null> {
-  if (!credentialId) return null
-  const token = await requestJson(oauthTokenContract, {
-    body: { credentialId, workflowId },
-  })
-  return token.accessToken ?? null
-}
-
 /**
- * Same as fetchOAuthToken but also returns provider-specific extras —
- * notably `cloudId` for Atlassian service accounts whose tokens cannot
- * call api.atlassian.com/oauth/token/accessible-resources.
+ * Returns the access token plus any provider-specific extras (e.g. `cloudId` for
+ * Atlassian service accounts whose tokens cannot call api.atlassian.com/oauth/token/accessible-resources).
  */
-export async function fetchOAuthTokenBundle(
+export async function fetchOAuthToken(
   credentialId: string,
   workflowId?: string
 ): Promise<OAuthTokenBundle | null> {

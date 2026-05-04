@@ -1,5 +1,17 @@
 import type { ReactNode } from 'react'
 
+/**
+ * Stable identifier for the Atlassian service account provider. Used as the
+ * `providerId` on credential rows and as the `serviceAccountProviderId` on
+ * Jira/Confluence service configs.
+ */
+export const ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID = 'atlassian-service-account' as const
+
+/**
+ * Discriminator stored inside the encrypted Atlassian service account secret blob.
+ */
+export const ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE = 'atlassian_service_account' as const
+
 export type OAuthProvider =
   | 'google'
   | 'google-email'

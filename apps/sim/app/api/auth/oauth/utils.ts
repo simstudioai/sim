@@ -11,6 +11,10 @@ import {
   isMicrosoftProvider,
   PROACTIVE_REFRESH_THRESHOLD_DAYS,
 } from '@/lib/oauth/microsoft'
+import {
+  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
+} from '@/lib/oauth/types'
 
 const logger = createLogger('OAuthUtilsAPI')
 
@@ -212,7 +216,7 @@ export async function getServiceAccountToken(
 }
 
 interface AtlassianServiceAccountSecret {
-  type: 'atlassian_service_account'
+  type: typeof ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE
   apiToken: string
   domain: string
   cloudId: string
@@ -238,7 +242,11 @@ export async function getAtlassianServiceAccountSecret(
 
   const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
   const parsed = JSON.parse(decrypted) as AtlassianServiceAccountSecret
-  if (parsed.type !== 'atlassian_service_account' || !parsed.apiToken || !parsed.cloudId) {
+  if (
+    parsed.type !== ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE ||
+    !parsed.apiToken ||
+    !parsed.cloudId
+  ) {
     throw new Error('Stored Atlassian service account secret is malformed')
   }
   return parsed
@@ -420,7 +428,7 @@ export async function refreshAccessTokenIfNeeded(
   }
 
   if (resolved.credentialType === 'service_account' && resolved.credentialId) {
-    if (resolved.providerId === 'atlassian-service-account') {
+    if (resolved.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
       logger.info(`[${requestId}] Using Atlassian service account token for credential`)
       return getAtlassianServiceAccountToken(resolved.credentialId)
     }

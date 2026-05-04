@@ -1,6 +1,6 @@
 import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { fetchOAuthTokenBundle } from '@/hooks/selectors/helpers'
+import { fetchOAuthToken } from '@/hooks/selectors/helpers'
 import { ensureCredential, ensureDomain, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -67,7 +67,7 @@ export const confluenceSelectors = {
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'confluence.pages')
       const domain = ensureDomain(context, 'confluence.pages')
-      const bundle = await fetchOAuthTokenBundle(credentialId, context.workflowId)
+      const bundle = await fetchOAuthToken(credentialId, context.workflowId)
       if (!bundle) {
         throw new Error('Missing Confluence access token')
       }
@@ -89,7 +89,7 @@ export const confluenceSelectors = {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'confluence.pages')
       const domain = ensureDomain(context, 'confluence.pages')
-      const bundle = await fetchOAuthTokenBundle(credentialId, context.workflowId)
+      const bundle = await fetchOAuthToken(credentialId, context.workflowId)
       if (!bundle) {
         throw new Error('Missing Confluence access token')
       }

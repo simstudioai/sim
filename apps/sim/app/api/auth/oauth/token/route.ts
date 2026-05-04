@@ -9,6 +9,7 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import {
   getAtlassianServiceAccountSecret,
   getCredential,
@@ -119,7 +120,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       try {
-        if (resolved.providerId === 'atlassian-service-account') {
+        if (resolved.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
           const secret = await getAtlassianServiceAccountSecret(resolved.credentialId)
           return NextResponse.json(
             {

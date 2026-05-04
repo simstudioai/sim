@@ -11,6 +11,7 @@ import {
   ModalHeader,
   Textarea,
 } from '@/components/emcn'
+import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
 import { cn } from '@/lib/core/utils/cn'
 import type { OAuthServiceConfig } from '@/lib/oauth'
 
@@ -28,33 +29,6 @@ interface ServiceAccountFormProps {
     description?: string
   }) => Promise<unknown>
   onCreated: () => void
-}
-
-interface ValidationResult {
-  valid: boolean
-  error?: string
-}
-
-function validateServiceAccountJson(raw: string): ValidationResult {
-  let parsed: Record<string, unknown>
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    return { valid: false, error: 'Invalid JSON. Paste the full service account key file.' }
-  }
-  if (parsed.type !== 'service_account') {
-    return { valid: false, error: 'JSON key must have "type": "service_account".' }
-  }
-  if (!parsed.client_email || typeof parsed.client_email !== 'string') {
-    return { valid: false, error: 'Missing "client_email" field.' }
-  }
-  if (!parsed.private_key || typeof parsed.private_key !== 'string') {
-    return { valid: false, error: 'Missing "private_key" field.' }
-  }
-  if (!parsed.project_id || typeof parsed.project_id !== 'string') {
-    return { valid: false, error: 'Missing "project_id" field.' }
-  }
-  return { valid: true }
 }
 
 export function ServiceAccountForm({
@@ -130,9 +104,9 @@ export function ServiceAccountForm({
       setError('Paste the service account JSON key.')
       return
     }
-    const validation = validateServiceAccountJson(trimmed)
-    if (!validation.valid) {
-      setError(validation.error ?? 'Invalid JSON')
+    const validation = serviceAccountJsonSchema.safeParse(trimmed)
+    if (!validation.success) {
+      setError(validation.error.issues[0]?.message ?? 'Invalid JSON')
       return
     }
     setIsSubmitting(true)

@@ -12,12 +12,15 @@ import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getWorkspaceMemberUserIds } from '@/lib/credentials/environment'
+import {
+  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
+} from '@/lib/oauth/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('AtlassianServiceAccountAPI')
-
-const ATLASSIAN_PROVIDER_ID = 'atlassian-service-account'
 
 /**
  * Discrete validation failure codes returned to the client. The UI maps each
@@ -36,12 +39,31 @@ class AtlassianValidationError extends Error {
   }
 }
 
-function buildBearerAuthHeader(apiToken: string): string {
-  return `Bearer ${apiToken}`
-}
-
 function normalizeDomain(rawDomain: string): string {
   return rawDomain.replace(/^https?:\/\//, '').replace(/\/+$/, '')
+}
+
+/**
+ * Throws an `AtlassianValidationError` with `unauthorizedCode` for 401/403 responses
+ * (which mean the token itself was rejected) and `atlassian_unavailable` for any
+ * other non-2xx. Successful responses are returned unchanged.
+ */
+async function assertAtlassianResponseOk(
+  res: Response,
+  step: string,
+  unauthorizedCode: AtlassianValidationCode,
+  context: Record<string, unknown> = {}
+): Promise<Response> {
+  if (res.ok) return res
+  const body = parseAtlassianErrorMessage(res.status, res.statusText, await res.text())
+  if (res.status === 401 || res.status === 403) {
+    throw new AtlassianValidationError(unauthorizedCode, res.status, { step, body, ...context })
+  }
+  throw new AtlassianValidationError('atlassian_unavailable', res.status, {
+    step,
+    body,
+    ...context,
+  })
 }
 
 /**
@@ -60,18 +82,11 @@ async function validateAtlassianServiceAccount(
     headers: { Accept: 'application/json' },
   })
   if (tenantInfoRes.status === 404) {
-    throw new AtlassianValidationError('site_not_found', 404, {
-      step: 'tenant_info',
-      domain,
-    })
+    throw new AtlassianValidationError('site_not_found', 404, { step: 'tenant_info', domain })
   }
-  if (!tenantInfoRes.ok) {
-    throw new AtlassianValidationError('atlassian_unavailable', tenantInfoRes.status, {
-      step: 'tenant_info',
-      domain,
-      body: (await tenantInfoRes.text()).slice(0, 200),
-    })
-  }
+  // tenant_info is unauthenticated, so there is no "invalid credentials" branch here —
+  // any non-OK that isn't a 404 means Atlassian is unavailable, not the token's fault.
+  await assertAtlassianResponseOk(tenantInfoRes, 'tenant_info', 'atlassian_unavailable', { domain })
   const tenantInfo = (await tenantInfoRes.json()) as { cloudId?: string }
   if (!tenantInfo.cloudId) {
     throw new AtlassianValidationError('atlassian_unavailable', 502, {
@@ -82,24 +97,10 @@ async function validateAtlassianServiceAccount(
   }
   const cloudId = tenantInfo.cloudId
 
-  const auth = buildBearerAuthHeader(apiToken)
   const myselfRes = await fetch(`https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/myself`, {
-    headers: { Authorization: auth, Accept: 'application/json' },
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   })
-  if (myselfRes.status === 401 || myselfRes.status === 403) {
-    throw new AtlassianValidationError('invalid_credentials', myselfRes.status, {
-      step: 'myself',
-      cloudId,
-      body: (await myselfRes.text()).slice(0, 200),
-    })
-  }
-  if (!myselfRes.ok) {
-    throw new AtlassianValidationError('atlassian_unavailable', myselfRes.status, {
-      step: 'myself',
-      cloudId,
-      body: (await myselfRes.text()).slice(0, 200),
-    })
-  }
+  await assertAtlassianResponseOk(myselfRes, 'myself', 'invalid_credentials', { cloudId })
 
   const myself = (await myselfRes.json()) as {
     accountId?: string
@@ -161,7 +162,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         and(
           eq(credential.workspaceId, workspaceId),
           eq(credential.type, 'service_account'),
-          eq(credential.providerId, ATLASSIAN_PROVIDER_ID),
+          eq(credential.providerId, ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID),
           eq(credential.displayName, resolvedDisplayName)
         )
       )
@@ -177,7 +178,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const blob = JSON.stringify({
-      type: 'atlassian_service_account',
+      type: ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
       apiToken,
       domain: normalizedDomain,
       cloudId: validation.cloudId,
@@ -194,22 +195,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       .where(eq(workspace.id, workspaceId))
       .limit(1)
 
-    await db.transaction(async (tx) => {
-      await tx.insert(credential).values({
-        id: credentialId,
-        workspaceId,
-        type: 'service_account',
-        displayName: resolvedDisplayName,
-        description: resolvedDescription,
-        providerId: ATLASSIAN_PROVIDER_ID,
-        accountId: null,
-        envKey: null,
-        envOwnerUserId: null,
-        encryptedServiceAccountKey: encrypted,
-        createdBy: session.user.id,
-        createdAt: now,
-        updatedAt: now,
-      })
+    const created = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(credential)
+        .values({
+          id: credentialId,
+          workspaceId,
+          type: 'service_account',
+          displayName: resolvedDisplayName,
+          description: resolvedDescription,
+          providerId: ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+          accountId: null,
+          envKey: null,
+          envOwnerUserId: null,
+          encryptedServiceAccountKey: encrypted,
+          createdBy: session.user.id,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning()
 
       const memberUserIds = workspaceRow?.ownerId
         ? await getWorkspaceMemberUserIds(workspaceId)
@@ -229,20 +233,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           updatedAt: now,
         })
       }
-    })
 
-    const [created] = await db
-      .select()
-      .from(credential)
-      .where(eq(credential.id, credentialId))
-      .limit(1)
+      return row
+    })
 
     captureServerEvent(
       session.user.id,
       'credential_connected',
       {
         credential_type: 'service_account',
-        provider_id: ATLASSIAN_PROVIDER_ID,
+        provider_id: ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
         workspace_id: workspaceId,
       },
       {
@@ -263,7 +263,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       description: `Created Atlassian service account credential "${resolvedDisplayName}"`,
       metadata: {
         credentialType: 'service_account',
-        providerId: ATLASSIAN_PROVIDER_ID,
+        providerId: ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
         atlassianDomain: normalizedDomain,
         atlassianCloudId: validation.cloudId,
       },

@@ -1,6 +1,6 @@
 import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { fetchOAuthTokenBundle } from '@/hooks/selectors/helpers'
+import { fetchOAuthToken } from '@/hooks/selectors/helpers'
 import { ensureCredential, ensureDomain, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -23,7 +23,7 @@ export const jiraSelectors = {
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'jira.projects')
       const domain = ensureDomain(context, 'jira.projects')
-      const bundle = await fetchOAuthTokenBundle(credentialId, context.workflowId)
+      const bundle = await fetchOAuthToken(credentialId, context.workflowId)
       if (!bundle) {
         throw new Error('Missing Jira access token')
       }
@@ -45,7 +45,7 @@ export const jiraSelectors = {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'jira.projects')
       const domain = ensureDomain(context, 'jira.projects')
-      const bundle = await fetchOAuthTokenBundle(credentialId, context.workflowId)
+      const bundle = await fetchOAuthToken(credentialId, context.workflowId)
       if (!bundle) {
         throw new Error('Missing Jira access token')
       }
@@ -84,7 +84,7 @@ export const jiraSelectors = {
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'jira.issues')
       const domain = ensureDomain(context, 'jira.issues')
-      const bundle = await fetchOAuthTokenBundle(credentialId, context.workflowId)
+      const bundle = await fetchOAuthToken(credentialId, context.workflowId)
       if (!bundle) {
         throw new Error('Missing Jira access token')
       }
@@ -113,7 +113,7 @@ export const jiraSelectors = {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'jira.issues')
       const domain = ensureDomain(context, 'jira.issues')
-      const bundle = await fetchOAuthTokenBundle(credentialId, context.workflowId)
+      const bundle = await fetchOAuthToken(credentialId, context.workflowId)
       if (!bundle) {
         throw new Error('Missing Jira access token')
       }

@@ -33,6 +33,7 @@ import {
   writeOAuthReturnContext,
 } from '@/lib/credentials/client-state'
 import { getCanonicalScopesForProvider, getServiceConfigByProviderId } from '@/lib/oauth'
+import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import { getScopeDescription } from '@/lib/oauth/utils'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { AtlassianServiceAccountForm } from '@/app/workspace/[workspaceId]/settings/components/integrations/atlassian-service-account-form'
@@ -848,7 +849,7 @@ export function IntegrationsManager() {
               </Button>
             </ModalFooter>
           </>
-        ) : selectedOAuthService?.providerId === 'atlassian-service-account' ? (
+        ) : selectedOAuthService?.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID ? (
           <AtlassianServiceAccountForm
             service={selectedOAuthService}
             serviceLabel={selectedOAuthService.name || resolveProviderLabel(createOAuthProviderId)}
