@@ -51,7 +51,6 @@ export const knowledgeSearchBodySchema = z
       .transform((val) => val ?? undefined),
     rerankerApiKey: z
       .string()
-      .min(1, 'rerankerApiKey cannot be empty')
       .optional()
       .nullable()
       .transform((val) => val || undefined),

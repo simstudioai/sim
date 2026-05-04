@@ -251,9 +251,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * Cap at 100 to bound Cohere request cost (1 search unit = ≤100 docs). When the caller
      * supplies `rerankerInputCount`, honor it but never let it drop below `topK`
      * (which would defeat the purpose) or exceed 100 (which would split into >1 search units). */
+    const rawInputCount = validatedData.rerankerInputCount
+    if (useReranker && rawInputCount !== undefined && rawInputCount < validatedData.topK) {
+      logger.warn(
+        `[${requestId}] rerankerInputCount (${rawInputCount}) is below topK (${validatedData.topK}); raising to topK`
+      )
+    }
     const candidateTopK = useReranker
-      ? validatedData.rerankerInputCount !== undefined
-        ? Math.min(100, Math.max(validatedData.topK, validatedData.rerankerInputCount))
+      ? rawInputCount !== undefined
+        ? Math.min(100, Math.max(validatedData.topK, rawInputCount))
         : Math.min(100, validatedData.topK * 4)
       : validatedData.topK
 

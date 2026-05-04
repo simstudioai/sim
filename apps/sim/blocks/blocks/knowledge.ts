@@ -125,7 +125,6 @@ export const KnowledgeBlock: BlockConfig = {
       placeholder: 'Enter your Cohere API key',
       password: true,
       connectionDroppable: false,
-      required: true,
       condition: getCohereRerankerApiKeyCondition(),
     },
 
