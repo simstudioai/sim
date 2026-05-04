@@ -194,15 +194,17 @@ export function captureRevealedSimKeys(
 
 function restoreInString(
   content: string,
-  revealedValues: string[]
+  revealedValues: string[],
+  startCursor: number
 ): {
   next: string
   changed: boolean
+  cursor: number
 } {
   if (!content.includes('<credential>') || revealedValues.length === 0) {
-    return { next: content, changed: false }
+    return { next: content, changed: false, cursor: startCursor }
   }
-  let cursor = 0
+  let cursor = startCursor
   let changed = false
   const next = content.replace(CREDENTIAL_TAG_PATTERN, (match, body: string) => {
     const parsed = parseCredentialBody(body)
@@ -216,7 +218,7 @@ function restoreInString(
     }
     return match
   })
-  return { next, changed }
+  return { next, changed, cursor }
 }
 
 /**
@@ -239,11 +241,13 @@ export function restoreRevealedSimKeysForMessage(
     return message
   }
 
-  const restoredContent = restoreInString(message.content, revealed)
+  const restoredContent = restoreInString(message.content, revealed, 0)
   let blocksChanged = false
+  let blockCursor = 0
   const nextBlocks: ContentBlock[] | undefined = message.contentBlocks?.map((block) => {
     if (!hasRedactedSimKeyTag(block.content)) return block
-    const restored = restoreInString(block.content as string, revealed)
+    const restored = restoreInString(block.content as string, revealed, blockCursor)
+    blockCursor = restored.cursor
     if (!restored.changed) return block
     blocksChanged = true
     return { ...block, content: restored.next }

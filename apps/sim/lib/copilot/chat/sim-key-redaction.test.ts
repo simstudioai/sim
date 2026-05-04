@@ -120,6 +120,25 @@ describe('sim-key-redaction', () => {
       expect(restoreRevealedSimKeysForMessage(msg, cache)).toBe(msg)
     })
 
+    it('threads the cursor across separate content blocks so each block gets its matching key', () => {
+      const cache = new Map<string, string[]>([['msg-1', ['sk-sim-A', 'sk-sim-B']]])
+      const msg: ChatMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        content: `first ${redacted} (tool ran) second ${redacted}`,
+        contentBlocks: [
+          { type: 'text', content: `first ${redacted}` },
+          { type: 'tool_call', content: '' },
+          { type: 'text', content: `second ${redacted}` },
+        ],
+      }
+      const restored = restoreRevealedSimKeysForMessage(msg, cache)
+      expect(restored.contentBlocks?.[0].content).toContain('"sk-sim-A"')
+      expect(restored.contentBlocks?.[0].content).not.toContain('"sk-sim-B"')
+      expect(restored.contentBlocks?.[2].content).toContain('"sk-sim-B"')
+      expect(restored.contentBlocks?.[2].content).not.toContain('"sk-sim-A"')
+    })
+
     it('isolates revealed values by message id (multiple keys across messages)', () => {
       const cache = new Map<string, string[]>([
         ['msg-1', ['sk-sim-A']],
