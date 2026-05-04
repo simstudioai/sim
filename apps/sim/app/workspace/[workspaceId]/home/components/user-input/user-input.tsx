@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { createLogger } from '@sim/logger'
 import { Paperclip } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Tooltip } from '@/components/emcn'
@@ -57,6 +58,8 @@ import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
+
+const logger = createLogger('UserInput')
 
 function getCaretAnchor(
   textarea: HTMLTextAreaElement,
@@ -190,34 +193,42 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   useEffect(() => {
     if (hasRestoredDraftRef.current || !draftScopeKey) return
     hasRestoredDraftRef.current = true
+    let restoredContexts: ChatContext[] | null = null
+    let restoredFiles: AttachedFile[] | null = null
+    let caretText: string | null = null
     try {
       const draft = useMothershipDraftsStore.getState().drafts[draftScopeKey]
       if (!draft) return
       if (draft.contexts?.length) {
-        contextManagement.setSelectedContexts(draft.contexts)
+        restoredContexts = draft.contexts
       }
       if (draft.fileAttachments?.length) {
-        files.restoreAttachedFiles(
-          draft.fileAttachments.map((a) => ({
-            id: a.id,
-            name: a.filename,
-            size: a.size,
-            type: a.media_type,
-            path: a.path ?? '',
-            key: a.key,
-            uploading: false,
-          }))
-        )
+        restoredFiles = draft.fileAttachments.map((a) => ({
+          id: a.id,
+          name: a.filename,
+          size: a.size,
+          type: a.media_type,
+          path: a.path ?? '',
+          key: a.key,
+          uploading: false,
+        }))
       }
       if (typeof draft.text === 'string' && draft.text.length > 0) {
-        const textarea = textareaRef.current
-        if (textarea) {
-          textarea.focus()
-          textarea.setSelectionRange(draft.text.length, draft.text.length)
-        }
+        caretText = draft.text
       }
-    } catch {
+    } catch (err) {
+      logger.error('Failed to read draft, clearing', { err })
       useMothershipDraftsStore.getState().clearDraft(draftScopeKey)
+      return
+    }
+    if (restoredContexts) contextManagement.setSelectedContexts(restoredContexts)
+    if (restoredFiles) files.restoreAttachedFiles(restoredFiles)
+    if (caretText !== null) {
+      const textarea = textareaRef.current
+      if (textarea) {
+        textarea.focus()
+        textarea.setSelectionRange(caretText.length, caretText.length)
+      }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
 
