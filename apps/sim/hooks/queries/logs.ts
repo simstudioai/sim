@@ -346,6 +346,7 @@ export function useCancelExecution() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: logKeys.lists() })
       queryClient.invalidateQueries({ queryKey: logKeys.details() })
+      queryClient.invalidateQueries({ queryKey: logKeys.stats() })
     },
   })
 }
@@ -374,6 +375,7 @@ export function useRetryExecution() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: logKeys.lists() })
       queryClient.invalidateQueries({ queryKey: logKeys.details() })
+      queryClient.invalidateQueries({ queryKey: logKeys.stats() })
     },
   })
 }

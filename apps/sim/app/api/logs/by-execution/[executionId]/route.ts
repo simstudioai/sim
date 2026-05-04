@@ -147,8 +147,8 @@ export const GET = withRouteHandler(
         hasPendingPause: false,
         executionData: {
           totalDuration: jobLog.totalDurationMs,
-          enhanced: true as const,
           ...execData,
+          enhanced: true as const,
         },
         files: null,
       }
@@ -199,8 +199,8 @@ export const GET = withRouteHandler(
       hasPendingPause,
       executionData: {
         totalDuration: log.totalDurationMs,
-        enhanced: true as const,
         ...((log.executionData as Record<string, unknown> | null) ?? {}),
+        enhanced: true as const,
       },
       files: log.files ?? null,
     }
