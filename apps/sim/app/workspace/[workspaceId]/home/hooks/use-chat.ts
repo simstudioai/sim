@@ -3694,7 +3694,7 @@ export function useChat(
             shouldContinue: isSameRecoverySubject,
           })
           if (!succeeded && streamGenRef.current === recoveryGen && isSameRecoverySubject()) {
-            finalizeRef.current({ error: true })
+            finalizeRef.current({ error: true, targetChatId: chatId })
           }
         }
       })()

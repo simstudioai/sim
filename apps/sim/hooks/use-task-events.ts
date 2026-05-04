@@ -33,6 +33,12 @@ function isLocalOptimisticActiveStream(current: TaskChatHistory | undefined) {
   return current.messages.some((message) => message.id === liveAssistantId)
 }
 
+/**
+ * Returns true when the cached active stream is known to be later in the
+ * chronological transcript than the stream that emitted this status event.
+ * If either stream is absent from the transcript, callers should refetch
+ * instead of inferring order from incomplete cache state.
+ */
 function hasNewerKnownActiveStream(current: TaskChatHistory | undefined, streamId: string) {
   if (!current?.activeStreamId || current.activeStreamId === streamId) return false
 
