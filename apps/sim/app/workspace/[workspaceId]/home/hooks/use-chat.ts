@@ -5,6 +5,7 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
+import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
 import type {
@@ -1420,6 +1421,18 @@ export function useChat(
   const removeResource = useCallback((resourceType: MothershipResourceType, resourceId: string) => {
     setResources((prev) => prev.filter((r) => !(r.type === resourceType && r.id === resourceId)))
     setActiveResourceId((prev) => (prev === resourceId ? null : prev))
+
+    const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
+    if (persistChatId) {
+      // boundary-raw-fetch: fire-and-forget side-effect; intentionally avoids requestJson's response parsing/throw semantics so a transient failure cannot interrupt the caller
+      fetch('/api/mothership/chat/resources', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: persistChatId, resourceType, resourceId }),
+      }).catch((err) => {
+        logger.warn('Failed to persist resource removal', err)
+      })
+    }
   }, [])
 
   const reorderResources = useCallback((newOrder: MothershipResource[]) => {
@@ -3291,9 +3304,7 @@ export function useChat(
         filename: f.filename,
         media_type: f.media_type,
         size: f.size,
-        previewUrl: f.media_type.startsWith('image/')
-          ? `/api/files/serve/${encodeURIComponent(f.key)}?context=mothership`
-          : undefined,
+        previewUrl: getMothershipAttachmentPreviewUrl(f),
       }))
 
       const optimisticUserMessage: ChatMessage = {

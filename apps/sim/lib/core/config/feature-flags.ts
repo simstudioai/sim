@@ -157,6 +157,14 @@ export const isOllamaConfigured = Boolean(env.OLLAMA_URL)
 export const isAzureConfigured = isTruthy(getEnv('NEXT_PUBLIC_AZURE_CONFIGURED'))
 
 /**
+ * Whether a Cohere API key is pre-configured server-side for the Knowledge block reranker
+ * (`COHERE_API_KEY` or `COHERE_API_KEY_1/2/3`). When true, the Cohere API Key field is hidden
+ * in the Knowledge block UI.
+ * Set NEXT_PUBLIC_COHERE_CONFIGURED=true in self-hosted deployments that ship a Cohere key.
+ */
+export const isCohereConfigured = isTruthy(getEnv('NEXT_PUBLIC_COHERE_CONFIGURED'))
+
+/**
  * Are invitations disabled globally
  * When true, workspace invitations are disabled for all users
  */

@@ -247,9 +247,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const hasFilters = structuredFilters && structuredFilters.length > 0
 
-    /** Oversample candidates when reranking so the reranker has more to choose from.
-     * Cap at 100 to bound Cohere request cost (1 search unit = ≤100 docs). */
-    const candidateTopK = useReranker ? Math.min(100, validatedData.topK * 4) : validatedData.topK
+    /** Oversample vector results when reranking so the reranker has more to choose from.
+     * Cap at 100 to bound Cohere request cost (1 search unit = ≤100 docs). When the caller
+     * supplies `rerankerInputCount`, honor it but never let it drop below `topK`
+     * (which would defeat the purpose) or exceed 100 (which would split into >1 search units). */
+    const rawInputCount = validatedData.rerankerInputCount
+    if (useReranker && rawInputCount !== undefined && rawInputCount < validatedData.topK) {
+      logger.warn(
+        `[${requestId}] rerankerInputCount (${rawInputCount}) is below topK (${validatedData.topK}); raising to topK`
+      )
+    }
+    const candidateTopK = useReranker
+      ? rawInputCount !== undefined
+        ? Math.min(100, Math.max(validatedData.topK, rawInputCount))
+        : Math.min(100, validatedData.topK * 4)
+      : validatedData.topK
 
     if (!hasQuery && hasFilters) {
       results = await handleTagOnlySearch({
@@ -300,7 +312,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const { results: ranked, isBYOK } = await rerank(
           validatedData.query!,
           results.map((r) => ({ id: r.id, text: r.content })),
-          { model: rerankerModel, topN: validatedData.topK, workspaceId }
+          {
+            model: rerankerModel,
+            topN: validatedData.topK,
+            workspaceId,
+            apiKey: validatedData.rerankerApiKey,
+          }
         )
         rerankBilled = true
         rerankIsBYOK = isBYOK

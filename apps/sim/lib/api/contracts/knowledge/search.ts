@@ -36,6 +36,24 @@ export const knowledgeSearchBodySchema = z
       .transform((val) => val || undefined),
     rerankerEnabled: z.boolean().optional().default(false),
     rerankerModel: rerankerModelSchema.optional().default(DEFAULT_RERANKER_MODEL),
+    /**
+     * Number of vector results sent to Cohere as the documents array for reranking. Capped at 100
+     * so each rerank call stays within a single Cohere search unit (1 query × ≤100 docs); see
+     * `RERANK_MODEL_PRICING` in `providers/models.ts`.
+     */
+    rerankerInputCount: z
+      .number()
+      .int('rerankerInputCount must be an integer')
+      .min(1, 'rerankerInputCount must be at least 1')
+      .max(100, 'rerankerInputCount cannot exceed 100')
+      .optional()
+      .nullable()
+      .transform((val) => val ?? undefined),
+    rerankerApiKey: z
+      .string()
+      .optional()
+      .nullable()
+      .transform((val) => val || undefined),
   })
   .refine(
     (data) => {
