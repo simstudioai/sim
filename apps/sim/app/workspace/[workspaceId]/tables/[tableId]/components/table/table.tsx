@@ -2398,31 +2398,39 @@ export function Table({
     [columnOptions, activeSortState, handleSortChange, handleSortClear]
   )
 
-  const selectedRowCount = useMemo(() => {
-    if (!contextMenu.isOpen || !contextMenu.row) return 1
-
+  /**
+   * Row ids the context menu acts on. If the right-clicked row is checked, all
+   * checked rows; if it's inside the active range selection, the range;
+   * otherwise just the row itself. Used by both the count label and the
+   * multi-row "Run workflows" action.
+   */
+  const contextMenuRowIds = useMemo<string[]>(() => {
+    if (!contextMenu.isOpen || !contextMenu.row) return []
     if (checkedRows.size > 0 && checkedRows.has(contextMenu.row.position)) {
-      let count = 0
+      const ids: string[] = []
       for (const pos of checkedRows) {
-        if (positionMap.has(pos)) count++
+        const row = positionMap.get(pos)
+        if (row) ids.push(row.id)
       }
-      return Math.max(count, 1)
+      return ids.length > 0 ? ids : [contextMenu.row.id]
     }
-
     const sel = normalizedSelection
-    if (!sel) return 1
-
-    const isInSelection =
-      contextMenu.row.position >= sel.startRow && contextMenu.row.position <= sel.endRow
-
-    if (!isInSelection) return 1
-
-    let count = 0
-    for (let r = sel.startRow; r <= sel.endRow; r++) {
-      if (positionMap.has(r)) count++
+    if (sel) {
+      const isInSelection =
+        contextMenu.row.position >= sel.startRow && contextMenu.row.position <= sel.endRow
+      if (isInSelection) {
+        const ids: string[] = []
+        for (let r = sel.startRow; r <= sel.endRow; r++) {
+          const row = positionMap.get(r)
+          if (row) ids.push(row.id)
+        }
+        return ids.length > 0 ? ids : [contextMenu.row.id]
+      }
     }
-    return Math.max(count, 1)
+    return [contextMenu.row.id]
   }, [contextMenu.isOpen, contextMenu.row, checkedRows, normalizedSelection, positionMap])
+
+  const selectedRowCount = contextMenuRowIds.length || 1
 
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
@@ -2478,6 +2486,22 @@ export function Table({
     },
     [cancelRunsMutate]
   )
+
+  const handleRunWorkflowsOnSelection = useCallback(() => {
+    if (tableWorkflowGroups.length === 0) return
+    if (contextMenuRowIds.length === 0) return
+    for (const group of tableWorkflowGroups) {
+      runGroupMutation.mutate({
+        groupId: group.id,
+        workflowId: group.workflowId,
+        runMode: 'all',
+        rowIds: contextMenuRowIds,
+      })
+    }
+    closeContextMenu()
+    // mutate is stable in v5
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextMenuRowIds, tableWorkflowGroups, closeContextMenu])
 
   const handleRunRow = useCallback(
     (rowId: string) => {
@@ -2873,6 +2897,10 @@ export function Table({
         canViewExecution={Boolean(contextMenuExecutionId) && contextMenuHasStartedRun}
         canEditCell={!contextMenuIsWorkflowColumn}
         selectedRowCount={selectedRowCount}
+        onRunWorkflows={
+          userPermissions.canEdit && hasWorkflowColumns ? handleRunWorkflowsOnSelection : undefined
+        }
+        hasWorkflowColumns={hasWorkflowColumns}
         disableEdit={!userPermissions.canEdit}
         disableInsert={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit}

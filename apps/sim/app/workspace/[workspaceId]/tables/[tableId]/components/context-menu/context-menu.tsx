@@ -5,7 +5,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { ArrowDown, ArrowUp, Duplicate, Eye, Pencil, Trash } from '@/components/emcn/icons'
+import {
+  ArrowDown,
+  ArrowUp,
+  Duplicate,
+  Eye,
+  Pencil,
+  PlayOutline,
+  Trash,
+} from '@/components/emcn/icons'
 import type { ContextMenuState } from '../../types'
 
 interface ContextMenuProps {
@@ -20,6 +28,10 @@ interface ContextMenuProps {
   canViewExecution?: boolean
   canEditCell?: boolean
   selectedRowCount?: number
+  /** Fires every workflow group on the row(s) the context menu is acting on. */
+  onRunWorkflows?: () => void
+  /** Whether the table has any workflow columns; gates the run-workflows item. */
+  hasWorkflowColumns?: boolean
   disableEdit?: boolean
   disableInsert?: boolean
   disableDelete?: boolean
@@ -37,11 +49,15 @@ export function ContextMenu({
   canViewExecution = false,
   canEditCell = true,
   selectedRowCount = 1,
+  onRunWorkflows,
+  hasWorkflowColumns = false,
   disableEdit = false,
   disableInsert = false,
   disableDelete = false,
 }: ContextMenuProps) {
   const deleteLabel = selectedRowCount > 1 ? `Delete ${selectedRowCount} rows` : 'Delete row'
+  const runLabel =
+    selectedRowCount > 1 ? `Run workflows on ${selectedRowCount} rows` : 'Run workflows on row'
 
   return (
     <DropdownMenu
@@ -79,6 +95,12 @@ export function ContextMenu({
           <DropdownMenuItem onSelect={onViewExecution}>
             <Eye />
             View execution
+          </DropdownMenuItem>
+        )}
+        {hasWorkflowColumns && onRunWorkflows && (
+          <DropdownMenuItem disabled={disableEdit} onSelect={onRunWorkflows}>
+            <PlayOutline />
+            {runLabel}
           </DropdownMenuItem>
         )}
         <DropdownMenuItem disabled={disableInsert} onSelect={onInsertAbove}>
