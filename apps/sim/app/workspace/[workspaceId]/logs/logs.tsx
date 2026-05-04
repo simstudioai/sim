@@ -221,9 +221,6 @@ export default function Logs() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  // Hydrate filters from the URL synchronously on first render so
-  // useLogsList / useDashboardStats fire once with the correct filters
-  // instead of refetching after a post-mount effect.
   useState(() => {
     useFilterStore.getState().initializeFromURL()
     return null

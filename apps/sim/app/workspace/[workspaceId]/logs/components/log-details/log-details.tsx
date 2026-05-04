@@ -48,9 +48,6 @@ import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
 
-/**
- * Workflow Output section with code viewer, copy, search, and context menu functionality
- */
 export const WorkflowOutputSection = memo(
   function WorkflowOutputSection({ output }: { output: Record<string, unknown> }) {
     const contentRef = useRef<HTMLDivElement>(null)
@@ -258,18 +255,10 @@ export const WorkflowOutputSection = memo(
 export type LogDetailsTab = 'overview' | 'trace'
 
 interface LogDetailsContentProps {
-  /** The log to display */
   log: WorkflowLogRow
-  /** Fires when the active tab changes, so embedders can gate their own keyboard handlers */
   onActiveTabChange?: (tab: LogDetailsTab) => void
 }
 
-/**
- * Tabbed body for a single log: overview details and trace spans, plus the
- * execution snapshot modal. Used as the body of the `LogDetails` sidebar and
- * embedded directly inside the Mothership resource panel — keep the two in
- * sync by editing this component, not by re-implementing it elsewhere.
- */
 export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentProps) {
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<LogDetailsTab>('overview')
@@ -310,7 +299,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
     !permissionConfig.hideTraceSpans
 
   const showTraceTab = !permissionConfig.hideTraceSpans && isLikelyExecution
-  // double-cast-allowed: contract trace span schema is intentionally permissive (optional duration/startTime/endTime to tolerate legacy persisted JSON); the canonical TraceSpan used by TraceView/ExecutionSnapshot requires them, and runtime data from the executor always supplies them.
+  // double-cast-allowed: contract schema makes duration/startTime optional for legacy persisted JSON; runtime data always supplies them.
   const traceSpans = log.executionData?.traceSpans as unknown as TraceSpan[] | undefined
 
   const resolvedTab: LogDetailsTab = activeTab === 'trace' && !showTraceTab ? 'overview' : activeTab
@@ -634,33 +623,18 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 }
 
 interface LogDetailsProps {
-  /** The log to display details for */
   log: WorkflowLogRow | null
-  /** Whether the sidebar is open */
   isOpen: boolean
-  /** Callback when closing the sidebar */
   onClose: () => void
-  /** Callback to navigate to next log */
   onNavigateNext?: () => void
-  /** Callback to navigate to previous log */
   onNavigatePrev?: () => void
-  /** Whether there is a next log available */
   hasNext?: boolean
-  /** Whether there is a previous log available */
   hasPrev?: boolean
-  /** Callback to retry a failed execution */
   onRetryExecution?: () => void
-  /** Whether a retry is currently in progress */
   isRetryPending?: boolean
-  /** Fires when the active tab changes, so the parent can gate its own keyboard handlers */
   onActiveTabChange?: (tab: LogDetailsTab) => void
 }
 
-/**
- * Sidebar panel displaying detailed information about a selected log.
- * Wraps `LogDetailsContent` with sidebar chrome — resize handle, header, and
- * keyboard navigation between logs.
- */
 export const LogDetails = memo(function LogDetails({
   log,
   isOpen,
@@ -687,9 +661,6 @@ export const LogDetails = memo(function LogDetails({
   const { handleMouseDown } = useLogDetailsResize()
 
   const maxVw = `${MAX_LOG_DETAILS_WIDTH_RATIO * 100}vw`
-  // CSS-side clamp matching `clampPanelWidth` in stores/logs/utils.ts: the
-  // floor is itself capped at the max-vw ratio so a narrow viewport doesn't
-  // let the min outpace the cap and cover the table behind the panel.
   const effectiveWidth = `clamp(min(${MIN_LOG_DETAILS_WIDTH}px, ${maxVw}), ${panelWidth}px, ${maxVw})`
 
   useEffect(() => {
@@ -700,8 +671,7 @@ export const LogDetails = memo(function LogDetails({
 
       if (!isOpen) return
 
-      // When the Trace tab is active, arrow keys belong to TraceView's own
-      // span-navigation handler. Log-to-log navigation should not hijack them.
+      // Trace tab owns arrow keys for span navigation.
       if (activeTabRef.current === 'trace') return
 
       if (e.key === 'ArrowUp' && hasPrev && onNavigatePrev) {

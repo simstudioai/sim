@@ -200,11 +200,6 @@ export function useLogDetail(
   })
 }
 
-/**
- * Looks up a workflow log by its `executionId`. Writes the resulting detail
- * through to the canonical `detail(id)` cache so subsequent `useLogDetail`
- * reads hit instantly.
- */
 export function useLogByExecutionId(
   workspaceId: string | undefined,
   executionId: string | null | undefined
