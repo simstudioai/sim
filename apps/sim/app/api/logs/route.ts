@@ -401,8 +401,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   })
 
   const compareSortValues = (a: unknown, b: unknown): number => {
-    if (a === null || a === undefined) return b === null || b === undefined ? 0 : 1
-    if (b === null || b === undefined) return -1
     if (a instanceof Date && b instanceof Date) return a.getTime() - b.getTime()
     if (typeof a === 'number' && typeof b === 'number') return a - b
     const aStr = String(a)
@@ -417,8 +415,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }
 
   const merged = [...workflowMapped, ...jobMapped].sort((a, b) => {
-    const cmp = compareSortValues(a.sortValue, b.sortValue)
-    if (cmp !== 0) return sortOrder === 'asc' ? cmp : -cmp
+    const aNull = a.sortValue === null || a.sortValue === undefined
+    const bNull = b.sortValue === null || b.sortValue === undefined
+    // Mirror SQL's NULLS LAST for both ASC and DESC so the cursor stays consistent.
+    if (aNull && !bNull) return 1
+    if (!aNull && bNull) return -1
+    if (!aNull && !bNull) {
+      const cmp = compareSortValues(a.sortValue, b.sortValue)
+      if (cmp !== 0) return sortOrder === 'asc' ? cmp : -cmp
+    }
     const idCmp = a.id.localeCompare(b.id)
     return sortOrder === 'asc' ? idCmp : -idCmp
   })
