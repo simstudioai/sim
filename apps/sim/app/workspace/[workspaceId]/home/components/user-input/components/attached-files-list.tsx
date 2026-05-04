@@ -32,13 +32,21 @@ export const AttachedFilesList = React.memo(function AttachedFilesList({
                 onClick={() => onFileClick(file)}
               >
                 {hasPreview && isVideo ? (
-                  <video
-                    src={file.previewUrl}
-                    muted
-                    playsInline
-                    preload='metadata'
-                    className='h-full w-full object-cover'
-                  />
+                  <>
+                    <div className='absolute inset-0 flex items-center justify-center text-[var(--text-icon)]'>
+                      {(() => {
+                        const Icon = getDocumentIcon(file.type, file.name)
+                        return <Icon className='h-[18px] w-[18px]' />
+                      })()}
+                    </div>
+                    <video
+                      src={file.previewUrl}
+                      muted
+                      playsInline
+                      preload='metadata'
+                      className='relative h-full w-full object-cover'
+                    />
+                  </>
                 ) : hasPreview ? (
                   <img
                     src={file.previewUrl}

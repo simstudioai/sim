@@ -36,19 +36,29 @@ export function ChatMessageAttachments(props: {
           )
         }
         const isVideo = att.media_type.startsWith('video/')
-        return (
-          <div key={att.id} className='h-[56px] w-[56px] overflow-hidden rounded-[8px]'>
-            {isVideo ? (
+        if (isVideo) {
+          const Icon = getDocumentIcon(att.media_type, att.filename)
+          return (
+            <div
+              key={att.id}
+              className='relative h-[56px] w-[56px] overflow-hidden rounded-[8px] bg-[var(--surface-5)]'
+            >
+              <div className='absolute inset-0 flex items-center justify-center text-[var(--text-icon)]'>
+                <Icon className='h-[18px] w-[18px]' />
+              </div>
               <video
                 src={att.previewUrl}
                 muted
                 playsInline
                 preload='metadata'
-                className='h-full w-full object-cover'
+                className='relative h-full w-full object-cover'
               />
-            ) : (
-              <img src={att.previewUrl} alt={att.filename} className='h-full w-full object-cover' />
-            )}
+            </div>
+          )
+        }
+        return (
+          <div key={att.id} className='h-[56px] w-[56px] overflow-hidden rounded-[8px]'>
+            <img src={att.previewUrl} alt={att.filename} className='h-full w-full object-cover' />
           </div>
         )
       })}
