@@ -185,6 +185,7 @@ export const ResourceContent = memo(function ResourceContent({
       return (
         <EmbeddedLog
           key={resource.id}
+          workspaceId={workspaceId}
           logId={resource.id}
           onNotFound={onNotFound ? () => onNotFound(resource.id) : undefined}
         />
@@ -626,12 +627,13 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
 }
 
 interface EmbeddedLogProps {
+  workspaceId: string
   logId: string
   onNotFound?: () => void
 }
 
-function EmbeddedLog({ logId, onNotFound }: EmbeddedLogProps) {
-  const { data: log, isLoading, error } = useLogDetail(logId)
+function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
+  const { data: log, isLoading, error } = useLogDetail(logId, workspaceId)
 
   const onNotFoundRef = useRef(onNotFound)
   onNotFoundRef.current = onNotFound
@@ -672,7 +674,7 @@ interface EmbeddedLogActionsProps {
 
 export function EmbeddedLogActions({ workspaceId, logId }: EmbeddedLogActionsProps) {
   const router = useRouter()
-  const { data: log } = useLogDetail(logId)
+  const { data: log } = useLogDetail(logId, workspaceId)
 
   const handleOpenInLogs = () => {
     const param = log?.executionId ? `?executionId=${log.executionId}` : ''

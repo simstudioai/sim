@@ -2,9 +2,9 @@ import React from 'react'
 import { formatDuration } from '@sim/utils/formatting'
 import { format } from 'date-fns'
 import { Badge } from '@/components/emcn'
+import type { WorkflowLogDetail } from '@/lib/api/contracts/logs'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
-import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 
 export const LOG_COLUMNS = {
@@ -15,17 +15,6 @@ export const LOG_COLUMNS = {
   trigger: { width: 'w-[14%]', minWidth: 'min-w-[110px]', label: 'Trigger' },
   duration: { width: 'w-[20%]', minWidth: 'min-w-[100px]', label: 'Duration' },
 } as const
-
-export type LogColumnKey = keyof typeof LOG_COLUMNS
-
-export const LOG_COLUMN_ORDER: readonly LogColumnKey[] = [
-  'workflow',
-  'date',
-  'status',
-  'cost',
-  'trigger',
-  'duration',
-] as const
 
 export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
 export const DELETED_WORKFLOW_COLOR = 'var(--text-tertiary)'
@@ -180,218 +169,6 @@ export function parseDuration(log: LogWithDuration): number | null {
   return Number.isFinite(durationCandidate) ? durationCandidate : null
 }
 
-interface TraceSpan {
-  output?: Record<string, unknown>
-  status?: string
-  error?: unknown
-}
-
-interface BlockExecution {
-  outputData?: unknown
-  errorMessage?: string
-}
-
-interface LogWithExecutionData {
-  executionData?: {
-    finalOutput?: unknown
-    traceSpans?: TraceSpan[]
-    blockExecutions?: BlockExecution[]
-    output?: unknown
-  }
-  output?: string
-  message?: string
-}
-
-/**
- * Extract output from various sources in execution data.
- * Checks multiple locations in priority order:
- * 1. executionData.finalOutput
- * 2. output (as string)
- * 3. executionData.traceSpans (iterates through spans)
- * 4. executionData.blockExecutions (last block)
- * 5. message (fallback)
- * @param log - Log object containing execution data
- * @returns Extracted output value or null
- */
-export function extractOutput(log: LogWithExecutionData): unknown {
-  let output: unknown = null
-
-  // Check finalOutput first
-  if (log.executionData?.finalOutput !== undefined) {
-    output = log.executionData.finalOutput
-  }
-
-  // Check direct output field
-  if (typeof log.output === 'string') {
-    output = log.output
-  } else if (log.executionData?.traceSpans && Array.isArray(log.executionData.traceSpans)) {
-    // Search through trace spans
-    const spans = log.executionData.traceSpans
-    for (let i = spans.length - 1; i >= 0; i--) {
-      const s = spans[i]
-      if (s?.output && Object.keys(s.output).length > 0) {
-        output = s.output
-        break
-      }
-      const outputWithError = s?.output as Record<string, unknown> | undefined
-      if (s?.status === 'error' && (outputWithError?.error || s?.error)) {
-        output = outputWithError?.error || s.error
-        break
-      }
-    }
-    // Fallback to executionData.output
-    if (!output && log.executionData?.output) {
-      output = log.executionData.output
-    }
-  }
-
-  // Check block executions
-  if (!output) {
-    const blockExecutions = log.executionData?.blockExecutions
-    if (Array.isArray(blockExecutions) && blockExecutions.length > 0) {
-      const lastBlock = blockExecutions[blockExecutions.length - 1]
-      output = lastBlock?.outputData || lastBlock?.errorMessage || null
-    }
-  }
-
-  // Final fallback to message
-  if (!output) {
-    output = log.message || null
-  }
-
-  return output
-}
-
-/** Execution log cost breakdown */
-interface ExecutionCost {
-  input: number
-  output: number
-  total: number
-}
-
-/** Mapped execution log format for UI consumption */
-export interface ExecutionLog {
-  id: string
-  executionId: string
-  startedAt: string
-  level: string
-  status: string
-  trigger: string
-  triggerUserId: string | null
-  triggerInputs?: unknown
-  outputs?: unknown
-  errorMessage: string | null
-  duration: number | null
-  cost: ExecutionCost | null
-  workflowName?: string
-  workflowColor?: string
-  hasPendingPause?: boolean
-}
-
-/** Raw API log response structure */
-interface RawLogResponse extends LogWithDuration, LogWithExecutionData {
-  id: string
-  executionId: string
-  startedAt?: string
-  endedAt?: string
-  createdAt?: string
-  level?: string
-  status?: string
-  trigger?: string
-  triggerUserId?: string | null
-  error?: string
-  cost?: {
-    input?: number
-    output?: number
-    total?: number
-  }
-  workflowName?: string
-  workflowColor?: string
-  workflow?: {
-    name?: string
-    color?: string
-  }
-  hasPendingPause?: boolean
-}
-
-/**
- * Convert raw API log response to ExecutionLog format.
- * @param log - Raw log response from API
- * @returns Formatted execution log
- */
-export function mapToExecutionLog(log: RawLogResponse): ExecutionLog {
-  const started = log.startedAt
-    ? new Date(log.startedAt)
-    : log.endedAt
-      ? new Date(log.endedAt)
-      : null
-
-  const startedAt =
-    started && !Number.isNaN(started.getTime()) ? started.toISOString() : new Date().toISOString()
-
-  const duration = parseDuration(log)
-  const output = extractOutput(log)
-
-  return {
-    id: log.id,
-    executionId: log.executionId,
-    startedAt,
-    level: log.level || 'info',
-    status: log.status || 'completed',
-    trigger: log.trigger || 'manual',
-    triggerUserId: log.triggerUserId || null,
-    triggerInputs: undefined,
-    outputs: output || undefined,
-    errorMessage: log.error || null,
-    duration,
-    cost: log.cost
-      ? {
-          input: log.cost.input || 0,
-          output: log.cost.output || 0,
-          total: log.cost.total || 0,
-        }
-      : null,
-    workflowName: log.workflowName || log.workflow?.name,
-    workflowColor: log.workflowColor || log.workflow?.color,
-    hasPendingPause: log.hasPendingPause === true,
-  }
-}
-
-/**
- * Alternative version that uses createdAt as fallback for startedAt.
- * Used in some API responses.
- * @param log - Raw log response from API
- * @returns Formatted execution log
- */
-export function mapToExecutionLogAlt(log: RawLogResponse): ExecutionLog {
-  const duration = parseDuration(log)
-  const output = extractOutput(log)
-
-  return {
-    id: log.id,
-    executionId: log.executionId,
-    startedAt: log.createdAt || log.startedAt || new Date().toISOString(),
-    level: log.level || 'info',
-    status: log.status || 'completed',
-    trigger: log.trigger || 'manual',
-    triggerUserId: log.triggerUserId || null,
-    triggerInputs: undefined,
-    outputs: output || undefined,
-    errorMessage: log.error || null,
-    duration,
-    cost: log.cost
-      ? {
-          input: log.cost.input || 0,
-          output: log.cost.output || 0,
-          total: log.cost.total || 0,
-        }
-      : null,
-    workflowName: log.workflow?.name,
-    workflowColor: log.workflow?.color,
-    hasPendingPause: log.hasPendingPause === true,
-  }
-}
-
 /**
  * Format latency value for display in dashboard UI
  * @param ms - Latency in milliseconds (number)
@@ -449,15 +226,15 @@ export const formatDate = (dateString: string) => {
  * Prefers the persisted `workflowInput` field (new logs), falls back to
  * reconstructing from `executionState.blockStates` (old logs).
  */
-export function extractRetryInput(log: WorkflowLog): unknown | undefined {
-  const execData = log.executionData as Record<string, unknown> | undefined
+export function extractRetryInput(log: WorkflowLogDetail): unknown | undefined {
+  const execData = log.executionData
   if (!execData) return undefined
 
   if (execData.workflowInput !== undefined) {
     return execData.workflowInput
   }
 
-  const executionState = execData.executionState as
+  const executionState = (execData as Record<string, unknown>).executionState as
     | {
         blockStates?: Record<
           string,
