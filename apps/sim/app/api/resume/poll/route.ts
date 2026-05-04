@@ -8,7 +8,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import {
+  computeEarliestResumeAt,
+  PauseResumeManager,
+} from '@/lib/workflows/executor/human-in-the-loop-manager'
+import type { PausePoint } from '@/executor/types'
 
 const logger = createLogger('TimePauseResumePoll')
 
@@ -16,14 +20,18 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 const LOCK_KEY = 'time-pause-resume-poll-lock'
-const LOCK_TTL_SECONDS = 120
+const LOCK_TTL_SECONDS = 180
 const POLL_BATCH_LIMIT = 200
 
-interface StoredPausePoint {
-  contextId?: string
-  resumeStatus?: string
-  pauseKind?: string
-  resumeAt?: string
+interface DispatchFailure {
+  executionId: string
+  contextId: string
+  error: string
+}
+
+interface RowResult {
+  dispatched: number
+  failures: DispatchFailure[]
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -39,10 +47,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       { status: 202 }
     )
   }
-
-  let claimedRows = 0
-  let dispatched = 0
-  const failures: { executionId: string; contextId: string; error: string }[] = []
 
   try {
     const now = new Date()
@@ -65,81 +69,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
       .limit(POLL_BATCH_LIMIT)
 
-    claimedRows = dueRows.length
-
-    for (const row of dueRows) {
-      const points = (row.pausePoints ?? {}) as Record<string, StoredPausePoint>
-      const metadata = (row.metadata ?? {}) as Record<string, unknown>
-      const userId = typeof metadata.executorUserId === 'string' ? metadata.executorUserId : ''
-
-      const duePoints: StoredPausePoint[] = []
-      let nextRemaining: Date | null = null
-
-      for (const point of Object.values(points)) {
-        if (point.pauseKind !== 'time' || !point.resumeAt) continue
-        if (point.resumeStatus && point.resumeStatus !== 'paused') continue
-
-        const resumeAt = new Date(point.resumeAt)
-        if (Number.isNaN(resumeAt.getTime())) continue
-
-        if (resumeAt <= now) {
-          duePoints.push(point)
-        } else if (!nextRemaining || resumeAt < nextRemaining) {
-          nextRemaining = resumeAt
-        }
-      }
-
-      for (const point of duePoints) {
-        const contextId = point.contextId
-        if (!contextId) continue
-        try {
-          const enqueueResult = await PauseResumeManager.enqueueOrStartResume({
-            executionId: row.executionId,
-            contextId,
-            resumeInput: {},
-            userId,
-          })
-
-          if (enqueueResult.status === 'starting') {
-            PauseResumeManager.startResumeExecution({
-              resumeEntryId: enqueueResult.resumeEntryId,
-              resumeExecutionId: enqueueResult.resumeExecutionId,
-              pausedExecution: enqueueResult.pausedExecution,
-              contextId: enqueueResult.contextId,
-              resumeInput: enqueueResult.resumeInput,
-              userId: enqueueResult.userId,
-            }).catch((error) => {
-              logger.error('Background time-pause resume failed', {
-                executionId: row.executionId,
-                contextId,
-                error: toError(error).message,
-              })
-            })
-          }
-          dispatched++
-        } catch (error) {
-          const message = toError(error).message
-          logger.warn('Failed to dispatch time-pause resume', {
-            executionId: row.executionId,
-            contextId,
-            error: message,
-          })
-          failures.push({ executionId: row.executionId, contextId, error: message })
-        }
-      }
-
-      // We never auto-retry a failed dispatch: workflow blocks aren't idempotent, and an
-      // operator must investigate stranded rows by hand. Setting nextResumeAt to the next
-      // future pause (or null) drops the row out of the poll, surfacing the failure.
-      await db
-        .update(pausedExecutions)
-        .set({ nextResumeAt: nextRemaining })
-        .where(eq(pausedExecutions.id, row.id))
-    }
+    const results = await Promise.all(dueRows.map((row) => dispatchRow(row, now)))
+    const dispatched = results.reduce((sum, r) => sum + r.dispatched, 0)
+    const failures = results.flatMap((r) => r.failures)
 
     logger.info('Time-pause resume poll completed', {
       requestId,
-      claimedRows,
+      claimedRows: dueRows.length,
       dispatched,
       failureCount: failures.length,
     })
@@ -147,7 +83,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({
       success: true,
       requestId,
-      claimedRows,
+      claimedRows: dueRows.length,
       dispatched,
       failures,
     })
@@ -159,3 +95,79 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     await releaseLock(LOCK_KEY, requestId).catch(() => {})
   }
 })
+
+interface DueRow {
+  id: string
+  executionId: string
+  workflowId: string
+  pausePoints: unknown
+  metadata: unknown
+}
+
+async function dispatchRow(row: DueRow, now: Date): Promise<RowResult> {
+  const points = (row.pausePoints ?? {}) as Record<string, PausePoint>
+  const metadata = (row.metadata ?? {}) as Record<string, unknown>
+  const userId = typeof metadata.executorUserId === 'string' ? metadata.executorUserId : ''
+
+  const eligiblePoints = Object.values(points).filter(
+    (point) =>
+      point.pauseKind === 'time' && (!point.resumeStatus || point.resumeStatus === 'paused')
+  )
+  const duePoints = eligiblePoints.filter((point) => {
+    if (!point.resumeAt) return false
+    const at = new Date(point.resumeAt)
+    return !Number.isNaN(at.getTime()) && at <= now
+  })
+
+  const failures: DispatchFailure[] = []
+  let dispatched = 0
+
+  for (const point of duePoints) {
+    if (!point.contextId) continue
+    try {
+      const enqueueResult = await PauseResumeManager.enqueueOrStartResume({
+        executionId: row.executionId,
+        contextId: point.contextId,
+        resumeInput: {},
+        userId,
+      })
+
+      if (enqueueResult.status === 'starting') {
+        PauseResumeManager.startResumeExecution({
+          resumeEntryId: enqueueResult.resumeEntryId,
+          resumeExecutionId: enqueueResult.resumeExecutionId,
+          pausedExecution: enqueueResult.pausedExecution,
+          contextId: enqueueResult.contextId,
+          resumeInput: enqueueResult.resumeInput,
+          userId: enqueueResult.userId,
+        }).catch((error) => {
+          logger.error('Background time-pause resume failed', {
+            executionId: row.executionId,
+            contextId: point.contextId,
+            error: toError(error).message,
+          })
+        })
+      }
+      dispatched++
+    } catch (error) {
+      const message = toError(error).message
+      logger.warn('Failed to dispatch time-pause resume', {
+        executionId: row.executionId,
+        contextId: point.contextId,
+        error: message,
+      })
+      failures.push({ executionId: row.executionId, contextId: point.contextId, error: message })
+    }
+  }
+
+  // We never auto-retry a failed dispatch: workflow blocks aren't idempotent, and
+  // an operator must investigate stranded rows by hand. The status='paused' guard
+  // also prevents clobbering when a concurrent manual resume has already advanced
+  // the row's state since we read it.
+  await PauseResumeManager.setNextResumeAt({
+    pausedExecutionId: row.id,
+    nextResumeAt: computeEarliestResumeAt(eligiblePoints, { after: now }),
+  })
+
+  return { dispatched, failures }
+}

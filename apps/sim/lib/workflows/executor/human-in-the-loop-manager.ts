@@ -126,6 +126,27 @@ interface StartResumeExecutionArgs {
   abortSignal?: AbortSignal
 }
 
+/**
+ * Returns the earliest `resumeAt` across `pauseKind: 'time'` pause points whose
+ * `resumeAt` is a valid date and (when `after` is provided) strictly later than it.
+ * Returns `null` when no candidate exists.
+ */
+export function computeEarliestResumeAt(
+  points: Iterable<Pick<PausePoint, 'pauseKind' | 'resumeAt'>>,
+  options: { after?: Date } = {}
+): Date | null {
+  const { after } = options
+  let earliest: Date | null = null
+  for (const point of points) {
+    if (point.pauseKind !== 'time' || !point.resumeAt) continue
+    const candidate = new Date(point.resumeAt)
+    if (Number.isNaN(candidate.getTime())) continue
+    if (after && candidate <= after) continue
+    if (!earliest || candidate < earliest) earliest = candidate
+  }
+  return earliest
+}
+
 export class PauseResumeManager {
   static async persistPauseResult(args: PersistPauseResultArgs): Promise<void> {
     const { workflowId, executionId, pausePoints, snapshotSeed, executorUserId } = args
@@ -147,13 +168,7 @@ export class PauseResumeManager {
       return acc
     }, {})
 
-    const nextResumeAt = pausePoints.reduce<Date | null>((earliest, point) => {
-      if (point.pauseKind !== 'time' || !point.resumeAt) return earliest
-      const candidate = new Date(point.resumeAt)
-      if (Number.isNaN(candidate.getTime())) return earliest
-      if (!earliest || candidate < earliest) return candidate
-      return earliest
-    }, null)
+    const nextResumeAt = computeEarliestResumeAt(pausePoints)
 
     const now = new Date()
 
@@ -232,7 +247,9 @@ export class PauseResumeManager {
 
       const pauseKind: PauseKind = pausePoint.pauseKind ?? 'human'
       if (allowedPauseKinds && !allowedPauseKinds.includes(pauseKind)) {
-        throw new Error(`Pause point cannot be resumed manually (pauseKind=${pauseKind})`)
+        throw new Error(
+          `Pause kind '${pauseKind}' is not allowed for this resume endpoint (allowed: ${allowedPauseKinds.join(', ')})`
+        )
       }
 
       const activeResume = await tx
@@ -1327,6 +1344,23 @@ export class PauseResumeManager {
 
       return true
     })
+  }
+
+  /**
+   * Updates `next_resume_at` only when the row is still `status='paused'`.
+   * Guard prevents the cron poller from clobbering a freshly-written value when a
+   * concurrent manual resume has already advanced the row's state.
+   */
+  static async setNextResumeAt(args: {
+    pausedExecutionId: string
+    nextResumeAt: Date | null
+  }): Promise<void> {
+    await db
+      .update(pausedExecutions)
+      .set({ nextResumeAt: args.nextResumeAt })
+      .where(
+        and(eq(pausedExecutions.id, args.pausedExecutionId), eq(pausedExecutions.status, 'paused'))
+      )
   }
 
   static async listPausedExecutions(options: {

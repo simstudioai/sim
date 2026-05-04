@@ -75,11 +75,17 @@ const sleep = async (ms: number, options: SleepOptions = {}): Promise<boolean> =
   })
 }
 
-const UNIT_TO_MS: Record<string, number> = {
+const UNIT_TO_MS = {
   seconds: 1000,
   minutes: 60 * 1000,
   hours: 60 * 60 * 1000,
   days: 24 * 60 * 60 * 1000,
+} as const satisfies Record<string, number>
+
+type WaitUnit = keyof typeof UNIT_TO_MS
+
+function isWaitUnit(value: string): value is WaitUnit {
+  return value in UNIT_TO_MS
 }
 
 /**
@@ -122,12 +128,10 @@ export class WaitBlockHandler implements BlockHandler {
       throw new Error('Wait amount must be a positive number')
     }
 
-    const unitMs = UNIT_TO_MS[timeUnit]
-    if (!unitMs) {
+    if (!isWaitUnit(timeUnit)) {
       throw new Error(`Unknown wait unit: ${timeUnit}`)
     }
-
-    const waitMs = timeValue * unitMs
+    const waitMs = timeValue * UNIT_TO_MS[timeUnit]
 
     if (waitMs > MAX_WAIT_MS) {
       throw new Error('Wait time exceeds maximum of 30 days')
