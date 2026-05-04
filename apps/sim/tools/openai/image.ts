@@ -16,7 +16,7 @@ export const imageTool: ToolConfig = {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'The model to use (gpt-image-1 or dall-e-3)',
+      description: 'The model to use (dall-e-3, gpt-image-1, or gpt-image-2)',
     },
     prompt: {
       type: 'string',
@@ -34,19 +34,33 @@ export const imageTool: ToolConfig = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The quality of the image (standard or hd)',
+      description:
+        'Quality. dall-e-3: standard|hd. gpt-image-1/gpt-image-2: auto|low|medium|high',
     },
     style: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The style of the image (vivid or natural)',
+      description: 'The style of the image (vivid or natural), only for dall-e-3',
     },
     background: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The background color, only for gpt-image-1',
+      description:
+        'Background. gpt-image-1: auto|transparent|opaque. gpt-image-2: auto|opaque (transparent not supported)',
+    },
+    outputFormat: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Output image format (png, jpeg, webp), only for gpt-image-1 and gpt-image-2',
+    },
+    moderation: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Moderation level (auto or low), only for gpt-image-2',
     },
     n: {
       type: 'number',
@@ -73,15 +87,20 @@ export const imageTool: ToolConfig = {
       const body: BaseImageRequestBody = {
         model: params.model,
         prompt: params.prompt,
-        size: params.size || '1024x1024',
+        size: params.size || (params.model === 'dall-e-3' ? '1024x1024' : 'auto'),
         n: params.n ? Number(params.n) : 1,
       }
 
       if (params.model === 'dall-e-3') {
         if (params.quality) body.quality = params.quality
         if (params.style) body.style = params.style
-      } else if (params.model === 'gpt-image-1') {
+      } else if (params.model === 'gpt-image-1' || params.model === 'gpt-image-2') {
+        if (params.quality) body.quality = params.quality
         if (params.background) body.background = params.background
+        if (params.outputFormat) body.output_format = params.outputFormat
+        if (params.model === 'gpt-image-2' && params.moderation) {
+          body.moderation = params.moderation
+        }
       }
 
       return body
@@ -111,7 +130,7 @@ export const imageTool: ToolConfig = {
       } else if (data.data?.[0]?.b64_json) {
         base64Image = data.data[0].b64_json
         logger.info(
-          'Found base64 encoded image in response for GPT-Image-1',
+          `Found base64 encoded image in response for ${modelName}`,
           `length: ${base64Image.length}`
         )
       } else {
