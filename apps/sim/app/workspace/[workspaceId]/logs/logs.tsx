@@ -16,6 +16,11 @@ import {
   RefreshCw,
   toast,
 } from '@/components/emcn'
+import type {
+  WorkflowLogDetail,
+  WorkflowLogRow,
+  WorkflowLogSummary,
+} from '@/lib/api/contracts/logs'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -65,7 +70,6 @@ import {
 import { useWorkflowMap, useWorkflows } from '@/hooks/queries/workflows'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useFilterStore } from '@/stores/logs/filters/store'
-import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import {
   Dashboard,
@@ -286,7 +290,7 @@ export default function Logs() {
   const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const refreshTimersRef = useRef(new Set<number>())
-  const logsRef = useRef<WorkflowLog[]>([])
+  const logsRef = useRef<WorkflowLogSummary[]>([])
   const selectedLogIndexRef = useRef(-1)
   const selectedLogIdRef = useRef<string | null>(null)
   const shouldScrollIntoViewRef = useRef(false)
@@ -303,14 +307,14 @@ export default function Logs() {
 
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
-  const [contextMenuLog, setContextMenuLog] = useState<WorkflowLog | null>(null)
+  const [contextMenuLog, setContextMenuLog] = useState<WorkflowLogSummary | null>(null)
 
   const [previewLogId, setPreviewLogId] = useState<string | null>(null)
 
   const queryClient = useQueryClient()
 
   const refetchInterval = useCallback(
-    (query: { state: { data?: WorkflowLog } }) => {
+    (query: { state: { data?: WorkflowLogDetail } }) => {
       if (!isLive) return false
       const status = query.state.data?.status
       return status === 'running' || status === 'pending' ? 3000 : false
@@ -528,7 +532,7 @@ export default function Logs() {
   }, [contextMenuLog])
 
   const retryLog = useCallback(
-    async (log: WorkflowLog | null) => {
+    async (log: WorkflowLogRow | null) => {
       const workflowId = log?.workflow?.id || log?.workflowId
       const logId = log?.id
       if (!workflowId || !logId) return

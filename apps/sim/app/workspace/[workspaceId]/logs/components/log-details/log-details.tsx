@@ -22,9 +22,11 @@ import {
   SModalTabsTrigger,
   Tooltip,
 } from '@/components/emcn'
+import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { cn } from '@/lib/core/utils/cn'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
+import type { TraceSpan } from '@/lib/logs/types'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   ExecutionSnapshot,
@@ -43,7 +45,6 @@ import {
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
-import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
 
@@ -258,7 +259,7 @@ export type LogDetailsTab = 'overview' | 'trace'
 
 interface LogDetailsContentProps {
   /** The log to display */
-  log: WorkflowLog
+  log: WorkflowLogRow
   /** Fires when the active tab changes, so embedders can gate their own keyboard handlers */
   onActiveTabChange?: (tab: LogDetailsTab) => void
 }
@@ -309,7 +310,8 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
     !permissionConfig.hideTraceSpans
 
   const showTraceTab = !permissionConfig.hideTraceSpans && isLikelyExecution
-  const traceSpans = log.executionData?.traceSpans
+  // double-cast-allowed: contract trace span schema is intentionally permissive (optional duration/startTime/endTime to tolerate legacy persisted JSON); the canonical TraceSpan used by TraceView/ExecutionSnapshot requires them, and runtime data from the executor always supplies them.
+  const traceSpans = log.executionData?.traceSpans as unknown as TraceSpan[] | undefined
 
   const resolvedTab: LogDetailsTab = activeTab === 'trace' && !showTraceTab ? 'overview' : activeTab
 
@@ -621,7 +623,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
       {log.executionId && (
         <ExecutionSnapshot
           executionId={log.executionId}
-          traceSpans={log.executionData?.traceSpans}
+          traceSpans={traceSpans}
           isModal
           isOpen={isExecutionSnapshotOpen}
           onClose={() => setIsExecutionSnapshotOpen(false)}
@@ -633,7 +635,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 
 interface LogDetailsProps {
   /** The log to display details for */
-  log: WorkflowLog | null
+  log: WorkflowLogRow | null
   /** Whether the sidebar is open */
   isOpen: boolean
   /** Callback when closing the sidebar */

@@ -24,7 +24,7 @@ import {
 } from '@/lib/api/contracts/logs'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
-import type { TimeRange, WorkflowLog } from '@/stores/logs/filters/types'
+import type { TimeRange } from '@/stores/logs/filters/types'
 
 export type { DashboardStatsResponse, SegmentStats, WorkflowStats }
 
@@ -62,11 +62,6 @@ export interface LogFilters {
   sortBy: LogSortBy
   sortOrder: LogSortOrder
 }
-
-// double-cast-allowed: bridge from contract type to legacy WorkflowLog used by stores/components
-const summaryToWorkflowLog = (log: WorkflowLogSummary): WorkflowLog => log as unknown as WorkflowLog
-// double-cast-allowed: bridge from contract type to legacy WorkflowLog used by stores/components
-const detailToWorkflowLog = (log: WorkflowLogDetail): WorkflowLog => log as unknown as WorkflowLog
 
 function applyFilterParams(
   params: URLSearchParams,
@@ -123,7 +118,7 @@ function buildListQuery(workspaceId: string, filters: LogFilters, cursor: string
 }
 
 interface LogsPage {
-  logs: WorkflowLog[]
+  logs: WorkflowLogSummary[]
   nextCursor: string | null
 }
 
@@ -139,7 +134,7 @@ async function fetchLogsPage(
   })
 
   return {
-    logs: apiData.data.map(summaryToWorkflowLog),
+    logs: apiData.data,
     nextCursor: apiData.nextCursor,
   }
 }
@@ -148,13 +143,13 @@ export async function fetchLogDetail(
   logId: string,
   workspaceId: string,
   signal?: AbortSignal
-): Promise<WorkflowLog> {
+): Promise<WorkflowLogDetail> {
   const { data } = await requestJson(getLogDetailContract, {
     params: { id: logId },
     query: { workspaceId },
     signal,
   })
-  return detailToWorkflowLog(data)
+  return data
 }
 
 interface UseLogsListOptions {
@@ -185,7 +180,7 @@ interface UseLogDetailOptions {
   refetchInterval?:
     | number
     | false
-    | ((query: { state: { data?: WorkflowLog } }) => number | false | undefined)
+    | ((query: { state: { data?: WorkflowLogDetail } }) => number | false | undefined)
 }
 
 export function useLogDetail(
@@ -220,9 +215,8 @@ export function useLogByExecutionId(
         query: { workspaceId: workspaceId as string },
         signal,
       })
-      const log = detailToWorkflowLog(data)
-      queryClient.setQueryData(logKeys.detail(log.id), log)
-      return log
+      queryClient.setQueryData(logKeys.detail(data.id), data)
+      return data
     },
     enabled: Boolean(workspaceId) && Boolean(executionId),
     staleTime: 30 * 1000,
@@ -339,11 +333,11 @@ export function useCancelExecution() {
         }
       })
 
-      let previousDetail: WorkflowLog | undefined
+      let previousDetail: WorkflowLogDetail | undefined
       if (affectedLogId) {
-        previousDetail = queryClient.getQueryData<WorkflowLog>(logKeys.detail(affectedLogId))
+        previousDetail = queryClient.getQueryData<WorkflowLogDetail>(logKeys.detail(affectedLogId))
         if (previousDetail) {
-          queryClient.setQueryData<WorkflowLog>(logKeys.detail(affectedLogId), {
+          queryClient.setQueryData<WorkflowLogDetail>(logKeys.detail(affectedLogId), {
             ...previousDetail,
             status: 'cancelling',
           })

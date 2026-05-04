@@ -243,6 +243,13 @@ export const workflowLogDetailSchema = workflowLogSummarySchema.extend({
 export type WorkflowLogSummary = z.output<typeof workflowLogSummarySchema>
 export type WorkflowLogDetail = z.output<typeof workflowLogDetailSchema>
 
+/**
+ * A row that may be either a list-view summary or a fully loaded detail. Used by
+ * UI surfaces that render the same log before and after its detail query resolves.
+ */
+export type WorkflowLogRow = WorkflowLogSummary &
+  Partial<Pick<WorkflowLogDetail, 'executionData' | 'files'>>
+
 export const listLogsResponseSchema = z.object({
   data: z.array(workflowLogSummarySchema),
   nextCursor: z.string().nullable(),

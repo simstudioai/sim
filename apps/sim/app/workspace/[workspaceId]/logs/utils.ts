@@ -2,9 +2,9 @@ import React from 'react'
 import { formatDuration } from '@sim/utils/formatting'
 import { format } from 'date-fns'
 import { Badge } from '@/components/emcn'
+import type { WorkflowLogDetail } from '@/lib/api/contracts/logs'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
-import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 
 export const LOG_COLUMNS = {
@@ -449,15 +449,15 @@ export const formatDate = (dateString: string) => {
  * Prefers the persisted `workflowInput` field (new logs), falls back to
  * reconstructing from `executionState.blockStates` (old logs).
  */
-export function extractRetryInput(log: WorkflowLog): unknown | undefined {
-  const execData = log.executionData as Record<string, unknown> | undefined
+export function extractRetryInput(log: WorkflowLogDetail): unknown | undefined {
+  const execData = log.executionData
   if (!execData) return undefined
 
   if (execData.workflowInput !== undefined) {
     return execData.workflowInput
   }
 
-  const executionState = execData.executionState as
+  const executionState = (execData as Record<string, unknown>).executionState as
     | {
         blockStates?: Record<
           string,
