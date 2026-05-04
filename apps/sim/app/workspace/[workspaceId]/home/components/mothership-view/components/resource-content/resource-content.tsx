@@ -634,9 +634,7 @@ function EmbeddedLog({ logId, onNotFound }: EmbeddedLogProps) {
   const { data: log, isLoading, error } = useLogDetail(logId)
 
   const onNotFoundRef = useRef(onNotFound)
-  useEffect(() => {
-    onNotFoundRef.current = onNotFound
-  }, [onNotFound])
+  onNotFoundRef.current = onNotFound
 
   useEffect(() => {
     if (isApiClientError(error) && error.status === 404) {
