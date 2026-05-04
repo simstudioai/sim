@@ -175,7 +175,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const triggersList = params.triggers?.split(',').filter(Boolean) || []
   const triggersExcludeJobs =
     triggersList.length > 0 && !triggersList.includes('all') && !triggersList.includes('mothership')
-  const includeJobLogs = !hasWorkflowSpecificFilters && !triggersExcludeJobs
+  const levelList =
+    params.level && params.level !== 'all' ? params.level.split(',').filter(Boolean) : []
+  const levelExcludesJobs =
+    levelList.length > 0 && !levelList.some((l) => l === 'error' || l === 'info')
+  const includeJobLogs = !hasWorkflowSpecificFilters && !triggersExcludeJobs && !levelExcludesJobs
 
   const workflowQuery = db
     .select({
