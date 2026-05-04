@@ -10,6 +10,7 @@ import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  getAtlassianServiceAccountSecret,
   getCredential,
   getOAuthToken,
   getServiceAccountToken,
@@ -118,6 +119,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       try {
+        if (resolved.providerId === 'atlassian-service-account') {
+          const secret = await getAtlassianServiceAccountSecret(resolved.credentialId)
+          return NextResponse.json(
+            {
+              accessToken: secret.apiToken,
+              cloudId: secret.cloudId,
+              domain: secret.domain,
+            },
+            { status: 200 }
+          )
+        }
         const accessToken = await getServiceAccountToken(
           resolved.credentialId,
           scopes ?? [],

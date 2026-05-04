@@ -1,6 +1,6 @@
 import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { fetchOAuthToken } from '@/hooks/selectors/helpers'
+import { fetchOAuthTokenBundle } from '@/hooks/selectors/helpers'
 import { ensureCredential, ensureDomain, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -67,14 +67,15 @@ export const confluenceSelectors = {
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'confluence.pages')
       const domain = ensureDomain(context, 'confluence.pages')
-      const accessToken = await fetchOAuthToken(credentialId, context.workflowId)
-      if (!accessToken) {
+      const bundle = await fetchOAuthTokenBundle(credentialId, context.workflowId)
+      if (!bundle) {
         throw new Error('Missing Confluence access token')
       }
       const data = await requestJson(selectorContracts.confluencePagesSelectorContract, {
         body: {
           domain,
-          accessToken,
+          accessToken: bundle.accessToken,
+          cloudId: bundle.cloudId,
           title: search,
         },
         signal,
@@ -88,14 +89,15 @@ export const confluenceSelectors = {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'confluence.pages')
       const domain = ensureDomain(context, 'confluence.pages')
-      const accessToken = await fetchOAuthToken(credentialId, context.workflowId)
-      if (!accessToken) {
+      const bundle = await fetchOAuthTokenBundle(credentialId, context.workflowId)
+      if (!bundle) {
         throw new Error('Missing Confluence access token')
       }
       const data = await requestJson(selectorContracts.confluencePageSelectorContract, {
         body: {
           domain,
-          accessToken,
+          accessToken: bundle.accessToken,
+          cloudId: bundle.cloudId,
           pageId: detailId,
         },
         signal,
