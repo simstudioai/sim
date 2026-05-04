@@ -16,17 +16,6 @@ export const LOG_COLUMNS = {
   duration: { width: 'w-[20%]', minWidth: 'min-w-[100px]', label: 'Duration' },
 } as const
 
-export type LogColumnKey = keyof typeof LOG_COLUMNS
-
-export const LOG_COLUMN_ORDER: readonly LogColumnKey[] = [
-  'workflow',
-  'date',
-  'status',
-  'cost',
-  'trigger',
-  'duration',
-] as const
-
 export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
 export const DELETED_WORKFLOW_COLOR = 'var(--text-tertiary)'
 
