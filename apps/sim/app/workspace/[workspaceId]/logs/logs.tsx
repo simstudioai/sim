@@ -452,7 +452,7 @@ export default function Logs() {
   const handleNavigateNext = useCallback(() => {
     const idx = selectedLogIndexRef.current
     const currentLogs = logsRef.current
-    if (idx < currentLogs.length - 1) {
+    if (idx >= 0 && idx < currentLogs.length - 1) {
       shouldScrollIntoViewRef.current = true
       dispatch({ type: 'SELECT_LOG', logId: currentLogs[idx + 1].id })
     }
@@ -801,7 +801,7 @@ export default function Logs() {
       onClose={handleCloseSidebar}
       onNavigateNext={handleNavigateNext}
       onNavigatePrev={handleNavigatePrev}
-      hasNext={selectedLogIndex < logs.length - 1}
+      hasNext={selectedLogIndex >= 0 && selectedLogIndex < logs.length - 1}
       hasPrev={selectedLogIndex > 0}
       onRetryExecution={handleRetrySidebarExecution}
       isRetryPending={retryExecution.isPending}
