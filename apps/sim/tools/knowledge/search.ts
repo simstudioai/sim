@@ -100,7 +100,9 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       const rerankerApiKey =
         typeof params.apiKey === 'string' && params.apiKey.length > 0 ? params.apiKey : undefined
       const rawInputCount =
-        params.rerankerInputCount !== undefined && params.rerankerInputCount !== null
+        params.rerankerInputCount !== undefined &&
+        params.rerankerInputCount !== null &&
+        params.rerankerInputCount !== ''
           ? Number(params.rerankerInputCount)
           : Number.NaN
       const rerankerInputCount = Number.isFinite(rawInputCount)
