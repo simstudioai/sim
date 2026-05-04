@@ -148,7 +148,8 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const [value, setValue] = useState(() => {
     if (defaultValue) return defaultValue
     if (!draftScopeKey) return ''
-    return useMothershipDraftsStore.getState().drafts[draftScopeKey]?.text ?? ''
+    const text = useMothershipDraftsStore.getState().drafts[draftScopeKey]?.text
+    return typeof text === 'string' ? text : ''
   })
   const overlayRef = useRef<HTMLDivElement>(null)
   const plusMenuRef = useRef<PlusMenuHandle>(null)
@@ -189,30 +190,34 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   useEffect(() => {
     if (hasRestoredDraftRef.current || !draftScopeKey) return
     hasRestoredDraftRef.current = true
-    const draft = useMothershipDraftsStore.getState().drafts[draftScopeKey]
-    if (!draft) return
-    if (draft.contexts?.length) {
-      contextManagement.setSelectedContexts(draft.contexts)
-    }
-    if (draft.fileAttachments?.length) {
-      files.restoreAttachedFiles(
-        draft.fileAttachments.map((a) => ({
-          id: a.id,
-          name: a.filename,
-          size: a.size,
-          type: a.media_type,
-          path: a.path ?? '',
-          key: a.key,
-          uploading: false,
-        }))
-      )
-    }
-    if (draft.text) {
-      const textarea = textareaRef.current
-      if (textarea) {
-        textarea.focus()
-        textarea.setSelectionRange(draft.text.length, draft.text.length)
+    try {
+      const draft = useMothershipDraftsStore.getState().drafts[draftScopeKey]
+      if (!draft) return
+      if (draft.contexts?.length) {
+        contextManagement.setSelectedContexts(draft.contexts)
       }
+      if (draft.fileAttachments?.length) {
+        files.restoreAttachedFiles(
+          draft.fileAttachments.map((a) => ({
+            id: a.id,
+            name: a.filename,
+            size: a.size,
+            type: a.media_type,
+            path: a.path ?? '',
+            key: a.key,
+            uploading: false,
+          }))
+        )
+      }
+      if (typeof draft.text === 'string' && draft.text.length > 0) {
+        const textarea = textareaRef.current
+        if (textarea) {
+          textarea.focus()
+          textarea.setSelectionRange(draft.text.length, draft.text.length)
+        }
+      }
+    } catch {
+      useMothershipDraftsStore.getState().clearDraft(draftScopeKey)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
 
