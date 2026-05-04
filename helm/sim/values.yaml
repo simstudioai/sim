@@ -275,6 +275,12 @@ app:
     # in the Agent block UI — users just pick an Azure model and run.
     NEXT_PUBLIC_AZURE_CONFIGURED: ""                      # Set to "true" to hide Azure credential fields
 
+    # Cohere Reranker (Knowledge block)
+    # Set COHERE_API_KEY (or COHERE_API_KEY_1/2/3 for rotation) and NEXT_PUBLIC_COHERE_CONFIGURED=true
+    # to pre-configure the Cohere reranker server-side. When configured, the Cohere API Key field is
+    # hidden in the Knowledge block UI.
+    NEXT_PUBLIC_COHERE_CONFIGURED: ""                     # Set to "true" to hide the Cohere API Key field on the Knowledge block
+
     # AWS S3 Cloud Storage Configuration (optional - for file storage)
     # If configured, files will be stored in S3 instead of local storage
     AWS_REGION: ""                                        # AWS region (e.g., "us-east-1")
