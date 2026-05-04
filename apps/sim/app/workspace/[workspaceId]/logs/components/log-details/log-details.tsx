@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
 import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Eye, Search, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
@@ -600,10 +600,16 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
           >
             {traceSpans?.length ? (
               <TraceView traceSpans={traceSpans} />
-            ) : (
+            ) : log.executionData ? (
               <div className='flex h-full items-center justify-center px-4 text-center'>
                 <span className='font-medium text-[var(--text-tertiary)] text-sm'>
                   No trace data available for this run
+                </span>
+              </div>
+            ) : (
+              <div className='flex h-full items-center justify-center px-4 text-center'>
+                <span className='font-medium text-[var(--text-tertiary)] text-sm'>
+                  Loading trace…
                 </span>
               </div>
             )}
@@ -666,6 +672,14 @@ export const LogDetails = memo(function LogDetails({
   onActiveTabChange,
 }: LogDetailsProps) {
   const activeTabRef = useRef<LogDetailsTab>('overview')
+
+  const handleActiveTabChange = useCallback(
+    (tab: LogDetailsTab) => {
+      activeTabRef.current = tab
+      onActiveTabChange?.(tab)
+    },
+    [onActiveTabChange]
+  )
 
   const panelWidth = useLogDetailsUIStore((state) => state.panelWidth)
   const { handleMouseDown } = useLogDetailsResize()
@@ -773,13 +787,7 @@ export const LogDetails = memo(function LogDetails({
               </div>
             </div>
 
-            <LogDetailsContent
-              log={log}
-              onActiveTabChange={(tab) => {
-                activeTabRef.current = tab
-                onActiveTabChange?.(tab)
-              }}
-            />
+            <LogDetailsContent log={log} onActiveTabChange={handleActiveTabChange} />
           </div>
         )}
       </div>

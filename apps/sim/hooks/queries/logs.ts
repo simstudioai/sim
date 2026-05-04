@@ -323,29 +323,47 @@ export function useCancelExecution() {
         queryKey: logKeys.lists(),
       })
 
+      let affectedLogId: string | null = null
       queryClient.setQueriesData<InfiniteData<LogsPage>>({ queryKey: logKeys.lists() }, (old) => {
         if (!old) return old
         return {
           ...old,
           pages: old.pages.map((page) => ({
             ...page,
-            logs: page.logs.map((log) =>
-              log.executionId === executionId ? { ...log, status: 'cancelling' } : log
-            ),
+            logs: page.logs.map((log) => {
+              if (log.executionId !== executionId) return log
+              affectedLogId = log.id
+              return { ...log, status: 'cancelling' }
+            }),
           })),
         }
       })
 
-      return { previousQueries }
+      let previousDetail: WorkflowLog | undefined
+      if (affectedLogId) {
+        previousDetail = queryClient.getQueryData<WorkflowLog>(logKeys.detail(affectedLogId))
+        if (previousDetail) {
+          queryClient.setQueryData<WorkflowLog>(logKeys.detail(affectedLogId), {
+            ...previousDetail,
+            status: 'cancelling',
+          })
+        }
+      }
+
+      return { previousQueries, affectedLogId, previousDetail }
     },
     onError: (_err, _variables, context) => {
       for (const [queryKey, data] of context?.previousQueries ?? []) {
         queryClient.setQueryData(queryKey, data)
       }
+      if (context?.affectedLogId && context.previousDetail !== undefined) {
+        queryClient.setQueryData(logKeys.detail(context.affectedLogId), context.previousDetail)
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: logKeys.lists() })
       queryClient.invalidateQueries({ queryKey: logKeys.details() })
+      queryClient.invalidateQueries({ queryKey: logKeys.byExecutionAll() })
       queryClient.invalidateQueries({ queryKey: logKeys.stats() })
     },
   })
@@ -375,6 +393,7 @@ export function useRetryExecution() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: logKeys.lists() })
       queryClient.invalidateQueries({ queryKey: logKeys.details() })
+      queryClient.invalidateQueries({ queryKey: logKeys.byExecutionAll() })
       queryClient.invalidateQueries({ queryKey: logKeys.stats() })
     },
   })
