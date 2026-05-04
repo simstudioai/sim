@@ -5,6 +5,7 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
+import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
 import type {
@@ -3303,9 +3304,7 @@ export function useChat(
         filename: f.filename,
         media_type: f.media_type,
         size: f.size,
-        previewUrl: f.media_type.startsWith('image/')
-          ? `/api/files/serve/${encodeURIComponent(f.key)}?context=mothership`
-          : undefined,
+        previewUrl: getMothershipAttachmentPreviewUrl(f),
       }))
 
       const optimisticUserMessage: ChatMessage = {

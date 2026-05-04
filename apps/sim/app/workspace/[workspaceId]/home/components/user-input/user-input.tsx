@@ -16,6 +16,7 @@ import { Paperclip } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
+import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
@@ -211,6 +212,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
           path: a.path ?? '',
           key: a.key,
           uploading: false,
+          previewUrl: getMothershipAttachmentPreviewUrl(a),
         }))
       }
       if (typeof draft.text === 'string' && draft.text.length > 0) {
@@ -385,6 +387,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
           path: a.path ?? '',
           key: a.key,
           uploading: false,
+          previewUrl: getMothershipAttachmentPreviewUrl(a),
         }))
         files.restoreAttachedFiles(restored)
         contextManagement.setSelectedContexts(msg.contexts ?? [])
