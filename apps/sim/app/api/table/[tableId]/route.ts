@@ -54,6 +54,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Tab
           description: table.description,
           schema: {
             columns: schemaData.columns.map(normalizeColumn),
+            ...(schemaData.workflowGroups ? { workflowGroups: schemaData.workflowGroups } : {}),
           },
           metadata: table.metadata ?? null,
           rowCount: table.rowCount,

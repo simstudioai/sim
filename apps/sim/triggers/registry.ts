@@ -281,6 +281,7 @@ import {
 } from '@/triggers/servicenow'
 import { slackWebhookTrigger } from '@/triggers/slack'
 import { stripeWebhookTrigger } from '@/triggers/stripe'
+import { tableNewRowTrigger } from '@/triggers/table'
 import { telegramWebhookTrigger } from '@/triggers/telegram'
 import { twilioVoiceWebhookTrigger } from '@/triggers/twilio_voice'
 import { typeformWebhookTrigger } from '@/triggers/typeform'
@@ -520,6 +521,7 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   servicenow_change_request_updated: servicenowChangeRequestUpdatedTrigger,
   servicenow_webhook: servicenowWebhookTrigger,
   stripe_webhook: stripeWebhookTrigger,
+  table_new_row: tableNewRowTrigger,
   telegram_webhook: telegramWebhookTrigger,
   typeform_webhook: typeformWebhookTrigger,
   whatsapp_webhook: whatsappWebhookTrigger,

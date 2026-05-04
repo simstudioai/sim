@@ -4,6 +4,7 @@ import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/converters'
 import type { BlockConfig } from '@/blocks/types'
 import type { TableQueryResponse } from '@/tools/table/types'
+import { getTrigger } from '@/triggers'
 
 /**
  * Parses a JSON string with helpful error messages.
@@ -230,6 +231,7 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
       title: 'Row ID',
       type: 'short-input',
       placeholder: 'row_xxxxx',
+      dependsOn: ['tableId'],
       condition: { field: 'operation', value: ['get_row', 'update_row', 'delete_row'] },
       required: true,
     },
@@ -552,6 +554,7 @@ Return ONLY the sort JSON:`,
       condition: { field: 'operation', value: 'query_rows' },
       value: () => '0',
     },
+    ...getTrigger('table_new_row').subBlocks,
   ],
 
   tools: {
@@ -688,5 +691,9 @@ Return ONLY the sort JSON:`,
       condition: { field: 'operation', value: 'get_schema' },
     },
     message: { type: 'string', description: 'Operation status message' },
+  },
+  triggers: {
+    enabled: true,
+    available: ['table_new_row'],
   },
 }

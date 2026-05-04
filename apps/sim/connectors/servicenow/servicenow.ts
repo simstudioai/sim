@@ -11,6 +11,26 @@ const logger = createLogger('ServiceNowConnector')
 const DEFAULT_MAX_ITEMS = 500
 const PAGE_SIZE = 100
 
+/**
+ * ServiceNow sys_id whitelist: 32-character lowercase hex strings.
+ *
+ * The encoded query language uses `^` as the AND separator and `^OR` as the
+ * OR separator with no escape syntax, so any user-supplied value interpolated
+ * into a `sysparm_query` clause must be validated up front. Path-based
+ * fetches (`/api/now/table/{table}/{sys_id}`) likewise treat the sys_id as a
+ * URL path segment and must be constrained to safe characters.
+ */
+const SYS_ID_PATTERN = /^[a-f0-9]{32}$/i
+const NUMERIC_ID_PATTERN = /^\d+$/
+/**
+ * Reject characters that have meaning in a ServiceNow encoded query
+ * (`^` is the operator separator; control chars and quotes can break the
+ * URL). All other Unicode characters — including accented letters used in
+ * categories like "Général" or "Ação" — are allowed.
+ */
+const KB_CATEGORY_DISALLOWED = /[\^"'`\u0000-\u001f\u007f]/
+const VALID_WORKFLOW_STATES = new Set(['published', 'draft', 'review', 'retired', 'outdated'])
+
 interface ServiceNowRecord {
   sys_id: string
   sys_updated_on?: string
@@ -123,6 +143,50 @@ async function serviceNowApiGet(
   }
 }
 
+/**
+ * Fetches a single ServiceNow record by sys_id via the path-based Table API
+ * endpoint (`GET /api/now/table/{tableName}/{sys_id}`), which returns a
+ * `{ result: <record> }` object rather than the array shape returned by the
+ * list endpoint. Returns `null` when the record is not found (404).
+ */
+async function serviceNowApiGetById(
+  instanceUrl: string,
+  tableName: string,
+  sysId: string,
+  authHeader: string,
+  params: Record<string, string>,
+  retryOptions?: Parameters<typeof fetchWithRetry>[2]
+): Promise<Record<string, unknown> | null> {
+  const queryParams = new URLSearchParams(params)
+  const queryString = queryParams.toString()
+  const url = `${instanceUrl}/api/now/table/${tableName}/${sysId}${queryString ? `?${queryString}` : ''}`
+
+  const response = await fetchWithRetry(
+    url,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: authHeader,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+    },
+    retryOptions
+  )
+
+  if (response.status === 404) {
+    return null
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Unknown error')
+    throw new Error(`ServiceNow API error (${response.status}): ${errorText}`)
+  }
+
+  const data = (await response.json()) as { result?: Record<string, unknown> }
+  return data.result ?? null
+}
+
 function isServiceNowRecord(record: unknown): record is ServiceNowRecord & Record<string, unknown> {
   return (
     typeof record === 'object' &&
@@ -206,6 +270,11 @@ function priorityLabel(priority: string | undefined): string {
  */
 function kbArticleToDocument(article: KBArticle, instanceUrl: string): ExternalDocument {
   const title = rawValue(article.short_description) || rawValue(article.number) || article.sys_id
+  /**
+   * Wiki-template KB articles populate `wiki` with the body and leave
+   * `text` empty; HTML-template articles do the opposite. Falling back
+   * to `wiki` keeps both layouts indexable.
+   */
   const articleText = rawValue(article.text) || rawValue(article.wiki) || ''
   const content = htmlToPlainText(articleText)
   const sysId = rawValue(article.sys_id) || article.sys_id
@@ -308,12 +377,25 @@ function buildKBQuery(sourceConfig: Record<string, unknown>): string {
 
   const workflowState = sourceConfig.workflowState as string | undefined
   if (workflowState && workflowState !== 'all') {
-    parts.push(`workflow_state=${workflowState}`)
+    if (VALID_WORKFLOW_STATES.has(workflowState)) {
+      parts.push(`workflow_state=${workflowState}`)
+    } else {
+      logger.warn('Skipping workflowState filter: value is not in the allowed set', {
+        workflowState,
+      })
+    }
   }
 
   const kbCategory = sourceConfig.kbCategory as string | undefined
-  if (kbCategory?.trim()) {
-    parts.push(`kb_category.label=${kbCategory.trim()}`)
+  const trimmedCategory = kbCategory?.trim()
+  if (trimmedCategory) {
+    if (!KB_CATEGORY_DISALLOWED.test(trimmedCategory)) {
+      parts.push(`kb_category.label=${trimmedCategory}`)
+    } else {
+      logger.warn('Skipping kbCategory filter: value contains disallowed characters', {
+        kbCategory: trimmedCategory,
+      })
+    }
   }
 
   parts.push('ORDERBYDESCsys_updated_on')
@@ -328,12 +410,22 @@ function buildIncidentQuery(sourceConfig: Record<string, unknown>): string {
 
   const incidentState = sourceConfig.incidentState as string | undefined
   if (incidentState && incidentState !== 'all') {
-    parts.push(`state=${incidentState}`)
+    if (NUMERIC_ID_PATTERN.test(incidentState)) {
+      parts.push(`state=${incidentState}`)
+    } else {
+      logger.warn('Skipping incidentState filter: value is not a numeric ID', { incidentState })
+    }
   }
 
   const incidentPriority = sourceConfig.incidentPriority as string | undefined
   if (incidentPriority && incidentPriority !== 'all') {
-    parts.push(`priority=${incidentPriority}`)
+    if (NUMERIC_ID_PATTERN.test(incidentPriority)) {
+      parts.push(`priority=${incidentPriority}`)
+    } else {
+      logger.warn('Skipping incidentPriority filter: value is not a numeric ID', {
+        incidentPriority,
+      })
+    }
   }
 
   parts.push('ORDERBYDESCsys_updated_on')
@@ -393,6 +485,7 @@ export const servicenowConnector: ConnectorConfig = {
         { label: 'Draft', id: 'draft' },
         { label: 'Review', id: 'review' },
         { label: 'Retired', id: 'retired' },
+        { label: 'Outdated', id: 'outdated' },
       ],
     },
     {
@@ -416,6 +509,7 @@ export const servicenowConnector: ConnectorConfig = {
         { label: 'On Hold', id: '3' },
         { label: 'Resolved', id: '6' },
         { label: 'Closed', id: '7' },
+        { label: 'Canceled', id: '8' },
       ],
     },
     {
@@ -533,6 +627,14 @@ export const servicenowConnector: ConnectorConfig = {
     const isKB = contentType === 'kb_knowledge'
     const tableName = isKB ? 'kb_knowledge' : 'incident'
 
+    if (!SYS_ID_PATTERN.test(externalId)) {
+      logger.warn('Rejecting ServiceNow getDocument with invalid sys_id', {
+        externalId,
+        table: tableName,
+      })
+      return null
+    }
+
     const fields = isKB
       ? 'sys_id,short_description,text,wiki,workflow_state,kb_category,kb_knowledge_base,number,author,sys_created_by,sys_updated_by,sys_updated_on,sys_created_on'
       : 'sys_id,number,short_description,description,state,priority,category,assigned_to,opened_by,close_notes,resolution_notes,sys_created_by,sys_updated_by,sys_updated_on,sys_created_on'
@@ -540,19 +642,11 @@ export const servicenowConnector: ConnectorConfig = {
     const instanceUrl = resolveServiceNowInstanceUrl(sourceConfig.instanceUrl as string)
 
     try {
-      const { result } = await serviceNowApiGet(instanceUrl, tableName, authHeader, {
-        sysparm_query: `sys_id=${externalId}`,
-        sysparm_limit: '1',
-        sysparm_offset: '0',
+      const record = await serviceNowApiGetById(instanceUrl, tableName, externalId, authHeader, {
         sysparm_fields: fields,
         sysparm_display_value: 'all',
       })
 
-      if (!result || result.length === 0) {
-        return null
-      }
-
-      const record = result[0]
       if (!record || !isServiceNowRecord(record)) {
         return null
       }

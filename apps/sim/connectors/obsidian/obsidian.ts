@@ -215,8 +215,15 @@ export const obsidianConnector: ConnectorConfig = {
     const offset = cursor ? Number(cursor) : 0
     const pageFiles = allFiles.slice(offset, offset + DOCS_PER_PAGE)
 
-    const syncRunId = (syncContext?.syncRunId as string) ?? ''
-
+    /**
+     * The Obsidian Local REST API directory listing returns just
+     * `{ files: string[] }` — no `stat`/`mtime` and no `HEAD` support to read
+     * `Last-Modified`, so the stub cannot encode change-detection state. Every
+     * file is therefore re-hydrated via `getDocument` on every sync. The
+     * post-hydration hash compare in the sync engine
+     * (`existing.contentHash === hydratedHash`) prevents redundant DB writes
+     * when `mtime` is unchanged.
+     */
     const documents: ExternalDocument[] = pageFiles.map((filePath) => ({
       externalId: filePath,
       title: titleFromPath(filePath),
@@ -224,7 +231,7 @@ export const obsidianConnector: ConnectorConfig = {
       contentDeferred: true,
       mimeType: 'text/plain' as const,
       sourceUrl: `${baseUrl}/vault/${filePath.split('/').map(encodeURIComponent).join('/')}`,
-      contentHash: `obsidian:stub:${filePath}:${syncRunId}`,
+      contentHash: `obsidian:${filePath}`,
       metadata: {
         folder: filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '',
       },
@@ -306,15 +313,21 @@ export const obsidianConnector: ConnectorConfig = {
         VALIDATE_RETRY_OPTIONS
       )
 
-      if (response.status === 401 || response.status === 403) {
+      if (!response.ok) {
+        return { valid: false, error: `Obsidian API returned status ${response.status}` }
+      }
+
+      /**
+       * `GET /` is the only public endpoint and returns 200 regardless of auth;
+       * the response body's `authenticated` field is the actual auth signal.
+       * See https://coddingtonbear.github.io/obsidian-local-rest-api/.
+       */
+      const data = (await response.json()) as { authenticated?: boolean }
+      if (!data?.authenticated) {
         return {
           valid: false,
           error: 'Invalid API key — check your Obsidian Local REST API settings',
         }
-      }
-
-      if (!response.ok) {
-        return { valid: false, error: `Obsidian API returned status ${response.status}` }
       }
 
       const folderPath = (sourceConfig.folderPath as string) || ''

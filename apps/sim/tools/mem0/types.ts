@@ -1,5 +1,41 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
+export interface Mem0Message {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface Mem0AddMemoriesParams {
+  userId: string
+  messages: Mem0Message[] | string
+  apiKey: string
+}
+
+export interface Mem0SearchMemoriesParams {
+  userId: string
+  query: string
+  limit?: number
+  apiKey: string
+}
+
+export interface Mem0GetMemoriesParams {
+  userId?: string
+  memoryId?: string
+  startDate?: string
+  endDate?: string
+  page?: number
+  limit?: number
+  apiKey: string
+}
+
+export interface Mem0AddMemoriesResponse extends ToolResponse {
+  output: {
+    message: string
+    status: string
+    event_id: string
+  }
+}
+
 /**
  * Shared output property definitions for Mem0 API responses.
  * Based on official Mem0 REST API documentation.
@@ -7,21 +43,18 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  */
 
 /**
- * Output definition for memory objects returned by add operations.
- * Add responses include event type indicating what operation was performed.
+ * Output definition for queued add-memory operations.
  * @see https://docs.mem0.ai/api-reference/memory/add-memories
  */
 export const ADD_MEMORY_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Unique identifier for the memory' },
-  memory: { type: 'string', description: 'The content of the memory' },
-  event: {
+  message: { type: 'string', description: 'Status message for the queued memory processing job' },
+  status: {
     type: 'string',
-    description: 'Event type indicating operation performed (ADD, UPDATE, DELETE, NOOP)',
+    description: 'Processing status returned by Mem0',
   },
-  metadata: {
-    type: 'json',
-    description: 'Custom metadata associated with the memory',
-    optional: true,
+  event_id: {
+    type: 'string',
+    description: 'Event ID for polling memory processing status',
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -30,7 +63,7 @@ export const ADD_MEMORY_OUTPUT_PROPERTIES = {
  */
 export const ADD_MEMORY_OUTPUT: OutputProperty = {
   type: 'object',
-  description: 'Memory object returned from add operation with event type',
+  description: 'Queued memory processing job returned from add operation',
   properties: ADD_MEMORY_OUTPUT_PROPERTIES,
 }
 
@@ -65,18 +98,6 @@ export const MEMORY_OUTPUT_PROPERTIES = {
   updated_at: {
     type: 'string',
     description: 'ISO 8601 timestamp when the memory was last updated',
-  },
-  owner: { type: 'string', description: 'Owner of the memory', optional: true },
-  organization: {
-    type: 'string',
-    description: 'Organization associated with the memory',
-    optional: true,
-  },
-  immutable: { type: 'boolean', description: 'Whether the memory can be modified', optional: true },
-  expiration_date: {
-    type: 'string',
-    description: 'Expiration date after which memory is not retrieved',
-    optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -139,7 +160,6 @@ export interface Mem0Response extends ToolResponse {
     memories?: Array<{
       id: string
       memory: string
-      event?: string
       user_id?: string
       agent_id?: string
       app_id?: string
@@ -149,11 +169,10 @@ export interface Mem0Response extends ToolResponse {
       categories?: string[]
       created_at?: string
       updated_at?: string
-      owner?: string
-      organization?: string
-      immutable?: boolean
-      expiration_date?: string
     }>
+    count?: number
+    next?: string | null
+    previous?: string | null
     searchResults?: Array<{
       id: string
       memory: string

@@ -1,5 +1,5 @@
 {
-  "id": "0ad3ee21-38eb-42e9-a7f6-3635e05064dc",
+  "id": "f7dc3eab-9b08-4ed7-99b0-d952797d86eb",
   "prevId": "c3b13ff7-cc49-4fa2-bb5a-4efcddd787dc",
   "version": "7",
   "dialect": "postgresql",
@@ -8270,12 +8270,6 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
-        },
-        "next_resume_at": {
-          "name": "next_resume_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -8320,22 +8314,6 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "paused_executions_next_resume_at_idx": {
-          "name": "paused_executions_next_resume_at_idx",
-          "columns": [
-            {
-              "expression": "next_resume_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "status = 'paused' AND next_resume_at IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -11124,6 +11102,13 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
+        },
+        "executions": {
+          "name": "executions",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
         },
         "position": {
           "name": "position",

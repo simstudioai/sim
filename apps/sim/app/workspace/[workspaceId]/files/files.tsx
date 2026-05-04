@@ -23,13 +23,15 @@ import {
   ModalHeader,
   Pencil,
   Trash,
+  toast,
   Upload,
 } from '@/components/emcn'
 import { File as FilesIcon } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
-  downloadWorkspaceFile,
   formatFileSize,
   getFileExtension,
   getMimeTypeFromExtension,
@@ -41,6 +43,7 @@ import {
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_CODE_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
+  SUPPORTED_IMAGE_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
 import type {
@@ -87,6 +90,7 @@ const SUPPORTED_EXTENSIONS = [
   ...SUPPORTED_CODE_EXTENSIONS,
   ...SUPPORTED_AUDIO_EXTENSIONS,
   ...SUPPORTED_VIDEO_EXTENSIONS,
+  ...SUPPORTED_IMAGE_EXTENSIONS,
 ] as const
 
 const ACCEPT_ATTR = SUPPORTED_EXTENSIONS.map((ext) => `.${ext}`).join(',')
@@ -123,6 +127,7 @@ function formatFileType(mimeType: string | null, filename: string): string {
 
   if (mimeType?.startsWith('audio/')) return 'Audio'
   if (mimeType?.startsWith('video/')) return 'Video'
+  if (mimeType?.startsWith('image/')) return 'Image'
 
   const ext = getFileExtension(filename)
   if (ext) return ext.toUpperCase()
@@ -180,7 +185,11 @@ export function Files() {
   filesRef.current = files
 
   const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
+  const [uploadProgress, setUploadProgress] = useState({
+    completed: 0,
+    total: 0,
+    currentPercent: 0,
+  })
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const dragCounterRef = useRef(0)
   const [inputValue, setInputValue] = useState('')
@@ -240,6 +249,7 @@ export function Files() {
         if (typeFilter.includes('document') && isSupportedExtension(ext)) return true
         if (typeFilter.includes('audio') && isAudioFileType(f.type)) return true
         if (typeFilter.includes('video') && isVideoFileType(f.type)) return true
+        if (typeFilter.includes('image') && f.type?.startsWith('image/')) return true
         return false
       })
     }
@@ -376,8 +386,24 @@ export function Files() {
   const uploadFiles = async (filesToUpload: File[]) => {
     if (!workspaceId || filesToUpload.length === 0) return
 
+    const oversized: string[] = []
+    const sizeFiltered = filesToUpload.filter((f) => {
+      if (f.size > MAX_WORKSPACE_FILE_SIZE) {
+        oversized.push(f.name)
+        return false
+      }
+      return true
+    })
+    if (oversized.length > 0) {
+      toast.error(
+        oversized.length === 1
+          ? `${oversized[0]} exceeds the 5 GiB upload limit`
+          : `${oversized.length} files exceed the 5 GiB upload limit`
+      )
+    }
+
     const unsupported: string[] = []
-    const allowedFiles = filesToUpload.filter((f) => {
+    const allowedFiles = sizeFiltered.filter((f) => {
       const ext = getFileExtension(f.name)
       const ok = SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number])
       if (!ok) unsupported.push(f.name)
@@ -392,12 +418,22 @@ export function Files() {
 
     try {
       setUploading(true)
-      setUploadProgress({ completed: 0, total: allowedFiles.length })
+      setUploadProgress({ completed: 0, total: allowedFiles.length, currentPercent: 0 })
 
       for (let i = 0; i < allowedFiles.length; i++) {
         try {
-          await uploadFile.mutateAsync({ workspaceId, file: allowedFiles[i] })
-          setUploadProgress({ completed: i + 1, total: allowedFiles.length })
+          await uploadFile.mutateAsync({
+            workspaceId,
+            file: allowedFiles[i],
+            onProgress: ({ percent }) => {
+              setUploadProgress((prev) => ({ ...prev, currentPercent: percent }))
+            },
+          })
+          setUploadProgress({
+            completed: i + 1,
+            total: allowedFiles.length,
+            currentPercent: 0,
+          })
         } catch (err) {
           logger.error('Error uploading file:', err)
         }
@@ -406,7 +442,7 @@ export function Files() {
       logger.error('Error uploading file:', err)
     } finally {
       setUploading(false)
-      setUploadProgress({ completed: 0, total: 0 })
+      setUploadProgress({ completed: 0, total: 0, currentPercent: 0 })
     }
   }
 
@@ -443,7 +479,7 @@ export function Files() {
 
   const handleDownload = useCallback(async (file: WorkspaceFileRecord) => {
     try {
-      await downloadWorkspaceFile(file)
+      await triggerFileDownload(file)
     } catch (err) {
       logger.error('Failed to download file:', err)
     }
@@ -824,7 +860,9 @@ export function Files() {
 
   const uploadButtonLabel =
     uploading && uploadProgress.total > 0
-      ? `${uploadProgress.completed}/${uploadProgress.total}`
+      ? uploadProgress.currentPercent > 0 && uploadProgress.currentPercent < 100
+        ? `${uploadProgress.completed}/${uploadProgress.total} · ${uploadProgress.currentPercent}%`
+        : `${uploadProgress.completed}/${uploadProgress.total}`
       : uploading
         ? 'Uploading...'
         : 'Upload'
@@ -892,9 +930,14 @@ export function Files() {
       typeFilter.length === 0
         ? 'All'
         : typeFilter.length === 1
-          ? (({ document: 'Documents', audio: 'Audio', video: 'Video' } as Record<string, string>)[
-              typeFilter[0]
-            ] ?? typeFilter[0])
+          ? ((
+              {
+                document: 'Documents',
+                image: 'Images',
+                audio: 'Audio',
+                video: 'Video',
+              } as Record<string, string>
+            )[typeFilter[0]] ?? typeFilter[0])
           : `${typeFilter.length} selected`
 
     const sizeDisplayLabel =
@@ -920,6 +963,7 @@ export function Files() {
           <Combobox
             options={[
               { value: 'document', label: 'Documents' },
+              { value: 'image', label: 'Images' },
               { value: 'audio', label: 'Audio' },
               { value: 'video', label: 'Video' },
             ]}
@@ -1002,6 +1046,7 @@ export function Files() {
     if (typeFilter.length > 0) {
       const typeLabels: Record<string, string> = {
         document: 'Documents',
+        image: 'Images',
         audio: 'Audio',
         video: 'Video',
       }

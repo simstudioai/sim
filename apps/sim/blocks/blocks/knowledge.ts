@@ -1,6 +1,7 @@
 import { PackageSearchIcon } from '@/components/icons'
 import { DEFAULT_RERANKER_MODEL, SUPPORTED_RERANKER_MODELS } from '@/lib/knowledge/reranker-models'
 import type { BlockConfig } from '@/blocks/types'
+import { getCohereRerankerApiKeyCondition } from '@/blocks/utils'
 
 export const KnowledgeBlock: BlockConfig = {
   type: 'knowledge',
@@ -105,6 +106,28 @@ export const KnowledgeBlock: BlockConfig = {
         and: { field: 'rerankerEnabled', value: true },
       },
     },
+    {
+      id: 'rerankerInputCount',
+      title: 'Documents Sent to Reranker',
+      type: 'short-input',
+      placeholder: 'Auto (4× results, capped at 100)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'search',
+        and: { field: 'rerankerEnabled', value: true },
+      },
+    },
+    {
+      id: 'apiKey',
+      title: 'Cohere API Key',
+      type: 'short-input',
+      placeholder: 'Enter your Cohere API key',
+      password: true,
+      connectionDroppable: false,
+      required: true,
+      condition: getCohereRerankerApiKeyCondition(),
+    },
 
     // --- List Documents ---
     {
@@ -171,6 +194,7 @@ export const KnowledgeBlock: BlockConfig = {
       type: 'short-input',
       canonicalParamId: 'documentId',
       placeholder: 'Enter document ID',
+      dependsOn: ['knowledgeBaseId'],
       required: true,
       mode: 'advanced',
       condition: {
@@ -418,6 +442,11 @@ export const KnowledgeBlock: BlockConfig = {
     tagFilters: { type: 'string', description: 'Tag filter criteria' },
     rerankerEnabled: { type: 'boolean', description: 'Apply Cohere reranking to search results' },
     rerankerModel: { type: 'string', description: 'Cohere rerank model identifier' },
+    rerankerInputCount: {
+      type: 'number',
+      description: 'Number of vector results sent to the Cohere reranker (1–100)',
+    },
+    apiKey: { type: 'string', description: 'Cohere API key (self-hosted only)' },
     documentTags: { type: 'string', description: 'Document tags' },
     chunkSearch: { type: 'string', description: 'Search filter for chunks' },
     chunkEnabledFilter: { type: 'string', description: 'Filter chunks by enabled status' },

@@ -8,6 +8,7 @@ import {
   keepPreviousData,
   skipToken,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
@@ -77,6 +78,31 @@ export function useWorkflowState(workflowId: string | undefined) {
     queryFn: workflowId ? ({ signal }) => fetchWorkflowState(workflowId, signal) : skipToken,
     staleTime: 30 * 1000,
   })
+}
+
+/**
+ * Batched workflow-state fetch for callers that need state for several
+ * workflows at once (e.g. a table with multiple workflow groups). One
+ * subscription per unique workflow id — duplicates in `workflowIds` are
+ * collapsed before subscribing so N consumers of the same id don't each
+ * register their own observer.
+ */
+export function useWorkflowStates(
+  workflowIds: ReadonlyArray<string | undefined>
+): Map<string, WorkflowState | null> {
+  const uniqueIds = Array.from(new Set(workflowIds.filter((id): id is string => Boolean(id))))
+  const results = useQueries({
+    queries: uniqueIds.map((id) => ({
+      queryKey: workflowKeys.state(id),
+      queryFn: ({ signal }: { signal?: AbortSignal }) => fetchWorkflowState(id, signal),
+      staleTime: 30 * 1000,
+    })),
+  })
+  const map = new Map<string, WorkflowState | null>()
+  uniqueIds.forEach((id, i) => {
+    map.set(id, (results[i].data as WorkflowState | null | undefined) ?? null)
+  })
+  return map
 }
 
 export function useWorkflows(workspaceId?: string, options?: { scope?: WorkflowQueryScope }) {

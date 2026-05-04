@@ -166,6 +166,17 @@ app:
     EXECUTION_TIMEOUT_ASYNC_TEAM: "5400"                  # Team tier async timeout (90 minutes)
     EXECUTION_TIMEOUT_ASYNC_ENTERPRISE: "5400"            # Enterprise tier async timeout (90 minutes)
 
+    # Table Feature Limits (per workspace, per plan)
+    # Apply when billing is disabled (free tier defaults) or for billed plans
+    FREE_TABLES_LIMIT: "3"                                # Max user tables per workspace on free tier
+    FREE_TABLE_ROWS_LIMIT: "1000"                         # Max rows per table on free tier
+    PRO_TABLES_LIMIT: "25"                                # Max user tables per workspace on pro tier
+    PRO_TABLE_ROWS_LIMIT: "5000"                          # Max rows per table on pro tier
+    TEAM_TABLES_LIMIT: "100"                              # Max user tables per workspace on team tier
+    TEAM_TABLE_ROWS_LIMIT: "10000"                        # Max rows per table on team tier
+    ENTERPRISE_TABLES_LIMIT: "10000"                      # Max user tables per workspace on enterprise tier
+    ENTERPRISE_TABLE_ROWS_LIMIT: "1000000"                # Max rows per table on enterprise tier
+
     # Isolated-VM Worker Pool Configuration
     IVM_POOL_SIZE: "4"                                    # Max worker processes in pool
     IVM_MAX_CONCURRENT: "10000"                           # Max concurrent executions globally
@@ -263,6 +274,12 @@ app:
     # server-side. When enabled, the Azure endpoint, API key, and API version fields are hidden
     # in the Agent block UI — users just pick an Azure model and run.
     NEXT_PUBLIC_AZURE_CONFIGURED: ""                      # Set to "true" to hide Azure credential fields
+
+    # Cohere Reranker (Knowledge block)
+    # Set COHERE_API_KEY (or COHERE_API_KEY_1/2/3 for rotation) and NEXT_PUBLIC_COHERE_CONFIGURED=true
+    # to pre-configure the Cohere reranker server-side. When configured, the Cohere API Key field is
+    # hidden in the Knowledge block UI.
+    NEXT_PUBLIC_COHERE_CONFIGURED: ""                     # Set to "true" to hide the Cohere API Key field on the Knowledge block
 
     # AWS S3 Cloud Storage Configuration (optional - for file storage)
     # If configured, files will be stored in S3 instead of local storage

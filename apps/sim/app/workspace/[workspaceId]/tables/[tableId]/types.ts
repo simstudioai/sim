@@ -26,9 +26,13 @@ export interface ContextMenuState {
 }
 
 /**
- * Tracks which cell is currently being edited inline
+ * Tracks which cell is currently being edited inline. `columnKey` distinguishes
+ * fanned-out workflow visual columns (which share the same `columnName`) — set
+ * when the interaction targets a specific visual column (e.g. expanded view),
+ * omitted for plain cells.
  */
 export interface EditingCell {
   rowId: string
   columnName: string
+  columnKey?: string
 }

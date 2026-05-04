@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, memo, Suspense, useEffect, useMemo } from 'react'
+import { lazy, memo, Suspense, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -13,17 +13,15 @@ import {
   SquareArrowUpRight,
   WorkflowX,
 } from '@/components/emcn/icons'
+import { isApiClientError } from '@/lib/api/client/errors'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import {
   cancelRunToolExecution,
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
-import {
-  downloadWorkspaceFile,
-  getFileExtension,
-  getMimeTypeFromExtension,
-} from '@/lib/uploads/utils/file-utils'
+import { triggerFileDownload } from '@/lib/uploads/client/download'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   FileViewer,
@@ -73,6 +71,7 @@ interface ResourceContentProps {
   previewSession?: FilePreviewSession | null
   genericResourceData?: GenericResourceData
   previewContextKey?: string
+  onNotFound?: (resourceId: string) => void
 }
 
 /**
@@ -89,6 +88,7 @@ export const ResourceContent = memo(function ResourceContent({
   previewSession,
   genericResourceData,
   previewContextKey,
+  onNotFound,
 }: ResourceContentProps) {
   const streamFileName = previewSession?.fileName || 'file.md'
   const syntheticFile = useMemo(() => {
@@ -182,7 +182,13 @@ export const ResourceContent = memo(function ResourceContent({
       return <EmbeddedFolder key={resource.id} workspaceId={workspaceId} folderId={resource.id} />
 
     case 'log':
-      return <EmbeddedLog key={resource.id} logId={resource.id} />
+      return (
+        <EmbeddedLog
+          key={resource.id}
+          logId={resource.id}
+          onNotFound={onNotFound ? () => onNotFound(resource.id) : undefined}
+        />
+      )
 
     case 'generic':
       return (
@@ -422,7 +428,7 @@ function EmbeddedFileActions({ workspaceId, fileId }: EmbeddedFileActionsProps) 
   const handleDownload = async () => {
     if (!file) return
     try {
-      await downloadWorkspaceFile(file)
+      await triggerFileDownload(file)
     } catch (err) {
       fileLogger.error('Failed to download file:', err)
     }
@@ -621,10 +627,20 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
 
 interface EmbeddedLogProps {
   logId: string
+  onNotFound?: () => void
 }
 
-function EmbeddedLog({ logId }: EmbeddedLogProps) {
-  const { data: log, isLoading } = useLogDetail(logId)
+function EmbeddedLog({ logId, onNotFound }: EmbeddedLogProps) {
+  const { data: log, isLoading, error } = useLogDetail(logId)
+
+  const onNotFoundRef = useRef(onNotFound)
+  onNotFoundRef.current = onNotFound
+
+  useEffect(() => {
+    if (isApiClientError(error) && error.status === 404) {
+      onNotFoundRef.current?.()
+    }
+  }, [error])
 
   if (isLoading) return LOADING_SKELETON
 

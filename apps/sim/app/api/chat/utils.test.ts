@@ -19,6 +19,7 @@ const {
   mockSetDeploymentAuthCookie,
   mockAddCorsHeaders,
   mockIsEmailAllowed,
+  mockGetSession,
 } = vi.hoisted(() => ({
   mockMergeSubblockStateWithValues: vi.fn().mockReturnValue({}),
   mockMergeSubBlockValues: vi.fn().mockReturnValue({}),
@@ -26,6 +27,12 @@ const {
   mockSetDeploymentAuthCookie: vi.fn(),
   mockAddCorsHeaders: vi.fn((response: unknown) => response),
   mockIsEmailAllowed: vi.fn(),
+  mockGetSession: vi.fn(),
+}))
+
+vi.mock('@/lib/auth', () => ({
+  auth: { api: { getSession: vi.fn() } },
+  getSession: mockGetSession,
 }))
 
 const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
@@ -284,6 +291,68 @@ describe('Chat API Utils', () => {
       })
       expect(result3.authorized).toBe(false)
       expect(result3.error).toBe('Email not authorized')
+    })
+
+    describe('SSO auth', () => {
+      const ssoDeployment = {
+        id: 'chat-id',
+        authType: 'sso',
+        allowedEmails: ['user@example.com', '@company.com'],
+      }
+
+      const postRequest = {
+        method: 'POST',
+        cookies: { get: vi.fn().mockReturnValue(null) },
+      } as any
+
+      it('rejects when no session is present', async () => {
+        mockGetSession.mockResolvedValue(null)
+
+        const result = await validateChatAuth('request-id', ssoDeployment, postRequest, {
+          input: 'hello',
+        })
+
+        expect(result.authorized).toBe(false)
+        expect(result.error).toBe('auth_required_sso')
+      })
+
+      it('ignores body-supplied email and uses the session email', async () => {
+        mockGetSession.mockResolvedValue({ user: { email: 'session@example.com' } })
+        mockIsEmailAllowed.mockReturnValue(true)
+
+        await validateChatAuth('request-id', ssoDeployment, postRequest, {
+          email: 'attacker@evil.com',
+          input: 'hello',
+        })
+
+        expect(mockIsEmailAllowed).toHaveBeenCalledWith(
+          'session@example.com',
+          ssoDeployment.allowedEmails
+        )
+      })
+
+      it('authorizes execution when session email is allowlisted', async () => {
+        mockGetSession.mockResolvedValue({ user: { email: 'user@example.com' } })
+        mockIsEmailAllowed.mockReturnValue(true)
+
+        const result = await validateChatAuth('request-id', ssoDeployment, postRequest, {
+          input: 'hello',
+        })
+
+        expect(result.authorized).toBe(true)
+      })
+
+      it('rejects execution when session email is not allowlisted', async () => {
+        mockGetSession.mockResolvedValue({ user: { email: 'stranger@other.com' } })
+        mockIsEmailAllowed.mockReturnValue(false)
+
+        const result = await validateChatAuth('request-id', ssoDeployment, postRequest, {
+          input: 'hello',
+        })
+
+        expect(result.authorized).toBe(false)
+        expect(result.error).toBe('Your email is not authorized to access this chat')
+      })
     })
   })
 

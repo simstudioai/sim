@@ -4,6 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getCredentialActorContext } from '@/lib/credentials/access'
+import { deleteCredential } from '@/lib/credentials/deletion'
 
 export function executeManageCredential(
   rawParams: Record<string, unknown>,
@@ -71,7 +72,11 @@ export function executeManageCredential(
               failed.push(id)
               continue
             }
-            await db.delete(credential).where(eq(credential.id, id))
+            await deleteCredential({
+              credentialId: id,
+              actorId: context.userId,
+              reason: 'copilot_delete',
+            })
             deleted.push(id)
           }
 

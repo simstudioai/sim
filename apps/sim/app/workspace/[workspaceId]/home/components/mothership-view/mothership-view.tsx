@@ -128,6 +128,7 @@ export const MothershipView = memo(
                 previewSession={previewForActive}
                 genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
                 previewContextKey={chatId}
+                onNotFound={(resourceId) => onRemoveResource('log', resourceId)}
               />
             ) : (
               <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>

@@ -235,7 +235,11 @@ export function migrateAgentBlocksToMessagesFormat(
   )
 }
 
-const CREDENTIAL_SUBBLOCK_IDS = new Set(['credential', 'triggerCredentials'])
+export const CREDENTIAL_SUBBLOCK_IDS = new Set([
+  'credential',
+  'manualCredential',
+  'triggerCredentials',
+])
 
 async function migrateCredentialIds(
   blocks: Record<string, BlockState>,

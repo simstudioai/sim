@@ -632,6 +632,10 @@ export class PauseResumeManager {
         _pauseDurationMs: pauseDurationMs,
       }
 
+      if (pausePoint.pauseKind === 'time') {
+        mergedOutput.status = 'completed'
+      }
+
       mergedOutput.resume = mergedOutput.resume ?? mergedResponse.resume
 
       // Preserve url and resumeEndpoint from resume links

@@ -56,6 +56,26 @@ interface PresenceUser {
   selection?: { type: 'block' | 'edge' | 'none'; id?: string }
 }
 
+interface TableRowUpdatedEvent {
+  tableId: string
+  rowId: string
+  data: Record<string, unknown>
+  /** Per-group execution state. Keyed by `WorkflowGroup.id`. */
+  executions?: Record<string, unknown>
+  position: number
+  updatedAt: string | number
+}
+
+interface TableRowDeletedEvent {
+  tableId: string
+  rowId: string
+}
+
+interface TableDeletedEvent {
+  tableId: string
+  timestamp: number
+}
+
 interface SocketContextType {
   socket: Socket | null
   isConnected: boolean
@@ -64,10 +84,13 @@ interface SocketContextType {
   isRetryingWorkflowJoin: boolean
   authFailed: boolean
   currentWorkflowId: string | null
+  currentTableId: string | null
   currentSocketId: string | null
   presenceUsers: PresenceUser[]
   joinWorkflow: (workflowId: string) => void
   leaveWorkflow: () => void
+  joinTable: (tableId: string) => void
+  leaveTable: () => void
   retryConnection: () => void
   emitWorkflowOperation: (
     workflowId: string,
@@ -105,6 +128,9 @@ interface SocketContextType {
   onWorkflowDeployed: (handler: (data: any) => void) => void
   onOperationConfirmed: (handler: (data: any) => void) => void
   onOperationFailed: (handler: (data: any) => void) => void
+  onTableRowUpdated: (handler: (data: TableRowUpdatedEvent) => void) => void
+  onTableRowDeleted: (handler: (data: TableRowDeletedEvent) => void) => void
+  onTableDeleted: (handler: (data: TableDeletedEvent) => void) => void
 }
 
 const SocketContext = createContext<SocketContextType>({
@@ -115,10 +141,13 @@ const SocketContext = createContext<SocketContextType>({
   isRetryingWorkflowJoin: false,
   authFailed: false,
   currentWorkflowId: null,
+  currentTableId: null,
   currentSocketId: null,
   presenceUsers: [],
   joinWorkflow: () => {},
   leaveWorkflow: () => {},
+  joinTable: () => {},
+  leaveTable: () => {},
   retryConnection: () => {},
   emitWorkflowOperation: () => {},
   emitSubblockUpdate: () => {},
@@ -136,6 +165,9 @@ const SocketContext = createContext<SocketContextType>({
   onWorkflowDeployed: () => {},
   onOperationConfirmed: () => {},
   onOperationFailed: () => {},
+  onTableRowUpdated: () => {},
+  onTableRowDeleted: () => {},
+  onTableDeleted: () => {},
 })
 
 export const useSocket = () => useContext(SocketContext)
@@ -169,6 +201,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   urlWorkflowIdRef.current = urlWorkflowId
   explicitWorkflowIdRef.current = explicitWorkflowId
 
+  const [currentTableId, setCurrentTableId] = useState<string | null>(null)
+  const currentTableIdRef = useRef<string | null>(null)
+  currentTableIdRef.current = currentTableId
+
   const eventHandlers = useRef<{
     workflowOperation?: (data: any) => void
     subblockUpdate?: (data: any) => void
@@ -181,6 +217,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     workflowDeployed?: (data: any) => void
     operationConfirmed?: (data: any) => void
     operationFailed?: (data: any) => void
+    tableRowUpdated?: (data: TableRowUpdatedEvent) => void
+    tableRowDeleted?: (data: TableRowDeletedEvent) => void
+    tableDeleted?: (data: TableDeletedEvent) => void
   }>({})
 
   const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
@@ -383,6 +422,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             transport: socketInstance.io.engine?.transport?.name,
           })
           executeJoinCommands(joinControllerRef.current.setConnected(true))
+          // Re-join the table room after (re)connect so missed events resume.
+          if (currentTableIdRef.current) {
+            socketInstance.emit('join-table', { tableId: currentTableIdRef.current })
+          }
         })
 
         socketInstance.on('disconnect', (reason) => {
@@ -559,6 +602,34 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('workflow-deployed', (data) => {
           logger.info(`Workflow ${data.workflowId} deployment state changed`)
           eventHandlers.current.workflowDeployed?.(data)
+        })
+
+        socketInstance.on('join-table-success', ({ tableId }) => {
+          if (currentTableIdRef.current !== tableId) {
+            currentTableIdRef.current = tableId
+            setCurrentTableId(tableId)
+          }
+          logger.debug(`Joined table room ${tableId}`)
+        })
+
+        socketInstance.on('join-table-error', ({ tableId, error, code }) => {
+          logger.warn('join-table-error', { tableId, error, code })
+        })
+
+        socketInstance.on('table-row-updated', (data: TableRowUpdatedEvent) => {
+          eventHandlers.current.tableRowUpdated?.(data)
+        })
+
+        socketInstance.on('table-row-deleted', (data: TableRowDeletedEvent) => {
+          eventHandlers.current.tableRowDeleted?.(data)
+        })
+
+        socketInstance.on('table-deleted', (data: TableDeletedEvent) => {
+          if (currentTableIdRef.current === data.tableId) {
+            currentTableIdRef.current = null
+            setCurrentTableId(null)
+          }
+          eventHandlers.current.tableDeleted?.(data)
         })
 
         const rehydrateWorkflowStores = async (workflowId: string, workflowState: any) => {
@@ -767,6 +838,33 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
   const leaveWorkflow = useCallback(() => {
     setExplicitWorkflowId(null)
+  }, [])
+
+  const joinTable = useCallback((tableId: string) => {
+    const s = socketRef.current
+    if (!s) {
+      // Defer: when socket connects, the requestedTableId effect below re-emits join-table.
+      currentTableIdRef.current = tableId
+      setCurrentTableId(tableId)
+      return
+    }
+    // Idempotent: if we're already in this room, no-op.
+    if (currentTableIdRef.current === tableId && s.connected) return
+    // Switching tables: leave the previous room first.
+    if (currentTableIdRef.current && currentTableIdRef.current !== tableId) {
+      s.emit('leave-table', { tableId: currentTableIdRef.current })
+    }
+    currentTableIdRef.current = tableId
+    setCurrentTableId(tableId)
+    s.emit('join-table', { tableId })
+  }, [])
+
+  const leaveTable = useCallback(() => {
+    const s = socketRef.current
+    const tableId = currentTableIdRef.current
+    currentTableIdRef.current = null
+    setCurrentTableId(null)
+    if (s && tableId) s.emit('leave-table', { tableId })
   }, [])
 
   /**
@@ -1017,6 +1115,18 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     eventHandlers.current.operationFailed = handler
   }, [])
 
+  const onTableRowUpdated = useCallback((handler: (data: TableRowUpdatedEvent) => void) => {
+    eventHandlers.current.tableRowUpdated = handler
+  }, [])
+
+  const onTableRowDeleted = useCallback((handler: (data: TableRowDeletedEvent) => void) => {
+    eventHandlers.current.tableRowDeleted = handler
+  }, [])
+
+  const onTableDeleted = useCallback((handler: (data: TableDeletedEvent) => void) => {
+    eventHandlers.current.tableDeleted = handler
+  }, [])
+
   const contextValue = useMemo(
     () => ({
       socket,
@@ -1026,10 +1136,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       isRetryingWorkflowJoin,
       authFailed,
       currentWorkflowId,
+      currentTableId,
       currentSocketId,
       presenceUsers,
       joinWorkflow,
       leaveWorkflow,
+      joinTable,
+      leaveTable,
       retryConnection,
       emitWorkflowOperation,
       emitSubblockUpdate,
@@ -1047,6 +1160,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       onWorkflowDeployed,
       onOperationConfirmed,
       onOperationFailed,
+      onTableRowUpdated,
+      onTableRowDeleted,
+      onTableDeleted,
     }),
     [
       socket,
@@ -1056,10 +1172,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       isRetryingWorkflowJoin,
       authFailed,
       currentWorkflowId,
+      currentTableId,
       currentSocketId,
       presenceUsers,
       joinWorkflow,
       leaveWorkflow,
+      joinTable,
+      leaveTable,
       retryConnection,
       emitWorkflowOperation,
       emitSubblockUpdate,
@@ -1077,6 +1196,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       onWorkflowDeployed,
       onOperationConfirmed,
       onOperationFailed,
+      onTableRowUpdated,
+      onTableRowDeleted,
+      onTableDeleted,
     ]
   )
 

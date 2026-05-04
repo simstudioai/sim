@@ -3,7 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { SlackIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, parseTagDate } from '@/connectors/utils'
+import { parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('SlackConnector')
 
@@ -11,12 +11,42 @@ const SLACK_API_BASE = 'https://slack.com/api'
 const DEFAULT_MAX_MESSAGES = 1000
 const MESSAGES_PER_PAGE = 200
 
+/**
+ * Message subtypes that carry no user-authored text (channel events, bot
+ * lifecycle, etc.). Per https://api.slack.com/events/message every other
+ * subtype — `bot_message`, `file_share`, `me_message`, `thread_broadcast`,
+ * `reminder_add`, `file_comment`, etc. — can carry meaningful content.
+ */
+const SLACK_NOISE_SUBTYPES = new Set([
+  'channel_join',
+  'channel_leave',
+  'channel_topic',
+  'channel_purpose',
+  'channel_name',
+  'channel_archive',
+  'channel_unarchive',
+  'group_join',
+  'group_leave',
+  'group_topic',
+  'group_purpose',
+  'group_name',
+  'group_archive',
+  'group_unarchive',
+  'pinned_item',
+  'unpinned_item',
+  'bot_add',
+  'bot_remove',
+])
+
 interface SlackMessage {
   type: string
   user?: string
   text?: string
   ts: string
   subtype?: string
+  edited?: { ts: string; user?: string }
+  latest_reply?: string
+  reply_count?: number
 }
 
 interface SlackChannel {
@@ -130,7 +160,7 @@ async function fetchChannelMessages(
   accessToken: string,
   channelId: string,
   maxMessages: number
-): Promise<{ messages: SlackMessage[]; lastActivityTs?: string }> {
+): Promise<{ messages: SlackMessage[]; lastActivityTs?: string; oldestTs?: string }> {
   const allMessages: SlackMessage[] = []
   let cursor: string | undefined
   let lastActivityTs: string | undefined
@@ -162,7 +192,9 @@ async function fetchChannelMessages(
     cursor = nextCursor
   }
 
-  return { messages: allMessages.slice(0, maxMessages), lastActivityTs }
+  const trimmed = allMessages.slice(0, maxMessages)
+  const oldestTs = trimmed.length > 0 ? trimmed[trimmed.length - 1].ts : undefined
+  return { messages: trimmed, lastActivityTs, oldestTs }
 }
 
 /**
@@ -182,7 +214,13 @@ async function formatMessages(
   for (const msg of chronological) {
     // Skip non-user messages (join/leave, bot messages without text, etc.)
     if (!msg.text) continue
-    if (msg.subtype && msg.subtype !== 'bot_message' && msg.subtype !== 'file_share') continue
+    /**
+     * Drop only known noise subtypes (channel join/leave/topic events,
+     * bot add/remove, etc.). Per https://api.slack.com/events/message any
+     * subtype with user-authored text — `thread_broadcast`, `me_message`,
+     * `bot_message`, `file_share`, `reminder_add`, etc. — should be kept.
+     */
+    if (msg.subtype && SLACK_NOISE_SUBTYPES.has(msg.subtype)) continue
 
     const timestamp = formatSlackTimestamp(msg.ts)
     const userName = msg.user
@@ -204,8 +242,9 @@ async function resolveChannel(
 ): Promise<SlackChannel | null> {
   const trimmed = channelInput.trim().replace(/^#/, '')
 
-  // If it looks like a channel ID (starts with C, D, or G), try direct lookup
-  if (/^[CDG][A-Z0-9]+$/.test(trimmed)) {
+  // If it looks like a channel ID (public C / private G), try direct lookup.
+  // DMs (D...) and MPIMs require im:*/mpim:* scopes, which we do not request.
+  if (/^[CG][A-Z0-9]+$/.test(trimmed)) {
     try {
       const data = await slackApiGet('conversations.info', accessToken, { channel: trimmed })
       return data.channel as SlackChannel
@@ -237,6 +276,93 @@ async function resolveChannel(
   } while (cursor)
 
   return null
+}
+
+/**
+ * Resolves the Slack team ID for the current token, caching the result on
+ * `syncContext._slackTeamId` to avoid repeated `auth.test` calls. The team ID
+ * is stable per token, so caching for the lifetime of a sync is safe.
+ */
+async function resolveTeamId(
+  accessToken: string,
+  syncContext?: Record<string, unknown>
+): Promise<string | undefined> {
+  const cacheKey = '_slackTeamId'
+  if (syncContext && typeof syncContext[cacheKey] === 'string') {
+    return syncContext[cacheKey] as string
+  }
+
+  try {
+    const authData = await slackApiGet('auth.test', accessToken, {})
+    const teamId = authData.team_id as string | undefined
+    if (teamId && syncContext) {
+      syncContext[cacheKey] = teamId
+    }
+    return teamId
+  } catch (error) {
+    logger.warn('Failed to resolve Slack team ID', {
+      error: toError(error).message,
+    })
+    return undefined
+  }
+}
+
+/**
+ * Builds a channel document payload shared by `listDocuments` and `getDocument`.
+ *
+ * The `contentHash` is derived from stable Slack metadata — channel ID, the
+ * newest message `ts`, and the message count — rather than the formatted text.
+ * This keeps the hash deterministic across calls even though the formatted
+ * content depends on the user-name cache state and the sliding message window.
+ *
+ * Each Slack message has a unique, stable `ts` per channel
+ * (https://api.slack.com/methods/conversations.history), so `lastActivityTs`
+ * uniquely identifies the newest message included in the document.
+ */
+async function buildSlackChannelDocument(
+  accessToken: string,
+  channel: SlackChannel,
+  maxMessages: number,
+  syncContext?: Record<string, unknown>
+): Promise<{
+  content: string
+  contentHash: string
+  messageCount: number
+  lastActivityTs?: string
+}> {
+  const { messages, lastActivityTs, oldestTs } = await fetchChannelMessages(
+    accessToken,
+    channel.id,
+    maxMessages
+  )
+
+  const content = await formatMessages(accessToken, messages, syncContext)
+  const messageCount = messages.length
+
+  /**
+   * Edit/thread fingerprint: max(edited.ts) and max(latest_reply) across the
+   * window. `ts` is immutable for messages, so without these signals an
+   * in-place edit (chat.update) or a new threaded reply would not change the
+   * channel hash. Slack returns `edited.ts` only when a message was edited
+   * and `latest_reply` only when threaded replies exist.
+   */
+  let maxEditTs = ''
+  let maxReplyTs = ''
+  let totalReplies = 0
+  for (const m of messages) {
+    if (m.edited?.ts && m.edited.ts > maxEditTs) maxEditTs = m.edited.ts
+    if (m.latest_reply && m.latest_reply > maxReplyTs) maxReplyTs = m.latest_reply
+    if (typeof m.reply_count === 'number') totalReplies += m.reply_count
+  }
+
+  /**
+   * `latest_reply` alone misses reply edits and deletes. Folding `reply_count`
+   * in catches deletes (count drops) but still cannot detect reply edits
+   * without fetching `conversations.replies` for each parent.
+   */
+  const contentHash = `slack:${channel.id}:${oldestTs ?? 'empty'}:${lastActivityTs ?? 'empty'}:${messageCount}:${maxEditTs || 'noedit'}:${maxReplyTs || 'noreply'}:${totalReplies}`
+
+  return { content, contentHash, messageCount, lastActivityTs }
 }
 
 export const slackConnector: ConnectorConfig = {
@@ -311,31 +437,21 @@ export const slackConnector: ConnectorConfig = {
       throw new Error(`Channel not found: ${channelInput}`)
     }
 
-    const { messages, lastActivityTs } = await fetchChannelMessages(
+    const { content, contentHash, messageCount, lastActivityTs } = await buildSlackChannelDocument(
       accessToken,
-      channel.id,
-      maxMessages
+      channel,
+      maxMessages,
+      syncContext
     )
-
-    const content = await formatMessages(accessToken, messages, syncContext)
     if (!content.trim()) {
       logger.info(`No messages found in channel: #${channel.name}`)
       return { documents: [], hasMore: false }
     }
 
-    const contentHash = await computeContentHash(content)
-
-    // Attempt to get team ID for the source URL
-    let sourceUrl = `https://app.slack.com/client/${channel.id}`
-    try {
-      const authData = await slackApiGet('auth.test', accessToken, {})
-      const teamId = authData.team_id as string | undefined
-      if (teamId) {
-        sourceUrl = `https://app.slack.com/client/${teamId}/${channel.id}`
-      }
-    } catch {
-      // Fall back to URL without team ID
-    }
+    const teamId = await resolveTeamId(accessToken, syncContext)
+    const sourceUrl = teamId
+      ? `https://app.slack.com/client/${teamId}/${channel.id}`
+      : `https://app.slack.com/client/${channel.id}`
 
     const document: ExternalDocument = {
       externalId: channel.id,
@@ -346,7 +462,7 @@ export const slackConnector: ConnectorConfig = {
       contentHash,
       metadata: {
         channelName: channel.name,
-        messageCount: messages.length,
+        messageCount,
         lastActivity: lastActivityTs ? formatSlackTimestamp(lastActivityTs) : undefined,
         topic: channel.topic?.value,
         purpose: channel.purpose?.value,
@@ -374,27 +490,14 @@ export const slackConnector: ConnectorConfig = {
       const data = await slackApiGet('conversations.info', accessToken, { channel: externalId })
       const channel = data.channel as SlackChannel
 
-      const { messages, lastActivityTs } = await fetchChannelMessages(
-        accessToken,
-        externalId,
-        maxMessages
-      )
-
-      const content = await formatMessages(accessToken, messages, syncContext)
+      const { content, contentHash, messageCount, lastActivityTs } =
+        await buildSlackChannelDocument(accessToken, channel, maxMessages, syncContext)
       if (!content.trim()) return null
 
-      const contentHash = await computeContentHash(content)
-
-      let sourceUrl = `https://app.slack.com/client/${channel.id}`
-      try {
-        const authData = await slackApiGet('auth.test', accessToken, {})
-        const teamId = authData.team_id as string | undefined
-        if (teamId) {
-          sourceUrl = `https://app.slack.com/client/${teamId}/${channel.id}`
-        }
-      } catch {
-        // Fall back to URL without team ID
-      }
+      const teamId = await resolveTeamId(accessToken, syncContext)
+      const sourceUrl = teamId
+        ? `https://app.slack.com/client/${teamId}/${channel.id}`
+        : `https://app.slack.com/client/${channel.id}`
 
       return {
         externalId: channel.id,
@@ -405,7 +508,7 @@ export const slackConnector: ConnectorConfig = {
         contentHash,
         metadata: {
           channelName: channel.name,
-          messageCount: messages.length,
+          messageCount,
           lastActivity: lastActivityTs ? formatSlackTimestamp(lastActivityTs) : undefined,
           topic: channel.topic?.value,
           purpose: channel.purpose?.value,
@@ -438,8 +541,9 @@ export const slackConnector: ConnectorConfig = {
     try {
       const trimmed = channelInput.trim().replace(/^#/, '')
 
-      // If it looks like a channel ID, verify directly
-      if (/^[CDG][A-Z0-9]+$/.test(trimmed)) {
+      // If it looks like a channel ID, verify directly. DMs (D...) are excluded
+      // because we don't request im:*/mpim:* scopes — see resolveChannel.
+      if (/^[CG][A-Z0-9]+$/.test(trimmed)) {
         await slackApiGet(
           'conversations.info',
           accessToken,
@@ -478,7 +582,7 @@ export const slackConnector: ConnectorConfig = {
 
       return { valid: false, error: `Channel not found: ${channelInput}` }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = toError(error).message || 'Failed to validate configuration'
       return { valid: false, error: message }
     }
   },

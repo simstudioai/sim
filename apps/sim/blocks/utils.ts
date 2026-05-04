@@ -1,6 +1,12 @@
 import { toError } from '@sim/utils/errors'
-import { isAzureConfigured, isHosted, isOllamaConfigured } from '@/lib/core/config/feature-flags'
+import {
+  isAzureConfigured,
+  isCohereConfigured,
+  isHosted,
+  isOllamaConfigured,
+} from '@/lib/core/config/feature-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
 import {
   getBaseModelProviders,
@@ -64,16 +70,6 @@ export function getModelOptions() {
 }
 
 /**
- * Checks if a field is included in the dependsOn config.
- * Handles both simple array format and object format with all/any fields.
- */
-export function isDependency(dependsOn: SubBlockConfig['dependsOn'], field: string): boolean {
-  if (!dependsOn) return false
-  if (Array.isArray(dependsOn)) return dependsOn.includes(field)
-  return dependsOn.all?.includes(field) || dependsOn.any?.includes(field) || false
-}
-
-/**
  * Gets all dependency fields as a flat array.
  * Handles both simple array format and object format with all/any fields.
  */
@@ -81,6 +77,29 @@ export function getDependsOnFields(dependsOn: SubBlockConfig['dependsOn']): stri
   if (!dependsOn) return []
   if (Array.isArray(dependsOn)) return dependsOn
   return [...(dependsOn.all || []), ...(dependsOn.any || [])]
+}
+
+/**
+ * Finds subblocks that depend on a changed field, accounting for canonical pairs.
+ */
+export function getSubBlocksDependingOnChange(
+  allSubBlocks: SubBlockConfig[],
+  changedSubBlockId: string
+): SubBlockConfig[] {
+  const canonicalIndex = buildCanonicalIndex(allSubBlocks)
+  const canonicalId = canonicalIndex.canonicalIdBySubBlockId[changedSubBlockId]
+  const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+  const changedFields = new Set<string>([changedSubBlockId])
+
+  if (canonicalId) changedFields.add(canonicalId)
+  if (group?.basicId) changedFields.add(group.basicId)
+  for (const advancedId of group?.advancedIds || []) {
+    changedFields.add(advancedId)
+  }
+
+  return allSubBlocks.filter((subBlock) =>
+    getDependsOnFields(subBlock.dependsOn).some((field) => changedFields.has(field))
+  )
 }
 
 export function resolveOutputType(
@@ -167,6 +186,27 @@ export function getApiKeyCondition() {
     const model = typeof values?.model === 'string' ? values.model : ''
     const shouldShow = shouldRequireApiKeyForModel(model)
     return buildModelVisibilityCondition(model, shouldShow)
+  }
+}
+
+/**
+ * Visibility condition for the Cohere reranker API key field on the Knowledge block.
+ * Hidden on hosted Sim (platform supplies the key via workspace BYOK or rotating env keys)
+ * and on self-hosted deployments that have set `NEXT_PUBLIC_COHERE_CONFIGURED=true` to
+ * indicate `COHERE_API_KEY` is pre-configured server-side. Otherwise shown (and required)
+ * whenever reranking is enabled for a search operation, mirroring the agent block's
+ * `getApiKeyCondition` pattern.
+ */
+export function getCohereRerankerApiKeyCondition() {
+  return () => {
+    if (isHosted || isCohereConfigured) {
+      return { field: 'operation', value: '__never_show__' }
+    }
+    return {
+      field: 'operation',
+      value: 'search',
+      and: { field: 'rerankerEnabled', value: true },
+    }
   }
 }
 
