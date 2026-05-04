@@ -36,9 +36,9 @@ export async function executeWorkflowGroupCellJob(
     const { getTableById, getRowById, updateRow } = await import('@/lib/table/service')
     const { executeWorkflow } = await import('@/lib/workflows/executor/execute-workflow')
     const { loadWorkflowFromNormalizedTables } = await import('@/lib/workflows/persistence/utils')
-    const { writeWorkflowGroupState, buildOutputsByBlockId } = await import(
-      '@/lib/table/cell-write'
-    )
+    const { writeWorkflowGroupState, markWorkflowGroupPickedUp, buildOutputsByBlockId } =
+      await import('@/lib/table/cell-write')
+    const { stashCellContextForResume } = await import('@/lib/table/workflow-columns')
 
     const cellCtx = { tableId, rowId, workspaceId, groupId, executionId, requestId }
     const writeState = (executionState: RowExecutionMetadata, dataPatch?: RowData) =>
@@ -111,6 +111,16 @@ export async function executeWorkflowGroupCellJob(
         logger.warn(`Row ${rowId} vanished before execution`)
         return
       }
+
+      // Flip `queued` → `running` to signal the worker has actually started.
+      // Bail out if the cancel-sticky guard rejects the write (a stop click
+      // landed between enqueue and pickup).
+      const queuedExec = row.executions?.[groupId] as RowExecutionMetadata | undefined
+      const pickedUp = await markWorkflowGroupPickedUp(cellCtx, {
+        workflowId,
+        jobId: queuedExec?.jobId ?? null,
+      })
+      if (pickedUp === 'skipped') return
 
       // Output columns produced by THIS group are skipped on input — they're
       // populated by the run we're starting. Other group's outputs ARE
@@ -266,6 +276,36 @@ export async function executeWorkflowGroupCellJob(
       // no-ops the moment they try to enqueue.
       terminalWritten = true
       await writeChain.catch(() => {})
+
+      if (result.status === 'paused') {
+        // HITL pause: keep the row in `pending` so the renderer surfaces it
+        // the same way logs do, but stamp a sentinel jobId so the scheduler's
+        // eligibility predicate keeps treating the row as in-flight (no
+        // re-enqueue while we wait on a human). Resume worker rewrites this
+        // back to `completed`/`error` once the pause clears.
+        await writeState(
+          {
+            status: 'pending',
+            executionId,
+            jobId: `paused-${executionId}`,
+            workflowId,
+            error: null,
+            runningBlockIds: [],
+            blockErrors,
+          },
+          accumulatedData
+        )
+        await stashCellContextForResume({
+          executionId,
+          tableId,
+          tableName,
+          rowId,
+          groupId,
+          workflowId,
+          workspaceId,
+        })
+        return
+      }
 
       await writeState(
         {

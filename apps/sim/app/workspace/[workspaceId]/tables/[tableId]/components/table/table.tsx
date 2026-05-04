@@ -226,8 +226,13 @@ export function Table({
   const updateWorkflowGroupMutation = useUpdateWorkflowGroup({ workspaceId, tableId })
 
   const handleRunGroup = useCallback(
-    (groupId: string, workflowId: string, runMode: 'all' | 'incomplete' = 'all') => {
-      runGroupMutation.mutate({ groupId, workflowId, runMode })
+    (
+      groupId: string,
+      workflowId: string,
+      runMode: 'all' | 'incomplete' = 'all',
+      rowIds?: string[]
+    ) => {
+      runGroupMutation.mutate({ groupId, workflowId, runMode, rowIds })
     },
     // mutate is stable; intentionally excluded from deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -576,20 +581,30 @@ export function Table({
   const contextMenuColumnInfo = useMemo<{
     isWorkflowColumn: boolean
     executionId: string | null
+    hasStartedRun: boolean
   }>(() => {
     if (!contextMenu.row || !contextMenu.columnName) {
-      return { isWorkflowColumn: false, executionId: null }
+      return { isWorkflowColumn: false, executionId: null, hasStartedRun: false }
     }
     const column = columnsRef.current.find((c) => c.name === contextMenu.columnName)
     const groupId = column?.workflowGroupId
     if (!column || !groupId) {
-      return { isWorkflowColumn: false, executionId: null }
+      return { isWorkflowColumn: false, executionId: null, hasStartedRun: false }
     }
     const exec = contextMenu.row.executions?.[groupId]
-    return { isWorkflowColumn: true, executionId: exec?.executionId ?? null }
+    // `queued` / `pending` rows have an executionId reserved but no execution
+    // row in the logs DB yet — the worker hasn't started, so View execution
+    // would 404.
+    const hasStartedRun = exec?.status !== 'queued' && exec?.status !== 'pending'
+    return {
+      isWorkflowColumn: true,
+      executionId: exec?.executionId ?? null,
+      hasStartedRun,
+    }
   }, [contextMenu.row, contextMenu.columnName])
   const contextMenuExecutionId = contextMenuColumnInfo.executionId
   const contextMenuIsWorkflowColumn = contextMenuColumnInfo.isWorkflowColumn
+  const contextMenuHasStartedRun = contextMenuColumnInfo.hasStartedRun
 
   const handleViewExecution = useCallback(() => {
     if (!contextMenuExecutionId) return
@@ -2403,6 +2418,21 @@ export function Table({
   )
   const hasWorkflowColumns = workflowColumnNames.length > 0
 
+  /**
+   * Row ids for the current multi-row selection. Drives "Run N selected rows"
+   * in the workflow-group run menu — `null` when there's no multi-selection so
+   * the menu collapses to "Run all rows".
+   */
+  const selectedRowIds = useMemo<string[] | null>(() => {
+    if (checkedRows.size === 0) return null
+    const ids: string[] = []
+    for (const pos of checkedRows) {
+      const row = positionMap.get(pos)
+      if (row) ids.push(row.id)
+    }
+    return ids.length > 0 ? ids : null
+  }, [checkedRows, positionMap])
+
   const { runningByRowId, totalRunning } = useMemo(() => {
     const byRow = new Map<string, number>()
     let total = 0
@@ -2410,7 +2440,8 @@ export function Table({
       let count = 0
       const executions = row.executions ?? {}
       for (const gid in executions) {
-        if (executions[gid]?.status === 'running') count++
+        const status = executions[gid]?.status
+        if (status === 'running' || status === 'queued') count++
       }
       if (count > 0) {
         byRow.set(row.id, count)
@@ -2481,7 +2512,7 @@ export function Table({
             breadcrumbs={breadcrumbs}
             createTrigger={createTrigger}
             actions={headerActions}
-            trailingActions={
+            leadingActions={
               totalRunning > 0 ? (
                 <RunStatusControl
                   running={totalRunning}
@@ -2600,6 +2631,7 @@ export function Table({
                               onSelectGroup={handleGroupSelect}
                               onOpenConfig={handleConfigureColumn}
                               onRunGroup={userPermissions.canEdit ? handleRunGroup : undefined}
+                              selectedRowIds={selectedRowIds}
                               onInsertLeft={
                                 userPermissions.canEdit ? handleInsertColumnLeft : undefined
                               }
@@ -2824,7 +2856,7 @@ export function Table({
         onInsertBelow={handleInsertRowBelow}
         onDuplicate={handleDuplicateRow}
         onViewExecution={handleViewExecution}
-        canViewExecution={Boolean(contextMenuExecutionId)}
+        canViewExecution={Boolean(contextMenuExecutionId) && contextMenuHasStartedRun}
         canEditCell={!contextMenuIsWorkflowColumn}
         selectedRowCount={selectedRowCount}
         disableEdit={!userPermissions.canEdit}
@@ -3413,7 +3445,7 @@ const RunStatusControl = React.memo(function RunStatusControl({
         onClick={onStopAll}
         disabled={isStopping}
       >
-        <Square className='mr-1.5 h-[14px] w-[14px] fill-current' />
+        <Square className='mr-1.5 h-[14px] w-[14px]' />
         Stop all
       </Button>
     </div>

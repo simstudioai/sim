@@ -70,7 +70,7 @@ export interface WorkflowGroup {
  * values land in `row.data` directly.
  */
 export interface RowExecutionMetadata {
-  status: 'pending' | 'running' | 'completed' | 'error' | 'cancelled'
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
   executionId: string | null
   /**
    * Async-job id (e.g. trigger.dev run id) for the in-flight execution.

@@ -78,7 +78,8 @@ function hasRunningGroupExecution(rows: TableRow[] | undefined): boolean {
     const executions = row.executions ?? {}
     for (const key in executions) {
       const exec = executions[key]
-      if (exec?.status === 'running' || exec?.status === 'pending') return true
+      if (exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending')
+        return true
     }
   }
   return false
@@ -378,6 +379,7 @@ export function useInfiniteTableRows({
   sort,
   enabled = true,
 }: InfiniteTableRowsParams) {
+  const queryClient = useQueryClient()
   const paramsKey = JSON.stringify({
     pageSize,
     filter: filter ?? null,
@@ -404,6 +406,21 @@ export function useInfiniteTableRows({
     },
     enabled: Boolean(workspaceId && tableId) && enabled,
     staleTime: 30 * 1000,
+    /**
+     * Poll while any row has a `pending` or `running` group execution.
+     * Realtime sockets push every cell write, but cross-network paths
+     * (trigger.dev workers → realtime ECS, client through CloudFront/proxy)
+     * occasionally drop events. Polling at the running cadence is the
+     * safety net so cells reach their terminal state without a refresh.
+     * No polling when nothing is running and no polling while a mutation
+     * is in flight (optimistic-update guard).
+     */
+    refetchInterval: (query) => {
+      if (queryClient.isMutating() > 0) return false
+      const rows = query.state.data?.pages.flatMap((p) => p.rows)
+      return hasRunningGroupExecution(rows) ? ROWS_POLL_INTERVAL_WHILE_RUNNING_MS : false
+    },
+    refetchIntervalInBackground: false,
   })
 }
 
@@ -870,7 +887,8 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
         const nextExecutions: RowExecutions = { ...executions }
         for (const gid in executions) {
           const exec = executions[gid]
-          if (exec.status !== 'running' && exec.status !== 'pending') continue
+          if (exec.status !== 'running' && exec.status !== 'queued' && exec.status !== 'pending')
+            continue
           // Preserve blockErrors so cells that already errored keep their
           // Error rendering after the stop — only cells without a value or
           // error should flip to "Cancelled".
@@ -1086,6 +1104,10 @@ interface RunGroupVariables {
    * `failed`/`aborted`. Mirrored by the server-side filter.
    */
   runMode?: 'all' | 'incomplete'
+  /** When set, restricts the run to these row ids. Server still applies the
+   *  same eligibility predicate; passed-in rows mid-run / unmet-deps are
+   *  silently skipped. Omit to run across the whole table. */
+  rowIds?: string[]
 }
 
 type InfiniteRowsCache = { pages: TableRowsResponse[]; pageParams: number[] }
@@ -1178,16 +1200,23 @@ export function useRunGroup({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ groupId, runMode = 'all' }: RunGroupVariables) => {
+    mutationFn: async ({ groupId, runMode = 'all', rowIds }: RunGroupVariables) => {
       return requestJson(runWorkflowGroupContract, {
         params: { tableId, groupId },
-        body: { workspaceId, runMode },
+        body: {
+          workspaceId,
+          runMode,
+          ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
+        },
       })
     },
-    onMutate: async ({ groupId, workflowId, runMode = 'all' }) => {
+    onMutate: async ({ groupId, workflowId, runMode = 'all', rowIds }) => {
+      const targetIds = rowIds && rowIds.length > 0 ? new Set(rowIds) : null
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
+        if (targetIds && !targetIds.has(r.id)) return null
         const exec = r.executions?.[groupId] as RowExecutionMetadata | undefined
-        if (exec?.status === 'running' || exec?.status === 'pending') return null
+        if (exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending')
+          return null
         // Mirror the server-side `incomplete` filter so the optimistic update
         // doesn't flash `pending` on rows the server is going to skip.
         if (runMode === 'incomplete' && exec?.status === 'completed') return null

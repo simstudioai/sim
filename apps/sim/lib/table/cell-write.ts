@@ -92,6 +92,28 @@ export async function writeWorkflowGroupState(
   return 'wrote'
 }
 
+/**
+ * Flips `queued` → `running` to signal the cell task body has actually been
+ * picked up by a worker. The renderer uses the `queued` vs `running` distinction
+ * to label cells "Queued" vs "Waiting" (worker started, this block hasn't run
+ * yet) — without this marker we couldn't tell if a row was sitting in the
+ * trigger.dev queue or actively executing.
+ */
+export async function markWorkflowGroupPickedUp(
+  ctx: WriteWorkflowGroupContext,
+  prev: Pick<RowExecutionMetadata, 'workflowId' | 'jobId'>
+): Promise<'wrote' | 'skipped'> {
+  return writeWorkflowGroupState(ctx, {
+    executionState: {
+      status: 'running',
+      executionId: ctx.executionId,
+      jobId: prev.jobId,
+      workflowId: prev.workflowId,
+      error: null,
+    },
+  })
+}
+
 /** Builds the canonical `cancelled` execution state used by every cancel path.
  *  Preserves `blockErrors` from the prior state so errored cells keep
  *  rendering Error after a stop click — only cells that hadn't yet produced

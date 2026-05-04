@@ -5,24 +5,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  ChevronDown,
-  ChevronRight,
-  ExternalLink,
-  Loader2,
-  Plus,
-  RepeatIcon,
-  SplitIcon,
-  X,
-} from 'lucide-react'
+import { ExternalLink, Loader2, RepeatIcon, SplitIcon, X } from 'lucide-react'
 import {
   Button,
-  Checkbox,
   Combobox,
-  Expandable,
-  ExpandableContent,
+  type ComboboxOption,
+  type ComboboxOptionGroup,
   Input,
   Label,
+  Loader,
   Switch,
   Tooltip,
   toast,
@@ -206,175 +197,117 @@ function FieldError({ message }: { message: string }) {
  * up. Color mirrors the group-header deploy badge: `red` for blocking states,
  * `amber` for soft warnings.
  */
-function WarningRow({
-  tone,
-  message,
-  action,
-}: {
-  tone: 'red' | 'amber'
-  message: string
-  action: React.ReactNode
-}) {
-  return (
-    <div
-      className={cn(
-        'flex items-center gap-2 rounded-md border px-2.5 py-2',
-        tone === 'red'
-          ? 'border-[color-mix(in_srgb,var(--text-error)_40%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)]'
-          : 'border-[var(--terminal-status-warning-border)] bg-[var(--terminal-status-warning-bg)]'
-      )}
-      role='status'
-    >
-      <span
-        className={cn(
-          'min-w-0 flex-1 text-caption',
-          tone === 'red'
-            ? 'text-[var(--text-error)]'
-            : 'text-[var(--terminal-status-warning-color)]'
-        )}
-      >
-        {message}
-      </span>
-      <div className='shrink-0'>{action}</div>
-    </div>
-  )
-}
+const DEP_VALUE_PREFIX_COLUMN = 'col:'
+const DEP_VALUE_PREFIX_GROUP = 'group:'
 
 /**
- * Collapsible "Run settings" section. Collapsed by default since outputs are
- * the primary focus of the workflow flow — most users never need to touch
- * the trigger conditions. The header shows a one-line summary of when the
- * group will fire so the current state is visible without expanding.
+ * "Run after" picker: which upstream columns and workflow groups must be
+ * filled before this group fires. Same Combobox shape as the Output columns
+ * picker. Empty selection = the group fires on any row change.
  */
 function RunSettingsSection({
-  open,
-  onOpenChange,
-  summary,
   scalarDepColumns,
   groupDepOptions,
   deps,
   groupDeps,
   workflows,
-  onToggleDep,
-  onToggleGroupDep,
+  onChangeDeps,
+  onChangeGroupDeps,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  summary: string
   scalarDepColumns: ColumnDefinition[]
   groupDepOptions: WorkflowGroup[]
   deps: string[]
   groupDeps: string[]
   workflows: WorkflowMetadata[] | undefined
-  onToggleDep: (name: string) => void
-  onToggleGroupDep: (groupId: string) => void
+  onChangeDeps: (next: string[]) => void
+  onChangeGroupDeps: (next: string[]) => void
 }) {
+  const groups = useMemo<ComboboxOptionGroup[]>(() => {
+    const result: ComboboxOptionGroup[] = []
+    if (scalarDepColumns.length > 0) {
+      result.push({
+        section: 'Columns',
+        items: scalarDepColumns.map((c) => ({
+          label: c.name,
+          value: `${DEP_VALUE_PREFIX_COLUMN}${c.name}`,
+        })),
+      })
+    }
+    if (groupDepOptions.length > 0) {
+      result.push({
+        section: 'Workflow groups',
+        items: groupDepOptions.map((g) => {
+          const wf = workflows?.find((w) => w.id === g.workflowId)
+          const color = wf?.color ?? 'var(--text-muted)'
+          const label = g.name ?? wf?.name ?? 'Workflow'
+          return {
+            label,
+            value: `${DEP_VALUE_PREFIX_GROUP}${g.id}`,
+            iconElement: (
+              <span
+                className='h-[10px] w-[10px] shrink-0 rounded-sm'
+                style={{ backgroundColor: color }}
+                aria-hidden='true'
+              />
+            ),
+          }
+        }),
+      })
+    }
+    return result
+  }, [scalarDepColumns, groupDepOptions, workflows])
+
+  const flatOptions = useMemo<ComboboxOption[]>(
+    () => groups.flatMap((g) => g.items),
+    [groups]
+  )
+
+  const selected = useMemo<string[]>(
+    () => [
+      ...deps.map((d) => `${DEP_VALUE_PREFIX_COLUMN}${d}`),
+      ...groupDeps.map((g) => `${DEP_VALUE_PREFIX_GROUP}${g}`),
+    ],
+    [deps, groupDeps]
+  )
+
+  const handleChange = (next: string[]) => {
+    const nextDeps: string[] = []
+    const nextGroupDeps: string[] = []
+    for (const v of next) {
+      if (v.startsWith(DEP_VALUE_PREFIX_COLUMN))
+        nextDeps.push(v.slice(DEP_VALUE_PREFIX_COLUMN.length))
+      else if (v.startsWith(DEP_VALUE_PREFIX_GROUP))
+        nextGroupDeps.push(v.slice(DEP_VALUE_PREFIX_GROUP.length))
+    }
+    onChangeDeps(nextDeps)
+    onChangeGroupDeps(nextGroupDeps)
+  }
+
+  const totalOptionCount = scalarDepColumns.length + groupDepOptions.length
+
   return (
     <div className='flex flex-col gap-[9.5px]'>
-      <button
-        type='button'
-        onClick={() => onOpenChange(!open)}
-        className='flex min-w-0 cursor-pointer flex-col items-start gap-0.5 rounded-md pl-0.5 text-left transition-colors hover:bg-[var(--surface-2)]'
-        aria-expanded={open}
-      >
-        <span className='flex items-center gap-1.5'>
-          {open ? (
-            <ChevronDown className='h-[12px] w-[12px] shrink-0 text-[var(--text-muted)]' />
-          ) : (
-            <ChevronRight className='h-[12px] w-[12px] shrink-0 text-[var(--text-muted)]' />
-          )}
-          <span className='font-medium text-[var(--text-primary)] text-small'>Run settings</span>
-        </span>
-        {!open && (
-          <span className='break-words pl-[18px] text-[var(--text-tertiary)] text-caption'>
-            {summary}
+      <FieldLabel>Run after</FieldLabel>
+      <Combobox
+        multiSelect
+        searchable
+        searchPlaceholder='Search…'
+        size='sm'
+        className='h-[32px] w-full rounded-md'
+        dropdownWidth='trigger'
+        maxHeight={240}
+        disabled={totalOptionCount === 0}
+        emptyMessage='No upstream columns or groups.'
+        groups={groups}
+        options={flatOptions}
+        multiSelectValues={selected}
+        onMultiSelectChange={handleChange}
+        overlayContent={
+          <span className='truncate text-[var(--text-primary)]'>
+            {selected.length === 0 ? 'Any row change' : `${selected.length} selected`}
           </span>
-        )}
-      </button>
-      <Expandable expanded={open}>
-        <ExpandableContent>
-          <div className='flex max-h-[240px] min-w-0 flex-col overflow-y-auto rounded-md border border-[var(--border)]'>
-            {scalarDepColumns.length === 0 && groupDepOptions.length === 0 ? (
-              <div className='px-2 py-3 text-[var(--text-tertiary)] text-small'>
-                No upstream columns or groups.
-              </div>
-            ) : (
-              <>
-                {scalarDepColumns.map((c, idx) => {
-                  const checked = deps.includes(c.name)
-                  const isLast = idx === scalarDepColumns.length - 1 && groupDepOptions.length === 0
-                  return (
-                    <div
-                      key={`col:${c.name}`}
-                      role='checkbox'
-                      aria-checked={checked}
-                      tabIndex={0}
-                      onClick={() => onToggleDep(c.name)}
-                      onKeyDown={(e) => {
-                        if (e.key === ' ' || e.key === 'Enter') {
-                          e.preventDefault()
-                          onToggleDep(c.name)
-                        }
-                      }}
-                      className={cn(
-                        'flex h-[36px] flex-shrink-0 cursor-pointer items-center gap-2.5 px-2.5 hover:bg-[var(--surface-2)]',
-                        !isLast && 'border-[var(--border)] border-b'
-                      )}
-                    >
-                      <Checkbox size='sm' checked={checked} className='pointer-events-none' />
-                      <span className='font-medium text-[var(--text-secondary)] text-small'>
-                        {c.name}
-                      </span>
-                      <span className='ml-auto text-[var(--text-tertiary)] text-caption'>
-                        {c.type}
-                      </span>
-                    </div>
-                  )
-                })}
-                {groupDepOptions.map((g, idx) => {
-                  const checked = groupDeps.includes(g.id)
-                  const isLast = idx === groupDepOptions.length - 1
-                  const wf = workflows?.find((w) => w.id === g.workflowId)
-                  const color = wf?.color ?? 'var(--text-muted)'
-                  const label = g.name ?? wf?.name ?? 'Workflow'
-                  return (
-                    <div
-                      key={`group:${g.id}`}
-                      role='checkbox'
-                      aria-checked={checked}
-                      tabIndex={0}
-                      onClick={() => onToggleGroupDep(g.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === ' ' || e.key === 'Enter') {
-                          e.preventDefault()
-                          onToggleGroupDep(g.id)
-                        }
-                      }}
-                      className={cn(
-                        'flex h-[36px] flex-shrink-0 cursor-pointer items-center gap-2.5 px-2.5 hover:bg-[var(--surface-2)]',
-                        !isLast && 'border-[var(--border)] border-b'
-                      )}
-                    >
-                      <Checkbox size='sm' checked={checked} className='pointer-events-none' />
-                      <span
-                        className='h-[10px] w-[10px] shrink-0 rounded-sm'
-                        style={{ backgroundColor: color }}
-                        aria-hidden='true'
-                      />
-                      <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-small'>
-                        {label}
-                      </span>
-                      <span className='ml-auto text-[var(--text-tertiary)] text-caption'>
-                        workflow
-                      </span>
-                    </div>
-                  )
-                })}
-              </>
-            )}
-          </div>
-        </ExpandableContent>
-      </Expandable>
+        }
+      />
     </div>
   )
 }
@@ -490,12 +423,6 @@ export function ColumnSidebar({
   const [selectedOutputs, setSelectedOutputs] = useState<string[]>([])
   /** Surfaces required-field errors only after a save attempt, matching the workflow editor's deploy flow. */
   const [showValidation, setShowValidation] = useState(false)
-  /** Save-time error (network/validation thrown by the mutation). Rendered inline next to the footer
-   *  buttons so it isn't covered by the toaster, which sits over the bottom-right of the panel. */
-  const [saveError, setSaveError] = useState<string | null>(null)
-  /** Run settings (the trigger-deps picker) starts collapsed — outputs are the
-   *  primary task; configuring run timing is rare. */
-  const [runSettingsOpen, setRunSettingsOpen] = useState(false)
 
   const existingColumnRef = useRef(existingColumn)
   existingColumnRef.current = existingColumn
@@ -505,8 +432,6 @@ export function ColumnSidebar({
   useEffect(() => {
     if (!open || !configState) return
     setShowValidation(false)
-    setSaveError(null)
-    setRunSettingsOpen(false)
     const existing = existingColumnRef.current
     const cols = allColumnsRef.current
     const leftOfCurrent = (() => {
@@ -667,11 +592,9 @@ export function ColumnSidebar({
         params: { id: wfId },
         body,
       })
-      return missingInputColumnNames.length
     },
-    onSuccess: (added) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: workflowKeys.state(selectedWorkflowId) })
-      toast.success(`Added ${added} input${added === 1 ? '' : 's'} to start block`)
     },
     onError: (err) => {
       toast.error(toError(err).message)
@@ -730,6 +653,36 @@ export function ColumnSidebar({
   }, [workflowState.data])
 
   /**
+   * Combobox-shaped options for the multi-select dropdown. One option per
+   * `(blockId, path)` pair, grouped by block with the block icon + name as
+   * the section header.
+   */
+  const outputGroupOptions = useMemo<ComboboxOptionGroup[]>(
+    () =>
+      blockOutputGroups.map((group) => ({
+        section: group.blockName,
+        sectionElement: (
+          <div className='flex items-center gap-1.5 px-1.5 pt-1.5 pb-1'>
+            <TagIcon icon={group.blockIcon} color={group.blockColor} />
+            <span className='font-medium text-[var(--text-secondary)] text-caption'>
+              {group.blockName}
+            </span>
+          </div>
+        ),
+        items: group.paths.map((path) => ({
+          label: path,
+          value: encodeOutputValue(group.blockId, path),
+        })),
+      })),
+    [blockOutputGroups]
+  )
+
+  const outputFlatOptions = useMemo<ComboboxOption[]>(
+    () => outputGroupOptions.flatMap((g) => g.items),
+    [outputGroupOptions]
+  )
+
+  /**
    * Re-encode persisted `{blockId, path}` entries into the picker's encoded form
    * once the workflow's blocks are loaded. Stale entries (block deleted or path
    * removed) are dropped silently — the user can re-pick on save.
@@ -748,16 +701,6 @@ export function ColumnSidebar({
     if (encoded.length > 0) setSelectedOutputs(encoded)
   }, [blockOutputGroups, selectedOutputs.length, existingGroup])
 
-  const toggleDep = (name: string) => {
-    setDeps((prev) => (prev.includes(name) ? prev.filter((d) => d !== name) : [...prev, name]))
-  }
-
-  const toggleGroupDep = (groupId: string) => {
-    setGroupDeps((prev) =>
-      prev.includes(groupId) ? prev.filter((d) => d !== groupId) : [...prev, groupId]
-    )
-  }
-
   const toggleOutput = (encoded: string) => {
     setSelectedOutputs((prev) =>
       prev.includes(encoded) ? prev.filter((v) => v !== encoded) : [...prev, encoded]
@@ -768,23 +711,6 @@ export function ColumnSidebar({
     () => COLUMN_TYPE_OPTIONS.map((o) => ({ label: o.label, value: o.type, icon: o.icon })),
     []
   )
-
-  /**
-   * One-line summary of the trigger picker shown when Run settings is collapsed.
-   * Lists the dep names ("Run when X, Y, are filled") so the user can see at a
-   * glance whether anything's gating the group without expanding the section.
-   */
-  const runSettingsSummary = useMemo(() => {
-    const names: string[] = [...deps]
-    for (const gid of groupDeps) {
-      const g = workflowGroups.find((gg) => gg.id === gid)
-      const wf = workflows?.find((w) => w.id === g?.workflowId)
-      const label = g?.name ?? wf?.name ?? 'workflow'
-      names.push(label)
-    }
-    if (names.length === 0) return 'Runs as soon as the group is added'
-    return `Runs when ${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} filled`
-  }, [deps, groupDeps, workflowGroups, workflows])
 
   /**
    * Builds the ordered, deduplicated `(blockId, path)` list from the picker
@@ -844,7 +770,6 @@ export function ColumnSidebar({
 
   const handleSave = async () => {
     if (!configState) return
-    setSaveError(null)
     const trimmedName = nameInput.trim()
     // Name is required iff the field is shown — when configuring a whole
     // workflow group at creation time, per-output column names are auto-derived
@@ -857,9 +782,6 @@ export function ColumnSidebar({
     }
     if (missing.length > 0) {
       setShowValidation(true)
-      // Surface a short summary near the Save button too — the inline FieldError
-      // can be scrolled out of view when the panel content is tall.
-      setSaveError(`Add ${missing.join(' and ')} before saving.`)
       return
     }
 
@@ -1001,7 +923,7 @@ export function ColumnSidebar({
 
       onClose()
     } catch (err) {
-      setSaveError(toError(err).message)
+      toast.error(toError(err).message)
     }
   }
 
@@ -1078,9 +1000,6 @@ export function ColumnSidebar({
                     onCheckedChange={(v) => setUniqueInput(!!v)}
                   />
                 </div>
-                <p className='pl-0.5 text-[var(--text-tertiary)] text-caption'>
-                  Reject duplicate values across rows.
-                </p>
               </div>
             </>
           )}
@@ -1092,7 +1011,28 @@ export function ColumnSidebar({
                   <FieldDivider />
 
                   <div className='flex flex-col gap-[9.5px]'>
-                    <Label className='pl-0.5'>Workflow preview</Label>
+                    <div className='flex min-w-0 items-center justify-between gap-2 pl-0.5'>
+                      <Label>Workflow preview</Label>
+                      {startBlockInputs.blockId && missingInputColumnNames.length > 0 && (
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <button
+                              type='button'
+                              className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-0.5 font-medium font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-active)] disabled:cursor-not-allowed disabled:opacity-60'
+                              onClick={() => addInputsMutation.mutate()}
+                              disabled={addInputsMutation.isPending}
+                            >
+                              {addInputsMutation.isPending
+                                ? 'Adding…'
+                                : `Add inputs (${missingInputColumnNames.length})`}
+                            </button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content side='top'>
+                            Adds {missingInputColumnNames.join(', ')} to the workflow's Start block
+                          </Tooltip.Content>
+                        </Tooltip.Root>
+                      )}
+                    </div>
                     <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
                       {workflowState.isLoading ? (
                         <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
@@ -1163,103 +1103,36 @@ export function ColumnSidebar({
                 {showValidation && !selectedWorkflowId && (
                   <FieldError message='Select a workflow' />
                 )}
-                {selectedWorkflowId &&
-                  startBlockInputs.blockId &&
-                  missingInputColumnNames.length > 0 && (
-                    <WarningRow
-                      tone='amber'
-                      message={`Start block missing ${missingInputColumnNames.length} table input${
-                        missingInputColumnNames.length === 1 ? '' : 's'
-                      }`}
-                      action={
-                        <Tooltip.Root>
-                          <Tooltip.Trigger asChild>
-                            <Button
-                              type='button'
-                              variant='default'
-                              size='sm'
-                              onClick={() => addInputsMutation.mutate()}
-                              disabled={addInputsMutation.isPending}
-                            >
-                              <Plus className='h-[14px] w-[14px]' />
-                              {addInputsMutation.isPending
-                                ? 'Adding…'
-                                : `Add inputs (${missingInputColumnNames.length})`}
-                            </Button>
-                          </Tooltip.Trigger>
-                          <Tooltip.Content side='top'>
-                            Adds {missingInputColumnNames.join(', ')} to the workflow's Start block
-                          </Tooltip.Content>
-                        </Tooltip.Root>
-                      }
-                    />
-                  )}
               </div>
 
               <FieldDivider />
 
               <div className='flex flex-col gap-[9.5px]'>
                 <FieldLabel required>Output columns</FieldLabel>
-                <p className='pl-0.5 text-[var(--text-tertiary)] text-caption'>
-                  Each picked output becomes a column filled with the workflow's value for that
-                  field.
-                </p>
-                <div className='flex max-h-[280px] min-w-0 flex-col overflow-y-auto rounded-md border border-[var(--border)]'>
-                  {workflowState.isLoading ? (
-                    <div className='px-2 py-3 text-[var(--text-tertiary)] text-small'>
-                      Loading workflow…
-                    </div>
-                  ) : blockOutputGroups.length === 0 ? (
-                    <div className='px-2 py-3 text-[var(--text-tertiary)] text-small'>
-                      No outputs found.
-                    </div>
-                  ) : (
-                    blockOutputGroups.map((group, gi) => (
-                      <div
-                        key={group.blockId}
-                        className={cn(
-                          gi < blockOutputGroups.length - 1 && 'border-[var(--border)] border-b'
-                        )}
-                      >
-                        <div className='flex items-center gap-1.5 bg-[var(--surface-2)] px-2.5 py-1.5'>
-                          <TagIcon icon={group.blockIcon} color={group.blockColor} />
-                          <span className='font-medium text-[var(--text-secondary)] text-small'>
-                            {group.blockName}
-                          </span>
-                        </div>
-                        {group.paths.map((path) => {
-                          const encoded = encodeOutputValue(group.blockId, path)
-                          const checked = selectedOutputs.includes(encoded)
-                          return (
-                            <div
-                              key={encoded}
-                              role='checkbox'
-                              aria-checked={checked}
-                              tabIndex={0}
-                              onClick={() => toggleOutput(encoded)}
-                              onKeyDown={(e) => {
-                                if (e.key === ' ' || e.key === 'Enter') {
-                                  e.preventDefault()
-                                  toggleOutput(encoded)
-                                }
-                              }}
-                              className='flex h-[28px] flex-shrink-0 cursor-pointer items-center gap-2 px-2.5 hover:bg-[var(--surface-2)]'
-                            >
-                              <Checkbox
-                                size='sm'
-                                checked={checked}
-                                className='pointer-events-none'
-                              />
-                              <span className='font-medium text-[var(--text-secondary)] text-small'>
-                                {path}
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    ))
-                  )}
-                </div>
+                <Combobox
+                  multiSelect
+                  searchable
+                  searchPlaceholder='Search outputs…'
+                  size='sm'
+                  className='h-[32px] w-full rounded-md'
+                  dropdownWidth='trigger'
+                  maxHeight={280}
+                  disabled={workflowState.isLoading || blockOutputGroups.length === 0}
+                  emptyMessage={
+                    workflowState.isLoading ? 'Loading workflow…' : 'No outputs found.'
+                  }
+                  groups={outputGroupOptions}
+                  options={outputFlatOptions}
+                  multiSelectValues={selectedOutputs}
+                  onMultiSelectChange={setSelectedOutputs}
+                  overlayContent={
+                    <span className='truncate text-[var(--text-primary)]'>
+                      {selectedOutputs.length === 0
+                        ? 'Select outputs'
+                        : `${selectedOutputs.length} selected`}
+                    </span>
+                  }
+                />
                 {showValidation && selectedWorkflowId && selectedOutputs.length === 0 && (
                   <FieldError message='Pick at least one output column' />
                 )}
@@ -1268,32 +1141,19 @@ export function ColumnSidebar({
               <FieldDivider />
 
               <RunSettingsSection
-                open={runSettingsOpen}
-                onOpenChange={setRunSettingsOpen}
-                summary={runSettingsSummary}
                 scalarDepColumns={scalarDepColumns}
                 groupDepOptions={groupDepOptions}
                 deps={deps}
                 groupDeps={groupDeps}
                 workflows={workflows}
-                onToggleDep={toggleDep}
-                onToggleGroupDep={toggleGroupDep}
+                onChangeDeps={setDeps}
+                onChangeGroupDeps={setGroupDeps}
               />
             </>
           )}
         </div>
 
-        <div className='flex items-center gap-2 border-[var(--border)] border-t px-2 py-3'>
-          {saveError ? (
-            <p
-              role='alert'
-              className='min-w-0 flex-1 break-words pl-0.5 text-caption text-destructive'
-            >
-              {saveError}
-            </p>
-          ) : (
-            <span className='flex-1' />
-          )}
+        <div className='flex items-center justify-end gap-2 border-[var(--border)] border-t px-2 py-3'>
           <Button variant='default' size='sm' onClick={onClose}>
             Cancel
           </Button>

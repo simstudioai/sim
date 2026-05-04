@@ -74,50 +74,52 @@ const logger = createLogger('TableService')
  * is the fallback. Each helper sends a single row delta so the realtime
  * server can broadcast to subscribed clients in the table room.
  */
+async function postRealtimeBridge(path: string, body: unknown, label: string): Promise<void> {
+  try {
+    const res = await fetch(`${getSocketServerUrl()}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': env.INTERNAL_API_SECRET,
+      },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      logger.warn(`${label} bridge non-OK response`, {
+        status: res.status,
+        statusText: res.statusText,
+      })
+    }
+  } catch (err) {
+    logger.warn(`${label} bridge failed:`, err)
+  }
+}
+
 function notifyTableRowUpdated(tableId: string, row: TableRow): void {
-  void fetch(`${getSocketServerUrl()}/api/table-row-updated`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': env.INTERNAL_API_SECRET,
-    },
-    body: JSON.stringify({
+  void postRealtimeBridge(
+    '/api/table-row-updated',
+    {
       tableId,
       rowId: row.id,
       data: row.data,
       executions: row.executions,
       position: row.position,
       updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
-    }),
-  }).catch((err) => {
-    logger.warn(`table-row-updated bridge failed for ${tableId}/${row.id}:`, err)
-  })
+    },
+    `table-row-updated ${tableId}/${row.id}`
+  )
 }
 
 function notifyTableRowDeleted(tableId: string, rowId: string): void {
-  void fetch(`${getSocketServerUrl()}/api/table-row-deleted`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': env.INTERNAL_API_SECRET,
-    },
-    body: JSON.stringify({ tableId, rowId }),
-  }).catch((err) => {
-    logger.warn(`table-row-deleted bridge failed for ${tableId}/${rowId}:`, err)
-  })
+  void postRealtimeBridge(
+    '/api/table-row-deleted',
+    { tableId, rowId },
+    `table-row-deleted ${tableId}/${rowId}`
+  )
 }
 
 function notifyTableDeleted(tableId: string): void {
-  void fetch(`${getSocketServerUrl()}/api/table-deleted`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': env.INTERNAL_API_SECRET,
-    },
-    body: JSON.stringify({ tableId }),
-  }).catch((err) => {
-    logger.warn(`table-deleted bridge failed for ${tableId}:`, err)
-  })
+  void postRealtimeBridge('/api/table-deleted', { tableId }, `table-deleted ${tableId}`)
 }
 
 export class TableConflictError extends Error {

@@ -315,7 +315,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             draggable={false}
             aria-label='Column options'
           >
-            <ChevronDown className='h-[7px] w-[9px]' />
+            <ChevronDown className='h-[14px] w-[14px] shrink-0' />
           </button>
           <ColumnOptionsMenu
             open={menuOpen}

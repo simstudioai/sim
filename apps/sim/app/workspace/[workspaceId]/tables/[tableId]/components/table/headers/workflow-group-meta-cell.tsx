@@ -42,6 +42,9 @@ interface ColumnOptionsMenuProps {
    *  exposes group-level run actions above the column actions. */
   onRunGroupAll?: () => void
   onRunGroupIncomplete?: () => void
+  /** When set, surfaces a "Run N selected rows" item above Run all. */
+  onRunGroupSelected?: () => void
+  selectedRowCount?: number
 }
 
 /**
@@ -64,8 +67,11 @@ export function ColumnOptionsMenu({
   onDeleteGroup,
   onRunGroupAll,
   onRunGroupIncomplete,
+  onRunGroupSelected,
+  selectedRowCount = 0,
 }: ColumnOptionsMenuProps) {
   const showRunActions = Boolean(onRunGroupAll && onRunGroupIncomplete)
+  const showRunSelected = Boolean(onRunGroupSelected) && selectedRowCount > 0
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -97,6 +103,11 @@ export function ColumnOptionsMenu({
                 Run
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
+                {showRunSelected && (
+                  <DropdownMenuItem onSelect={() => onRunGroupSelected?.()}>
+                    {`Run ${selectedRowCount} selected ${selectedRowCount === 1 ? 'row' : 'rows'}`}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onSelect={() => onRunGroupAll?.()}>Run all rows</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => onRunGroupIncomplete?.()}>
                   Run empty rows
@@ -143,12 +154,20 @@ interface WorkflowGroupMetaCellProps {
   isGroupSelected: boolean
   onSelectGroup: (startColIndex: number, size: number) => void
   onOpenConfig: (columnName: string) => void
-  onRunGroup?: (groupId: string, workflowId: string, mode?: 'all' | 'incomplete') => void
+  onRunGroup?: (
+    groupId: string,
+    workflowId: string,
+    mode?: 'all' | 'incomplete',
+    rowIds?: string[]
+  ) => void
   onInsertLeft?: (columnName: string) => void
   onInsertRight?: (columnName: string) => void
   onDeleteColumn?: (columnName: string) => void
   /** Right-click delete on the group header drops the entire workflow group. */
   onDeleteGroup?: (groupId: string) => void
+  /** Row ids in the user's current multi-row selection; when non-empty the
+   *  run menu adds a "Run N selected rows" option. */
+  selectedRowIds?: string[] | null
 }
 
 /**
@@ -172,6 +191,7 @@ export function WorkflowGroupMetaCell({
   onInsertRight,
   onDeleteColumn,
   onDeleteGroup,
+  selectedRowIds,
 }: WorkflowGroupMetaCellProps) {
   const wf = workflows?.find((w) => w.id === workflowId)
   const color = wf?.color ?? 'var(--text-muted)'
@@ -181,6 +201,8 @@ export function WorkflowGroupMetaCell({
   const [optionsMenuPosition, setOptionsMenuPosition] = useState({ x: 0, y: 0 })
   const [runMenuOpen, setRunMenuOpen] = useState(false)
 
+  const selectedCount = selectedRowIds?.length ?? 0
+
   const handleRunAll = useCallback(() => {
     if (groupId && workflowId) onRunGroup?.(groupId, workflowId, 'all')
   }, [groupId, workflowId, onRunGroup])
@@ -188,6 +210,12 @@ export function WorkflowGroupMetaCell({
   const handleRunIncomplete = useCallback(() => {
     if (groupId && workflowId) onRunGroup?.(groupId, workflowId, 'incomplete')
   }, [groupId, workflowId, onRunGroup])
+
+  const handleRunSelected = useCallback(() => {
+    if (groupId && workflowId && selectedRowIds && selectedRowIds.length > 0) {
+      onRunGroup?.(groupId, workflowId, 'all', selectedRowIds)
+    }
+  }, [groupId, workflowId, onRunGroup, selectedRowIds])
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -267,6 +295,11 @@ export function WorkflowGroupMetaCell({
               sideOffset={4}
               onCloseAutoFocus={(e) => e.preventDefault()}
             >
+              {selectedCount > 0 && (
+                <DropdownMenuItem onSelect={handleRunSelected}>
+                  {`Run ${selectedCount} selected ${selectedCount === 1 ? 'row' : 'rows'}`}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onSelect={handleRunAll}>Run all rows</DropdownMenuItem>
               <DropdownMenuItem onSelect={handleRunIncomplete}>Run empty rows</DropdownMenuItem>
             </DropdownMenuContent>
@@ -286,6 +319,10 @@ export function WorkflowGroupMetaCell({
           onDeleteGroup={onDeleteGroup ? () => onDeleteGroup(groupId) : undefined}
           onRunGroupAll={onRunGroup ? handleRunAll : undefined}
           onRunGroupIncomplete={onRunGroup ? handleRunIncomplete : undefined}
+          onRunGroupSelected={
+            onRunGroup && selectedCount > 0 ? handleRunSelected : undefined
+          }
+          selectedRowCount={selectedCount}
         />
       )}
     </th>

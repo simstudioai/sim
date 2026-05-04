@@ -6,7 +6,7 @@
  */
 
 import { db } from '@sim/db'
-import { userTableRows } from '@sim/db/schema'
+import { pausedExecutions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -45,15 +45,16 @@ export function areGroupDepsSatisfied(group: WorkflowGroup, row: TableRow): bool
 
 /**
  * Per-(row, group) eligibility: returns true if a cell job should be enqueued
- * for this pair right now. Skip when the group is in flight (`running`, or
- * `pending` with a `jobId` already stamped) or in a terminal state. Plain
- * `pending` without a jobId is the "ready to dispatch" state — the run route
- * sets it and the scheduler is what actually enqueues the job.
+ * for this pair right now. Skip when the group is in flight (`queued`,
+ * `running`, or `pending` with a `jobId` already stamped) or in a terminal
+ * state. Plain `pending` without a jobId is the "ready to dispatch" state —
+ * the run route sets it and the scheduler is what actually enqueues the job.
  */
 export function isGroupEligible(group: WorkflowGroup, row: TableRow): boolean {
   const exec = row.executions?.[group.id]
   const status = exec?.status
   if (
+    status === 'queued' ||
     status === 'running' ||
     status === 'completed' ||
     status === 'error' ||
@@ -180,14 +181,15 @@ export async function runWorkflowGroupCell(opts: RunGroupCellOptions): Promise<v
     return
   }
 
-  // Single post-enqueue write: stamps `running` + jobId so the cancel API can
-  // reach this run from any pod. If cancel won the race the helper bails and
-  // we abort the just-enqueued job.
+  // Single post-enqueue write: stamps `queued` + jobId so the cancel API can
+  // reach this run from any pod. The cell-task body flips `queued` → `running`
+  // on entry, giving the renderer a real "queued vs picked up" distinction.
+  // If cancel won the race the helper bails and we abort the just-enqueued job.
   let stampResult: 'wrote' | 'skipped' = 'wrote'
   try {
     stampResult = await writeWorkflowGroupState(cellCtx, {
       executionState: {
-        status: 'running',
+        status: 'queued',
         executionId,
         jobId,
         workflowId,
@@ -295,9 +297,11 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
     let cancelledCount = 0
     for (const [gid, exec] of Object.entries(executions)) {
       if (!groupIds.has(gid)) continue
-      // `pending` covers the post-reset, pre-dispatch window — a stop click
-      // there must still stick once the scheduler picks the row up.
-      if (exec.status !== 'running' && exec.status !== 'pending') continue
+      // `pending` covers the post-reset, pre-dispatch window; `queued` covers
+      // the post-enqueue, pre-pickup window — a stop click in either state
+      // must still stick once the worker picks the row up.
+      if (exec.status !== 'running' && exec.status !== 'queued' && exec.status !== 'pending')
+        continue
       if (exec.jobId) jobIds.push(exec.jobId)
       executionsPatch[gid] = buildCancelledExecution(exec)
       cancelledCount++
@@ -376,6 +380,7 @@ export async function triggerWorkflowGroupRun(opts: {
     eq(userTableRows.tableId, tableId),
     eq(userTableRows.workspaceId, workspaceId),
     sql`(executions->${groupId}->>'status') IS DISTINCT FROM 'running'`,
+    sql`(executions->${groupId}->>'status') IS DISTINCT FROM 'queued'`,
     sql`((executions->${groupId}->>'status') IS DISTINCT FROM 'pending' OR (executions->${groupId}->>'jobId') IS NULL)`,
   ]
   if (rowIds && rowIds.length > 0) {
@@ -588,6 +593,75 @@ interface SplitGroupReport {
   groupId: string
   groupName: string
   actual: number[]
+}
+
+/**
+ * Cell context stored on `paused_executions.metadata` so the resume worker
+ * can route post-resume block outputs back to the same `(tableId, rowId,
+ * groupId)` cell — i.e., one logical cell execution across pause/resume
+ * cycles instead of two.
+ */
+export interface CellResumeContext {
+  tableId: string
+  tableName: string
+  rowId: string
+  groupId: string
+  workspaceId: string
+  workflowId: string
+}
+
+interface PausedMetadataPatch {
+  cellContext?: CellResumeContext
+  [key: string]: unknown
+}
+
+/**
+ * Stash the cell context on the matching `paused_executions` row. Called
+ * by the cell task right after it writes the `pending`/paused state. The
+ * pause record was written by `PauseResumeManager.persistPauseResult`
+ * before `executeWorkflow` returned, so the row exists.
+ */
+export async function stashCellContextForResume(
+  ctx: CellResumeContext & { executionId: string }
+): Promise<void> {
+  const { executionId, ...cellContext } = ctx
+  try {
+    const patch: PausedMetadataPatch = { cellContext }
+    await db
+      .update(pausedExecutions)
+      .set({
+        metadata: sql`coalesce(${pausedExecutions.metadata}, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb`,
+        updatedAt: new Date(),
+      })
+      .where(eq(pausedExecutions.executionId, executionId))
+  } catch (err) {
+    logger.error(
+      `Failed to stash cell context on paused_executions (executionId=${executionId}):`,
+      err
+    )
+  }
+}
+
+/**
+ * Returns the cell context for an execution if one was stashed at pause
+ * time. Used by the resume worker to know whether the workflow it's about
+ * to resume belongs to a table cell — and if so, where to write outputs.
+ */
+export async function findCellContextByExecutionId(
+  executionId: string
+): Promise<CellResumeContext | null> {
+  try {
+    const [row] = await db
+      .select({ metadata: pausedExecutions.metadata })
+      .from(pausedExecutions)
+      .where(eq(pausedExecutions.executionId, executionId))
+      .limit(1)
+    const meta = row?.metadata as PausedMetadataPatch | null
+    return meta?.cellContext ?? null
+  } catch (err) {
+    logger.error(`Failed to read cell context for executionId=${executionId}:`, err)
+    return null
+  }
 }
 
 /**

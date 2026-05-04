@@ -1,11 +1,10 @@
 'use client'
 
 import type React from 'react'
-import { Circle } from 'lucide-react'
 import { Checkbox } from '@/components/emcn'
-import { Loader } from '@/components/emcn/icons/loader'
 import { cn } from '@/lib/core/utils/cn'
 import type { RowExecutionMetadata } from '@/lib/table'
+import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import type { SaveReason } from '../../../types'
 import { storageToDisplay } from '../../../utils'
 import type { DisplayColumn } from '../types'
@@ -59,11 +58,8 @@ export function CellContent({
     const groupHasBlockErrors = !!(exec?.blockErrors && Object.keys(exec.blockErrors).length > 0)
     if (blockError) {
       displayContent = (
-        <span
-          className='block overflow-clip text-ellipsis text-[var(--text-error)]'
-          title={blockError}
-        >
-          Error
+        <span title={blockError}>
+          <StatusBadge status='error' />
         </span>
       )
     } else if (hasValue) {
@@ -73,36 +69,22 @@ export function CellContent({
         </span>
       )
     } else if (
-      (exec?.status === 'running' || exec?.status === 'pending') &&
+      (exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending') &&
       !(groupHasBlockErrors && !blockRunning)
     ) {
-      // Motion only when this cell's own block is in flight. Pending and
-      // upstream-blocked Waiting render as static dots — the moving spinner
-      // is reserved for "right now, actually running".
-      if (blockRunning) {
-        displayContent = (
-          <div className='flex min-h-[20px] min-w-0 items-center gap-1.5'>
-            <Loader animate className='h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]' />
-            <span className='min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-tertiary)]'>
-              Running
-            </span>
-          </div>
-        )
-      } else {
-        const label = exec.status === 'pending' ? 'Pending' : 'Waiting'
-        displayContent = (
-          <div className='flex min-h-[20px] min-w-0 items-center gap-1.5'>
-            <Circle className='h-[10px] w-[10px] shrink-0 text-[var(--text-tertiary)]' />
-            <span className='min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[var(--text-tertiary)]'>
-              {label}
-            </span>
-          </div>
-        )
-      }
+      // Treat queued / pending / waiting (running but this block hasn't
+      // started) as a single "Pending" state — only the actively-executing
+      // block flips to "Running".
+      displayContent = <StatusBadge status={blockRunning ? 'running' : 'pending'} />
     } else if (exec?.status === 'cancelled') {
+      displayContent = <StatusBadge status='cancelled' />
+    } else if (exec?.status === 'error') {
+      // Group-level failure (executor blew up, missing credentials, validation)
+      // — no specific block produced the error so `blockErrors` is empty.
+      // Surface the top-level error on every output cell in the group.
       displayContent = (
-        <span className='block overflow-clip text-ellipsis text-[var(--text-tertiary)]'>
-          Cancelled
+        <span title={exec.error ?? undefined}>
+          <StatusBadge status='error' />
         </span>
       )
     } else {
