@@ -428,13 +428,7 @@ export interface PostHogEventMap {
     is_new_task: boolean
   }
 
-  /**
-   * Fired when the server has assigned a request ID for a chat send (i.e.
-   * the SSE response headers have arrived with a `traceparent`). Pairs
-   * one-to-one with `task_message_sent` (or with a queued/replay dispatch)
-   * via timestamp proximity, and carries the `request_id` used by Go for
-   * log correlation.
-   */
+  /** Pairs with `task_message_sent` via `request_id` for correlation with server-side logs. */
   task_request_started: {
     workspace_id: string
     view: 'mothership' | 'copilot'

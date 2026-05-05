@@ -1279,12 +1279,7 @@ export interface UseChatOptions {
   onTitleUpdate?: () => void
   onStreamEnd?: (chatId: string, messages: ChatMessage[]) => void
   initialActiveResourceId?: string | null
-  /**
-   * Fired once per chat send as soon as the server's `traceparent`
-   * response header arrives (i.e. before any stream content). Used by
-   * callers to emit a follow-up PostHog event carrying the request ID
-   * for correlation with Go-side logs.
-   */
+  /** Fired when the server's `traceparent` response header arrives, before any stream content. */
   onRequestStarted?: (info: { requestId: string; userMessageId: string }) => void
 }
 
@@ -4224,9 +4219,8 @@ export function useChat(
         if (traceparent) {
           streamTraceparentRef.current = traceparent
           setCurrentChatTraceparent(traceparent)
-          const parts = traceparent.split('-')
-          const traceId = parts.length === 4 ? parts[1] : ''
-          if (/^[0-9a-f]{32}$/.test(traceId) && traceId !== '0'.repeat(32)) {
+          const traceId = traceparent.split('-')[1] ?? ''
+          if (/^[0-9a-f]{32}$/.test(traceId)) {
             try {
               onRequestStartedRef.current?.({ requestId: traceId, userMessageId })
             } catch (callbackError) {
