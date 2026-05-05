@@ -482,6 +482,312 @@ describe('groupEntriesByExecution', () => {
   })
 })
 
+describe('duration computation', () => {
+  /**
+   * Regression guard for the 18m → 20m → 22m bug.
+   *
+   * When a loop iteration contains a parallel block, the iteration's displayed
+   * duration must be wall-clock (max(endedAt) − min(startedAt)), not the sum of
+   * child durationMs. Summing over concurrent parallel branches over-counts time
+   * and causes the displayed iteration duration to climb rapidly as each branch
+   * resolves.
+   */
+  it('loop iteration with concurrent parallel branches uses wall-clock duration', () => {
+    const branches = 5
+    const branchDurationMs = 110_000
+    const loopIterStartMs = Date.UTC(2025, 0, 1, 0, 0, 0)
+    const loopIterEndMs = loopIterStartMs + branchDurationMs
+
+    const entries: ConsoleEntry[] = []
+    for (let branch = 0; branch < branches; branch++) {
+      entries.push(
+        makeEntry({
+          blockId: 'function-1',
+          blockName: 'Function 1',
+          executionOrder: branch + 1,
+          startedAt: new Date(loopIterStartMs).toISOString(),
+          endedAt: new Date(loopIterEndMs).toISOString(),
+          durationMs: branchDurationMs,
+          iterationType: 'parallel',
+          iterationCurrent: branch,
+          iterationTotal: branches,
+          iterationContainerId: 'parallel-1',
+          parentIterations: [
+            {
+              iterationType: 'loop',
+              iterationCurrent: 0,
+              iterationTotal: 1,
+              iterationContainerId: 'loop-1',
+            },
+          ],
+        })
+      )
+    }
+
+    const tree = buildEntryTree(entries)
+    const loopSubflow = tree.find((n) => n.entry.blockType === 'loop')
+    expect(loopSubflow).toBeDefined()
+
+    const iteration = loopSubflow!.children[0]
+    expect(iteration.nodeType).toBe('iteration')
+    expect(iteration.entry.durationMs).toBe(branchDurationMs)
+    expect(iteration.entry.durationMs).toBeLessThan(branches * branchDurationMs)
+  })
+
+  it('subflow container with concurrent children uses wall-clock duration', () => {
+    const branches = 4
+    const branchDurationMs = 60_000
+    const startMs = Date.UTC(2025, 0, 1, 0, 0, 0)
+    const endMs = startMs + branchDurationMs
+
+    const entries: ConsoleEntry[] = []
+    for (let branch = 0; branch < branches; branch++) {
+      entries.push(
+        makeEntry({
+          blockId: 'function-1',
+          executionOrder: branch + 1,
+          startedAt: new Date(startMs).toISOString(),
+          endedAt: new Date(endMs).toISOString(),
+          durationMs: branchDurationMs,
+          iterationType: 'parallel',
+          iterationCurrent: branch,
+          iterationTotal: branches,
+          iterationContainerId: 'parallel-1',
+        })
+      )
+    }
+
+    const tree = buildEntryTree(entries)
+    const subflow = tree.find((n) => n.entry.blockType === 'parallel')
+    expect(subflow).toBeDefined()
+    expect(subflow!.entry.durationMs).toBe(branchDurationMs)
+    expect(subflow!.entry.durationMs).toBeLessThan(branches * branchDurationMs)
+  })
+
+  it('sequential loop iteration uses wall-clock duration', () => {
+    const blockStart = Date.UTC(2025, 0, 1, 0, 0, 0)
+    const blockEnd = blockStart + 5_000
+
+    const entries: ConsoleEntry[] = [
+      makeEntry({
+        blockId: 'function-1',
+        executionOrder: 1,
+        startedAt: new Date(blockStart).toISOString(),
+        endedAt: new Date(blockEnd).toISOString(),
+        durationMs: 5_000,
+        iterationType: 'loop',
+        iterationCurrent: 0,
+        iterationTotal: 1,
+        iterationContainerId: 'loop-1',
+      }),
+    ]
+
+    const tree = buildEntryTree(entries)
+    const loop = tree.find((n) => n.entry.blockType === 'loop')
+    expect(loop).toBeDefined()
+    expect(loop!.children[0].entry.durationMs).toBe(5_000)
+  })
+
+  it('parallel iteration uses wall-clock duration', () => {
+    const start = Date.UTC(2025, 0, 1, 0, 0, 0)
+    const end = start + 7_500
+
+    const entries: ConsoleEntry[] = [
+      makeEntry({
+        blockId: 'function-1',
+        executionOrder: 1,
+        startedAt: new Date(start).toISOString(),
+        endedAt: new Date(end).toISOString(),
+        durationMs: 7_500,
+        iterationType: 'parallel',
+        iterationCurrent: 0,
+        iterationTotal: 1,
+        iterationContainerId: 'parallel-1',
+      }),
+    ]
+
+    const tree = buildEntryTree(entries)
+    const parallel = tree.find((n) => n.entry.blockType === 'parallel')
+    expect(parallel).toBeDefined()
+    expect(parallel!.children[0].entry.durationMs).toBe(7_500)
+  })
+
+  it('sequential loop with gaps between iterations: each iteration is wall-clock of its own children', () => {
+    const entries: ConsoleEntry[] = []
+    const iterStarts = [0, 10_000, 30_000]
+    const blockDuration = 1_000
+    const base = Date.UTC(2025, 0, 1, 0, 0, 0)
+
+    for (let i = 0; i < iterStarts.length; i++) {
+      entries.push(
+        makeEntry({
+          blockId: 'function-1',
+          executionOrder: i + 1,
+          startedAt: new Date(base + iterStarts[i]).toISOString(),
+          endedAt: new Date(base + iterStarts[i] + blockDuration).toISOString(),
+          durationMs: blockDuration,
+          iterationType: 'loop',
+          iterationCurrent: i,
+          iterationTotal: 3,
+          iterationContainerId: 'loop-1',
+        })
+      )
+    }
+
+    const tree = buildEntryTree(entries)
+    const loop = tree.find((n) => n.entry.blockType === 'loop')!
+    for (let i = 0; i < 3; i++) {
+      expect(loop.children[i].entry.durationMs).toBe(blockDuration)
+    }
+    expect(loop.entry.durationMs).toBe(iterStarts[2] + blockDuration - iterStarts[0])
+  })
+
+  it('loop-in-loop: outer iteration duration spans all inner iterations wall-clock', () => {
+    const entries: ConsoleEntry[] = []
+    const base = Date.UTC(2025, 0, 1, 0, 0, 0)
+    const innerDuration = 2_000
+    const innerCount = 3
+
+    for (let inner = 0; inner < innerCount; inner++) {
+      const start = base + inner * innerDuration
+      entries.push(
+        makeEntry({
+          blockId: 'function-1',
+          executionOrder: inner + 1,
+          startedAt: new Date(start).toISOString(),
+          endedAt: new Date(start + innerDuration).toISOString(),
+          durationMs: innerDuration,
+          iterationType: 'loop',
+          iterationCurrent: inner,
+          iterationTotal: innerCount,
+          iterationContainerId: 'inner-loop',
+          parentIterations: [
+            {
+              iterationType: 'loop',
+              iterationCurrent: 0,
+              iterationTotal: 1,
+              iterationContainerId: 'outer-loop',
+            },
+          ],
+        })
+      )
+    }
+
+    const tree = buildEntryTree(entries)
+    const outerLoop = tree.find((n) => n.entry.blockType === 'loop')!
+    const outerIter = outerLoop.children[0]
+    expect(outerIter.entry.durationMs).toBe(innerCount * innerDuration)
+  })
+
+  it('loop-in-parallel: each branch duration reflects its own loop wall-clock', () => {
+    const entries: ConsoleEntry[] = []
+    const base = Date.UTC(2025, 0, 1, 0, 0, 0)
+    const innerDuration = 1_500
+    const innerCount = 2
+    const branches = 3
+
+    for (let branch = 0; branch < branches; branch++) {
+      for (let inner = 0; inner < innerCount; inner++) {
+        const start = base + inner * innerDuration
+        entries.push(
+          makeEntry({
+            blockId: 'function-1',
+            executionOrder: branch * innerCount + inner + 1,
+            startedAt: new Date(start).toISOString(),
+            endedAt: new Date(start + innerDuration).toISOString(),
+            durationMs: innerDuration,
+            iterationType: 'loop',
+            iterationCurrent: inner,
+            iterationTotal: innerCount,
+            iterationContainerId: 'inner-loop',
+            parentIterations: [
+              {
+                iterationType: 'parallel',
+                iterationCurrent: branch,
+                iterationTotal: branches,
+                iterationContainerId: 'parallel-1',
+              },
+            ],
+          })
+        )
+      }
+    }
+
+    const tree = buildEntryTree(entries)
+    const parallelSubflow = tree.find((n) => n.entry.blockType === 'parallel')!
+    expect(parallelSubflow.children).toHaveLength(branches)
+    for (let branch = 0; branch < branches; branch++) {
+      const branchNode = parallelSubflow.children[branch]
+      expect(branchNode.entry.durationMs).toBe(innerCount * innerDuration)
+    }
+    expect(parallelSubflow.entry.durationMs).toBe(innerCount * innerDuration)
+  })
+
+  it('single-block iteration: duration equals the block durationMs', () => {
+    const start = Date.UTC(2025, 0, 1, 0, 0, 0)
+    const blockDuration = 3_141
+
+    const entries: ConsoleEntry[] = [
+      makeEntry({
+        blockId: 'function-1',
+        executionOrder: 1,
+        startedAt: new Date(start).toISOString(),
+        endedAt: new Date(start + blockDuration).toISOString(),
+        durationMs: blockDuration,
+        iterationType: 'loop',
+        iterationCurrent: 0,
+        iterationTotal: 1,
+        iterationContainerId: 'loop-1',
+      }),
+    ]
+
+    const tree = buildEntryTree(entries)
+    const loop = tree.find((n) => n.entry.blockType === 'loop')!
+    expect(loop.children[0].entry.durationMs).toBe(blockDuration)
+    expect(loop.entry.durationMs).toBe(blockDuration)
+  })
+
+  it('does not sum concurrent branch durations into iteration duration', () => {
+    const branches = 20
+    const branchDurationMs = 100_000
+    const start = Date.UTC(2025, 0, 1, 0, 0, 0)
+
+    const entries: ConsoleEntry[] = []
+    for (let branch = 0; branch < branches; branch++) {
+      const branchStart = start + branch * 5
+      entries.push(
+        makeEntry({
+          blockId: 'function-1',
+          executionOrder: branch + 1,
+          startedAt: new Date(branchStart).toISOString(),
+          endedAt: new Date(branchStart + branchDurationMs).toISOString(),
+          durationMs: branchDurationMs,
+          iterationType: 'parallel',
+          iterationCurrent: branch,
+          iterationTotal: branches,
+          iterationContainerId: 'parallel-1',
+          parentIterations: [
+            {
+              iterationType: 'loop',
+              iterationCurrent: 0,
+              iterationTotal: 1,
+              iterationContainerId: 'loop-1',
+            },
+          ],
+        })
+      )
+    }
+
+    const tree = buildEntryTree(entries)
+    const loopSubflow = tree.find((n) => n.entry.blockType === 'loop')!
+    const iteration = loopSubflow.children[0]
+
+    const wallClock = branchDurationMs + (branches - 1) * 5
+    expect(iteration.entry.durationMs).toBe(wallClock)
+    expect(iteration.entry.durationMs).toBeLessThan(branches * branchDurationMs)
+  })
+})
+
 describe('flattenVisibleExecutionRows', () => {
   it('only includes children for expanded nodes', () => {
     const childBlock = makeEntry({
