@@ -1,7 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogDeletePersonParams {
-  personalApiKey: string
+  apiKey: string
   region?: 'us' | 'eu'
   projectId: string
   personId: string
@@ -23,7 +23,7 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
     version: '1.0.0',
 
     params: {
-      personalApiKey: {
+      apiKey: {
         type: 'string',
         required: true,
         visibility: 'user-only',
@@ -57,7 +57,7 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
       },
       method: 'DELETE',
       headers: (params) => ({
-        Authorization: `Bearer ${params.personalApiKey}`,
+        Authorization: `Bearer ${params.apiKey}`,
         'Content-Type': 'application/json',
       }),
     },
