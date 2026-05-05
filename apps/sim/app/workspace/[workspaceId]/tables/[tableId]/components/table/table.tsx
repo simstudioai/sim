@@ -2690,62 +2690,40 @@ export function Table({
                   <TableBodySkeleton colCount={displayColCount} />
                 ) : (
                   <>
-                    {rows.map((row, index) => {
-                      const prevPosition = index > 0 ? rows[index - 1].position : -1
-                      const gapCount =
-                        queryOptions.filter || queryOptions.sort
-                          ? 0
-                          : row.position - prevPosition - 1
-                      return (
-                        <React.Fragment key={row.id}>
-                          {gapCount > 0 && (
-                            <PositionGapRows
-                              count={gapCount}
-                              startPosition={prevPosition + 1}
-                              columns={displayColumns}
-                              normalizedSelection={normalizedSelection}
-                              checkedRows={checkedRows}
-                              firstRowUnderHeader={prevPosition === -1}
-                              onCellMouseDown={handleCellMouseDown}
-                              onCellMouseEnter={handleCellMouseEnter}
-                              onRowToggle={handleRowToggle}
-                            />
-                          )}
-                          <DataRow
-                            row={row}
-                            columns={displayColumns}
-                            rowIndex={row.position}
-                            isFirstRow={row.position === 0}
-                            editingColumnName={
-                              editingCell?.rowId === row.id ? editingCell.columnName : null
-                            }
-                            initialCharacter={
-                              editingCell?.rowId === row.id ? initialCharacter : null
-                            }
-                            pendingCellValue={
-                              pendingUpdate && pendingUpdate.rowId === row.id
-                                ? pendingUpdate.data
-                                : null
-                            }
-                            normalizedSelection={normalizedSelection}
-                            onClick={handleCellClick}
-                            onDoubleClick={handleCellDoubleClick}
-                            onSave={handleInlineSave}
-                            onCancel={handleInlineCancel}
-                            onContextMenu={handleRowContextMenu}
-                            onCellMouseDown={handleCellMouseDown}
-                            onCellMouseEnter={handleCellMouseEnter}
-                            isRowChecked={checkedRows.has(row.position)}
-                            onRowToggle={handleRowToggle}
-                            runningCount={runningByRowId.get(row.id) ?? 0}
-                            hasWorkflowColumns={hasWorkflowColumns}
-                            onStopRow={handleStopRow}
-                            onRunRow={handleRunRow}
-                            workflowNameById={workflowNameById}
-                          />
-                        </React.Fragment>
-                      )
-                    })}
+                    {rows.map((row, index) => (
+                      <DataRow
+                        key={row.id}
+                        row={row}
+                        columns={displayColumns}
+                        rowIndex={row.position}
+                        arrayIndex={index}
+                        isFirstRow={row.position === 0}
+                        editingColumnName={
+                          editingCell?.rowId === row.id ? editingCell.columnName : null
+                        }
+                        initialCharacter={editingCell?.rowId === row.id ? initialCharacter : null}
+                        pendingCellValue={
+                          pendingUpdate && pendingUpdate.rowId === row.id
+                            ? pendingUpdate.data
+                            : null
+                        }
+                        normalizedSelection={normalizedSelection}
+                        onClick={handleCellClick}
+                        onDoubleClick={handleCellDoubleClick}
+                        onSave={handleInlineSave}
+                        onCancel={handleInlineCancel}
+                        onContextMenu={handleRowContextMenu}
+                        onCellMouseDown={handleCellMouseDown}
+                        onCellMouseEnter={handleCellMouseEnter}
+                        isRowChecked={checkedRows.has(row.position)}
+                        onRowToggle={handleRowToggle}
+                        runningCount={runningByRowId.get(row.id) ?? 0}
+                        hasWorkflowColumns={hasWorkflowColumns}
+                        onStopRow={handleStopRow}
+                        onRunRow={handleRunRow}
+                        workflowNameById={workflowNameById}
+                      />
+                    ))}
                   </>
                 )}
               </tbody>
@@ -2947,157 +2925,6 @@ export function Table({
   )
 }
 
-const GAP_ROW_LIMIT = 200
-const GAP_CHECKBOX_CLASS = cn(CELL_CHECKBOX, 'cursor-pointer')
-
-interface PositionGapRowsProps {
-  count: number
-  startPosition: number
-  columns: DisplayColumn[]
-  normalizedSelection: NormalizedSelection | null
-  checkedRows: Set<number>
-  firstRowUnderHeader?: boolean
-  onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
-  onCellMouseEnter: (rowIndex: number, colIndex: number) => void
-  onRowToggle: (rowIndex: number, shiftKey: boolean) => void
-}
-
-const PositionGapRows = React.memo(
-  function PositionGapRows({
-    count,
-    startPosition,
-    columns,
-    normalizedSelection,
-    checkedRows,
-    firstRowUnderHeader = false,
-    onCellMouseDown,
-    onCellMouseEnter,
-    onRowToggle,
-  }: PositionGapRowsProps) {
-    const capped = Math.min(count, GAP_ROW_LIMIT)
-    const sel = normalizedSelection
-    const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
-
-    return (
-      <>
-        {Array.from({ length: capped }).map((_, i) => {
-          const position = startPosition + i
-          const isGapChecked = checkedRows.has(position)
-          return (
-            <tr key={`gap-${position}`}>
-              <td className={GAP_CHECKBOX_CLASS}>
-                <div className='flex items-center justify-center gap-1'>
-                  <div
-                    className='group/checkbox flex h-[20px] w-[24px] shrink-0 items-center justify-center'
-                    onMouseDown={(e) => {
-                      if (e.button !== 0) return
-                      onRowToggle(position, e.shiftKey)
-                    }}
-                  >
-                    <span
-                      className={cn(
-                        'text-[var(--text-tertiary)] text-xs tabular-nums',
-                        isGapChecked ? 'hidden' : 'block group-hover/checkbox:hidden'
-                      )}
-                    >
-                      {position + 1}
-                    </span>
-                    <div
-                      className={cn(
-                        'items-center justify-center',
-                        isGapChecked ? 'flex' : 'hidden group-hover/checkbox:flex'
-                      )}
-                    >
-                      <Checkbox size='sm' checked={isGapChecked} className='pointer-events-none' />
-                    </div>
-                  </div>
-                </div>
-              </td>
-              {columns.map((col, colIndex) => {
-                const inRange =
-                  sel !== null &&
-                  position >= sel.startRow &&
-                  position <= sel.endRow &&
-                  colIndex >= sel.startCol &&
-                  colIndex <= sel.endCol
-                const isAnchor =
-                  sel !== null && position === sel.anchorRow && colIndex === sel.anchorCol
-                const isHighlighted = inRange || isGapChecked
-
-                const isTopEdge = inRange ? position === sel!.startRow : isGapChecked
-                const isBottomEdge = inRange ? position === sel!.endRow : isGapChecked
-                const isLeftEdge = inRange ? colIndex === sel!.startCol : colIndex === 0
-                const isRightEdge = inRange
-                  ? colIndex === sel!.endCol
-                  : colIndex === columns.length - 1
-                const belowHeader = firstRowUnderHeader && i === 0
-
-                return (
-                  <td
-                    key={col.key}
-                    data-row={position}
-                    data-col={colIndex}
-                    className={cn(CELL, (isHighlighted || isAnchor) && 'relative')}
-                    onMouseDown={(e) => {
-                      if (e.button !== 0) return
-                      onCellMouseDown(position, colIndex, e.shiftKey)
-                    }}
-                    onMouseEnter={() => onCellMouseEnter(position, colIndex)}
-                  >
-                    {isHighlighted && (isMultiCell || isGapChecked) && (
-                      <div
-                        className={cn(
-                          '-top-px -right-px -bottom-px -left-px pointer-events-none absolute z-[4]',
-                          SELECTION_TINT_BG,
-                          belowHeader && isTopEdge && 'top-0',
-                          isTopEdge && 'border-t border-t-[var(--selection)]',
-                          isBottomEdge && 'border-b border-b-[var(--selection)]',
-                          isLeftEdge && 'border-l border-l-[var(--selection)]',
-                          isRightEdge && 'border-r border-r-[var(--selection)]'
-                        )}
-                      />
-                    )}
-                    {isAnchor && <div className={cn(SELECTION_OVERLAY, belowHeader && 'top-0')} />}
-                    <div className='min-h-[20px]' />
-                  </td>
-                )
-              })}
-            </tr>
-          )
-        })}
-        {count > GAP_ROW_LIMIT && (
-          <tr>
-            <td
-              colSpan={columns.length + 2}
-              className='border-[var(--border)] border-r border-b p-0'
-              style={{ height: `${(count - GAP_ROW_LIMIT) * ROW_HEIGHT_ESTIMATE}px` }}
-            />
-          </tr>
-        )}
-      </>
-    )
-  },
-  (prev, next) => {
-    if (
-      prev.count !== next.count ||
-      prev.startPosition !== next.startPosition ||
-      prev.columns !== next.columns ||
-      prev.normalizedSelection !== next.normalizedSelection ||
-      prev.firstRowUnderHeader !== next.firstRowUnderHeader ||
-      prev.onCellMouseDown !== next.onCellMouseDown ||
-      prev.onCellMouseEnter !== next.onCellMouseEnter ||
-      prev.onRowToggle !== next.onRowToggle
-    ) {
-      return false
-    }
-    const end = prev.startPosition + Math.min(prev.count, GAP_ROW_LIMIT)
-    for (let p = prev.startPosition; p < end; p++) {
-      if (prev.checkedRows.has(p) !== next.checkedRows.has(p)) return false
-    }
-    return true
-  }
-)
-
 const TableColGroup = React.memo(function TableColGroup({
   columns,
   columnWidths,
@@ -3120,6 +2947,7 @@ interface DataRowProps {
   row: TableRowType
   columns: DisplayColumn[]
   rowIndex: number
+  arrayIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
   initialCharacter: string | null
@@ -3180,6 +3008,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.row !== next.row ||
     prev.columns !== next.columns ||
     prev.rowIndex !== next.rowIndex ||
+    prev.arrayIndex !== next.arrayIndex ||
     prev.isFirstRow !== next.isFirstRow ||
     prev.editingColumnName !== next.editingColumnName ||
     prev.pendingCellValue !== next.pendingCellValue ||
@@ -3219,6 +3048,7 @@ const DataRow = React.memo(function DataRow({
   row,
   columns,
   rowIndex,
+  arrayIndex,
   isFirstRow,
   editingColumnName,
   initialCharacter,
@@ -3266,7 +3096,7 @@ const DataRow = React.memo(function DataRow({
                 isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
               )}
             >
-              {row.position + 1}
+              {arrayIndex + 1}
             </span>
             <div
               className={cn(
