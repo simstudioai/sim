@@ -400,45 +400,43 @@ export function WorkflowSearchReplace() {
       </div>
 
       <div className='grid grid-cols-[2rem_minmax(0,1fr)_2rem_2rem] items-start gap-1.5'>
-        <div className='col-span-4 grid grid-cols-subgrid items-center'>
-          <Button
-            variant='ghost'
-            className='h-8 w-8 p-0'
-            aria-label={isReplaceExpanded ? 'Hide replace controls' : 'Show replace controls'}
-            onClick={() => setIsReplaceExpanded((expanded) => !expanded)}
-          >
-            <ChevronRight
-              className={`h-4 w-4 transition-transform ${isReplaceExpanded ? 'rotate-90' : ''}`}
-            />
-          </Button>
-          <Input
-            ref={searchInputRef}
-            value={query}
-            placeholder='Search'
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter') return
-              event.preventDefault()
-              handleMoveActiveMatch(event.shiftKey ? -1 : 1)
-            }}
-            onChange={(event) => setQuery(event.target.value)}
+        <Button
+          variant='ghost'
+          className='h-8 w-8 p-0'
+          aria-label={isReplaceExpanded ? 'Hide replace controls' : 'Show replace controls'}
+          onClick={() => setIsReplaceExpanded((expanded) => !expanded)}
+        >
+          <ChevronRight
+            className={`h-4 w-4 transition-transform ${isReplaceExpanded ? 'rotate-90' : ''}`}
           />
-          <Button
-            variant='ghost'
-            className='h-8 w-8 p-0'
-            disabled={hydratedMatches.length === 0}
-            onClick={() => handleMoveActiveMatch(-1)}
-          >
-            <ChevronUp className='h-4 w-4' />
-          </Button>
-          <Button
-            variant='ghost'
-            className='h-8 w-8 p-0'
-            disabled={hydratedMatches.length === 0}
-            onClick={() => handleMoveActiveMatch(1)}
-          >
-            <ChevronDown className='h-4 w-4' />
-          </Button>
-        </div>
+        </Button>
+        <Input
+          ref={searchInputRef}
+          value={query}
+          placeholder='Search'
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return
+            event.preventDefault()
+            handleMoveActiveMatch(event.shiftKey ? -1 : 1)
+          }}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <Button
+          variant='ghost'
+          className='h-8 w-8 p-0'
+          disabled={hydratedMatches.length === 0}
+          onClick={() => handleMoveActiveMatch(-1)}
+        >
+          <ChevronUp className='h-4 w-4' />
+        </Button>
+        <Button
+          variant='ghost'
+          className='h-8 w-8 p-0'
+          disabled={hydratedMatches.length === 0}
+          onClick={() => handleMoveActiveMatch(1)}
+        >
+          <ChevronDown className='h-4 w-4' />
+        </Button>
 
         {isReplaceExpanded && (
           <div className='col-start-2 col-end-5'>
