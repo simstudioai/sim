@@ -1146,6 +1146,16 @@ export const workspaceFiles = pgTable(
     context: text('context').notNull(), // 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
     originalName: text('original_name').notNull(),
+    /**
+     * Collision-disambiguated name exposed to the copilot VFS as `uploads/<displayName>`.
+     * For mothership chat uploads, identical originalNames within a chat get suffixed
+     * `(2)`, `(3)`, ... in upload order so the VFS path is unique per chat.
+     * NULL on legacy rows that predate this column — readers must coalesce to originalName.
+     * Stable for the row's lifetime; the partial unique index below enforces uniqueness
+     * for new (non-NULL) rows. NULLs are treated as distinct in PG unique indexes, so
+     * legacy collisions remain (acceptable: those uploads have already happened).
+     */
+    displayName: text('display_name'),
     contentType: text('content_type').notNull(),
     size: integer('size').notNull(),
     deletedAt: timestamp('deleted_at'),
@@ -1162,6 +1172,17 @@ export const workspaceFiles = pgTable(
       .where(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
       ),
+    /**
+     * One display name per chat for mothership chat uploads, enforced across the row's
+     * entire lifetime (including soft-deleted rows). VFS paths must remain stable for the
+     * LLM's session — soft-deleting a sibling cannot free a name slot that the model has
+     * already been told about, since that would cause `read("uploads/<name>")` to silently
+     * resolve to a different file. NULLs are distinct in PG, so legacy rows (display_name
+     * IS NULL) don't block index creation or new inserts.
+     */
+    chatDisplayNameUnique: uniqueIndex('workspace_files_chat_display_name_unique')
+      .on(table.chatId, table.displayName)
+      .where(sql`${table.context} = 'mothership' AND ${table.chatId} IS NOT NULL`),
     keyIdx: index('workspace_files_key_idx').on(table.key),
     userIdIdx: index('workspace_files_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workspace_files_workspace_id_idx').on(table.workspaceId),

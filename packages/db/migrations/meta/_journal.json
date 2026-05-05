@@ -1408,6 +1408,13 @@
       "when": 1777747122663,
       "tag": "0201_shiny_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 202,
+      "version": "7",
+      "when": 1778014979272,
+      "tag": "0202_fuzzy_darkstar",
+      "breakpoints": true
     }
   ]
 }
