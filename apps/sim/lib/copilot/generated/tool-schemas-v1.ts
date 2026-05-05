@@ -216,7 +216,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             "A short, descriptive title for the job (e.g., 'Email Poller', 'Daily Report'). Used as the display name.",
         },
       },
-      required: ['prompt'],
+      required: ['title', 'prompt'],
     },
     resultSchema: undefined,
   },
@@ -788,15 +788,16 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   'Parameters for the operation. \nFor edit: {"inputs": {"temperature": 0.5}} NOT {"subBlocks": {"temperature": {"value": 0.5}}}\nFor add: {"type": "agent", "name": "My Agent", "inputs": {"model": "claude-sonnet-4-6"}}\nFor delete: {} (empty object)',
               },
             },
-            required: ['operation_type', 'block_id'],
+            required: ['operation_type', 'block_id', 'params'],
           },
         },
         workflowId: {
           type: 'string',
-          description: 'Workflow ID to edit.',
+          description:
+            'Optional workflow ID to edit. If not provided, uses the current workflow in context.',
         },
       },
-      required: ['operations', 'workflowId'],
+      required: ['operations'],
     },
     resultSchema: undefined,
   },
@@ -1430,7 +1431,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           ],
         },
       },
-      required: ['operation'],
+      required: ['operation', 'args'],
     },
     resultSchema: {
       type: 'object',
@@ -2386,32 +2387,22 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           default: 'workspace',
         },
         variables: {
-          description: 'Environment variables to set, as a name/value list or object record.',
-          oneOf: [
-            {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  name: {
-                    type: 'string',
-                    description: 'Variable name',
-                  },
-                  value: {
-                    type: 'string',
-                    description: 'Variable value',
-                  },
-                },
-                required: ['name', 'value'],
-              },
-            },
-            {
-              type: 'object',
-              additionalProperties: {
+          type: 'array',
+          description: 'List of env vars to set',
+          items: {
+            type: 'object',
+            properties: {
+              name: {
                 type: 'string',
+                description: 'Variable name',
+              },
+              value: {
+                type: 'string',
+                description: 'Variable value',
               },
             },
-          ],
+            required: ['name', 'value'],
+          },
         },
       },
       required: ['variables'],
@@ -2778,7 +2769,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           ],
         },
       },
-      required: ['operation'],
+      required: ['operation', 'args'],
     },
     resultSchema: {
       type: 'object',
@@ -2812,7 +2803,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         operation: {
           type: 'string',
           description: 'The file operation to perform.',
-          enum: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
+          enum: ['append', 'update', 'patch'],
         },
         target: {
           type: 'object',
@@ -2916,7 +2907,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'New file name for rename. Must be a plain workspace filename like "main.py".',
         },
       },
-      required: ['operation'],
+      required: ['operation', 'target', 'title'],
     },
     resultSchema: {
       type: 'object',

@@ -4,7 +4,7 @@
  * @vitest-environment node
  */
 
-import { authMockFns } from '@sim/testing'
+import { authMockFns, storageServiceMock, storageServiceMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,9 +16,6 @@ const {
   mockGetStorageConfig,
   mockIsUsingCloudStorage,
   mockGetStorageProvider,
-  mockHasCloudStorage,
-  mockGeneratePresignedUploadUrl,
-  mockGeneratePresignedDownloadUrl,
   mockValidateFileType,
   mockGenerateCopilotUploadUrl,
   mockIsImageFileType,
@@ -32,9 +29,6 @@ const {
   mockGetStorageConfig: vi.fn(),
   mockIsUsingCloudStorage: vi.fn(),
   mockGetStorageProvider: vi.fn(),
-  mockHasCloudStorage: vi.fn(),
-  mockGeneratePresignedUploadUrl: vi.fn(),
-  mockGeneratePresignedDownloadUrl: vi.fn().mockResolvedValue('https://example.com/presigned-url'),
   mockValidateFileType: vi.fn().mockReturnValue(null),
   mockGenerateCopilotUploadUrl: vi.fn().mockResolvedValue({
     url: 'https://example.com/presigned-url',
@@ -63,11 +57,7 @@ vi.mock('@/lib/uploads/config', () => ({
   getStorageProvider: mockGetStorageProvider,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  hasCloudStorage: mockHasCloudStorage,
-  generatePresignedUploadUrl: mockGeneratePresignedUploadUrl,
-  generatePresignedDownloadUrl: mockGeneratePresignedDownloadUrl,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/uploads/utils/validation', () => ({
   validateFileType: mockValidateFileType,
@@ -132,8 +122,8 @@ function setupFileApiMocks(
     storageProvider === 'blob' ? 'Azure Blob' : storageProvider === 's3' ? 'S3' : 'Local'
   )
 
-  mockHasCloudStorage.mockReturnValue(cloudEnabled)
-  mockGeneratePresignedUploadUrl.mockImplementation(
+  storageServiceMockFns.mockHasCloudStorage.mockReturnValue(cloudEnabled)
+  storageServiceMockFns.mockGeneratePresignedUploadUrl.mockImplementation(
     async (opts: { fileName: string; context: string }) => {
       const timestamp = Date.now()
       const safeFileName = opts.fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
@@ -144,7 +134,9 @@ function setupFileApiMocks(
       }
     }
   )
-  mockGeneratePresignedDownloadUrl.mockResolvedValue('https://example.com/presigned-url')
+  storageServiceMockFns.mockGeneratePresignedDownloadUrl.mockResolvedValue(
+    'https://example.com/presigned-url'
+  )
 
   mockValidateFileType.mockReturnValue(null)
 
@@ -431,7 +423,7 @@ describe('/api/files/presigned', () => {
         storageProvider: 's3',
       })
 
-      mockGeneratePresignedUploadUrl.mockRejectedValue(
+      storageServiceMockFns.mockGeneratePresignedUploadUrl.mockRejectedValue(
         new Error('Unknown storage provider: unknown')
       )
 
@@ -458,7 +450,9 @@ describe('/api/files/presigned', () => {
         storageProvider: 's3',
       })
 
-      mockGeneratePresignedUploadUrl.mockRejectedValue(new Error('S3 service unavailable'))
+      storageServiceMockFns.mockGeneratePresignedUploadUrl.mockRejectedValue(
+        new Error('S3 service unavailable')
+      )
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
         method: 'POST',
@@ -483,7 +477,9 @@ describe('/api/files/presigned', () => {
         storageProvider: 'blob',
       })
 
-      mockGeneratePresignedUploadUrl.mockRejectedValue(new Error('Azure service unavailable'))
+      storageServiceMockFns.mockGeneratePresignedUploadUrl.mockRejectedValue(
+        new Error('Azure service unavailable')
+      )
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
         method: 'POST',

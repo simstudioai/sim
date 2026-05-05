@@ -8,13 +8,15 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import { authorizeWorkflowByWorkspacePermission, FolderLockedError } from '@sim/workflow-authz'
 import { and, eq, isNull, min } from 'drizzle-orm'
+import type { DbOrTx } from '@/lib/db/types'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import type { Variable } from '@/stores/variables/types'
 import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
+import { SYSTEM_SUBBLOCK_IDS, TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('WorkflowDuplicateHelper')
 
@@ -28,6 +30,8 @@ interface DuplicateWorkflowOptions {
   folderId?: string | null
   requestId?: string
   newWorkflowId?: string
+  tx?: DbOrTx
+  workflowIdMap?: Map<string, string>
 }
 
 interface DuplicateWorkflowResult {
@@ -38,9 +42,136 @@ interface DuplicateWorkflowResult {
   workspaceId: string
   folderId: string | null
   sortOrder: number
+  locked: boolean
   blocksCount: number
   edgesCount: number
   subflowsCount: number
+}
+/**
+ * Untrusted shape of a persisted block subBlocks JSON column. We narrow `type`/`value`
+ * with runtime checks before mutating; the index signature exists because callers pass
+ * the raw record back to drizzle without knowing which subBlock keys it contains.
+ */
+type SubBlockRecord = Record<string, { type?: unknown; value?: unknown; [key: string]: unknown }>
+
+/**
+ * Untrusted shape of a single entry inside a `variables-input` value array. The
+ * `variableId` slot is widened to `unknown` so we are forced to type-narrow before
+ * trusting it as a remap key — persisted JSON may legitimately predate the field.
+ */
+type VariableAssignment = Record<string, unknown> & { variableId?: unknown }
+const DUPLICATE_STRIPPED_SYSTEM_SUBBLOCK_IDS = new Set(
+  SYSTEM_SUBBLOCK_IDS.filter((id) => id !== 'triggerCredentials')
+)
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function isSystemSubBlockKey(key: string, ids: Set<string> | string[]): boolean {
+  const idList = Array.isArray(ids) ? ids : Array.from(ids)
+  return idList.some((id) => key === id || key.startsWith(`${id}_`))
+}
+
+function sanitizeSubBlocksForDuplicate(subBlocks: SubBlockRecord): SubBlockRecord {
+  const sanitized: SubBlockRecord = {}
+
+  for (const [key, subBlock] of Object.entries(subBlocks)) {
+    if (isSystemSubBlockKey(key, TRIGGER_RUNTIME_SUBBLOCK_IDS)) continue
+    if (isSystemSubBlockKey(key, DUPLICATE_STRIPPED_SYSTEM_SUBBLOCK_IDS)) continue
+    sanitized[key] = subBlock
+  }
+
+  return sanitized
+}
+
+async function assertTargetFolderMutable(
+  tx: DbOrTx,
+  folderId: string | null,
+  targetWorkspaceId: string
+): Promise<void> {
+  let currentFolderId = folderId
+  const visited = new Set<string>()
+
+  while (currentFolderId && !visited.has(currentFolderId)) {
+    visited.add(currentFolderId)
+    const [folder] = await tx
+      .select({
+        id: workflowFolder.id,
+        parentId: workflowFolder.parentId,
+        workspaceId: workflowFolder.workspaceId,
+        locked: workflowFolder.locked,
+        archivedAt: workflowFolder.archivedAt,
+      })
+      .from(workflowFolder)
+      .where(eq(workflowFolder.id, currentFolderId))
+      .limit(1)
+
+    if (!folder || folder.workspaceId !== targetWorkspaceId || folder.archivedAt) {
+      throw new Error('Target folder not found')
+    }
+    if (folder.locked) {
+      throw new FolderLockedError()
+    }
+    currentFolderId = folder.parentId
+  }
+}
+
+function remapVariableAssignment(value: unknown, varIdMap: Map<string, string>): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => remapVariableAssignment(item, varIdMap))
+  }
+
+  if (!isRecord(value)) {
+    return value
+  }
+
+  const assignment = value as VariableAssignment
+  const next: Record<string, unknown> = {}
+  for (const [key, nestedValue] of Object.entries(assignment)) {
+    next[key] = remapVariableAssignment(nestedValue, varIdMap)
+  }
+
+  if (typeof assignment.variableId === 'string') {
+    const newVarId = varIdMap.get(assignment.variableId)
+    if (newVarId) {
+      next.variableId = newVarId
+    } else {
+      logger.warn('Skipping unknown variable reference during duplication', {
+        variableId: assignment.variableId,
+      })
+    }
+  }
+
+  return next
+}
+
+function remapVariableInputValue(value: unknown, varIdMap: Map<string, string>): unknown {
+  if (value == null) {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    return remapVariableAssignment(value, varIdMap)
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return value
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      throw new Error('Variables input assignments could not be parsed for duplication')
+    }
+    if (Array.isArray(parsed)) {
+      return remapVariableAssignment(parsed, varIdMap)
+    }
+    throw new Error('Variables input assignments must be an array')
+  }
+
+  throw new Error('Variables input assignments must be an array')
 }
 
 /**
@@ -49,33 +180,47 @@ interface DuplicateWorkflowResult {
  * of variable assignments containing a `variableId` field.
  */
 function remapVariableIdsInSubBlocks(
-  subBlocks: Record<string, any>,
+  subBlocks: SubBlockRecord,
   varIdMap: Map<string, string>
-): Record<string, any> {
-  const updated: Record<string, any> = {}
+): SubBlockRecord {
+  const updated: SubBlockRecord = {}
 
   for (const [key, subBlock] of Object.entries(subBlocks)) {
-    if (
-      subBlock &&
-      typeof subBlock === 'object' &&
-      subBlock.type === 'variables-input' &&
-      Array.isArray(subBlock.value)
-    ) {
+    if (subBlock && typeof subBlock === 'object' && subBlock.type === 'variables-input') {
       updated[key] = {
         ...subBlock,
-        value: subBlock.value.map((assignment: any) => {
-          if (assignment && typeof assignment === 'object' && assignment.variableId) {
-            const newVarId = varIdMap.get(assignment.variableId)
-            if (newVarId) {
-              return { ...assignment, variableId: newVarId }
-            }
-          }
-          return assignment
-        }),
+        value: remapVariableInputValue(subBlock.value, varIdMap),
       }
     } else {
       updated[key] = subBlock
     }
+  }
+
+  return updated
+}
+
+function remapWorkflowReferencesInSubBlocks(
+  subBlocks: SubBlockRecord,
+  workflowIdMap: Map<string, string> | undefined
+): SubBlockRecord {
+  if (!workflowIdMap?.size) return subBlocks
+
+  const updated: SubBlockRecord = {}
+  for (const [key, subBlock] of Object.entries(subBlocks)) {
+    if (
+      subBlock &&
+      typeof subBlock === 'object' &&
+      subBlock.type === 'workflow-selector' &&
+      typeof subBlock.value === 'string'
+    ) {
+      updated[key] = {
+        ...subBlock,
+        value: workflowIdMap.get(subBlock.value) ?? subBlock.value,
+      }
+      continue
+    }
+
+    updated[key] = subBlock
   }
 
   return updated
@@ -132,13 +277,14 @@ export async function duplicateWorkflow(
     folderId,
     requestId = 'unknown',
     newWorkflowId: clientNewWorkflowId,
+    tx: providedTx,
+    workflowIdMap,
   } = options
 
-  const newWorkflowId = clientNewWorkflowId || generateId()
+  const newWorkflowId = clientNewWorkflowId || workflowIdMap?.get(sourceWorkflowId) || generateId()
   const now = new Date()
 
-  // Duplicate workflow and all related data in a transaction
-  const result = await db.transaction(async (tx) => {
+  const duplicateWithinTransaction = async (tx: DbOrTx) => {
     // First verify the source workflow exists
     const sourceWorkflowRow = await tx
       .select()
@@ -167,6 +313,10 @@ export async function duplicateWorkflow(
     }
 
     const targetWorkspaceId = workspaceId || source.workspaceId
+    if (targetWorkspaceId !== source.workspaceId) {
+      throw new Error('Cross-workspace workflow duplication is not supported')
+    }
+
     const targetWorkspacePermission = await getUserEntityPermissions(
       userId,
       'workspace',
@@ -176,6 +326,8 @@ export async function duplicateWorkflow(
       throw new Error('Write or admin access required for target workspace')
     }
     const targetFolderId = folderId !== undefined ? folderId : source.folderId
+    await assertTargetFolderMutable(tx, targetFolderId, targetWorkspaceId)
+
     const workflowParentCondition = targetFolderId
       ? eq(workflow.folderId, targetFolderId)
       : isNull(workflow.folderId)
@@ -221,6 +373,7 @@ export async function duplicateWorkflow(
       updatedAt: now,
       isDeployed: false,
       runCount: 0,
+      locked: false,
       // Duplicate variables with new IDs and new workflowId
       variables: (() => {
         const sourceVars = (source.variables as Record<string, Variable>) || {}
@@ -287,14 +440,31 @@ export async function duplicateWorkflow(
         // Update variable references in subBlocks (e.g. variables-input assignments)
         let updatedSubBlocks = block.subBlocks
         if (
+          updatedSubBlocks &&
+          typeof updatedSubBlocks === 'object' &&
+          !Array.isArray(updatedSubBlocks)
+        ) {
+          updatedSubBlocks = sanitizeSubBlocksForDuplicate(updatedSubBlocks as SubBlockRecord)
+        }
+        if (
           varIdMapping.size > 0 &&
-          block.subBlocks &&
-          typeof block.subBlocks === 'object' &&
-          !Array.isArray(block.subBlocks)
+          updatedSubBlocks &&
+          typeof updatedSubBlocks === 'object' &&
+          !Array.isArray(updatedSubBlocks)
         ) {
           updatedSubBlocks = remapVariableIdsInSubBlocks(
-            block.subBlocks as Record<string, any>,
+            updatedSubBlocks as SubBlockRecord,
             varIdMapping
+          )
+        }
+        if (
+          updatedSubBlocks &&
+          typeof updatedSubBlocks === 'object' &&
+          !Array.isArray(updatedSubBlocks)
+        ) {
+          updatedSubBlocks = remapWorkflowReferencesInSubBlocks(
+            updatedSubBlocks as SubBlockRecord,
+            workflowIdMap
           )
         }
 
@@ -334,27 +504,52 @@ export async function duplicateWorkflow(
       .where(eq(workflowEdges.workflowId, sourceWorkflowId))
 
     if (sourceEdges.length > 0) {
-      const newEdges = sourceEdges.map((edge) => {
-        const newSourceBlockId = blockIdMapping.get(edge.sourceBlockId) || edge.sourceBlockId
+      /**
+       * Edge remap is best-effort: when an edge points at a source/target block
+       * that isn't in `blockIdMapping`, we drop the edge with a `logger.warn`
+       * instead of throwing. This matches the pre-PR leniency (which silently
+       * kept stale references) and avoids rolling back an entire folder-tree
+       * duplicate transaction over a single orphaned reference. Inserting an
+       * edge with a stale block id would create a dangling DB row, so we skip
+       * the edge entirely rather than carry forward the unmapped id.
+       */
+      const newEdges = sourceEdges.flatMap((edge) => {
+        const newSourceBlockId = blockIdMapping.get(edge.sourceBlockId)
+        const newTargetBlockId = blockIdMapping.get(edge.targetBlockId)
+        if (!newSourceBlockId || !newTargetBlockId) {
+          logger.warn('Skipping edge with unmapped block reference during duplication', {
+            requestId,
+            edgeId: edge.id,
+            sourceBlockId: edge.sourceBlockId,
+            targetBlockId: edge.targetBlockId,
+          })
+          return []
+        }
         const newSourceHandle =
           edge.sourceHandle && blockIdMapping.has(edge.sourceBlockId)
             ? remapConditionEdgeHandle(edge.sourceHandle, edge.sourceBlockId, newSourceBlockId)
             : edge.sourceHandle
 
-        return {
-          ...edge,
-          id: generateId(),
-          workflowId: newWorkflowId,
-          sourceBlockId: newSourceBlockId,
-          targetBlockId: blockIdMapping.get(edge.targetBlockId) || edge.targetBlockId,
-          sourceHandle: newSourceHandle,
-          createdAt: now,
-          updatedAt: now,
-        }
+        return [
+          {
+            ...edge,
+            id: generateId(),
+            workflowId: newWorkflowId,
+            sourceBlockId: newSourceBlockId,
+            targetBlockId: newTargetBlockId,
+            sourceHandle: newSourceHandle,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]
       })
 
-      await tx.insert(workflowEdges).values(newEdges)
-      logger.info(`[${requestId}] Copied ${sourceEdges.length} edges with updated block references`)
+      if (newEdges.length > 0) {
+        await tx.insert(workflowEdges).values(newEdges)
+      }
+      logger.info(
+        `[${requestId}] Copied ${newEdges.length}/${sourceEdges.length} edges with updated block references`
+      )
     }
 
     // Copy all subflows from source workflow with new IDs and updated block references
@@ -393,11 +588,29 @@ export async function duplicateWorkflow(
 
             ;(updatedConfig as any).id = newSubflowId
 
-            // Update node references in config if they exist
+            /**
+             * Subflow node remap is best-effort: when `config.nodes` lists a
+             * block id that isn't in `blockIdMapping`, we drop the entry with
+             * a `logger.warn` instead of throwing. This matches the pre-PR
+             * leniency (which silently carried the stale id forward) and
+             * avoids rolling back an entire folder-tree duplicate transaction
+             * over a single orphaned reference. Downstream consumers and
+             * cleanup tolerate missing membership entries the same way they
+             * tolerate other persisted drift.
+             */
             if ('nodes' in updatedConfig && Array.isArray(updatedConfig.nodes)) {
-              updatedConfig.nodes = updatedConfig.nodes.map(
-                (nodeId: string) => blockIdMapping.get(nodeId) || nodeId
-              )
+              updatedConfig.nodes = updatedConfig.nodes.flatMap((nodeId: string) => {
+                const newNodeId = blockIdMapping.get(nodeId)
+                if (!newNodeId) {
+                  logger.warn('Skipping unmapped subflow node reference during duplication', {
+                    requestId,
+                    subflowId: subflow.id,
+                    nodeId,
+                  })
+                  return []
+                }
+                return [newNodeId]
+              })
             }
           }
 
@@ -442,11 +655,16 @@ export async function duplicateWorkflow(
       workspaceId: finalWorkspaceId,
       folderId: targetFolderId,
       sortOrder,
+      locked: false,
       blocksCount: sourceBlocks.length,
       edgesCount: sourceEdges.length,
       subflowsCount: sourceSubflows.length,
     }
-  })
+  }
+
+  const result = providedTx
+    ? await duplicateWithinTransaction(providedTx)
+    : await db.transaction(duplicateWithinTransaction)
 
   return result
 }

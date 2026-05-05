@@ -104,13 +104,10 @@ export const deployedChatConfigSchema = z.object({
 })
 export type DeployedChatConfig = z.output<typeof deployedChatConfigSchema>
 
-export const deployedChatAuthBodySchema = z
-  .object({
-    password: z.string().optional(),
-    email: z.string().email('Invalid email format').optional().or(z.literal('')),
-    checkSSOAccess: z.boolean().optional(),
-  })
-  .passthrough()
+export const deployedChatAuthBodySchema = z.object({
+  password: z.string().optional(),
+  email: z.string().email('Invalid email format').optional().or(z.literal('')),
+})
 export type DeployedChatAuthBody = z.input<typeof deployedChatAuthBodySchema>
 
 export const deployedChatFileSchema = z.object({
@@ -125,11 +122,19 @@ export const deployedChatPostBodySchema = z.object({
   input: z.string().optional(),
   password: z.string().optional(),
   email: z.string().email('Invalid email format').optional().or(z.literal('')),
-  checkSSOAccess: z.boolean().optional(),
   conversationId: z.string().optional(),
   files: z.array(deployedChatFileSchema).optional().default([]),
 })
 export type DeployedChatPostBody = z.input<typeof deployedChatPostBodySchema>
+
+export const chatSSOBodySchema = z.object({
+  email: z.string().email('Invalid email address'),
+})
+
+export const chatSSOResponseSchema = z.object({
+  eligible: z.boolean(),
+})
+export type ChatSSOResponse = z.output<typeof chatSSOResponseSchema>
 
 export const chatEmailOtpRequestBodySchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -195,6 +200,17 @@ export const deployedChatPostContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: deployedChatConfigSchema,
+  },
+})
+
+export const chatSSOContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/chat/[identifier]/sso',
+  params: chatIdentifierParamsSchema,
+  body: chatSSOBodySchema,
+  response: {
+    mode: 'json',
+    schema: chatSSOResponseSchema,
   },
 })
 

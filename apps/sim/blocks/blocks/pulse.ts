@@ -74,7 +74,6 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
           apiKey: params.apiKey.trim(),
         }
 
-        // document is the canonical param from fileUpload (basic) or filePath (advanced)
         const documentInput = params.document
         if (typeof documentInput === 'object') {
           parameters.file = documentInput
@@ -128,21 +127,25 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
   },
 }
 
-// PulseV2Block uses the same canonical param 'document' for both basic and advanced modes
-const pulseV2Inputs = PulseBlock.inputs
+const pulseV2Inputs = {
+  file: { type: 'json' as const, description: 'Document (file upload or file reference)' },
+  apiKey: PulseBlock.inputs?.apiKey,
+  pages: PulseBlock.inputs?.pages,
+  chunking: PulseBlock.inputs?.chunking,
+  chunkSize: PulseBlock.inputs?.chunkSize,
+}
 const pulseV2SubBlocks = (PulseBlock.subBlocks || []).flatMap((subBlock) => {
   if (subBlock.id === 'filePath') {
-    return [] // Remove the old filePath subblock
+    return []
   }
   if (subBlock.id === 'fileUpload') {
-    // Insert fileReference right after fileUpload
     return [
-      subBlock,
+      { ...subBlock, canonicalParamId: 'file' },
       {
         id: 'fileReference',
         title: 'Document',
         type: 'short-input' as SubBlockType,
-        canonicalParamId: 'document',
+        canonicalParamId: 'file',
         placeholder: 'File reference',
         mode: 'advanced' as const,
         required: true,
@@ -173,8 +176,7 @@ export const PulseV2Block: BlockConfig<PulseParserOutput> = {
           apiKey: params.apiKey.trim(),
         }
 
-        // document is the canonical param from fileUpload (basic) or fileReference (advanced)
-        const normalizedFile = normalizeFileInput(params.document, { single: true })
+        const normalizedFile = normalizeFileInput(params.file, { single: true })
         if (!normalizedFile) {
           throw new Error('Document file is required')
         }

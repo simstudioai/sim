@@ -63,6 +63,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       placeholder: 'https://localhost:9200',
       required: true,
       condition: { field: 'deploymentType', value: 'self_hosted' },
+      dependsOn: ['deploymentType'],
     },
 
     // Cloud ID
@@ -73,6 +74,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       placeholder: 'deployment-name:base64-encoded-data',
       required: true,
       condition: { field: 'deploymentType', value: 'cloud' },
+      dependsOn: ['deploymentType'],
     },
 
     // Authentication method
@@ -96,6 +98,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       password: true,
       required: true,
       condition: { field: 'authMethod', value: 'api_key' },
+      dependsOn: ['authMethod'],
     },
 
     // Username
@@ -106,6 +109,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       placeholder: 'Enter username',
       required: true,
       condition: { field: 'authMethod', value: 'basic_auth' },
+      dependsOn: ['authMethod'],
     },
 
     // Password
@@ -117,6 +121,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       password: true,
       required: true,
       condition: { field: 'authMethod', value: 'basic_auth' },
+      dependsOn: ['authMethod'],
     },
 
     // Index name - for most operations

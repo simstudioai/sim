@@ -16,6 +16,8 @@ export interface WorkflowBlockProps {
   isEmbedded?: boolean
   /** Whether this block is rendered inside a sandbox (academy exercise) view with no workspace API calls */
   isSandbox?: boolean
+  /** Whether the parent workflow is locked and should render as read-only */
+  isWorkflowLocked?: boolean
   subBlockValues?: Record<string, any>
   blockState?: any
 }

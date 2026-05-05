@@ -9,7 +9,7 @@ import {
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import {
   deleteWorkspaceFile,
-  downloadWorkspaceFile as downloadWsFile,
+  fetchWorkspaceFileBuffer as downloadWsFile,
   getWorkspaceFile,
   getWorkspaceFileByName,
   renameWorkspaceFile,

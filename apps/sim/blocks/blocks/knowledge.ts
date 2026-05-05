@@ -171,6 +171,7 @@ export const KnowledgeBlock: BlockConfig = {
       type: 'short-input',
       canonicalParamId: 'documentId',
       placeholder: 'Enter document ID',
+      dependsOn: ['knowledgeBaseId'],
       required: true,
       mode: 'advanced',
       condition: {

@@ -4,6 +4,7 @@ import {
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
   UploadPartCommand,
@@ -198,6 +199,35 @@ export async function downloadFromS3(key: string, customConfig?: S3Config): Prom
 }
 
 /**
+ * Check whether an object exists in S3 (and return its size when it does).
+ * Returns null when the object is missing.
+ */
+export async function headS3Object(
+  key: string,
+  customConfig?: S3Config
+): Promise<{ size: number; contentType?: string } | null> {
+  const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
+
+  try {
+    const response = await getS3Client().send(
+      new HeadObjectCommand({ Bucket: config.bucket, Key: key })
+    )
+    return {
+      size: response.ContentLength ?? 0,
+      contentType: response.ContentType,
+    }
+  } catch (error) {
+    const code = (error as { name?: string; $metadata?: { httpStatusCode?: number } } | null)?.name
+    const status = (error as { $metadata?: { httpStatusCode?: number } } | null)?.$metadata
+      ?.httpStatusCode
+    if (code === 'NotFound' || code === 'NoSuchKey' || status === 404) {
+      return null
+    }
+    throw error
+  }
+}
+
+/**
  * Delete a file from S3
  * @param key S3 object key
  */
@@ -227,13 +257,13 @@ export async function deleteFromS3(key: string, customConfig?: S3Config): Promis
 export async function initiateS3MultipartUpload(
   options: S3MultipartUploadInit
 ): Promise<{ uploadId: string; key: string }> {
-  const { fileName, contentType, customConfig } = options
+  const { fileName, contentType, customConfig, customKey, purpose } = options
 
   const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
   const s3Client = getS3Client()
 
   const safeFileName = sanitizeFileName(fileName)
-  const uniqueKey = `kb/${generateId()}-${safeFileName}`
+  const uniqueKey = customKey || `kb/${generateId()}-${safeFileName}`
 
   const command = new CreateMultipartUploadCommand({
     Bucket: config.bucket,
@@ -242,7 +272,7 @@ export async function initiateS3MultipartUpload(
     Metadata: {
       originalName: sanitizeFilenameForMetadata(fileName),
       uploadedAt: new Date().toISOString(),
-      purpose: 'knowledge-base',
+      purpose: purpose || 'knowledge-base',
     },
   })
 

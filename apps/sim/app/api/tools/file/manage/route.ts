@@ -7,7 +7,7 @@ import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  downloadWorkspaceFile,
+  fetchWorkspaceFileBuffer,
   getWorkspaceFileByName,
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
@@ -91,7 +91,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
 
         try {
-          const existingBuffer = await downloadWorkspaceFile(existing)
+          const existingBuffer = await fetchWorkspaceFileBuffer(existing)
           const finalContent = existingBuffer.toString('utf-8') + content
           const fileBuffer = Buffer.from(finalContent, 'utf-8')
           await updateWorkspaceFileContent(workspaceId, existing.id, userId, fileBuffer)

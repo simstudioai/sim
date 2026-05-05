@@ -26,7 +26,7 @@ const ACTION_LABELS: Record<NotificationAction['type'], string> = {
 } as const
 
 function isAutoDismissable(n: Notification): boolean {
-  return !!n.workflowId
+  return !!n.workflowId && n.action?.type !== 'unlock-workflow'
 }
 
 function NotificationCountdownRing({ onPause }: { onPause: () => void }) {
@@ -99,7 +99,7 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
             break
           case 'unlock-workflow':
             window.dispatchEvent(new CustomEvent('unlock-workflow'))
-            break
+            return
           default:
             logger.warn('Unknown action type', { notificationId, actionType: action.type })
         }

@@ -2,7 +2,11 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import {
+  assertWorkflowMutable,
+  authorizeWorkflowByWorkspacePermission,
+  WorkflowLockedError,
+} from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateScheduleContract } from '@/lib/api/contracts/schedules'
@@ -117,6 +121,9 @@ export const PUT = withRouteHandler(
       const result = await fetchAndAuthorize(requestId, scheduleId, session.user.id, 'write')
       if (result instanceof NextResponse) return result
       const { schedule, workspaceId } = result
+      if (schedule.workflowId) {
+        await assertWorkflowMutable(schedule.workflowId)
+      }
 
       const { action } = validatedBody
 
@@ -264,6 +271,10 @@ export const PUT = withRouteHandler(
 
       return NextResponse.json({ message: 'Schedule activated successfully', nextRunAt })
     } catch (error) {
+      if (error instanceof WorkflowLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
+
       logger.error(`[${requestId}] Error updating schedule`, error)
       return NextResponse.json({ error: 'Failed to update schedule' }, { status: 500 })
     }

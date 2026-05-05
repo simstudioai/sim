@@ -8,6 +8,7 @@ import {
   keepPreviousData,
   skipToken,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
@@ -77,6 +78,31 @@ export function useWorkflowState(workflowId: string | undefined) {
     queryFn: workflowId ? ({ signal }) => fetchWorkflowState(workflowId, signal) : skipToken,
     staleTime: 30 * 1000,
   })
+}
+
+/**
+ * Batched workflow-state fetch for callers that need state for several
+ * workflows at once (e.g. a table with multiple workflow groups). One
+ * subscription per unique workflow id — duplicates in `workflowIds` are
+ * collapsed before subscribing so N consumers of the same id don't each
+ * register their own observer.
+ */
+export function useWorkflowStates(
+  workflowIds: ReadonlyArray<string | undefined>
+): Map<string, WorkflowState | null> {
+  const uniqueIds = Array.from(new Set(workflowIds.filter((id): id is string => Boolean(id))))
+  const results = useQueries({
+    queries: uniqueIds.map((id) => ({
+      queryKey: workflowKeys.state(id),
+      queryFn: ({ signal }: { signal?: AbortSignal }) => fetchWorkflowState(id, signal),
+      staleTime: 30 * 1000,
+    })),
+  })
+  const map = new Map<string, WorkflowState | null>()
+  uniqueIds.forEach((id, i) => {
+    map.set(id, (results[i].data as WorkflowState | null | undefined) ?? null)
+  })
+  return map
 }
 
 export function useWorkflows(workspaceId?: string, options?: { scope?: WorkflowQueryScope }) {
@@ -204,6 +230,7 @@ export function useCreateWorkflow() {
         workspaceId: variables.workspaceId,
         folderId: variables.folderId || null,
         sortOrder,
+        locked: false,
       }
 
       queryClient.setQueryData<WorkflowMetadata[]>(
@@ -297,6 +324,7 @@ interface DuplicateWorkflowMutationData {
   workspaceId: string
   folderId?: string | null
   sortOrder: number
+  locked: boolean
   blocksCount: number
   edgesCount: number
   subflowsCount: number
@@ -339,6 +367,7 @@ export function useDuplicateWorkflowMutation() {
         workspaceId,
         folderId: duplicatedWorkflow.folderId ?? folderId,
         sortOrder: duplicatedWorkflow.sortOrder ?? 0,
+        locked: duplicatedWorkflow.locked,
         blocksCount: duplicatedWorkflow.blocksCount || 0,
         edgesCount: duplicatedWorkflow.edgesCount || 0,
         subflowsCount: duplicatedWorkflow.subflowsCount || 0,
@@ -374,6 +403,7 @@ export function useDuplicateWorkflowMutation() {
           variables.workspaceId,
           targetFolderId
         ),
+        locked: false,
       }
 
       queryClient.setQueryData<WorkflowMetadata[]>(
@@ -403,6 +433,7 @@ export function useDuplicateWorkflowMutation() {
                   workspaceId: data.workspaceId,
                   folderId: data.folderId,
                   sortOrder: data.sortOrder,
+                  locked: data.locked,
                 }
               : w
           )
@@ -417,18 +448,6 @@ export function useDuplicateWorkflowMutation() {
           }
           return { selectedWorkflows }
         })
-      }
-
-      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-      if (variables.sourceId === activeWorkflowId) {
-        const sourceSubblockValues =
-          useSubBlockStore.getState().workflowValues[variables.sourceId] || {}
-        useSubBlockStore.setState((state) => ({
-          workflowValues: {
-            ...state.workflowValues,
-            [data.id]: { ...sourceSubblockValues },
-          },
-        }))
       }
 
       logger.info(`[DuplicateWorkflow] Success, replaced temp entry ${tempId}`)

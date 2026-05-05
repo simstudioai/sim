@@ -1,5 +1,6 @@
 export { Dashboard } from './dashboard'
-export { LogDetails, WorkflowOutputSection } from './log-details'
+export type { LogDetailsTab } from './log-details'
+export { LogDetails, LogDetailsContent, WorkflowOutputSection } from './log-details'
 export { ExecutionSnapshot } from './log-details/components/execution-snapshot'
 export { FileCards } from './log-details/components/file-download'
 export { TraceSpans } from './log-details/components/trace-spans'

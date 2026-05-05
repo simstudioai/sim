@@ -1,11 +1,16 @@
-import { ADD_MEMORY_OUTPUT_PROPERTIES } from '@/tools/mem0/types'
+import {
+  ADD_MEMORY_OUTPUT_PROPERTIES,
+  type Mem0AddMemoriesParams,
+  type Mem0AddMemoriesResponse,
+} from '@/tools/mem0/types'
+import { parseMem0Messages } from '@/tools/mem0/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /**
  * Add Memories Tool
  * @see https://docs.mem0.ai/api-reference/memory/add-memories
  */
-export const mem0AddMemoriesTool: ToolConfig = {
+export const mem0AddMemoriesTool: ToolConfig<Mem0AddMemoriesParams, Mem0AddMemoriesResponse> = {
   id: 'mem0_add_memories',
   name: 'Add Memories',
   description: 'Add memories to Mem0 for persistent storage and retrieval',
@@ -34,107 +39,36 @@ export const mem0AddMemoriesTool: ToolConfig = {
   },
 
   request: {
-    url: 'https://api.mem0.ai/v1/memories/',
+    url: 'https://api.mem0.ai/v3/memories/add/',
     method: 'POST',
     headers: (params) => ({
       Authorization: `Token ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      // First, ensure messages is an array
-      let messagesArray = params.messages
-      if (typeof messagesArray === 'string') {
-        try {
-          messagesArray = JSON.parse(messagesArray)
-        } catch (_e) {
-          throw new Error('Messages must be a valid JSON array of objects with role and content')
-        }
+      const messages = parseMem0Messages(params.messages)
+      return {
+        messages,
+        user_id: params.userId.trim(),
       }
-
-      // Validate message format
-      if (!Array.isArray(messagesArray) || messagesArray.length === 0) {
-        throw new Error('Messages must be a non-empty array')
-      }
-
-      for (const msg of messagesArray) {
-        if (!msg.role || !msg.content) {
-          throw new Error('Each message must have role and content properties')
-        }
-      }
-
-      // Prepare request body
-      const body: Record<string, any> = {
-        messages: messagesArray,
-        version: 'v2',
-        user_id: params.userId,
-      }
-
-      return body
     },
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response): Promise<Mem0AddMemoriesResponse> => {
     const data = await response.json()
-
-    // If the API returns an empty array, this might be normal behavior on success
-    if (Array.isArray(data) && data.length === 0) {
-      return {
-        success: true,
-        output: {
-          memories: [],
-        },
-      }
-    }
-
-    // Handle array response with memory objects
-    if (Array.isArray(data) && data.length > 0) {
-      // Extract IDs for easy access
-      const memoryIds = data.map((memory) => memory.id)
-
-      return {
-        success: true,
-        output: {
-          ids: memoryIds,
-          memories: data,
-        },
-      }
-    }
-
-    // Handle non-array responses (single memory object)
-    if (data && !Array.isArray(data) && data.id) {
-      return {
-        success: true,
-        output: {
-          ids: [data.id],
-          memories: [data],
-        },
-      }
-    }
-
-    // Default response format if none of the above match
     return {
       success: true,
       output: {
-        memories: Array.isArray(data) ? data : [data],
+        message: data.message ?? '',
+        status: data.status ?? '',
+        event_id: data.event_id ?? '',
       },
     }
   },
 
   outputs: {
-    ids: {
-      type: 'array',
-      description: 'Array of memory IDs that were created',
-      items: {
-        type: 'string',
-      },
-    },
-    memories: {
-      type: 'array',
-      description: 'Array of memory objects that were created',
-      items: {
-        type: 'object',
-        properties: ADD_MEMORY_OUTPUT_PROPERTIES,
-      },
-    },
+    message: ADD_MEMORY_OUTPUT_PROPERTIES.message,
+    status: ADD_MEMORY_OUTPUT_PROPERTIES.status,
+    event_id: ADD_MEMORY_OUTPUT_PROPERTIES.event_id,
   },
 }

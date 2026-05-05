@@ -401,7 +401,7 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
       canonicalParamId: 'sheetName',
       placeholder: 'Name of the sheet/tab (e.g., Sheet1)',
       required: true,
-      dependsOn: ['credential'],
+      dependsOn: { all: ['credential'], any: ['spreadsheetId', 'manualSpreadsheetId'] },
       mode: 'advanced',
       condition: { field: 'operation', value: ['read', 'write', 'update', 'append', 'clear'] },
     },

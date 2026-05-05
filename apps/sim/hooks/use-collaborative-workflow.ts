@@ -19,6 +19,7 @@ import { getWorkflowStateContract } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
+import { getSubBlocksDependingOnChange } from '@/blocks/utils'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { invalidateDeploymentQueries } from '@/hooks/queries/deployments'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
@@ -1322,9 +1323,7 @@ export function useCollaborativeWorkflow() {
         const blockType = useWorkflowStore.getState().blocks?.[blockId]?.type
         const blockConfig = blockType ? getBlock(blockType) : null
         if (blockConfig?.subBlocks && Array.isArray(blockConfig.subBlocks)) {
-          const dependents = blockConfig.subBlocks.filter(
-            (sb: any) => Array.isArray(sb.dependsOn) && sb.dependsOn.includes(subblockId)
-          )
+          const dependents = getSubBlocksDependingOnChange(blockConfig.subBlocks, subblockId)
           for (const dep of dependents) {
             if (!dep?.id || dep.id === subblockId) continue
             const currentDepValue = useSubBlockStore.getState().getValue(blockId, dep.id)

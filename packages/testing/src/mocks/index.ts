@@ -86,6 +86,8 @@ export {
 } from './logging-session.mock'
 // Permission mocks
 export { permissionsMock, permissionsMockFns } from './permissions.mock'
+// PostHog server mocks (for @/lib/posthog/server)
+export { posthogServerMock, posthogServerMockFns } from './posthog-server.mock'
 // Redis client mocks (for Redis client objects)
 export { clearRedisMocks, createMockRedis, type MockRedis } from './redis.mock'
 // Redis config mocks (for @/lib/core/config/redis)
@@ -106,8 +108,10 @@ export {
   type MockSocket,
   type MockSocketServer,
 } from './socket.mock'
-// Storage mocks
+// Storage mocks (browser localStorage/sessionStorage)
 export { clearStorageMocks, createMockStorage, setupGlobalStorageMocks } from './storage.mock'
+// Storage service mocks (for @/lib/uploads/core/storage-service)
+export { storageServiceMock, storageServiceMockFns } from './storage-service.mock'
 // Stripe mocks
 export {
   createMockStripeEvent,

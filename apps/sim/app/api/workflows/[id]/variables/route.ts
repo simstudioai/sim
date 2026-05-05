@@ -2,7 +2,11 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import {
+  assertWorkflowMutable,
+  authorizeWorkflowByWorkspacePermission,
+  WorkflowLockedError,
+} from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { workflowVariablesContract } from '@/lib/api/contracts/workflows'
@@ -50,6 +54,8 @@ export const POST = withRouteHandler(
         )
       }
 
+      await assertWorkflowMutable(workflowId)
+
       const parsed = await parseRequest(workflowVariablesContract, req, context)
       if (!parsed.success) return parsed.response
       const { variables } = parsed.data.body
@@ -88,6 +94,10 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ success: true })
     } catch (error) {
+      if (error instanceof WorkflowLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
+
       logger.error(`[${requestId}] Error updating workflow variables`, error)
       return NextResponse.json({ error: 'Failed to update workflow variables' }, { status: 500 })
     }

@@ -48,7 +48,9 @@ import {
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockType } from '@/blocks/types'
-import { useWorkflowState } from '@/hooks/queries/workflows'
+import { useFolderMap } from '@/hooks/queries/folders'
+import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
+import { useWorkflowMap, useWorkflowState } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePanelEditorStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -112,15 +114,19 @@ export function Editor() {
   const subBlocksRef = useRef<HTMLDivElement>(null)
 
   const userPermissions = useUserPermissionsContext()
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const workflowId = activeWorkflowId ?? (params.workflowId as string | undefined)
+  const { data: workflows = {} } = useWorkflowMap(workspaceId)
+  const { data: folders = {} } = useFolderMap(workspaceId)
+  const workflowMetadata = workflowId ? workflows[workflowId] : undefined
+  const workflowLocked = isWorkflowEffectivelyLocked(workflowMetadata, folders)
 
   // Check if block is locked (or inside a locked ancestor) and compute edit permission
   // Locked blocks cannot be edited by anyone (admins can only lock/unlock)
   const blocks = useWorkflowStore((state) => state.blocks)
   const isLocked = currentBlockId ? isBlockProtected(currentBlockId, blocks) : false
   const isAncestorLocked = currentBlockId ? isAncestorProtected(currentBlockId, blocks) : false
-  const canEditBlock = userPermissions.canEdit && !isLocked
-
-  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const canEditBlock = userPermissions.canEdit && !workflowLocked && !isLocked
 
   const { advancedMode, triggerMode } = useEditorBlockProperties(
     currentBlockId,
@@ -254,19 +260,19 @@ export function Editor() {
     const block = blocks[blockId]
     if (!block) return
 
-    if (!userPermissions.canEdit || isBlockProtected(blockId, blocks)) return
+    if (!userPermissions.canEdit || workflowLocked || isBlockProtected(blockId, blocks)) return
 
     renamingBlockIdRef.current = blockId
     setEditedName(block.name || '')
     setIsRenaming(true)
-  }, [userPermissions.canEdit])
+  }, [userPermissions.canEdit, workflowLocked])
 
   /**
    * Saves the renamed block using the captured block ID from when rename started.
    */
   const handleSaveRename = useCallback(() => {
     const blockIdToRename = renamingBlockIdRef.current
-    if (!blockIdToRename || !isRenaming) return
+    if (!blockIdToRename || !isRenaming || workflowLocked) return
 
     const blocks = useWorkflowStore.getState().blocks
     const blockToRename = blocks[blockIdToRename]
@@ -280,7 +286,7 @@ export function Editor() {
     }
     renamingBlockIdRef.current = null
     setIsRenaming(false)
-  }, [isRenaming, editedName, collaborativeUpdateBlockName])
+  }, [isRenaming, editedName, collaborativeUpdateBlockName, workflowLocked])
 
   /**
    * Handles canceling the rename process.

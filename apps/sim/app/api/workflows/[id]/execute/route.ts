@@ -1220,6 +1220,7 @@ async function handleExecutePost(
                 duration: result.metadata?.duration || 0,
                 startTime: result.metadata?.startTime || startTime.toISOString(),
                 endTime: result.metadata?.endTime || new Date().toISOString(),
+                finalBlockLogs: result.logs,
               },
             })
           }

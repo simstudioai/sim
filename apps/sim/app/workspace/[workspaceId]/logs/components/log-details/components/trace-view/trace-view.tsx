@@ -45,7 +45,7 @@ import {
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 
-const DEFAULT_TREE_PANE_WIDTH = 360
+const DEFAULT_TREE_PANE_WIDTH = 240
 const MIN_TREE_PANE_WIDTH = 200
 const MAX_TREE_PANE_WIDTH = 600
 const INDENT_PX = 12

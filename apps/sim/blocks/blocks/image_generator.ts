@@ -44,6 +44,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       ],
       value: () => '1024x1024',
       condition: { field: 'model', value: 'dall-e-3' },
+      dependsOn: ['model'],
     },
     {
       id: 'size',
@@ -57,6 +58,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       ],
       value: () => 'auto',
       condition: { field: 'model', value: 'gpt-image-1' },
+      dependsOn: ['model'],
     },
     {
       id: 'quality',
@@ -68,6 +70,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       ],
       value: () => 'standard',
       condition: { field: 'model', value: 'dall-e-3' },
+      dependsOn: ['model'],
     },
     {
       id: 'style',
@@ -79,6 +82,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       ],
       value: () => 'vivid',
       condition: { field: 'model', value: 'dall-e-3' },
+      dependsOn: ['model'],
     },
     {
       id: 'background',
@@ -91,6 +95,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       ],
       value: () => 'auto',
       condition: { field: 'model', value: 'gpt-image-1' },
+      dependsOn: ['model'],
     },
     {
       id: 'apiKey',
@@ -114,22 +119,23 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
           throw new Error('Prompt is required')
         }
 
-        // Base parameters for all models
+        const model = params.model || 'dall-e-3'
+        const size = params.size || (model === 'gpt-image-1' ? 'auto' : '1024x1024')
         const baseParams = {
           prompt: params.prompt,
-          model: params.model || 'dall-e-3',
-          size: params.size || '1024x1024',
+          model,
+          size,
           apiKey: params.apiKey,
         }
 
-        if (params.model === 'dall-e-3') {
+        if (model === 'dall-e-3') {
           return {
             ...baseParams,
             quality: params.quality || 'standard',
             style: params.style || 'vivid',
           }
         }
-        if (params.model === 'gpt-image-1') {
+        if (model === 'gpt-image-1') {
           return {
             ...baseParams,
             ...(params.background && { background: params.background }),

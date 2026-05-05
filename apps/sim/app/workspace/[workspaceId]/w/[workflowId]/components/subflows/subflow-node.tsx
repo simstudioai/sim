@@ -26,6 +26,8 @@ export interface SubflowNodeData {
   name?: string
   /** Execution status passed by preview/snapshot views */
   executionStatus?: 'success' | 'error' | 'not-executed'
+  /** Whether the parent workflow is locked and should render as read-only */
+  isWorkflowLocked?: boolean
 }
 
 const HANDLE_STYLE = {
@@ -61,6 +63,7 @@ const getHandleClasses = (position: 'left' | 'right') => {
 export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<SubflowNodeData>) => {
   const { getNodes } = useReactFlow()
   const userPermissions = useUserPermissionsContext()
+  const canEditWorkflow = userPermissions.canEdit && !data.isWorkflowLocked
 
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentWorkflow.getBlockById(id)
@@ -164,9 +167,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
         data-nesting-level={nestingLevel}
         data-subflow-selected={isFocused || isSelected || isPreviewSelected}
       >
-        {!isPreview && (
-          <ActionBar blockId={id} blockType={data.kind} disabled={!userPermissions.canEdit} />
-        )}
+        {!isPreview && <ActionBar blockId={id} blockType={data.kind} disabled={!canEditWorkflow} />}
 
         {/* Header Section */}
         <div
@@ -209,7 +210,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
           onClick={() => setCurrentBlockId(id)}
         />
 
-        {!isPreview && (
+        {!isPreview && canEditWorkflow && (
           <div
             className='absolute right-[8px] bottom-2 z-20 flex h-[32px] w-[32px] cursor-se-resize items-center justify-center text-muted-foreground'
             style={{ pointerEvents: 'auto' }}

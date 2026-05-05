@@ -130,19 +130,25 @@ export const ExtendBlock: BlockConfig<ExtendParserOutput> = {
   },
 }
 
-const extendV2Inputs = ExtendBlock.inputs
+const extendV2Inputs = {
+  file: { type: 'json' as const, description: 'Document (file upload or file reference)' },
+  apiKey: ExtendBlock.inputs?.apiKey,
+  outputFormat: ExtendBlock.inputs?.outputFormat,
+  chunking: ExtendBlock.inputs?.chunking,
+  engine: ExtendBlock.inputs?.engine,
+}
 const extendV2SubBlocks = (ExtendBlock.subBlocks || []).flatMap((subBlock) => {
   if (subBlock.id === 'filePath') {
     return []
   }
   if (subBlock.id === 'fileUpload') {
     return [
-      subBlock,
+      { ...subBlock, canonicalParamId: 'file' },
       {
         id: 'fileReference',
         title: 'Document',
         type: 'short-input' as SubBlockType,
-        canonicalParamId: 'document',
+        canonicalParamId: 'file',
         placeholder: 'Connect a file output from another block',
         mode: 'advanced' as const,
         required: true,
@@ -173,7 +179,7 @@ export const ExtendV2Block: BlockConfig<ExtendParserOutput> = {
           apiKey: params.apiKey.trim(),
         }
 
-        const documentInput = normalizeFileInput(params.document, { single: true })
+        const documentInput = normalizeFileInput(params.file, { single: true })
         if (!documentInput) {
           throw new Error('Document file is required')
         }

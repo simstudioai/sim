@@ -122,10 +122,6 @@ export const workspaceMemberSchema = z.object({
 
 export type WorkspaceMember = z.output<typeof workspaceMemberSchema>
 
-export const duplicateWorkspaceBodySchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-})
-
 export const workspacePreviewBodySchema = z
   .object({
     code: z
@@ -266,23 +262,6 @@ export const getWorkspaceMembersContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       members: z.array(workspaceMemberSchema),
-    }),
-  },
-})
-
-export const duplicateWorkspaceContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/workspaces/[id]/duplicate',
-  params: workspaceParamsSchema,
-  body: duplicateWorkspaceBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      id: z.string(),
-      name: z.string(),
-      ownerId: z.string(),
-      workflowsCount: z.number(),
-      foldersCount: z.number(),
     }),
   },
 })

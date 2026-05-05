@@ -411,7 +411,7 @@ export const GoogleMapsBlock: BlockConfig = {
     config: {
       tool: (params) => `google_maps_${params.operation}`,
       params: (params) => {
-        const { operation, locationBias, ...rest } = params
+        const { operation, locationBias, addressToValidate, ...rest } = params
 
         let location: { lat: number; lng: number } | undefined
         if (locationBias && typeof locationBias === 'string' && locationBias.includes(',')) {
@@ -486,7 +486,7 @@ export const GoogleMapsBlock: BlockConfig = {
           }
         }
 
-        const address = params.addressToValidate || params.address
+        const address = operation === 'validate_address' ? addressToValidate : params.address
 
         // Parse boolean switches (can come as string or boolean from form)
         let interpolate: boolean | undefined

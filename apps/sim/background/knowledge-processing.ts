@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
-import { env } from '@/lib/core/config/env'
+import { env, envNumber } from '@/lib/core/config/env'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 
 const logger = createLogger('TriggerKnowledgeProcessing')
@@ -23,16 +23,16 @@ export type DocumentProcessingPayload = {
 
 export const processDocument = task({
   id: 'knowledge-process-document',
-  maxDuration: env.KB_CONFIG_MAX_DURATION || 600,
+  maxDuration: envNumber(env.KB_CONFIG_MAX_DURATION, 600),
   machine: 'large-1x', // 2 vCPU, 2GB RAM - needed for large PDF processing
   retry: {
-    maxAttempts: env.KB_CONFIG_MAX_ATTEMPTS || 3,
-    factor: env.KB_CONFIG_RETRY_FACTOR || 2,
-    minTimeoutInMs: env.KB_CONFIG_MIN_TIMEOUT || 1000,
-    maxTimeoutInMs: env.KB_CONFIG_MAX_TIMEOUT || 10000,
+    maxAttempts: envNumber(env.KB_CONFIG_MAX_ATTEMPTS, 3),
+    factor: envNumber(env.KB_CONFIG_RETRY_FACTOR, 2),
+    minTimeoutInMs: envNumber(env.KB_CONFIG_MIN_TIMEOUT, 1000),
+    maxTimeoutInMs: envNumber(env.KB_CONFIG_MAX_TIMEOUT, 10000),
   },
   queue: {
-    concurrencyLimit: env.KB_CONFIG_CONCURRENCY_LIMIT || 20,
+    concurrencyLimit: envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20),
     name: 'document-processing-queue',
   },
   run: async (payload: DocumentProcessingPayload) => {
