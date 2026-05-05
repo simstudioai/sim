@@ -1160,6 +1160,14 @@ export function Table({
   }, [selectionFocus])
 
   useEffect(() => {
+    // Skip during transient empty-rows state (initial load of a new sort/filter
+    // before keepPreviousData kicks in) — clearing here would lose the user's
+    // selection across every uncached query change.
+    if (rows.length === 0) return
+    // Column selections pin focus to the last row via the effect above; remapping
+    // by row id would shrink a full-column range to whichever rows happened to be
+    // at the endpoints when the selection was captured.
+    if (isColumnSelectionRef.current) return
     const anchor = selectionAnchorRef.current
     if (anchor) {
       const expectedId = anchorRowIdRef.current
@@ -1799,6 +1807,8 @@ export function Table({
 
       const currentCols = columnsRef.current
       const currentRows = rowsRef.current
+      // Captured once before the loop so each new row in the batch gets a unique,
+      // sequential position via `+ (newRowIndex - currentRows.length)` below.
       const lastRowPosition = currentRows.reduce((max, r) => Math.max(max, r.position), -1)
 
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
