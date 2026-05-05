@@ -5,22 +5,13 @@ import type {
   QuickBooksLineItem,
 } from '@/tools/quickbooks/types'
 import { INVOICE_OUTPUT } from '@/tools/quickbooks/types'
-import { buildCompanyUrl, quickbooksAuthHeaders } from '@/tools/quickbooks/utils'
+import { buildCompanyUrl, coerceJsonArray, quickbooksAuthHeaders } from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('QuickBooksCreateInvoice')
 
-function coerceLines(input: QuickBooksCreateInvoiceParams['lines']): QuickBooksLineItem[] {
-  if (Array.isArray(input)) return input
-  if (typeof input !== 'string') {
-    throw new Error('Invoice lines must be a JSON array')
-  }
-  const parsed = JSON.parse(input)
-  if (!Array.isArray(parsed)) {
-    throw new Error('Invoice lines must be a JSON array')
-  }
-  return parsed as QuickBooksLineItem[]
-}
+const coerceLines = (input: QuickBooksCreateInvoiceParams['lines']): QuickBooksLineItem[] =>
+  coerceJsonArray<QuickBooksLineItem>(input, 'Invoice lines')
 
 export const quickbooksCreateInvoiceTool: ToolConfig<
   QuickBooksCreateInvoiceParams,

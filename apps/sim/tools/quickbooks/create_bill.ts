@@ -5,22 +5,13 @@ import type {
   QuickBooksCreateBillParams,
 } from '@/tools/quickbooks/types'
 import { BILL_OUTPUT } from '@/tools/quickbooks/types'
-import { buildCompanyUrl, quickbooksAuthHeaders } from '@/tools/quickbooks/utils'
+import { buildCompanyUrl, coerceJsonArray, quickbooksAuthHeaders } from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('QuickBooksCreateBill')
 
-function coerceLines(input: QuickBooksCreateBillParams['lines']): QuickBooksBillLine[] {
-  if (Array.isArray(input)) return input
-  if (typeof input !== 'string') {
-    throw new Error('Bill lines must be a JSON array')
-  }
-  const parsed = JSON.parse(input)
-  if (!Array.isArray(parsed)) {
-    throw new Error('Bill lines must be a JSON array')
-  }
-  return parsed as QuickBooksBillLine[]
-}
+const coerceLines = (input: QuickBooksCreateBillParams['lines']): QuickBooksBillLine[] =>
+  coerceJsonArray<QuickBooksBillLine>(input, 'Bill lines')
 
 export const quickbooksCreateBillTool: ToolConfig<
   QuickBooksCreateBillParams,

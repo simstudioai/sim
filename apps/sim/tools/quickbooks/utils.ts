@@ -41,6 +41,23 @@ export function sanitizeWhereClause(where: string | undefined): string | undefin
   return trimmed
 }
 
+/**
+ * Coerce a `lines` parameter (already an array, or a JSON-encoded string from
+ * an LLM/short-input) into a typed array. Throws with a contextual label when
+ * the value is missing or not an array.
+ */
+export function coerceJsonArray<T>(input: unknown, label: string): T[] {
+  if (Array.isArray(input)) return input as T[]
+  if (typeof input !== 'string') {
+    throw new Error(`${label} must be a JSON array`)
+  }
+  const parsed = JSON.parse(input)
+  if (!Array.isArray(parsed)) {
+    throw new Error(`${label} must be a JSON array`)
+  }
+  return parsed as T[]
+}
+
 export function quickbooksAuthHeaders(accessToken: string | undefined): Record<string, string> {
   if (!accessToken) {
     throw new Error('Missing QuickBooks access token')

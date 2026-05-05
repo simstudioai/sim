@@ -189,7 +189,7 @@ export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a JSON array of QuickBooks invoice line items. Each entry must have a numeric `amount` and may include `description`, `quantity`, `itemId`, and `itemName`. Return ONLY the JSON array.',
+          'Generate a JSON array of QuickBooks invoice line items. Each entry must have a numeric `amount` and a string `itemId` (the QuickBooks Item ID); may include `description`, `quantity`, and `itemName`. Return ONLY the JSON array.',
         generationType: 'json-object',
       },
     },
