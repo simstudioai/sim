@@ -533,17 +533,30 @@ export const auth = betterAuth({
           }
 
           if (account.providerId === 'quickbooks') {
+            const updates: {
+              accessTokenExpiresAt?: Date
+              scope?: string
+            } = {}
+
+            let realmId: string | undefined
             try {
               const cookieStore = await cookies()
+              realmId = cookieStore.get('qb_pending_realm')?.value
               cookieStore.delete('qb_pending_realm')
             } catch (error) {
-              logger.error('Failed to clear qb_pending_realm cookie', { error })
+              logger.error('Failed to read/clear qb_pending_realm cookie', { error })
             }
+
             if (!account.accessTokenExpiresAt) {
-              await db
-                .update(schema.account)
-                .set({ accessTokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000) })
-                .where(eq(schema.account.id, account.id))
+              updates.accessTokenExpiresAt = new Date(Date.now() + 60 * 60 * 1000)
+            }
+
+            if (realmId && !account.scope?.includes('__qb_realm__:')) {
+              updates.scope = `__qb_realm__:${realmId} ${account.scope ?? ''}`.trim()
+            }
+
+            if (Object.keys(updates).length > 0) {
+              await db.update(schema.account).set(updates).where(eq(schema.account.id, account.id))
             }
           }
 

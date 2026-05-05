@@ -33,7 +33,7 @@ export interface QuickBooksLineItem {
   description?: string
   amount: number
   quantity?: number
-  itemId?: string
+  itemId: string
   itemName?: string
 }
 
