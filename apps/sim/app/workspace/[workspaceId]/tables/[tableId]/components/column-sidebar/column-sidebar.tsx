@@ -1050,16 +1050,18 @@ export function ColumnSidebar({
                       {startBlockInputs.blockId && missingInputColumnNames.length > 0 && (
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
-                            <button
+                            <Button
                               type='button'
-                              className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-0.5 font-medium font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-active)] disabled:cursor-not-allowed disabled:opacity-60'
+                              variant='default'
+                              size='sm'
+                              className='flex-none whitespace-nowrap'
                               onClick={() => addInputsMutation.mutate()}
                               disabled={addInputsMutation.isPending}
                             >
                               {addInputsMutation.isPending
                                 ? 'Adding…'
                                 : `Add inputs (${missingInputColumnNames.length})`}
-                            </button>
+                            </Button>
                           </Tooltip.Trigger>
                           <Tooltip.Content side='top'>
                             Adds {missingInputColumnNames.join(', ')} to the workflow's Start block

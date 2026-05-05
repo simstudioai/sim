@@ -477,6 +477,7 @@ export function useRenameTable(workspaceId: string) {
       })
     },
     onError: (error) => {
+      if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
@@ -533,6 +534,8 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       reconcileCreatedRow(queryClient, tableId, row)
     },
     onError: (error) => {
+      // Validation errors are surfaced inline by the caller (see useUpdateColumn).
+      if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
@@ -647,6 +650,7 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
       })
     },
     onError: (error) => {
+      if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
@@ -699,6 +703,7 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
           queryClient.setQueryData(queryKey, data)
         }
       }
+      if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
@@ -759,6 +764,7 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
           queryClient.setQueryData(queryKey, data)
         }
       }
+      if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {

@@ -116,7 +116,7 @@ export function ContextMenu({
         )}
         {hasWorkflowColumns && onStopWorkflows && runningInSelectionCount > 0 && (
           <DropdownMenuItem disabled={disableEdit} onSelect={onStopWorkflows}>
-            <Square className='h-[14px] w-[14px]' />
+            <Square className='h-[14px] w-[14px] text-[var(--text-icon)]' />
             {stopLabel}
           </DropdownMenuItem>
         )}

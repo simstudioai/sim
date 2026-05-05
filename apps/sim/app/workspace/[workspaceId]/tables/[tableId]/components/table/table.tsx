@@ -350,11 +350,7 @@ export function Table({
     return expandToDisplayColumns(ordered, tableWorkflowGroups)
   }, [columns, columnOrder, tableWorkflowGroups])
 
-  const workflowColumnNames = useMemo(
-    () => columns.filter((c) => !!c.workflowGroupId).map((c) => c.name),
-    [columns]
-  )
-  const hasWorkflowColumns = workflowColumnNames.length > 0
+  const hasWorkflowColumns = columns.some((c) => !!c.workflowGroupId)
   /**
    * The sticky left column hosts the row number / checkbox always, plus a
    * per-row run button only when the table has workflow columns. Width is
@@ -378,7 +374,7 @@ export function Table({
   )
   const hasWorkflowGroup = headerGroups.some((g) => g.kind === 'workflow')
 
-  const maxPosition = useMemo(() => (rows.length > 0 ? rows[rows.length - 1].position : -1), [rows])
+  const maxPosition = rows.length > 0 ? rows[rows.length - 1].position : -1
   const maxPositionRef = useRef(maxPosition)
   maxPositionRef.current = maxPosition
 
@@ -1226,6 +1222,87 @@ export function Table({
     }
     document.addEventListener('mouseup', handleMouseUp)
     return () => document.removeEventListener('mouseup', handleMouseUp)
+  }, [])
+
+  /**
+   * Auto-scroll the table while a cell-drag selection is in progress and the
+   * cursor enters a "hot zone" near the top or bottom of the scroll
+   * container. Scroll velocity ramps with proximity to the edge (max ~14px /
+   * frame at the very edge). The horizontal axis is intentionally left out:
+   * the fixed sticky checkbox column makes left-edge hot zones awkward and
+   * the table is rarely wider than the viewport in practice.
+   */
+  useEffect(() => {
+    const HOT_ZONE_PX = 48
+    const MAX_VELOCITY_PX = 14
+    let pointerX: number | null = null
+    let pointerY: number | null = null
+    let rafId: number | null = null
+
+    /**
+     * After auto-scroll moves the table under the cursor, no `mouseenter`
+     * fires on newly-revealed cells, so the selection focus would stay stuck
+     * on whatever cell was under the cursor when the cursor stopped moving.
+     * Manually re-pick the cell under the (unchanged) cursor coords and feed
+     * its row/col into the selection so the highlight expands as we scroll.
+     */
+    const updateFocusUnderCursor = () => {
+      if (pointerX === null || pointerY === null) return
+      const target = document.elementFromPoint(pointerX, pointerY)
+      if (!target) return
+      const td = (target as HTMLElement).closest('td[data-row][data-col]') as HTMLElement | null
+      if (!td) return
+      const rowIndex = Number.parseInt(td.getAttribute('data-row') ?? '', 10)
+      const colIndex = Number.parseInt(td.getAttribute('data-col') ?? '', 10)
+      if (Number.isNaN(rowIndex) || Number.isNaN(colIndex)) return
+      setSelectionFocus({ rowIndex, colIndex })
+    }
+
+    const tick = () => {
+      rafId = null
+      const el = scrollRef.current
+      if (!isDraggingRef.current || !el || pointerY === null) return
+      const rect = el.getBoundingClientRect()
+      const distFromTop = pointerY - rect.top
+      const distFromBottom = rect.bottom - pointerY
+      let dy = 0
+      if (distFromTop < HOT_ZONE_PX) {
+        const intensity = 1 - Math.max(0, distFromTop) / HOT_ZONE_PX
+        dy = -Math.ceil(intensity * MAX_VELOCITY_PX)
+      } else if (distFromBottom < HOT_ZONE_PX) {
+        const intensity = 1 - Math.max(0, distFromBottom) / HOT_ZONE_PX
+        dy = Math.ceil(intensity * MAX_VELOCITY_PX)
+      }
+      if (dy !== 0) {
+        el.scrollTop += dy
+        updateFocusUnderCursor()
+        rafId = requestAnimationFrame(tick)
+      }
+    }
+
+    const handleMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return
+      pointerX = e.clientX
+      pointerY = e.clientY
+      if (rafId === null) rafId = requestAnimationFrame(tick)
+    }
+
+    const handleStop = () => {
+      pointerX = null
+      pointerY = null
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
+    }
+
+    document.addEventListener('mousemove', handleMove)
+    document.addEventListener('mouseup', handleStop)
+    return () => {
+      document.removeEventListener('mousemove', handleMove)
+      document.removeEventListener('mouseup', handleStop)
+      handleStop()
+    }
   }, [])
 
   useEffect(() => {
@@ -2541,7 +2618,9 @@ export function Table({
     [cancelRunsMutate]
   )
 
-  const handleRunWorkflowsOnSelection = useCallback(() => {
+  // Plain function: only consumer is `<ContextMenu>` which isn't `React.memo`'d,
+  // so reference stability isn't observed.
+  const handleRunWorkflowsOnSelection = () => {
     if (tableWorkflowGroups.length === 0) return
     if (contextMenuRowIds.length === 0) return
     for (const group of tableWorkflowGroups) {
@@ -2553,31 +2632,24 @@ export function Table({
       })
     }
     closeContextMenu()
-    // mutate is stable in v5
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contextMenuRowIds, tableWorkflowGroups, closeContextMenu])
+  }
 
-  /**
-   * Total running/queued cells across the rows the context menu is acting on.
-   * Drives the "Stop N running workflows" item: shown only when > 0.
-   */
-  const runningInContextSelection = useMemo(() => {
-    if (contextMenuRowIds.length === 0) return 0
-    let total = 0
-    for (const rowId of contextMenuRowIds) {
-      total += runningByRowId.get(rowId) ?? 0
-    }
-    return total
-  }, [contextMenuRowIds, runningByRowId])
+  // Total running/queued cells across the rows the context menu is acting on;
+  // drives the "Stop N running workflows" item, shown only when > 0. The reduce
+  // is cheap (selection size is small) and a memo wouldn't pay for itself.
+  const runningInContextSelection = contextMenuRowIds.reduce(
+    (total, rowId) => total + (runningByRowId.get(rowId) ?? 0),
+    0
+  )
 
-  const handleStopWorkflowsOnSelection = useCallback(() => {
+  const handleStopWorkflowsOnSelection = () => {
     if (contextMenuRowIds.length === 0) return
     for (const rowId of contextMenuRowIds) {
       if ((runningByRowId.get(rowId) ?? 0) === 0) continue
       cancelRunsMutate({ scope: 'row', rowId })
     }
     closeContextMenu()
-  }, [contextMenuRowIds, runningByRowId, cancelRunsMutate, closeContextMenu])
+  }
 
   const handleRunRow = useCallback(
     (rowId: string) => {
@@ -3474,11 +3546,13 @@ const DataRow = React.memo(function DataRow({
             </div>
           </div>
           {hasWorkflowColumns && (
-            <button
+            <Button
               type='button'
+              variant='ghost'
+              size='sm'
               aria-label={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
               title={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
-              className='flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded text-[var(--text-primary)] transition-colors hover-hover:bg-[var(--surface-2)]'
+              className='h-[20px] w-[20px] shrink-0 px-0 py-0 text-[var(--text-primary)] hover-hover:bg-[var(--surface-2)]'
               onClick={() => {
                 if (runningCount > 0) {
                   onStopRow(row.id)
@@ -3492,7 +3566,7 @@ const DataRow = React.memo(function DataRow({
               ) : (
                 <PlayOutline className='h-[12px] w-[12px]' />
               )}
-            </button>
+            </Button>
           )}
         </div>
       </td>
