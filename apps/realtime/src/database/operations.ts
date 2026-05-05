@@ -8,6 +8,7 @@ import {
   EDGE_OPERATIONS,
   EDGES_OPERATIONS,
   OPERATION_TARGETS,
+  SUBBLOCK_OPERATIONS,
   SUBFLOW_OPERATIONS,
   VARIABLE_OPERATIONS,
   WORKFLOW_OPERATIONS,
@@ -250,6 +251,9 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
           break
         case OPERATION_TARGETS.SUBFLOW:
           await handleSubflowOperationTx(tx, workflowId, op, payload)
+          break
+        case OPERATION_TARGETS.SUBBLOCK:
+          await handleSubblockOperationTx(tx, workflowId, op, payload)
           break
         case OPERATION_TARGETS.VARIABLE:
           await handleVariableOperationTx(tx, workflowId, op, payload)
@@ -1731,6 +1735,93 @@ async function handleSubflowOperationTx(
     default:
       logger.warn(`Unknown subflow operation: ${operation}`)
       throw new Error(`Unsupported subflow operation: ${operation}`)
+  }
+}
+
+function valuesEqual(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+// Subblock operations - targeted value updates without replacing workflow state
+async function handleSubblockOperationTx(
+  tx: any,
+  workflowId: string,
+  operation: string,
+  payload: any
+) {
+  switch (operation) {
+    case SUBBLOCK_OPERATIONS.BATCH_UPDATE: {
+      const updates = payload.updates
+      if (!Array.isArray(updates) || updates.length === 0) {
+        return
+      }
+
+      for (const update of updates) {
+        const { blockId, subblockId, value, expectedValue } = update
+        if (!blockId || !subblockId) {
+          throw new Error('Missing required fields for subblock batch update')
+        }
+
+        const [block] = await tx
+          .select({
+            subBlocks: workflowBlocks.subBlocks,
+            locked: workflowBlocks.locked,
+            data: workflowBlocks.data,
+          })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        if (!block) {
+          throw new Error(`Block ${blockId} not found`)
+        }
+
+        if (block.locked) {
+          throw new Error(`Block ${blockId} is locked`)
+        }
+
+        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
+          | string
+          | undefined
+        if (parentId) {
+          const [parentBlock] = await tx
+            .select({ locked: workflowBlocks.locked })
+            .from(workflowBlocks)
+            .where(and(eq(workflowBlocks.id, parentId), eq(workflowBlocks.workflowId, workflowId)))
+            .limit(1)
+
+          if (parentBlock?.locked) {
+            throw new Error(`Parent block ${parentId} is locked`)
+          }
+        }
+
+        const subBlocks = { ...((block.subBlocks as Record<string, any>) || {}) }
+        const currentSubBlock = subBlocks[subblockId]
+        const currentValue = currentSubBlock?.value
+        if (expectedValue !== undefined && !valuesEqual(currentValue, expectedValue)) {
+          throw new Error(`Subblock ${blockId}.${subblockId} changed since replacement was planned`)
+        }
+
+        subBlocks[subblockId] = currentSubBlock
+          ? { ...currentSubBlock, value }
+          : { id: subblockId, type: 'unknown', value }
+
+        await tx
+          .update(workflowBlocks)
+          .set({
+            subBlocks,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+      }
+
+      logger.debug(`Batch updated ${updates.length} subblocks for workflow ${workflowId}`)
+      break
+    }
+
+    default:
+      logger.warn(`Unknown subblock operation: ${operation}`)
+      throw new Error(`Unsupported subblock operation: ${operation}`)
   }
 }
 

@@ -103,6 +103,7 @@ interface SubBlockProps {
   labelSuffix?: React.ReactNode
   /** Provides sibling values for dependency resolution in non-preview contexts (e.g. tool-input) */
   dependencyContext?: Record<string, unknown>
+  isSearchHighlighted?: boolean
 }
 
 /**
@@ -436,6 +437,7 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
     prevProps.allowExpandInPreview === nextProps.allowExpandInPreview &&
     canonicalToggleEqual &&
     prevProps.labelSuffix === nextProps.labelSuffix &&
+    prevProps.isSearchHighlighted === nextProps.isSearchHighlighted &&
     prevProps.dependencyContext === nextProps.dependencyContext
   )
 }
@@ -452,6 +454,7 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
  * @param canonicalToggle - Metadata and handlers for the basic/advanced mode toggle
  * @param labelSuffix - Additional content rendered after the label text
  * @param dependencyContext - Sibling values for dependency resolution in non-preview contexts (e.g. tool-input)
+ * @param isSearchHighlighted - Whether workflow search should highlight this field
  */
 function SubBlockComponent({
   blockId,
@@ -463,6 +466,7 @@ function SubBlockComponent({
   canonicalToggle,
   labelSuffix,
   dependencyContext,
+  isSearchHighlighted,
 }: SubBlockProps): JSX.Element {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -1165,7 +1169,15 @@ function SubBlockComponent({
   }
 
   return (
-    <div onMouseDown={handleMouseDown} className='subblock-content flex flex-col gap-2.5'>
+    <div
+      onMouseDown={handleMouseDown}
+      data-workflow-search-subblock-id={config.id}
+      data-workflow-search-canonical-id={config.canonicalParamId ?? config.id}
+      className={cn(
+        'subblock-content flex flex-col gap-2.5 rounded-md transition-colors',
+        isSearchHighlighted && 'bg-[var(--surface-3)] p-2 ring-1 ring-[var(--border-1)]'
+      )}
+    >
       {renderLabel(
         config,
         isValidJson,

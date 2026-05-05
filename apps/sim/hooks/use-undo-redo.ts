@@ -14,6 +14,7 @@ import {
   EDGE_OPERATIONS,
   EDGES_OPERATIONS,
   OPERATION_TARGETS,
+  SUBBLOCK_OPERATIONS,
   UNDO_REDO_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
 import type { Edge } from 'reactflow'
@@ -30,6 +31,7 @@ import {
   type BatchToggleHandlesOperation,
   type BatchToggleLockedOperation,
   type BatchUpdateParentOperation,
+  type BatchUpdateSubblocksOperation,
   captureLatestEdges,
   captureLatestSubBlockValues,
   createOperationEntry,
@@ -38,6 +40,7 @@ import {
   useUndoRedoStore,
 } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -452,6 +455,74 @@ export function useUndoRedo() {
       logger.debug('Recorded batch toggle locked', { blockIds, previousStates })
     },
     [activeWorkflowId, userId]
+  )
+
+  const recordBatchUpdateSubblocks = useCallback(
+    (updates: BatchUpdateSubblocksOperation['data']['updates']) => {
+      if (!activeWorkflowId || updates.length === 0) return
+
+      const operation: BatchUpdateSubblocksOperation = {
+        id: generateId(),
+        type: UNDO_REDO_OPERATIONS.BATCH_UPDATE_SUBBLOCKS,
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: { updates },
+      }
+
+      const inverse: BatchUpdateSubblocksOperation = {
+        id: generateId(),
+        type: UNDO_REDO_OPERATIONS.BATCH_UPDATE_SUBBLOCKS,
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: {
+          updates: updates.map((update) => ({
+            blockId: update.blockId,
+            subBlockId: update.subBlockId,
+            before: update.after,
+            after: update.before,
+          })),
+        },
+      }
+
+      const entry = createOperationEntry(operation, inverse)
+      useUndoRedoStore.getState().push(activeWorkflowId, userId, entry)
+      logger.debug('Recorded batch subblock update', { count: updates.length })
+    },
+    [activeWorkflowId, userId]
+  )
+
+  const applyBatchSubblockUndoRedo = useCallback(
+    (updates: BatchUpdateSubblocksOperation['data']['updates']) => {
+      if (!activeWorkflowId || updates.length === 0) return
+
+      const socketUpdates = updates.map((update) => ({
+        blockId: update.blockId,
+        subblockId: update.subBlockId,
+        value: update.after,
+        expectedValue: update.before,
+      }))
+
+      addToQueue({
+        id: generateId(),
+        operation: {
+          operation: SUBBLOCK_OPERATIONS.BATCH_UPDATE,
+          target: OPERATION_TARGETS.SUBBLOCK,
+          payload: { updates: socketUpdates },
+        },
+        workflowId: activeWorkflowId,
+        userId,
+      })
+
+      socketUpdates.forEach((update) => {
+        useSubBlockStore.getState().setValue(update.blockId, update.subblockId, update.value)
+        useWorkflowStore
+          .getState()
+          .syncDynamicHandleSubblockValue(update.blockId, update.subblockId, update.value)
+      })
+    },
+    [activeWorkflowId, addToQueue, userId]
   )
 
   const undo = useCallback(async () => {
@@ -903,6 +974,11 @@ export function useUndoRedo() {
           })
           break
         }
+        case UNDO_REDO_OPERATIONS.BATCH_UPDATE_SUBBLOCKS: {
+          const subblockOp = entry.inverse as BatchUpdateSubblocksOperation
+          applyBatchSubblockUndoRedo(subblockOp.data.updates)
+          break
+        }
         case UNDO_REDO_OPERATIONS.APPLY_DIFF: {
           const applyDiffInverse = entry.inverse as any
           const { baselineSnapshot } = applyDiffInverse.data
@@ -1076,7 +1152,7 @@ export function useUndoRedo() {
 
       logger.info('Undo operation', { type: entry.operation.type, workflowId: activeWorkflowId })
     })
-  }, [activeWorkflowId, userId, addToQueue])
+  }, [activeWorkflowId, userId, addToQueue, applyBatchSubblockUndoRedo])
 
   const redo = useCallback(async () => {
     if (!activeWorkflowId || !userId) return
@@ -1530,6 +1606,11 @@ export function useUndoRedo() {
           })
           break
         }
+        case UNDO_REDO_OPERATIONS.BATCH_UPDATE_SUBBLOCKS: {
+          const subblockOp = entry.operation as BatchUpdateSubblocksOperation
+          applyBatchSubblockUndoRedo(subblockOp.data.updates)
+          break
+        }
         case UNDO_REDO_OPERATIONS.APPLY_DIFF: {
           // Redo apply-diff means re-applying the proposed state with diff markers
           const applyDiffOp = entry.operation as any
@@ -1701,7 +1782,7 @@ export function useUndoRedo() {
         userId,
       })
     })
-  }, [activeWorkflowId, userId, addToQueue])
+  }, [activeWorkflowId, userId, addToQueue, applyBatchSubblockUndoRedo])
 
   const getStackSizes = useCallback(() => {
     if (!activeWorkflowId) return { undoSize: 0, redoSize: 0 }
@@ -1852,6 +1933,7 @@ export function useUndoRedo() {
     recordBatchToggleEnabled,
     recordBatchToggleHandles,
     recordBatchToggleLocked,
+    recordBatchUpdateSubblocks,
     recordApplyDiff,
     recordAcceptDiff,
     recordRejectDiff,

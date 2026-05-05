@@ -105,6 +105,18 @@ export interface BatchToggleLockedOperation extends BaseOperation {
   }
 }
 
+export interface BatchUpdateSubblocksOperation extends BaseOperation {
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_UPDATE_SUBBLOCKS
+  data: {
+    updates: Array<{
+      blockId: string
+      subBlockId: string
+      before: unknown
+      after: unknown
+    }>
+  }
+}
+
 export interface ApplyDiffOperation extends BaseOperation {
   type: typeof UNDO_REDO_OPERATIONS.APPLY_DIFF
   data: {
@@ -145,6 +157,7 @@ export type Operation =
   | BatchToggleEnabledOperation
   | BatchToggleHandlesOperation
   | BatchToggleLockedOperation
+  | BatchUpdateSubblocksOperation
   | ApplyDiffOperation
   | AcceptDiffOperation
   | RejectDiffOperation

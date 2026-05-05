@@ -51,6 +51,11 @@ describe('checkRolePermission', () => {
       const result = checkRolePermission('admin', 'replace-state')
       expectPermissionAllowed(result)
     })
+
+    it('should allow subblock-batch-update operation', () => {
+      const result = checkRolePermission('admin', 'subblock-batch-update')
+      expectPermissionAllowed(result)
+    })
   })
 
   describe('write role', () => {
@@ -75,6 +80,11 @@ describe('checkRolePermission', () => {
 
     it('should allow update-position operation', () => {
       const result = checkRolePermission('write', 'update-position')
+      expectPermissionAllowed(result)
+    })
+
+    it('should allow subblock-batch-update operation', () => {
+      const result = checkRolePermission('write', 'subblock-batch-update')
       expectPermissionAllowed(result)
     })
   })
@@ -108,6 +118,11 @@ describe('checkRolePermission', () => {
 
     it('should deny replace-state operation for read role', () => {
       const result = checkRolePermission('read', 'replace-state')
+      expectPermissionDenied(result, 'read')
+    })
+
+    it('should deny subblock-batch-update operation for read role', () => {
+      const result = checkRolePermission('read', 'subblock-batch-update')
       expectPermissionDenied(result, 'read')
     })
 

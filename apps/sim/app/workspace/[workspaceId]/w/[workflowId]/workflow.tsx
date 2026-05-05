@@ -35,6 +35,7 @@ import { BlockMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/componen
 import { CanvasMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/canvas-menu'
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
+import { WorkflowSearchReplace } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/workflow-search-replace'
 import type { SubflowNodeData } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { WorkflowControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
 import {
@@ -4233,6 +4234,7 @@ const WorkflowContent = React.memo(
             )}
 
             <Notifications embedded={embedded} />
+            {!embedded && <WorkflowSearchReplace />}
 
             {!embedded && isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && (
               <CommandList />

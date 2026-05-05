@@ -14,6 +14,7 @@ export type CommandId =
   // | 'goto-templates'
   | 'goto-logs'
   | 'open-search'
+  | 'open-workflow-search-replace'
   | 'run-workflow'
   | 'clear-terminal-console'
   | 'focus-toolbar-search'
@@ -79,6 +80,11 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
     shortcut: 'Mod+K',
     allowInEditable: true,
   },
+  'open-workflow-search-replace': {
+    id: 'open-workflow-search-replace',
+    shortcut: 'Mod+F',
+    allowInEditable: true,
+  },
   'run-workflow': {
     id: 'run-workflow',
     shortcut: 'Mod+Enter',
@@ -91,7 +97,7 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
   },
   'focus-toolbar-search': {
     id: 'focus-toolbar-search',
-    shortcut: 'Mod+F',
+    shortcut: 'Mod+Alt+F',
     allowInEditable: false,
   },
   'clear-notifications': {

@@ -85,15 +85,21 @@ const IconComponent = ({ icon: Icon, className }: { icon: any; className?: strin
  * @returns Editor panel content
  */
 export function Editor() {
-  const { currentBlockId, connectionsHeight, toggleConnectionsCollapsed, registerRenameCallback } =
-    usePanelEditorStore(
-      useShallow((state) => ({
-        currentBlockId: state.currentBlockId,
-        connectionsHeight: state.connectionsHeight,
-        toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
-        registerRenameCallback: state.registerRenameCallback,
-      }))
-    )
+  const {
+    currentBlockId,
+    activeSearchTarget,
+    connectionsHeight,
+    toggleConnectionsCollapsed,
+    registerRenameCallback,
+  } = usePanelEditorStore(
+    useShallow((state) => ({
+      currentBlockId: state.currentBlockId,
+      activeSearchTarget: state.activeSearchTarget,
+      connectionsHeight: state.connectionsHeight,
+      toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
+      registerRenameCallback: state.registerRenameCallback,
+    }))
+  )
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
@@ -237,6 +243,22 @@ export function Editor() {
   const [isRenaming, setIsRenaming] = useState(false)
   const [editedName, setEditedName] = useState('')
   const renamingBlockIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!activeSearchTarget || activeSearchTarget.blockId !== currentBlockId) return
+    const container = subBlocksRef.current
+    if (!container) return
+
+    const directTarget = container.querySelector<HTMLElement>(
+      `[data-workflow-search-subblock-id="${activeSearchTarget.subBlockId}"]`
+    )
+    const target =
+      directTarget ??
+      container.querySelector<HTMLElement>(
+        `[data-workflow-search-canonical-id="${activeSearchTarget.canonicalSubBlockId}"]`
+      )
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [activeSearchTarget, currentBlockId, subBlocks])
 
   /**
    * Ref callback that auto-selects the input text when mounted.
@@ -586,6 +608,12 @@ export function Editor() {
                           subBlockValues={subBlockState}
                           disabled={!canEditBlock}
                           allowExpandInPreview={false}
+                          isSearchHighlighted={
+                            activeSearchTarget?.blockId === currentBlockId &&
+                            (activeSearchTarget.subBlockId === subBlock.id ||
+                              activeSearchTarget.canonicalSubBlockId ===
+                                (subBlock.canonicalParamId ?? subBlock.id))
+                          }
                           canonicalToggle={
                             isCanonicalSwap && canonicalMode && canonicalId
                               ? {
@@ -658,6 +686,12 @@ export function Editor() {
                           subBlockValues={subBlockState}
                           disabled={!canEditBlock}
                           allowExpandInPreview={false}
+                          isSearchHighlighted={
+                            activeSearchTarget?.blockId === currentBlockId &&
+                            (activeSearchTarget.subBlockId === subBlock.id ||
+                              activeSearchTarget.canonicalSubBlockId ===
+                                (subBlock.canonicalParamId ?? subBlock.id))
+                          }
                         />
                         {index < advancedOnlySubBlocks.length - 1 && (
                           <div className='subblock-divider px-0.5 pt-4 pb-[13px]'>
