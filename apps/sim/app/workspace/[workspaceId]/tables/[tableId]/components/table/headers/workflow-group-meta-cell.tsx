@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -168,6 +168,15 @@ interface WorkflowGroupMetaCellProps {
   /** Row ids in the user's current multi-row selection; when non-empty the
    *  run menu adds a "Run N selected rows" option. */
   selectedRowIds?: string[] | null
+  /** When set, the meta cell becomes draggable and forwards events through
+   *  the same column-reorder pipeline used by individual workflow column
+   *  headers. The whole group moves together because downstream code groups
+   *  fan-out siblings by `workflowGroupId`. */
+  onDragStart?: (columnName: string) => void
+  onDragOver?: (columnName: string, side: 'left' | 'right') => void
+  onDragEnd?: () => void
+  onDragLeave?: () => void
+  readOnly?: boolean
 }
 
 /**
@@ -192,6 +201,11 @@ export function WorkflowGroupMetaCell({
   onDeleteColumn,
   onDeleteGroup,
   selectedRowIds,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  onDragLeave,
+  readOnly,
 }: WorkflowGroupMetaCellProps) {
   const wf = workflows?.find((w) => w.id === workflowId)
   const color = wf?.color ?? 'var(--text-muted)'
@@ -200,6 +214,7 @@ export function WorkflowGroupMetaCell({
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false)
   const [optionsMenuPosition, setOptionsMenuPosition] = useState({ x: 0, y: 0 })
   const [runMenuOpen, setRunMenuOpen] = useState(false)
+  const didDragRef = useRef(false)
 
   const selectedCount = selectedRowIds?.length ?? 0
 
@@ -235,17 +250,85 @@ export function WorkflowGroupMetaCell({
       // should select the group + open the config sidebar.
       const target = e.target as HTMLElement
       if (target.closest('button, [role="menuitem"], [role="menu"]')) return
+      // Drag-vs-click guard: when a drag just ended on this cell, swallow the
+      // synthetic click so we don't accidentally pop open the sidebar.
+      if (didDragRef.current) {
+        didDragRef.current = false
+        return
+      }
       onSelectGroup(startColIndex, size)
       if (columnName) onOpenConfig(columnName)
     },
     [columnName, onOpenConfig, onSelectGroup, size, startColIndex]
   )
 
+  const handleDragStart = useCallback(
+    (e: React.DragEvent) => {
+      if (readOnly || !onDragStart || !columnName) {
+        e.preventDefault()
+        return
+      }
+      didDragRef.current = true
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.setData('text/plain', columnName)
+
+      const ghost = document.createElement('div')
+      ghost.textContent = name
+      ghost.style.cssText =
+        'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:13px;font-weight:500;white-space:nowrap;color:var(--text-primary)'
+      document.body.appendChild(ghost)
+      e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+      requestAnimationFrame(() => ghost.parentNode?.removeChild(ghost))
+
+      onDragStart(columnName)
+    },
+    [columnName, name, onDragStart, readOnly]
+  )
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (!onDragOver || !columnName) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      const midX = rect.left + rect.width / 2
+      const side = e.clientX < midX ? 'left' : 'right'
+      onDragOver(columnName, side)
+    },
+    [columnName, onDragOver]
+  )
+
+  const handleDragEnd = useCallback(() => {
+    onDragEnd?.()
+  }, [onDragEnd])
+
+  const handleDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      const th = e.currentTarget as HTMLElement
+      const related = e.relatedTarget as Node | null
+      if (related && th.contains(related)) return
+      onDragLeave?.()
+    },
+    [onDragLeave]
+  )
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+  }, [])
+
+  const isDraggable = !readOnly && Boolean(onDragStart)
+
   return (
     <th
       colSpan={size}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
+      draggable={isDraggable}
+      onDragStart={isDraggable ? handleDragStart : undefined}
+      onDragOver={isDraggable ? handleDragOver : undefined}
+      onDragEnd={isDraggable ? handleDragEnd : undefined}
+      onDragLeave={isDraggable ? handleDragLeave : undefined}
+      onDrop={isDraggable ? handleDrop : undefined}
       className='group relative cursor-pointer border-[var(--border)] border-r border-b border-l bg-[var(--bg)] px-2 py-[5px] text-left align-middle'
     >
       <div

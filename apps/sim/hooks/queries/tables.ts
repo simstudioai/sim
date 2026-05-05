@@ -17,6 +17,7 @@ import {
 import { toast } from '@/components/emcn'
 import { isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
+import { optimisticallyScheduleNewlyEligibleGroups } from '@/lib/table/deps'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
   type AddWorkflowGroupBodyInput,
@@ -675,9 +676,20 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
         queryKey: tableKeys.rowsRoot(tableId),
       })
 
-      patchCachedRows(queryClient, tableId, (row) =>
-        row.id === rowId ? { ...row, data: { ...row.data, ...data } as RowData } : row
-      )
+      const groups =
+        queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))?.schema
+          .workflowGroups ?? []
+
+      patchCachedRows(queryClient, tableId, (row) => {
+        if (row.id !== rowId) return row
+        const patch = data as Partial<RowData>
+        const nextExecutions = optimisticallyScheduleNewlyEligibleGroups(groups, row, patch)
+        return {
+          ...row,
+          data: { ...row.data, ...patch } as RowData,
+          ...(nextExecutions ? { executions: nextExecutions } : {}),
+        }
+      })
 
       return { previousQueries }
     },
@@ -723,11 +735,20 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
       })
 
       const updateMap = new Map(updates.map((u) => [u.rowId, u.data]))
+      const groups =
+        queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))?.schema
+          .workflowGroups ?? []
 
       patchCachedRows(queryClient, tableId, (row) => {
-        const patch = updateMap.get(row.id)
-        if (!patch) return row
-        return { ...row, data: { ...row.data, ...patch } as RowData }
+        const raw = updateMap.get(row.id)
+        if (!raw) return row
+        const patch = raw as Partial<RowData>
+        const nextExecutions = optimisticallyScheduleNewlyEligibleGroups(groups, row, patch)
+        return {
+          ...row,
+          data: { ...row.data, ...patch } as RowData,
+          ...(nextExecutions ? { executions: nextExecutions } : {}),
+        }
       })
 
       return { previousQueries }

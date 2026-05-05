@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { Badge, Checkbox } from '@/components/emcn'
+import { Badge, Checkbox, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { RowExecutionMetadata } from '@/lib/table'
 import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
@@ -19,6 +19,12 @@ interface CellContentProps {
   onSave: (value: unknown, reason: SaveReason) => void
   onCancel: () => void
   workflowNameById?: Record<string, string>
+  /**
+   * Human-readable labels for unmet deps on this row+group, used to render a
+   * "Waiting" pill when the cell hasn't run because something it depends on
+   * is empty. `undefined` (or empty) means no waiting state.
+   */
+  waitingOnLabels?: string[]
 }
 
 /**
@@ -35,6 +41,7 @@ export function CellContent({
   initialCharacter,
   onSave,
   onCancel,
+  waitingOnLabels,
 }: CellContentProps) {
   const isNull = value === null || value === undefined
 
@@ -92,6 +99,24 @@ export function CellContent({
       // Group-level failure (executor blew up, missing credentials, validation)
       // — no specific block produced the error so `blockErrors` is empty.
       displayContent = <StatusBadge status='error' />
+    } else if (waitingOnLabels && waitingOnLabels.length > 0) {
+      // The cell hasn't run because the group is waiting on at least one dep
+      // (an empty input column or an unfinished upstream group). Tooltip names
+      // the offenders so the user knows what to fill in.
+      displayContent = (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <span>
+              <Badge variant='gray' dot size='sm'>
+                Waiting
+              </Badge>
+            </span>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='top'>
+            Waiting on {waitingOnLabels.map((l) => `"${l}"`).join(', ')}
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )
     } else {
       displayContent = <span className='text-[var(--text-tertiary)]'>—</span>
     }

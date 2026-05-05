@@ -142,8 +142,12 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       e.dataTransfer.effectAllowed = 'move'
       e.dataTransfer.setData('text/plain', column.name)
 
+      // Workflow-output columns drag as a whole group, so the ghost shows
+      // the group's name rather than the individual column slug.
+      const ghostLabel = ownGroup ? ownGroup.name : column.name
+
       const ghost = document.createElement('div')
-      ghost.textContent = column.name
+      ghost.textContent = ghostLabel
       ghost.style.cssText =
         'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:13px;font-weight:500;white-space:nowrap;color:var(--text-primary)'
       document.body.appendChild(ghost)
@@ -152,7 +156,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
 
       onDragStart?.(column.name)
     },
-    [column.name, readOnly, isRenaming, onDragStart]
+    [column.name, ownGroup, readOnly, isRenaming, onDragStart]
   )
 
   const handleDragOver = useCallback(

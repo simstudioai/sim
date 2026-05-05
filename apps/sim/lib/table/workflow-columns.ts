@@ -26,24 +26,14 @@ import type {
 
 const logger = createLogger('WorkflowGroupScheduler')
 
-/**
- * Returns true when every dependency this group needs is filled. Plain
- * columns are filled when their value is non-empty; upstream groups are
- * filled when `executions[gid].status === 'completed'`. Used both by the
- * scheduler's eligibility check and by the manual "Run group" route, which
- * needs the same gate WITHOUT the in-flight / terminal-state check.
- */
-export function areGroupDepsSatisfied(group: WorkflowGroup, row: TableRow): boolean {
-  const deps = group.dependencies ?? {}
-  for (const colName of deps.columns ?? []) {
-    const value = row.data[colName]
-    if (value === null || value === undefined || value === '') return false
-  }
-  for (const gid of deps.workflowGroups ?? []) {
-    if (row.executions?.[gid]?.status !== 'completed') return false
-  }
-  return true
-}
+import { areGroupDepsSatisfied } from './deps'
+
+export {
+  areGroupDepsSatisfied,
+  getUnmetGroupDeps,
+  optimisticallyScheduleNewlyEligibleGroups,
+  type UnmetDeps,
+} from './deps'
 
 /**
  * Per-(row, group) eligibility: returns true if a cell job should be enqueued

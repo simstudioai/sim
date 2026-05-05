@@ -1,3 +1,4 @@
+import { Square } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +31,10 @@ interface ContextMenuProps {
   selectedRowCount?: number
   /** Fires every workflow group on the row(s) the context menu is acting on. */
   onRunWorkflows?: () => void
+  /** Cancels every running/queued execution on the row(s) the context menu is acting on. */
+  onStopWorkflows?: () => void
+  /** Total running/queued executions across the row(s) under the context menu. Drives the Stop label and visibility. */
+  runningInSelectionCount?: number
   /** Whether the table has any workflow columns; gates the run-workflows item. */
   hasWorkflowColumns?: boolean
   disableEdit?: boolean
@@ -50,6 +55,8 @@ export function ContextMenu({
   canEditCell = true,
   selectedRowCount = 1,
   onRunWorkflows,
+  onStopWorkflows,
+  runningInSelectionCount = 0,
   hasWorkflowColumns = false,
   disableEdit = false,
   disableInsert = false,
@@ -58,6 +65,10 @@ export function ContextMenu({
   const deleteLabel = selectedRowCount > 1 ? `Delete ${selectedRowCount} rows` : 'Delete row'
   const runLabel =
     selectedRowCount > 1 ? `Run workflows on ${selectedRowCount} rows` : 'Run workflows on row'
+  const stopLabel =
+    runningInSelectionCount === 1
+      ? 'Stop running workflow'
+      : `Stop ${runningInSelectionCount} running workflows`
 
   return (
     <DropdownMenu
@@ -101,6 +112,12 @@ export function ContextMenu({
           <DropdownMenuItem disabled={disableEdit} onSelect={onRunWorkflows}>
             <PlayOutline />
             {runLabel}
+          </DropdownMenuItem>
+        )}
+        {hasWorkflowColumns && onStopWorkflows && runningInSelectionCount > 0 && (
+          <DropdownMenuItem disabled={disableEdit} onSelect={onStopWorkflows}>
+            <Square className='h-[14px] w-[14px]' />
+            {stopLabel}
           </DropdownMenuItem>
         )}
         <DropdownMenuItem disabled={disableInsert} onSelect={onInsertAbove}>

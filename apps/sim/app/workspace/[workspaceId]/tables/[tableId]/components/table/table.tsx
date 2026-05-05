@@ -29,7 +29,14 @@ import {
 import { Loader } from '@/components/emcn/icons/loader'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
-import type { ColumnDefinition, Filter, SortDirection, TableRow as TableRowType } from '@/lib/table'
+import type {
+  ColumnDefinition,
+  Filter,
+  SortDirection,
+  TableRow as TableRowType,
+  WorkflowGroup,
+} from '@/lib/table'
+import { getUnmetGroupDeps } from '@/lib/table/deps'
 import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
 import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
@@ -100,10 +107,10 @@ const COL_WIDTH_AUTO_FIT_MAX = 1000
 //
 // Tables without workflow columns drop the per-row run button (~28px), so
 // the gutter shrinks accordingly.
-const CHECKBOX_COL_WIDTH_SMALL_WITH_RUN = 56
-const CHECKBOX_COL_WIDTH_SMALL_NUMBER_ONLY = 36
-const CHECKBOX_COL_WIDTH_LARGE_WITH_RUN = 76
-const CHECKBOX_COL_WIDTH_LARGE_NUMBER_ONLY = 56
+const CHECKBOX_COL_WIDTH_SMALL_WITH_RUN = 48
+const CHECKBOX_COL_WIDTH_SMALL_NUMBER_ONLY = 32
+const CHECKBOX_COL_WIDTH_LARGE_WITH_RUN = 68
+const CHECKBOX_COL_WIDTH_LARGE_NUMBER_ONLY = 52
 /** Bucket boundary: tables sized for >9,999 rows get the wide gutter. */
 const LARGE_ROW_NUMBER_THRESHOLD = 10000
 const ADD_COL_WIDTH = 120
@@ -2539,6 +2546,28 @@ export function Table({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextMenuRowIds, tableWorkflowGroups, closeContextMenu])
 
+  /**
+   * Total running/queued cells across the rows the context menu is acting on.
+   * Drives the "Stop N running workflows" item: shown only when > 0.
+   */
+  const runningInContextSelection = useMemo(() => {
+    if (contextMenuRowIds.length === 0) return 0
+    let total = 0
+    for (const rowId of contextMenuRowIds) {
+      total += runningByRowId.get(rowId) ?? 0
+    }
+    return total
+  }, [contextMenuRowIds, runningByRowId])
+
+  const handleStopWorkflowsOnSelection = useCallback(() => {
+    if (contextMenuRowIds.length === 0) return
+    for (const rowId of contextMenuRowIds) {
+      if ((runningByRowId.get(rowId) ?? 0) === 0) continue
+      cancelRunsMutate({ scope: 'row', rowId })
+    }
+    closeContextMenu()
+  }, [contextMenuRowIds, runningByRowId, cancelRunsMutate, closeContextMenu])
+
   const handleRunRow = useCallback(
     (rowId: string) => {
       if (tableWorkflowGroups.length === 0) return
@@ -2665,7 +2694,7 @@ export function Table({
                 {isLoadingTable ? (
                   <tr>
                     <th className={CELL_HEADER_CHECKBOX}>
-                      <div className='flex items-center justify-center'>
+                      <div className='flex items-center justify-end'>
                         <Skeleton className='h-[14px] w-[14px] rounded-xs' />
                       </div>
                     </th>
@@ -2721,6 +2750,17 @@ export function Table({
                               }
                               onDeleteGroup={
                                 userPermissions.canEdit ? handleDeleteWorkflowGroup : undefined
+                              }
+                              readOnly={!userPermissions.canEdit}
+                              onDragStart={
+                                userPermissions.canEdit ? handleColumnDragStart : undefined
+                              }
+                              onDragOver={
+                                userPermissions.canEdit ? handleColumnDragOver : undefined
+                              }
+                              onDragEnd={userPermissions.canEdit ? handleColumnDragEnd : undefined}
+                              onDragLeave={
+                                userPermissions.canEdit ? handleColumnDragLeave : undefined
                               }
                             />
                           ) : (
@@ -2843,6 +2883,7 @@ export function Table({
                             onStopRow={handleStopRow}
                             onRunRow={handleRunRow}
                             workflowNameById={workflowNameById}
+                            workflowGroups={tableWorkflowGroups}
                           />
                         </React.Fragment>
                       )
@@ -2942,6 +2983,10 @@ export function Table({
         onRunWorkflows={
           userPermissions.canEdit && hasWorkflowColumns ? handleRunWorkflowsOnSelection : undefined
         }
+        onStopWorkflows={
+          userPermissions.canEdit && hasWorkflowColumns ? handleStopWorkflowsOnSelection : undefined
+        }
+        runningInSelectionCount={runningInContextSelection}
         hasWorkflowColumns={hasWorkflowColumns}
         disableEdit={!userPermissions.canEdit}
         disableInsert={!userPermissions.canEdit}
@@ -3248,6 +3293,11 @@ interface DataRowProps {
   onRunRow: (rowId: string) => void
   /** Lookup from workflow id → human-readable name, used to label running cells. */
   workflowNameById: Record<string, string>
+  /**
+   * The table's workflow groups, used to compute per-row "Waiting on …" labels
+   * for empty workflow-output cells whose group has unmet dependencies.
+   */
+  workflowGroups: WorkflowGroup[]
 }
 
 function rowSelectionChanged(
@@ -3303,7 +3353,8 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.isLargeRowCountTable !== next.isLargeRowCountTable ||
     prev.onStopRow !== next.onStopRow ||
     prev.onRunRow !== next.onRunRow ||
-    prev.workflowNameById !== next.workflowNameById
+    prev.workflowNameById !== next.workflowNameById ||
+    prev.workflowGroups !== next.workflowGroups
   ) {
     return false
   }
@@ -3346,8 +3397,29 @@ const DataRow = React.memo(function DataRow({
   onStopRow,
   onRunRow,
   workflowNameById,
+  workflowGroups,
 }: DataRowProps) {
   const sel = normalizedSelection
+  /**
+   * Per-row "Waiting on …" labels keyed by group id. A group has labels iff
+   * at least one of its dependencies is unmet for this row — drives the
+   * "Waiting" pill rendered by `CellContent` for empty workflow-output cells.
+   * Computed once per render rather than per cell so all cells in a group
+   * share the same array reference.
+   */
+  const waitingByGroupId = React.useMemo(() => {
+    if (workflowGroups.length === 0) return null
+    const map = new Map<string, string[]>()
+    for (const group of workflowGroups) {
+      const unmet = getUnmetGroupDeps(group, row)
+      if (unmet.columns.length === 0 && unmet.workflowGroups.length === 0) continue
+      const upstreamLabels = unmet.workflowGroups
+        .map((gid) => workflowGroups.find((g) => g.id === gid)?.name ?? gid)
+        .filter(Boolean)
+      map.set(group.id, [...unmet.columns, ...upstreamLabels])
+    }
+    return map
+  }, [workflowGroups, row])
   const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
   const isRowSelectedByRange =
     sel !== null &&
@@ -3363,8 +3435,8 @@ const DataRow = React.memo(function DataRow({
         <div className='flex items-center justify-between gap-1'>
           <div
             className={cn(
-              'group/checkbox flex h-[20px] shrink-0 items-center justify-center',
-              isLargeRowCountTable ? 'w-[44px]' : 'w-[24px]'
+              'group/checkbox flex h-[20px] shrink-0 items-center justify-end',
+              isLargeRowCountTable ? 'w-[40px]' : 'w-[20px]'
             )}
             onMouseDown={(e) => {
               if (e.button !== 0) return
@@ -3373,7 +3445,7 @@ const DataRow = React.memo(function DataRow({
           >
             <span
               className={cn(
-                'text-[var(--text-tertiary)] text-xs tabular-nums',
+                'text-right text-[var(--text-tertiary)] text-xs tabular-nums',
                 isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
               )}
             >
@@ -3381,7 +3453,7 @@ const DataRow = React.memo(function DataRow({
             </span>
             <div
               className={cn(
-                'items-center justify-center',
+                'items-center justify-end',
                 isRowSelected ? 'flex' : 'hidden group-hover/checkbox:flex'
               )}
             >
@@ -3469,6 +3541,11 @@ const DataRow = React.memo(function DataRow({
                 onSave={(value, reason) => onSave(row.id, column.name, value, reason)}
                 onCancel={onCancel}
                 workflowNameById={workflowNameById}
+                waitingOnLabels={
+                  column.workflowGroupId
+                    ? (waitingByGroupId?.get(column.workflowGroupId) ?? undefined)
+                    : undefined
+                }
               />
             </div>
           </td>
@@ -3554,7 +3631,7 @@ const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
 }) {
   return (
     <th className={CELL_HEADER_CHECKBOX}>
-      <div className='flex items-center justify-center'>
+      <div className='flex items-center justify-end'>
         <Checkbox size='sm' checked={checked} onCheckedChange={onCheckedChange} />
       </div>
     </th>
