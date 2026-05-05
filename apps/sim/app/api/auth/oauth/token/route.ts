@@ -22,6 +22,7 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('OAuthTokenAPI')
 
 const SALESFORCE_INSTANCE_URL_REGEX = /__sf_instance__:([^\s]+)/
+const QUICKBOOKS_REALM_ID_REGEX = /__qb_realm__:([^\s]+)/
 
 /**
  * Get an access token for a specific credential
@@ -166,11 +167,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
       }
 
+      let realmId: string | undefined
+      if (credential.providerId === 'quickbooks' && credential.scope) {
+        const realmMatch = credential.scope.match(QUICKBOOKS_REALM_ID_REGEX)
+        if (realmMatch) {
+          realmId = realmMatch[1]
+        }
+      }
+
       return NextResponse.json(
         {
           accessToken,
           idToken: credential.idToken || undefined,
           ...(instanceUrl && { instanceUrl }),
+          ...(realmId && { realmId }),
         },
         { status: 200 }
       )
@@ -249,11 +259,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         }
       }
 
+      let realmId: string | undefined
+      if (credential.providerId === 'quickbooks' && credential.scope) {
+        const realmMatch = credential.scope.match(QUICKBOOKS_REALM_ID_REGEX)
+        if (realmMatch) {
+          realmId = realmMatch[1]
+        }
+      }
+
       return NextResponse.json(
         {
           accessToken,
           idToken: credential.idToken || undefined,
           ...(instanceUrl && { instanceUrl }),
+          ...(realmId && { realmId }),
         },
         { status: 200 }
       )

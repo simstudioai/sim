@@ -156,6 +156,7 @@ import { PostHogBlock } from '@/blocks/blocks/posthog'
 import { ProfoundBlock } from '@/blocks/blocks/profound'
 import { PulseBlock, PulseV2Block } from '@/blocks/blocks/pulse'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
+import { QuickBooksBlock } from '@/blocks/blocks/quickbooks'
 import { QuiverBlock } from '@/blocks/blocks/quiver'
 import { RDSBlock } from '@/blocks/blocks/rds'
 import { RedditBlock } from '@/blocks/blocks/reddit'
@@ -406,6 +407,7 @@ export const registry: Record<string, BlockConfig> = {
   pulse: PulseBlock,
   pulse_v2: PulseV2Block,
   qdrant: QdrantBlock,
+  quickbooks: QuickBooksBlock,
   quiver: QuiverBlock,
   rds: RDSBlock,
   reddit: RedditBlock,

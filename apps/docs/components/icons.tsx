@@ -3320,6 +3320,21 @@ export function QdrantIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function QuickBooksIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} role='img' viewBox='0 0 61.54 61.54' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        fill='#2CA01C'
+        d='M30.77,61.54c16.99,0,30.77-13.78,30.77-30.77S47.76,0,30.77,0,0,13.78,0,30.77s13.77,30.77,30.77,30.77Z'
+      />
+      <path
+        fill='#fff'
+        d='M20.51,18.8c-6.61,0-11.97,5.36-11.97,11.97s5.35,11.96,11.97,11.96h1.71v-4.44h-1.71c-4.15,0-7.52-3.37-7.52-7.52,0-4.15,3.37-7.52,7.52-7.52h4.11v23.25c0,2.45,1.99,4.44,4.44,4.44V18.8h-8.55Zm20.52,23.93c6.61,0,11.97-5.36,11.97-11.96s-5.35-11.96-11.97-11.96h-1.71v4.44h1.71c4.15,0,7.52,3.37,7.52,7.52s-3.37,7.52-7.52,7.52h-4.11V15.04c0-2.45-1.99-4.44-4.44-4.44v32.13h8.55Z'
+      />
+    </svg>
+  )
+}
+
 export function QuiverIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 250 250' fill='none' xmlns='http://www.w3.org/2000/svg'>

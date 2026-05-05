@@ -904,6 +904,9 @@ export async function executeTool(
         if (data.instanceUrl) {
           contextParams.instanceUrl = data.instanceUrl
         }
+        if (data.realmId) {
+          contextParams.realmId = data.realmId
+        }
 
         logger.info(`[${requestId}] Successfully got access token for ${toolId}`)
 

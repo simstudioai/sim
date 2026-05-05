@@ -1,0 +1,742 @@
+---
+title: QuickBooks
+description: Manage QuickBooks Online customers, invoices, and accounting data
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="quickbooks"
+  color="#2CA01C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[QuickBooks Online](https://quickbooks.intuit.com/) is Intuit's cloud accounting platform used by millions of small and mid-sized businesses to manage invoicing, bills, payments, vendors, customers, and the chart of accounts.
+
+With QuickBooks, you can:
+
+- **Manage customers and vendors**: Maintain a single source of truth for the people and companies you bill and pay
+- **Create and send invoices**: Generate professional invoices, email them to customers, and track payment status
+- **Record payments and bills**: Apply customer payments against open invoices and capture vendor expenses
+- **Query your books**: Run ad-hoc reports against the chart of accounts, items, and transactions using QuickBooks Query Language
+
+In Sim, the QuickBooks integration lets your agents read and write directly against QuickBooks Online. The company (realmId) is captured during OAuth sign-in, so each connected account scopes every tool call to the right books. Use it to automate invoice creation from form submissions, sync customers from your CRM, draft bills from receipts, send payment reminders, or surface live financial data inside conversational workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect to QuickBooks Online to read and write customers, invoices, and chart-of-accounts entries, or run arbitrary QuickBooks queries. Uses Intuit OAuth 2.0; the company (realmId) is captured from the OAuth callback at sign-in time.
+
+
+
+## Tools
+
+### `quickbooks_create_bill`
+
+Create a new bill (vendor expense) in QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `vendorId` | string | Yes | Vendor ID for the bill |
+| `lines` | json | Yes | Bill line items \(JSON array\). Each entry: \{ amount, accountId, description? \} |
+| `txnDate` | string | No | Transaction date \(YYYY-MM-DD\) |
+| `dueDate` | string | No | Due date \(YYYY-MM-DD\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `bill` | object | Created bill |
+|   ↳ `Id` | string | QuickBooks bill ID |
+|   ↳ `VendorRef` | object | Vendor reference |
+|   ↳ `TxnDate` | string | Transaction date \(YYYY-MM-DD\) |
+|   ↳ `DueDate` | string | Due date \(YYYY-MM-DD\) |
+|   ↳ `TotalAmt` | number | Total bill amount |
+|   ↳ `Balance` | number | Outstanding balance |
+|   ↳ `Line` | array | Bill line items |
+|   ↳ `CurrencyRef` | object | Currency reference |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `billId` | string | New bill ID |
+
+### `quickbooks_create_customer`
+
+Create a new customer in QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `displayName` | string | Yes | Display name \(must be unique within the company\) |
+| `companyName` | string | No | Company name |
+| `givenName` | string | No | First name |
+| `familyName` | string | No | Last name |
+| `primaryEmail` | string | No | Primary email address |
+| `primaryPhone` | string | No | Primary phone number |
+| `notes` | string | No | Free-form notes |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | object | Created customer |
+|   ↳ `Id` | string | QuickBooks customer ID |
+|   ↳ `DisplayName` | string | Display name shown in lists and forms |
+|   ↳ `CompanyName` | string | Company name |
+|   ↳ `GivenName` | string | First name |
+|   ↳ `FamilyName` | string | Last name |
+|   ↳ `PrimaryEmailAddr` | object | Primary email object with `Address` |
+|   ↳ `PrimaryPhone` | object | Primary phone object with `FreeFormNumber` |
+|   ↳ `Active` | boolean | Whether the customer is active |
+|   ↳ `Balance` | number | Open balance owed by the customer |
+|   ↳ `CurrencyRef` | object | Currency reference \(`value`, `name`\) |
+|   ↳ `Notes` | string | Free-form notes |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `customerId` | string | New customer ID |
+
+### `quickbooks_create_invoice`
+
+Create a new invoice in QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `customerId` | string | Yes | Customer ID to bill |
+| `lines` | json | Yes | Invoice line items \(JSON array\). Each entry: \{ description?, amount, quantity?, itemId?, itemName? \} |
+| `txnDate` | string | No | Transaction date \(YYYY-MM-DD\) |
+| `dueDate` | string | No | Due date \(YYYY-MM-DD\) |
+| `customerMemo` | string | No | Memo shown to the customer on the invoice |
+| `billEmail` | string | No | Email address to bill \(used by Send Invoice flows\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | object | Created invoice |
+|   ↳ `Id` | string | QuickBooks invoice ID |
+|   ↳ `DocNumber` | string | Invoice document number |
+|   ↳ `TxnDate` | string | Invoice transaction date \(YYYY-MM-DD\) |
+|   ↳ `DueDate` | string | Invoice due date \(YYYY-MM-DD\) |
+|   ↳ `CustomerRef` | object | Reference to the customer \(`value`, `name`\) |
+|   ↳ `Line` | array | Invoice line items |
+|   ↳ `TotalAmt` | number | Total amount of the invoice |
+|   ↳ `Balance` | number | Outstanding balance on the invoice |
+|   ↳ `CurrencyRef` | object | Currency reference |
+|   ↳ `CustomerMemo` | object | Customer-facing memo |
+|   ↳ `BillEmail` | object | Billing email object |
+|   ↳ `EmailStatus` | string | Email send status \(NotSet, NeedToSend, EmailSent\) |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `invoiceId` | string | New invoice ID |
+
+### `quickbooks_create_item`
+
+Create a new item (product or service) in QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `name` | string | Yes | Item name \(must be unique within the company\) |
+| `type` | string | Yes | Item type — Service or NonInventory \(Inventory not supported in MVP\) |
+| `incomeAccountId` | string | Yes | Income account ID to associate with the item |
+| `description` | string | No | Item description |
+| `unitPrice` | number | No | Unit price for the item |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Created item |
+|   ↳ `Id` | string | QuickBooks item ID |
+|   ↳ `Name` | string | Item name |
+|   ↳ `Description` | string | Item description |
+|   ↳ `Type` | string | Item type \(Service, Inventory, NonInventory\) |
+|   ↳ `Active` | boolean | Whether the item is active |
+|   ↳ `UnitPrice` | number | Unit price |
+|   ↳ `IncomeAccountRef` | object | Income account reference |
+|   ↳ `ExpenseAccountRef` | object | Expense account reference |
+|   ↳ `AssetAccountRef` | object | Asset account reference |
+|   ↳ `QtyOnHand` | number | Quantity on hand \(Inventory only\) |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `itemId` | string | New item ID |
+
+### `quickbooks_create_payment`
+
+Record a customer payment in QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `customerId` | string | Yes | Customer ID making the payment |
+| `amount` | number | Yes | Total payment amount |
+| `invoiceId` | string | No | Optional invoice ID to apply the payment to |
+| `paymentMethodId` | string | No | Payment method ID |
+| `txnDate` | string | No | Transaction date \(YYYY-MM-DD\) |
+| `paymentRefNum` | string | No | Payment reference number \(e.g., check number\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payment` | object | Created payment |
+|   ↳ `Id` | string | QuickBooks payment ID |
+|   ↳ `TxnDate` | string | Transaction date \(YYYY-MM-DD\) |
+|   ↳ `CustomerRef` | object | Customer reference |
+|   ↳ `TotalAmt` | number | Total payment amount |
+|   ↳ `UnappliedAmt` | number | Unapplied amount |
+|   ↳ `PaymentMethodRef` | object | Payment method reference |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `Line` | array | Payment line items / linked transactions |
+|   ↳ `CurrencyRef` | object | Currency reference |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `paymentId` | string | New payment ID |
+
+### `quickbooks_create_vendor`
+
+Create a new vendor in QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `displayName` | string | Yes | Display name \(must be unique within the company\) |
+| `companyName` | string | No | Company name |
+| `givenName` | string | No | First name |
+| `familyName` | string | No | Last name |
+| `primaryEmail` | string | No | Primary email address |
+| `primaryPhone` | string | No | Primary phone number |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `vendor` | object | Created vendor |
+|   ↳ `Id` | string | QuickBooks vendor ID |
+|   ↳ `DisplayName` | string | Display name |
+|   ↳ `CompanyName` | string | Company name |
+|   ↳ `GivenName` | string | First name |
+|   ↳ `FamilyName` | string | Last name |
+|   ↳ `PrimaryEmailAddr` | object | Primary email object with `Address` |
+|   ↳ `PrimaryPhone` | object | Primary phone object with `FreeFormNumber` |
+|   ↳ `Active` | boolean | Whether the vendor is active |
+|   ↳ `Balance` | number | Open balance owed to the vendor |
+|   ↳ `CurrencyRef` | object | Currency reference |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `vendorId` | string | New vendor ID |
+
+### `quickbooks_get_company_info`
+
+Retrieve company information for the connected QuickBooks Online company
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companyInfo` | object | Company information record |
+|   ↳ `Id` | string | QuickBooks company ID \(realmId\) |
+|   ↳ `CompanyName` | string | Company name |
+|   ↳ `LegalName` | string | Legal name |
+|   ↳ `CompanyAddr` | object | Company address |
+|   ↳ `CompanyStartDate` | string | Company start date |
+|   ↳ `FiscalYearStartMonth` | string | Fiscal year start month |
+|   ↳ `Country` | string | Country code |
+|   ↳ `Email` | object | Primary email object |
+|   ↳ `WebAddr` | object | Web address |
+|   ↳ `SupportedLanguages` | string | Supported languages |
+|   ↳ `NameValue` | array | Custom name/value pairs |
+|   ↳ `MetaData` | object | Create/update timestamps |
+
+### `quickbooks_get_customer`
+
+Retrieve a single QuickBooks customer by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `customerId` | string | Yes | QuickBooks customer ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | object | Customer record |
+|   ↳ `Id` | string | QuickBooks customer ID |
+|   ↳ `DisplayName` | string | Display name shown in lists and forms |
+|   ↳ `CompanyName` | string | Company name |
+|   ↳ `GivenName` | string | First name |
+|   ↳ `FamilyName` | string | Last name |
+|   ↳ `PrimaryEmailAddr` | object | Primary email object with `Address` |
+|   ↳ `PrimaryPhone` | object | Primary phone object with `FreeFormNumber` |
+|   ↳ `Active` | boolean | Whether the customer is active |
+|   ↳ `Balance` | number | Open balance owed by the customer |
+|   ↳ `CurrencyRef` | object | Currency reference \(`value`, `name`\) |
+|   ↳ `Notes` | string | Free-form notes |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `customerId` | string | Customer ID |
+
+### `quickbooks_get_invoice`
+
+Retrieve a single QuickBooks invoice by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `invoiceId` | string | Yes | QuickBooks invoice ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | object | Invoice record |
+|   ↳ `Id` | string | QuickBooks invoice ID |
+|   ↳ `DocNumber` | string | Invoice document number |
+|   ↳ `TxnDate` | string | Invoice transaction date \(YYYY-MM-DD\) |
+|   ↳ `DueDate` | string | Invoice due date \(YYYY-MM-DD\) |
+|   ↳ `CustomerRef` | object | Reference to the customer \(`value`, `name`\) |
+|   ↳ `Line` | array | Invoice line items |
+|   ↳ `TotalAmt` | number | Total amount of the invoice |
+|   ↳ `Balance` | number | Outstanding balance on the invoice |
+|   ↳ `CurrencyRef` | object | Currency reference |
+|   ↳ `CustomerMemo` | object | Customer-facing memo |
+|   ↳ `BillEmail` | object | Billing email object |
+|   ↳ `EmailStatus` | string | Email send status \(NotSet, NeedToSend, EmailSent\) |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `invoiceId` | string | Invoice ID |
+
+### `quickbooks_get_vendor`
+
+Retrieve a single QuickBooks vendor by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `vendorId` | string | Yes | QuickBooks vendor ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `vendor` | object | Vendor record |
+|   ↳ `Id` | string | QuickBooks vendor ID |
+|   ↳ `DisplayName` | string | Display name |
+|   ↳ `CompanyName` | string | Company name |
+|   ↳ `GivenName` | string | First name |
+|   ↳ `FamilyName` | string | Last name |
+|   ↳ `PrimaryEmailAddr` | object | Primary email object with `Address` |
+|   ↳ `PrimaryPhone` | object | Primary phone object with `FreeFormNumber` |
+|   ↳ `Active` | boolean | Whether the vendor is active |
+|   ↳ `Balance` | number | Open balance owed to the vendor |
+|   ↳ `CurrencyRef` | object | Currency reference |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `vendorId` | string | Vendor ID |
+
+### `quickbooks_list_accounts`
+
+List chart-of-accounts entries from QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `maxResults` | number | No | Maximum number of accounts to return \(default 100, max 1000\) |
+| `startPosition` | number | No | Pagination start position \(1-indexed\) |
+| `where` | string | No | Optional WHERE clause \(e.g., "AccountType = \'Income\'"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accounts` | array | Array of accounts |
+|   ↳ `Id` | string | QuickBooks account ID |
+|   ↳ `Name` | string | Account name |
+|   ↳ `AccountType` | string | High-level account type \(Income, Expense, etc.\) |
+|   ↳ `AccountSubType` | string | Account sub-type |
+|   ↳ `Classification` | string | Asset, Liability, Equity, Revenue, or Expense |
+|   ↳ `CurrentBalance` | number | Current account balance |
+|   ↳ `Active` | boolean | Whether the account is active |
+|   ↳ `CurrencyRef` | object | Currency reference |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `totalCount` | number | Number of accounts returned |
+
+### `quickbooks_list_bills`
+
+List bills from QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `maxResults` | number | No | Maximum number of bills to return \(default 100, max 1000\) |
+| `startPosition` | number | No | Pagination start position \(1-indexed\) |
+| `where` | string | No | Optional WHERE clause |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `bills` | array | Array of bills |
+|   ↳ `Id` | string | QuickBooks bill ID |
+|   ↳ `VendorRef` | object | Vendor reference |
+|   ↳ `TxnDate` | string | Transaction date \(YYYY-MM-DD\) |
+|   ↳ `DueDate` | string | Due date \(YYYY-MM-DD\) |
+|   ↳ `TotalAmt` | number | Total bill amount |
+|   ↳ `Balance` | number | Outstanding balance |
+|   ↳ `Line` | array | Bill line items |
+|   ↳ `CurrencyRef` | object | Currency reference |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `totalCount` | number | Number of bills returned |
+
+### `quickbooks_list_customers`
+
+List customers from QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `maxResults` | number | No | Maximum number of customers to return \(default 100, max 1000\) |
+| `startPosition` | number | No | Pagination start position \(1-indexed\) |
+| `where` | string | No | Optional WHERE clause \(e.g., "Active = true AND DisplayName LIKE \'A%\'"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customers` | array | Array of QuickBooks customers |
+|   ↳ `Id` | string | QuickBooks customer ID |
+|   ↳ `DisplayName` | string | Display name shown in lists and forms |
+|   ↳ `CompanyName` | string | Company name |
+|   ↳ `GivenName` | string | First name |
+|   ↳ `FamilyName` | string | Last name |
+|   ↳ `PrimaryEmailAddr` | object | Primary email object with `Address` |
+|   ↳ `PrimaryPhone` | object | Primary phone object with `FreeFormNumber` |
+|   ↳ `Active` | boolean | Whether the customer is active |
+|   ↳ `Balance` | number | Open balance owed by the customer |
+|   ↳ `CurrencyRef` | object | Currency reference \(`value`, `name`\) |
+|   ↳ `Notes` | string | Free-form notes |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `totalCount` | number | Number of customers returned |
+
+### `quickbooks_list_estimates`
+
+List estimates from QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `maxResults` | number | No | Maximum number of estimates to return \(default 100, max 1000\) |
+| `startPosition` | number | No | Pagination start position \(1-indexed\) |
+| `where` | string | No | Optional WHERE clause |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `estimates` | array | Array of estimates |
+|   ↳ `Id` | string | QuickBooks estimate ID |
+|   ↳ `DocNumber` | string | Estimate document number |
+|   ↳ `TxnDate` | string | Transaction date \(YYYY-MM-DD\) |
+|   ↳ `ExpirationDate` | string | Expiration date \(YYYY-MM-DD\) |
+|   ↳ `CustomerRef` | object | Customer reference |
+|   ↳ `Line` | array | Estimate line items |
+|   ↳ `TotalAmt` | number | Total estimate amount |
+|   ↳ `TxnStatus` | string | Estimate status \(Pending, Accepted, etc.\) |
+|   ↳ `EmailStatus` | string | Email send status |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `totalCount` | number | Number of estimates returned |
+
+### `quickbooks_list_invoices`
+
+List invoices from QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `maxResults` | number | No | Maximum number of invoices to return \(default 100, max 1000\) |
+| `startPosition` | number | No | Pagination start position \(1-indexed\) |
+| `where` | string | No | Optional WHERE clause \(e.g., "Balance &gt; \'0\'"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoices` | array | Array of invoices |
+|   ↳ `Id` | string | QuickBooks invoice ID |
+|   ↳ `DocNumber` | string | Invoice document number |
+|   ↳ `TxnDate` | string | Invoice transaction date \(YYYY-MM-DD\) |
+|   ↳ `DueDate` | string | Invoice due date \(YYYY-MM-DD\) |
+|   ↳ `CustomerRef` | object | Reference to the customer \(`value`, `name`\) |
+|   ↳ `Line` | array | Invoice line items |
+|   ↳ `TotalAmt` | number | Total amount of the invoice |
+|   ↳ `Balance` | number | Outstanding balance on the invoice |
+|   ↳ `CurrencyRef` | object | Currency reference |
+|   ↳ `CustomerMemo` | object | Customer-facing memo |
+|   ↳ `BillEmail` | object | Billing email object |
+|   ↳ `EmailStatus` | string | Email send status \(NotSet, NeedToSend, EmailSent\) |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `totalCount` | number | Number of invoices returned |
+
+### `quickbooks_list_items`
+
+List items (products and services) from QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `maxResults` | number | No | Maximum number of items to return \(default 100, max 1000\) |
+| `startPosition` | number | No | Pagination start position \(1-indexed\) |
+| `where` | string | No | Optional WHERE clause \(e.g., "Type = \'Service\'"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of items |
+|   ↳ `Id` | string | QuickBooks item ID |
+|   ↳ `Name` | string | Item name |
+|   ↳ `Description` | string | Item description |
+|   ↳ `Type` | string | Item type \(Service, Inventory, NonInventory\) |
+|   ↳ `Active` | boolean | Whether the item is active |
+|   ↳ `UnitPrice` | number | Unit price |
+|   ↳ `IncomeAccountRef` | object | Income account reference |
+|   ↳ `ExpenseAccountRef` | object | Expense account reference |
+|   ↳ `AssetAccountRef` | object | Asset account reference |
+|   ↳ `QtyOnHand` | number | Quantity on hand \(Inventory only\) |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `totalCount` | number | Number of items returned |
+
+### `quickbooks_list_payments`
+
+List payments from QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `maxResults` | number | No | Maximum number of payments to return \(default 100, max 1000\) |
+| `startPosition` | number | No | Pagination start position \(1-indexed\) |
+| `where` | string | No | Optional WHERE clause |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payments` | array | Array of payments |
+|   ↳ `Id` | string | QuickBooks payment ID |
+|   ↳ `TxnDate` | string | Transaction date \(YYYY-MM-DD\) |
+|   ↳ `CustomerRef` | object | Customer reference |
+|   ↳ `TotalAmt` | number | Total payment amount |
+|   ↳ `UnappliedAmt` | number | Unapplied amount |
+|   ↳ `PaymentMethodRef` | object | Payment method reference |
+|   ↳ `PaymentRefNum` | string | Payment reference number |
+|   ↳ `Line` | array | Payment line items / linked transactions |
+|   ↳ `CurrencyRef` | object | Currency reference |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `totalCount` | number | Number of payments returned |
+
+### `quickbooks_list_vendors`
+
+List vendors from QuickBooks Online
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `maxResults` | number | No | Maximum number of vendors to return \(default 100, max 1000\) |
+| `startPosition` | number | No | Pagination start position \(1-indexed\) |
+| `where` | string | No | Optional WHERE clause \(e.g., "Active = true"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `vendors` | array | Array of vendors |
+|   ↳ `Id` | string | QuickBooks vendor ID |
+|   ↳ `DisplayName` | string | Display name |
+|   ↳ `CompanyName` | string | Company name |
+|   ↳ `GivenName` | string | First name |
+|   ↳ `FamilyName` | string | Last name |
+|   ↳ `PrimaryEmailAddr` | object | Primary email object with `Address` |
+|   ↳ `PrimaryPhone` | object | Primary phone object with `FreeFormNumber` |
+|   ↳ `Active` | boolean | Whether the vendor is active |
+|   ↳ `Balance` | number | Open balance owed to the vendor |
+|   ↳ `CurrencyRef` | object | Currency reference |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `totalCount` | number | Number of vendors returned |
+
+### `quickbooks_query`
+
+Run a QuickBooks Online query (SQL-like syntax, e.g., 
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `query` | string | Yes | QuickBooks Query Language statement \(e.g., "SELECT * FROM Vendor WHERE Active = true MAXRESULTS 50"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Raw QueryResponse object from QuickBooks |
+| `totalCount` | number | Reported total count |
+
+### `quickbooks_send_invoice`
+
+Email a QuickBooks invoice to a recipient
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `invoiceId` | string | Yes | Invoice ID to send |
+| `sendTo` | string | No | Email address override; defaults to BillEmail on the invoice |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | object | Invoice after send |
+|   ↳ `Id` | string | QuickBooks invoice ID |
+|   ↳ `DocNumber` | string | Invoice document number |
+|   ↳ `TxnDate` | string | Invoice transaction date \(YYYY-MM-DD\) |
+|   ↳ `DueDate` | string | Invoice due date \(YYYY-MM-DD\) |
+|   ↳ `CustomerRef` | object | Reference to the customer \(`value`, `name`\) |
+|   ↳ `Line` | array | Invoice line items |
+|   ↳ `TotalAmt` | number | Total amount of the invoice |
+|   ↳ `Balance` | number | Outstanding balance on the invoice |
+|   ↳ `CurrencyRef` | object | Currency reference |
+|   ↳ `CustomerMemo` | object | Customer-facing memo |
+|   ↳ `BillEmail` | object | Billing email object |
+|   ↳ `EmailStatus` | string | Email send status \(NotSet, NeedToSend, EmailSent\) |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `invoiceId` | string | Invoice ID |
+
+### `quickbooks_update_customer`
+
+Sparse-update an existing QuickBooks customer
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `customerId` | string | Yes | Customer ID to update |
+| `syncToken` | string | Yes | Current SyncToken from the customer record \(required for updates\) |
+| `displayName` | string | No | Display name |
+| `companyName` | string | No | Company name |
+| `givenName` | string | No | First name |
+| `familyName` | string | No | Last name |
+| `primaryEmail` | string | No | Primary email address |
+| `primaryPhone` | string | No | Primary phone number |
+| `notes` | string | No | Free-form notes |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | object | Updated customer |
+|   ↳ `Id` | string | QuickBooks customer ID |
+|   ↳ `DisplayName` | string | Display name shown in lists and forms |
+|   ↳ `CompanyName` | string | Company name |
+|   ↳ `GivenName` | string | First name |
+|   ↳ `FamilyName` | string | Last name |
+|   ↳ `PrimaryEmailAddr` | object | Primary email object with `Address` |
+|   ↳ `PrimaryPhone` | object | Primary phone object with `FreeFormNumber` |
+|   ↳ `Active` | boolean | Whether the customer is active |
+|   ↳ `Balance` | number | Open balance owed by the customer |
+|   ↳ `CurrencyRef` | object | Currency reference \(`value`, `name`\) |
+|   ↳ `Notes` | string | Free-form notes |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `customerId` | string | Customer ID |
+
+### `quickbooks_update_invoice`
+
+Update an existing QuickBooks invoice (sparse update — date/memo/email only; line items cannot be modified)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `realmId` | string | Yes | QuickBooks company ID \(realmId\) — captured at OAuth time |
+| `invoiceId` | string | Yes | Invoice ID to update |
+| `syncToken` | string | Yes | Current SyncToken from the invoice record \(required for updates\) |
+| `dueDate` | string | No | Due date \(YYYY-MM-DD\) |
+| `customerMemo` | string | No | Customer-facing memo |
+| `billEmail` | string | No | Billing email address |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | object | Updated invoice |
+|   ↳ `Id` | string | QuickBooks invoice ID |
+|   ↳ `DocNumber` | string | Invoice document number |
+|   ↳ `TxnDate` | string | Invoice transaction date \(YYYY-MM-DD\) |
+|   ↳ `DueDate` | string | Invoice due date \(YYYY-MM-DD\) |
+|   ↳ `CustomerRef` | object | Reference to the customer \(`value`, `name`\) |
+|   ↳ `Line` | array | Invoice line items |
+|   ↳ `TotalAmt` | number | Total amount of the invoice |
+|   ↳ `Balance` | number | Outstanding balance on the invoice |
+|   ↳ `CurrencyRef` | object | Currency reference |
+|   ↳ `CustomerMemo` | object | Customer-facing memo |
+|   ↳ `BillEmail` | object | Billing email object |
+|   ↳ `EmailStatus` | string | Email send status \(NotSet, NeedToSend, EmailSent\) |
+|   ↳ `MetaData` | object | Create/update timestamps |
+|   ↳ `SyncToken` | string | Optimistic concurrency token; required for sparse updates |
+| `invoiceId` | string | Invoice ID |
+
+
