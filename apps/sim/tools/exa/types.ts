@@ -37,6 +37,11 @@ export interface ExaSearchParams extends ExaBaseParams {
   summary?: boolean | { query?: string }
   // Live crawl mode
   livecrawl?: 'always' | 'fallback' | 'never'
+  // Date filters (ISO 8601)
+  startCrawlDate?: string
+  endCrawlDate?: string
+  startPublishedDate?: string
+  endPublishedDate?: string
 }
 
 export interface ExaSearchResult {
