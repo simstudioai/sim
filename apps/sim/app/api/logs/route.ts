@@ -29,7 +29,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { listLogsContract, type WorkflowLogSummary } from '@/lib/api/contracts/logs'
 import { parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildFilterConditions } from '@/lib/logs/filters'
 
@@ -58,11 +58,14 @@ function decodeCursor(cursor: string): CursorData | null {
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+  if (!authResult.success || !authResult.userId) {
+    return NextResponse.json(
+      { error: authResult.error || 'Authentication required' },
+      { status: 401 }
+    )
   }
-  const userId = session.user.id
+  const userId = authResult.userId
 
   const parsed = await parseRequest(listLogsContract, request, {})
   if (!parsed.success) return parsed.response
