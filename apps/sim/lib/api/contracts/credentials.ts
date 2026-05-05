@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import type { OAuthProvider } from '@/lib/oauth/types'
+import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, type OAuthProvider } from '@/lib/oauth/types'
 
 const ENV_VAR_NAME_REGEX = /^[A-Za-z0-9_]+$/
 
@@ -149,7 +149,7 @@ export const createCredentialBodySchema = z
     }
 
     if (data.type === 'service_account') {
-      if (data.providerId === 'atlassian-service-account') {
+      if (data.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
         if (!data.apiToken) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,

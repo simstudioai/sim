@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { account, credential, credentialMember, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -33,6 +34,19 @@ import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialsAPI')
 
+/**
+ * Thrown by the inner duplicate guard inside the create transaction when a
+ * concurrent request slipped a row in between the outer existence check and
+ * our INSERT. The catch maps this to a 409 with a typed `code` so the UI can
+ * map to a friendly message.
+ */
+class DuplicateCredentialError extends Error {
+  constructor() {
+    super('duplicate_display_name')
+    this.name = 'DuplicateCredentialError'
+  }
+}
+
 interface ExistingCredentialSourceParams {
   workspaceId: string
   type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
@@ -43,11 +57,16 @@ interface ExistingCredentialSourceParams {
   providerId?: string | null
 }
 
-async function findExistingCredentialBySource(params: ExistingCredentialSourceParams) {
+type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+async function findExistingCredentialBySourceWith(
+  exec: DbOrTx,
+  params: ExistingCredentialSourceParams
+) {
   const { workspaceId, type, accountId, envKey, envOwnerUserId, displayName, providerId } = params
 
   if (type === 'oauth' && accountId) {
-    const [row] = await db
+    const [row] = await exec
       .select()
       .from(credential)
       .where(
@@ -62,7 +81,7 @@ async function findExistingCredentialBySource(params: ExistingCredentialSourcePa
   }
 
   if (type === 'env_workspace' && envKey) {
-    const [row] = await db
+    const [row] = await exec
       .select()
       .from(credential)
       .where(
@@ -77,7 +96,7 @@ async function findExistingCredentialBySource(params: ExistingCredentialSourcePa
   }
 
   if (type === 'env_personal' && envKey && envOwnerUserId) {
-    const [row] = await db
+    const [row] = await exec
       .select()
       .from(credential)
       .where(
@@ -93,7 +112,7 @@ async function findExistingCredentialBySource(params: ExistingCredentialSourcePa
   }
 
   if (type === 'service_account' && displayName && providerId) {
-    const [row] = await db
+    const [row] = await exec
       .select()
       .from(credential)
       .where(
@@ -109,6 +128,17 @@ async function findExistingCredentialBySource(params: ExistingCredentialSourcePa
   }
 
   return null
+}
+
+async function findExistingCredentialBySource(params: ExistingCredentialSourceParams) {
+  return findExistingCredentialBySourceWith(db, params)
+}
+
+async function findExistingCredentialBySourceTx(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  params: ExistingCredentialSourceParams
+) {
+  return findExistingCredentialBySourceWith(tx, params)
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -278,6 +308,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const resolvedEnvKey: string | null = envKey ? normalizeCredentialEnvKey(envKey) : null
     let resolvedEnvOwnerUserId: string | null = null
     let resolvedEncryptedServiceAccountKey: string | null = null
+    const extraAuditMetadata: Record<string, unknown> = {}
 
     if (type === 'oauth') {
       const [accountRow] = await db
@@ -341,6 +372,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
         const { encrypted } = await encryptSecret(blob)
         resolvedEncryptedServiceAccountKey = encrypted
+        extraAuditMetadata.atlassianDomain = normalizedDomain
+        extraAuditMetadata.atlassianCloudId = validation.cloudId
       } else {
         if (!serviceAccountJson) {
           return NextResponse.json(
@@ -472,6 +505,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       .limit(1)
 
     await db.transaction(async (tx) => {
+      // Race-safety re-check: the outer findExistingCredentialBySource ran outside
+      // the transaction. Service_account rows have no DB-level unique index on
+      // (workspaceId, providerId, displayName), so a concurrent request could
+      // have inserted a duplicate after our outer check but before this insert.
+      // Re-check here and abort the tx if so. The catch maps this to a 409.
+      const innerExisting = await findExistingCredentialBySourceTx(tx, {
+        workspaceId,
+        type,
+        accountId: resolvedAccountId,
+        envKey: resolvedEnvKey,
+        envOwnerUserId: resolvedEnvOwnerUserId,
+        displayName: resolvedDisplayName,
+        providerId: resolvedProviderId,
+      })
+      if (innerExisting) throw new DuplicateCredentialError()
+
       await tx.insert(credential).values({
         id: credentialId,
         workspaceId,
@@ -552,12 +601,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       metadata: {
         credentialType: type,
         providerId: resolvedProviderId,
+        ...extraAuditMetadata,
       },
       request,
     })
 
     return NextResponse.json({ credential: created }, { status: 201 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof AtlassianValidationError) {
       logger.warn(`[${requestId}] Atlassian credential rejected: ${error.code}`, {
         code: error.code,
@@ -566,30 +616,42 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
       return NextResponse.json({ code: error.code, error: error.code }, { status: 400 })
     }
-    if (error?.code === '23505') {
+    if (error instanceof DuplicateCredentialError) {
+      return NextResponse.json(
+        {
+          code: 'duplicate_display_name',
+          error: 'A credential with that name already exists in this workspace.',
+        },
+        { status: 409 }
+      )
+    }
+    const pgCode = getPostgresErrorCode(error)
+    if (pgCode === '23505') {
       return NextResponse.json(
         { error: 'A credential with this source already exists' },
         { status: 409 }
       )
     }
-    if (error?.code === '23503') {
+    if (pgCode === '23503') {
       return NextResponse.json(
         { error: 'Invalid credential reference or membership target' },
         { status: 400 }
       )
     }
-    if (error?.code === '23514') {
+    if (pgCode === '23514') {
       return NextResponse.json(
         { error: 'Credential source data failed validation checks' },
         { status: 400 }
       )
     }
+    const errAsRecord =
+      typeof error === 'object' && error !== null ? (error as Record<string, unknown>) : {}
     logger.error(`[${requestId}] Credential create failure details`, {
-      code: error?.code,
-      detail: error?.detail,
-      constraint: error?.constraint,
-      table: error?.table,
-      message: error?.message,
+      code: pgCode,
+      detail: errAsRecord.detail,
+      constraint: errAsRecord.constraint,
+      table: errAsRecord.table,
+      message: errAsRecord.message,
     })
     logger.error(`[${requestId}] Failed to create credential`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
