@@ -54,6 +54,10 @@ Search the web using Exa AI. Returns relevant search results with titles, URLs, 
 | `highlights` | boolean | No | Include highlighted snippets in results \(default: false\) |
 | `summary` | boolean | No | Include AI-generated summaries in results \(default: false\) |
 | `livecrawl` | string | No | Live crawling mode: never \(default\), fallback, always, or preferred \(always try livecrawl, fall back to cache if fails\) |
+| `startCrawlDate` | string | No | Only include results crawled on or after this ISO 8601 date \(e.g., "2024-01-01" or "2024-01-01T00:00:00.000Z"\) |
+| `endCrawlDate` | string | No | Only include results crawled on or before this ISO 8601 date |
+| `startPublishedDate` | string | No | Only include results published on or after this ISO 8601 date |
+| `endPublishedDate` | string | No | Only include results published on or before this ISO 8601 date |
 | `apiKey` | string | Yes | Exa AI API Key |
 | `pricing` | custom | No | No description |
 | `metadata` | string | No | No description |

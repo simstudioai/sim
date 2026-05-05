@@ -79,6 +79,31 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       description:
         'Live crawling mode: never (default), fallback, always, or preferred (always try livecrawl, fall back to cache if fails)',
     },
+    startCrawlDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Only include results crawled on or after this ISO 8601 date (e.g., "2024-01-01" or "2024-01-01T00:00:00.000Z")',
+    },
+    endCrawlDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only include results crawled on or before this ISO 8601 date',
+    },
+    startPublishedDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only include results published on or after this ISO 8601 date',
+    },
+    endPublishedDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only include results published on or before this ISO 8601 date',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -139,6 +164,12 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
 
       // Category filtering
       if (params.category) body.category = params.category
+
+      // Date filtering
+      if (params.startCrawlDate) body.startCrawlDate = params.startCrawlDate
+      if (params.endCrawlDate) body.endCrawlDate = params.endCrawlDate
+      if (params.startPublishedDate) body.startPublishedDate = params.startPublishedDate
+      if (params.endPublishedDate) body.endPublishedDate = params.endPublishedDate
 
       // Build contents object for content options
       const contents: Record<string, any> = {}
