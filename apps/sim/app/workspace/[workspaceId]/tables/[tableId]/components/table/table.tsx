@@ -1302,6 +1302,7 @@ export function Table({
         const rws = rowsRef.current
         const currentCols = columnsRef.current
         if (rws.length > 0 && currentCols.length > 0) {
+          suppressFocusScrollRef.current = true
           setEditingCell(null)
           setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
           setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
