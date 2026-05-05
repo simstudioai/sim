@@ -1,4 +1,4 @@
-import { createLogger } from '@sim/logger'
+import { createLogger, getRequestContext } from '@sim/logger'
 import type { PostHog } from 'posthog-node'
 import type { PostHogEventMap, PostHogEventName } from '@/lib/posthog/events'
 
@@ -71,10 +71,12 @@ export function captureServerEvent<E extends PostHogEventName>(
     const client = getClient()
     if (!client) return
 
+    const requestId = getRequestContext()?.requestId
     client.capture({
       distinctId,
       event,
       properties: {
+        ...(requestId ? { request_id: requestId } : {}),
         ...properties,
         ...(options?.groups ? { $groups: options.groups } : {}),
         ...(options?.set ? { $set: options.set } : {}),
