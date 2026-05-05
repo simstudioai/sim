@@ -11,6 +11,10 @@ import {
   isMicrosoftProvider,
   PROACTIVE_REFRESH_THRESHOLD_DAYS,
 } from '@/lib/oauth/microsoft'
+import {
+  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
+} from '@/lib/oauth/types'
 
 const logger = createLogger('OAuthUtilsAPI')
 
@@ -44,6 +48,7 @@ export interface ResolvedCredential {
   usedCredentialTable: boolean
   credentialType?: string
   credentialId?: string
+  providerId?: string
 }
 
 /**
@@ -61,6 +66,7 @@ export async function resolveOAuthAccountId(
       type: credential.type,
       accountId: credential.accountId,
       workspaceId: credential.workspaceId,
+      providerId: credential.providerId,
     })
     .from(credential)
     .where(eq(credential.id, credentialId))
@@ -73,6 +79,7 @@ export async function resolveOAuthAccountId(
         credentialId: credentialRow.id,
         credentialType: 'service_account',
         workspaceId: credentialRow.workspaceId,
+        providerId: credentialRow.providerId ?? undefined,
         usedCredentialTable: true,
       }
     }
@@ -206,6 +213,53 @@ export async function getServiceAccountToken(
 
   const tokenData = (await response.json()) as { access_token: string }
   return tokenData.access_token
+}
+
+interface AtlassianServiceAccountSecret {
+  type: typeof ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE
+  apiToken: string
+  domain: string
+  cloudId: string
+  atlassianAccountId?: string
+}
+
+/**
+ * Loads the decrypted Atlassian service account secret blob for a credential.
+ * Throws if the credential is missing or not an Atlassian service account.
+ */
+export async function getAtlassianServiceAccountSecret(
+  credentialId: string
+): Promise<AtlassianServiceAccountSecret> {
+  const [credentialRow] = await db
+    .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
+    .from(credential)
+    .where(eq(credential.id, credentialId))
+    .limit(1)
+
+  if (!credentialRow?.encryptedServiceAccountKey) {
+    throw new Error('Atlassian service account secret not found')
+  }
+
+  const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
+  const parsed = JSON.parse(decrypted) as AtlassianServiceAccountSecret
+  if (
+    parsed.type !== ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE ||
+    !parsed.apiToken ||
+    !parsed.cloudId
+  ) {
+    throw new Error('Stored Atlassian service account secret is malformed')
+  }
+  return parsed
+}
+
+/**
+ * For Atlassian service accounts, the API token IS the access token —
+ * blocks call api.atlassian.com/ex/jira/{cloudId}/... with `Authorization: Bearer {apiToken}`.
+ * No exchange or refresh is needed; we just decrypt and return the raw token.
+ */
+export async function getAtlassianServiceAccountToken(credentialId: string): Promise<string> {
+  const secret = await getAtlassianServiceAccountSecret(credentialId)
+  return secret.apiToken
 }
 
 /**
@@ -374,6 +428,10 @@ export async function refreshAccessTokenIfNeeded(
   }
 
   if (resolved.credentialType === 'service_account' && resolved.credentialId) {
+    if (resolved.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
+      logger.info(`[${requestId}] Using Atlassian service account token for credential`)
+      return getAtlassianServiceAccountToken(resolved.credentialId)
+    }
     if (!scopes?.length) {
       throw new Error('Scopes are required for service account credentials')
     }

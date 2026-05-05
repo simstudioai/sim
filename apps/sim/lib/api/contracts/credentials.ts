@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import type { OAuthProvider } from '@/lib/oauth/types'
+import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, type OAuthProvider } from '@/lib/oauth/types'
 
 const ENV_VAR_NAME_REGEX = /^[A-Za-z0-9_]+$/
 
@@ -119,6 +119,8 @@ export const createCredentialBodySchema = z
     envKey: z.string().trim().min(1).optional(),
     envOwnerUserId: z.string().trim().min(1).optional(),
     serviceAccountJson: z.string().optional(),
+    apiToken: z.string().trim().min(1).optional(),
+    domain: z.string().trim().min(1).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'oauth') {
@@ -147,6 +149,23 @@ export const createCredentialBodySchema = z
     }
 
     if (data.type === 'service_account') {
+      if (data.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
+        if (!data.apiToken) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'apiToken is required for Atlassian service account credentials',
+            path: ['apiToken'],
+          })
+        }
+        if (!data.domain) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'domain is required for Atlassian service account credentials',
+            path: ['domain'],
+          })
+        }
+        return
+      }
       if (!data.serviceAccountJson) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -221,35 +240,6 @@ export const createCredentialDraftBodySchema = z.object({
   description: z.string().trim().max(500).optional(),
   credentialId: z.string().min(1).optional(),
 })
-
-export const createWorkspaceCredentialBodySchema = z.object({
-  workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
-  type: workspaceCredentialTypeSchema,
-  displayName: z.string().optional(),
-  description: z.string().optional(),
-  providerId: z.string().optional(),
-  accountId: z.string().optional(),
-  envKey: z.string().optional(),
-  envOwnerUserId: z.string().optional(),
-  serviceAccountJson: z.string().optional(),
-})
-
-export const updateWorkspaceCredentialBodySchema = z
-  .object({
-    displayName: z.string().trim().min(1).max(255).optional(),
-    description: z.string().trim().max(500).nullable().optional(),
-    serviceAccountJson: z.string().min(1).optional(),
-  })
-  .refine(
-    (data) =>
-      data.displayName !== undefined ||
-      data.description !== undefined ||
-      data.serviceAccountJson !== undefined,
-    {
-      message: 'At least one field must be provided',
-      path: ['displayName'],
-    }
-  )
 
 export const upsertWorkspaceCredentialMemberBodySchema = z.object({
   userId: z.string().min(1),
