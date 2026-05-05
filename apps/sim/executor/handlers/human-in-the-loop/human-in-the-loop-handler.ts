@@ -188,6 +188,7 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
         parallelScope,
         loopScope,
         resumeLinks,
+        pauseKind: 'human',
       }
 
       const responseOutput: Record<string, any> = {

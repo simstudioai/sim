@@ -377,11 +377,16 @@ export const pausedExecutions = pgTable(
     pausedAt: timestamp('paused_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     expiresAt: timestamp('expires_at'),
+    /** Earliest `resumeAt` across this row's time-based pause points. NULL for human-only pauses. */
+    nextResumeAt: timestamp('next_resume_at'),
   },
   (table) => ({
     workflowIdx: index('paused_executions_workflow_id_idx').on(table.workflowId),
     statusIdx: index('paused_executions_status_idx').on(table.status),
     executionUnique: uniqueIndex('paused_executions_execution_id_unique').on(table.executionId),
+    nextResumeAtIdx: index('paused_executions_next_resume_at_idx')
+      .on(table.nextResumeAt)
+      .where(sql`status = 'paused' AND next_resume_at IS NOT NULL`),
   })
 )
 

@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 726,
-  zodRoutes: 726,
+  totalRoutes: 727,
+  zodRoutes: 727,
   nonZodRoutes: 0,
 } as const
 
@@ -74,6 +74,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/knowledge/connectors/sync/route.ts',
   'apps/sim/app/api/webhooks/outbox/process/route.ts',
   'apps/sim/app/api/webhooks/cleanup/idempotency/route.ts',
+  'apps/sim/app/api/resume/poll/route.ts',
   // MCP routes that take only auth context (no client-supplied params/query/body).
   'apps/sim/app/api/mcp/discover/route.ts',
   'apps/sim/app/api/mcp/tools/stored/route.ts',
