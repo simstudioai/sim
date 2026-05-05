@@ -1137,7 +1137,7 @@ export function useWorkflowExecution() {
                   executionIdRef.current,
                   data.finalBlockLogs
                 )
-                cancelRunningEntries(activeWorkflowId)
+                cancelRunningEntries(activeWorkflowId, executionIdRef.current)
               }
 
               executionResult = {
@@ -1716,7 +1716,7 @@ export function useWorkflowExecution() {
                 executionIdRef.current,
                 data.finalBlockLogs
               )
-              cancelRunningEntries(workflowId)
+              cancelRunningEntries(workflowId, executionIdRef.current)
 
               if (data.success) {
                 executedBlockIds.add(blockId)
@@ -1901,7 +1901,9 @@ export function useWorkflowExecution() {
           sorted.filter((e) => e.executionId !== executionId).map((e) => e.executionId!)
         )
         if (otherExecutionIds.size > 0) {
-          cancelRunningEntries(reconnectWorkflowId)
+          for (const staleExecutionId of otherExecutionIds) {
+            cancelRunningEntries(reconnectWorkflowId, staleExecutionId)
+          }
           consolePersistence.persist()
         }
       }
@@ -1943,7 +1945,9 @@ export function useWorkflowExecution() {
         activated = true
         setCurrentExecutionId(reconnectWorkflowId, capturedExecutionId)
         setIsExecuting(reconnectWorkflowId, true)
-        clearExecutionEntries(capturedExecutionId)
+        if (fromEventId === 0) {
+          clearExecutionEntries(capturedExecutionId)
+        }
       }
 
       const wrapHandler =
@@ -1963,7 +1967,7 @@ export function useWorkflowExecution() {
           .some((entry) => entry.isRunning && entry.executionId === capturedExecutionId)
 
         if (activated || hasRunningEntry) {
-          cancelRunningEntries(reconnectWorkflowId)
+          cancelRunningEntries(reconnectWorkflowId, capturedExecutionId)
         }
 
         if (currentId === capturedExecutionId) {
@@ -2016,7 +2020,7 @@ export function useWorkflowExecution() {
                   capturedExecutionId,
                   data?.finalBlockLogs
                 )
-                cancelRunningEntries(reconnectWorkflowId)
+                cancelRunningEntries(reconnectWorkflowId, capturedExecutionId)
               },
               onExecutionError: (data) => {
                 reconnectionComplete = true
@@ -2099,7 +2103,7 @@ export function useWorkflowExecution() {
               .getState()
               .getCurrentExecutionId(reconnectWorkflowId)
             if (currentId === capturedExecutionId) {
-              cancelRunningEntries(reconnectWorkflowId)
+              cancelRunningEntries(reconnectWorkflowId, capturedExecutionId)
               setCurrentExecutionId(reconnectWorkflowId, null)
               setIsExecuting(reconnectWorkflowId, false)
               setActiveBlocks(reconnectWorkflowId, new Set())

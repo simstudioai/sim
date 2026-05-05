@@ -136,5 +136,37 @@ describe('terminal console store', () => {
       expect(entry.isCanceled).toBe(true)
       expect(entry.isRunning).toBe(false)
     })
+
+    it('only cancels running entries for the requested execution when provided', () => {
+      useTerminalConsoleStore.getState().addConsole({
+        workflowId: 'wf-1',
+        blockId: 'block-1',
+        blockName: 'Function 1',
+        blockType: 'function',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        isRunning: true,
+      })
+      useTerminalConsoleStore.getState().addConsole({
+        workflowId: 'wf-1',
+        blockId: 'block-2',
+        blockName: 'Function 2',
+        blockType: 'function',
+        executionId: 'exec-2',
+        executionOrder: 2,
+        isRunning: true,
+      })
+
+      useTerminalConsoleStore.getState().cancelRunningEntries('wf-1', 'exec-1')
+
+      const entries = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
+      expect(entries.find((entry) => entry.executionId === 'exec-1')).toMatchObject({
+        isCanceled: true,
+        isRunning: false,
+      })
+      expect(entries.find((entry) => entry.executionId === 'exec-2')).toMatchObject({
+        isRunning: true,
+      })
+    })
   })
 })

@@ -170,6 +170,7 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
 
   let flushPromise: Promise<void> | null = null
   let closed = false
+  let writeQueue: Promise<void> = Promise.resolve()
   const inflightWrites = new Set<Promise<ExecutionEventEntry>>()
 
   const doFlush = async () => {
@@ -223,7 +224,6 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
   }
 
   const writeCore = async (event: ExecutionEvent): Promise<ExecutionEventEntry> => {
-    if (closed) return { eventId: 0, executionId, event }
     if (nextEventId === 0 || nextEventId > maxReservedId) {
       await reserveIds(1)
     }
@@ -239,7 +239,12 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
   }
 
   const write = (event: ExecutionEvent): Promise<ExecutionEventEntry> => {
-    const p = writeCore(event)
+    if (closed) return Promise.resolve({ eventId: 0, executionId, event })
+    const p = writeQueue.then(() => writeCore(event))
+    writeQueue = p.then(
+      () => undefined,
+      () => undefined
+    )
     inflightWrites.add(p)
     const remove = () => inflightWrites.delete(p)
     p.then(remove, remove)

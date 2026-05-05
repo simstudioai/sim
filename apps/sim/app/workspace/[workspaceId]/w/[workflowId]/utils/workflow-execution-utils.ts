@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import type { TraceSpan } from '@/lib/logs/types'
 import type {
   BlockCompletedData,
   BlockErrorData,
@@ -178,6 +179,43 @@ export function createBlockEventHandlers(
     }),
   })
 
+  const parentIterationsMatch = (
+    left: ConsoleEntry['parentIterations'],
+    right: BlockStartedData['parentIterations']
+  ) => {
+    if (!left?.length && !right?.length) return true
+    if (!left || !right || left.length !== right.length) return false
+    return left.every((entry, index) => {
+      const other = right[index]
+      return (
+        entry.iterationCurrent === other.iterationCurrent &&
+        entry.iterationTotal === other.iterationTotal &&
+        entry.iterationType === other.iterationType &&
+        entry.iterationContainerId === other.iterationContainerId
+      )
+    })
+  }
+
+  const hasExistingStartedEntry = (data: BlockStartedData) => {
+    if (!workflowId) return false
+    return useTerminalConsoleStore
+      .getState()
+      .getWorkflowEntries(workflowId)
+      .some(
+        (entry) =>
+          entry.executionId === executionIdRef.current &&
+          entry.blockId === data.blockId &&
+          entry.executionOrder === data.executionOrder &&
+          entry.iterationCurrent === data.iterationCurrent &&
+          entry.iterationTotal === data.iterationTotal &&
+          entry.iterationType === data.iterationType &&
+          entry.iterationContainerId === data.iterationContainerId &&
+          entry.childWorkflowBlockId === data.childWorkflowBlockId &&
+          entry.childWorkflowName === data.childWorkflowName &&
+          parentIterationsMatch(entry.parentIterations, data.parentIterations)
+      )
+  }
+
   const createBlockLogEntry = (
     data: BlockCompletedData | BlockErrorData,
     options: { success: boolean; output?: unknown; error?: string }
@@ -237,6 +275,7 @@ export function createBlockEventHandlers(
     updateActiveBlocks(data.blockId, true)
 
     if (!includeStartConsoleEntry || !workflowId) return
+    if (hasExistingStartedEntry(data)) return
 
     const startedAt = new Date().toISOString()
     addConsole({
@@ -353,7 +392,7 @@ export function createBlockEventHandlers(
 }
 
 type AddConsoleFn = (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry | undefined
-type CancelRunningEntriesFn = (workflowId: string) => void
+type CancelRunningEntriesFn = (workflowId: string, executionId?: string) => void
 type UpdateConsoleFn = (
   blockId: string,
   update: string | ConsoleUpdate,
@@ -385,25 +424,71 @@ export function reconcileFinalBlockLogs(
   if (!finalBlockLogs?.length || !executionId) return
   for (const log of finalBlockLogs) {
     const entries = useTerminalConsoleStore.getState().getWorkflowEntries(workflowId)
-    const running = entries.find(
-      (e) => e.blockId === log.blockId && e.executionId === executionId && e.isRunning
-    )
-    if (!running) continue
-    updateConsole(
-      log.blockId,
-      {
-        executionOrder: log.executionOrder,
-        replaceOutput: (log.output ?? {}) as Record<string, unknown>,
-        ...(log.input ? { input: log.input } : {}),
-        success: log.success,
-        ...(log.error ? { error: log.error } : {}),
-        durationMs: log.durationMs,
-        startedAt: log.startedAt,
-        endedAt: log.endedAt,
-        isRunning: false,
-      },
-      executionId
-    )
+    const matchesFinalLog = (entry: ConsoleEntry) =>
+      entry.blockId === log.blockId &&
+      entry.executionId === executionId &&
+      entry.executionOrder === log.executionOrder
+    const matchingEntry = entries.find(matchesFinalLog)
+    const runningEntry = entries.find((entry) => matchesFinalLog(entry) && entry.isRunning)
+    if (runningEntry) {
+      updateConsole(
+        log.blockId,
+        {
+          executionOrder: log.executionOrder,
+          replaceOutput: (log.output ?? {}) as Record<string, unknown>,
+          ...(log.input ? { input: log.input } : {}),
+          success: log.success,
+          ...(log.error ? { error: log.error } : {}),
+          durationMs: log.durationMs,
+          startedAt: log.startedAt,
+          endedAt: log.endedAt,
+          isRunning: false,
+          isCanceled: false,
+        },
+        executionId
+      )
+    }
+
+    const childWorkflowInstanceId = matchingEntry?.childWorkflowInstanceId
+    if (childWorkflowInstanceId && log.childTraceSpans?.length) {
+      reconcileChildTraceSpans(
+        updateConsole,
+        childWorkflowInstanceId,
+        executionId,
+        log.childTraceSpans
+      )
+    }
+  }
+}
+
+function reconcileChildTraceSpans(
+  updateConsole: UpdateConsoleFn,
+  childWorkflowInstanceId: string,
+  executionId: string,
+  spans: TraceSpan[]
+): void {
+  for (const span of spans) {
+    if (span.blockId) {
+      const error = span.output?.error
+      updateConsole(
+        span.blockId,
+        {
+          replaceOutput: (span.output ?? {}) as Record<string, unknown>,
+          success: span.status !== 'error',
+          ...(typeof error === 'string' ? { error } : {}),
+          durationMs: span.duration,
+          startedAt: span.startTime,
+          endedAt: span.endTime,
+          isRunning: false,
+          isCanceled: false,
+          childWorkflowBlockId: childWorkflowInstanceId,
+        },
+        executionId
+      )
+    }
+    if (span.children?.length) {
+      reconcileChildTraceSpans(updateConsole, childWorkflowInstanceId, executionId, span.children)
+    }
   }
 }
 
@@ -500,7 +585,7 @@ export function handleExecutionErrorConsole(
     params.executionId,
     params.finalBlockLogs
   )
-  deps.cancelRunningEntries(params.workflowId)
+  deps.cancelRunningEntries(params.workflowId, params.executionId)
   addExecutionErrorConsoleEntry(deps.addConsole, params)
 }
 
@@ -585,7 +670,7 @@ export function handleExecutionCancelledConsole(
     params.executionId,
     params.finalBlockLogs
   )
-  deps.cancelRunningEntries(params.workflowId)
+  deps.cancelRunningEntries(params.workflowId, params.executionId)
   addCancelledConsoleEntry(deps.addConsole, params)
 }
 
@@ -732,7 +817,7 @@ export async function executeWorkflowWithFullLogging(
         onExecutionCompleted: (data) => {
           setCurrentExecutionId(wfId, null)
           reconcileFinalBlockLogs(updateConsole, wfId, executionIdRef.current, data.finalBlockLogs)
-          cancelRunningEntries(wfId)
+          cancelRunningEntries(wfId, executionIdRef.current)
           executionResult = {
             success: data.success,
             output: data.output,
