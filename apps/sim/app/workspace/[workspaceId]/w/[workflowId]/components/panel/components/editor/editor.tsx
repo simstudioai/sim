@@ -506,6 +506,7 @@ export function Editor() {
           toggleConnectionsCollapsed={toggleConnectionsCollapsed}
           userCanEdit={canEditBlock}
           isConnectionsAtMinHeight={isConnectionsAtMinHeight}
+          activeSearchTarget={activeSearchTarget}
         />
       ) : (
         <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>

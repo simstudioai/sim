@@ -1,5 +1,6 @@
 import { getWorkflowSearchReplacementIssue } from '@/lib/workflows/search-replace/replacement-validation'
 import type {
+  WorkflowSearchBlockState,
   WorkflowSearchMatch,
   WorkflowSearchReplacementOption,
   WorkflowSearchReplacePlan,
@@ -10,10 +11,9 @@ import {
   pathToKey,
   setValueAtPath,
 } from '@/lib/workflows/search-replace/value-walker'
-import type { BlockState } from '@/stores/workflows/workflow/types'
 
 interface BuildWorkflowSearchReplacePlanParams {
-  blocks: Record<string, BlockState>
+  blocks: Record<string, WorkflowSearchBlockState>
   matches: WorkflowSearchMatch[]
   selectedMatchIds: Set<string>
   replacementByMatchId?: Record<string, string>

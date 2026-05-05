@@ -1,7 +1,7 @@
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
-import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
+import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
 
 export type WorkflowSearchMode = 'text' | 'resource' | 'all'
 
@@ -59,8 +59,20 @@ export interface WorkflowSearchMatch {
   reason?: string
 }
 
+export interface WorkflowSearchSubBlockState extends Omit<SubBlockState, 'value'> {
+  value: unknown
+}
+
+export interface WorkflowSearchBlockState extends Omit<BlockState, 'subBlocks'> {
+  subBlocks: Record<string, WorkflowSearchSubBlockState>
+}
+
+export interface WorkflowSearchWorkflow {
+  blocks: Record<string, WorkflowSearchBlockState>
+}
+
 export interface WorkflowSearchIndexerOptions {
-  workflow: Pick<WorkflowState, 'blocks'>
+  workflow: WorkflowSearchWorkflow
   query?: string
   mode?: WorkflowSearchMode
   caseSensitive?: boolean
@@ -72,7 +84,7 @@ export interface WorkflowSearchIndexerOptions {
 }
 
 export interface IndexedSubBlockContext {
-  block: BlockState
+  block: WorkflowSearchBlockState
   blockConfig?: { subBlocks?: SubBlockConfig[] }
   subBlockConfig?: SubBlockConfig
   subBlockId: string

@@ -8,6 +8,7 @@ import {
   createSearchReplaceWorkflowFixture,
   SEARCH_REPLACE_BLOCK_CONFIGS,
 } from '@/lib/workflows/search-replace/search-replace.fixtures'
+import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 
 describe('indexWorkflowSearchMatches', () => {
   it('finds plain text matches across nested subblock values', () => {
@@ -28,6 +29,85 @@ describe('indexWorkflowSearchMatches', () => {
     ])
     expect(matches.at(-1)?.editable).toBe(false)
     expect(matches.at(-1)?.reason).toBe('Block is locked')
+  })
+
+  it('does not index internal row metadata in structured subblock values', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'row-1',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    })
+
+    expect(matches).toEqual([])
+  })
+
+  it('indexes loop and parallel editor settings for navigation', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['parallel-1'] = {
+      id: 'parallel-1',
+      type: 'parallel',
+      name: 'Parallel 1',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {},
+      data: {
+        parallelType: 'count',
+        count: 20,
+      },
+    }
+    workflow.blocks['loop-1'] = {
+      id: 'loop-1',
+      type: 'loop',
+      name: 'Loop 1',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {},
+      data: {
+        loopType: 'forEach',
+        collection: "['item-2']",
+      },
+    }
+
+    const countMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: '20',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    })
+    const collectionMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'item-2',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    })
+
+    expect(countMatches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          blockId: 'parallel-1',
+          subBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations,
+          canonicalSubBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations,
+          fieldTitle: 'Parallel Iterations',
+          editable: false,
+        }),
+      ])
+    )
+    expect(collectionMatches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          blockId: 'loop-1',
+          subBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items,
+          canonicalSubBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items,
+          fieldTitle: 'Collection Items',
+          editable: false,
+        }),
+      ])
+    )
   })
 
   it('indexes environment tokens and workflow references embedded in strings', () => {

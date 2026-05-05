@@ -7,7 +7,7 @@ import { usePanelStore } from '../store'
 
 let renameCallback: (() => void) | null = null
 
-interface ActiveSearchTarget {
+export interface ActiveSearchTarget {
   matchId: string
   blockId: string
   subBlockId: string

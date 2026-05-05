@@ -1,5 +1,5 @@
+import type { WorkflowSearchWorkflow } from '@/lib/workflows/search-replace/types'
 import type { SubBlockConfig } from '@/blocks/types'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 export const SEARCH_REPLACE_BLOCK_CONFIGS: Record<string, { subBlocks: SubBlockConfig[] }> = {
   agent: {
@@ -47,9 +47,8 @@ export const SEARCH_REPLACE_BLOCK_CONFIGS: Record<string, { subBlocks: SubBlockC
   },
 }
 
-export function createSearchReplaceWorkflowFixture(): WorkflowState {
+export function createSearchReplaceWorkflowFixture(): WorkflowSearchWorkflow {
   return {
-    currentWorkflowId: 'workflow-1',
     blocks: {
       'agent-1': {
         id: 'agent-1',
@@ -107,14 +106,14 @@ export function createSearchReplaceWorkflowFixture(): WorkflowState {
           body: {
             id: 'body',
             type: 'code',
-            value: { content: 'email in nested body' } as unknown as string,
+            value: { content: 'email in nested body' },
           },
           headers: {
             id: 'headers',
             type: 'table',
             value: [
               { id: 'row-1', cells: { Key: 'Authorization', Value: 'Bearer {{OLD_SECRET}}' } },
-            ] as unknown as string[][],
+            ],
           },
         },
       },
@@ -135,8 +134,5 @@ export function createSearchReplaceWorkflowFixture(): WorkflowState {
         },
       },
     },
-    edges: [],
-    loops: {},
-    parallels: {},
   }
 }
