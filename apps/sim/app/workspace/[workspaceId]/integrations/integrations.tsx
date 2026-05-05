@@ -1294,9 +1294,7 @@ export function Integrations() {
                           key={member.id}
                           className={cn(
                             'grid items-center gap-2',
-                            isSelectedAdmin
-                              ? 'grid-cols-[1fr_120px_72px]'
-                              : 'grid-cols-[1fr_200px]'
+                            isSelectedAdmin ? 'grid-cols-[1fr_120px_72px]' : 'grid-cols-[1fr_200px]'
                           )}
                         >
                           <div className='flex min-w-0 items-center gap-2.5'>

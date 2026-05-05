@@ -1,8 +1,8 @@
 'use client'
 
 import { Button, Check, Duplicate } from '@/components/emcn'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { cn } from '@/lib/core/utils/cn'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
 interface CopyCodeButtonProps {
   code: string
