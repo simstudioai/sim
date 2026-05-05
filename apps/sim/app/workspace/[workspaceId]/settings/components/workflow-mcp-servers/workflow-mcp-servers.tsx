@@ -19,7 +19,6 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Skeleton,
   SModalTabs,
   SModalTabsBody,
   SModalTabsContent,
@@ -47,7 +46,7 @@ import {
 } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { CreateApiKeyModal } from '../api-keys/components'
-import { FormField, McpServerSkeleton } from '../mcp/components'
+import { FormField } from '../mcp/components'
 import { CreateWorkflowMcpServerModal } from './create-workflow-mcp-server-modal'
 
 const logger = createLogger('WorkflowMcpServers')
@@ -301,13 +300,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
   )
 
   if (isLoading) {
-    return (
-      <div className='flex h-full flex-col gap-4.5'>
-        <Skeleton className='h-[24px] w-[200px]' />
-        <Skeleton className='h-[100px] w-full' />
-        <Skeleton className='h-[150px] w-full' />
-      </div>
-    )
+    return null
   }
 
   if (error || !data) {
@@ -1040,13 +1033,7 @@ export function WorkflowMcpServers() {
                 {error instanceof Error ? error.message : 'Failed to load MCP servers'}
               </p>
             </div>
-          ) : isLoading ? (
-            <div className='flex flex-col gap-2'>
-              <McpServerSkeleton />
-              <McpServerSkeleton />
-              <McpServerSkeleton />
-            </div>
-          ) : !hasServers ? (
+          ) : isLoading ? null : !hasServers ? (
             <div className='flex h-full items-center justify-center'>
               <p className='text-[var(--text-muted)] text-sm'>Click "Add" above to get started</p>
             </div>

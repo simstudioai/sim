@@ -6,7 +6,6 @@ import { Button } from '@/components/emcn'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { InboxEnableToggle } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-enable-toggle'
 import { InboxSettingsTab } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-settings-tab'
-import { InboxSkeleton } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-skeleton'
 import { InboxTaskList } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-task-list'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useInboxConfig } from '@/hooks/queries/inbox'
@@ -24,7 +23,7 @@ export function Inbox() {
   const subscriptionAccess = getSubscriptionAccessState(subscriptionResponse?.data)
 
   if (isLoading || (isBillingEnabled && isSubLoading)) {
-    return <InboxSkeleton />
+    return null
   }
 
   if (isBillingEnabled && !subscriptionAccess.hasUsableMaxAccess) {

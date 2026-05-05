@@ -28,3 +28,4 @@ export type {
   SelectableConfig,
 } from './resource/resource'
 export { Resource, ResourceTable } from './resource/resource'
+export { TaskStatusDot } from './task-status-dot'

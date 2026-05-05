@@ -7,7 +7,6 @@ import { useParams } from 'next/navigation'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { SkillModal } from '@/app/workspace/[workspaceId]/settings/components/skills/components/skill-modal'
-import { SkillSkeleton } from '@/app/workspace/[workspaceId]/settings/components/skills/skill-skeleton'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useDeleteSkill, useSkills } from '@/hooks/queries/skills'
 
@@ -108,13 +107,7 @@ export function Skills() {
                 {error instanceof Error ? error.message : 'Failed to load skills'}
               </p>
             </div>
-          ) : isLoading ? (
-            <div className='flex flex-col gap-2'>
-              <SkillSkeleton />
-              <SkillSkeleton />
-              <SkillSkeleton />
-            </div>
-          ) : showEmptyState ? (
+          ) : isLoading ? null : showEmptyState ? (
             <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
               Click "Add" above to get started
             </div>

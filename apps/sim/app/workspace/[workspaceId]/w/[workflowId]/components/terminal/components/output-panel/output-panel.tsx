@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   ArrowDown,
-  ArrowDownToLine,
   ArrowUp,
   Check,
   Clipboard,
@@ -26,6 +25,7 @@ import {
   PopoverItem,
   PopoverTrigger,
   Tooltip,
+  Upload,
 } from '@/components/emcn'
 import { OutputContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components/output-context-menu'
 import { StructuredOutput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components/structured-output'
@@ -438,14 +438,14 @@ export const OutputPanel = React.memo(function OutputPanel({
                     <Button
                       variant='ghost'
                       onClick={handleExportConsole}
-                      aria-label='Download console CSV'
+                      aria-label='Export console CSV'
                       className='!p-1.5 -m-1.5'
                     >
-                      <ArrowDownToLine className='h-3.5 w-3.5' />
+                      <Upload className='h-3.5 w-3.5' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
-                    <span>Download CSV</span>
+                    <span>Export CSV</span>
                   </Tooltip.Content>
                 </Tooltip.Root>
                 <Tooltip.Root>

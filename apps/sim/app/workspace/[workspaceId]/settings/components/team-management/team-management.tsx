@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Skeleton, type TagItem } from '@/components/emcn'
+import type { TagItem } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { getPlanTierCredits, getPlanTierDollars } from '@/lib/billing/plan-helpers'
@@ -353,67 +353,7 @@ export function TeamManagement() {
   const displayOrganization = organization || activeOrganization
 
   if (isLoading && !displayOrganization && !(hasTeamPlan || hasEnterprisePlan)) {
-    return (
-      <div className='flex h-full flex-col gap-4.5'>
-        {/* Team Seats Overview */}
-        <div>
-          <div className='rounded-lg border bg-[var(--surface-3)] p-4 shadow-xs'>
-            <div className='space-y-3'>
-              <div className='flex items-center justify-between'>
-                <Skeleton className='h-5 w-24' />
-                <Skeleton className='h-8 w-20 rounded-md' />
-              </div>
-              <div className='flex items-center gap-4.5'>
-                <div className='flex flex-col gap-1'>
-                  <Skeleton className='h-3 w-16' />
-                  <Skeleton className='h-6 w-8' />
-                </div>
-                <div className='h-8 w-px bg-[var(--border)]' />
-                <div className='flex flex-col gap-1'>
-                  <Skeleton className='h-3 w-20' />
-                  <Skeleton className='h-6 w-8' />
-                </div>
-                <div className='h-8 w-px bg-[var(--border)]' />
-                <div className='flex flex-col gap-1'>
-                  <Skeleton className='h-3 w-24' />
-                  <Skeleton className='h-6 w-12' />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Team Members */}
-        <div>
-          <Skeleton className='mb-3 h-5 w-32' />
-          <div className='space-y-2'>
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className='flex items-center justify-between rounded-lg border p-3'>
-                <div className='flex items-center gap-3'>
-                  <Skeleton className='h-10 w-10 rounded-full' />
-                  <div className='space-y-1'>
-                    <Skeleton className='h-4 w-32' />
-                    <Skeleton className='h-3 w-24' />
-                  </div>
-                </div>
-                <Skeleton className='h-6 w-16 rounded-full' />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Invite Member Card */}
-        <div>
-          <div className='rounded-lg border bg-[var(--surface-3)] p-4'>
-            <Skeleton className='mb-3 h-5 w-32' />
-            <div className='space-y-3'>
-              <Skeleton className='h-9 w-full rounded-lg' />
-              <Skeleton className='h-9 w-full rounded-lg' />
-            </div>
-          </div>
-        </div>
-      </div>
-    )
+    return null
   }
 
   if (!displayOrganization) {

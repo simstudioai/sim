@@ -380,7 +380,6 @@ export const WorkflowList = memo(function WorkflowList({
             <WorkflowItem
               workflow={workflow}
               active={isWorkflowActive(workflow.id)}
-              level={level}
               dragDisabled={dragDisabled}
               onWorkflowClick={handleWorkflowClick}
               onDragStart={() => handleDragStart(folderId)}
@@ -460,7 +459,6 @@ export const WorkflowList = memo(function WorkflowList({
           >
             <FolderItem
               folder={folder}
-              level={level}
               dragDisabled={dragDisabled}
               onFolderClick={handleFolderClick}
               onDragStart={() => handleDragStart(parentFolderId)}
@@ -569,7 +567,7 @@ export const WorkflowList = memo(function WorkflowList({
   return (
     <SidebarDragContext.Provider value={dragContextValue}>
       <div
-        className='flex min-h-full flex-col pb-2'
+        className='flex min-h-full flex-col'
         onClick={handleContainerClick}
         onContextMenu={handleContainerContextMenu}
         data-empty-area

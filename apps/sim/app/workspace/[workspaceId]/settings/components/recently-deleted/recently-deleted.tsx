@@ -15,7 +15,6 @@ import {
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
-import { DeletedItemSkeleton } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/deleted-item-skeleton'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
@@ -366,13 +365,7 @@ export function RecentlyDeleted() {
               {error instanceof Error ? error.message : 'Failed to load deleted items'}
             </p>
           </div>
-        ) : isLoading ? (
-          <div className='flex flex-col gap-2'>
-            <DeletedItemSkeleton />
-            <DeletedItemSkeleton />
-            <DeletedItemSkeleton />
-          </div>
-        ) : filtered.length === 0 ? (
+        ) : isLoading ? null : filtered.length === 0 ? (
           <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
             {showNoResults
               ? `No items found matching \u201c${searchTerm}\u201d`

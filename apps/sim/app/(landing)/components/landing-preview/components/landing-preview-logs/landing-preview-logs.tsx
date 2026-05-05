@@ -1,8 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Download } from 'lucide-react'
-import { ArrowUpDown, Badge, Library, ListFilter, Search } from '@/components/emcn'
+import { ArrowUpDown, Badge, Library, ListFilter, Search, Upload } from '@/components/emcn'
 import type { BadgeProps } from '@/components/emcn/components/badge/badge'
 import { cn } from '@/lib/core/utils/cn'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
@@ -179,7 +178,7 @@ export function LandingPreviewLogs() {
           </div>
           <div className='flex items-center gap-1'>
             <div className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
-              <Download className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+              <Upload className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
               Export
             </div>
             <button

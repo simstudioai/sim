@@ -11,7 +11,6 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Skeleton,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
@@ -24,6 +23,10 @@ import {
   isBillingEnabled,
   sectionConfig,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
+import {
+  SIDEBAR_ITEM_GAP_CLASS,
+  SIDEBAR_SECTION_GAP_CLASS,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
 import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
@@ -33,24 +36,6 @@ import { prefetchSubscriptionData, useSubscriptionData } from '@/hooks/queries/s
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
-
-const SKELETON_SECTIONS = sectionConfig
-  .map(({ key }) =>
-    Math.min(
-      allNavigationItems.filter(
-        (item) =>
-          item.section === key &&
-          !(item.hideWhenBillingDisabled && !isBillingEnabled) &&
-          !item.requiresTeam &&
-          !item.requiresEnterprise &&
-          !item.requiresSuperUser &&
-          !item.requiresAdminRole &&
-          item.id !== 'template-profile'
-      ).length,
-      3
-    )
-  )
-  .filter((count) => count > 0)
 
 interface SettingsSidebarProps {
   isCollapsed?: boolean
@@ -74,10 +59,10 @@ export function SettingsSidebar({
   const isDirty = useSettingsDirtyStore((s) => s.isDirty)
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
 
-  const { data: session, isPending: sessionLoading } = useSession()
-  const { data: organizationsData, isLoading: orgsLoading } = useOrganizations()
+  const { data: session } = useSession()
+  const { data: organizationsData } = useOrganizations()
   const { data: generalSettings } = useGeneralSettings()
-  const { data: subscriptionData, isLoading: subscriptionLoading } = useSubscriptionData({
+  const { data: subscriptionData } = useSubscriptionData({
     enabled: isBillingEnabled,
     staleTime: 5 * 60 * 1000,
   })
@@ -86,7 +71,7 @@ export function SettingsSidebar({
   })
 
   const activeOrganization = organizationsData?.activeOrganization
-  const { config: permissionConfig, isLoading: permissionLoading } = usePermissionConfig()
+  const { config: permissionConfig } = usePermissionConfig()
 
   const userEmail = session?.user?.email
   const userId = session?.user?.id
@@ -114,9 +99,6 @@ export function SettingsSidebar({
       }
 
       if (item.id === 'template-profile') {
-        return false
-      }
-      if (item.id === 'integrations' && permissionConfig.hideIntegrationsTab) {
         return false
       }
       if (item.id === 'secrets' && permissionConfig.hideSecretsTab) {
@@ -206,10 +188,6 @@ export function SettingsSidebar({
           prefetchGeneralSettings(queryClient)
           void import('@/app/workspace/[workspaceId]/settings/components/general/general')
           break
-        case 'integrations':
-          prefetchWorkspaceCredentials(queryClient, workspaceId)
-          void import('@/app/workspace/[workspaceId]/settings/components/integrations/integrations')
-          break
         case 'secrets':
           prefetchWorkspaceCredentials(queryClient, workspaceId)
           void import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets')
@@ -251,12 +229,12 @@ export function SettingsSidebar({
   return (
     <>
       {/* Back button */}
-      <div className='mt-2.5 flex flex-shrink-0 flex-col gap-0.5 px-2'>
+      <div className='mt-3 flex flex-shrink-0 flex-col gap-0.5 px-2'>
         <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
           <button
             type='button'
             onClick={handleBack}
-            className='group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm hover-hover:bg-[var(--surface-hover)]'
+            className='group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm hover-hover:bg-[var(--surface-active)]'
           >
             <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
               <ChevronDown className='h-[10px] w-[10px] rotate-90' />
@@ -269,106 +247,86 @@ export function SettingsSidebar({
       {/* Settings sections */}
       <div
         className={cn(
-          'mt-3.5 flex flex-1 flex-col gap-3.5 pb-2',
+          'flex flex-1 flex-col pb-2',
           !isCollapsed && 'overflow-y-auto overflow-x-hidden'
         )}
       >
-        {sessionLoading ||
-        orgsLoading ||
-        (isBillingEnabled && subscriptionLoading) ||
-        permissionLoading ||
-        (!isHosted && isLoadingSSO)
-          ? SKELETON_SECTIONS.map((count, i) => (
-              <div key={i} className='flex flex-shrink-0 flex-col'>
-                <div className='sidebar-collapse-hide px-4 pb-1.5'>
-                  <Skeleton className='h-[14px] w-[64px] rounded-sm' />
-                </div>
-                <div className='flex flex-col gap-0.5 px-2'>
-                  {Array.from({ length: count }, (_, j) => (
-                    <div key={j} className='mx-0.5 flex h-[30px] items-center gap-2 px-2'>
-                      <Skeleton className='h-[16px] w-[16px] flex-shrink-0 rounded-sm' />
-                      <Skeleton className='sidebar-collapse-hide h-[14px] w-full rounded-sm' />
-                    </div>
-                  ))}
-                </div>
+        {sectionConfig.map(({ key, title }) => {
+          const sectionItems = navigationItems.filter((item) => item.section === key)
+          if (sectionItems.length === 0) return null
+
+          return (
+            <div key={key} className={cn(SIDEBAR_SECTION_GAP_CLASS, 'flex flex-shrink-0 flex-col')}>
+              <div className='px-4 pb-2'>
+                <div className='font-base text-[var(--text-muted)] text-small'>{title}</div>
               </div>
-            ))
-          : sectionConfig.map(({ key, title }) => {
-              const sectionItems = navigationItems.filter((item) => item.section === key)
-              if (sectionItems.length === 0) return null
+              <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+                {sectionItems.map((item) => {
+                  const Icon = item.icon
+                  const active = activeSection === item.id
+                  const isLocked = item.requiresMax && !subscriptionAccess.hasUsableMaxAccess
+                  const itemClassName = cn(
+                    'group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm',
+                    !active && 'hover-hover:bg-[var(--surface-active)]',
+                    active && 'bg-[var(--surface-active)]'
+                  )
+                  const content = (
+                    <>
+                      <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                      <span className='min-w-0 truncate font-base text-[var(--text-body)]'>
+                        {item.label}
+                      </span>
+                      {isLocked && (
+                        <span className='ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
+                          Max
+                        </span>
+                      )}
+                    </>
+                  )
 
-              return (
-                <div key={key} className='flex flex-shrink-0 flex-col'>
-                  <div className='px-4 pb-1.5'>
-                    <div className='font-base text-[var(--text-icon)] text-small'>{title}</div>
-                  </div>
-                  <div className='flex flex-col gap-0.5 px-2'>
-                    {sectionItems.map((item) => {
-                      const Icon = item.icon
-                      const active = activeSection === item.id
-                      const isLocked = item.requiresMax && !subscriptionAccess.hasUsableMaxAccess
-                      const itemClassName = cn(
-                        'group mx-0.5 flex h-[30px] items-center gap-2 rounded-[8px] px-2 text-[14px]',
-                        !active && 'hover-hover:bg-[var(--surface-hover)]',
-                        active && 'bg-[var(--surface-active)]'
-                      )
-                      const content = (
-                        <>
-                          <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                          <span className='min-w-0 truncate font-base text-[var(--text-body)]'>
-                            {item.label}
-                          </span>
-                          {isLocked && (
-                            <span className='ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
-                              Max
-                            </span>
-                          )}
-                        </>
-                      )
+                  const element = item.externalUrl ? (
+                    <a
+                      href={item.externalUrl}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className={itemClassName}
+                    >
+                      {content}
+                    </a>
+                  ) : (
+                    <button
+                      type='button'
+                      className={itemClassName}
+                      onMouseEnter={() => handlePrefetch(item.id)}
+                      onFocus={() => handlePrefetch(item.id)}
+                      onClick={() => {
+                        const section = item.id as SettingsSection
+                        if (section === activeSection) return
+                        if (!requestNavigation(section)) {
+                          setShowDiscardDialog(true)
+                          return
+                        }
+                        router.replace(getSettingsHref({ section }), { scroll: false })
+                      }}
+                    >
+                      {content}
+                    </button>
+                  )
 
-                      const element = item.externalUrl ? (
-                        <a
-                          href={item.externalUrl}
-                          target='_blank'
-                          rel='noopener noreferrer'
-                          className={itemClassName}
-                        >
-                          {content}
-                        </a>
-                      ) : (
-                        <button
-                          type='button'
-                          className={itemClassName}
-                          onMouseEnter={() => handlePrefetch(item.id)}
-                          onFocus={() => handlePrefetch(item.id)}
-                          onClick={() => {
-                            const section = item.id as SettingsSection
-                            if (section === activeSection) return
-                            if (!requestNavigation(section)) {
-                              setShowDiscardDialog(true)
-                              return
-                            }
-                            router.replace(getSettingsHref({ section }), { scroll: false })
-                          }}
-                        >
-                          {content}
-                        </button>
-                      )
-
-                      return (
-                        <SidebarTooltip
-                          key={`${item.id}-${isCollapsed}`}
-                          label={item.label}
-                          enabled={showCollapsedTooltips}
-                        >
-                          {element}
-                        </SidebarTooltip>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })}
+                  return (
+                    <SidebarTooltip
+                      key={`${item.id}-${isCollapsed}`}
+                      label={item.label}
+                      enabled={showCollapsedTooltips}
+                    >
+                      {element}
+                    </SidebarTooltip>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       <Modal open={showDiscardDialog} onOpenChange={(open) => !open && handleCancelDiscard()}>

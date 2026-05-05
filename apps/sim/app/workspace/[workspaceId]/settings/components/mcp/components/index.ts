@@ -4,4 +4,3 @@ export type {
   McpServerFormModalProps,
 } from './mcp-server-form-modal/mcp-server-form-modal'
 export { McpServerFormModal } from './mcp-server-form-modal/mcp-server-form-modal'
-export { McpServerSkeleton } from './mcp-server-skeleton/mcp-server-skeleton'

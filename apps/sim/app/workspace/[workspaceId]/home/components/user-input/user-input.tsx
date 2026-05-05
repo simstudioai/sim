@@ -902,7 +902,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     <div
       onClick={handleContainerClick}
       className={cn(
-        'relative z-10 mx-auto w-full max-w-[42rem] cursor-text rounded-[20px] border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
+        'relative z-10 mx-auto w-full max-w-[44rem] cursor-text rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
         isInitialView && 'shadow-sm'
       )}
       onDragEnter={handleDragEnter}

@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/emcn'
 
 const LAYOUT_SKELETON_STYLES = {
   'mothership-view': {
-    content: 'mx-auto max-w-[42rem] space-y-6',
+    content: 'mx-auto max-w-[44rem] space-y-6',
     userRow: 'flex flex-col items-end gap-[6px] pt-3',
   },
   'copilot-view': {

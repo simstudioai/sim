@@ -21,7 +21,6 @@ import {
   ModalTabsContent,
   ModalTabsList,
   ModalTabsTrigger,
-  Skeleton,
   Switch,
 } from '@/components/emcn'
 import { Input as BaseInput } from '@/components/ui'
@@ -225,26 +224,6 @@ function AddMembersModal({
         </ModalFooter>
       </ModalContent>
     </Modal>
-  )
-}
-
-function AccessControlSkeleton() {
-  return (
-    <div className='flex h-full flex-col gap-4.5'>
-      <div className='flex flex-col gap-2'>
-        <Skeleton className='h-[14px] w-[100px]' />
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-3'>
-            <Skeleton className='h-9 w-9 rounded-md' />
-            <div className='flex flex-col gap-1'>
-              <Skeleton className='h-[14px] w-[120px]' />
-              <Skeleton className='h-[12px] w-[80px]' />
-            </div>
-          </div>
-          <Skeleton className='h-[32px] w-[60px] rounded-md' />
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -750,7 +729,7 @@ export function AccessControl() {
   }, [workspaceMembers, members])
 
   if (isLoading) {
-    return <AccessControlSkeleton />
+    return null
   }
 
   if (!canManage) {
@@ -805,21 +784,7 @@ export function AccessControl() {
                 </Button>
               </div>
 
-              {membersLoading ? (
-                <div className='flex flex-col gap-4.5'>
-                  {[1, 2].map((i) => (
-                    <div key={i} className='flex items-center justify-between'>
-                      <div className='flex items-center gap-3'>
-                        <Skeleton className='h-8 w-8 rounded-full' />
-                        <div className='flex flex-col gap-1'>
-                          <Skeleton className='h-[14px] w-[100px]' />
-                          <Skeleton className='h-[12px] w-[150px]' />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : members.length === 0 ? (
+              {membersLoading ? null : members.length === 0 ? (
                 <p className='text-[var(--text-muted)] text-sm'>
                   No members yet. Click "Add" to get started.
                 </p>

@@ -1,5 +1,5 @@
 import { useParams, useRouter } from 'next/navigation'
-import { Badge, Button, Skeleton } from '@/components/emcn'
+import { Badge, Button } from '@/components/emcn'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -22,27 +22,6 @@ interface TeamSeatsOverviewProps {
   onAddSeatDialog: () => void
 }
 
-function TeamSeatsSkeleton() {
-  return (
-    <div className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
-      <div className='flex flex-col gap-2 px-3.5 py-3'>
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
-            <Skeleton className='h-5 w-16 rounded-sm' />
-            <Skeleton className='h-4 w-20 rounded-sm' />
-          </div>
-          <div className='flex items-center gap-1 text-small'>
-            <Skeleton className='h-4 w-8 rounded-sm' />
-            <span className='text-[var(--text-muted)]'>/</span>
-            <Skeleton className='h-4 w-8 rounded-sm' />
-          </div>
-        </div>
-        <Skeleton className='h-[6px] w-full rounded-full' />
-      </div>
-    </div>
-  )
-}
-
 export function TeamSeatsOverview({
   subscriptionData,
   isLoadingSubscription,
@@ -56,7 +35,7 @@ export function TeamSeatsOverview({
   const workspaceId = params?.workspaceId
 
   if (isLoadingSubscription) {
-    return <TeamSeatsSkeleton />
+    return null
   }
 
   if (!subscriptionData) {
@@ -93,7 +72,7 @@ export function TeamSeatsOverview({
   const pillCount = Math.max(totalSeats, usedSeats)
 
   if (isSeatDataPending) {
-    return <TeamSeatsSkeleton />
+    return null
   }
 
   return (

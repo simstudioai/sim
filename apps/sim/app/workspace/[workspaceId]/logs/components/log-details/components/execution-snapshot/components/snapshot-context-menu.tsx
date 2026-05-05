@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Copy, Search } from '@/components/emcn/icons'
+import { Duplicate, Search } from '@/components/emcn/icons'
 
 interface SnapshotContextMenuProps {
   isOpen: boolean
@@ -63,7 +63,7 @@ export function SnapshotContextMenu({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <DropdownMenuItem onSelect={onCopy}>
-          <Copy />
+          <Duplicate />
           Copy
         </DropdownMenuItem>
 

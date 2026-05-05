@@ -25,7 +25,6 @@ import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { GeneralSkeleton } from '@/app/workspace/[workspaceId]/settings/components/general/general-skeleton'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
 import { useBrandConfig } from '@/ee/whitelabeling'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
@@ -247,7 +246,7 @@ export function General() {
   const imageUrl = profilePictureUrl || profile?.image || brandConfig.logoUrl
 
   if (isLoading) {
-    return <GeneralSkeleton />
+    return null
   }
 
   return (

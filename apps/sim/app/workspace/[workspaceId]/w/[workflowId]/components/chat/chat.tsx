@@ -3,15 +3,7 @@
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import {
-  AlertCircle,
-  ArrowDownToLine,
-  ArrowUp,
-  MoreVertical,
-  Paperclip,
-  Square,
-  X,
-} from 'lucide-react'
+import { AlertCircle, ArrowUp, MoreVertical, Paperclip, Square, X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   Badge,
@@ -24,6 +16,7 @@ import {
   PopoverTrigger,
   Tooltip,
   Trash,
+  Upload,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
@@ -979,8 +972,8 @@ export function Chat() {
                   }}
                   disabled={workflowMessages.length === 0}
                 >
-                  <ArrowDownToLine className='h-[13px] w-[13px]' />
-                  <span>Download</span>
+                  <Upload className='h-[13px] w-[13px]' />
+                  <span>Export</span>
                 </PopoverItem>
                 <PopoverItem
                   onClick={() => {

@@ -1,5 +1,6 @@
 export { ChatMessageAttachments } from './chat-message-attachments'
 export { ContextMentionIcon } from './context-mention-icon'
+export { CreditsChip } from './credits-chip'
 export {
   assistantMessageHasRenderableContent,
   MessageContent,
@@ -7,6 +8,6 @@ export {
 export { MothershipChat } from './mothership-chat/mothership-chat'
 export { MothershipView } from './mothership-view'
 export { QueuedMessages } from './queued-messages'
-export { TemplatePrompts } from './template-prompts'
+export { SuggestedActions } from './suggested-actions'
 export { UserInput } from './user-input'
 export { UserMessageContent } from './user-message-content'

@@ -12,14 +12,12 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Skeleton,
   Switch,
   Tooltip,
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { ApiKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/api-keys/api-key-skeleton'
 import {
   type ApiKey,
   useApiKeys,
@@ -156,21 +154,7 @@ export function ApiKeys() {
 
       {/* Scrollable Content */}
       <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
-        {isLoading ? (
-          <div className='flex flex-col gap-4.5'>
-            {/* Workspace section header */}
-            <div className='flex flex-col gap-2'>
-              <Skeleton className='h-5 w-[80px]' />
-              <Skeleton className='h-5 w-[180px]' />
-            </div>
-            {/* Personal section header + keys */}
-            <div className='flex flex-col gap-2'>
-              <Skeleton className='h-5 w-[60px]' />
-              <ApiKeySkeleton />
-              <ApiKeySkeleton />
-            </div>
-          </div>
-        ) : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
+        {isLoading ? null : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
           <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
             Click "Create" above to get started
           </div>
@@ -310,15 +294,6 @@ export function ApiKeys() {
       </div>
 
       {/* Allow Personal API Keys Toggle - Fixed at bottom */}
-      {isLoading && canManageWorkspaceKeys && (
-        <div className='mt-6 flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
-            <Skeleton className='h-5 w-[170px]' />
-            <Skeleton className='h-3 w-3 rounded-full' />
-          </div>
-          <Skeleton className='h-5 w-9 rounded-full' />
-        </div>
-      )}
       {!isLoading && canManageWorkspaceKeys && (
         <Tooltip.Provider delayDuration={150}>
           <div className='mt-6 flex items-center justify-between'>
@@ -340,9 +315,7 @@ export function ApiKeys() {
                 </Tooltip.Content>
               </Tooltip.Root>
             </div>
-            {isLoadingSettings ? (
-              <Skeleton className='h-5 w-16 rounded-full' />
-            ) : (
+            {isLoadingSettings ? null : (
               <Switch
                 checked={allowPersonalApiKeys}
                 disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}

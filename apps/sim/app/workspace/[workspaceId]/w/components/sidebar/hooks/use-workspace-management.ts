@@ -133,7 +133,7 @@ export function useWorkspaceManagement({
   const updateWorkspace = useCallback(
     async (
       workspaceId: string,
-      updates: { name?: string; color?: string; logoUrl?: string | null }
+      updates: { name?: string; logoUrl?: string | null }
     ): Promise<boolean> => {
       try {
         await updateWorkspaceMutation.mutateAsync({ workspaceId, ...updates })

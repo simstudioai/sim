@@ -1,7 +1,6 @@
 import {
   Card,
   ClipboardList,
-  Connections,
   Database,
   HexSimple,
   Key,
@@ -24,7 +23,6 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 
 export type SettingsSection =
   | 'general'
-  | 'integrations'
   | 'secrets'
   | 'template-profile'
   | 'credential-sets'
@@ -130,7 +128,6 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresTeam: true,
   },
-  { id: 'integrations', label: 'Integrations', icon: Connections, section: 'account' },
   { id: 'secrets', label: 'Secrets', icon: Key, section: 'account' },
   { id: 'custom-tools', label: 'Custom Tools', icon: Wrench, section: 'tools' },
   { id: 'skills', label: 'Skills', icon: AgentSkillsIcon, section: 'tools' },

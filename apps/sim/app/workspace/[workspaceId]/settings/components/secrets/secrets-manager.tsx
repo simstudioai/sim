@@ -18,7 +18,6 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Skeleton,
   Textarea,
   Tooltip,
   Trash,
@@ -1274,12 +1273,7 @@ export function SecretsManager() {
               <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
                 <Label>Members ({activeMembers.length})</Label>
 
-                {membersLoading ? (
-                  <div className='flex flex-col gap-2'>
-                    <Skeleton className='h-[44px] w-full rounded-lg' />
-                    <Skeleton className='h-[44px] w-full rounded-lg' />
-                  </div>
-                ) : (
+                {membersLoading ? null : (
                   <div className='flex flex-col gap-2'>
                     {activeMembers.map((member) => (
                       <div
@@ -1529,29 +1523,8 @@ export function SecretsManager() {
 
         <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
           <div className='flex flex-col gap-4'>
-            {isLoading ? (
-              <>
-                <div className='flex flex-col gap-2'>
-                  <Skeleton className='h-5 w-[70px]' />
-                  <div className='text-[var(--text-muted)] text-small'>
-                    <Skeleton className='h-5 w-[160px]' />
-                  </div>
-                </div>
-                <div className={cn(GRID_COLS, 'gap-y-2')}>
-                  <Skeleton className={cn(COL_SPAN_ALL, 'h-5 w-[55px]')} />
-                  {Array.from({ length: 2 }, (_, i) => (
-                    <div key={`personal-${i}`} className='contents'>
-                      <Skeleton className='h-9 rounded-md' />
-                      <div />
-                      <Skeleton className='h-9 rounded-md' />
-                      <Skeleton className='ml-2 h-9 w-[60px] rounded-md' />
-                      <Skeleton className='h-9 w-9 rounded-md' />
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className={cn(GRID_COLS, 'gap-y-2')}>
+            {isLoading ? null : (
+              <div className={`${GRID_COLS} gap-y-2`}>
                 {(!searchTerm.trim() ||
                   filteredWorkspaceEntries.length > 0 ||
                   filteredNewWorkspaceRows.length > 0) && (

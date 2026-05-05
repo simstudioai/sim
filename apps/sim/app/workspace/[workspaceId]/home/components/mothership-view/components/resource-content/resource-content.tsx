@@ -4,9 +4,8 @@ import { lazy, memo, Suspense, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
+import { Button, PlayOutline, Skeleton, Tooltip, Upload } from '@/components/emcn'
 import {
-  Download,
   FileX,
   Folder as FolderIcon,
   Library,
@@ -403,7 +402,7 @@ function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTable
             className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label='Export table as CSV'
           >
-            <Download className={RESOURCE_TAB_ICON_CLASS} />
+            <Upload className={RESOURCE_TAB_ICON_CLASS} />
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
@@ -465,7 +464,7 @@ function EmbeddedFileActions({ workspaceId, fileId }: EmbeddedFileActionsProps) 
             className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label='Download file'
           >
-            <Download className={RESOURCE_TAB_ICON_CLASS} />
+            <Upload className={RESOURCE_TAB_ICON_CLASS} />
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>

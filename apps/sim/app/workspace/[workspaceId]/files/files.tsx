@@ -8,7 +8,6 @@ import {
   Columns2,
   Combobox,
   type ComboboxOption,
-  Download,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -572,7 +571,7 @@ export function Files() {
                 },
                 {
                   label: 'Download',
-                  icon: Download,
+                  icon: Upload,
                   onClick: handleDownloadSelected,
                 },
                 {
@@ -804,7 +803,7 @@ export function Files() {
           : []),
       {
         label: 'Download',
-        icon: Download,
+        icon: Upload,
         onClick: handleDownloadSelected,
       },
       {
@@ -1269,7 +1268,7 @@ const FileRowContextMenu = memo(function FileRowContextMenu({
           Open
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onDownload}>
-          <Download />
+          <Upload />
           Download
         </DropdownMenuItem>
         {canEdit && (

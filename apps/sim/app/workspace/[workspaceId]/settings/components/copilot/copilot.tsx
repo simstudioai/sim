@@ -18,7 +18,6 @@ import {
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
 // import { useMcpServers, useUpdateMcpServer } from '@/hooks/queries/mcp'
-import { CopilotKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/copilot/copilot-skeleton'
 import {
   type CopilotKey,
   useCopilotKeys,
@@ -204,13 +203,7 @@ export function Copilot() {
 
         {/* Scrollable Content */}
         <div className='min-h-0 flex-1 overflow-y-auto'>
-          {isLoading ? (
-            <div className='flex flex-col gap-2'>
-              <CopilotKeySkeleton />
-              <CopilotKeySkeleton />
-              <CopilotKeySkeleton />
-            </div>
-          ) : showEmptyState ? (
+          {isLoading ? null : showEmptyState ? (
             <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
               Click "Create" above to get started
             </div>

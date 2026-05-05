@@ -14,7 +14,6 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Skeleton,
   Switch,
   Tooltip,
 } from '@/components/emcn'
@@ -98,60 +97,6 @@ interface WorkspaceAdmin {
   userId: string
   email: string
   permissionType: string
-}
-
-function SubscriptionSkeleton() {
-  return (
-    <div className='flex h-full flex-col gap-5'>
-      <div className='flex flex-col gap-3'>
-        <div className='flex items-center justify-between'>
-          <div className='flex flex-col gap-1'>
-            <div className='flex h-[18px] items-center'>
-              <Skeleton className='h-[12px] w-[40px] rounded-sm' />
-            </div>
-            <div className='flex h-[21px] items-center gap-1'>
-              <Skeleton className='h-[14px] w-[50px] rounded-sm' />
-              <span className='font-medium text-[var(--text-primary)] text-base'>/</span>
-              <Skeleton className='h-[14px] w-[50px] rounded-sm' />
-            </div>
-          </div>
-          <div className='flex flex-col items-end gap-2'>
-            <div className='flex w-[100px] items-center gap-1'>
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className='h-[6px] flex-1 rounded-xs' />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className='flex flex-col gap-2.5'>
-        <div className='grid grid-cols-2 gap-2.5'>
-          {[0, 1].map((i) => (
-            <article
-              key={i}
-              className='flex flex-1 flex-col overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'
-            >
-              <div className='flex items-center justify-between gap-2 px-3.5 py-2.5'>
-                <Skeleton className='h-[14px] w-[32px] rounded-sm' />
-                <Skeleton className='h-[14px] w-[50px] rounded-sm' />
-              </div>
-              <div className='flex flex-1 flex-col gap-4.5 rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-4'>
-                <ul className='flex flex-1 flex-col gap-3.5'>
-                  {[...Array(5)].map((_, j) => (
-                    <li key={j} className='flex items-center gap-2'>
-                      <Skeleton className='h-[12px] w-[12px] flex-shrink-0 rounded-sm' />
-                      <Skeleton className='h-[12px] w-[120px] rounded-sm' />
-                    </li>
-                  ))}
-                </ul>
-                <Skeleton className='h-[28px] w-full rounded-[5px]' />
-              </div>
-            </article>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
 }
 
 const formatPlanName = getDisplayPlanName
@@ -572,7 +517,7 @@ export function Subscription() {
   const proDailyRefresh = Math.round(PRO_TIER.dollars * DAILY_REFRESH_RATE * CREDIT_MULTIPLIER)
   const maxDailyRefresh = Math.round(MAX_TIER.dollars * DAILY_REFRESH_RATE * CREDIT_MULTIPLIER)
 
-  if (isLoading) return <SubscriptionSkeleton />
+  if (isLoading) return null
 
   const showUpgradePlans = permissions.showUpgradePlans
   const hasEnterprise = visiblePlans.includes('enterprise')

@@ -46,6 +46,7 @@ export {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuItemAction,
   DropdownMenuLabel,
   DropdownMenuPortal,
   DropdownMenuRadioGroup,
@@ -155,11 +156,4 @@ export { TimePicker, type TimePickerProps, timePickerVariants } from './time-pic
 export { CountdownRing } from './toast/countdown-ring'
 export { ToastProvider, toast, useToast } from './toast/toast'
 export { Tooltip } from './tooltip/tooltip'
-export {
-  TourCard,
-  type TourCardProps,
-  TourTooltip,
-  type TourTooltipPlacement,
-  type TourTooltipProps,
-} from './tour-tooltip/tour-tooltip'
 export { Wizard, type WizardProps, type WizardStepProps } from './wizard/wizard'

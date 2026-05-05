@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
   Upload,
 } from '@/components/emcn'
-import { Copy, Database, Pencil, Trash } from '@/components/emcn/icons'
+import { Database, Duplicate, Pencil, Trash } from '@/components/emcn/icons'
 
 interface TableContextMenuProps {
   isOpen: boolean
@@ -94,7 +94,7 @@ export function TableContextMenu({
         )}
         {onCopyId && (
           <DropdownMenuItem onSelect={onCopyId}>
-            <Copy />
+            <Duplicate />
             Copy ID
           </DropdownMenuItem>
         )}

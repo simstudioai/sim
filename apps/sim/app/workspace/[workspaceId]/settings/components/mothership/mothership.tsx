@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { Badge, Button, Input as EmcnInput, Label, Skeleton } from '@/components/emcn'
+import { Badge, Button, Input as EmcnInput, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
   type MothershipEnv,
@@ -213,13 +213,6 @@ function OverviewTab({
 
       {/* User breakdown */}
       <SectionLabel>User Breakdown</SectionLabel>
-      {breakdownLoading && (
-        <div className='flex flex-col gap-2'>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className='h-[36px] w-full rounded-md' />
-          ))}
-        </div>
-      )}
       {breakdown?.users && (
         <div className='flex flex-col gap-0.5'>
           <div className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-[var(--text-tertiary)] text-caption'>
@@ -260,13 +253,6 @@ function OverviewTab({
       {/* Recent requests */}
       <Divider />
       <SectionLabel>Recent Requests ({requests?.count ?? '…'})</SectionLabel>
-      {requestsLoading && (
-        <div className='flex flex-col gap-2'>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className='h-[36px] w-full rounded-md' />
-          ))}
-        </div>
-      )}
       {requests?.requests && (
         <div className='max-h-[400px] overflow-auto'>
           <div className='flex flex-col gap-0.5'>
@@ -413,14 +399,6 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
       <Divider />
       <SectionLabel>All Licenses</SectionLabel>
 
-      {isLoading && (
-        <div className='flex flex-col gap-2'>
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className='h-[40px] w-full rounded-md' />
-          ))}
-        </div>
-      )}
-
       {data?.licenses && (
         <div className='flex flex-col gap-0.5'>
           <div className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-[var(--text-tertiary)] text-caption'>
@@ -504,14 +482,6 @@ function EnterpriseTab({
       </div>
 
       {error && <p className='text-[var(--text-error)] text-small'>{error.message}</p>}
-
-      {isLoading && customerType && (
-        <div className='flex flex-col gap-2'>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className='h-[60px] w-full rounded-md' />
-          ))}
-        </div>
-      )}
 
       {data && (
         <>
@@ -614,14 +584,6 @@ function TracesTab({ environment }: { environment: MothershipEnv }) {
       </div>
 
       {error && <p className='text-[var(--text-error)] text-small'>{error.message}</p>}
-
-      {isLoading && activeRequestId && (
-        <div className='flex flex-col gap-2'>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className='h-[50px] w-full rounded-md' />
-          ))}
-        </div>
-      )}
 
       {trace && <TraceDetail trace={trace} />}
     </div>
@@ -870,9 +832,7 @@ function StatCard({
   return (
     <div className='rounded-md border border-[var(--border-secondary)] p-3'>
       <p className='text-[var(--text-tertiary)] text-caption'>{label}</p>
-      {loading ? (
-        <Skeleton className='mt-1 h-[24px] w-[80px] rounded-sm' />
-      ) : (
+      {loading ? null : (
         <p className='mt-1 font-medium text-[18px] text-[var(--text-primary)]'>{value ?? '—'}</p>
       )}
     </div>

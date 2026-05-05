@@ -18,7 +18,6 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Skeleton,
   Textarea,
   Tooltip,
 } from '@/components/emcn'
@@ -35,7 +34,6 @@ import {
 import { getCanonicalScopesForProvider, getServiceConfigByProviderId } from '@/lib/oauth'
 import { getScopeDescription } from '@/lib/oauth/utils'
 import { getUserColor } from '@/lib/workspaces/colors'
-import { CredentialSkeleton } from '@/app/workspace/[workspaceId]/settings/components/integrations/credential-skeleton'
 import {
   useCreateCredentialDraft,
   useCreateWorkspaceCredential,
@@ -55,9 +53,8 @@ import {
 } from '@/hooks/queries/oauth/oauth-connections'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
-import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
-const logger = createLogger('IntegrationsManager')
+const logger = createLogger('Integrations')
 
 const ROLE_OPTIONS = [
   { value: 'member', label: 'Member' },
@@ -69,7 +66,7 @@ const roleComboOptions = ROLE_OPTIONS.map((option) => ({
   label: option.label,
 }))
 
-export function IntegrationsManager() {
+export function Integrations() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
@@ -254,15 +251,6 @@ export function IntegrationsManager() {
     : false
 
   const isDetailsDirty = isDescriptionDirty || isDisplayNameDirty
-
-  const setNavGuardDirty = useSettingsDirtyStore((s) => s.setDirty)
-  const resetNavGuard = useSettingsDirtyStore((s) => s.reset)
-
-  useEffect(() => {
-    setNavGuardDirty(isDetailsDirty)
-  }, [isDetailsDirty, setNavGuardDirty])
-
-  useEffect(() => () => resetNavGuard(), [resetNavGuard])
 
   const handleSaveDetails = async () => {
     if (!selectedCredential || !isSelectedAdmin || !isDetailsDirty || updateCredential.isPending)
@@ -1195,400 +1183,408 @@ export function IntegrationsManager() {
 
   if (selectedCredential) {
     return (
-      <>
-        <div className='flex h-full flex-col gap-4.5'>
-          <div className='min-h-0 flex-1 overflow-y-auto'>
-            <div className='flex flex-col gap-4.5'>
-              <div className='flex items-center gap-2.5 border-[var(--border)] border-b pb-3'>
-                <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-5)]'>
-                  {selectedOAuthServiceConfig ? (
-                    createElement(selectedOAuthServiceConfig.icon, {
-                      className: 'h-[18px] w-[18px]',
-                    })
-                  ) : (
-                    <span className='font-medium text-[var(--text-tertiary)] text-small'>
-                      {resolveProviderLabel(selectedCredential.providerId).slice(0, 1)}
-                    </span>
-                  )}
-                </div>
-                <div className='min-w-0 flex-1'>
-                  <div className='flex items-center gap-2'>
-                    <p className='truncate font-medium text-[var(--text-primary)] text-base'>
-                      {selectedOAuthServiceConfig?.name ||
-                        resolveProviderLabel(selectedCredential.providerId) ||
-                        'Unknown service'}
-                    </p>
-                    <Badge variant='gray-secondary' size='sm'>
-                      {selectedOAuthServiceConfig?.authType === 'service_account'
-                        ? 'service account'
-                        : 'oauth'}
-                    </Badge>
-                    {selectedCredential.role && (
-                      <Badge variant='gray-secondary' size='sm'>
-                        {selectedCredential.role}
-                      </Badge>
+      <div className='h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex min-h-full max-w-[44rem] flex-col px-6 pt-9 pb-[52px]'>
+          <h2 className='mb-7 font-medium text-[22px] text-[var(--text-primary)]'>Integrations</h2>
+          <div className='flex h-full flex-col gap-4.5'>
+            <div className='min-h-0 flex-1 overflow-y-auto'>
+              <div className='flex flex-col gap-4.5'>
+                <div className='flex items-center gap-2.5 border-[var(--border)] border-b pb-3'>
+                  <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-5)]'>
+                    {selectedOAuthServiceConfig ? (
+                      createElement(selectedOAuthServiceConfig.icon, {
+                        className: 'h-[18px] w-[18px]',
+                      })
+                    ) : (
+                      <span className='font-medium text-[var(--text-tertiary)] text-small'>
+                        {resolveProviderLabel(selectedCredential.providerId).slice(0, 1)}
+                      </span>
                     )}
                   </div>
-                  <p className='text-[var(--text-muted)] text-small'>
-                    {selectedOAuthServiceConfig?.description || 'Connected service'}
-                  </p>
-                </div>
-              </div>
-
-              <div className='flex flex-col gap-1.5'>
-                <Label className='flex items-center gap-1.5'>
-                  Display Name
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        className='-my-1 h-5 w-5 p-0'
-                        onClick={() => {
-                          navigator.clipboard.writeText(selectedCredential.id)
-                          setCopyIdSuccess(true)
-                          setTimeout(() => setCopyIdSuccess(false), 2000)
-                        }}
-                        aria-label='Copy value'
-                      >
-                        {copyIdSuccess ? (
-                          <Check className='h-3 w-3 text-[var(--text-success)]' />
-                        ) : (
-                          <Clipboard className='h-3 w-3 text-[var(--text-icon)]' />
-                        )}
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content>
-                      {copyIdSuccess ? 'Copied!' : 'Copy credential ID'}
-                    </Tooltip.Content>
-                  </Tooltip.Root>
-                </Label>
-                <Input
-                  id='credential-display-name'
-                  value={selectedDisplayNameDraft}
-                  onChange={(event) => setSelectedDisplayNameDraft(event.target.value)}
-                  autoComplete='off'
-                  data-lpignore='true'
-                  disabled={!isSelectedAdmin}
-                />
-              </div>
-
-              <div className='flex flex-col gap-1.5'>
-                <Label>Description</Label>
-                <Textarea
-                  id='credential-description'
-                  value={selectedDescriptionDraft}
-                  onChange={(event) => setSelectedDescriptionDraft(event.target.value)}
-                  placeholder='Add a description...'
-                  maxLength={500}
-                  autoComplete='off'
-                  data-lpignore='true'
-                  disabled={!isSelectedAdmin}
-                  className='min-h-[60px] resize-none'
-                />
-              </div>
-
-              {detailsError && (
-                <div className='rounded-lg border border-[color-mix(in_srgb,var(--text-error)_40%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] px-2.5 py-2 text-[var(--text-error)] text-small'>
-                  {detailsError}
-                </div>
-              )}
-
-              <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
-                <Label>Members ({activeMembers.length})</Label>
-
-                {membersLoading ? (
-                  <div className='flex flex-col gap-2'>
-                    <Skeleton className='h-[44px] w-full rounded-lg' />
-                    <Skeleton className='h-[44px] w-full rounded-lg' />
+                  <div className='min-w-0 flex-1'>
+                    <div className='flex items-center gap-2'>
+                      <p className='truncate font-medium text-[var(--text-primary)] text-base'>
+                        {selectedOAuthServiceConfig?.name ||
+                          resolveProviderLabel(selectedCredential.providerId) ||
+                          'Unknown service'}
+                      </p>
+                      <Badge variant='gray-secondary' size='sm'>
+                        {selectedOAuthServiceConfig?.authType === 'service_account'
+                          ? 'service account'
+                          : 'oauth'}
+                      </Badge>
+                      {selectedCredential.role && (
+                        <Badge variant='gray-secondary' size='sm'>
+                          {selectedCredential.role}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className='text-[var(--text-muted)] text-small'>
+                      {selectedOAuthServiceConfig?.description || 'Connected service'}
+                    </p>
                   </div>
-                ) : (
-                  <div className='flex flex-col gap-2'>
-                    {activeMembers.map((member) => (
-                      <div
-                        key={member.id}
-                        className={cn(
-                          'grid items-center gap-2',
-                          isSelectedAdmin ? 'grid-cols-[1fr_120px_72px]' : 'grid-cols-[1fr_200px]'
-                        )}
-                      >
-                        <div className='flex min-w-0 items-center gap-2.5'>
-                          <Avatar className='h-8 w-8 flex-shrink-0'>
-                            <AvatarFallback
-                              style={{
-                                background: getUserColor(member.userId || member.userEmail || ''),
-                              }}
-                              className='border-0 text-small text-white'
-                            >
-                              {(member.userName || member.userEmail || '?').charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className='min-w-0'>
-                            <p className='truncate font-medium text-[var(--text-primary)] text-small'>
-                              {member.userName || member.userEmail || member.userId}
-                            </p>
-                            <p className='truncate text-[var(--text-tertiary)] text-caption'>
-                              {member.userEmail || member.userId}
-                            </p>
-                          </div>
-                        </div>
+                </div>
 
-                        <Combobox
-                          options={roleComboOptions}
-                          value={
-                            ROLE_OPTIONS.find((option) => option.value === member.role)?.label || ''
-                          }
-                          selectedValue={member.role}
-                          onChange={(value) =>
-                            handleChangeMemberRole(member.userId, value as WorkspaceCredentialRole)
-                          }
-                          placeholder='Role'
-                          disabled={
-                            !isSelectedAdmin || (member.role === 'admin' && adminMemberCount <= 1)
-                          }
-                          size='sm'
-                        />
-                        {isSelectedAdmin && (
+                <div className='flex flex-col gap-1.5'>
+                  <Label className='flex items-center gap-1.5'>
+                    Display Name
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          className='-my-1 h-5 w-5 p-0'
+                          onClick={() => {
+                            navigator.clipboard.writeText(selectedCredential.id)
+                            setCopyIdSuccess(true)
+                            setTimeout(() => setCopyIdSuccess(false), 2000)
+                          }}
+                          aria-label='Copy value'
+                        >
+                          {copyIdSuccess ? (
+                            <Check className='h-3 w-3 text-[var(--text-success)]' />
+                          ) : (
+                            <Clipboard className='h-3 w-3 text-[var(--text-icon)]' />
+                          )}
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        {copyIdSuccess ? 'Copied!' : 'Copy credential ID'}
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  </Label>
+                  <Input
+                    id='credential-display-name'
+                    value={selectedDisplayNameDraft}
+                    onChange={(event) => setSelectedDisplayNameDraft(event.target.value)}
+                    autoComplete='off'
+                    data-lpignore='true'
+                    disabled={!isSelectedAdmin}
+                  />
+                </div>
+
+                <div className='flex flex-col gap-1.5'>
+                  <Label>Description</Label>
+                  <Textarea
+                    id='credential-description'
+                    value={selectedDescriptionDraft}
+                    onChange={(event) => setSelectedDescriptionDraft(event.target.value)}
+                    placeholder='Add a description...'
+                    maxLength={500}
+                    autoComplete='off'
+                    data-lpignore='true'
+                    disabled={!isSelectedAdmin}
+                    className='min-h-[60px] resize-none'
+                  />
+                </div>
+
+                {detailsError && (
+                  <div className='rounded-lg border border-[color-mix(in_srgb,var(--text-error)_40%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] px-2.5 py-2 text-[var(--text-error)] text-small'>
+                    {detailsError}
+                  </div>
+                )}
+
+                <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
+                  <Label>Members ({activeMembers.length})</Label>
+
+                  {membersLoading ? null : (
+                    <div className='flex flex-col gap-2'>
+                      {activeMembers.map((member) => (
+                        <div
+                          key={member.id}
+                          className={cn(
+                            'grid items-center gap-2',
+                            isSelectedAdmin
+                              ? 'grid-cols-[1fr_120px_72px]'
+                              : 'grid-cols-[1fr_200px]'
+                          )}
+                        >
+                          <div className='flex min-w-0 items-center gap-2.5'>
+                            <Avatar className='h-8 w-8 flex-shrink-0'>
+                              <AvatarFallback
+                                style={{
+                                  background: getUserColor(member.userId || member.userEmail || ''),
+                                }}
+                                className='border-0 text-small text-white'
+                              >
+                                {(member.userName || member.userEmail || '?')
+                                  .charAt(0)
+                                  .toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className='min-w-0'>
+                              <p className='truncate font-medium text-[var(--text-primary)] text-small'>
+                                {member.userName || member.userEmail || member.userId}
+                              </p>
+                              <p className='truncate text-[var(--text-tertiary)] text-caption'>
+                                {member.userEmail || member.userId}
+                              </p>
+                            </div>
+                          </div>
+
+                          <Combobox
+                            options={roleComboOptions}
+                            value={
+                              ROLE_OPTIONS.find((option) => option.value === member.role)?.label ||
+                              ''
+                            }
+                            selectedValue={member.role}
+                            onChange={(value) =>
+                              handleChangeMemberRole(
+                                member.userId,
+                                value as WorkspaceCredentialRole
+                              )
+                            }
+                            placeholder='Role'
+                            disabled={
+                              !isSelectedAdmin || (member.role === 'admin' && adminMemberCount <= 1)
+                            }
+                            size='sm'
+                          />
+                          {isSelectedAdmin && (
+                            <Button
+                              variant='ghost'
+                              onClick={() => handleRemoveMember(member.userId)}
+                              disabled={member.role === 'admin' && adminMemberCount <= 1}
+                              className='w-full justify-end'
+                            >
+                              Remove
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                      {isSelectedAdmin && (
+                        <div className='grid grid-cols-[1fr_120px_72px] items-center gap-2 border-[var(--border)] border-t pt-2'>
+                          <Combobox
+                            options={workspaceUserOptions}
+                            value={
+                              workspaceUserOptions.find((option) => option.value === memberUserId)
+                                ?.label || ''
+                            }
+                            selectedValue={memberUserId}
+                            onChange={setMemberUserId}
+                            placeholder='Add member...'
+                            searchable
+                            searchPlaceholder='Search members...'
+                            size='sm'
+                          />
+                          <Combobox
+                            options={roleComboOptions}
+                            value={
+                              ROLE_OPTIONS.find((option) => option.value === memberRole)?.label ||
+                              ''
+                            }
+                            selectedValue={memberRole}
+                            onChange={(value) => setMemberRole(value as WorkspaceCredentialRole)}
+                            placeholder='Role'
+                            size='sm'
+                          />
                           <Button
                             variant='ghost'
-                            onClick={() => handleRemoveMember(member.userId)}
-                            disabled={member.role === 'admin' && adminMemberCount <= 1}
+                            onClick={handleAddMember}
+                            disabled={!memberUserId || upsertMember.isPending}
                             className='w-full justify-end'
                           >
-                            Remove
+                            Add
                           </Button>
-                        )}
-                      </div>
-                    ))}
-                    {isSelectedAdmin && (
-                      <div className='grid grid-cols-[1fr_120px_72px] items-center gap-2 border-[var(--border)] border-t pt-2'>
-                        <Combobox
-                          options={workspaceUserOptions}
-                          value={
-                            workspaceUserOptions.find((option) => option.value === memberUserId)
-                              ?.label || ''
-                          }
-                          selectedValue={memberUserId}
-                          onChange={setMemberUserId}
-                          placeholder='Add member...'
-                          searchable
-                          searchPlaceholder='Search members...'
-                          size='sm'
-                        />
-                        <Combobox
-                          options={roleComboOptions}
-                          value={
-                            ROLE_OPTIONS.find((option) => option.value === memberRole)?.label || ''
-                          }
-                          selectedValue={memberRole}
-                          onChange={(value) => setMemberRole(value as WorkspaceCredentialRole)}
-                          placeholder='Role'
-                          size='sm'
-                        />
-                        <Button
-                          variant='ghost'
-                          onClick={handleAddMember}
-                          disabled={!memberUserId || upsertMember.isPending}
-                          className='w-full justify-end'
-                        >
-                          Add
-                        </Button>
-                      </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className='mt-auto flex items-center justify-between border-[var(--border)] border-t pt-2.5'>
+              <div className='flex items-center gap-2'>
+                {isSelectedAdmin && (
+                  <>
+                    {selectedOAuthServiceConfig?.authType !== 'service_account' && (
+                      <Button
+                        variant='default'
+                        onClick={handleReconnectOAuth}
+                        disabled={connectOAuthService.isPending}
+                      >
+                        {`Reconnect to ${
+                          resolveProviderLabel(selectedCredential.providerId) || 'service'
+                        }`}
+                      </Button>
                     )}
-                  </div>
+                    {(workspaceUserOptions.length > 0 || isSharingWithWorkspace) && (
+                      <Button
+                        variant='default'
+                        onClick={handleShareWithWorkspace}
+                        disabled={isSharingWithWorkspace || workspaceUserOptions.length === 0}
+                      >
+                        <Share2 className='mr-1.5 h-[13px] w-[13px]' />
+                        {isSharingWithWorkspace ? 'Sharing...' : 'Share with workspace'}
+                      </Button>
+                    )}
+                    <Button
+                      variant='ghost'
+                      onClick={() => handleDeleteClick(selectedCredential)}
+                      disabled={disconnectOAuthService.isPending || deleteCredential.isPending}
+                    >
+                      Disconnect
+                    </Button>
+                  </>
+                )}
+              </div>
+              <div className='flex items-center gap-2'>
+                <Button onClick={handleBackAttempt} variant='default'>
+                  Back
+                </Button>
+                {isSelectedAdmin && (
+                  <Button
+                    variant='primary'
+                    onClick={handleSaveDetails}
+                    disabled={!isDetailsDirty || updateCredential.isPending}
+                  >
+                    {updateCredential.isPending ? 'Saving...' : 'Save'}
+                  </Button>
                 )}
               </div>
             </div>
           </div>
 
-          <div className='mt-auto flex items-center justify-between border-[var(--border)] border-t pt-2.5'>
-            <div className='flex items-center gap-2'>
-              {isSelectedAdmin && (
-                <>
-                  {selectedOAuthServiceConfig?.authType !== 'service_account' && (
-                    <Button
-                      variant='default'
-                      onClick={handleReconnectOAuth}
-                      disabled={connectOAuthService.isPending}
-                    >
-                      {`Reconnect to ${
-                        resolveProviderLabel(selectedCredential.providerId) || 'service'
-                      }`}
-                    </Button>
-                  )}
-                  {(workspaceUserOptions.length > 0 || isSharingWithWorkspace) && (
-                    <Button
-                      variant='default'
-                      onClick={handleShareWithWorkspace}
-                      disabled={isSharingWithWorkspace || workspaceUserOptions.length === 0}
-                    >
-                      <Share2 className='mr-1.5 h-[13px] w-[13px]' />
-                      {isSharingWithWorkspace ? 'Sharing...' : 'Share with workspace'}
-                    </Button>
-                  )}
-                  <Button
-                    variant='ghost'
-                    onClick={() => handleDeleteClick(selectedCredential)}
-                    disabled={disconnectOAuthService.isPending || deleteCredential.isPending}
+          {createModalJsx}
+          {deleteConfirmDialogJsx}
+          {unsavedChangesAlertJsx}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className='h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable_both-edges]'>
+      <div className='mx-auto flex min-h-full max-w-[44rem] flex-col px-6 pt-9 pb-[52px]'>
+        <h2 className='mb-7 font-medium text-[22px] text-[var(--text-primary)]'>Integrations</h2>
+        <div className='flex h-full flex-col gap-4.5'>
+          <div className='flex items-center gap-2'>
+            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+              <Search
+                className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+                strokeWidth={2}
+              />
+              <UiInput
+                placeholder='Search integrations...'
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                disabled={credentialsLoading}
+                className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              />
+            </div>
+            <Button
+              onClick={() => setShowCreateModal(true)}
+              disabled={credentialsLoading}
+              variant='primary'
+            >
+              <Plus className='mr-1.5 h-[13px] w-[13px]' />
+              Connect
+            </Button>
+          </div>
+
+          <div className='min-h-0 flex-1 overflow-y-auto'>
+            {credentialsLoading ? null : (
+              <div className='flex flex-col gap-2'>
+                {sortedCredentials.map((credential) => {
+                  const serviceConfig = credential.providerId
+                    ? getServiceConfigByProviderId(credential.providerId)
+                    : null
+                  return (
+                    <div key={credential.id} className='flex items-center justify-between gap-3'>
+                      <div className='flex min-w-0 items-center gap-2.5'>
+                        {serviceConfig && (
+                          <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-5)]'>
+                            {createElement(serviceConfig.icon, { className: 'h-4 w-4' })}
+                          </div>
+                        )}
+                        <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                          <span className='truncate font-medium text-base'>
+                            {credential.displayName}
+                          </span>
+                          <p className='truncate text-[var(--text-muted)] text-sm'>
+                            {credential.description || resolveProviderLabel(credential.providerId)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className='flex flex-shrink-0 items-center gap-1'>
+                        <Button
+                          variant='default'
+                          onClick={() => handleSelectCredential(credential)}
+                        >
+                          Details
+                        </Button>
+                        {credential.role === 'admin' && (
+                          <Button
+                            variant='ghost'
+                            onClick={() => handleDeleteClick(credential)}
+                            disabled={
+                              credential.type === 'service_account'
+                                ? deleteCredential.isPending
+                                : disconnectOAuthService.isPending
+                            }
+                          >
+                            Disconnect
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {showNoResults && (
+                  <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                    No integrations found matching &ldquo;{searchTerm}&rdquo;
+                  </div>
+                )}
+
+                {filteredAvailableIntegrations.length > 0 && (
+                  <div
+                    className={cn(
+                      'flex flex-col gap-2',
+                      (hasCredentials || showNoResults) &&
+                        'mt-2 border-[var(--border)] border-t pt-4'
+                    )}
                   >
-                    Disconnect
-                  </Button>
-                </>
-              )}
-            </div>
-            <div className='flex items-center gap-2'>
-              <Button onClick={handleBackAttempt} variant='default'>
-                Back
-              </Button>
-              {isSelectedAdmin && (
-                <Button
-                  variant='primary'
-                  onClick={handleSaveDetails}
-                  disabled={!isDetailsDirty || updateCredential.isPending}
-                >
-                  {updateCredential.isPending ? 'Saving...' : 'Save'}
-                </Button>
-              )}
-            </div>
+                    <p className='mb-1 font-medium text-[12px] text-[var(--text-muted)]'>
+                      Available integrations
+                    </p>
+                    {filteredAvailableIntegrations.map((service) => {
+                      const serviceConfig = getServiceConfigByProviderId(service.providerId)
+                      const isConnected = connectedProviderIds.has(service.providerId)
+                      return (
+                        <div
+                          key={service.providerId}
+                          className='flex items-center justify-between gap-3'
+                        >
+                          <div className='flex min-w-0 items-center gap-2.5'>
+                            {serviceConfig && (
+                              <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                                {createElement(serviceConfig.icon, { className: 'h-4 w-4' })}
+                              </div>
+                            )}
+                            <span className='truncate font-medium text-[15px]'>{service.name}</span>
+                          </div>
+                          <Button
+                            variant='default'
+                            onClick={() => handleAddForProvider(service.providerId)}
+                          >
+                            {isConnected ? 'Add account' : 'Connect'}
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
         {createModalJsx}
         {deleteConfirmDialogJsx}
-        {unsavedChangesAlertJsx}
-      </>
-    )
-  }
-
-  return (
-    <>
-      <div className='flex h-full flex-col gap-4.5'>
-        <div className='flex items-center gap-2'>
-          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-            <Search
-              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-              strokeWidth={2}
-            />
-            <UiInput
-              placeholder='Search integrations...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              disabled={credentialsLoading}
-              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-            />
-          </div>
-          <Button
-            onClick={() => setShowCreateModal(true)}
-            disabled={credentialsLoading}
-            variant='primary'
-          >
-            <Plus className='mr-1.5 h-[13px] w-[13px]' />
-            Connect
-          </Button>
-        </div>
-
-        <div className='min-h-0 flex-1 overflow-y-auto'>
-          {credentialsLoading ? (
-            <div className='flex flex-col gap-2'>
-              <CredentialSkeleton />
-              <CredentialSkeleton />
-              <CredentialSkeleton />
-            </div>
-          ) : (
-            <div className='flex flex-col gap-2'>
-              {sortedCredentials.map((credential) => {
-                const serviceConfig = credential.providerId
-                  ? getServiceConfigByProviderId(credential.providerId)
-                  : null
-                return (
-                  <div key={credential.id} className='flex items-center justify-between gap-3'>
-                    <div className='flex min-w-0 items-center gap-2.5'>
-                      {serviceConfig && (
-                        <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-5)]'>
-                          {createElement(serviceConfig.icon, { className: 'h-4 w-4' })}
-                        </div>
-                      )}
-                      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                        <span className='truncate font-medium text-base'>
-                          {credential.displayName}
-                        </span>
-                        <p className='truncate text-[var(--text-muted)] text-sm'>
-                          {credential.description || resolveProviderLabel(credential.providerId)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className='flex flex-shrink-0 items-center gap-1'>
-                      {credential.role === 'admin' && (
-                        <Button
-                          variant='ghost'
-                          onClick={() => handleDeleteClick(credential)}
-                          disabled={
-                            credential.type === 'service_account'
-                              ? deleteCredential.isPending
-                              : disconnectOAuthService.isPending
-                          }
-                        >
-                          Disconnect
-                        </Button>
-                      )}
-                      <Button variant='default' onClick={() => handleSelectCredential(credential)}>
-                        Details
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })}
-
-              {showNoResults && (
-                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                  No integrations found matching &ldquo;{searchTerm}&rdquo;
-                </div>
-              )}
-
-              {filteredAvailableIntegrations.length > 0 && (
-                <div
-                  className={cn(
-                    'flex flex-col gap-2',
-                    (hasCredentials || showNoResults) && 'mt-2 border-[var(--border)] border-t pt-4'
-                  )}
-                >
-                  <p className='mb-1 font-medium text-[12px] text-[var(--text-muted)]'>
-                    Available integrations
-                  </p>
-                  {filteredAvailableIntegrations.map((service) => {
-                    const serviceConfig = getServiceConfigByProviderId(service.providerId)
-                    const isConnected = connectedProviderIds.has(service.providerId)
-                    return (
-                      <div
-                        key={service.providerId}
-                        className='flex items-center justify-between gap-3'
-                      >
-                        <div className='flex min-w-0 items-center gap-2.5'>
-                          {serviceConfig && (
-                            <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
-                              {createElement(serviceConfig.icon, { className: 'h-4 w-4' })}
-                            </div>
-                          )}
-                          <span className='truncate font-medium text-[15px]'>{service.name}</span>
-                        </div>
-                        <Button
-                          variant='default'
-                          onClick={() => handleAddForProvider(service.providerId)}
-                        >
-                          {isConnected ? 'Add account' : 'Connect'}
-                        </Button>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
       </div>
-
-      {createModalJsx}
-      {deleteConfirmDialogJsx}
-    </>
+    </div>
   )
 }

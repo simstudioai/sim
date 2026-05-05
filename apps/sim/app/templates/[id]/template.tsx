@@ -19,11 +19,11 @@ import 'streamdown/styles.css'
 import {
   Breadcrumb,
   Button,
-  Copy,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  Duplicate,
   Popover,
   PopoverContent,
   PopoverItem,
@@ -726,7 +726,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                 </PopoverTrigger>
                 <PopoverContent align='end' side='bottom' sideOffset={8}>
                   <PopoverItem onClick={handleCopyLink}>
-                    <Copy className='h-3 w-3' />
+                    <Duplicate className='h-3 w-3' />
                     <span>Copy link</span>
                   </PopoverItem>
                   <PopoverItem onClick={handleShareToTwitter}>

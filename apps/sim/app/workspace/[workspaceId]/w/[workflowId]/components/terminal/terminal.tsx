@@ -4,16 +4,7 @@ import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
 import clsx from 'clsx'
-import {
-  ArrowDown,
-  ArrowDownToLine,
-  ArrowUp,
-  Database,
-  MoreHorizontal,
-  Palette,
-  Pause,
-  Trash2,
-} from 'lucide-react'
+import { ArrowDown, ArrowUp, Database, MoreHorizontal, Palette, Pause, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { List, type RowComponentProps, useListRef } from 'react-window'
 import {
@@ -24,6 +15,7 @@ import {
   PopoverItem,
   PopoverTrigger,
   Tooltip,
+  Upload,
 } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -1390,14 +1382,14 @@ export const Terminal = memo(function Terminal() {
                           <Button
                             variant='ghost'
                             onClick={handleExportConsole}
-                            aria-label='Download console CSV'
+                            aria-label='Export console CSV'
                             className='!p-1.5 -m-1.5'
                           >
-                            <ArrowDownToLine className='h-3.5 w-3.5' />
+                            <Upload className='h-3.5 w-3.5' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
-                          <span>Download CSV</span>
+                          <span>Export CSV</span>
                         </Tooltip.Content>
                       </Tooltip.Root>
                       <Tooltip.Root>

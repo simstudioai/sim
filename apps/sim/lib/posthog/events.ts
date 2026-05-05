@@ -427,19 +427,6 @@ export interface PostHogEventMap {
     is_new_task: boolean
   }
 
-  tour_started: {
-    tour_type: 'nav' | 'workflow'
-  }
-
-  tour_completed: {
-    tour_type: 'nav' | 'workflow'
-  }
-
-  tour_skipped: {
-    tour_type: 'nav' | 'workflow'
-    step_index: number
-  }
-
   docs_opened: {
     source: 'help_menu' | 'editor_button' | 'toolbar_context_menu'
     block_type?: string

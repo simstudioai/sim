@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Badge, Button, Input as EmcnInput, Label, Skeleton, Switch } from '@/components/emcn'
+import { Badge, Button, Input as EmcnInput, Label, Switch } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -196,14 +196,6 @@ export function Admin() {
                 ?.message ||
               'Action failed. Please try again.'}
           </p>
-        )}
-
-        {usersLoading && !usersData && (
-          <div className='flex flex-col gap-2'>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className='h-[48px] w-full rounded-md' />
-            ))}
-          </div>
         )}
 
         {searchQuery.length > 0 && usersData && (

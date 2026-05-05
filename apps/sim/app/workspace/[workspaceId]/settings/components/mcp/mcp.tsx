@@ -42,7 +42,7 @@ import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-import { McpServerFormModal, McpServerSkeleton } from './components'
+import { McpServerFormModal } from './components'
 
 const logger = createLogger('McpSettings')
 
@@ -630,13 +630,7 @@ export function MCP({ initialServerId }: MCPProps) {
                 {error instanceof Error ? error.message : 'Failed to load MCP servers'}
               </p>
             </div>
-          ) : serversLoading ? (
-            <div className='flex flex-col gap-2'>
-              <McpServerSkeleton />
-              <McpServerSkeleton />
-              <McpServerSkeleton />
-            </div>
-          ) : !hasServers ? (
+          ) : serversLoading ? null : !hasServers ? (
             <div className='flex h-full items-center justify-center'>
               <p className='text-[var(--text-muted)] text-sm'>Click "Add" above to get started</p>
             </div>

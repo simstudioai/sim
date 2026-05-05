@@ -9,8 +9,8 @@ import { TemplateCardButton } from '@/app/(landing)/integrations/(shell)/[slug]/
 import { IntegrationIcon } from '@/app/(landing)/integrations/components/integration-icon'
 import { blockTypeToIconMap } from '@/app/(landing)/integrations/data/icon-mapping'
 import integrations from '@/app/(landing)/integrations/data/integrations.json'
+import { TEMPLATES } from '@/app/(landing)/integrations/data/templates'
 import type { AuthType, FAQItem, Integration } from '@/app/(landing)/integrations/data/types'
-import { TEMPLATES } from '@/app/workspace/[workspaceId]/home/components/template-prompts/consts'
 
 const allIntegrations = integrations as Integration[]
 const INTEGRATION_COUNT = allIntegrations.length

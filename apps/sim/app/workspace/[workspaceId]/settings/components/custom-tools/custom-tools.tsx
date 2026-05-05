@@ -6,7 +6,6 @@ import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { Input } from '@/components/ui'
-import { CustomToolSkeleton } from '@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tool-skeleton'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
 
@@ -114,13 +113,7 @@ export function CustomTools() {
                 {error instanceof Error ? error.message : 'Failed to load tools'}
               </p>
             </div>
-          ) : isLoading ? (
-            <div className='flex flex-col gap-2'>
-              <CustomToolSkeleton />
-              <CustomToolSkeleton />
-              <CustomToolSkeleton />
-            </div>
-          ) : showEmptyState ? (
+          ) : isLoading ? null : showEmptyState ? (
             <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
               Click "Add" above to get started
             </div>

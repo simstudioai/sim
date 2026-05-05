@@ -11,10 +11,10 @@ import {
   Combobox,
   type ComboboxOption,
   DatePicker,
-  Download,
   Library,
   RefreshCw,
   toast,
+  Upload,
 } from '@/components/emcn'
 import type {
   WorkflowLogDetail,
@@ -1106,7 +1106,7 @@ export default function Logs() {
     () => [
       {
         label: 'Export',
-        icon: Download,
+        icon: Upload,
         onClick: handleExport,
         disabled: !userPermissions.canEdit || isExporting || logs.length === 0,
       },

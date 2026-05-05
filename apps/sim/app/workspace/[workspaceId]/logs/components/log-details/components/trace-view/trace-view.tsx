@@ -19,12 +19,12 @@ import {
   Button,
   ChevronDown,
   Code,
-  Copy as CopyIcon,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Duplicate,
   Input,
   Search as SearchIcon,
   Tooltip,
@@ -606,7 +606,7 @@ function DetailCodeSection({
                   onCloseAutoFocus={(e) => e.preventDefault()}
                 >
                   <DropdownMenuItem onSelect={handleCopy}>
-                    <CopyIcon />
+                    <Duplicate />
                     Copy
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />

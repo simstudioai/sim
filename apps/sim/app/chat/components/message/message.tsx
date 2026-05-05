@@ -1,8 +1,8 @@
 'use client'
 
 import { memo, useState } from 'react'
-import { Check, Copy, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
-import { Tooltip } from '@/components/emcn'
+import { Check, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
+import { Duplicate, Tooltip } from '@/components/emcn'
 import {
   ChatFileDownload,
   ChatFileDownloadAll,
@@ -214,7 +214,7 @@ export const ClientChatMessage = memo(
                           {isCopied ? (
                             <Check className='h-3 w-3' strokeWidth={2} />
                           ) : (
-                            <Copy className='h-3 w-3' strokeWidth={2} />
+                            <Duplicate className='h-3 w-3' />
                           )}
                         </button>
                       </Tooltip.Trigger>

@@ -179,7 +179,7 @@ type UpdateWorkspaceParams = { workspaceId: string } & Pick<
 >
 
 /**
- * Updates a workspace's properties (name, color, etc.).
+ * Updates a workspace's properties (name, logo, etc.).
  * Invalidates both the workspace list and the specific workspace detail cache.
  */
 export function useUpdateWorkspace() {

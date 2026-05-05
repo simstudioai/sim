@@ -1,6 +1,6 @@
 import { memo, useCallback } from 'react'
 import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Lock, LogOut, Unlock } from 'lucide-react'
-import { Button, Copy, PlayOutline, Tooltip, Trash2 } from '@/components/emcn'
+import { Button, Duplicate, PlayOutline, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -275,7 +275,7 @@ export const ActionBar = memo(
                 className={ACTION_BUTTON_STYLES}
                 disabled={disabled || isLocked || isParentLocked}
               >
-                <Copy className={ICON_SIZE} />
+                <Duplicate className={ICON_SIZE} />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
