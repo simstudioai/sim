@@ -238,7 +238,7 @@ export async function buildCopilotRequestPayload(
       const filename = (f.filename ?? f.name ?? 'file') as string
       const mediaType = (f.media_type ?? f.mimeType ?? 'application/octet-stream') as string
       try {
-        await trackChatUpload(
+        const { displayName } = await trackChatUpload(
           params.workspaceId,
           userId,
           chatId,
@@ -248,13 +248,13 @@ export async function buildCopilotRequestPayload(
           f.size
         )
         const lines = [
-          `File "${filename}" (${mediaType}, ${f.size} bytes) uploaded.`,
-          `Read with: read("uploads/${filename}")`,
-          `To save permanently: materialize_file(fileName: "${filename}")`,
+          `File "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
+          `Read with: read("uploads/${displayName}")`,
+          `To save permanently: materialize_file(fileName: "${displayName}")`,
         ]
-        if (filename.endsWith('.json')) {
+        if (displayName.endsWith('.json')) {
           lines.push(
-            `To import as a workflow: materialize_file(fileName: "${filename}", operation: "import")`
+            `To import as a workflow: materialize_file(fileName: "${displayName}", operation: "import")`
           )
         }
         uploadContexts.push({

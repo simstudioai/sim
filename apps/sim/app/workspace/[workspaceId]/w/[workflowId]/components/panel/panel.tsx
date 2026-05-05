@@ -346,6 +346,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     removeFromQueue: copilotRemoveFromQueue,
     sendNow: copilotSendNow,
     editQueuedMessage: copilotEditQueuedMessage,
+    getCurrentRequestId: getCopilotCurrentRequestId,
   } = useChat(
     workspaceId,
     copilotChatId,
@@ -353,6 +354,14 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       workflowId: activeWorkflowId || undefined,
       onTitleUpdate: loadCopilotChats,
       onToolResult: handleCopilotToolResult,
+      onRequestStarted: ({ requestId, userMessageId }) => {
+        captureEvent(posthogRef.current, 'task_request_started', {
+          workspace_id: workspaceId,
+          view: 'copilot',
+          request_id: requestId,
+          user_message_id: userMessageId,
+        })
+      },
     })
   )
 
@@ -413,9 +422,10 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     captureEvent(posthogRef.current, 'task_generation_aborted', {
       workspace_id: workspaceId,
       view: 'copilot',
+      request_id: getCopilotCurrentRequestId(),
     })
     copilotStopGeneration()
-  }, [copilotStopGeneration, workspaceId])
+  }, [copilotStopGeneration, getCopilotCurrentRequestId, workspaceId])
 
   const handleCopilotSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
