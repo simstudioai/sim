@@ -1360,7 +1360,10 @@ export function useChat(
   const onRequestStartedRef = useRef(options?.onRequestStarted)
   onRequestStartedRef.current = options?.onRequestStarted
 
-  const getCurrentRequestId = useCallback(() => streamRequestIdRef.current, [])
+  const getCurrentRequestId = useCallback(() => {
+    const traceId = streamTraceparentRef.current?.split('-')[1] ?? ''
+    return /^[0-9a-f]{32}$/.test(traceId) ? traceId : undefined
+  }, [])
 
   const clearQueueDispatchState = useCallback(() => {
     queueDispatchEpochRef.current++

@@ -71,13 +71,14 @@ export function captureServerEvent<E extends PostHogEventName>(
     const client = getClient()
     if (!client) return
 
-    const requestId = getRequestContext()?.requestId
+    const contextRequestId = getRequestContext()?.requestId
+    const props = properties as Record<string, unknown>
     client.capture({
       distinctId,
       event,
       properties: {
-        ...(requestId ? { request_id: requestId } : {}),
         ...properties,
+        ...(contextRequestId && !('request_id' in props) ? { request_id: contextRequestId } : {}),
         ...(options?.groups ? { $groups: options.groups } : {}),
         ...(options?.set ? { $set: options.set } : {}),
         ...(options?.setOnce ? { $set_once: options.setOnce } : {}),
