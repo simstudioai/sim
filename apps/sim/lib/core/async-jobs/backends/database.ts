@@ -90,7 +90,14 @@ export class DatabaseJobQueue implements JobQueueBackend {
 
     logger.debug('Enqueued job', { jobId, type })
     if (options?.runner) {
-      this.runInline(type, jobId, payload, options.runner, options.concurrencyKey, options.concurrencyLimit)
+      this.runInline(
+        type,
+        jobId,
+        payload,
+        options.runner,
+        options.concurrencyKey,
+        options.concurrencyLimit
+      )
     }
     return jobId
   }

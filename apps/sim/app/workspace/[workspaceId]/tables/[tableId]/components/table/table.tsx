@@ -76,13 +76,10 @@ import {
   ColumnConfigSidebar,
 } from '../column-config-sidebar/column-config-sidebar'
 import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar/column-types'
-import {
-  type WorkflowConfig,
-  WorkflowSidebar,
-} from '../workflow-sidebar/workflow-sidebar'
 import { ContextMenu } from '../context-menu'
 import { RowModal } from '../row-modal'
 import { TableFilter } from '../table-filter'
+import { type WorkflowConfig, WorkflowSidebar } from '../workflow-sidebar/workflow-sidebar'
 import { CellContent } from './cells/cell-content'
 import { ExpandedCellPopover } from './cells/expanded-cell-popover'
 import { COL_WIDTH, SELECTION_TINT_BG } from './constants'
@@ -273,11 +270,7 @@ export function Table({
 
   const handleViewWorkflow = useCallback(
     (workflowId: string) => {
-      window.open(
-        `/workspace/${workspaceId}/w/${workflowId}`,
-        '_blank',
-        'noopener,noreferrer'
-      )
+      window.open(`/workspace/${workspaceId}/w/${workflowId}`, '_blank', 'noopener,noreferrer')
     },
     [workspaceId]
   )
@@ -2204,11 +2197,7 @@ export function Table({
    */
   const logPanelWidth = useLogDetailsUIStore((state) => state.panelWidth)
   const sidebarReservedPx =
-    columnConfig || workflowConfig
-      ? COLUMN_SIDEBAR_WIDTH
-      : executionDetailsId
-        ? logPanelWidth
-        : 0
+    columnConfig || workflowConfig ? COLUMN_SIDEBAR_WIDTH : executionDetailsId ? logPanelWidth : 0
 
   /** Open one of the two sidebars. The helpers enforce the "only one open" invariant. */
   const openColumnConfig = useCallback((cfg: ColumnConfig) => {
@@ -2490,12 +2479,12 @@ export function Table({
         label: tableData?.name ?? '',
         editing: tableHeaderRename.editingId
           ? {
-            isEditing: true,
-            value: tableHeaderRename.editValue,
-            onChange: tableHeaderRename.setEditValue,
-            onSubmit: tableHeaderRename.submitRename,
-            onCancel: tableHeaderRename.cancelRename,
-          }
+              isEditing: true,
+              value: tableHeaderRename.editValue,
+              onChange: tableHeaderRename.setEditValue,
+              onSubmit: tableHeaderRename.submitRename,
+              onCancel: tableHeaderRename.cancelRename,
+            }
           : undefined,
         dropdownItems: [
           {
@@ -2550,19 +2539,19 @@ export function Table({
     () =>
       tableData
         ? [
-          {
-            label: 'Import CSV',
-            icon: Upload,
-            onClick: () => setIsImportCsvOpen(true),
-            disabled: userPermissions.canEdit !== true,
-          },
-          {
-            label: 'Export CSV',
-            icon: Download,
-            onClick: () => void handleExportCsv(),
-            disabled: tableData.rowCount === 0,
-          },
-        ]
+            {
+              label: 'Import CSV',
+              icon: Upload,
+              onClick: () => setIsImportCsvOpen(true),
+              disabled: userPermissions.canEdit !== true,
+            },
+            {
+              label: 'Export CSV',
+              icon: Download,
+              onClick: () => void handleExportCsv(),
+              disabled: tableData.rowCount === 0,
+            },
+          ]
         : undefined,
     [tableData, userPermissions.canEdit, handleExportCsv]
   )

@@ -423,9 +423,7 @@ export function WorkflowGroupMetaCell({
           onDeleteGroup={onDeleteGroup ? () => onDeleteGroup(groupId) : undefined}
           onRunGroupAll={onRunGroup ? handleRunAll : undefined}
           onRunGroupIncomplete={onRunGroup ? handleRunIncomplete : undefined}
-          onRunGroupSelected={
-            onRunGroup && selectedCount > 0 ? handleRunSelected : undefined
-          }
+          onRunGroupSelected={onRunGroup && selectedCount > 0 ? handleRunSelected : undefined}
           selectedRowCount={selectedCount}
           onViewWorkflow={onViewWorkflow ? () => onViewWorkflow(workflowId) : undefined}
         />

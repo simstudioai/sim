@@ -17,7 +17,6 @@ import {
 import { toast } from '@/components/emcn'
 import { isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import { optimisticallyScheduleNewlyEligibleGroups } from '@/lib/table/deps'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
   type AddWorkflowGroupBodyInput,
@@ -69,6 +68,7 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
 } from '@/lib/table'
+import { optimisticallyScheduleNewlyEligibleGroups } from '@/lib/table/deps'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 
 /** Short poll to surface running → completed transitions from the server without a dedicated realtime channel. */
@@ -1311,6 +1311,7 @@ interface UpdateWorkflowGroupVariables {
   outputs?: WorkflowGroupOutput[]
   newOutputColumns?: UpdateWorkflowGroupBodyInput['newOutputColumns']
   mappingUpdates?: UpdateWorkflowGroupBodyInput['mappingUpdates']
+  autoRun?: boolean
 }
 
 export function useUpdateWorkflowGroup({ workspaceId, tableId }: RowMutationContext) {

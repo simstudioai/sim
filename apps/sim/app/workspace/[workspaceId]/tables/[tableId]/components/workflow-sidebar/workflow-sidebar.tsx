@@ -14,8 +14,9 @@ import {
   Input,
   Label,
   Loader,
-  toast,
+  Switch,
   Tooltip,
+  toast,
 } from '@/components/emcn'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -132,13 +133,7 @@ function tableColumnTypeToInputType(colType: ColumnDefinition['type'] | undefine
   }
 }
 
-function RequiredLabel({
-  htmlFor,
-  children,
-}: {
-  htmlFor?: string
-  children: React.ReactNode
-}) {
+function RequiredLabel({ htmlFor, children }: { htmlFor?: string; children: React.ReactNode }) {
   return (
     <Label htmlFor={htmlFor} className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>
       {children}
@@ -312,6 +307,13 @@ function WorkflowSidebarBody({
 
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>(
     () => existingGroup?.workflowId ?? ''
+  )
+  // For existing groups, treat a missing `autoRun` field as `true` (pre-feature
+  // groups all ran automatically and shouldn't silently flip to manual when
+  // the user just opens the sidebar). For brand-new groups, default to `false`
+  // so the user opts in to auto-run explicitly.
+  const [autoRun, setAutoRun] = useState<boolean>(() =>
+    existingGroup ? existingGroup.autoRun !== false : false
   )
   const [deps, setDeps] = useState<string[]>(() =>
     existingGroup ? seededDepsFromGroup(existingGroup).cols : defaultScalarDeps
@@ -657,6 +659,7 @@ function WorkflowSidebarBody({
             dependencies,
             outputs: fullOutputs,
             ...(newOutputColumns.length > 0 ? { newOutputColumns } : {}),
+            autoRun,
           })
           toast.success(`Saved "${existingGroup.name ?? 'Workflow'}"`)
         }
@@ -678,14 +681,14 @@ function WorkflowSidebarBody({
           })
           groupOutputs.push({ blockId: o.blockId, path: o.path, columnName: colName })
         }
-        const workflowName =
-          workflows?.find((w) => w.id === selectedWorkflowId)?.name ?? 'Workflow'
+        const workflowName = workflows?.find((w) => w.id === selectedWorkflowId)?.name ?? 'Workflow'
         const group: WorkflowGroup = {
           id: groupId,
           workflowId: selectedWorkflowId,
           name: workflowName,
           dependencies,
           outputs: groupOutputs,
+          autoRun,
         }
         await addWorkflowGroup.mutateAsync({ group, outputColumns: newOutputColumns })
         toast.success(`Added "${workflowName}"`)
@@ -721,7 +724,9 @@ function WorkflowSidebarBody({
   return (
     <div className='flex h-full flex-col'>
       <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2'>
-        <h2 className='font-medium text-[var(--text-primary)] text-small'>{titleByMode[config.mode]}</h2>
+        <h2 className='font-medium text-[var(--text-primary)] text-small'>
+          {titleByMode[config.mode]}
+        </h2>
         <Button
           variant='ghost'
           size='sm'
@@ -904,15 +909,28 @@ function WorkflowSidebarBody({
         {!isEditOutputMode && (
           <>
             <FieldDivider />
-            <RunSettingsSection
-              scalarDepColumns={scalarDepColumns}
-              groupDepOptions={groupDepOptions}
-              deps={deps}
-              groupDeps={groupDeps}
-              workflows={workflows}
-              onChangeDeps={setDeps}
-              onChangeGroupDeps={setGroupDeps}
-            />
+            <div className='flex items-center justify-between pl-0.5'>
+              <Label htmlFor='workflow-sidebar-auto-run'>Auto-run workflow</Label>
+              <Switch
+                id='workflow-sidebar-auto-run'
+                checked={autoRun}
+                onCheckedChange={(v) => setAutoRun(!!v)}
+              />
+            </div>
+            {autoRun && (
+              <>
+                <FieldDivider />
+                <RunSettingsSection
+                  scalarDepColumns={scalarDepColumns}
+                  groupDepOptions={groupDepOptions}
+                  deps={deps}
+                  groupDeps={groupDeps}
+                  workflows={workflows}
+                  onChangeDeps={setDeps}
+                  onChangeGroupDeps={setGroupDeps}
+                />
+              </>
+            )}
           </>
         )}
       </div>

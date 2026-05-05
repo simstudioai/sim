@@ -149,8 +149,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       // Workflow-output columns drag as a whole group, so the ghost shows
       // the group's name (falling back to the workflow's name, then the
       // column slug) rather than the individual column slug.
-      const ghostLabel =
-        ownGroup?.name ?? configuredWorkflow?.name ?? column.name
+      const ghostLabel = ownGroup?.name ?? configuredWorkflow?.name ?? column.name
 
       const ghost = document.createElement('div')
       ghost.textContent = ghostLabel

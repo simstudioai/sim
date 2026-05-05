@@ -2869,6 +2869,7 @@ export async function updateWorkflowGroup(
     name: data.name ?? group.name,
     dependencies: data.dependencies ?? group.dependencies,
     outputs: newOutputs,
+    ...(data.autoRun !== undefined ? { autoRun: data.autoRun } : {}),
   }
   const nextGroups = groups.map((g, i) => (i === groupIndex ? updatedGroup : g))
   const updatedSchema: TableSchema = {

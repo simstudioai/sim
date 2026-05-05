@@ -744,6 +744,11 @@ export const addWorkflowGroupBodySchema = z.object({
     name: z.string().optional(),
     dependencies: workflowGroupDependenciesSchema.optional(),
     outputs: z.array(workflowGroupOutputSchema).min(1),
+    /** When `false`, the group never auto-fires from the scheduler — it can
+     *  only be triggered manually. Defaults to `true`. Persisted on the
+     *  group; distinct from the top-level `autoRun` below which is a
+     *  one-shot "schedule existing rows on creation" flag. */
+    autoRun: z.boolean().optional(),
   }),
   outputColumns: z.array(workflowGroupOutputColumnSchema).min(1),
   /** When false, skip auto-scheduling existing rows after the group is added.
@@ -780,6 +785,8 @@ export const updateWorkflowGroupBodySchema = z.object({
    * `columnName` must already exist in the group's outputs.
    */
   mappingUpdates: z.array(workflowGroupMappingUpdateSchema).optional(),
+  /** Toggle the group's persisted auto-run flag. Omit to leave unchanged. */
+  autoRun: z.boolean().optional(),
 })
 
 export const deleteWorkflowGroupBodySchema = z.object({

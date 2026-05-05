@@ -58,11 +58,7 @@ export function ColumnConfigSidebar(props: ColumnConfigSidebarProps) {
       )}
     >
       {props.config && (
-        <ColumnConfigBody
-          key={configKey(props.config)}
-          {...props}
-          config={props.config}
-        />
+        <ColumnConfigBody key={configKey(props.config)} {...props} config={props.config} />
       )}
     </aside>
   )
@@ -229,13 +225,7 @@ function ColumnConfigBody({
   )
 }
 
-function RequiredLabel({
-  htmlFor,
-  children,
-}: {
-  htmlFor?: string
-  children: React.ReactNode
-}) {
+function RequiredLabel({ htmlFor, children }: { htmlFor?: string; children: React.ReactNode }) {
   return (
     <Label htmlFor={htmlFor} className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>
       {children}

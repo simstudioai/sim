@@ -137,16 +137,32 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
 
     case 'block-error':
     case 'error':
-      return <Wrap isEditing={isEditing}><StatusBadge status='error' /></Wrap>
+      return (
+        <Wrap isEditing={isEditing}>
+          <StatusBadge status='error' />
+        </Wrap>
+      )
 
     case 'running':
-      return <Wrap isEditing={isEditing}><StatusBadge status='running' /></Wrap>
+      return (
+        <Wrap isEditing={isEditing}>
+          <StatusBadge status='running' />
+        </Wrap>
+      )
 
     case 'pending-upstream':
-      return <Wrap isEditing={isEditing}><StatusBadge status='pending' /></Wrap>
+      return (
+        <Wrap isEditing={isEditing}>
+          <StatusBadge status='pending' />
+        </Wrap>
+      )
 
     case 'cancelled':
-      return <Wrap isEditing={isEditing}><StatusBadge status='cancelled' /></Wrap>
+      return (
+        <Wrap isEditing={isEditing}>
+          <StatusBadge status='cancelled' />
+        </Wrap>
+      )
 
     case 'queued':
       return (

@@ -44,9 +44,7 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
     const { findCellContextByExecutionId } = await import('@/lib/table/workflow-columns')
     const cellContext = await findCellContextByExecutionId(parentExecutionId)
 
-    let cellOnBlockComplete:
-      | ((blockId: string, output: unknown) => Promise<void>)
-      | undefined
+    let cellOnBlockComplete: ((blockId: string, output: unknown) => Promise<void>) | undefined
     let writeCellTerminal:
       | ((status: 'completed' | 'error' | 'paused', error: string | null) => Promise<void>)
       | undefined
@@ -154,11 +152,14 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
           })
         }
       } else {
-        logger.warn('Cell context found but table or group missing — falling back to plain resume', {
-          parentExecutionId,
-          tableId: cellContext.tableId,
-          groupId: cellContext.groupId,
-        })
+        logger.warn(
+          'Cell context found but table or group missing — falling back to plain resume',
+          {
+            parentExecutionId,
+            tableId: cellContext.tableId,
+            groupId: cellContext.groupId,
+          }
+        )
       }
     }
 

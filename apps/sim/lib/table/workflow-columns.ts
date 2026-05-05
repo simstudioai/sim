@@ -36,13 +36,19 @@ export {
 } from './deps'
 
 /**
- * Per-(row, group) eligibility: returns true if a cell job should be enqueued
- * for this pair right now. Skip when the group is in flight (`queued`,
- * `running`, or `pending` with a `jobId` already stamped) or in a terminal
- * state. Plain `pending` without a jobId is the "ready to dispatch" state —
- * the run route sets it and the scheduler is what actually enqueues the job.
+ * Per-(row, group) eligibility for the **automatic** scheduler path. Skip
+ * when the group has `autoRun: false` set (manual-only), when the group is
+ * in flight (`queued`, `running`, or `pending` with a `jobId` already
+ * stamped), or in a terminal state. Plain `pending` without a jobId is the
+ * "ready to dispatch" state — the run route sets it and the scheduler is
+ * what actually enqueues the job.
+ *
+ * The manual "Run all" path (`triggerWorkflowGroupRun`) uses
+ * `areGroupDepsSatisfied` directly and bypasses this guard, so the user can
+ * still kick off a run on a group that's set to manual-only.
  */
 export function isGroupEligible(group: WorkflowGroup, row: TableRow): boolean {
+  if (group.autoRun === false) return false
   const exec = row.executions?.[group.id]
   const status = exec?.status
   if (

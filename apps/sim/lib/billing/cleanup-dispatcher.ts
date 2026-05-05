@@ -143,9 +143,7 @@ export async function resolveCleanupScope(
   }
 }
 
-async function buildCleanupRunner(
-  jobType: CleanupJobType
-): Promise<EnqueueOptions['runner']> {
+async function buildCleanupRunner(jobType: CleanupJobType): Promise<EnqueueOptions['runner']> {
   const cleanupRunner = await (async () => {
     switch (jobType) {
       case 'cleanup-logs':

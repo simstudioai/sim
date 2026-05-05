@@ -62,6 +62,13 @@ export interface WorkflowGroup {
   name?: string
   dependencies?: WorkflowGroupDependencies
   outputs: WorkflowGroupOutput[]
+  /**
+   * When `false`, the group never auto-fires from the scheduler — it can only
+   * be triggered manually via the "Run" actions. Defaults to `true` so
+   * existing groups keep firing on dep satisfaction. Persisted alongside the
+   * group definition; the scheduler reads it in `isGroupEligible`.
+   */
+  autoRun?: boolean
 }
 
 /**
@@ -408,6 +415,8 @@ export interface UpdateWorkflowGroupData {
    * source.
    */
   mappingUpdates?: Array<{ columnName: string; blockId: string; path: string }>
+  /** Toggle the group's auto-run flag. Omit to leave it unchanged. */
+  autoRun?: boolean
 }
 
 export interface DeleteWorkflowGroupData {

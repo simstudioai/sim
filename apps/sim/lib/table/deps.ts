@@ -82,11 +82,7 @@ export function optimisticallyScheduleNewlyEligibleGroups(
     const exec = beforeRow.executions?.[group.id]
     // Don't overwrite an in-flight or terminal state — only "no exec" or a
     // prior `cancelled` / `error` is a candidate to retry on dep-fill.
-    if (
-      exec &&
-      exec.status !== 'cancelled' &&
-      exec.status !== 'error'
-    ) {
+    if (exec && exec.status !== 'cancelled' && exec.status !== 'error') {
       continue
     }
 
