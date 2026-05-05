@@ -6,7 +6,12 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+import {
+  getAtlassianServiceAccountSecret,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/app/api/auth/oauth/utils'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
@@ -55,7 +60,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const cloudId = await getConfluenceCloudId(domain, accessToken)
+    // Atlassian service-account scoped tokens cannot call accessible-resources, so we
+    // pull cloudId from the encrypted secret instead of discovering it at runtime.
+    const resolved = await resolveOAuthAccountId(credential)
+    const cloudId =
+      resolved?.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID && resolved.credentialId
+        ? (await getAtlassianServiceAccountSecret(resolved.credentialId)).cloudId
+        : await getConfluenceCloudId(domain, accessToken)
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {

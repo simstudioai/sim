@@ -51,8 +51,30 @@ class DuplicateDisplayNameError extends Error {
   }
 }
 
+/**
+ * Atlassian Cloud sites are always served from `*.atlassian.net` (production)
+ * or `*.jira-dev.com` (Atlassian's developer sandbox). Anything else is either
+ * a typo (`atlassian.com`, `jira.com`), a Data Center hostname (which our
+ * gateway URL doesn't support), or — worse — an attempt to point this
+ * server-side fetch at internal infrastructure (`localhost`, `169.254.169.254`,
+ * `*.corp`). Restricting to the public Atlassian Cloud suffixes blocks SSRF
+ * at the boundary before any outbound request.
+ */
+const ATLASSIAN_CLOUD_HOST_REGEX =
+  /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.(?:atlassian\.net|jira-dev\.com)$/i
+
 function normalizeDomain(rawDomain: string): string {
-  return rawDomain.replace(/^https?:\/\//, '').replace(/\/+$/, '')
+  return rawDomain.replace(/^https?:\/\//i, '').replace(/\/+$/, '')
+}
+
+function assertAtlassianCloudHost(domain: string): void {
+  if (!ATLASSIAN_CLOUD_HOST_REGEX.test(domain)) {
+    throw new AtlassianValidationError('site_not_found', 400, {
+      step: 'host_validation',
+      domain,
+      reason: 'host is not an Atlassian Cloud site (expected *.atlassian.net)',
+    })
+  }
 }
 
 /**
@@ -90,6 +112,8 @@ async function validateAtlassianServiceAccount(
   apiToken: string,
   domain: string
 ): Promise<{ accountId: string; displayName: string; cloudId: string }> {
+  assertAtlassianCloudHost(domain)
+
   const tenantInfoRes = await fetch(`https://${domain}/_edge/tenant_info`, {
     headers: { Accept: 'application/json' },
   })

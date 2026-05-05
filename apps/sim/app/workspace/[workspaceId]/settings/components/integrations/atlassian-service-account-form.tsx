@@ -47,7 +47,7 @@ const FALLBACK_ERROR_MESSAGE = "We couldn't add this service account. Try again 
 function normalizeDomain(raw: string): string {
   return raw
     .trim()
-    .replace(/^https?:\/\//, '')
+    .replace(/^https?:\/\//i, '')
     .replace(/\/+$/, '')
 }
 
