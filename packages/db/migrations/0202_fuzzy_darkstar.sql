@@ -1,0 +1,2 @@
+ALTER TABLE "workspace_files" ADD COLUMN "display_name" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "workspace_files_chat_display_name_unique" ON "workspace_files" USING btree ("chat_id","display_name") WHERE "workspace_files"."context" = 'mothership' AND "workspace_files"."chat_id" IS NOT NULL;
