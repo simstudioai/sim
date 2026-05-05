@@ -1,5 +1,6 @@
 import { db, workflow } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { updatePublicApiContract } from '@/lib/api/contracts/deployments'
@@ -92,6 +93,7 @@ export const POST = withRouteHandler(
         logger.warn(`[${requestId}] Unable to resolve actor user for workflow deployment: ${id}`)
         return createErrorResponse('Unable to determine deploying user', 400)
       }
+      await assertWorkflowMutable(id)
 
       const result = await performFullDeploy({
         workflowId: id,
@@ -130,6 +132,9 @@ export const POST = withRouteHandler(
         warnings: result.warnings,
       })
     } catch (error: unknown) {
+      if (error instanceof WorkflowLockedError) {
+        return createErrorResponse(error.message, error.status)
+      }
       const message = error instanceof Error ? error.message : 'Failed to deploy workflow'
       logger.error(`[${requestId}] Error deploying workflow: ${id}`, { error })
       return createErrorResponse(message, 500)
@@ -159,6 +164,7 @@ export const PATCH = withRouteHandler(
       if (error) {
         return createErrorResponse(error.message, error.status)
       }
+      await assertWorkflowMutable(id)
 
       if (isPublicApi) {
         try {
@@ -185,6 +191,9 @@ export const PATCH = withRouteHandler(
 
       return createSuccessResponse({ isPublicApi })
     } catch (error: unknown) {
+      if (error instanceof WorkflowLockedError) {
+        return createErrorResponse(error.message, error.status)
+      }
       const message =
         error instanceof Error ? error.message : 'Failed to update deployment settings'
       logger.error(`[${requestId}] Error updating deployment settings`, { error })
@@ -207,6 +216,7 @@ export const DELETE = withRouteHandler(
       if (error) {
         return createErrorResponse(error.message, error.status)
       }
+      await assertWorkflowMutable(id)
 
       const result = await performFullUndeploy({
         workflowId: id,
@@ -232,6 +242,9 @@ export const DELETE = withRouteHandler(
         apiKey: null,
       })
     } catch (error: unknown) {
+      if (error instanceof WorkflowLockedError) {
+        return createErrorResponse(error.message, error.status)
+      }
       const message = error instanceof Error ? error.message : 'Failed to undeploy workflow'
       logger.error(`[${requestId}] Error undeploying workflow: ${id}`, { error })
       return createErrorResponse(message, 500)

@@ -1,3 +1,16 @@
+/**
+ * Defense-in-depth ceiling on the size of any single workspace file upload.
+ * Enforced both server-side (presigned route) and client-side (Files tab) so
+ * users get fast feedback before bytes are streamed.
+ */
+export const MAX_WORKSPACE_FILE_SIZE = 5 * 1024 * 1024 * 1024
+
+/**
+ * Cap on the legacy FormData upload route, which buffers the whole file in
+ * worker memory. Direct-to-storage uploads use {@link MAX_WORKSPACE_FILE_SIZE}.
+ */
+export const MAX_WORKSPACE_FORMDATA_FILE_SIZE = 100 * 1024 * 1024
+
 export type StorageContext =
   | 'knowledge-base'
   | 'chat'
@@ -55,6 +68,11 @@ export interface GeneratePresignedUrlOptions {
   userId?: string
   expirationSeconds?: number
   metadata?: Record<string, string>
+  /**
+   * When provided, overrides the default `${context}/${timestamp}-${id}-${name}` key derivation.
+   * The caller takes responsibility for uniqueness and prefix conventions.
+   */
+  customKey?: string
 }
 
 export interface PresignedUrlResponse {

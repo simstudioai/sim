@@ -1,5 +1,8 @@
 import { cn } from '@/lib/core/utils/cn'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type {
+  MothershipResource,
+  MothershipResourceType,
+} from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
 
 export interface SpeechRecognitionEvent extends Event {
@@ -72,29 +75,26 @@ export function autoResizeTextarea(e: React.FormEvent<HTMLTextAreaElement>, maxH
   target.style.height = `${Math.min(target.scrollHeight, maxHeight)}px`
 }
 
+/**
+ * Maps a {@link MothershipResource} (resource-picker domain) to a
+ * {@link ChatContext} (chat-input domain). Keyed by `MothershipResourceType`
+ * so adding a new resource type fails compilation here until a conversion is
+ * supplied — preventing silent drift between the two taxonomies.
+ */
+const RESOURCE_TO_CONTEXT: Record<
+  MothershipResourceType,
+  (resource: MothershipResource) => ChatContext
+> = {
+  workflow: (r) => ({ kind: 'workflow', workflowId: r.id, label: r.title }),
+  knowledgebase: (r) => ({ kind: 'knowledge', knowledgeId: r.id, label: r.title }),
+  table: (r) => ({ kind: 'table', tableId: r.id, label: r.title }),
+  file: (r) => ({ kind: 'file', fileId: r.id, label: r.title }),
+  folder: (r) => ({ kind: 'folder', folderId: r.id, label: r.title }),
+  task: (r) => ({ kind: 'past_chat', chatId: r.id, label: r.title }),
+  log: (r) => ({ kind: 'logs', executionId: r.id, label: r.title }),
+  generic: (r) => ({ kind: 'docs', label: r.title }),
+}
+
 export function mapResourceToContext(resource: MothershipResource): ChatContext {
-  switch (resource.type) {
-    case 'workflow':
-      return {
-        kind: 'workflow',
-        workflowId: resource.id,
-        label: resource.title,
-      }
-    case 'knowledgebase':
-      return {
-        kind: 'knowledge',
-        knowledgeId: resource.id,
-        label: resource.title,
-      }
-    case 'table':
-      return { kind: 'table', tableId: resource.id, label: resource.title }
-    case 'file':
-      return { kind: 'file', fileId: resource.id, label: resource.title }
-    case 'folder':
-      return { kind: 'folder', folderId: resource.id, label: resource.title }
-    case 'task':
-      return { kind: 'past_chat', chatId: resource.id, label: resource.title }
-    default:
-      return { kind: 'docs', label: resource.title }
-  }
+  return RESOURCE_TO_CONTEXT[resource.type](resource)
 }

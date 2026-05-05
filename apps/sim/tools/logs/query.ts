@@ -37,7 +37,25 @@ export const logsQueryTool: ToolConfig<LogsQueryParams, LogsQueryResponse> = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Max logs to return (default 100, max enforced by API)',
+      description: 'Max logs to return (default 100, max 200)',
+    },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Opaque pagination cursor returned by a previous query',
+    },
+    sortBy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: "Sort field: 'date' (default), 'duration', 'cost', 'status'",
+    },
+    sortOrder: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: "Sort order: 'desc' (default) or 'asc'",
     },
     startDate: {
       type: 'string',
@@ -57,13 +75,6 @@ export const logsQueryTool: ToolConfig<LogsQueryParams, LogsQueryResponse> = {
       visibility: 'user-or-llm',
       description: 'Free-text search across log fields',
     },
-    details: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description:
-        "'basic' (default) returns metadata only; 'full' includes executionData and trace spans (can be large)",
-    },
   },
 
   request: {
@@ -80,7 +91,9 @@ export const logsQueryTool: ToolConfig<LogsQueryParams, LogsQueryResponse> = {
       if (params.startDate) qs.set('startDate', params.startDate)
       if (params.endDate) qs.set('endDate', params.endDate)
       if (params.search) qs.set('search', params.search)
-      if (params.details) qs.set('details', params.details)
+      if (params.cursor) qs.set('cursor', params.cursor)
+      if (params.sortBy) qs.set('sortBy', params.sortBy)
+      if (params.sortOrder) qs.set('sortOrder', params.sortOrder)
       if (params.limit !== undefined && params.limit !== null) {
         qs.set('limit', String(params.limit))
       }
@@ -98,10 +111,7 @@ export const logsQueryTool: ToolConfig<LogsQueryParams, LogsQueryResponse> = {
       success: true,
       output: {
         logs: result.data || [],
-        total: result.total ?? 0,
-        page: result.page ?? 1,
-        pageSize: result.pageSize ?? 0,
-        totalPages: result.totalPages ?? 0,
+        nextCursor: result.nextCursor ?? null,
       },
     }
   },
@@ -111,9 +121,9 @@ export const logsQueryTool: ToolConfig<LogsQueryParams, LogsQueryResponse> = {
       type: 'array',
       description: 'Array of workflow execution log entries',
     },
-    total: { type: 'number', description: 'Total matching logs in the workspace' },
-    page: { type: 'number', description: 'Current page number (1-indexed)' },
-    pageSize: { type: 'number', description: 'Page size used for this query' },
-    totalPages: { type: 'number', description: 'Total number of pages available' },
+    nextCursor: {
+      type: 'string',
+      description: 'Pagination cursor for the next page; null when no more results',
+    },
   },
 }

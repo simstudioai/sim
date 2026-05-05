@@ -346,7 +346,7 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
     try {
       setIsLoadingLogs(true)
       const data = await requestJson(listLogsContract, {
-        query: { workspaceId, limit: 50, details: 'full' },
+        query: { workspaceId, limit: 50 },
       })
       const items = data.data
       const mapped = items.map((l) => ({

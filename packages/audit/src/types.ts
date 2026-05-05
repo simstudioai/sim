@@ -107,6 +107,7 @@ export const AuditAction = {
   CREDENTIAL_CREATED: 'credential.created',
   CREDENTIAL_UPDATED: 'credential.updated',
   CREDENTIAL_RENAMED: 'credential.renamed',
+  CREDENTIAL_RECONNECTED: 'credential.reconnected',
   CREDENTIAL_DELETED: 'credential.deleted',
 
   // Password

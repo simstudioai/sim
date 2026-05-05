@@ -5,6 +5,7 @@
 import {
   databaseMock,
   hybridAuthMockFns,
+  posthogServerMock,
   workflowAuthzMockFns,
   workflowsUtilsMock,
 } from '@sim/testing'
@@ -43,9 +44,7 @@ vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 vi.mock('@/lib/execution/event-buffer', () => ({
   setExecutionMeta: (...args: unknown[]) => mockSetExecutionMeta(...args),

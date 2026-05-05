@@ -10,6 +10,7 @@ import {
 } from '@sim/realtime-protocol/constants'
 import { WorkflowOperationSchema } from '@sim/realtime-protocol/schemas'
 import { generateId } from '@sim/utils/id'
+import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { ZodError } from 'zod'
 import { persistWorkflowOperation } from '@/database/operations'
 import type { AuthenticatedSocket } from '@/middleware/auth'
@@ -137,6 +138,24 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           })
           return
         }
+      }
+
+      try {
+        await assertWorkflowMutable(workflowId)
+      } catch (error) {
+        if (error instanceof WorkflowLockedError) {
+          emitOperationError(
+            {
+              type: 'WORKFLOW_LOCKED',
+              message: error.message,
+              operation,
+              target,
+            },
+            { error: error.message, retryable: false }
+          )
+          return
+        }
+        throw error
       }
 
       // Broadcast first for position updates to minimize latency, then persist

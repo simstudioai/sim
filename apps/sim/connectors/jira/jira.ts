@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { JiraIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -164,24 +165,42 @@ export const jiraConnector: ConnectorConfig = {
       jql = `project = "${safeKey}" AND (${jqlFilter.trim()}) ORDER BY updated DESC`
     }
 
-    const startAt = cursor ? Number(cursor) : 0
+    /**
+     * Collected-count is encoded in the cursor as `${pageToken}|${count}` so
+     * the maxIssues cap works correctly even when the caller doesn't pass
+     * syncContext. Falls back to syncContext.collectedCount for backwards
+     * compatibility with cursors emitted before this format existed.
+     */
+    let pageToken: string | undefined
+    let collectedSoFar = (syncContext?.collectedCount as number | undefined) ?? 0
+    if (cursor) {
+      const sep = cursor.lastIndexOf('|')
+      if (sep > 0) {
+        pageToken = cursor.slice(0, sep)
+        const parsed = Number(cursor.slice(sep + 1))
+        if (Number.isFinite(parsed) && parsed >= 0) collectedSoFar = parsed
+      } else {
+        pageToken = cursor
+      }
+    }
+
+    const remaining = maxIssues > 0 ? Math.max(0, maxIssues - collectedSoFar) : PAGE_SIZE
+    if (maxIssues > 0 && remaining === 0) {
+      return { documents: [], hasMore: false }
+    }
 
     const params = new URLSearchParams()
     params.append('jql', jql)
-    params.append('startAt', String(startAt))
-    const remaining = maxIssues > 0 ? Math.max(0, maxIssues - startAt) : PAGE_SIZE
-    if (remaining === 0) {
-      return { documents: [], hasMore: false }
-    }
     params.append('maxResults', String(Math.min(PAGE_SIZE, remaining)))
     params.append(
       'fields',
       'summary,issuetype,status,priority,assignee,reporter,project,labels,created,updated'
     )
+    if (pageToken) params.append('nextPageToken', pageToken)
 
-    const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search?${params.toString()}`
+    const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`
 
-    logger.info(`Listing Jira issues for project ${projectKey}`, { startAt })
+    logger.info(`Listing Jira issues for project ${projectKey}`, { hasCursor: Boolean(cursor) })
 
     const response = await fetchWithRetry(url, {
       method: 'GET',
@@ -201,17 +220,31 @@ export const jiraConnector: ConnectorConfig = {
     }
 
     const data = await response.json()
-    const issues = (data.issues || []) as Record<string, unknown>[]
-    const total = (data.total as number) ?? 0
+    let issues = (data.issues || []) as Record<string, unknown>[]
+    /**
+     * `/rest/api/3/search/jql` signals end-of-results purely by the absence
+     * of `nextPageToken`. `data.isLast` is unreliable on this endpoint and
+     * has been observed returning `true` alongside a valid token
+     * (JRACLOUD-95477), so we ignore it.
+     */
+    const nextPageToken = data.nextPageToken as string | undefined
+    const isLast = !nextPageToken
+
+    if (maxIssues > 0 && issues.length > remaining) {
+      issues = issues.slice(0, remaining)
+    }
 
     const documents: ExternalDocument[] = issues.map((issue) => issueToStub(issue, domain))
 
-    const nextStart = startAt + issues.length
-    const hasMore = nextStart < total && (maxIssues <= 0 || nextStart < maxIssues)
+    const newCollected = collectedSoFar + issues.length
+    if (syncContext) syncContext.collectedCount = newCollected
+
+    const reachedCap = maxIssues > 0 && newCollected >= maxIssues
+    const hasMore = !isLast && !reachedCap
 
     return {
       documents,
-      nextCursor: hasMore ? String(nextStart) : undefined,
+      nextCursor: hasMore && nextPageToken ? `${nextPageToken}|${newCollected}` : undefined,
       hasMore,
     }
   },
@@ -273,14 +306,14 @@ export const jiraConnector: ConnectorConfig = {
     const jqlFilter = (sourceConfig.jql as string | undefined)?.trim() || ''
 
     try {
-      const cloudId = await getJiraCloudId(domain, accessToken)
+      const cloudId = await getJiraCloudId(domain, accessToken, VALIDATE_RETRY_OPTIONS)
 
       const params = new URLSearchParams()
       const safeKey = projectKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
       params.append('jql', `project = "${safeKey}"`)
-      params.append('maxResults', '0')
+      params.append('maxResults', '1')
 
-      const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search?${params.toString()}`
+      const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`
       const response = await fetchWithRetry(
         url,
         {
@@ -304,9 +337,9 @@ export const jiraConnector: ConnectorConfig = {
       if (jqlFilter) {
         const filterParams = new URLSearchParams()
         filterParams.append('jql', `project = "${safeKey}" AND (${jqlFilter})`)
-        filterParams.append('maxResults', '0')
+        filterParams.append('maxResults', '1')
 
-        const filterUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search?${filterParams.toString()}`
+        const filterUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${filterParams.toString()}`
         const filterResponse = await fetchWithRetry(
           filterUrl,
           {
@@ -326,8 +359,7 @@ export const jiraConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
-      return { valid: false, error: message }
+      return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
     }
   },
 

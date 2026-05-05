@@ -517,7 +517,7 @@ export function IntegrationsManager() {
     }
   }
 
-  const [isShareingWithWorkspace, setIsSharingWithWorkspace] = useState(false)
+  const [isSharingWithWorkspace, setIsSharingWithWorkspace] = useState(false)
 
   const handleShareWithWorkspace = async () => {
     if (!selectedCredential || !isSelectedAdmin) return
@@ -1416,14 +1416,14 @@ export function IntegrationsManager() {
                       }`}
                     </Button>
                   )}
-                  {(workspaceUserOptions.length > 0 || isShareingWithWorkspace) && (
+                  {(workspaceUserOptions.length > 0 || isSharingWithWorkspace) && (
                     <Button
                       variant='default'
                       onClick={handleShareWithWorkspace}
-                      disabled={isShareingWithWorkspace || workspaceUserOptions.length === 0}
+                      disabled={isSharingWithWorkspace || workspaceUserOptions.length === 0}
                     >
                       <Share2 className='mr-1.5 h-[13px] w-[13px]' />
-                      {isShareingWithWorkspace ? 'Sharing...' : 'Share'}
+                      {isSharingWithWorkspace ? 'Sharing...' : 'Share with workspace'}
                     </Button>
                   )}
                   <Button

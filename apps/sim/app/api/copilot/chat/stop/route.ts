@@ -111,6 +111,7 @@ export const POST = withRouteHandler((req: NextRequest) =>
           workspaceId: updated.workspaceId,
           chatId,
           type: 'completed',
+          streamId,
         })
       }
 

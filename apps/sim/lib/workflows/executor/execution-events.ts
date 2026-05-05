@@ -52,6 +52,8 @@ export interface ExecutionCompletedEvent extends BaseExecutionEvent {
     duration: number
     startTime: string
     endTime: string
+    /** Authoritative per-block terminal states from the server's blockLogs. */
+    finalBlockLogs?: BlockLog[]
   }
 }
 

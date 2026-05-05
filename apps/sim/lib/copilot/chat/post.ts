@@ -329,6 +329,7 @@ async function persistUserMessage(params: {
           workspaceId,
           chatId,
           type: 'started',
+          streamId: userMessageId,
         })
       }
 
@@ -430,6 +431,7 @@ function buildOnComplete(params: {
           workspaceId,
           chatId,
           type: 'completed',
+          streamId: userMessageId,
         })
       }
     } catch (error) {
@@ -461,6 +463,7 @@ function buildOnError(params: {
           workspaceId,
           chatId,
           type: 'completed',
+          streamId: userMessageId,
         })
       }
     } catch (error) {

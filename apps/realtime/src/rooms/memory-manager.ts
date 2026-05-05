@@ -1,6 +1,13 @@
 import { createLogger } from '@sim/logger'
 import type { Server } from 'socket.io'
-import type { IRoomManager, UserPresence, UserSession, WorkflowRoom } from '@/rooms/types'
+import {
+  type IRoomManager,
+  type TableRowUpdatedPayload,
+  tableRoomName,
+  type UserPresence,
+  type UserSession,
+  type WorkflowRoom,
+} from '@/rooms/types'
 
 const logger = createLogger('MemoryRoomManager')
 
@@ -254,5 +261,24 @@ export class MemoryRoomManager implements IRoomManager {
     })
 
     logger.info(`Notified ${room.users.size} users about workflow deployment change: ${workflowId}`)
+  }
+
+  emitToTable<T = unknown>(tableId: string, event: string, payload: T): void {
+    this._io.to(tableRoomName(tableId)).emit(event, payload)
+  }
+
+  async handleTableRowUpdated(tableId: string, payload: TableRowUpdatedPayload): Promise<void> {
+    this.emitToTable(tableId, 'table-row-updated', { tableId, ...payload })
+  }
+
+  async handleTableRowDeleted(tableId: string, rowId: string): Promise<void> {
+    this.emitToTable(tableId, 'table-row-deleted', { tableId, rowId })
+  }
+
+  async handleTableDeleted(tableId: string): Promise<void> {
+    logger.info(`Handling table deletion notification for ${tableId}`)
+    this.emitToTable(tableId, 'table-deleted', { tableId, timestamp: Date.now() })
+    // Eject sockets so they don't hold a stale room. Cross-pod safe via socket.io.
+    await this._io.in(tableRoomName(tableId)).socketsLeave(tableRoomName(tableId))
   }
 }

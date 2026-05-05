@@ -10,8 +10,9 @@ export const LogsBlock: BlockConfig = {
   bgColor: '#EAB308',
   bestPractices: `
   - The block always operates on the current workspace; you cannot query other workspaces.
-  - 'Query Logs' returns metadata only by default. Switch the Detail Level to 'Full' only when you specifically need executionData and trace spans — those payloads can be large.
+  - 'Query Logs' returns summary rows. To get a full log entry (executionData, files), use 'Get Log by ID' on a row's id.
   - Use 'Get Execution Details' (with an executionId) to inspect per-block state for a single run.
+  - Pagination is cursor-based: pass the previous response's nextCursor as Cursor to fetch the next page.
   `,
   icon: Library,
   category: 'blocks',
@@ -68,7 +69,7 @@ export const LogsBlock: BlockConfig = {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: '100',
+      placeholder: '100 (max 200)',
       condition: { field: 'operation', value: 'query' },
     },
     {
@@ -108,14 +109,36 @@ export const LogsBlock: BlockConfig = {
       condition: { field: 'operation', value: 'query' },
     },
     {
-      id: 'details',
-      title: 'Detail Level',
+      id: 'sortBy',
+      title: 'Sort By',
       type: 'dropdown',
       options: [
-        { label: 'Basic', id: 'basic' },
-        { label: 'Full (includes executionData)', id: 'full' },
+        { label: 'Date', id: 'date' },
+        { label: 'Duration', id: 'duration' },
+        { label: 'Cost', id: 'cost' },
+        { label: 'Status', id: 'status' },
       ],
-      value: () => 'basic',
+      value: () => 'date',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'query' },
+    },
+    {
+      id: 'sortOrder',
+      title: 'Sort Order',
+      type: 'dropdown',
+      options: [
+        { label: 'Descending', id: 'desc' },
+        { label: 'Ascending', id: 'asc' },
+      ],
+      value: () => 'desc',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'query' },
+    },
+    {
+      id: 'cursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'nextCursor from a previous response',
       mode: 'advanced',
       condition: { field: 'operation', value: 'query' },
     },
@@ -168,12 +191,7 @@ export const LogsBlock: BlockConfig = {
           params.limit !== undefined && params.limit !== null && params.limit !== ''
             ? Number(params.limit)
             : undefined
-        const userLimit = Number.isFinite(rawLimit) ? rawLimit : undefined
-        const isFullDetails = params.details === 'full'
-        const FULL_DETAILS_MAX = 10
-        const limit = isFullDetails
-          ? Math.min(userLimit ?? FULL_DETAILS_MAX, FULL_DETAILS_MAX)
-          : userLimit
+        const limit = Number.isFinite(rawLimit) ? rawLimit : undefined
 
         return {
           workflowIds: params.workflowIds || undefined,
@@ -184,7 +202,9 @@ export const LogsBlock: BlockConfig = {
           startDate: params.startDate || undefined,
           endDate: params.endDate || undefined,
           search: params.search || undefined,
-          details: params.details || undefined,
+          cursor: params.cursor || undefined,
+          sortBy: params.sortBy || undefined,
+          sortOrder: params.sortOrder || undefined,
         }
       },
     },
@@ -195,11 +215,13 @@ export const LogsBlock: BlockConfig = {
     executionId: { type: 'string', description: 'Execution ID filter (query operation)' },
     level: { type: 'string', description: 'Log level filter' },
     triggers: { type: 'string', description: 'Comma-separated triggers' },
-    limit: { type: 'number', description: 'Max logs to return' },
+    limit: { type: 'number', description: 'Max logs to return (default 100, max 200)' },
     startDate: { type: 'string', description: 'ISO 8601 lower bound' },
     endDate: { type: 'string', description: 'ISO 8601 upper bound' },
     search: { type: 'string', description: 'Free-text search term' },
-    details: { type: 'string', description: "'basic' or 'full'" },
+    sortBy: { type: 'string', description: "'date' | 'duration' | 'cost' | 'status'" },
+    sortOrder: { type: 'string', description: "'desc' | 'asc'" },
+    cursor: { type: 'string', description: 'Pagination cursor' },
     logId: { type: 'string', description: 'Log entry ID (get_log operation)' },
     executionIdLookup: {
       type: 'string',
@@ -207,12 +229,12 @@ export const LogsBlock: BlockConfig = {
     },
   },
   outputs: {
-    logs: { type: 'json', description: 'Array of log entries (query operation)' },
-    total: { type: 'number', description: 'Total matching logs (query operation)' },
-    page: { type: 'number', description: 'Current page (query operation)' },
-    pageSize: { type: 'number', description: 'Page size (query operation)' },
-    totalPages: { type: 'number', description: 'Total pages (query operation)' },
-    log: { type: 'json', description: 'Single log entry (get_log operation)' },
+    logs: { type: 'json', description: 'Array of log summary entries (query operation)' },
+    nextCursor: {
+      type: 'string',
+      description: 'Cursor for next page; null when no more results (query operation)',
+    },
+    log: { type: 'json', description: 'Full log entry (get_log operation)' },
     executionId: { type: 'string', description: 'Execution ID (get_execution operation)' },
     workflowId: { type: 'string', description: 'Workflow ID (get_execution operation)' },
     workflowState: {

@@ -53,6 +53,7 @@ export const McpBlock: BlockConfig<McpResponse> = {
         value: '',
         not: true, // Show when tool is not empty
       },
+      dependsOn: ['tool'],
     },
   ],
   tools: {

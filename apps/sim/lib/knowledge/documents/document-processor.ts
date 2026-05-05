@@ -13,7 +13,7 @@ import {
   TokenChunker,
 } from '@/lib/chunkers'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
-import { env } from '@/lib/core/config/env'
+import { env, envNumber } from '@/lib/core/config/env'
 import { parseBuffer, parseFile } from '@/lib/file-parsers'
 import type { FileParseMetadata } from '@/lib/file-parsers/types'
 import { resolveParserExtension } from '@/lib/knowledge/documents/parser-extension'
@@ -30,7 +30,7 @@ const TIMEOUTS = {
   MISTRAL_OCR_API: 120000,
 } as const
 
-const MAX_CONCURRENT_CHUNKS = env.KB_CONFIG_CHUNK_CONCURRENCY
+const MAX_CONCURRENT_CHUNKS = envNumber(env.KB_CONFIG_CHUNK_CONCURRENCY, 10)
 
 type OCRResult = {
   success: boolean

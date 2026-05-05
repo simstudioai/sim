@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import {
   DEFAULT_RERANKER_MODEL,
@@ -56,8 +57,18 @@ class RerankAPIError extends Error {
 }
 
 async function resolveCohereKey(
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  userApiKey?: string
 ): Promise<{ apiKey: string; isBYOK: boolean }> {
+  /**
+   * Mirrors the agent block hosted-key pattern (`injectHostedKeyIfNeeded`):
+   * on self-hosted the user-supplied key from the block field flows through
+   * unchanged; on hosted Sim we always source the key from workspace BYOK or
+   * platform env, so any user-supplied value is ignored.
+   */
+  if (!isHosted && userApiKey) {
+    return { apiKey: userApiKey, isBYOK: false }
+  }
   if (workspaceId) {
     const byokResult = await getBYOKKey(workspaceId, 'cohere')
     if (byokResult) {
@@ -77,8 +88,19 @@ async function resolveCohereKey(
   }
 }
 
+/**
+ * Subset of Cohere v2/rerank response fields we read.
+ * Reference: https://docs.cohere.com/v2/reference/rerank
+ * - `results[].index` maps back to the position in the documents we sent.
+ * - `results[].relevance_score` is normalized 0–1.
+ * - `meta.warnings` is documented as an array of strings; we surface them in logs
+ *   so issues like document truncation don't disappear silently.
+ */
 interface CohereRerankResponse {
   results: Array<{ index: number; relevance_score: number }>
+  meta?: {
+    warnings?: string[]
+  }
 }
 
 /**
@@ -92,6 +114,8 @@ export async function rerank<T extends RerankItem>(
     model: string
     topN?: number
     workspaceId?: string | null
+    /** User-supplied Cohere key from the Knowledge block field. Honored only on self-hosted. */
+    apiKey?: string
   }
 ): Promise<RerankResponse<T>> {
   if (items.length === 0) return { results: [], isBYOK: false }
@@ -100,7 +124,7 @@ export async function rerank<T extends RerankItem>(
     throw new Error(`Unsupported reranker model: ${options.model}`)
   }
 
-  const { apiKey, isBYOK } = await resolveCohereKey(options.workspaceId)
+  const { apiKey, isBYOK } = await resolveCohereKey(options.workspaceId, options.apiKey)
   const cappedItems =
     items.length > MAX_DOCUMENTS_PER_RERANK ? items.slice(0, MAX_DOCUMENTS_PER_RERANK) : items
   if (items.length > MAX_DOCUMENTS_PER_RERANK) {
@@ -150,6 +174,13 @@ export async function rerank<T extends RerankItem>(
       },
     }
   )
+
+  if (response.meta?.warnings && response.meta.warnings.length > 0) {
+    logger.warn('Cohere rerank returned warnings', {
+      model: options.model,
+      warnings: response.meta.warnings,
+    })
+  }
 
   return {
     results: response.results

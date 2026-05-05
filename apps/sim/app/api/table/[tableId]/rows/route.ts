@@ -30,7 +30,7 @@ import {
   validateRowData,
   validateRowSize,
 } from '@/lib/table'
-import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
+import { buildFilterClause, buildSortClause, TableQueryValidationError } from '@/lib/table/sql'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowsAPI')
@@ -277,6 +277,7 @@ export const GET = withRouteHandler(
         .select({
           id: userTableRows.id,
           data: userTableRows.data,
+          executions: userTableRows.executions,
           position: userTableRows.position,
           createdAt: userTableRows.createdAt,
           updatedAt: userTableRows.updatedAt,
@@ -317,6 +318,7 @@ export const GET = withRouteHandler(
           rows: rows.map((r) => ({
             id: r.id,
             data: r.data,
+            executions: r.executions ?? {},
             position: r.position,
             createdAt:
               r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
@@ -332,6 +334,10 @@ export const GET = withRouteHandler(
     } catch (error) {
       if (isZodError(error)) {
         return validationErrorResponse(error)
+      }
+
+      if (error instanceof TableQueryValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
       logger.error(`[${requestId}] Error querying rows:`, error)
@@ -417,6 +423,10 @@ export const PUT = withRouteHandler(
     } catch (error) {
       if (isZodError(error)) {
         return validationErrorResponse(error)
+      }
+
+      if (error instanceof TableQueryValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
       const errorMessage = toError(error).message
@@ -516,6 +526,10 @@ export const DELETE = withRouteHandler(
     } catch (error) {
       if (isZodError(error)) {
         return validationErrorResponse(error)
+      }
+
+      if (error instanceof TableQueryValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
       const errorMessage = toError(error).message

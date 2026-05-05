@@ -22,7 +22,8 @@ export const AttachedFilesList = React.memo(function AttachedFilesList({
   return (
     <div className='mb-1.5 flex flex-wrap gap-1.5'>
       {attachedFiles.map((file) => {
-        const isImage = file.type.startsWith('image/')
+        const isVideo = file.type.startsWith('video/')
+        const hasPreview = Boolean(file.previewUrl)
         return (
           <Tooltip.Root key={file.id}>
             <Tooltip.Trigger asChild>
@@ -30,7 +31,23 @@ export const AttachedFilesList = React.memo(function AttachedFilesList({
                 className='group relative h-[56px] w-[56px] flex-shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-5)] hover:bg-[var(--surface-4)]'
                 onClick={() => onFileClick(file)}
               >
-                {isImage && file.previewUrl ? (
+                {hasPreview && isVideo ? (
+                  <>
+                    <div className='absolute inset-0 flex items-center justify-center text-[var(--text-icon)]'>
+                      {(() => {
+                        const Icon = getDocumentIcon(file.type, file.name)
+                        return <Icon className='h-[18px] w-[18px]' />
+                      })()}
+                    </div>
+                    <video
+                      src={file.previewUrl}
+                      muted
+                      playsInline
+                      preload='metadata'
+                      className='relative h-full w-full object-cover'
+                    />
+                  </>
+                ) : hasPreview ? (
                   <img
                     src={file.previewUrl}
                     alt={file.name}

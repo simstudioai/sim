@@ -44,6 +44,7 @@ export async function processCredentialDraft(params: ProcessCredentialDraftParam
       draft,
       newAccountId: accountId,
       workspaceId: draft.workspaceId,
+      userId,
       now,
     })
   } else {

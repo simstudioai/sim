@@ -3,7 +3,11 @@ import { db } from '@sim/db'
 import { permissions, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import {
+  assertWorkflowMutable,
+  authorizeWorkflowByWorkspacePermission,
+  WorkflowLockedError,
+} from '@sim/workflow-authz'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listWebhooksContract, upsertWebhookContract } from '@/lib/api/contracts/webhooks'
@@ -293,6 +297,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
+    await assertWorkflowMutable(workflowId)
 
     // Determine existing webhook to update (prefer by workflow+block for credential-based providers)
     let targetWebhookId: string | null = null
@@ -720,6 +725,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const status = targetWebhookId ? 200 : 201
     return NextResponse.json({ webhook: savedWebhook }, { status })
   } catch (error: any) {
+    if (error instanceof WorkflowLockedError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
     logger.error(`[${requestId}] Error creating/updating webhook`, {
       message: error.message,
       stack: error.stack,

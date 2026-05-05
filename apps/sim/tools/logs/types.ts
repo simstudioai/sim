@@ -1,4 +1,8 @@
-import type { ExecutionSnapshotData, WorkflowLogData } from '@/lib/api/contracts/logs'
+import type {
+  ExecutionSnapshotData,
+  WorkflowLogDetail,
+  WorkflowLogSummary,
+} from '@/lib/api/contracts/logs'
 import type { ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
 
 export interface LogsQueryParams {
@@ -7,10 +11,12 @@ export interface LogsQueryParams {
   level?: string
   triggers?: string
   limit?: number
+  cursor?: string
+  sortBy?: 'date' | 'duration' | 'cost' | 'status'
+  sortOrder?: 'asc' | 'desc'
   startDate?: string
   endDate?: string
   search?: string
-  details?: 'basic' | 'full'
   _context?: WorkflowToolExecutionContext
 }
 
@@ -26,17 +32,14 @@ export interface LogsGetExecutionParams {
 
 export interface LogsQueryResponse extends ToolResponse {
   output: {
-    logs: WorkflowLogData[]
-    total: number
-    page: number
-    pageSize: number
-    totalPages: number
+    logs: WorkflowLogSummary[]
+    nextCursor: string | null
   }
 }
 
 export interface LogsGetResponse extends ToolResponse {
   output: {
-    log: WorkflowLogData
+    log: WorkflowLogDetail
   }
 }
 

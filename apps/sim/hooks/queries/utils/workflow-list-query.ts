@@ -20,6 +20,7 @@ export function mapWorkflow(workflow: WorkflowApiRow): WorkflowMetadata {
     createdAt: new Date(workflow.createdAt),
     lastModified: new Date(workflow.updatedAt),
     archivedAt: workflow.archivedAt ? new Date(workflow.archivedAt) : null,
+    locked: workflow.locked,
   }
 }
 

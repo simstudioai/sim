@@ -10,7 +10,7 @@ import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { Checkbox, CopyCodeButton, highlight, languages } from '@/components/emcn'
+import { Checkbox, CopyCodeButton, highlight, languages, Skeleton } from '@/components/emcn'
 import '@/components/emcn/components/code/code.css'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
@@ -25,6 +25,7 @@ import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import { DataTable } from './data-table'
+import { ZoomablePreview } from './zoomable-preview'
 
 interface HastNode {
   position?: { start?: { offset?: number } }
@@ -89,12 +90,40 @@ export const PreviewPanel = memo(function PreviewPanel({
   if (previewType === 'html') return <HtmlPreview content={content} />
   if (previewType === 'csv') return <CsvPreview content={content} />
   if (previewType === 'svg') return <SvgPreview content={content} />
-  if (previewType === 'mermaid') return <MermaidFilePreview content={content} />
+  if (previewType === 'mermaid')
+    return <MermaidFilePreview content={content} isStreaming={isStreaming} />
 
   return null
 })
 
 const CALLOUT_TYPES = new Set(['NOTE', 'TIP', 'WARNING', 'IMPORTANT', 'CAUTION'])
+
+function remarkMermaid() {
+  return (tree: { type: string; children?: unknown[] }) => {
+    function processNode(node: {
+      type: string
+      children?: unknown[]
+      lang?: string
+      value?: string
+      data?: Record<string, unknown>
+    }) {
+      if (!node.children) return
+      for (const child of node.children) {
+        const c = child as typeof node
+        if (c.type === 'code' && c.lang === 'mermaid') {
+          c.data = {
+            hName: 'mermaid-diagram',
+            hProperties: { definition: c.value ?? '' },
+            hChildren: [],
+          }
+        } else {
+          processNode(c)
+        }
+      }
+    }
+    processNode(tree)
+  }
+}
 
 function remarkCallouts() {
   return (tree: { type: string; children?: unknown[] }) => {
@@ -140,7 +169,7 @@ function remarkCallouts() {
   }
 }
 
-const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkCallouts]
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkMermaid, remarkCallouts]
 const REHYPE_PLUGINS = [rehypeSlug]
 
 /**
@@ -151,6 +180,7 @@ const MarkdownCheckboxCtx = createContext<{
   contentRef: React.MutableRefObject<string>
   onToggle: (index: number, checked: boolean) => void
 } | null>(null)
+const MermaidStreamingCtx = createContext(false)
 
 /** Carries the resolved checkbox index from LiRenderer to InputRenderer. */
 const CheckboxIndexCtx = createContext(-1)
@@ -247,17 +277,85 @@ function CalloutBlock({ type, children }: { type: string; children?: React.React
   )
 }
 
-const MermaidDiagram = memo(function MermaidDiagram({ definition }: { definition: string }) {
+function MermaidSourcePreview({
+  definition,
+  isRendering,
+  status,
+}: {
+  definition: string
+  isRendering: boolean
+  status?: string
+}) {
+  return (
+    <div className='my-4 overflow-hidden rounded-lg border border-[var(--border)]'>
+      <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
+        <span className='text-[11px] text-[var(--text-tertiary)]'>mermaid</span>
+        {(isRendering || status) && (
+          <span className='text-[11px] text-[var(--text-muted)]'>
+            {isRendering ? 'Rendering...' : status}
+          </span>
+        )}
+      </div>
+      <div className='code-editor-theme bg-[var(--surface-5)]'>
+        <pre className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] text-[var(--text-primary)] leading-[1.6]'>
+          <code>{definition}</code>
+        </pre>
+      </div>
+    </div>
+  )
+}
+
+function MermaidCodeBlockSkeleton() {
+  return (
+    <div className='my-4 overflow-hidden rounded-lg border border-[var(--border)]'>
+      <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
+        <span className='text-[11px] text-[var(--text-tertiary)]'>mermaid</span>
+        <span className='text-[11px] text-[var(--text-muted)]'>Rendering...</span>
+      </div>
+      <div className='code-editor-theme bg-[var(--surface-5)]'>
+        <div className='space-y-2 p-4'>
+          <div className='h-3 w-5/6 animate-pulse rounded bg-[var(--surface-2)]' />
+          <div className='h-3 w-2/3 animate-pulse rounded bg-[var(--surface-2)]' />
+          <div className='h-3 w-3/4 animate-pulse rounded bg-[var(--surface-2)]' />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const MermaidDiagram = memo(function MermaidDiagram({
+  definition,
+  isStreaming = false,
+  zoomable = false,
+  zoomClassName,
+}: {
+  definition: string
+  isStreaming?: boolean
+  zoomable?: boolean
+  zoomClassName?: string
+}) {
   const [svg, setSvg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const idRef = useRef(`mermaid-${generateShortId(8)}`)
+  const [isRendering, setIsRendering] = useState(false)
+  const [renderedDefinition, setRenderedDefinition] = useState<string | null>(null)
+  const trimmedDefinition = definition.trim()
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    if (!trimmedDefinition) {
+      setSvg(null)
+      setError(null)
+      setIsRendering(false)
+      setRenderedDefinition(null)
+      return
+    }
+
     let cancelled = false
+    const renderDelay = isStreaming ? 150 : 0
 
     async function render() {
       try {
+        setIsRendering(true)
         const { default: mermaid } = await import('mermaid')
         if (cancelled) return
 
@@ -266,46 +364,120 @@ const MermaidDiagram = memo(function MermaidDiagram({ definition }: { definition
           securityLevel: 'strict',
           theme: 'default',
         })
+        mermaid.setParseErrorHandler?.(() => undefined)
 
-        const { svg: rendered } = await mermaid.render(idRef.current, definition.trim())
+        if (isStreaming) {
+          const parsed = await mermaid.parse(trimmedDefinition, { suppressErrors: true })
+          if (!parsed) {
+            if (!cancelled) {
+              setError(null)
+            }
+            return
+          }
+        } else {
+          await mermaid.parse(trimmedDefinition)
+        }
+
+        const { svg: rendered } = await mermaid.render(
+          `mermaid-${generateShortId(8)}`,
+          trimmedDefinition
+        )
         if (!cancelled) {
           setSvg(rendered)
+          setRenderedDefinition(trimmedDefinition)
           setError(null)
         }
       } catch (err) {
         if (!cancelled) {
-          setError(toError(err).message || 'Failed to render diagram')
-          setSvg(null)
+          if (isStreaming) {
+            setError(null)
+          } else {
+            setError(toError(err).message || 'Failed to render diagram')
+            setSvg(null)
+            setRenderedDefinition(null)
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          setIsRendering(false)
         }
       }
     }
 
-    setSvg(null)
     setError(null)
-    render()
+    const timer = window.setTimeout(() => {
+      render()
+    }, renderDelay)
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
-  }, [definition])
+  }, [trimmedDefinition, isStreaming])
 
   if (error) {
     return (
-      <div className='my-4 rounded-lg border border-[var(--border)] p-4 text-[13px] text-[var(--text-muted)]'>
-        <span className='font-medium text-[var(--text-primary)]'>Diagram error: </span>
-        {error}
-      </div>
+      <MermaidSourcePreview definition={definition} isRendering={false} status='Invalid diagram' />
     )
   }
 
-  if (!svg) {
-    return <div className='my-4 h-[100px] animate-pulse rounded-lg bg-[var(--surface-2)]' />
+  if (svg && renderedDefinition === trimmedDefinition) {
+    const diagram = <div dangerouslySetInnerHTML={{ __html: svg }} />
+
+    if (zoomable) {
+      return (
+        <ZoomablePreview
+          className={zoomClassName ?? 'my-4 h-[420px] rounded-lg'}
+          initialScale='fit'
+          resetKey={renderedDefinition}
+        >
+          {diagram}
+        </ZoomablePreview>
+      )
+    }
+
+    return (
+      <div className='my-4 overflow-auto rounded-lg' dangerouslySetInnerHTML={{ __html: svg }} />
+    )
   }
 
-  return <div className='my-4 overflow-auto rounded-lg' dangerouslySetInnerHTML={{ __html: svg }} />
+  if (isStreaming) {
+    return <MermaidSourcePreview definition={definition} isRendering={isRendering} />
+  }
+
+  if (!trimmedDefinition || !svg || renderedDefinition !== trimmedDefinition) {
+    if (zoomable) {
+      return (
+        <div className='h-full p-6'>
+          <Skeleton className='h-full w-full rounded-lg' />
+        </div>
+      )
+    }
+    return <MermaidCodeBlockSkeleton />
+  }
+  return null
 })
+
+function resolveSimFileUrl(src: string | undefined): string | undefined {
+  if (!src) return src
+  try {
+    const parsed = new URL(src, 'http://placeholder')
+    if (parsed.origin !== 'http://placeholder') return src
+    const [, seg1, , seg3, fileId] = parsed.pathname.split('/')
+    if (seg1 === 'workspace' && seg3 === 'files' && fileId) {
+      return `/api/files/view/${fileId}`
+    }
+  } catch {
+    // not a parseable URL
+  }
+  return src
+}
 
 const STATIC_MARKDOWN_COMPONENTS = {
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  'mermaid-diagram': ({ definition }: { definition?: string }) => {
+    const isStreaming = useContext(MermaidStreamingCtx)
+    return <MermaidDiagram definition={definition ?? ''} isStreaming={isStreaming} />
+  },
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className='mb-3 break-words text-[14px] text-[var(--text-primary)] leading-[1.6] last:mb-0'>
       {children}
@@ -378,10 +550,6 @@ const STATIC_MARKDOWN_COMPONENTS = {
     const langRaw = langMatch?.[1] ?? ''
     const codeString = extractTextContent(children)
 
-    if (langRaw === 'mermaid') {
-      return <MermaidDiagram definition={codeString} />
-    }
-
     if (!codeString) {
       return (
         <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[var(--caution)]'>
@@ -442,14 +610,17 @@ const STATIC_MARKDOWN_COMPONENTS = {
     )
   },
   hr: () => <hr className='my-6 border-[var(--border)]' />,
-  img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-    <img
-      src={src as string}
-      alt={alt ?? ''}
-      className='my-3 max-w-full rounded-md'
-      loading='lazy'
-    />
-  ),
+  img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) => {
+    const resolvedSrc = resolveSimFileUrl(typeof src === 'string' ? src : undefined)
+    return (
+      <img
+        src={resolvedSrc}
+        alt={alt ?? ''}
+        className='my-3 max-w-full rounded-md'
+        loading='lazy'
+      />
+    )
+  },
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className='my-4 max-w-full overflow-x-auto'>
       <table className='w-full border-collapse text-[13px]'>{children}</table>
@@ -706,14 +877,17 @@ const MarkdownPreview = memo(function MarkdownPreview({
   const body = (
     <div ref={autoScrollRef} className='h-full overflow-auto p-6'>
       {frontMatterData && <FrontMatterCard data={frontMatterData} />}
-      <Streamdown
-        mode={streamdownMode}
-        remarkPlugins={REMARK_PLUGINS}
-        rehypePlugins={REHYPE_PLUGINS}
-        components={MARKDOWN_COMPONENTS}
-      >
-        {markdownContent}
-      </Streamdown>
+      <MermaidStreamingCtx.Provider value={isStreaming}>
+        <Streamdown
+          mode={streamdownMode}
+          remarkPlugins={REMARK_PLUGINS}
+          rehypePlugins={REHYPE_PLUGINS}
+          components={MARKDOWN_COMPONENTS}
+          allowedTags={{ 'mermaid-diagram': ['definition'] }}
+        >
+          {markdownContent}
+        </Streamdown>
+      </MermaidStreamingCtx.Provider>
     </div>
   )
 
@@ -867,21 +1041,26 @@ function SvgPreview({ content }: { content: string }) {
   const wrappedContent = `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:transparent;}svg{max-width:100%;max-height:100vh;}</style></head><body>${content}</body></html>`
 
   return (
-    <div className='h-full overflow-hidden'>
+    <ZoomablePreview className='h-full' contentClassName='h-full w-full'>
       <iframe
         srcDoc={wrappedContent}
         sandbox=''
         title='SVG Preview'
         className='h-full w-full border-0'
       />
-    </div>
+    </ZoomablePreview>
   )
 }
 
-function MermaidFilePreview({ content }: { content: string }) {
+function MermaidFilePreview({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   return (
     <div className='h-full overflow-auto p-6'>
-      <MermaidDiagram definition={content} />
+      <MermaidDiagram
+        definition={content}
+        isStreaming={isStreaming}
+        zoomable
+        zoomClassName='h-full rounded-lg'
+      />
     </div>
   )
 }

@@ -2,7 +2,13 @@
 
 import { createElement, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { ArrowRight, ChevronDown, Expandable, ExpandableContent } from '@/components/emcn'
+import {
+  ArrowRight,
+  ChevronDown,
+  Expandable,
+  ExpandableContent,
+  SecretReveal,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
@@ -47,9 +53,10 @@ export const CREDENTIAL_TAG_TYPES = [
 export type CredentialTagType = (typeof CREDENTIAL_TAG_TYPES)[number]
 
 export interface CredentialTagData {
-  value: string
+  value?: string
   type: CredentialTagType
   provider?: string
+  redacted?: boolean
 }
 
 export interface MothershipErrorTagData {
@@ -140,12 +147,15 @@ function isUsageUpgradeTagData(value: unknown): value is UsageUpgradeTagData {
 
 function isCredentialTagData(value: unknown): value is CredentialTagData {
   if (!isRecord(value)) return false
-  return (
-    typeof value.value === 'string' &&
-    typeof value.type === 'string' &&
-    (CREDENTIAL_TAG_TYPES as readonly string[]).includes(value.type) &&
-    (value.provider === undefined || typeof value.provider === 'string')
-  )
+  if (
+    typeof value.type !== 'string' ||
+    !(CREDENTIAL_TAG_TYPES as readonly string[]).includes(value.type)
+  ) {
+    return false
+  }
+  if (value.provider !== undefined && typeof value.provider !== 'string') return false
+  if (value.redacted === true) return value.value === undefined || typeof value.value === 'string'
+  return typeof value.value === 'string'
 }
 
 function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagData {
@@ -595,24 +605,30 @@ const LockIcon = (props: { className?: string }) => (
 )
 
 function CredentialDisplay({ data }: { data: CredentialTagData }) {
-  if (data.type !== 'link' || !data.provider) return null
+  if (data.type === 'link') {
+    if (!data.provider) return null
+    const Icon = getCredentialIcon(data.provider) ?? LockIcon
+    return (
+      <a
+        href={data.value}
+        target='_blank'
+        rel='noopener noreferrer'
+        className='flex items-center gap-2 rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
+      >
+        {createElement(Icon, { className: 'h-[16px] w-[16px] shrink-0' })}
+        <span className='flex-1 font-base text-[var(--text-body)] text-sm'>
+          Connect {data.provider}
+        </span>
+        <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
+      </a>
+    )
+  }
 
-  const Icon = getCredentialIcon(data.provider) ?? LockIcon
+  if (data.type === 'sim_key') {
+    return <SecretReveal value={data.value} redacted={data.redacted || !data.value} />
+  }
 
-  return (
-    <a
-      href={data.value}
-      target='_blank'
-      rel='noopener noreferrer'
-      className='flex items-center gap-2 rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
-    >
-      {createElement(Icon, { className: 'h-[16px] w-[16px] shrink-0' })}
-      <span className='flex-1 font-base text-[var(--text-body)] text-sm'>
-        Connect {data.provider}
-      </span>
-      <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
-    </a>
-  )
+  return null
 }
 
 function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {

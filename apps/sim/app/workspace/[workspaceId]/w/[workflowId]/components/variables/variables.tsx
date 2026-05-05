@@ -92,7 +92,11 @@ const STRINGS = {
  * - Persists position and size
  * - Uses emcn Input/Code/Combobox components for a consistent UI
  */
-export function Variables() {
+interface VariablesProps {
+  readOnly?: boolean
+}
+
+export function Variables({ readOnly = false }: VariablesProps) {
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
 
   const { isOpen, position, width, height, setIsOpen, setPosition, setDimensions } =
@@ -216,27 +220,29 @@ export function Variables() {
   }
 
   const handleAddVariable = useCallback(() => {
-    if (!activeWorkflowId) return
+    if (!activeWorkflowId || readOnly) return
     collaborativeAddVariable({
       name: '',
       type: 'plain',
       value: '',
       workflowId: activeWorkflowId,
     })
-  }, [activeWorkflowId, collaborativeAddVariable])
+  }, [activeWorkflowId, collaborativeAddVariable, readOnly])
 
   const handleRemoveVariable = useCallback(
     (variableId: string) => {
+      if (readOnly) return
       collaborativeDeleteVariable(variableId)
     },
-    [collaborativeDeleteVariable]
+    [collaborativeDeleteVariable, readOnly]
   )
 
   const handleUpdateVariable = useCallback(
     (variableId: string, field: 'name' | 'value' | 'type', value: any) => {
+      if (readOnly) return
       collaborativeUpdateVariable(variableId, field, value)
     },
-    [collaborativeUpdateVariable]
+    [collaborativeUpdateVariable, readOnly]
   )
   const isDuplicateName = useCallback(
     (variableId: string, name: string): boolean => {
@@ -249,17 +255,22 @@ export function Variables() {
     [workflowVariables]
   )
 
-  const handleVariableNameChange = useCallback((variableId: string, newName: string) => {
-    const validatedName = validateName(newName)
-    setLocalNames((prev) => ({
-      ...prev,
-      [variableId]: validatedName,
-    }))
-    clearVariableState(variableId, false)
-  }, [])
+  const handleVariableNameChange = useCallback(
+    (variableId: string, newName: string) => {
+      if (readOnly) return
+      const validatedName = validateName(newName)
+      setLocalNames((prev) => ({
+        ...prev,
+        [variableId]: validatedName,
+      }))
+      clearVariableState(variableId, false)
+    },
+    [readOnly]
+  )
 
   const handleVariableNameBlur = useCallback(
     (variableId: string) => {
+      if (readOnly) return
       const localName = localNames[variableId]
       if (localName === undefined) return
 
@@ -283,7 +294,7 @@ export function Variables() {
       collaborativeUpdateVariable(variableId, 'name', trimmedName)
       clearVariableState(variableId)
     },
-    [localNames, isDuplicateName, collaborativeUpdateVariable]
+    [localNames, isDuplicateName, collaborativeUpdateVariable, readOnly]
   )
 
   const handleVariableNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -326,6 +337,7 @@ export function Variables() {
               handleRemoveVariable(variable.id)
             }}
             className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
+            disabled={readOnly}
             aria-label={`Delete ${variable.name || `variable ${index + 1}`}`}
           >
             <Trash style={{ width: `${ICON_SIZE}px`, height: `${ICON_SIZE}px` }} />
@@ -334,7 +346,7 @@ export function Variables() {
         </div>
       )
     },
-    [collapsedById, toggleCollapsed, handleRemoveVariable]
+    [collapsedById, toggleCollapsed, handleRemoveVariable, readOnly]
   )
 
   /**
@@ -380,6 +392,7 @@ export function Variables() {
                 onValueChange={(newValue) => handleUpdateVariable(variable.id, 'value', newValue)}
                 highlight={(code) => highlight(code, languages.json, 'json')}
                 {...getCodeEditorProps()}
+                disabled={readOnly}
               />
             </Code.Content>
           </Code.Container>
@@ -392,6 +405,7 @@ export function Variables() {
           autoComplete='off'
           value={variableValue}
           onChange={(e) => handleUpdateVariable(variable.id, 'value', e.target.value)}
+          disabled={readOnly}
           placeholder={
             variable.type === 'number'
               ? STRINGS.placeholders.number
@@ -402,7 +416,7 @@ export function Variables() {
         />
       )
     },
-    [handleUpdateVariable]
+    [handleUpdateVariable, readOnly]
   )
 
   if (!isOpen) return null
@@ -440,6 +454,7 @@ export function Variables() {
               e.stopPropagation()
               handleAddVariable()
             }}
+            disabled={readOnly}
             aria-label='Add new variable'
           >
             <Plus style={{ width: `${HEADER_ICON_SIZE}px`, height: `${HEADER_ICON_SIZE}px` }} />
@@ -489,6 +504,7 @@ export function Variables() {
                           onBlur={() => handleVariableNameBlur(variable.id)}
                           onKeyDown={handleVariableNameKeyDown}
                           placeholder={STRINGS.placeholders.name}
+                          disabled={readOnly}
                         />
                         {nameErrors[variable.id] && (
                           <p className='text-[var(--text-error)] text-xs' role='alert'>
@@ -503,6 +519,7 @@ export function Variables() {
                           options={TYPE_OPTIONS}
                           value={variable.type}
                           onChange={(value) => handleUpdateVariable(variable.id, 'type', value)}
+                          disabled={readOnly}
                         />
                       </div>
 

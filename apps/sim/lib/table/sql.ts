@@ -11,6 +11,17 @@ import { NAME_PATTERN } from './constants'
 import type { ColumnDefinition, ConditionOperators, Filter, JsonValue, Sort } from './types'
 
 /**
+ * Error thrown when caller-supplied filter or sort input is malformed.
+ * Routes should map this to HTTP 400 with the message preserved.
+ */
+export class TableQueryValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'TableQueryValidationError'
+  }
+}
+
+/**
  * Whitelist of allowed operators for query filtering.
  * Only these operators can be used in filter conditions.
  */
@@ -41,7 +52,7 @@ const ALLOWED_OPERATORS = new Set([
  * @param filter - Filter object with field conditions and logical operators
  * @param tableName - Table name for the query (e.g., 'user_table_rows')
  * @returns SQL WHERE clause or undefined if no filter specified
- * @throws Error if field name is invalid or operator is not allowed
+ * @throws {TableQueryValidationError} if field name is invalid or operator is not allowed
  *
  * @example
  * // Simple equality
@@ -110,7 +121,7 @@ export function buildFilterClause(filter: Filter, tableName: string): SQL | unde
  * @param tableName - Table name for the query (e.g., 'user_table_rows')
  * @param columns - Optional column definitions for type-aware sorting
  * @returns SQL ORDER BY clause or undefined if no sort specified
- * @throws Error if field name is invalid
+ * @throws {TableQueryValidationError} if field name or sort direction is invalid
  *
  * @example
  * buildSortClause({ name: 'asc', age: 'desc' }, 'user_table_rows')
@@ -133,7 +144,9 @@ export function buildSortClause(
     validateFieldName(field)
 
     if (direction !== 'asc' && direction !== 'desc') {
-      throw new Error(`Invalid sort direction "${direction}". Must be "asc" or "desc".`)
+      throw new TableQueryValidationError(
+        `Invalid sort direction "${direction}". Must be "asc" or "desc".`
+      )
     }
 
     const columnType = columnTypeMap.get(field)
@@ -148,15 +161,15 @@ export function buildSortClause(
  * Field names must match the NAME_PATTERN (alphanumeric + underscore, starting with letter/underscore).
  *
  * @param field - The field name to validate
- * @throws Error if field name is invalid
+ * @throws {TableQueryValidationError} if field name is invalid
  */
 function validateFieldName(field: string): void {
   if (!field || typeof field !== 'string') {
-    throw new Error('Field name must be a non-empty string')
+    throw new TableQueryValidationError('Field name must be a non-empty string')
   }
 
   if (!NAME_PATTERN.test(field)) {
-    throw new Error(
+    throw new TableQueryValidationError(
       `Invalid field name "${field}". Field names must start with a letter or underscore, followed by alphanumeric characters or underscores.`
     )
   }
@@ -166,11 +179,11 @@ function validateFieldName(field: string): void {
  * Validates an operator to ensure it's in the allowed list.
  *
  * @param operator - The operator to validate
- * @throws Error if operator is not allowed
+ * @throws {TableQueryValidationError} if operator is not allowed
  */
 function validateOperator(operator: string): void {
   if (!ALLOWED_OPERATORS.has(operator)) {
-    throw new Error(
+    throw new TableQueryValidationError(
       `Invalid operator "${operator}". Allowed operators: ${Array.from(ALLOWED_OPERATORS).join(', ')}`
     )
   }
@@ -190,7 +203,7 @@ function validateOperator(operator: string): void {
  *                    object with operators like $eq, $gt, $in, etc.
  * @returns Array of SQL condition fragments. Multiple conditions are returned
  *          when the condition object contains multiple operators.
- * @throws Error if field name is invalid or operator is not allowed
+ * @throws {TableQueryValidationError} if field name is invalid or operator is not allowed
  */
 function buildFieldCondition(
   tableName: string,
@@ -260,7 +273,9 @@ function buildFieldCondition(
           break
 
         default:
-          // This should never happen due to validateOperator, but added for completeness
+          // This should never happen due to validateOperator, but added for completeness.
+          // Throw a plain Error (→ 500) since reaching this default means the switch
+          // and ALLOWED_OPERATORS have drifted — that's a programmer error, not a caller error.
           throw new Error(`Unsupported operator: ${op}`)
       }
     }

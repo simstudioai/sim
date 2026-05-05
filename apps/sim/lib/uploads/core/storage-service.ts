@@ -238,6 +238,30 @@ export async function deleteFile(options: DeleteFileOptions): Promise<void> {
 }
 
 /**
+ * Check whether an object exists in the configured cloud storage provider.
+ * Returns object size and content-type when present, or null when missing.
+ * Throws on errors other than "not found". For local filesystem, returns null.
+ */
+export async function headObject(
+  key: string,
+  context: StorageContext
+): Promise<{ size: number; contentType?: string } | null> {
+  const config = getStorageConfig(context)
+
+  if (USE_BLOB_STORAGE) {
+    const { headBlobObject } = await import('@/lib/uploads/providers/blob/client')
+    return headBlobObject(key, createBlobConfig(config))
+  }
+
+  if (USE_S3_STORAGE) {
+    const { headS3Object } = await import('@/lib/uploads/providers/s3/client')
+    return headS3Object(key, createS3Config(config))
+  }
+
+  return null
+}
+
+/**
  * Generate a presigned URL for direct file upload
  */
 export async function generatePresignedUploadUrl(
@@ -251,6 +275,7 @@ export async function generatePresignedUploadUrl(
     userId,
     expirationSeconds = 3600,
     metadata = {},
+    customKey,
   } = options
 
   const allMetadata = {
@@ -263,10 +288,15 @@ export async function generatePresignedUploadUrl(
 
   const config = getStorageConfig(context)
 
-  const timestamp = Date.now()
-  const uniqueId = Math.random().toString(36).substring(2, 9)
-  const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
-  const key = `${context}/${timestamp}-${uniqueId}-${safeFileName}`
+  let key: string
+  if (customKey) {
+    key = customKey
+  } else {
+    const timestamp = Date.now()
+    const uniqueId = Math.random().toString(36).substring(2, 9)
+    const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
+    key = `${context}/${timestamp}-${uniqueId}-${safeFileName}`
+  }
 
   if (USE_S3_STORAGE) {
     return generateS3PresignedUrl(
