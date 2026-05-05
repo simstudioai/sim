@@ -241,35 +241,6 @@ export const createCredentialDraftBodySchema = z.object({
   credentialId: z.string().min(1).optional(),
 })
 
-export const createWorkspaceCredentialBodySchema = z.object({
-  workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
-  type: workspaceCredentialTypeSchema,
-  displayName: z.string().optional(),
-  description: z.string().optional(),
-  providerId: z.string().optional(),
-  accountId: z.string().optional(),
-  envKey: z.string().optional(),
-  envOwnerUserId: z.string().optional(),
-  serviceAccountJson: z.string().optional(),
-})
-
-export const updateWorkspaceCredentialBodySchema = z
-  .object({
-    displayName: z.string().trim().min(1).max(255).optional(),
-    description: z.string().trim().max(500).nullable().optional(),
-    serviceAccountJson: z.string().min(1).optional(),
-  })
-  .refine(
-    (data) =>
-      data.displayName !== undefined ||
-      data.description !== undefined ||
-      data.serviceAccountJson !== undefined,
-    {
-      message: 'At least one field must be provided',
-      path: ['displayName'],
-    }
-  )
-
 export const upsertWorkspaceCredentialMemberBodySchema = z.object({
   userId: z.string().min(1),
   role: workspaceCredentialRoleSchema.default('member'),
