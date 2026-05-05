@@ -10,7 +10,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { logIdParamsSchema } from '@/lib/api/contracts/logs'
-import { getSession } from '@/lib/auth'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -19,17 +19,20 @@ const logger = createLogger('LogDetailsByIdAPI')
 export const revalidate = 0
 
 export const GET = withRouteHandler(
-  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
 
     try {
-      const session = await getSession()
-      if (!session?.user?.id) {
+      const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+      if (!authResult.success || !authResult.userId) {
         logger.warn(`[${requestId}] Unauthorized log details access attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        return NextResponse.json(
+          { error: authResult.error || 'Authentication required' },
+          { status: 401 }
+        )
       }
 
-      const userId = session.user.id
+      const userId = authResult.userId
       const { id } = logIdParamsSchema.parse(await params)
 
       const rows = await db

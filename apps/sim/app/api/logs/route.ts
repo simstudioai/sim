@@ -27,7 +27,7 @@ import {
 import { type NextRequest, NextResponse } from 'next/server'
 import { listLogsQuerySchema } from '@/lib/api/contracts/logs'
 import { isZodError } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildFilterConditions } from '@/lib/logs/filters'
@@ -40,13 +40,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
+    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized logs access attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json(
+        { error: authResult.error || 'Authentication required' },
+        { status: 401 }
+      )
     }
 
-    const userId = session.user.id
+    const userId = authResult.userId
 
     try {
       const { searchParams } = new URL(request.url)
