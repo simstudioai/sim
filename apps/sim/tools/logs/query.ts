@@ -107,6 +107,9 @@ export const logsQueryTool: ToolConfig<LogsQueryParams, LogsQueryResponse> = {
 
   transformResponse: async (response): Promise<LogsQueryResponse> => {
     const result = await response.json()
+    if (!response.ok) {
+      throw new Error(result?.error || `Request failed with status ${response.status}`)
+    }
     return {
       success: true,
       output: {

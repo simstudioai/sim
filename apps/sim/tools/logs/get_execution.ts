@@ -27,6 +27,9 @@ export const logsGetExecutionTool: ToolConfig<LogsGetExecutionParams, LogsGetExe
 
   transformResponse: async (response): Promise<LogsGetExecutionResponse> => {
     const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data?.error || `Request failed with status ${response.status}`)
+    }
     return {
       success: true,
       output: data,
@@ -44,7 +47,7 @@ export const logsGetExecutionTool: ToolConfig<LogsGetExecutionParams, LogsGetExe
     },
     executionMetadata: {
       type: 'json',
-      description: 'Trigger, timestamps, totalDurationMs, cost, and totalTokens for the run',
+      description: 'Trigger, timestamps, totalDurationMs, and cost for the run',
     },
   },
 }

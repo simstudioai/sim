@@ -247,8 +247,7 @@ export const LogsBlock: BlockConfig = {
     },
     executionMetadata: {
       type: 'json',
-      description:
-        'Trigger, timestamps, totalDurationMs, cost, totalTokens (get_execution operation)',
+      description: 'Trigger, timestamps, totalDurationMs, cost (get_execution operation)',
     },
   },
 }

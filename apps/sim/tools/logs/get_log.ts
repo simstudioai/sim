@@ -33,6 +33,9 @@ export const logsGetTool: ToolConfig<LogsGetParams, LogsGetResponse> = {
 
   transformResponse: async (response): Promise<LogsGetResponse> => {
     const result = await response.json()
+    if (!response.ok) {
+      throw new Error(result?.error || `Request failed with status ${response.status}`)
+    }
     return {
       success: true,
       output: {
