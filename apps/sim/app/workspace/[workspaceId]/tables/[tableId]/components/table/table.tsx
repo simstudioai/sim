@@ -91,8 +91,10 @@ const COL_WIDTH_AUTO_FIT_MAX = 1000
 // Wide enough to host the row-number + per-row run button side by side.
 // Single-digit row numbers (rows 1–9) and multi-digit (10+) need to render
 // with the play button at the same x-position so the column doesn't reflow
-// row-by-row.
-const CHECKBOX_COL_WIDTH = 56
+// row-by-row. Tables without workflow columns get the narrower variant
+// since there's no per-row run button to host.
+const CHECKBOX_COL_WIDTH_WITH_RUN = 56
+const CHECKBOX_COL_WIDTH_NUMBER_ONLY = 36
 const ADD_COL_WIDTH = 120
 /** Width of the column-config slideout (matches `column-sidebar.tsx`'s `w-[400px]`). */
 const COLUMN_SIDEBAR_WIDTH = 400
@@ -318,6 +320,11 @@ export function Table({
     }
     return expandToDisplayColumns(ordered, tableWorkflowGroups)
   }, [columns, columnOrder, tableWorkflowGroups])
+
+  const hasWorkflowColumns = tableWorkflowGroups.length > 0
+  const checkboxColWidth = hasWorkflowColumns
+    ? CHECKBOX_COL_WIDTH_WITH_RUN
+    : CHECKBOX_COL_WIDTH_NUMBER_ONLY
 
   const headerGroups = useMemo(
     () => buildHeaderGroups(displayColumns, tableWorkflowGroups),
@@ -2850,6 +2857,7 @@ export function Table({
           workflows={workflows}
           workspaceId={workspaceId}
           tableId={tableId}
+          onColumnRename={handleColumnRename}
         />
 
         <ExecutionDetailsSidebar

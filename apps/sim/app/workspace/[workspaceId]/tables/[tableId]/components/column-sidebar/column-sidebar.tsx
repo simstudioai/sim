@@ -18,6 +18,7 @@ import {
   Tooltip,
   toast,
 } from '@/components/emcn'
+import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type {
   AddWorkflowGroupBodyInput,
@@ -78,6 +79,9 @@ interface ColumnSidebarProps {
   workflows: WorkflowMetadata[] | undefined
   workspaceId: string
   tableId: string
+  /** Notify parent of a rename so it can rewrite local `columnOrder` /
+   *  `columnWidths` keys that reference the old name. */
+  onColumnRename?: (oldName: string, newName: string) => void
 }
 
 const OUTPUT_VALUE_SEPARATOR = '::'
@@ -338,6 +342,7 @@ export function ColumnSidebar({
   workflows,
   workspaceId,
   tableId,
+  onColumnRename,
 }: ColumnSidebarProps) {
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
   const addColumn = useAddTableColumn({ workspaceId, tableId })
@@ -423,6 +428,11 @@ export function ColumnSidebar({
   const [selectedOutputs, setSelectedOutputs] = useState<string[]>([])
   /** Surfaces required-field errors only after a save attempt, matching the workflow editor's deploy flow. */
   const [showValidation, setShowValidation] = useState(false)
+  /**
+   * Server-side validation message for the column name (e.g. format / regex).
+   * Cleared on edit so the user sees the error fade as they fix it.
+   */
+  const [nameError, setNameError] = useState<string | null>(null)
 
   const existingColumnRef = useRef(existingColumn)
   existingColumnRef.current = existingColumn
@@ -432,6 +442,7 @@ export function ColumnSidebar({
   useEffect(() => {
     if (!open || !configState) return
     setShowValidation(false)
+    setNameError(null)
     const existing = existingColumnRef.current
     const cols = allColumnsRef.current
     const leftOfCurrent = (() => {
@@ -844,6 +855,7 @@ export function ColumnSidebar({
               columnName: renamedColumn.from,
               updates: { name: renamedColumn.to },
             })
+            onColumnRename?.(renamedColumn.from, renamedColumn.to)
           }
           await updateWorkflowGroup.mutateAsync({
             groupId: existingGroup.id,
@@ -918,11 +930,25 @@ export function ColumnSidebar({
           columnName: configState.columnName,
           updates,
         })
+        if (renamed) onColumnRename?.(configState.columnName, trimmedName)
         toast.success(`Saved "${trimmedName}"`)
       }
 
       onClose()
     } catch (err) {
+      // Validation errors (client-side from `requestJson`'s schema parse, or
+      // server-side `{ error, details: [...] }`) get rendered inline next to
+      // the offending field — raw Zod issue arrays look like garbage in a toast.
+      if (isValidationError(err)) {
+        const nameIssue =
+          findValidationIssue(err, ['updates', 'name']) ??
+          findValidationIssue(err, ['name']) ??
+          findValidationIssue(err, ['columnName'])
+        if (nameIssue) {
+          setNameError(nameIssue.message)
+          return
+        }
+      }
       toast.error(toError(err).message)
     }
   }
@@ -975,13 +1001,21 @@ export function ColumnSidebar({
                 <Input
                   id='column-sidebar-name'
                   value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
+                  onChange={(e) => {
+                    setNameInput(e.target.value)
+                    if (nameError) setNameError(null)
+                  }}
                   spellCheck={false}
                   autoComplete='off'
-                  aria-invalid={showValidation && !nameInput.trim() ? true : undefined}
+                  aria-invalid={
+                    (showValidation && !nameInput.trim()) || nameError ? true : undefined
+                  }
                 />
                 {showValidation && !nameInput.trim() && (
                   <FieldError message='Column name is required' />
+                )}
+                {nameError && !(showValidation && !nameInput.trim()) && (
+                  <FieldError message={nameError} />
                 )}
               </div>
             </>

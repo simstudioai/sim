@@ -11,6 +11,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { getJobQueue } from '@/lib/core/async-jobs/config'
+import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { buildCancelledExecution, writeWorkflowGroupState } from '@/lib/table/cell-write'
 import type {
   RowData,
@@ -105,7 +107,53 @@ export async function scheduleWorkflowGroupRuns(
 
     logger.info(`Scheduling ${pendingRuns.length} workflow group cell run(s) for table=${table.id}`)
 
-    await Promise.allSettled(pendingRuns.map((opts) => runWorkflowGroupCell(opts)))
+    const queue = await getJobQueue()
+    const { executeWorkflowGroupCellJob } = await import('@/background/workflow-column-execution')
+    const items = pendingRuns.map((opts) => ({
+      payload: opts,
+      options: {
+        metadata: {
+          workflowId: opts.workflowId,
+          workspaceId: opts.workspaceId,
+          correlation: {
+            executionId: opts.executionId,
+            requestId: `wfgrp-${opts.executionId}`,
+            source: 'workflow' as const,
+            workflowId: opts.workflowId,
+            triggerType: 'table',
+          },
+        },
+        concurrencyKey: opts.tableId,
+        concurrencyLimit: TABLE_CONCURRENCY_LIMIT,
+        tags: [`tableId:${opts.tableId}`, `rowId:${opts.rowId}`, `group:${opts.groupId}`],
+        runner: executeWorkflowGroupCellJob as EnqueueOptions['runner'],
+      },
+    }))
+
+    let jobIds: string[]
+    try {
+      jobIds = await queue.batchEnqueue('workflow-group-cell', items)
+    } catch (err) {
+      logger.error(`Batch enqueue failed for table=${table.id}:`, err)
+      await Promise.allSettled(
+        pendingRuns.map((opts) =>
+          writeWorkflowGroupState(opts, {
+            executionState: {
+              status: 'error',
+              executionId: opts.executionId,
+              jobId: null,
+              workflowId: opts.workflowId,
+              error: toError(err).message,
+            },
+          })
+        )
+      )
+      return
+    }
+
+    for (let i = 0; i < pendingRuns.length; i++) {
+      await stampQueuedOrCancel(queue, pendingRuns[i], jobIds[i])
+    }
   } catch (err) {
     logger.error('scheduleWorkflowGroupRuns failed:', err)
   }
@@ -121,128 +169,38 @@ interface RunGroupCellOptions {
   executionId: string
 }
 
-/**
- * Enqueues a workflow-group cell run as a `workflow-group-cell` async job
- * and writes `running` (with the returned `jobId`) onto the row's
- * `executions[groupId]`. The actual workflow execution and terminal write
- * happen inside the cell task body. Cancellation is authoritative via
- * `cancelWorkflowGroupRuns`.
- */
-export async function runWorkflowGroupCell(opts: RunGroupCellOptions): Promise<void> {
-  const { tableId, tableName, rowId, groupId, workflowId, workspaceId, executionId } = opts
+/** Per-table concurrency cap. Mirrors trigger.dev's `concurrencyLimit: 10`. */
+const TABLE_CONCURRENCY_LIMIT = 10
 
-  const { getJobQueue, shouldExecuteInline } = await import('@/lib/core/async-jobs/config')
-  const cellCtx = { tableId, rowId, workspaceId, groupId, executionId }
-
-  const taskPayload = {
-    tableId,
-    tableName,
-    rowId,
-    groupId,
-    workflowId,
-    workspaceId,
-    executionId,
-  }
-  let jobId: string
-  let queue: Awaited<ReturnType<typeof getJobQueue>>
-  try {
-    queue = await getJobQueue()
-    jobId = await queue.enqueue('workflow-group-cell', taskPayload, {
-      metadata: {
-        workflowId,
-        workspaceId,
-        correlation: {
-          executionId,
-          requestId: `wfgrp-${executionId}`,
-          source: 'workflow',
-          workflowId,
-          triggerType: 'table',
-        },
-      },
-      // Per-table sub-queue throttles cells within a table without blocking other tables.
-      concurrencyKey: tableId,
-      tags: [`tableId:${tableId}`, `rowId:${rowId}`, `group:${groupId}`],
-    })
-  } catch (err) {
-    const message = toError(err).message
-    logger.error(
-      `Failed to enqueue workflow-group-cell (table=${tableId} row=${rowId} group=${groupId}):`,
-      err
-    )
-    await writeWorkflowGroupState(cellCtx, {
-      executionState: {
-        status: 'error',
-        executionId,
-        jobId: null,
-        workflowId,
-        error: message,
-      },
-    })
-    return
-  }
-
-  // Single post-enqueue write: stamps `queued` + jobId so the cancel API can
-  // reach this run from any pod. The cell-task body flips `queued` → `running`
-  // on entry, giving the renderer a real "queued vs picked up" distinction.
-  // If cancel won the race the helper bails and we abort the just-enqueued job.
+async function stampQueuedOrCancel(
+  queue: Awaited<ReturnType<typeof getJobQueue>>,
+  opts: RunGroupCellOptions,
+  jobId: string
+): Promise<void> {
   let stampResult: 'wrote' | 'skipped' = 'wrote'
   try {
-    stampResult = await writeWorkflowGroupState(cellCtx, {
+    stampResult = await writeWorkflowGroupState(opts, {
       executionState: {
         status: 'queued',
-        executionId,
+        executionId: opts.executionId,
         jobId,
-        workflowId,
+        workflowId: opts.workflowId,
         error: null,
       },
     })
   } catch (err) {
     logger.error(
-      `Failed to persist jobId on group execution (table=${tableId} row=${rowId} group=${groupId}):`,
+      `Failed to stamp queued state (table=${opts.tableId} row=${opts.rowId} group=${opts.groupId}):`,
       err
     )
   }
+
   if (stampResult === 'skipped') {
     try {
       await queue.cancelJob(jobId)
     } catch (cancelErr) {
       logger.error(`Failed to cancel orphaned workflow-group-cell job (jobId=${jobId}):`, cancelErr)
     }
-    return
-  }
-
-  // Trigger.dev disabled — execute the task body inline (DB queue records
-  // rows but doesn't dispatch), mirroring `workflow-execution`.
-  if (shouldExecuteInline()) {
-    const { registerInlineAbort, unregisterInlineAbort } = await import(
-      '@/lib/core/async-jobs/inline-abort'
-    )
-    const abortController = new AbortController()
-    registerInlineAbort(jobId, abortController)
-
-    void (async () => {
-      try {
-        const { executeWorkflowGroupCellJob } = await import(
-          '@/background/workflow-column-execution'
-        )
-        await queue.startJob(jobId)
-        await executeWorkflowGroupCellJob(taskPayload, abortController.signal)
-        await queue.completeJob(jobId, null)
-      } catch (err) {
-        const message = toError(err).message
-        logger.error(
-          `Inline workflow-group-cell failed (jobId=${jobId} table=${tableId} row=${rowId} group=${groupId}):`,
-          err
-        )
-        try {
-          await queue.markJobFailed(jobId, message)
-        } catch (markErr) {
-          logger.error('Also failed to mark job as failed:', markErr)
-        }
-      } finally {
-        unregisterInlineAbort(jobId)
-      }
-    })()
   }
 }
 

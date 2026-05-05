@@ -68,18 +68,23 @@ export function CellContent({
       (exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending') &&
       !(groupHasBlockErrors && !blockRunning)
     ) {
-      // `queued` is our own state with no logs analog: cell sits in trigger.dev's
-      // queue waiting for a worker. Gray makes it visually distinct from
-      // `pending`/`running` (amber via StatusBadge), so a row of side-by-side
-      // cells reads at a glance which are queued vs actively running.
-      if (exec?.status === 'queued') {
+      // `pending` (pre-enqueue) and `queued` (post-enqueue, awaiting pickup)
+      // both read as "in the queue, not actively running" — collapse into one
+      // gray "Queued" badge so the user doesn't see a flicker as the row
+      // transitions pending → queued. Active block execution flips to amber
+      // "Running" via the logs StatusBadge.
+      if (blockRunning) {
+        displayContent = <StatusBadge status='running' />
+      } else if (exec?.status === 'queued' || exec?.status === 'pending') {
         displayContent = (
           <Badge variant='gray' dot size='sm'>
             Queued
           </Badge>
         )
       } else {
-        displayContent = <StatusBadge status={blockRunning ? 'running' : 'pending'} />
+        // `running` without this block in `runningBlockIds` = upstream block
+        // still going. Show as Pending (amber) per logs convention.
+        displayContent = <StatusBadge status='pending' />
       }
     } else if (exec?.status === 'cancelled') {
       displayContent = <StatusBadge status='cancelled' />

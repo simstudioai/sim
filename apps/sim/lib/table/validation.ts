@@ -276,7 +276,7 @@ export function getUniqueColumns(schema: TableSchema): ColumnDefinition[] {
 export function validateUniqueConstraints(
   data: RowData,
   schema: TableSchema,
-  existingRows: { id: string; data: RowData }[],
+  existingRows: { id: string; data: RowData; position?: number }[],
   excludeRowId?: string
 ): ValidationResult {
   const errors: string[] = []
@@ -297,8 +297,10 @@ export function validateUniqueConstraints(
     })
 
     if (duplicate) {
+      const rowLabel =
+        typeof duplicate.position === 'number' ? `row ${duplicate.position + 1}` : duplicate.id
       errors.push(
-        `Column "${column.name}" must be unique. Value "${value}" already exists in row ${duplicate.id}`
+        `Column "${column.name}" must be unique. Value "${value}" already exists in ${rowLabel}`
       )
     }
   }
@@ -364,14 +366,14 @@ export async function checkUniqueConstraintsDb(
       : baseCondition
 
     const conflictingRow = await db
-      .select({ id: userTableRows.id })
+      .select({ id: userTableRows.id, position: userTableRows.position })
       .from(userTableRows)
       .where(whereClause)
       .limit(1)
 
     if (conflictingRow.length > 0) {
       errors.push(
-        `Column "${condition.column.name}" must be unique. Value "${condition.value}" already exists in row ${conflictingRow[0].id}`
+        `Column "${condition.column.name}" must be unique. Value "${condition.value}" already exists in row ${conflictingRow[0].position + 1}`
       )
     }
   }
@@ -474,6 +476,7 @@ export async function checkBatchUniqueConstraintsDb(
       .select({
         id: userTableRows.id,
         data: userTableRows.data,
+        position: userTableRows.position,
       })
       .from(userTableRows)
       .where(and(eq(userTableRows.tableId, tableId), or(...valueConditions)))
@@ -504,7 +507,7 @@ export async function checkBatchUniqueConstraintsDb(
             rowErrors.push(rowError)
           }
 
-          const errorMsg = `Column "${columnName}" must be unique. Value "${rowValue}" already exists in row ${conflict.id}`
+          const errorMsg = `Column "${columnName}" must be unique. Value "${rowValue}" already exists in row ${conflict.position + 1}`
           if (!rowError.errors.includes(errorMsg)) {
             rowError.errors.push(errorMsg)
           }

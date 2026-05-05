@@ -15,6 +15,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
+import { isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
@@ -530,6 +531,9 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
 
       reconcileCreatedRow(queryClient, tableId, row)
     },
+    onError: (error) => {
+      toast.error(error.message, { duration: 5000 })
+    },
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
     },
@@ -641,6 +645,9 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
         },
       })
     },
+    onError: (error) => {
+      toast.error(error.message, { duration: 5000 })
+    },
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
     },
@@ -674,12 +681,13 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
 
       return { previousQueries }
     },
-    onError: (_err, _vars, context) => {
+    onError: (error, _vars, context) => {
       if (context?.previousQueries) {
         for (const [queryKey, data] of context.previousQueries) {
           queryClient.setQueryData(queryKey, data)
         }
       }
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       invalidateRowData(queryClient, tableId)
@@ -724,12 +732,13 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
 
       return { previousQueries }
     },
-    onError: (_err, _vars, context) => {
+    onError: (error, _vars, context) => {
       if (context?.previousQueries) {
         for (const [queryKey, data] of context.previousQueries) {
           queryClient.setQueryData(queryKey, data)
         }
       }
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       invalidateRowData(queryClient, tableId)
@@ -809,6 +818,8 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
       })
     },
     onError: (error) => {
+      // Validation errors are surfaced as inline FieldErrors by the caller.
+      if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
