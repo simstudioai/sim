@@ -71,7 +71,7 @@ function formatReadingLabel(target: string | undefined, state: ClientToolCallSta
     case ClientToolCallState.success:
       return `Read${suffix}`
     case ClientToolCallState.error:
-      return `Failed reading${suffix}`
+      return `Attempted to read${suffix}`
     case ClientToolCallState.rejected:
     case ClientToolCallState.aborted:
       return `Skipped reading${suffix}`
@@ -132,7 +132,7 @@ function humanizedFallback(
     state === ClientToolCallState.success
       ? 'Executed'
       : state === ClientToolCallState.error
-        ? 'Failed'
+        ? 'Attempted to'
         : state === ClientToolCallState.rejected || state === ClientToolCallState.aborted
           ? 'Skipped'
           : 'Executing'
