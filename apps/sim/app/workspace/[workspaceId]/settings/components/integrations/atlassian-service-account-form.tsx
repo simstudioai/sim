@@ -14,6 +14,7 @@ import {
 } from '@/components/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { OAuthServiceConfig } from '@/lib/oauth'
+import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
 interface AtlassianServiceAccountFormProps {
   service: OAuthServiceConfig | null
@@ -22,6 +23,8 @@ interface AtlassianServiceAccountFormProps {
   onBack: () => void
   onCreate: (input: {
     workspaceId: string
+    type: 'service_account'
+    providerId: typeof ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
     apiToken: string
     domain: string
     displayName?: string
@@ -87,6 +90,8 @@ export function AtlassianServiceAccountForm({
     try {
       await onCreate({
         workspaceId,
+        type: 'service_account',
+        providerId: ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
         apiToken: trimmedToken,
         domain: normalizedDomain,
         displayName: displayName.trim() || undefined,

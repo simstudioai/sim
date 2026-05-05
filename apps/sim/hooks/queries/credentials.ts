@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput, ContractQueryInput } from '@/lib/api/contracts'
 import {
-  createAtlassianServiceAccountContract,
   createCredentialDraftContract,
   createWorkspaceCredentialContract,
   deleteWorkspaceCredentialContract,
@@ -128,22 +127,6 @@ export function useCreateCredentialDraft() {
   return useMutation({
     mutationFn: async (payload: ContractBodyInput<typeof createCredentialDraftContract>) => {
       await requestJson(createCredentialDraftContract, { body: payload })
-    },
-  })
-}
-
-export function useCreateAtlassianServiceAccount() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async (
-      payload: ContractBodyInput<typeof createAtlassianServiceAccountContract>
-    ) => {
-      return requestJson(createAtlassianServiceAccountContract, { body: payload })
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: OAUTH_CREDENTIALS_KEY })
     },
   })
 }

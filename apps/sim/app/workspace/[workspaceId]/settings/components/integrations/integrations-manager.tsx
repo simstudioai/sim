@@ -40,7 +40,6 @@ import { AtlassianServiceAccountForm } from '@/app/workspace/[workspaceId]/setti
 import { CredentialSkeleton } from '@/app/workspace/[workspaceId]/settings/components/integrations/credential-skeleton'
 import { ServiceAccountForm } from '@/app/workspace/[workspaceId]/settings/components/integrations/service-account-form'
 import {
-  useCreateAtlassianServiceAccount,
   useCreateCredentialDraft,
   useCreateWorkspaceCredential,
   useDeleteWorkspaceCredential,
@@ -147,7 +146,6 @@ export function IntegrationsManager() {
 
   const createDraft = useCreateCredentialDraft()
   const createCredential = useCreateWorkspaceCredential()
-  const createAtlassianServiceAccount = useCreateAtlassianServiceAccount()
   const updateCredential = useUpdateWorkspaceCredential()
   const deleteCredential = useDeleteWorkspaceCredential()
   const upsertMember = useUpsertWorkspaceCredentialMember()
@@ -855,7 +853,7 @@ export function IntegrationsManager() {
             serviceLabel={selectedOAuthService.name || resolveProviderLabel(createOAuthProviderId)}
             workspaceId={workspaceId}
             onBack={() => setCreateStep(1)}
-            onCreate={(input) => createAtlassianServiceAccount.mutateAsync(input)}
+            onCreate={(input) => createCredential.mutateAsync(input)}
             onCreated={() => {
               setShowCreateModal(false)
               resetCreateForm()

@@ -1,7 +1,6 @@
 export * from './academy'
 export * from './admin'
 export * from './api-keys'
-export * from './atlassian-service-account'
 export * from './audit-logs'
 export * from './byok-keys'
 export * from './chats'

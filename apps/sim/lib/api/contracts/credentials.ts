@@ -119,6 +119,8 @@ export const createCredentialBodySchema = z
     envKey: z.string().trim().min(1).optional(),
     envOwnerUserId: z.string().trim().min(1).optional(),
     serviceAccountJson: z.string().optional(),
+    apiToken: z.string().trim().min(1).optional(),
+    domain: z.string().trim().min(1).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'oauth') {
@@ -147,6 +149,23 @@ export const createCredentialBodySchema = z
     }
 
     if (data.type === 'service_account') {
+      if (data.providerId === 'atlassian-service-account') {
+        if (!data.apiToken) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'apiToken is required for Atlassian service account credentials',
+            path: ['apiToken'],
+          })
+        }
+        if (!data.domain) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'domain is required for Atlassian service account credentials',
+            path: ['domain'],
+          })
+        }
+        return
+      }
       if (!data.serviceAccountJson) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
