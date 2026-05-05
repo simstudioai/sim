@@ -17,7 +17,7 @@ export function buildCompanyUrl(realmId: string | undefined, path: string): stri
   }
   const base = getQuickBooksApiBaseUrl()
   const trimmed = path.startsWith('/') ? path : `/${path}`
-  return `${base}/v3/company/${realmId}${trimmed}`
+  return `${base}/v3/company/${encodeURIComponent(realmId)}${trimmed}`
 }
 
 /**

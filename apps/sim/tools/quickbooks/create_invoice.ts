@@ -57,7 +57,7 @@ export const quickbooksCreateInvoiceTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Invoice line items (JSON array). Each entry: { description?, amount, quantity?, itemId?, itemName? }',
+        'Invoice line items (JSON array). Each entry: { itemId, amount, quantity?, description?, itemName? }. itemId is required (use list_items to look up valid IDs).',
     },
     txnDate: {
       type: 'string',
