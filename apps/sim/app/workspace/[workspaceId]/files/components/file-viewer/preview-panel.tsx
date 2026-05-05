@@ -583,7 +583,7 @@ const STATIC_MARKDOWN_COMPONENTS = {
             />
           ) : (
             <pre className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] text-[var(--text-primary)] not-italic leading-[1.6]'>
-              <code>{codeString.trimEnd()}</code>
+              <code className='not-italic'>{codeString.trimEnd()}</code>
             </pre>
           )}
         </div>
