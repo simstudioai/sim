@@ -505,21 +505,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       .limit(1)
 
     await db.transaction(async (tx) => {
-      // Race-safety re-check: the outer findExistingCredentialBySource ran outside
-      // the transaction. Service_account rows have no DB-level unique index on
-      // (workspaceId, providerId, displayName), so a concurrent request could
-      // have inserted a duplicate after our outer check but before this insert.
-      // Re-check here and abort the tx if so. The catch maps this to a 409.
-      const innerExisting = await findExistingCredentialBySourceTx(tx, {
-        workspaceId,
-        type,
-        accountId: resolvedAccountId,
-        envKey: resolvedEnvKey,
-        envOwnerUserId: resolvedEnvOwnerUserId,
-        displayName: resolvedDisplayName,
-        providerId: resolvedProviderId,
-      })
-      if (innerExisting) throw new DuplicateCredentialError()
+      // service_account has no DB-level unique index on (workspaceId, providerId,
+      // displayName), so we re-check inside the tx. OAuth/env_* are guarded by
+      // partial unique indexes and fall through to the 23505 handler below.
+      if (type === 'service_account') {
+        const innerExisting = await findExistingCredentialBySourceTx(tx, {
+          workspaceId,
+          type,
+          displayName: resolvedDisplayName,
+          providerId: resolvedProviderId,
+        })
+        if (innerExisting) throw new DuplicateCredentialError()
+      }
 
       await tx.insert(credential).values({
         id: credentialId,
