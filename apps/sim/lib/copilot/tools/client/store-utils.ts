@@ -127,14 +127,16 @@ function humanizedFallback(
   toolName: string,
   state: ClientToolCallState
 ): ClientToolDisplay | undefined {
-  const formattedName = toolName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  const titleCaseName = toolName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  if (state === ClientToolCallState.error) {
+    const lowerCaseName = toolName.replace(/_/g, ' ').toLowerCase()
+    return { text: `Attempted to ${lowerCaseName}`, icon: Loader }
+  }
   const stateVerb =
     state === ClientToolCallState.success
       ? 'Executed'
-      : state === ClientToolCallState.error
-        ? 'Attempted to'
-        : state === ClientToolCallState.rejected || state === ClientToolCallState.aborted
-          ? 'Skipped'
-          : 'Executing'
-  return { text: `${stateVerb} ${formattedName}`, icon: Loader }
+      : state === ClientToolCallState.rejected || state === ClientToolCallState.aborted
+        ? 'Skipped'
+        : 'Executing'
+  return { text: `${stateVerb} ${titleCaseName}`, icon: Loader }
 }
