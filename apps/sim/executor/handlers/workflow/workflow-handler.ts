@@ -160,7 +160,8 @@ export class WorkflowBlockHandler implements BlockHandler {
           effectiveBlockId,
           instanceId,
           iterationContext,
-          nodeMetadata?.executionOrder
+          nodeMetadata?.executionOrder,
+          ctx.childWorkflowContext
         )
       }
 

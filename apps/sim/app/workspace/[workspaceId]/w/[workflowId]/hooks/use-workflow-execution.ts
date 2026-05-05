@@ -2098,7 +2098,10 @@ export function useWorkflowExecution() {
         if (!reconnectionComplete && !cleanupRan) {
           reconnectionComplete = true
           activeReconnections.delete(reconnectWorkflowId)
-          if (activated) {
+          if (!activated) {
+            clearExecutionPointer(reconnectWorkflowId)
+            cleanupFailedReconnect()
+          } else {
             const currentId = useExecutionStore
               .getState()
               .getCurrentExecutionId(reconnectWorkflowId)

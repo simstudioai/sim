@@ -218,6 +218,7 @@ export async function executeQueuedWorkflowJob(
             finalBlockLogs: result.logs,
           },
         })
+        await eventWriter.flush()
         await setExecutionMeta(executionId, { status: 'cancelled' })
       } else if (result.status === 'paused') {
         await eventWriter.write({
@@ -232,6 +233,7 @@ export async function executeQueuedWorkflowJob(
             endTime: result.metadata?.endTime || new Date().toISOString(),
           },
         })
+        await eventWriter.flush()
         await setExecutionMeta(executionId, { status: 'complete' })
       } else {
         await eventWriter.write({
@@ -248,6 +250,7 @@ export async function executeQueuedWorkflowJob(
             finalBlockLogs: result.logs,
           },
         })
+        await eventWriter.flush()
         await setExecutionMeta(executionId, { status: 'complete' })
       }
     }
@@ -306,6 +309,7 @@ export async function executeQueuedWorkflowJob(
           finalBlockLogs: executionResult?.logs,
         },
       })
+      await eventWriter.flush()
       await setExecutionMeta(executionId, { status: 'error' })
     }
 

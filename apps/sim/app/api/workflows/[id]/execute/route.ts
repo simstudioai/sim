@@ -1111,7 +1111,8 @@ async function handleExecutePost(
             blockId: string,
             childWorkflowInstanceId: string,
             iterationContext?: IterationContext,
-            executionOrder?: number
+            executionOrder?: number,
+            childWorkflowContext?: ChildWorkflowContext
           ) => {
             sendEvent({
               type: 'block:childWorkflowStarted',
@@ -1123,7 +1124,16 @@ async function handleExecutePost(
                 childWorkflowInstanceId,
                 ...(iterationContext && {
                   iterationCurrent: iterationContext.iterationCurrent,
+                  iterationTotal: iterationContext.iterationTotal,
+                  iterationType: iterationContext.iterationType,
                   iterationContainerId: iterationContext.iterationContainerId,
+                  ...(iterationContext.parentIterations?.length && {
+                    parentIterations: iterationContext.parentIterations,
+                  }),
+                }),
+                ...(childWorkflowContext && {
+                  childWorkflowBlockId: childWorkflowContext.parentBlockId,
+                  childWorkflowName: childWorkflowContext.workflowName,
                 }),
                 ...(executionOrder !== undefined && { executionOrder }),
               },

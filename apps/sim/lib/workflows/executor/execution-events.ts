@@ -184,7 +184,12 @@ export interface BlockChildWorkflowStartedEvent extends BaseExecutionEvent {
     blockId: string
     childWorkflowInstanceId: string
     iterationCurrent?: number
+    iterationTotal?: number
+    iterationType?: SubflowType
     iterationContainerId?: string
+    parentIterations?: ParentIteration[]
+    childWorkflowBlockId?: string
+    childWorkflowName?: string
     executionOrder?: number
   }
 }
@@ -435,7 +440,8 @@ export function createExecutionCallbacks(options: {
     blockId: string,
     childWorkflowInstanceId: string,
     iterationContext?: IterationContext,
-    executionOrder?: number
+    executionOrder?: number,
+    childWorkflowContext?: ChildWorkflowContext
   ) => {
     void sendBufferedEvent({
       type: 'block:childWorkflowStarted',
@@ -447,7 +453,16 @@ export function createExecutionCallbacks(options: {
         childWorkflowInstanceId,
         ...(iterationContext && {
           iterationCurrent: iterationContext.iterationCurrent,
+          iterationTotal: iterationContext.iterationTotal,
+          iterationType: iterationContext.iterationType,
           iterationContainerId: iterationContext.iterationContainerId,
+          ...(iterationContext.parentIterations?.length && {
+            parentIterations: iterationContext.parentIterations,
+          }),
+        }),
+        ...(childWorkflowContext && {
+          childWorkflowBlockId: childWorkflowContext.parentBlockId,
+          childWorkflowName: childWorkflowContext.workflowName,
         }),
         ...(executionOrder !== undefined && { executionOrder }),
       },

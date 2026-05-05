@@ -209,7 +209,7 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
     }
   }
 
-  const flush = async () => {
+  const flushPending = async () => {
     if (flushPromise) {
       await flushPromise
       return
@@ -231,7 +231,7 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
     const entry: ExecutionEventEntry = { eventId, executionId, event }
     pending.push(entry)
     if (pending.length >= FLUSH_MAX_BATCH) {
-      await flush()
+      await flushPending()
     } else {
       scheduleFlush()
     }
@@ -266,6 +266,11 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
     if (pending.length > 0) {
       await doFlush()
     }
+  }
+
+  const flush = async () => {
+    await writeQueue
+    await flushPending()
   }
 
   return { write, flush, close }

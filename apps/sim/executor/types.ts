@@ -378,7 +378,8 @@ export interface ExecutionContext {
     blockId: string,
     childWorkflowInstanceId: string,
     iterationContext?: IterationContext,
-    executionOrder?: number
+    executionOrder?: number,
+    childWorkflowContext?: ChildWorkflowContext
   ) => void
 
   /**
