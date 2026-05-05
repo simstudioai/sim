@@ -6,7 +6,7 @@
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
@@ -408,10 +408,28 @@ export async function registerUploadedWorkspaceFile(params: {
 }
 
 /**
+ * Like `withCopySuffix` but with `n=1` meaning "no suffix" — used by retry loops where
+ * the first attempt should try the original name (`image.png`, `image (2).png`, ...).
+ * Exported for tests.
+ */
+export function suffixedName(name: string, n: number): string {
+  return n <= 1 ? name : withCopySuffix(name, n)
+}
+
+const MAX_CHAT_DISPLAY_NAME_RETRIES = 1000
+
+/** Postgres constraint name for the partial unique index on `(chat_id, display_name)`. */
+export const CHAT_DISPLAY_NAME_INDEX = 'workspace_files_chat_display_name_unique'
+
+/**
  * Track a file that was already uploaded to workspace S3 as a chat-scoped upload.
  * Links the existing workspaceFiles metadata record (created by the storage service
  * during upload) to the chat by setting chatId and context='mothership'.
  * Falls back to inserting a new record if none exists for the key.
+ *
+ * Allocates a collision-free `displayName` (the partial unique index on
+ * (chat_id, display_name) WHERE context='mothership' enforces this) and returns it
+ * so callers can surface the same name to the model in the VFS read hint.
  */
 export async function trackChatUpload(
   workspaceId: string,
@@ -421,39 +439,65 @@ export async function trackChatUpload(
   fileName: string,
   contentType: string,
   size: number
-): Promise<void> {
-  const updated = await db
-    .update(workspaceFiles)
-    .set({ chatId, context: 'mothership' })
-    .where(
-      and(
-        eq(workspaceFiles.key, s3Key),
-        eq(workspaceFiles.workspaceId, workspaceId),
-        isNull(workspaceFiles.deletedAt)
-      )
-    )
-    .returning({ id: workspaceFiles.id })
+): Promise<{ displayName: string }> {
+  for (let n = 1; n <= MAX_CHAT_DISPLAY_NAME_RETRIES; n++) {
+    const candidate = suffixedName(fileName, n)
+    try {
+      const updated = await db
+        .update(workspaceFiles)
+        .set({ chatId, context: 'mothership', displayName: candidate })
+        .where(
+          and(
+            eq(workspaceFiles.key, s3Key),
+            eq(workspaceFiles.workspaceId, workspaceId),
+            isNull(workspaceFiles.deletedAt)
+          )
+        )
+        .returning({ id: workspaceFiles.id })
 
-  if (updated.length > 0) {
-    logger.info(`Linked existing file record to chat: ${fileName} for chat ${chatId}`)
-    return
+      if (updated.length > 0) {
+        logger.info(
+          `Linked existing file record to chat: ${fileName} (display: ${candidate}) for chat ${chatId}`
+        )
+        return { displayName: candidate }
+      }
+
+      const fileId = `wf_${generateShortId()}`
+
+      await db.insert(workspaceFiles).values({
+        id: fileId,
+        key: s3Key,
+        userId,
+        workspaceId,
+        context: 'mothership',
+        chatId,
+        originalName: fileName,
+        displayName: candidate,
+        contentType,
+        size,
+      })
+
+      logger.info(
+        `Tracked chat upload: ${fileName} (display: ${candidate}) for chat ${chatId}`
+      )
+      return { displayName: candidate }
+    } catch (error) {
+      // Other 23505s (e.g. active-key collision from a racing same-s3Key insert) signal
+      // a different invariant — retrying would silently rename a row another caller owns.
+      if (
+        getPostgresErrorCode(error) === '23505' &&
+        getPostgresConstraintName(error) === CHAT_DISPLAY_NAME_INDEX
+      ) {
+        logger.warn(
+          `Chat upload displayName collision on attempt ${n} for "${candidate}" in chat ${chatId}, retrying with suffix`
+        )
+        continue
+      }
+      throw error
+    }
   }
 
-  const fileId = `wf_${generateShortId()}`
-
-  await db.insert(workspaceFiles).values({
-    id: fileId,
-    key: s3Key,
-    userId,
-    workspaceId,
-    context: 'mothership',
-    chatId,
-    originalName: fileName,
-    contentType,
-    size,
-  })
-
-  logger.info(`Tracked chat upload: ${fileName} for chat ${chatId}`)
+  throw new FileConflictError(fileName)
 }
 
 /**

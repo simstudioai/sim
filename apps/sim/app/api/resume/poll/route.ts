@@ -3,7 +3,7 @@ import { pausedExecutions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, isNotNull, lte } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, lte } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
@@ -67,6 +67,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           lte(pausedExecutions.nextResumeAt, now)
         )
       )
+      .orderBy(asc(pausedExecutions.nextResumeAt))
       .limit(POLL_BATCH_LIMIT)
 
     const results = await Promise.all(dueRows.map((row) => dispatchRow(row, now)))
@@ -130,6 +131,7 @@ async function dispatchRow(row: DueRow, now: Date): Promise<RowResult> {
         contextId: point.contextId,
         resumeInput: {},
         userId,
+        allowedPauseKinds: ['time'],
       })
 
       if (enqueueResult.status === 'starting') {

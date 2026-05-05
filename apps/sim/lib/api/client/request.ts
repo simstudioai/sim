@@ -134,6 +134,14 @@ function messageFromErrorBody(body: unknown, fallback: string): string {
   return fallback
 }
 
+function codeFromErrorBody(body: unknown): string | undefined {
+  if (body && typeof body === 'object') {
+    const record = body as Record<string, unknown>
+    if (typeof record.code === 'string' && record.code.length > 0) return record.code
+  }
+  return undefined
+}
+
 function isSchemaValidationError(error: unknown): boolean {
   return Boolean(
     error &&
@@ -173,6 +181,7 @@ export async function requestJson<C extends AnyApiRouteContract>(
       message: messageFromErrorBody(parsed, `Request failed with ${response.status}`),
       body: parsed,
       rawBody: raw,
+      code: codeFromErrorBody(parsed),
     })
   }
 

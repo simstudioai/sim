@@ -119,19 +119,22 @@ export class WaitBlockHandler implements BlockHandler {
       parallelId?: string
       branchIndex?: number
       branchTotal?: number
+      originalBlockId?: string
+      isLoopNode?: boolean
+      executionOrder?: number
     }
   ): Promise<BlockOutput> {
-    const timeValue = Number.parseInt(inputs.timeValue || '10', 10)
+    const timeValue = Number.parseFloat(inputs.timeValue || '10')
     const timeUnit = inputs.timeUnit || 'seconds'
 
-    if (Number.isNaN(timeValue) || timeValue <= 0) {
+    if (!Number.isFinite(timeValue) || timeValue <= 0) {
       throw new Error('Wait amount must be a positive number')
     }
 
     if (!isWaitUnit(timeUnit)) {
       throw new Error(`Unknown wait unit: ${timeUnit}`)
     }
-    const waitMs = timeValue * UNIT_TO_MS[timeUnit]
+    const waitMs = Math.round(timeValue * UNIT_TO_MS[timeUnit])
 
     if (waitMs > MAX_WAIT_MS) {
       throw new Error('Wait time exceeds maximum of 30 days')

@@ -1,5 +1,5 @@
 {
-  "id": "35f9f8bb-e5d5-4c81-99ab-31e103bafb74",
+  "id": "a4e8ed8d-05b0-408e-8ab8-929e9ffe4081",
   "prevId": "f7dc3eab-9b08-4ed7-99b0-d952797d86eb",
   "version": "7",
   "dialect": "postgresql",
@@ -8270,12 +8270,6 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
-        },
-        "next_resume_at": {
-          "name": "next_resume_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -8320,22 +8314,6 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "paused_executions_next_resume_at_idx": {
-          "name": "paused_executions_next_resume_at_idx",
-          "columns": [
-            {
-              "expression": "next_resume_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "status = 'paused' AND next_resume_at IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -14531,6 +14509,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "content_type": {
           "name": "content_type",
           "type": "text",
@@ -14599,6 +14583,28 @@
           ],
           "isUnique": true,
           "where": "\"workspace_files\".\"deleted_at\" IS NULL AND \"workspace_files\".\"context\" = 'workspace' AND \"workspace_files\".\"workspace_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_files_chat_display_name_unique": {
+          "name": "workspace_files_chat_display_name_unique",
+          "columns": [
+            {
+              "expression": "chat_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "display_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"workspace_files\".\"context\" = 'mothership' AND \"workspace_files\".\"chat_id\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

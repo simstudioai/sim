@@ -1568,6 +1568,7 @@ import {
 import { linkedInGetProfileTool, linkedInSharePostTool } from '@/tools/linkedin'
 import { linkupSearchTool } from '@/tools/linkup'
 import { llmChatTool } from '@/tools/llm'
+import { logsGetExecutionTool, logsGetTool, logsQueryTool } from '@/tools/logs'
 import {
   loopsCreateContactPropertyTool,
   loopsCreateContactTool,
@@ -3204,6 +3205,9 @@ export const tools: Record<string, ToolConfig> = {
   ketch_set_consent: ketchSetConsentTool,
   ketch_set_subscriptions: ketchSetSubscriptionsTool,
   linkup_search: linkupSearchTool,
+  logs_query: logsQueryTool,
+  logs_get: logsGetTool,
+  logs_get_execution: logsGetExecutionTool,
   loops_create_contact: loopsCreateContactTool,
   loops_create_contact_property: loopsCreateContactPropertyTool,
   loops_update_contact: loopsUpdateContactTool,

@@ -245,18 +245,32 @@ describe('WaitBlockHandler', () => {
     expect(result._pauseMetadata.pauseKind).toBe('time')
   })
 
-  it('should handle fractional seconds by parsing to integers', async () => {
-    const inputs = { timeValue: '5.7', timeUnit: 'seconds' }
+  it('should preserve fractional time values for larger units', async () => {
+    const inputs = { timeValue: '5.5', timeUnit: 'seconds' }
 
     const executePromise = handler.execute(mockContext, mockBlock, inputs)
 
-    await vi.advanceTimersByTimeAsync(5000)
+    await vi.advanceTimersByTimeAsync(5500)
 
     const result = await executePromise
 
     expect(result).toEqual({
-      waitDuration: 5000,
+      waitDuration: 5500,
       status: 'completed',
     })
+  })
+
+  it('should suspend a 1.5-day wait without truncating', async () => {
+    vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
+
+    const result = (await handler.execute(mockContext, mockBlock, {
+      timeValue: '1.5',
+      timeUnit: 'days',
+    })) as Record<string, any>
+
+    const waitMs = 1.5 * 24 * 60 * 60 * 1000
+    expect(result.waitDuration).toBe(waitMs)
+    expect(result.status).toBe('waiting')
+    expect(result._pauseMetadata.pauseKind).toBe('time')
   })
 })

@@ -248,6 +248,7 @@ async function handleResumeRequestBody({
       events: batchEvents,
       previewSessions,
       status: run.status,
+      ...(run.chatId ? { chatId: run.chatId } : {}),
     })
   }
 

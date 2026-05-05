@@ -29,6 +29,16 @@ const {
   mockSql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
 }))
 
+vi.mock('@sim/db/schema', () => ({
+  copilotChats: {
+    id: 'copilotChats.id',
+    userId: 'copilotChats.userId',
+    workspaceId: 'copilotChats.workspaceId',
+    messages: 'copilotChats.messages',
+    conversationId: 'copilotChats.conversationId',
+  },
+}))
+
 vi.mock('@sim/db', () => ({
   db: {
     select: mockSelect,
@@ -140,6 +150,7 @@ describe('copilot chat stop route', () => {
       workspaceId: 'ws-1',
       chatId: 'chat-1',
       type: 'completed',
+      streamId: 'stream-1',
     })
   })
 })

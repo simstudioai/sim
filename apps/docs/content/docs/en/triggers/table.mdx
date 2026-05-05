@@ -1,0 +1,45 @@
+---
+title: Table
+description: Available Table triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="table"
+  color="#10B981"
+/>
+
+Table provides 1 trigger for automating workflows based on events.
+
+## Triggers
+
+### Table Trigger
+
+Triggers when rows are inserted or updated in a table
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableSelector` | table-selector | Yes | The table to monitor. |
+| `manualTableId` | string | Yes | The table to monitor. |
+| `eventType` | string | Yes | The type of event to trigger on. |
+| `watchColumns` | string | No | Only fire when these columns change. Leave empty to fire on any update. |
+| `includeHeaders` | boolean | No | When enabled, each row is returned as a key-value object mapped to column names. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `row` | json | Row data mapped to column names \(when header mapping is enabled\) |
+| `rawRow` | json | Raw row data object |
+| `previousRow` | json | Previous row data before the update \(null for inserts\) |
+| `changedColumns` | json | List of column names that changed \(empty for inserts\) |
+| `rowId` | string | The unique row ID |
+| `headers` | json | Column names from the table schema |
+| `rowNumber` | number | The position of the row in the table |
+| `tableId` | string | The table ID |
+| `tableName` | string | The table name |
+| `timestamp` | string | Event timestamp in ISO format |
+

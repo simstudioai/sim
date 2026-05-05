@@ -59,6 +59,8 @@ const LOG_DROPDOWN_FILTERS = {
   triggers: [] as string[],
   searchQuery: '',
   limit: LOG_DROPDOWN_LIMIT,
+  sortBy: 'date' as const,
+  sortOrder: 'desc' as const,
 }
 
 export function useAvailableResources(

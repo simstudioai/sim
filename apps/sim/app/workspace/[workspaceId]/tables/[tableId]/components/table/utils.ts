@@ -177,16 +177,10 @@ export function computeNormalizedSelection(
   }
 }
 
-export function collectRowSnapshots(
-  positions: Iterable<number>,
-  positionMap: Map<number, TableRowType>
-): DeletedRowSnapshot[] {
+export function collectRowSnapshots(rows: Iterable<TableRowType>): DeletedRowSnapshot[] {
   const snapshots: DeletedRowSnapshot[] = []
-  for (const pos of positions) {
-    const row = positionMap.get(pos)
-    if (row) {
-      snapshots.push({ rowId: row.id, data: { ...row.data }, position: row.position })
-    }
+  for (const row of rows) {
+    snapshots.push({ rowId: row.id, data: { ...row.data }, position: row.position })
   }
   return snapshots
 }
