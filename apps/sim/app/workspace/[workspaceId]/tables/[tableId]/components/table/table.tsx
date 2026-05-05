@@ -321,7 +321,24 @@ export function Table({
   )
   const hasWorkflowGroup = headerGroups.some((g) => g.kind === 'workflow')
 
-  const maxPosition = useMemo(() => (rows.length > 0 ? rows[rows.length - 1].position : -1), [rows])
+  const maxPosition = useMemo(() => {
+    if (rows.length === 0) return -1
+    let max = rows[0].position
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i].position > max) max = rows[i].position
+    }
+    return max
+  }, [rows])
+  const minPosition = useMemo(() => {
+    if (rows.length === 0) return -1
+    let min = rows[0].position
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i].position < min) min = rows[i].position
+    }
+    return min
+  }, [rows])
+  const minPositionRef = useRef(minPosition)
+  minPositionRef.current = minPosition
   const maxPositionRef = useRef(maxPosition)
   maxPositionRef.current = maxPosition
 
@@ -405,15 +422,20 @@ export function Table({
       }
       return true
     }
-    return (
-      normalizedSelection !== null &&
-      maxPosition >= 0 &&
-      normalizedSelection.startRow === 0 &&
-      normalizedSelection.endRow === maxPosition &&
-      normalizedSelection.startCol === 0 &&
-      normalizedSelection.endCol === displayColumns.length - 1
-    )
-  }, [checkedRows, normalizedSelection, maxPosition, displayColumns.length, rows])
+    if (
+      normalizedSelection === null ||
+      rows.length === 0 ||
+      normalizedSelection.startCol !== 0 ||
+      normalizedSelection.endCol !== displayColumns.length - 1
+    ) {
+      return false
+    }
+    const { startRow, endRow } = normalizedSelection
+    for (const row of rows) {
+      if (row.position < startRow || row.position > endRow) return false
+    }
+    return true
+  }, [checkedRows, normalizedSelection, displayColumns.length, rows])
 
   const isAllRowsSelectedRef = useRef(isAllRowsSelected)
   isAllRowsSelectedRef.current = isAllRowsSelected
@@ -798,7 +820,7 @@ export function Table({
     setEditingCell(null)
     setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
     suppressFocusScrollRef.current = true
-    setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
+    setSelectionAnchor({ rowIndex: minPositionRef.current, colIndex: 0 })
     setSelectionFocus({
       rowIndex: maxPositionRef.current,
       colIndex: currentCols.length - 1,
@@ -1305,7 +1327,7 @@ export function Table({
           suppressFocusScrollRef.current = true
           setEditingCell(null)
           setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
-          setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
+          setSelectionAnchor({ rowIndex: minPositionRef.current, colIndex: 0 })
           setSelectionFocus({
             rowIndex: maxPositionRef.current,
             colIndex: currentCols.length - 1,
@@ -2985,15 +3007,15 @@ const PositionGapRows = React.memo(
           const isGapChecked = checkedRows.has(position)
           return (
             <tr key={`gap-${position}`}>
-              <td className={GAP_CHECKBOX_CLASS}>
+              <td
+                className={GAP_CHECKBOX_CLASS}
+                onMouseDown={(e) => {
+                  if (e.button !== 0) return
+                  onRowToggle(position, e.shiftKey)
+                }}
+              >
                 <div className='flex items-center justify-center gap-1'>
-                  <div
-                    className='group/checkbox flex h-[20px] w-[24px] shrink-0 items-center justify-center'
-                    onMouseDown={(e) => {
-                      if (e.button !== 0) return
-                      onRowToggle(position, e.shiftKey)
-                    }}
-                  >
+                  <div className='group/checkbox flex h-[20px] w-[24px] shrink-0 items-center justify-center'>
                     <span
                       className={cn(
                         'text-[var(--text-tertiary)] text-xs tabular-nums',
@@ -3251,15 +3273,15 @@ const DataRow = React.memo(function DataRow({
 
   return (
     <tr onContextMenu={(e) => onContextMenu(e, row)}>
-      <td className={cn(CELL_CHECKBOX, 'cursor-pointer')}>
+      <td
+        className={cn(CELL_CHECKBOX, 'cursor-pointer')}
+        onMouseDown={(e) => {
+          if (e.button !== 0) return
+          onRowToggle(rowIndex, e.shiftKey)
+        }}
+      >
         <div className='flex items-center justify-center gap-1'>
-          <div
-            className='group/checkbox flex h-[20px] w-[24px] shrink-0 items-center justify-center'
-            onMouseDown={(e) => {
-              if (e.button !== 0) return
-              onRowToggle(rowIndex, e.shiftKey)
-            }}
-          >
+          <div className='group/checkbox flex h-[20px] w-[24px] shrink-0 items-center justify-center'>
             <span
               className={cn(
                 'text-[var(--text-tertiary)] text-xs tabular-nums',
@@ -3283,6 +3305,7 @@ const DataRow = React.memo(function DataRow({
               aria-label={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
               title={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
               className='ml-auto flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded text-[var(--text-primary)] transition-colors hover-hover:bg-[var(--surface-2)]'
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={() => {
                 if (runningCount > 0) {
                   onStopRow(row.id)
