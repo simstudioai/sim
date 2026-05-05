@@ -1,7 +1,11 @@
 import { createLogger } from '@sim/logger'
 import type { QuickBooksListParams, QuickBooksPaymentListResponse } from '@/tools/quickbooks/types'
 import { PAYMENT_OUTPUT } from '@/tools/quickbooks/types'
-import { buildCompanyUrl, quickbooksAuthHeaders } from '@/tools/quickbooks/utils'
+import {
+  buildCompanyUrl,
+  quickbooksAuthHeaders,
+  sanitizeWhereClause,
+} from '@/tools/quickbooks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('QuickBooksListPayments')
@@ -54,7 +58,8 @@ export const quickbooksListPaymentsTool: ToolConfig<
     url: (params) => {
       const max = Math.min(Math.max(Number(params.maxResults) || 100, 1), 1000)
       const start = Math.max(Number(params.startPosition) || 1, 1)
-      const whereClause = params.where ? ` WHERE ${params.where}` : ''
+      const safeWhere = sanitizeWhereClause(params.where)
+      const whereClause = safeWhere ? ` WHERE ${safeWhere}` : ''
       const sql = `SELECT * FROM Payment${whereClause} STARTPOSITION ${start} MAXRESULTS ${max}`
       const url = buildCompanyUrl(params.realmId, '/query')
       return `${url}?query=${encodeURIComponent(sql)}&minorversion=73`

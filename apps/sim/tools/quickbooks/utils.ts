@@ -20,6 +20,27 @@ export function buildCompanyUrl(realmId: string | undefined, path: string): stri
   return `${base}/v3/company/${realmId}${trimmed}`
 }
 
+/**
+ * Reject `where` clause values that contain QQL keywords other than predicates.
+ * Prevents callers (or LLMs) from escaping the per-tool entity scope by
+ * appending `MAXRESULTS`, `STARTPOSITION`, `ORDERBY`, additional `SELECT`
+ * statements, etc.
+ */
+const FORBIDDEN_WHERE_KEYWORDS =
+  /\b(MAXRESULTS|STARTPOSITION|ORDER\s*BY|SELECT|FROM|GROUP\s*BY|HAVING)\b/i
+
+export function sanitizeWhereClause(where: string | undefined): string | undefined {
+  if (!where) return undefined
+  const trimmed = where.trim()
+  if (!trimmed) return undefined
+  if (FORBIDDEN_WHERE_KEYWORDS.test(trimmed)) {
+    throw new Error(
+      'where clause may only contain predicate expressions — keywords like MAXRESULTS, STARTPOSITION, ORDER BY, SELECT, and FROM are not allowed'
+    )
+  }
+  return trimmed
+}
+
 export function quickbooksAuthHeaders(accessToken: string | undefined): Record<string, string> {
   if (!accessToken) {
     throw new Error('Missing QuickBooks access token')

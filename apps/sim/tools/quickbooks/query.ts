@@ -9,7 +9,7 @@ export const quickbooksQueryTool: ToolConfig<QuickBooksQueryParams, QuickBooksQu
   id: 'quickbooks_query',
   name: 'QuickBooks Query',
   description:
-    'Run a QuickBooks Online query (SQL-like syntax, e.g., "SELECT * FROM Item WHERE Active = true")',
+    'Run a QuickBooks Online query using SQL-like syntax (example: SELECT * FROM Item WHERE Active = true)',
   version: '1.0.0',
 
   oauth: { required: true, provider: 'quickbooks' },

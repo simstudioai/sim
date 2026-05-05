@@ -1812,7 +1812,7 @@ export const auth = betterAuth({
                 return null
               }
               return {
-                id: `quickbooks-${realmId}-${generateId()}`,
+                id: `quickbooks-${realmId}`,
                 name: `QuickBooks Company ${realmId}`,
                 email: `quickbooks-${realmId}@quickbooks.local`,
                 emailVerified: true,

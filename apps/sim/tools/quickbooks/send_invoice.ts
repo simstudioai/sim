@@ -58,7 +58,6 @@ export const quickbooksSendInvoiceTool: ToolConfig<
       ...quickbooksAuthHeaders(params.accessToken),
       'Content-Type': 'application/octet-stream',
     }),
-    body: () => ({}),
   },
 
   transformResponse: async (response) => {

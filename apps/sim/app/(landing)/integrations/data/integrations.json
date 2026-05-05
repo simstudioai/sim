@@ -10390,7 +10390,7 @@
       },
       {
         "name": "Run Query",
-        "description": "Run a QuickBooks Online query (SQL-like syntax, e.g., "
+        "description": "Run a QuickBooks Online query using SQL-like syntax (example: SELECT * FROM Item WHERE Active = true)"
       }
     ],
     "operationCount": 22,
