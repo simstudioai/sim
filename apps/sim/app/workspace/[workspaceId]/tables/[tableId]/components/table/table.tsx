@@ -89,12 +89,23 @@ const EMPTY_CHECKED_ROWS = new Set<number>()
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
 // Wide enough to host the row-number + per-row run button side by side.
-// Single-digit row numbers (rows 1–9) and multi-digit (10+) need to render
-// with the play button at the same x-position so the column doesn't reflow
-// row-by-row. Tables without workflow columns get the narrower variant
-// since there's no per-row run button to host.
-const CHECKBOX_COL_WIDTH_WITH_RUN = 56
-const CHECKBOX_COL_WIDTH_NUMBER_ONLY = 36
+// Single-digit row numbers (rows 1–9) and multi-digit need to render with
+// the play button at the same x-position so the column doesn't reflow
+// row-by-row.
+//
+// Bucketed by the table's plan-derived `maxRows`, not the live count: a small
+// table sized for ≤9,999 always renders the narrow gutter; an enterprise
+// table sized up to 9,999,999 always renders the wide one. The gutter never
+// changes width as rows are added.
+//
+// Tables without workflow columns drop the per-row run button (~28px), so
+// the gutter shrinks accordingly.
+const CHECKBOX_COL_WIDTH_SMALL_WITH_RUN = 56
+const CHECKBOX_COL_WIDTH_SMALL_NUMBER_ONLY = 36
+const CHECKBOX_COL_WIDTH_LARGE_WITH_RUN = 76
+const CHECKBOX_COL_WIDTH_LARGE_NUMBER_ONLY = 56
+/** Bucket boundary: tables sized for >9,999 rows get the wide gutter. */
+const LARGE_ROW_NUMBER_THRESHOLD = 10000
 const ADD_COL_WIDTH = 120
 /** Width of the column-config slideout (matches `column-sidebar.tsx`'s `w-[400px]`). */
 const COLUMN_SIDEBAR_WIDTH = 400
@@ -321,10 +332,27 @@ export function Table({
     return expandToDisplayColumns(ordered, tableWorkflowGroups)
   }, [columns, columnOrder, tableWorkflowGroups])
 
-  const hasWorkflowColumns = tableWorkflowGroups.length > 0
-  const checkboxColWidth = hasWorkflowColumns
-    ? CHECKBOX_COL_WIDTH_WITH_RUN
-    : CHECKBOX_COL_WIDTH_NUMBER_ONLY
+  const workflowColumnNames = useMemo(
+    () => columns.filter((c) => !!c.workflowGroupId).map((c) => c.name),
+    [columns]
+  )
+  const hasWorkflowColumns = workflowColumnNames.length > 0
+  /**
+   * The sticky left column hosts the row number / checkbox always, plus a
+   * per-row run button only when the table has workflow columns. Width is
+   * picked from the table's plan-derived `maxRows` so a free-tier table
+   * (≤9,999) gets the narrow gutter and an enterprise table (up to
+   * 9,999,999) gets the wide one. Bucketed, not continuous, so the gutter
+   * never reflows as rows are added.
+   */
+  const isLargeRowCountTable = (tableData?.maxRows ?? 0) >= LARGE_ROW_NUMBER_THRESHOLD
+  const checkboxColWidth = isLargeRowCountTable
+    ? hasWorkflowColumns
+      ? CHECKBOX_COL_WIDTH_LARGE_WITH_RUN
+      : CHECKBOX_COL_WIDTH_LARGE_NUMBER_ONLY
+    : hasWorkflowColumns
+      ? CHECKBOX_COL_WIDTH_SMALL_WITH_RUN
+      : CHECKBOX_COL_WIDTH_SMALL_NUMBER_ONLY
 
   const headerGroups = useMemo(
     () => buildHeaderGroups(displayColumns, tableWorkflowGroups),
@@ -356,18 +384,18 @@ export function Table({
     const colsWidth = isLoadingTable
       ? displayColCount * COL_WIDTH
       : displayColumns.reduce((sum, col) => sum + (columnWidths[col.key] ?? COL_WIDTH), 0)
-    return CHECKBOX_COL_WIDTH + colsWidth + ADD_COL_WIDTH
-  }, [isLoadingTable, displayColCount, displayColumns, columnWidths])
+    return checkboxColWidth + colsWidth + ADD_COL_WIDTH
+  }, [isLoadingTable, displayColCount, displayColumns, columnWidths, checkboxColWidth])
 
   const resizeIndicatorLeft = useMemo(() => {
     if (!resizingColumn) return 0
-    let left = CHECKBOX_COL_WIDTH
+    let left = checkboxColWidth
     for (const col of displayColumns) {
       left += columnWidths[col.key] ?? COL_WIDTH
       if (col.key === resizingColumn) return left
     }
     return 0
-  }, [resizingColumn, displayColumns, columnWidths])
+  }, [resizingColumn, displayColumns, columnWidths, checkboxColWidth])
 
   const dropColumnBounds = useMemo(() => {
     if (!dropTargetColumnName || !dragColumnName) return null
@@ -388,7 +416,7 @@ export function Table({
       (dropSide === 'left' && targetGroupStart === dragGroup + dragGroupSize)
     if (wouldBeNoOp) return null
 
-    let left = CHECKBOX_COL_WIDTH
+    let left = checkboxColWidth
     for (let i = 0; i < cols.length; i++) {
       const col = cols[i]
       const w = columnWidths[col.key] ?? COL_WIDTH
@@ -407,7 +435,14 @@ export function Table({
       left += w
     }
     return null
-  }, [dropTargetColumnName, dragColumnName, dropSide, displayColumns, columnWidths])
+  }, [
+    dropTargetColumnName,
+    dragColumnName,
+    dropSide,
+    displayColumns,
+    columnWidths,
+    checkboxColWidth,
+  ])
 
   const isAllRowsSelected = useMemo(() => {
     if (checkedRows.size > 0 && rows.length > 0 && checkedRows.size >= rows.length) {
@@ -1067,7 +1102,7 @@ export function Table({
 
     const cols = columnsRef.current
     const draggedGid = cols.find((c) => c.name === dragColumnNameRef.current)?.workflowGroupId
-    let left = CHECKBOX_COL_WIDTH
+    let left = checkboxColWidth
     let i = 0
     while (i < cols.length) {
       const col = cols[i]
@@ -2441,12 +2476,6 @@ export function Table({
 
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
-  const workflowColumnNames = useMemo(
-    () => columns.filter((c) => !!c.workflowGroupId).map((c) => c.name),
-    [columns]
-  )
-  const hasWorkflowColumns = workflowColumnNames.length > 0
-
   /**
    * Row ids for the current multi-row selection. Drives "Run N selected rows"
    * in the workflow-group run menu — `null` when there's no multi-selection so
@@ -2619,14 +2648,18 @@ export function Table({
             >
               {isLoadingTable ? (
                 <colgroup>
-                  <col style={{ width: CHECKBOX_COL_WIDTH }} />
+                  <col style={{ width: checkboxColWidth }} />
                   {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
                     <col key={i} style={{ width: COL_WIDTH }} />
                   ))}
                   <col style={{ width: ADD_COL_WIDTH }} />
                 </colgroup>
               ) : (
-                <TableColGroup columns={displayColumns} columnWidths={columnWidths} />
+                <TableColGroup
+                  columns={displayColumns}
+                  columnWidths={columnWidths}
+                  checkboxColWidth={checkboxColWidth}
+                />
               )}
               <thead className='sticky top-0 z-10'>
                 {isLoadingTable ? (
@@ -2806,6 +2839,7 @@ export function Table({
                             onRowToggle={handleRowToggle}
                             runningCount={runningByRowId.get(row.id) ?? 0}
                             hasWorkflowColumns={hasWorkflowColumns}
+                            isLargeRowCountTable={isLargeRowCountTable}
                             onStopRow={handleStopRow}
                             onRunRow={handleRunRow}
                             workflowNameById={workflowNameById}
@@ -3169,13 +3203,15 @@ const PositionGapRows = React.memo(
 const TableColGroup = React.memo(function TableColGroup({
   columns,
   columnWidths,
+  checkboxColWidth,
 }: {
   columns: DisplayColumn[]
   columnWidths: Record<string, number>
+  checkboxColWidth: number
 }) {
   return (
     <colgroup>
-      <col style={{ width: CHECKBOX_COL_WIDTH }} />
+      <col style={{ width: checkboxColWidth }} />
       {columns.map((col) => (
         <col key={col.key} style={{ width: columnWidths[col.key] ?? COL_WIDTH }} />
       ))}
@@ -3206,6 +3242,8 @@ interface DataRowProps {
   runningCount: number
   /** Whether the table has at least one workflow column — controls whether a run/stop icon is rendered. */
   hasWorkflowColumns: boolean
+  /** True for tables sized for >9,999 rows; widens the row-number slot to fit 5–7 digit numbers. */
+  isLargeRowCountTable: boolean
   onStopRow: (rowId: string) => void
   onRunRow: (rowId: string) => void
   /** Lookup from workflow id → human-readable name, used to label running cells. */
@@ -3262,6 +3300,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.onRowToggle !== next.onRowToggle ||
     prev.runningCount !== next.runningCount ||
     prev.hasWorkflowColumns !== next.hasWorkflowColumns ||
+    prev.isLargeRowCountTable !== next.isLargeRowCountTable ||
     prev.onStopRow !== next.onStopRow ||
     prev.onRunRow !== next.onRunRow ||
     prev.workflowNameById !== next.workflowNameById
@@ -3303,6 +3342,7 @@ const DataRow = React.memo(function DataRow({
   onRowToggle,
   runningCount,
   hasWorkflowColumns,
+  isLargeRowCountTable,
   onStopRow,
   onRunRow,
   workflowNameById,
@@ -3322,7 +3362,10 @@ const DataRow = React.memo(function DataRow({
       <td className={cn(CELL_CHECKBOX, 'cursor-pointer')}>
         <div className='flex items-center justify-between gap-1'>
           <div
-            className='group/checkbox flex h-[20px] w-[24px] shrink-0 items-center justify-center'
+            className={cn(
+              'group/checkbox flex h-[20px] shrink-0 items-center justify-center',
+              isLargeRowCountTable ? 'w-[44px]' : 'w-[24px]'
+            )}
             onMouseDown={(e) => {
               if (e.button !== 0) return
               onRowToggle(rowIndex, e.shiftKey)
