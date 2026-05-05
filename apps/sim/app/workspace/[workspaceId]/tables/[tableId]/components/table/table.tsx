@@ -85,7 +85,7 @@ import {
 
 const logger = createLogger('TableView')
 
-const EMPTY_CHECKED_ROWS = new Set<number>()
+const EMPTY_CHECKED_ROWS = new Set<string>()
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
 // Wide enough to host the row-number + per-row run button side by side.
@@ -147,7 +147,7 @@ export function Table({
   const [selectionFocus, setSelectionFocus] = useState<CellCoord | null>(null)
   const [checkedRows, setCheckedRows] = useState(EMPTY_CHECKED_ROWS)
   const [isColumnSelection, setIsColumnSelection] = useState(false)
-  const lastCheckboxRowRef = useRef<number | null>(null)
+  const lastCheckboxRowRef = useRef<string | null>(null)
   const isColumnSelectionRef = useRef(false)
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
   const [deletingColumns, setDeletingColumns] = useState<string[] | null>(null)
@@ -239,8 +239,8 @@ export function Table({
     setColumnOrder(order)
   }
 
-  // Width keys are either the logical name or `${name}::${path}` (fanned-out
-  // workflow columns). Rename rewrites every key whose prefix matches.
+  // Width keys are either the logical name or `${name}::${path}` for fanned-out
+  // workflow columns; rename must rewrite every key whose prefix matches.
   function handleColumnRename(oldName: string, newName: string) {
     let updatedWidths = columnWidthsRef.current
     let widthsChanged = false
@@ -291,9 +291,6 @@ export function Table({
   const pushUndoRef = useRef(pushUndo)
   pushUndoRef.current = pushUndo
 
-  // `columns`, `tableWorkflowGroups`, `workflowStates`, `columnSourceInfo`,
-  // and `workflowNameById` come from `useTable` above.
-
   const displayColumns = useMemo<DisplayColumn[]>(() => {
     let ordered: ColumnDefinition[]
     if (!columnOrder || columnOrder.length === 0) {
@@ -320,20 +317,6 @@ export function Table({
     [displayColumns, tableWorkflowGroups]
   )
   const hasWorkflowGroup = headerGroups.some((g) => g.kind === 'workflow')
-
-  const maxPosition = useMemo(() => (rows.length > 0 ? rows[rows.length - 1].position : -1), [rows])
-  const maxPositionRef = useRef(maxPosition)
-  maxPositionRef.current = maxPosition
-
-  const positionMap = useMemo(() => {
-    const map = new Map<number, TableRowType>()
-    for (const row of rows) {
-      map.set(row.position, row)
-    }
-    return map
-  }, [rows])
-  const positionMapRef = useRef(positionMap)
-  positionMapRef.current = positionMap
 
   const normalizedSelection = useMemo(
     () => computeNormalizedSelection(selectionAnchor, selectionFocus),
@@ -401,19 +384,19 @@ export function Table({
   const isAllRowsSelected = useMemo(() => {
     if (checkedRows.size > 0 && rows.length > 0 && checkedRows.size >= rows.length) {
       for (const row of rows) {
-        if (!checkedRows.has(row.position)) return false
+        if (!checkedRows.has(row.id)) return false
       }
       return true
     }
     return (
       normalizedSelection !== null &&
-      maxPosition >= 0 &&
+      rows.length > 0 &&
       normalizedSelection.startRow === 0 &&
-      normalizedSelection.endRow === maxPosition &&
+      normalizedSelection.endRow === rows.length - 1 &&
       normalizedSelection.startCol === 0 &&
       normalizedSelection.endCol === displayColumns.length - 1
     )
-  }, [checkedRows, normalizedSelection, maxPosition, displayColumns.length, rows])
+  }, [checkedRows, normalizedSelection, displayColumns.length, rows])
 
   const isAllRowsSelectedRef = useRef(isAllRowsSelected)
   isAllRowsSelectedRef.current = isAllRowsSelected
@@ -424,6 +407,8 @@ export function Table({
   const rowsRef = useRef(rows)
   const selectionAnchorRef = useRef(selectionAnchor)
   const selectionFocusRef = useRef(selectionFocus)
+  const anchorRowIdRef = useRef<string | null>(null)
+  const focusRowIdRef = useRef<string | null>(null)
 
   const checkedRowsRef = useRef(checkedRows)
   checkedRowsRef.current = checkedRows
@@ -509,37 +494,29 @@ export function Table({
   }, [contextMenu.row, contextMenu.columnName, closeContextMenu])
 
   const handleContextMenuDelete = useCallback(() => {
-    if (!contextMenu.row) {
+    const contextRow = contextMenu.row
+    if (!contextRow) {
       closeContextMenu()
       return
     }
 
     const checked = checkedRowsRef.current
-    const pMap = positionMapRef.current
+    const currentRows = rowsRef.current
     let snapshots: DeletedRowSnapshot[] = []
 
-    if (checked.size > 0 && checked.has(contextMenu.row.position)) {
-      snapshots = collectRowSnapshots(checked, pMap)
+    if (checked.size > 0 && checked.has(contextRow.id)) {
+      snapshots = collectRowSnapshots(currentRows.filter((r) => checked.has(r.id)))
     } else {
       const sel = computeNormalizedSelection(selectionAnchorRef.current, selectionFocusRef.current)
+      const contextRowArrayIndex = currentRows.findIndex((r) => r.id === contextRow.id)
       const isInSelection =
-        sel !== null &&
-        contextMenu.row.position >= sel.startRow &&
-        contextMenu.row.position <= sel.endRow
+        sel !== null && contextRowArrayIndex >= sel.startRow && contextRowArrayIndex <= sel.endRow
 
       if (isInSelection && sel) {
-        const positions = Array.from(
-          { length: sel.endRow - sel.startRow + 1 },
-          (_, i) => sel.startRow + i
-        )
-        snapshots = collectRowSnapshots(positions, pMap)
+        snapshots = collectRowSnapshots(currentRows.slice(sel.startRow, sel.endRow + 1))
       } else {
         snapshots = [
-          {
-            rowId: contextMenu.row.id,
-            data: { ...contextMenu.row.data },
-            position: contextMenu.row.position,
-          },
+          { rowId: contextRow.id, data: { ...contextRow.data }, position: contextRow.position },
         ]
       }
     }
@@ -600,9 +577,11 @@ export function Table({
   }, [contextMenuExecutionId, closeContextMenu])
 
   const handleDuplicateRow = useCallback(() => {
-    if (!contextMenu.row) return
-    const rowData = { ...contextMenu.row.data }
-    const position = contextMenu.row.position + 1
+    const contextRow = contextMenu.row
+    if (!contextRow) return
+    const rowData = { ...contextRow.data }
+    const position = contextRow.position + 1
+    const sourceArrayIndex = rowsRef.current.findIndex((r) => r.id === contextRow.id)
     closeContextMenu()
     createRef.current(
       { data: rowData, position },
@@ -618,8 +597,10 @@ export function Table({
             })
           }
           const colIndex = selectionAnchorRef.current?.colIndex ?? 0
-          setSelectionAnchor({ rowIndex: position, colIndex })
-          setSelectionFocus(null)
+          if (sourceArrayIndex !== -1) {
+            setSelectionAnchor({ rowIndex: sourceArrayIndex + 1, colIndex })
+            setSelectionFocus(null)
+          }
         },
       }
     )
@@ -646,10 +627,11 @@ export function Table({
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)
           if (newRowId) {
+            const maxPosition = rowsRef.current.reduce((max, r) => Math.max(max, r.position), -1)
             pushUndoRef.current({
               type: 'create-row',
               rowId: newRowId,
-              position: maxPositionRef.current + 1,
+              position: maxPosition + 1,
             })
           }
         },
@@ -723,29 +705,36 @@ export function Table({
     setSelectionFocus(null)
     setIsColumnSelection(false)
 
-    if (shiftKey && lastCheckboxRowRef.current !== null) {
-      const from = Math.min(lastCheckboxRowRef.current, rowIndex)
-      const to = Math.max(lastCheckboxRowRef.current, rowIndex)
-      const pMap = positionMapRef.current
+    const currentRows = rowsRef.current
+    const targetRow = currentRows[rowIndex]
+    if (!targetRow) return
+    const targetId = targetRow.id
+
+    const lastIdx =
+      shiftKey && lastCheckboxRowRef.current !== null
+        ? currentRows.findIndex((r) => r.id === lastCheckboxRowRef.current)
+        : -1
+
+    if (lastIdx !== -1) {
+      const from = Math.min(lastIdx, rowIndex)
+      const to = Math.max(lastIdx, rowIndex)
       setCheckedRows((prev) => {
         const next = new Set(prev)
-        for (const [pos] of pMap) {
-          if (pos >= from && pos <= to) next.add(pos)
+        for (let i = from; i <= to; i++) {
+          const r = currentRows[i]
+          if (r) next.add(r.id)
         }
         return next
       })
     } else {
       setCheckedRows((prev) => {
         const next = new Set(prev)
-        if (next.has(rowIndex)) {
-          next.delete(rowIndex)
-        } else {
-          next.add(rowIndex)
-        }
+        if (next.has(targetId)) next.delete(targetId)
+        else next.add(targetId)
         return next
       })
     }
-    lastCheckboxRowRef.current = rowIndex
+    lastCheckboxRowRef.current = targetId
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
@@ -758,7 +747,7 @@ export function Table({
   }, [])
 
   const handleColumnSelect = useCallback((colIndex: number, shiftKey: boolean) => {
-    const lastRow = maxPositionRef.current
+    const lastRow = rowsRef.current.length - 1
     if (lastRow < 0) return
 
     setEditingCell(null)
@@ -777,7 +766,7 @@ export function Table({
   }, [])
 
   const handleGroupSelect = useCallback((startColIndex: number, size: number) => {
-    const lastRow = maxPositionRef.current
+    const lastRow = rowsRef.current.length - 1
     if (lastRow < 0) return
 
     setEditingCell(null)
@@ -797,10 +786,11 @@ export function Table({
     if (rws.length === 0 || currentCols.length === 0) return
     setEditingCell(null)
     setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    lastCheckboxRowRef.current = null
     suppressFocusScrollRef.current = true
     setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
     setSelectionFocus({
-      rowIndex: maxPositionRef.current,
+      rowIndex: rws.length - 1,
       colIndex: currentCols.length - 1,
     })
     setIsColumnSelection(false)
@@ -1139,13 +1129,15 @@ export function Table({
 
   useEffect(() => {
     if (!isColumnSelection || !selectionAnchor) return
+    const lastRow = rows.length - 1
+    if (lastRow < 0) return
     setSelectionFocus((prev) => {
-      if (!prev || prev.rowIndex !== maxPosition) {
-        return { rowIndex: maxPosition, colIndex: prev?.colIndex ?? selectionAnchor.colIndex }
+      if (!prev || prev.rowIndex !== lastRow) {
+        return { rowIndex: lastRow, colIndex: prev?.colIndex ?? selectionAnchor.colIndex }
       }
       return prev
     })
-  }, [isColumnSelection, maxPosition, selectionAnchor])
+  }, [isColumnSelection, rows.length, selectionAnchor])
 
   useEffect(() => {
     const handleMouseUp = () => {
@@ -1154,6 +1146,59 @@ export function Table({
     document.addEventListener('mouseup', handleMouseUp)
     return () => document.removeEventListener('mouseup', handleMouseUp)
   }, [])
+
+  useEffect(() => {
+    anchorRowIdRef.current = selectionAnchor
+      ? (rowsRef.current[selectionAnchor.rowIndex]?.id ?? null)
+      : null
+  }, [selectionAnchor])
+
+  useEffect(() => {
+    focusRowIdRef.current = selectionFocus
+      ? (rowsRef.current[selectionFocus.rowIndex]?.id ?? null)
+      : null
+  }, [selectionFocus])
+
+  useEffect(() => {
+    // Skip during transient empty-rows state (initial load of a new sort/filter
+    // before keepPreviousData kicks in) — clearing here would lose the user's
+    // selection across every uncached query change.
+    if (rows.length === 0) return
+    // Column selections pin focus to the last row via the effect above; remapping
+    // by row id would shrink a full-column range to whichever rows happened to be
+    // at the endpoints when the selection was captured.
+    if (isColumnSelectionRef.current) return
+    const anchor = selectionAnchorRef.current
+    if (anchor) {
+      const expectedId = anchorRowIdRef.current
+      const actualId = rows[anchor.rowIndex]?.id ?? null
+      if (expectedId && expectedId !== actualId) {
+        const newIndex = rows.findIndex((r) => r.id === expectedId)
+        if (newIndex >= 0) {
+          setSelectionAnchor({ rowIndex: newIndex, colIndex: anchor.colIndex })
+        } else {
+          setSelectionAnchor(null)
+        }
+      } else if (anchor.rowIndex >= rows.length) {
+        setSelectionAnchor(null)
+      }
+    }
+    const focus = selectionFocusRef.current
+    if (focus) {
+      const expectedId = focusRowIdRef.current
+      const actualId = rows[focus.rowIndex]?.id ?? null
+      if (expectedId && expectedId !== actualId) {
+        const newIndex = rows.findIndex((r) => r.id === expectedId)
+        if (newIndex >= 0) {
+          setSelectionFocus({ rowIndex: newIndex, colIndex: focus.colIndex })
+        } else {
+          setSelectionFocus(null)
+        }
+      } else if (focus.rowIndex >= rows.length) {
+        setSelectionFocus(null)
+      }
+    }
+  }, [rows])
 
   useEffect(() => {
     if (isColumnSelection) return
@@ -1190,23 +1235,22 @@ export function Table({
     setInitialCharacter(null)
   }, [])
 
-  // Double-click highlights the cell's text and, only if the text is actually
-  // truncated, opens the expanded popover. The cell has `select-none` which
-  // suppresses the highlight even for programmatic selections, so we override
-  // `user-select` on the inner element until the next click. Workflow cells nest
-  // their text inside a span with its own `overflow-clip`, so we measure the leaf
-  // element's scroll dimensions, not just the wrapper div's.
+  // The cell has `select-none` which suppresses programmatic selection, so we
+  // override `user-select` on the inner element until the next click. The popover
+  // only opens when the leaf's scroll dimensions exceed its client dimensions
+  // (workflow cells nest text inside a span with its own `overflow-clip`).
   const handleCellDoubleClick = useCallback(
     (rowId: string, columnName: string, columnKey: string) => {
       setSelectionFocus(null)
       setIsColumnSelection(false)
 
-      const row = rowsRef.current.find((r) => r.id === rowId)
+      const rowArrayIndex = rowsRef.current.findIndex((r) => r.id === rowId)
+      const row = rowArrayIndex !== -1 ? rowsRef.current[rowArrayIndex] : null
       const colIndex = columnsRef.current.findIndex((c) => c.key === columnKey)
       let overflows = true
       if (row && colIndex !== -1) {
         const td = document.querySelector<HTMLElement>(
-          `[data-table-scroll] [data-row="${row.position}"][data-col="${colIndex}"]`
+          `[data-table-scroll] [data-row="${rowArrayIndex}"][data-col="${colIndex}"]`
         )
         const inner = td?.querySelector<HTMLElement>(':scope > div:last-child')
         if (inner) {
@@ -1305,9 +1349,10 @@ export function Table({
           suppressFocusScrollRef.current = true
           setEditingCell(null)
           setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+          lastCheckboxRowRef.current = null
           setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
           setSelectionFocus({
-            rowIndex: maxPositionRef.current,
+            rowIndex: rws.length - 1,
             colIndex: currentCols.length - 1,
           })
           setIsColumnSelection(false)
@@ -1318,7 +1363,7 @@ export function Table({
       if ((e.metaKey || e.ctrlKey) && e.key === ' ') {
         const a = selectionAnchorRef.current
         if (!a || editingCellRef.current) return
-        const lastRow = maxPositionRef.current
+        const lastRow = rowsRef.current.length - 1
         if (lastRow < 0) return
         e.preventDefault()
         setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
@@ -1348,13 +1393,12 @@ export function Table({
         if (!canEditRef.current) return
         e.preventDefault()
         const checked = checkedRowsRef.current
-        const pMap = positionMapRef.current
+        const currentRows = rowsRef.current
         const currentCols = columnsRef.current
         const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
         const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
-        for (const pos of checked) {
-          const row = pMap.get(pos)
-          if (!row) continue
+        for (const row of currentRows) {
+          if (!checked.has(row.id)) continue
           const updates: Record<string, unknown> = {}
           const previousData: Record<string, unknown> = {}
           for (const col of currentCols) {
@@ -1377,12 +1421,12 @@ export function Table({
       if (!anchor || editingCellRef.current) return
 
       const cols = columnsRef.current
-      const mp = maxPositionRef.current
-      const totalRows = mp + 1
+      const currentRows = rowsRef.current
+      const totalRows = currentRows.length
 
       if (e.shiftKey && e.key === 'Enter') {
         if (!canEditRef.current) return
-        const row = positionMapRef.current.get(anchor.rowIndex)
+        const row = currentRows[anchor.rowIndex]
         if (!row) return
         e.preventDefault()
         const position = row.position + 1
@@ -1395,7 +1439,7 @@ export function Table({
               if (newRowId) {
                 pushUndoRef.current({ type: 'create-row', rowId: newRowId, position })
               }
-              setSelectionAnchor({ rowIndex: position, colIndex })
+              setSelectionAnchor({ rowIndex: anchor.rowIndex + 1, colIndex })
               setSelectionFocus(null)
             },
           }
@@ -1409,7 +1453,7 @@ export function Table({
         const col = cols[anchor.colIndex]
         if (!col) return
 
-        const row = positionMapRef.current.get(anchor.rowIndex)
+        const row = currentRows[anchor.rowIndex]
         if (!row) return
 
         if (col.type === 'boolean') {
@@ -1424,7 +1468,7 @@ export function Table({
       if (e.key === ' ' && !e.shiftKey) {
         if (!canEditRef.current) return
         e.preventDefault()
-        const row = positionMapRef.current.get(anchor.rowIndex)
+        const row = currentRows[anchor.rowIndex]
         if (row) {
           setEditingRow(row)
         }
@@ -1536,8 +1580,7 @@ export function Table({
         if (!canEditRef.current) return
         const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
         if (!sel || sel.startRow === sel.endRow) return
-        const pMap = positionMapRef.current
-        const sourceRow = pMap.get(sel.startRow)
+        const sourceRow = currentRows[sel.startRow]
         if (!sourceRow) return
         const undoCells: Array<{
           rowId: string
@@ -1545,7 +1588,7 @@ export function Table({
           newData: Record<string, unknown>
         }> = []
         for (let r = sel.startRow + 1; r <= sel.endRow; r++) {
-          const row = pMap.get(r)
+          const row = currentRows[r]
           if (!row) continue
           const oldData: Record<string, unknown> = {}
           const newData: Record<string, unknown> = {}
@@ -1572,11 +1615,10 @@ export function Table({
         e.preventDefault()
         const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
         if (!sel) return
-        const pMap = positionMapRef.current
         const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
         const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
         for (let r = sel.startRow; r <= sel.endRow; r++) {
-          const row = pMap.get(r)
+          const row = currentRows[r]
           if (!row) continue
           const updates: Record<string, unknown> = {}
           const previousData: Record<string, unknown> = {}
@@ -1610,7 +1652,7 @@ export function Table({
         if (col.type === 'date' && !/[\d\-/]/.test(e.key)) return
         e.preventDefault()
 
-        const row = positionMapRef.current.get(anchor.rowIndex)
+        const row = currentRows[anchor.rowIndex]
         if (!row) return
         setEditingCell({ rowId: row.id, columnName: col.name })
         setInitialCharacter(e.key)
@@ -1625,15 +1667,13 @@ export function Table({
 
       const checked = checkedRowsRef.current
       const cols = columnsRef.current
-      const pMap = positionMapRef.current
+      const currentRows = rowsRef.current
 
       if (checked.size > 0) {
         e.preventDefault()
-        const sorted = Array.from(checked).sort((a, b) => a - b)
         const lines: string[] = []
-        for (const pos of sorted) {
-          const row = pMap.get(pos)
-          if (!row) continue
+        for (const row of currentRows) {
+          if (!checked.has(row.id)) continue
           const cells: string[] = cols.map((col) => {
             const value: unknown = row.data[col.name]
             if (value === null || value === undefined) return ''
@@ -1657,7 +1697,7 @@ export function Table({
         const cells: string[] = []
         for (let c = sel.startCol; c <= sel.endCol; c++) {
           if (c >= cols.length) break
-          const row = pMap.get(r)
+          const row = currentRows[r]
           const value: unknown = row ? row.data[cols[c].name] : null
           if (value === null || value === undefined) {
             cells.push('')
@@ -1678,17 +1718,15 @@ export function Table({
 
       const checked = checkedRowsRef.current
       const cols = columnsRef.current
-      const pMap = positionMapRef.current
+      const currentRows = rowsRef.current
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
 
       if (checked.size > 0) {
         e.preventDefault()
-        const sorted = Array.from(checked).sort((a, b) => a - b)
         const lines: string[] = []
-        for (const pos of sorted) {
-          const row = pMap.get(pos)
-          if (!row) continue
+        for (const row of currentRows) {
+          if (!checked.has(row.id)) continue
           const cells: string[] = cols.map((col) => {
             const value: unknown = row.data[col.name]
             if (value === null || value === undefined) return ''
@@ -1715,7 +1753,7 @@ export function Table({
         e.preventDefault()
         const lines: string[] = []
         for (let r = sel.startRow; r <= sel.endRow; r++) {
-          const row = pMap.get(r)
+          const row = currentRows[r]
           if (!row) continue
           const cells: string[] = []
           const updates: Record<string, unknown> = {}
@@ -1768,7 +1806,10 @@ export function Table({
       if (pasteRows.length === 0) return
 
       const currentCols = columnsRef.current
-      const pMap = positionMapRef.current
+      const currentRows = rowsRef.current
+      // Captured once before the loop so each new row in the batch gets a unique,
+      // sequential position via `+ (newRowIndex - currentRows.length)` below.
+      const lastRowPosition = currentRows.reduce((max, r) => Math.max(max, r.position), -1)
 
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const updateBatch: Array<{ rowId: string; data: Record<string, unknown> }> = []
@@ -1776,7 +1817,7 @@ export function Table({
       const createBatchPositions: number[] = []
 
       for (let r = 0; r < pasteRows.length; r++) {
-        const targetRow = currentAnchor.rowIndex + r
+        const targetArrayIndex = currentAnchor.rowIndex + r
 
         const rowData: Record<string, unknown> = {}
         for (let c = 0; c < pasteRows[r].length; c++) {
@@ -1794,7 +1835,7 @@ export function Table({
 
         if (Object.keys(rowData).length === 0) continue
 
-        const existingRow = pMap.get(targetRow)
+        const existingRow = currentRows[targetArrayIndex]
         if (existingRow) {
           const previousData: Record<string, unknown> = {}
           for (const key of Object.keys(rowData)) {
@@ -1804,7 +1845,7 @@ export function Table({
           updateBatch.push({ rowId: existingRow.id, data: rowData })
         } else {
           createBatchRows.push(rowData)
-          createBatchPositions.push(targetRow)
+          createBatchPositions.push(lastRowPosition + 1 + (targetArrayIndex - currentRows.length))
         }
       }
 
@@ -1871,7 +1912,7 @@ export function Table({
     const anchor = selectionAnchorRef.current
     if (!anchor) return
     const cols = columnsRef.current
-    const totalRows = maxPositionRef.current + 1
+    const totalRows = rowsRef.current.length
 
     if (reason === 'enter') {
       setSelectionAnchor({
@@ -2377,12 +2418,13 @@ export function Table({
   )
 
   const selectedRowCount = useMemo(() => {
-    if (!contextMenu.isOpen || !contextMenu.row) return 1
+    const contextRow = contextMenu.isOpen ? contextMenu.row : null
+    if (!contextRow) return 1
 
-    if (checkedRows.size > 0 && checkedRows.has(contextMenu.row.position)) {
+    if (checkedRows.size > 0 && checkedRows.has(contextRow.id)) {
       let count = 0
-      for (const pos of checkedRows) {
-        if (positionMap.has(pos)) count++
+      for (const row of rows) {
+        if (checkedRows.has(row.id)) count++
       }
       return Math.max(count, 1)
     }
@@ -2390,17 +2432,13 @@ export function Table({
     const sel = normalizedSelection
     if (!sel) return 1
 
-    const isInSelection =
-      contextMenu.row.position >= sel.startRow && contextMenu.row.position <= sel.endRow
+    const contextRowArrayIndex = rows.findIndex((r) => r.id === contextRow.id)
+    if (contextRowArrayIndex < sel.startRow || contextRowArrayIndex > sel.endRow) return 1
 
-    if (!isInSelection) return 1
-
-    let count = 0
-    for (let r = sel.startRow; r <= sel.endRow; r++) {
-      if (positionMap.has(r)) count++
-    }
-    return Math.max(count, 1)
-  }, [contextMenu.isOpen, contextMenu.row, checkedRows, normalizedSelection, positionMap])
+    const start = Math.max(0, sel.startRow)
+    const end = Math.min(rows.length - 1, sel.endRow)
+    return Math.max(end - start + 1, 1)
+  }, [contextMenu.isOpen, contextMenu.row, checkedRows, normalizedSelection, rows])
 
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
@@ -2690,62 +2728,39 @@ export function Table({
                   <TableBodySkeleton colCount={displayColCount} />
                 ) : (
                   <>
-                    {rows.map((row, index) => {
-                      const prevPosition = index > 0 ? rows[index - 1].position : -1
-                      const gapCount =
-                        queryOptions.filter || queryOptions.sort
-                          ? 0
-                          : row.position - prevPosition - 1
-                      return (
-                        <React.Fragment key={row.id}>
-                          {gapCount > 0 && (
-                            <PositionGapRows
-                              count={gapCount}
-                              startPosition={prevPosition + 1}
-                              columns={displayColumns}
-                              normalizedSelection={normalizedSelection}
-                              checkedRows={checkedRows}
-                              firstRowUnderHeader={prevPosition === -1}
-                              onCellMouseDown={handleCellMouseDown}
-                              onCellMouseEnter={handleCellMouseEnter}
-                              onRowToggle={handleRowToggle}
-                            />
-                          )}
-                          <DataRow
-                            row={row}
-                            columns={displayColumns}
-                            rowIndex={row.position}
-                            isFirstRow={row.position === 0}
-                            editingColumnName={
-                              editingCell?.rowId === row.id ? editingCell.columnName : null
-                            }
-                            initialCharacter={
-                              editingCell?.rowId === row.id ? initialCharacter : null
-                            }
-                            pendingCellValue={
-                              pendingUpdate && pendingUpdate.rowId === row.id
-                                ? pendingUpdate.data
-                                : null
-                            }
-                            normalizedSelection={normalizedSelection}
-                            onClick={handleCellClick}
-                            onDoubleClick={handleCellDoubleClick}
-                            onSave={handleInlineSave}
-                            onCancel={handleInlineCancel}
-                            onContextMenu={handleRowContextMenu}
-                            onCellMouseDown={handleCellMouseDown}
-                            onCellMouseEnter={handleCellMouseEnter}
-                            isRowChecked={checkedRows.has(row.position)}
-                            onRowToggle={handleRowToggle}
-                            runningCount={runningByRowId.get(row.id) ?? 0}
-                            hasWorkflowColumns={hasWorkflowColumns}
-                            onStopRow={handleStopRow}
-                            onRunRow={handleRunRow}
-                            workflowNameById={workflowNameById}
-                          />
-                        </React.Fragment>
-                      )
-                    })}
+                    {rows.map((row, index) => (
+                      <DataRow
+                        key={row.id}
+                        row={row}
+                        columns={displayColumns}
+                        rowIndex={index}
+                        isFirstRow={index === 0}
+                        editingColumnName={
+                          editingCell?.rowId === row.id ? editingCell.columnName : null
+                        }
+                        initialCharacter={editingCell?.rowId === row.id ? initialCharacter : null}
+                        pendingCellValue={
+                          pendingUpdate && pendingUpdate.rowId === row.id
+                            ? pendingUpdate.data
+                            : null
+                        }
+                        normalizedSelection={normalizedSelection}
+                        onClick={handleCellClick}
+                        onDoubleClick={handleCellDoubleClick}
+                        onSave={handleInlineSave}
+                        onCancel={handleInlineCancel}
+                        onContextMenu={handleRowContextMenu}
+                        onCellMouseDown={handleCellMouseDown}
+                        onCellMouseEnter={handleCellMouseEnter}
+                        isRowChecked={checkedRows.has(row.id)}
+                        onRowToggle={handleRowToggle}
+                        runningCount={runningByRowId.get(row.id) ?? 0}
+                        hasWorkflowColumns={hasWorkflowColumns}
+                        onStopRow={handleStopRow}
+                        onRunRow={handleRunRow}
+                        workflowNameById={workflowNameById}
+                      />
+                    ))}
                   </>
                 )}
               </tbody>
@@ -2947,157 +2962,6 @@ export function Table({
   )
 }
 
-const GAP_ROW_LIMIT = 200
-const GAP_CHECKBOX_CLASS = cn(CELL_CHECKBOX, 'cursor-pointer')
-
-interface PositionGapRowsProps {
-  count: number
-  startPosition: number
-  columns: DisplayColumn[]
-  normalizedSelection: NormalizedSelection | null
-  checkedRows: Set<number>
-  firstRowUnderHeader?: boolean
-  onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
-  onCellMouseEnter: (rowIndex: number, colIndex: number) => void
-  onRowToggle: (rowIndex: number, shiftKey: boolean) => void
-}
-
-const PositionGapRows = React.memo(
-  function PositionGapRows({
-    count,
-    startPosition,
-    columns,
-    normalizedSelection,
-    checkedRows,
-    firstRowUnderHeader = false,
-    onCellMouseDown,
-    onCellMouseEnter,
-    onRowToggle,
-  }: PositionGapRowsProps) {
-    const capped = Math.min(count, GAP_ROW_LIMIT)
-    const sel = normalizedSelection
-    const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
-
-    return (
-      <>
-        {Array.from({ length: capped }).map((_, i) => {
-          const position = startPosition + i
-          const isGapChecked = checkedRows.has(position)
-          return (
-            <tr key={`gap-${position}`}>
-              <td className={GAP_CHECKBOX_CLASS}>
-                <div className='flex items-center justify-center gap-1'>
-                  <div
-                    className='group/checkbox flex h-[20px] w-[24px] shrink-0 items-center justify-center'
-                    onMouseDown={(e) => {
-                      if (e.button !== 0) return
-                      onRowToggle(position, e.shiftKey)
-                    }}
-                  >
-                    <span
-                      className={cn(
-                        'text-[var(--text-tertiary)] text-xs tabular-nums',
-                        isGapChecked ? 'hidden' : 'block group-hover/checkbox:hidden'
-                      )}
-                    >
-                      {position + 1}
-                    </span>
-                    <div
-                      className={cn(
-                        'items-center justify-center',
-                        isGapChecked ? 'flex' : 'hidden group-hover/checkbox:flex'
-                      )}
-                    >
-                      <Checkbox size='sm' checked={isGapChecked} className='pointer-events-none' />
-                    </div>
-                  </div>
-                </div>
-              </td>
-              {columns.map((col, colIndex) => {
-                const inRange =
-                  sel !== null &&
-                  position >= sel.startRow &&
-                  position <= sel.endRow &&
-                  colIndex >= sel.startCol &&
-                  colIndex <= sel.endCol
-                const isAnchor =
-                  sel !== null && position === sel.anchorRow && colIndex === sel.anchorCol
-                const isHighlighted = inRange || isGapChecked
-
-                const isTopEdge = inRange ? position === sel!.startRow : isGapChecked
-                const isBottomEdge = inRange ? position === sel!.endRow : isGapChecked
-                const isLeftEdge = inRange ? colIndex === sel!.startCol : colIndex === 0
-                const isRightEdge = inRange
-                  ? colIndex === sel!.endCol
-                  : colIndex === columns.length - 1
-                const belowHeader = firstRowUnderHeader && i === 0
-
-                return (
-                  <td
-                    key={col.key}
-                    data-row={position}
-                    data-col={colIndex}
-                    className={cn(CELL, (isHighlighted || isAnchor) && 'relative')}
-                    onMouseDown={(e) => {
-                      if (e.button !== 0) return
-                      onCellMouseDown(position, colIndex, e.shiftKey)
-                    }}
-                    onMouseEnter={() => onCellMouseEnter(position, colIndex)}
-                  >
-                    {isHighlighted && (isMultiCell || isGapChecked) && (
-                      <div
-                        className={cn(
-                          '-top-px -right-px -bottom-px -left-px pointer-events-none absolute z-[4]',
-                          SELECTION_TINT_BG,
-                          belowHeader && isTopEdge && 'top-0',
-                          isTopEdge && 'border-t border-t-[var(--selection)]',
-                          isBottomEdge && 'border-b border-b-[var(--selection)]',
-                          isLeftEdge && 'border-l border-l-[var(--selection)]',
-                          isRightEdge && 'border-r border-r-[var(--selection)]'
-                        )}
-                      />
-                    )}
-                    {isAnchor && <div className={cn(SELECTION_OVERLAY, belowHeader && 'top-0')} />}
-                    <div className='min-h-[20px]' />
-                  </td>
-                )
-              })}
-            </tr>
-          )
-        })}
-        {count > GAP_ROW_LIMIT && (
-          <tr>
-            <td
-              colSpan={columns.length + 2}
-              className='border-[var(--border)] border-r border-b p-0'
-              style={{ height: `${(count - GAP_ROW_LIMIT) * ROW_HEIGHT_ESTIMATE}px` }}
-            />
-          </tr>
-        )}
-      </>
-    )
-  },
-  (prev, next) => {
-    if (
-      prev.count !== next.count ||
-      prev.startPosition !== next.startPosition ||
-      prev.columns !== next.columns ||
-      prev.normalizedSelection !== next.normalizedSelection ||
-      prev.firstRowUnderHeader !== next.firstRowUnderHeader ||
-      prev.onCellMouseDown !== next.onCellMouseDown ||
-      prev.onCellMouseEnter !== next.onCellMouseEnter ||
-      prev.onRowToggle !== next.onRowToggle
-    ) {
-      return false
-    }
-    const end = prev.startPosition + Math.min(prev.count, GAP_ROW_LIMIT)
-    for (let p = prev.startPosition; p < end; p++) {
-      if (prev.checkedRows.has(p) !== next.checkedRows.has(p)) return false
-    }
-    return true
-  }
-)
-
 const TableColGroup = React.memo(function TableColGroup({
   columns,
   columnWidths,
@@ -3266,7 +3130,7 @@ const DataRow = React.memo(function DataRow({
                 isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
               )}
             >
-              {row.position + 1}
+              {rowIndex + 1}
             </span>
             <div
               className={cn(
@@ -3320,6 +3184,7 @@ const DataRow = React.memo(function DataRow({
           <td
             key={column.key}
             data-row={rowIndex}
+            data-row-id={row.id}
             data-col={colIndex}
             className={cn(CELL, (isHighlighted || isAnchor || isEditing) && 'relative')}
             onMouseDown={(e) => {
