@@ -5,6 +5,7 @@ import type {
   TokenStatus,
 } from '@/lib/core/rate-limiter/storage'
 import { HostedKeyRateLimiter } from './hosted-key-rate-limiter'
+import type { HostedKeyQueue } from './queue'
 import type { CustomRateLimit, PerRequestRateLimit } from './types'
 
 /** Force the queue wait to give up on the first iteration by reporting a retry time
@@ -23,10 +24,30 @@ const createMockAdapter = (): MockAdapter => ({
   resetBucket: vi.fn(),
 })
 
+interface MockQueue {
+  enqueue: Mock
+  checkHead: Mock
+  refreshHeartbeat: Mock
+  dequeue: Mock
+}
+
+/** Stub queue that defaults to "you're at the head, no waiting" — i.e. acts as if the
+ *  queue is empty or Redis is unavailable. Tests override per-call to simulate ordering. */
+const createMockQueue = (): MockQueue => {
+  const queue: MockQueue = {
+    enqueue: vi.fn().mockResolvedValue({ position: 0, enabled: true }),
+    checkHead: vi.fn().mockResolvedValue('head'),
+    refreshHeartbeat: vi.fn().mockResolvedValue(undefined),
+    dequeue: vi.fn().mockResolvedValue(undefined),
+  }
+  return queue
+}
+
 describe('HostedKeyRateLimiter', () => {
   const testProvider = 'exa'
   const envKeyPrefix = 'EXA_API_KEY'
   let mockAdapter: MockAdapter
+  let mockQueue: MockQueue
   let rateLimiter: HostedKeyRateLimiter
   let originalEnv: NodeJS.ProcessEnv
 
@@ -38,7 +59,11 @@ describe('HostedKeyRateLimiter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockAdapter = createMockAdapter()
-    rateLimiter = new HostedKeyRateLimiter(mockAdapter as RateLimitStorageAdapter)
+    mockQueue = createMockQueue()
+    rateLimiter = new HostedKeyRateLimiter(
+      mockAdapter as RateLimitStorageAdapter,
+      mockQueue as unknown as HostedKeyQueue
+    )
 
     originalEnv = { ...process.env }
     process.env.EXA_API_KEY_COUNT = '3'
@@ -213,6 +238,135 @@ describe('HostedKeyRateLimiter', () => {
       )
       expect(r2.keyIndex).toBe(2) // Skips missing key 1
       expect(r2.envVarName).toBe('EXA_API_KEY_3')
+    })
+  })
+
+  describe('FIFO queue ordering', () => {
+    const allowed: ConsumeResult = {
+      allowed: true,
+      tokensRemaining: 9,
+      resetAt: new Date(Date.now() + 60000),
+    }
+
+    it('enqueues every call onto the per-workspace+provider queue', async () => {
+      mockAdapter.consumeTokens.mockResolvedValue(allowed)
+
+      await rateLimiter.acquireKey(testProvider, envKeyPrefix, perRequestRateLimit, 'workspace-1')
+
+      expect(mockQueue.enqueue).toHaveBeenCalledWith(
+        testProvider,
+        'workspace-1',
+        expect.any(String)
+      )
+    })
+
+    it('always dequeues at the end of a successful acquisition', async () => {
+      mockAdapter.consumeTokens.mockResolvedValue(allowed)
+
+      await rateLimiter.acquireKey(testProvider, envKeyPrefix, perRequestRateLimit, 'workspace-1')
+
+      expect(mockQueue.dequeue).toHaveBeenCalledWith(
+        testProvider,
+        'workspace-1',
+        expect.any(String)
+      )
+    })
+
+    it('always dequeues even when the call fails (no keys configured)', async () => {
+      mockAdapter.consumeTokens.mockResolvedValue(allowed)
+      process.env.EXA_API_KEY_COUNT = '0'
+
+      await rateLimiter.acquireKey(testProvider, envKeyPrefix, perRequestRateLimit, 'workspace-1')
+
+      expect(mockQueue.dequeue).toHaveBeenCalled()
+    })
+
+    it('waits at the head of the queue before consuming from the bucket', async () => {
+      mockAdapter.consumeTokens.mockResolvedValue(allowed)
+      // First two checkHead calls say we're waiting; third says we're up.
+      mockQueue.checkHead
+        .mockResolvedValueOnce('waiting')
+        .mockResolvedValueOnce('waiting')
+        .mockResolvedValueOnce('head')
+
+      const result = await rateLimiter.acquireKey(
+        testProvider,
+        envKeyPrefix,
+        perRequestRateLimit,
+        'workspace-1'
+      )
+
+      expect(result.success).toBe(true)
+      expect(mockQueue.checkHead).toHaveBeenCalledTimes(3)
+      // Bucket is only consumed once we reach the head.
+      expect(mockAdapter.consumeTokens).toHaveBeenCalledTimes(1)
+    })
+
+    it('refreshes the heartbeat while waiting at the head of the queue', async () => {
+      mockAdapter.consumeTokens.mockResolvedValue(allowed)
+
+      // We need the wait loop to iterate long enough for HEARTBEAT_REFRESH_INTERVAL_MS
+      // to elapse. Use fake timers so we don't actually sleep.
+      vi.useFakeTimers()
+      try {
+        // Queue says we're waiting forever — except after some time we're at head.
+        mockQueue.checkHead.mockImplementation(async () => {
+          // Advance past the heartbeat interval each time we poll, then say we're up.
+          vi.advanceTimersByTime(15_000)
+          return mockQueue.checkHead.mock.calls.length >= 2 ? 'head' : 'waiting'
+        })
+
+        const promise = rateLimiter.acquireKey(
+          testProvider,
+          envKeyPrefix,
+          perRequestRateLimit,
+          'workspace-1'
+        )
+        // Drain pending timers so the sleep() resolves.
+        await vi.runAllTimersAsync()
+        await promise
+
+        expect(mockQueue.refreshHeartbeat).toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('returns 429 when the queue wait exceeds the cap', async () => {
+      mockAdapter.consumeTokens.mockResolvedValue(allowed)
+      mockQueue.checkHead.mockResolvedValue('waiting')
+
+      vi.useFakeTimers()
+      try {
+        const promise = rateLimiter.acquireKey(
+          testProvider,
+          envKeyPrefix,
+          perRequestRateLimit,
+          'workspace-1'
+        )
+        // Burn past the 5-minute cap.
+        await vi.advanceTimersByTimeAsync(6 * 60 * 1000)
+        const result = await promise
+
+        expect(result.success).toBe(false)
+        expect(result.billingActorRateLimited).toBe(true)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('treats "missing" status as proceed (queue evicted, fall through to bucket race)', async () => {
+      mockAdapter.consumeTokens.mockResolvedValue(allowed)
+      mockQueue.checkHead.mockResolvedValueOnce('missing')
+
+      const result = await rateLimiter.acquireKey(
+        testProvider,
+        envKeyPrefix,
+        perRequestRateLimit,
+        'workspace-1'
+      )
+
+      expect(result.success).toBe(true)
     })
   })
 

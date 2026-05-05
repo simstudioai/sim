@@ -1,13 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { generateShortId } from '@sim/utils/id'
-import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import {
   createStorageAdapter,
   type RateLimitStorageAdapter,
   type TokenBucketConfig,
 } from '@/lib/core/rate-limiter/storage'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { getHostedKeyQueue, HEARTBEAT_REFRESH_INTERVAL_MS, type HostedKeyQueue } from './queue'
 import {
   type AcquireKeyResult,
   type CustomRateLimit,
@@ -35,8 +35,13 @@ const MAX_QUEUE_WAIT_MS = 5 * 60 * 1000
  */
 const MIN_QUEUE_RETRY_DELAY_MS = 50
 
-/** TTL slack on the FIFO lock — a crashed worker can't permanently block its workspace. */
-const QUEUE_LOCK_TTL_SECONDS = Math.ceil(MAX_QUEUE_WAIT_MS / 1000) + 30
+/**
+ * Poll interval while waiting to reach the head of the FIFO queue. 200ms balances
+ * acquisition latency (worst-case wait for advancement is one poll period) against
+ * Redis load — at this cadence, N waiters generate N×5 EVAL/sec, which is fine for
+ * the typical low-tens contention. Revisit if telemetry shows hot Redis under load.
+ */
+const QUEUE_HEAD_POLL_MS = 200
 
 /**
  * Resolves env var names for a numbered key prefix using a `{PREFIX}_COUNT` env var.
@@ -74,11 +79,13 @@ interface AvailableKey {
  */
 export class HostedKeyRateLimiter {
   private storage: RateLimitStorageAdapter
+  private queue: HostedKeyQueue
   /** Round-robin counter per provider for even key distribution */
   private roundRobinCounters = new Map<string, number>()
 
-  constructor(storage?: RateLimitStorageAdapter) {
+  constructor(storage?: RateLimitStorageAdapter, queue?: HostedKeyQueue) {
     this.storage = storage ?? createStorageAdapter()
+    this.queue = queue ?? getHostedKeyQueue()
   }
 
   private buildActorStorageKey(provider: string, billingActorId: string): string {
@@ -201,16 +208,20 @@ export class HostedKeyRateLimiter {
    * Acquire an available key via round-robin selection.
    *
    * For both modes:
-   *   1. Per-billing-actor request rate limiting (enforced): when the actor is over their
-   *      limit, the call blocks (waits for refill) up to `MAX_QUEUE_WAIT_MS`. A Redis
-   *      FIFO lock keyed on `{provider, billingActorId}` keeps callers in the same
-   *      workspace serialized so the bucket drains predictably.
+   *   1. Per-billing-actor request rate limiting (enforced): the call enqueues itself
+   *      onto a per-workspace+provider FIFO queue. Only the head of the queue attempts
+   *      to consume from the token bucket, guaranteeing strict ordering across callers
+   *      within a workspace. Different workspaces have independent queues and don't
+   *      block each other.
    *   2. Round-robin key selection: cycles through available keys for even distribution
    *
    * For `custom` mode additionally:
-   *   3. Pre-checks dimension budgets: same wait-for-refill behavior if a dimension is depleted
+   *   3. Pre-checks dimension budgets: head waits on dimension refill the same way it
+   *      waits on actor request capacity.
    *
-   * If the wait exceeds the cap, the call falls back to today's 429 result.
+   * If the total wait (queue position + bucket refill) exceeds `MAX_QUEUE_WAIT_MS`, the
+   * call falls back to today's 429 result. The ticket is removed from the queue on exit
+   * regardless of success or failure.
    *
    * @param envKeyPrefix - Env var prefix (e.g. 'EXA_API_KEY'). Keys resolved via `{prefix}_COUNT`.
    * @param billingActorId - The billing actor (typically workspace ID) to rate limit against
@@ -221,13 +232,36 @@ export class HostedKeyRateLimiter {
     config: HostedKeyRateLimitConfig,
     billingActorId: string
   ): Promise<AcquireKeyResult> {
-    const lockKey = `hosted-queue:${provider}:${billingActorId}`
-    const lockValue = generateShortId()
-    const lockHeld = await this.acquireFifoLock(lockKey, lockValue)
+    const ticketId = generateShortId()
+    const startedAt = Date.now()
+    const enqueueResult = await this.queue.enqueue(provider, billingActorId, ticketId)
 
     try {
+      // Wait for our turn at the head of the queue (no-op when Redis unavailable).
+      const headStatus = await this.waitForQueueHead(provider, billingActorId, ticketId, startedAt)
+      if (headStatus.timedOut) {
+        PlatformEvents.hostedKeyQueueWaitExceeded({
+          provider,
+          workspaceId: billingActorId,
+          waitedMs: Date.now() - startedAt,
+          reason: 'queue_position',
+        })
+        return {
+          success: false,
+          billingActorRateLimited: true,
+          retryAfterMs: MAX_QUEUE_WAIT_MS,
+          error: `Rate limit exceeded — request waited too long in the queue. If you're getting throttled frequently, consider adding your own API key under Settings > BYOK to avoid shared rate limits.`,
+        }
+      }
+
       if (config.requestsPerMinute) {
-        const rateLimitResult = await this.waitForActorCapacity(provider, billingActorId, config)
+        const rateLimitResult = await this.waitForActorCapacity(
+          provider,
+          billingActorId,
+          ticketId,
+          config,
+          startedAt
+        )
         if (rateLimitResult.rateLimited) {
           return {
             success: false,
@@ -242,7 +276,9 @@ export class HostedKeyRateLimiter {
         const dimensionResult = await this.waitForDimensionCapacity(
           provider,
           billingActorId,
-          config
+          ticketId,
+          config,
+          startedAt
         )
         if (dimensionResult.rateLimited) {
           return {
@@ -252,6 +288,18 @@ export class HostedKeyRateLimiter {
             error: `Rate limit exceeded for ${dimensionResult.dimension}. Please wait ${Math.ceil(dimensionResult.retryAfterMs / 1000)} seconds. If you're getting throttled frequently, consider adding your own API key under Settings > BYOK to avoid shared rate limits.`,
           }
         }
+      }
+
+      const totalWaitedMs = Date.now() - startedAt
+      if (enqueueResult.enabled && (enqueueResult.position > 0 || totalWaitedMs > 100)) {
+        PlatformEvents.hostedKeyQueueWaited({
+          provider,
+          workspaceId: billingActorId,
+          waitedMs: totalWaitedMs,
+          attempts: 1,
+          reason: 'queue_position',
+          queuePosition: enqueueResult.position,
+        })
       }
 
       const envKeys = resolveEnvKeys(envKeyPrefix)
@@ -282,68 +330,69 @@ export class HostedKeyRateLimiter {
         envVarName: selected.envVarName,
       }
     } finally {
-      if (lockHeld) {
-        await this.releaseFifoLock(lockKey, lockValue)
+      // Always remove our ticket so the next caller can advance, regardless of whether
+      // we succeeded, hit the cap, or threw. Best-effort; safe to call multiple times.
+      await this.queue.dequeue(provider, billingActorId, ticketId)
+    }
+  }
+
+  /**
+   * Block until our ticket reaches the head of the queue. Refreshes the heartbeat on a
+   * regular cadence so we don't get reaped as dead. Returns `timedOut: true` if we exceed
+   * `MAX_QUEUE_WAIT_MS` before reaching the head.
+   *
+   * No-op when Redis is unavailable (queue.enqueue returns enabled=false and checkHead
+   * always returns 'head').
+   */
+  private async waitForQueueHead(
+    provider: string,
+    billingActorId: string,
+    ticketId: string,
+    startedAt: number
+  ): Promise<{ timedOut: boolean }> {
+    let lastHeartbeatAt = Date.now()
+
+    while (true) {
+      const status = await this.queue.checkHead(provider, billingActorId, ticketId)
+      if (status === 'head') return { timedOut: false }
+
+      // 'missing' shouldn't normally happen — queue list TTL is 10min and our cap is 5min —
+      // but if it does (e.g. Redis flushed mid-wait), treat as "you're up" so the caller
+      // proceeds to the bucket race rather than hanging forever.
+      if (status === 'missing') return { timedOut: false }
+
+      const elapsed = Date.now() - startedAt
+      if (elapsed >= MAX_QUEUE_WAIT_MS) {
+        return { timedOut: true }
       }
+
+      if (Date.now() - lastHeartbeatAt >= HEARTBEAT_REFRESH_INTERVAL_MS) {
+        await this.queue.refreshHeartbeat(provider, billingActorId, ticketId)
+        lastHeartbeatAt = Date.now()
+      }
+
+      await sleep(QUEUE_HEAD_POLL_MS)
     }
   }
 
   /**
-   * Acquire the per-workspace+provider FIFO lock that serializes queue waits.
-   * Returns true if the lock was held by this caller (or Redis is unavailable, in which
-   * case the lock is a no-op and we proceed without fairness). Returns false if the lock
-   * is already held by another caller and we should still proceed without waiting on it
-   * (correctness is preserved by the token bucket; we just lose fairness).
-   */
-  private async acquireFifoLock(lockKey: string, lockValue: string): Promise<boolean> {
-    try {
-      return await acquireLock(lockKey, lockValue, QUEUE_LOCK_TTL_SECONDS)
-    } catch (error) {
-      logger.warn(`Failed to acquire hosted-queue FIFO lock ${lockKey}`, { error })
-      return false
-    }
-  }
-
-  /**
-   * Release the per-workspace+provider FIFO lock. Best-effort; logs but does not throw.
-   */
-  private async releaseFifoLock(lockKey: string, lockValue: string): Promise<void> {
-    try {
-      await releaseLock(lockKey, lockValue)
-    } catch (error) {
-      logger.warn(`Failed to release hosted-queue FIFO lock ${lockKey}`, { error })
-    }
-  }
-
-  /**
-   * Wait for actor request-rate capacity. Re-checks the bucket after each refill window
-   * up to `MAX_QUEUE_WAIT_MS`. Returns `{ rateLimited: false }` once a token has been
-   * consumed (the underlying check is consume-on-success, matching the original behavior).
+   * Wait for actor request-rate capacity. Called once we're at the head of the FIFO
+   * queue, so other callers can't race us for the next token — they're blocked behind us
+   * at queue level. Re-checks the bucket up to the remaining `MAX_QUEUE_WAIT_MS` budget
+   * (accounting for time already spent waiting in the queue).
    */
   private async waitForActorCapacity(
     provider: string,
     billingActorId: string,
-    config: HostedKeyRateLimitConfig
+    ticketId: string,
+    config: HostedKeyRateLimitConfig,
+    startedAt: number
   ): Promise<{ rateLimited: false } | { rateLimited: true; retryAfterMs: number }> {
-    const startedAt = Date.now()
-    let attempts = 0
+    let lastHeartbeatAt = Date.now()
 
     while (true) {
       const result = await this.checkActorRateLimit(provider, billingActorId, config)
-      attempts++
-
-      if (!result) {
-        if (attempts > 1) {
-          PlatformEvents.hostedKeyQueueWaited({
-            provider,
-            workspaceId: billingActorId,
-            waitedMs: Date.now() - startedAt,
-            attempts,
-            reason: 'actor_requests',
-          })
-        }
-        return { rateLimited: false }
-      }
+      if (!result) return { rateLimited: false }
 
       const elapsed = Date.now() - startedAt
       const remaining = MAX_QUEUE_WAIT_MS - elapsed
@@ -355,6 +404,11 @@ export class HostedKeyRateLimiter {
           reason: 'actor_requests',
         })
         return { rateLimited: true, retryAfterMs: result.retryAfterMs }
+      }
+
+      if (Date.now() - lastHeartbeatAt >= HEARTBEAT_REFRESH_INTERVAL_MS) {
+        await this.queue.refreshHeartbeat(provider, billingActorId, ticketId)
+        lastHeartbeatAt = Date.now()
       }
 
       const sleepMs = Math.max(MIN_QUEUE_RETRY_DELAY_MS, result.retryAfterMs)
@@ -370,29 +424,17 @@ export class HostedKeyRateLimiter {
   private async waitForDimensionCapacity(
     provider: string,
     billingActorId: string,
-    config: CustomRateLimit
+    ticketId: string,
+    config: CustomRateLimit,
+    startedAt: number
   ): Promise<
     { rateLimited: false } | { rateLimited: true; retryAfterMs: number; dimension: string }
   > {
-    const startedAt = Date.now()
-    let attempts = 0
+    let lastHeartbeatAt = Date.now()
 
     while (true) {
       const result = await this.preCheckDimensions(provider, billingActorId, config)
-      attempts++
-
-      if (!result) {
-        if (attempts > 1) {
-          PlatformEvents.hostedKeyQueueWaited({
-            provider,
-            workspaceId: billingActorId,
-            waitedMs: Date.now() - startedAt,
-            attempts,
-            reason: 'dimension',
-          })
-        }
-        return { rateLimited: false }
-      }
+      if (!result) return { rateLimited: false }
 
       const elapsed = Date.now() - startedAt
       const remaining = MAX_QUEUE_WAIT_MS - elapsed
@@ -409,6 +451,11 @@ export class HostedKeyRateLimiter {
           retryAfterMs: result.retryAfterMs,
           dimension: result.dimension,
         }
+      }
+
+      if (Date.now() - lastHeartbeatAt >= HEARTBEAT_REFRESH_INTERVAL_MS) {
+        await this.queue.refreshHeartbeat(provider, billingActorId, ticketId)
+        lastHeartbeatAt = Date.now()
       }
 
       const sleepMs = Math.max(MIN_QUEUE_RETRY_DELAY_MS, result.retryAfterMs)

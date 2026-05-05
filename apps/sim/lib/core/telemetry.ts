@@ -1003,16 +1003,18 @@ export const PlatformEvents = {
   },
 
   /**
-   * Track a successful hosted-key acquisition that had to wait for capacity.
-   * Fires after the actor or dimension bucket refilled enough for the call to proceed.
+   * Track a successful hosted-key acquisition that had to wait — either for a slot at
+   * the head of the FIFO queue, or for the actor/dimension bucket to refill once at the
+   * head. `queuePosition` is the position at the moment of enqueue (0 = ready to proceed).
    */
   hostedKeyQueueWaited: (attrs: {
     provider: string
     workspaceId: string
     waitedMs: number
     attempts: number
-    reason: 'actor_requests' | 'dimension'
+    reason: 'actor_requests' | 'dimension' | 'queue_position'
     dimension?: string
+    queuePosition?: number
   }) => {
     trackPlatformEvent('platform.hosted_key.queue_waited', {
       'provider.id': attrs.provider,
@@ -1021,6 +1023,7 @@ export const PlatformEvents = {
       'queue.attempts': attrs.attempts,
       'queue.reason': attrs.reason,
       ...(attrs.dimension && { 'queue.dimension': attrs.dimension }),
+      ...(attrs.queuePosition != null && { 'queue.position': attrs.queuePosition }),
     })
   },
 
@@ -1031,7 +1034,7 @@ export const PlatformEvents = {
     provider: string
     workspaceId: string
     waitedMs: number
-    reason: 'actor_requests' | 'dimension'
+    reason: 'actor_requests' | 'dimension' | 'queue_position'
     dimension?: string
   }) => {
     trackPlatformEvent('platform.hosted_key.queue_wait_exceeded', {
