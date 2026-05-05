@@ -434,7 +434,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       'atlassian-service-account': {
         name: 'Atlassian Service Account',
         description:
-          'Authenticate as an Atlassian service account using an email and API token from admin.atlassian.com.',
+          'Authenticate as an Atlassian service account using a scoped API token from admin.atlassian.com.',
         providerId: 'atlassian-service-account',
         icon: JiraIcon,
         baseProviderIcon: JiraIcon,

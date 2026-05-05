@@ -39,6 +39,18 @@ class AtlassianValidationError extends Error {
   }
 }
 
+/**
+ * Thrown inside the create transaction when a credential with the same
+ * `(workspaceId, providerId, displayName)` already exists. The transaction
+ * aborts and the caller maps this to a 409.
+ */
+class DuplicateDisplayNameError extends Error {
+  constructor() {
+    super('duplicate_display_name')
+    this.name = 'DuplicateDisplayNameError'
+  }
+}
+
 function normalizeDomain(rawDomain: string): string {
   return rawDomain.replace(/^https?:\/\//, '').replace(/\/+$/, '')
 }
@@ -155,28 +167,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const resolvedDisplayName = displayName?.trim() || validation.displayName
     const resolvedDescription = description?.trim() || null
 
-    const [existing] = await db
-      .select({ id: credential.id })
-      .from(credential)
-      .where(
-        and(
-          eq(credential.workspaceId, workspaceId),
-          eq(credential.type, 'service_account'),
-          eq(credential.providerId, ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID),
-          eq(credential.displayName, resolvedDisplayName)
-        )
-      )
-      .limit(1)
-    if (existing) {
-      return NextResponse.json(
-        {
-          code: 'duplicate_display_name',
-          error: 'A credential with that name already exists in this workspace.',
-        },
-        { status: 409 }
-      )
-    }
-
     const blob = JSON.stringify({
       type: ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
       apiToken,
@@ -189,13 +179,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const now = new Date()
     const credentialId = generateId()
 
-    const [workspaceRow] = await db
-      .select({ ownerId: workspace.ownerId })
-      .from(workspace)
-      .where(eq(workspace.id, workspaceId))
-      .limit(1)
-
     const created = await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({ id: credential.id })
+        .from(credential)
+        .where(
+          and(
+            eq(credential.workspaceId, workspaceId),
+            eq(credential.type, 'service_account'),
+            eq(credential.providerId, ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID),
+            eq(credential.displayName, resolvedDisplayName)
+          )
+        )
+        .limit(1)
+      if (existing) throw new DuplicateDisplayNameError()
+
+      const [workspaceRow] = await tx
+        .select({ ownerId: workspace.ownerId })
+        .from(workspace)
+        .where(eq(workspace.id, workspaceId))
+        .limit(1)
+
       const [row] = await tx
         .insert(credential)
         .values({
@@ -279,6 +283,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         ...error.logDetail,
       })
       return NextResponse.json({ code: error.code, error: error.code }, { status: 400 })
+    }
+    if (error instanceof DuplicateDisplayNameError) {
+      return NextResponse.json(
+        {
+          code: 'duplicate_display_name',
+          error: 'A credential with that name already exists in this workspace.',
+        },
+        { status: 409 }
+      )
     }
     logger.error(`[${requestId}] Failed to create Atlassian service account credential`, error)
     return NextResponse.json(
