@@ -408,21 +408,18 @@ export async function registerUploadedWorkspaceFile(params: {
 }
 
 /**
- * Inserts ` (n)` before the last extension, mirroring `withCopySuffix` but starting at n=1
- * for the second occurrence (so `image.png`, `image (2).png`, `image (3).png`).
- * Extensionless names get `name (n)`; dotfiles like `.env` are treated as extensionless.
+ * Like `withCopySuffix` but with `n=1` meaning "no suffix" — used by retry loops where
+ * the first attempt should try the original name (`image.png`, `image (2).png`, ...).
+ * Exported for tests.
  */
 export function suffixedName(name: string, n: number): string {
-  if (n <= 1) return name
-  const dot = name.lastIndexOf('.')
-  if (dot <= 0 || dot === name.length - 1) return `${name} (${n})`
-  return `${name.slice(0, dot)} (${n})${name.slice(dot)}`
+  return n <= 1 ? name : withCopySuffix(name, n)
 }
 
 const MAX_CHAT_DISPLAY_NAME_RETRIES = 1000
 
 /** Postgres constraint name for the partial unique index on `(chat_id, display_name)`. */
-const CHAT_DISPLAY_NAME_INDEX = 'workspace_files_chat_display_name_unique'
+export const CHAT_DISPLAY_NAME_INDEX = 'workspace_files_chat_display_name_unique'
 
 /**
  * Track a file that was already uploaded to workspace S3 as a chat-scoped upload.
@@ -485,13 +482,8 @@ export async function trackChatUpload(
       )
       return { displayName: candidate }
     } catch (error) {
-      /**
-       * Only retry on a collision against the chat displayName index. Any other 23505
-       * (the active-key index from a concurrent insert with the same s3Key, or a
-       * primary-key collision) means a different invariant is contested — bumping the
-       * suffix would silently rename whichever row eventually owns the s3Key, including
-       * a row another caller has already returned to its client.
-       */
+      // Other 23505s (e.g. active-key collision from a racing same-s3Key insert) signal
+      // a different invariant — retrying would silently rename a row another caller owns.
       if (
         getPostgresErrorCode(error) === '23505' &&
         getPostgresConstraintName(error) === CHAT_DISPLAY_NAME_INDEX

@@ -10,11 +10,7 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/works
 
 const logger = createLogger('UploadFileReader')
 
-/**
- * VFS-visible name. Pre-displayName-column rows have NULL displayName, so we coalesce
- * to originalName for them (those rows may still collide with each other — acceptable
- * since the upload already happened; only new rows get collision protection).
- */
+/** VFS-visible name. Coalesces to originalName for legacy rows that predate displayName. */
 function vfsName(row: typeof workspaceFiles.$inferSelect): string {
   return row.displayName ?? row.originalName
 }

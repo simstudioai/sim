@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => dbChainMock)
 
-import { suffixedName, trackChatUpload } from './workspace-file-manager'
+import { CHAT_DISPLAY_NAME_INDEX, suffixedName, trackChatUpload } from './workspace-file-manager'
 
 const CHAT_ID = '11111111-1111-1111-1111-111111111111'
 const WORKSPACE_ID = 'ws_1'
@@ -100,7 +100,7 @@ describe('trackChatUpload', () => {
     // 23505 from the partial unique index on (chat_id, display_name) — the case we retry.
     const displayNameCollision = Object.assign(new Error('duplicate key'), {
       code: '23505',
-      constraint_name: 'workspace_files_chat_display_name_unique',
+      constraint_name: CHAT_DISPLAY_NAME_INDEX,
     })
 
     // Attempt 1: UPDATE finds no row (returning -> []), then INSERT throws displayName 23505.
