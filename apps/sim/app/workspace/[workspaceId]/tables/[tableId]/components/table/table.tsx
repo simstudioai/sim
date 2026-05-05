@@ -173,6 +173,7 @@ export function Table({
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
+  const suppressFocusScrollRef = useRef(false)
 
   const {
     tableData,
@@ -796,6 +797,7 @@ export function Table({
     if (rws.length === 0 || currentCols.length === 0) return
     setEditingCell(null)
     setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    suppressFocusScrollRef.current = true
     setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
     setSelectionFocus({
       rowIndex: maxPositionRef.current,
@@ -1155,6 +1157,10 @@ export function Table({
 
   useEffect(() => {
     if (isColumnSelection) return
+    if (suppressFocusScrollRef.current) {
+      suppressFocusScrollRef.current = false
+      return
+    }
     const target = selectionFocus ?? selectionAnchor
     if (!target) return
     const { rowIndex, colIndex } = target
@@ -1296,6 +1302,7 @@ export function Table({
         const rws = rowsRef.current
         const currentCols = columnsRef.current
         if (rws.length > 0 && currentCols.length > 0) {
+          suppressFocusScrollRef.current = true
           setEditingCell(null)
           setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
           setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
@@ -2685,7 +2692,10 @@ export function Table({
                   <>
                     {rows.map((row, index) => {
                       const prevPosition = index > 0 ? rows[index - 1].position : -1
-                      const gapCount = queryOptions.filter ? 0 : row.position - prevPosition - 1
+                      const gapCount =
+                        queryOptions.filter || queryOptions.sort
+                          ? 0
+                          : row.position - prevPosition - 1
                       return (
                         <React.Fragment key={row.id}>
                           {gapCount > 0 && (
@@ -2938,7 +2948,7 @@ export function Table({
 }
 
 const GAP_ROW_LIMIT = 200
-const GAP_CHECKBOX_CLASS = cn(CELL_CHECKBOX, 'group/checkbox cursor-pointer text-center')
+const GAP_CHECKBOX_CLASS = cn(CELL_CHECKBOX, 'cursor-pointer')
 
 interface PositionGapRowsProps {
   count: number
@@ -2975,28 +2985,32 @@ const PositionGapRows = React.memo(
           const isGapChecked = checkedRows.has(position)
           return (
             <tr key={`gap-${position}`}>
-              <td
-                className={GAP_CHECKBOX_CLASS}
-                onMouseDown={(e) => {
-                  if (e.button !== 0) return
-                  onRowToggle(position, e.shiftKey)
-                }}
-              >
-                <span
-                  className={cn(
-                    'text-[var(--text-tertiary)] text-xs tabular-nums',
-                    isGapChecked ? 'hidden' : 'block group-hover/checkbox:hidden'
-                  )}
-                >
-                  {position + 1}
-                </span>
-                <div
-                  className={cn(
-                    'items-center justify-center',
-                    isGapChecked ? 'flex' : 'hidden group-hover/checkbox:flex'
-                  )}
-                >
-                  <Checkbox size='sm' checked={isGapChecked} className='pointer-events-none' />
+              <td className={GAP_CHECKBOX_CLASS}>
+                <div className='flex items-center justify-center gap-1'>
+                  <div
+                    className='group/checkbox flex h-[20px] w-[24px] shrink-0 items-center justify-center'
+                    onMouseDown={(e) => {
+                      if (e.button !== 0) return
+                      onRowToggle(position, e.shiftKey)
+                    }}
+                  >
+                    <span
+                      className={cn(
+                        'text-[var(--text-tertiary)] text-xs tabular-nums',
+                        isGapChecked ? 'hidden' : 'block group-hover/checkbox:hidden'
+                      )}
+                    >
+                      {position + 1}
+                    </span>
+                    <div
+                      className={cn(
+                        'items-center justify-center',
+                        isGapChecked ? 'flex' : 'hidden group-hover/checkbox:flex'
+                      )}
+                    >
+                      <Checkbox size='sm' checked={isGapChecked} className='pointer-events-none' />
+                    </div>
+                  </div>
                 </div>
               </td>
               {columns.map((col, colIndex) => {
@@ -3238,7 +3252,7 @@ const DataRow = React.memo(function DataRow({
   return (
     <tr onContextMenu={(e) => onContextMenu(e, row)}>
       <td className={cn(CELL_CHECKBOX, 'cursor-pointer')}>
-        <div className='flex items-center justify-between gap-1'>
+        <div className='flex items-center justify-center gap-1'>
           <div
             className='group/checkbox flex h-[20px] w-[24px] shrink-0 items-center justify-center'
             onMouseDown={(e) => {
@@ -3268,7 +3282,7 @@ const DataRow = React.memo(function DataRow({
               type='button'
               aria-label={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
               title={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
-              className='flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded text-[var(--text-primary)] transition-colors hover-hover:bg-[var(--surface-2)]'
+              className='ml-auto flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded text-[var(--text-primary)] transition-colors hover-hover:bg-[var(--surface-2)]'
               onClick={() => {
                 if (runningCount > 0) {
                   onStopRow(row.id)

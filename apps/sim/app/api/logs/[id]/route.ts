@@ -1,183 +1,39 @@
-import { db } from '@sim/db'
-import {
-  jobExecutionLogs,
-  permissions,
-  workflow,
-  workflowDeploymentVersion,
-  workflowExecutionLogs,
-} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { logIdParamsSchema } from '@/lib/api/contracts/logs'
-import { getSession } from '@/lib/auth'
-import { generateRequestId } from '@/lib/core/utils/request'
+import { getLogDetailContract } from '@/lib/api/contracts/logs'
+import { parseRequest } from '@/lib/api/server'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { fetchLogDetail } from '@/lib/logs/fetch-log-detail'
 
 const logger = createLogger('LogDetailsByIdAPI')
 
-export const revalidate = 0
-
 export const GET = withRouteHandler(
-  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized log details access attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const userId = session.user.id
-      const { id } = logIdParamsSchema.parse(await params)
-
-      const rows = await db
-        .select({
-          id: workflowExecutionLogs.id,
-          workflowId: workflowExecutionLogs.workflowId,
-          executionId: workflowExecutionLogs.executionId,
-          stateSnapshotId: workflowExecutionLogs.stateSnapshotId,
-          deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
-          level: workflowExecutionLogs.level,
-          status: workflowExecutionLogs.status,
-          trigger: workflowExecutionLogs.trigger,
-          startedAt: workflowExecutionLogs.startedAt,
-          endedAt: workflowExecutionLogs.endedAt,
-          totalDurationMs: workflowExecutionLogs.totalDurationMs,
-          executionData: workflowExecutionLogs.executionData,
-          cost: workflowExecutionLogs.cost,
-          files: workflowExecutionLogs.files,
-          createdAt: workflowExecutionLogs.createdAt,
-          workflowName: workflow.name,
-          workflowDescription: workflow.description,
-          workflowColor: workflow.color,
-          workflowFolderId: workflow.folderId,
-          workflowUserId: workflow.userId,
-          workflowWorkspaceId: workflow.workspaceId,
-          workflowCreatedAt: workflow.createdAt,
-          workflowUpdatedAt: workflow.updatedAt,
-          deploymentVersion: workflowDeploymentVersion.version,
-          deploymentVersionName: workflowDeploymentVersion.name,
-        })
-        .from(workflowExecutionLogs)
-        .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-        .leftJoin(
-          workflowDeploymentVersion,
-          eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
-        )
-        .innerJoin(
-          permissions,
-          and(
-            eq(permissions.entityType, 'workspace'),
-            eq(permissions.entityId, workflowExecutionLogs.workspaceId),
-            eq(permissions.userId, userId)
-          )
-        )
-        .where(eq(workflowExecutionLogs.id, id))
-        .limit(1)
-
-      const log = rows[0]
-
-      // Fallback: check job_execution_logs
-      if (!log) {
-        const jobRows = await db
-          .select({
-            id: jobExecutionLogs.id,
-            executionId: jobExecutionLogs.executionId,
-            level: jobExecutionLogs.level,
-            status: jobExecutionLogs.status,
-            trigger: jobExecutionLogs.trigger,
-            startedAt: jobExecutionLogs.startedAt,
-            endedAt: jobExecutionLogs.endedAt,
-            totalDurationMs: jobExecutionLogs.totalDurationMs,
-            executionData: jobExecutionLogs.executionData,
-            cost: jobExecutionLogs.cost,
-            createdAt: jobExecutionLogs.createdAt,
-          })
-          .from(jobExecutionLogs)
-          .innerJoin(
-            permissions,
-            and(
-              eq(permissions.entityType, 'workspace'),
-              eq(permissions.entityId, jobExecutionLogs.workspaceId),
-              eq(permissions.userId, userId)
-            )
-          )
-          .where(eq(jobExecutionLogs.id, id))
-          .limit(1)
-
-        const jobLog = jobRows[0]
-        if (!jobLog) {
-          return NextResponse.json({ error: 'Not found' }, { status: 404 })
-        }
-
-        const execData = jobLog.executionData as Record<string, any> | null
-        const response = {
-          id: jobLog.id,
-          workflowId: null,
-          executionId: jobLog.executionId,
-          deploymentVersionId: null,
-          deploymentVersion: null,
-          deploymentVersionName: null,
-          level: jobLog.level,
-          status: jobLog.status,
-          duration: jobLog.totalDurationMs ? `${jobLog.totalDurationMs}ms` : null,
-          trigger: jobLog.trigger,
-          createdAt: jobLog.startedAt.toISOString(),
-          workflow: null,
-          jobTitle: (execData?.trigger?.source as string) || null,
-          executionData: {
-            totalDuration: jobLog.totalDurationMs,
-            ...execData,
-            enhanced: true,
-          },
-          cost: jobLog.cost as any,
-        }
-
-        return NextResponse.json({ data: response })
-      }
-
-      const workflowSummary = log.workflowId
-        ? {
-            id: log.workflowId,
-            name: log.workflowName,
-            description: log.workflowDescription,
-            color: log.workflowColor,
-            folderId: log.workflowFolderId,
-            userId: log.workflowUserId,
-            workspaceId: log.workflowWorkspaceId,
-            createdAt: log.workflowCreatedAt,
-            updatedAt: log.workflowUpdatedAt,
-          }
-        : null
-
-      const response = {
-        id: log.id,
-        workflowId: log.workflowId,
-        executionId: log.executionId,
-        deploymentVersionId: log.deploymentVersionId,
-        deploymentVersion: log.deploymentVersion ?? null,
-        deploymentVersionName: log.deploymentVersionName ?? null,
-        level: log.level,
-        status: log.status,
-        duration: log.totalDurationMs ? `${log.totalDurationMs}ms` : null,
-        trigger: log.trigger,
-        createdAt: log.startedAt.toISOString(),
-        files: log.files || undefined,
-        workflow: workflowSummary,
-        executionData: {
-          totalDuration: log.totalDurationMs,
-          ...(log.executionData as any),
-          enhanced: true,
-        },
-        cost: log.cost as any,
-      }
-
-      return NextResponse.json({ data: response })
-    } catch (error: any) {
-      logger.error(`[${requestId}] log details fetch error`, error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+    if (!authResult.success || !authResult.userId) {
+      return NextResponse.json(
+        { error: authResult.error || 'Authentication required' },
+        { status: 401 }
+      )
     }
+
+    const parsed = await parseRequest(getLogDetailContract, request, context)
+    if (!parsed.success) return parsed.response
+
+    const { id } = parsed.data.params
+    const { workspaceId } = parsed.data.query
+
+    const data = await fetchLogDetail({
+      userId: authResult.userId,
+      workspaceId,
+      lookupColumn: 'id',
+      lookupValue: id,
+    })
+
+    if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    logger.debug('Fetched log detail', { id, workspaceId })
+    return NextResponse.json({ data })
   }
 )

@@ -187,7 +187,8 @@ export class BlockExecutor {
         }
       }
 
-      this.state.setBlockOutput(node.id, normalizedOutput, duration)
+      const { childTraceSpans: _traces, ...outputForState } = normalizedOutput
+      this.state.setBlockOutput(node.id, outputForState as NormalizedBlockOutput, duration)
 
       if (!isSentinel && blockLog) {
         const childWorkflowInstanceId =
@@ -211,7 +212,7 @@ export class BlockExecutor {
         )
       }
 
-      return normalizedOutput
+      return outputForState as NormalizedBlockOutput
     } catch (error) {
       return await this.handleBlockError(
         error,
@@ -270,7 +271,6 @@ export class BlockExecutor {
     }
 
     if (ChildWorkflowError.isChildWorkflowError(error)) {
-      errorOutput.childTraceSpans = error.childTraceSpans
       errorOutput.childWorkflowName = error.childWorkflowName
       if (error.childWorkflowSnapshotId) {
         errorOutput.childWorkflowSnapshotId = error.childWorkflowSnapshotId
@@ -287,8 +287,8 @@ export class BlockExecutor {
       blockLog.input = this.sanitizeInputsForLog(input)
       blockLog.output = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
 
-      if (errorOutput.childTraceSpans && Array.isArray(errorOutput.childTraceSpans)) {
-        blockLog.childTraceSpans = errorOutput.childTraceSpans
+      if (ChildWorkflowError.isChildWorkflowError(error) && error.childTraceSpans.length > 0) {
+        blockLog.childTraceSpans = error.childTraceSpans
       }
     }
 

@@ -8,11 +8,9 @@ const handlerMocks = vi.hoisted(() => ({
   betterAuthGET: vi.fn(),
   betterAuthPOST: vi.fn(),
   ensureAnonymousUserExists: vi.fn(),
-  createAnonymousGetSessionResponse: vi.fn(() => ({
-    data: {
-      user: { id: 'anon' },
-      session: { id: 'anon-session' },
-    },
+  createAnonymousSession: vi.fn(() => ({
+    user: { id: 'anon' },
+    session: { id: 'anon-session' },
   })),
   isAuthDisabled: false,
 }))
@@ -30,7 +28,7 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('@/lib/auth/anonymous', () => ({
   ensureAnonymousUserExists: handlerMocks.ensureAnonymousUserExists,
-  createAnonymousGetSessionResponse: handlerMocks.createAnonymousGetSessionResponse,
+  createAnonymousSession: handlerMocks.createAnonymousSession,
 }))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
@@ -63,10 +61,8 @@ describe('auth catch-all route (DISABLE_AUTH get-session)', () => {
     expect(handlerMocks.ensureAnonymousUserExists).toHaveBeenCalledTimes(1)
     expect(handlerMocks.betterAuthGET).not.toHaveBeenCalled()
     expect(json).toEqual({
-      data: {
-        user: { id: 'anon' },
-        session: { id: 'anon-session' },
-      },
+      user: { id: 'anon' },
+      session: { id: 'anon-session' },
     })
   })
 

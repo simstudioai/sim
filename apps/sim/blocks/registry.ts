@@ -113,6 +113,7 @@ import { LemlistBlock } from '@/blocks/blocks/lemlist'
 import { LinearBlock, LinearV2Block } from '@/blocks/blocks/linear'
 import { LinkedInBlock } from '@/blocks/blocks/linkedin'
 import { LinkupBlock } from '@/blocks/blocks/linkup'
+import { LogsBlock } from '@/blocks/blocks/logs'
 import { LoopsBlock } from '@/blocks/blocks/loops'
 import { LumaBlock } from '@/blocks/blocks/luma'
 import { MailchimpBlock } from '@/blocks/blocks/mailchimp'
@@ -361,6 +362,7 @@ export const registry: Record<string, BlockConfig> = {
   linear_v2: LinearV2Block,
   linkedin: LinkedInBlock,
   linkup: LinkupBlock,
+  logs: LogsBlock,
   loops: LoopsBlock,
   luma: LumaBlock,
   mailchimp: MailchimpBlock,

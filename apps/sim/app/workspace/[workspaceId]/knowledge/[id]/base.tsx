@@ -84,11 +84,11 @@ const DOCUMENTS_PER_PAGE = 50
 
 const DOCUMENT_COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
-  { id: 'size', header: 'Size', widthMultiplier: 0.625 },
-  { id: 'tokens', header: 'Tokens', widthMultiplier: 0.625 },
-  { id: 'chunks', header: 'Chunks', widthMultiplier: 0.5 },
-  { id: 'uploaded', header: 'Uploaded', widthMultiplier: 0.75 },
-  { id: 'status', header: 'Status', widthMultiplier: 0.875 },
+  { id: 'size', header: 'Size' },
+  { id: 'tokens', header: 'Tokens' },
+  { id: 'chunks', header: 'Chunks' },
+  { id: 'uploaded', header: 'Uploaded' },
+  { id: 'status', header: 'Status' },
   { id: 'tags', header: 'Tags' },
 ]
 

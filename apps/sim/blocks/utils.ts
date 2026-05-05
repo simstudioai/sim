@@ -1,5 +1,10 @@
 import { toError } from '@sim/utils/errors'
-import { isAzureConfigured, isHosted, isOllamaConfigured } from '@/lib/core/config/feature-flags'
+import {
+  isAzureConfigured,
+  isCohereConfigured,
+  isHosted,
+  isOllamaConfigured,
+} from '@/lib/core/config/feature-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
@@ -181,6 +186,27 @@ export function getApiKeyCondition() {
     const model = typeof values?.model === 'string' ? values.model : ''
     const shouldShow = shouldRequireApiKeyForModel(model)
     return buildModelVisibilityCondition(model, shouldShow)
+  }
+}
+
+/**
+ * Visibility condition for the Cohere reranker API key field on the Knowledge block.
+ * Hidden on hosted Sim (platform supplies the key via workspace BYOK or rotating env keys)
+ * and on self-hosted deployments that have set `NEXT_PUBLIC_COHERE_CONFIGURED=true` to
+ * indicate `COHERE_API_KEY` is pre-configured server-side. Otherwise shown (and required)
+ * whenever reranking is enabled for a search operation, mirroring the agent block's
+ * `getApiKeyCondition` pattern.
+ */
+export function getCohereRerankerApiKeyCondition() {
+  return () => {
+    if (isHosted || isCohereConfigured) {
+      return { field: 'operation', value: '__never_show__' }
+    }
+    return {
+      field: 'operation',
+      value: 'search',
+      and: { field: 'rerankerEnabled', value: true },
+    }
   }
 }
 

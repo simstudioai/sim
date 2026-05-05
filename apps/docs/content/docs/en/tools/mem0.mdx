@@ -50,12 +50,9 @@ Add memories to Mem0 for persistent storage and retrieval
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ids` | array | Array of memory IDs that were created |
-| `memories` | array | Array of memory objects that were created |
-|   ↳ `id` | string | Unique identifier for the memory |
-|   ↳ `memory` | string | The content of the memory |
-|   ↳ `event` | string | Event type indicating operation performed \(ADD, UPDATE, DELETE, NOOP\) |
-|   ↳ `metadata` | json | Custom metadata associated with the memory |
+| `message` | string | Status message for the queued memory processing job |
+| `status` | string | Processing status returned by Mem0 |
+| `event_id` | string | Event ID for polling memory processing status |
 
 ### `mem0_search_memories`
 
@@ -102,6 +99,7 @@ Retrieve memories from Mem0 by ID or filter criteria
 | `startDate` | string | No | Start date for filtering by created_at \(e.g., "2024-01-15"\) |
 | `endDate` | string | No | End date for filtering by created_at \(e.g., "2024-12-31"\) |
 | `limit` | number | No | Maximum number of results to return \(e.g., 10, 50, 100\) |
+| `page` | number | No | Page number to retrieve for paginated list results |
 | `apiKey` | string | Yes | Your Mem0 API key |
 
 #### Output
@@ -120,10 +118,9 @@ Retrieve memories from Mem0 by ID or filter criteria
 |   ↳ `categories` | json | Auto-assigned categories for the memory |
 |   ↳ `created_at` | string | ISO 8601 timestamp when the memory was created |
 |   ↳ `updated_at` | string | ISO 8601 timestamp when the memory was last updated |
-|   ↳ `owner` | string | Owner of the memory |
-|   ↳ `organization` | string | Organization associated with the memory |
-|   ↳ `immutable` | boolean | Whether the memory can be modified |
-|   ↳ `expiration_date` | string | Expiration date after which memory is not retrieved |
 | `ids` | array | Array of memory IDs that were retrieved |
+| `count` | number | Total number of memories matching the filters |
+| `next` | string | URL for the next page of results |
+| `previous` | string | URL for the previous page of results |
 
 

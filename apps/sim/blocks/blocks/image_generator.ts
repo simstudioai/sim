@@ -8,7 +8,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
   description: 'Generate images',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Image Generator into the workflow. Can generate images using DALL-E 3 or GPT Image.',
+    'Integrate Image Generator into the workflow. Can generate images using DALL-E 3, GPT Image 1, or GPT Image 2.',
   docsLink: 'https://docs.sim.ai/tools/image_generator',
   category: 'tools',
   integrationType: IntegrationType.AI,
@@ -22,7 +22,8 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       type: 'dropdown',
       options: [
         { label: 'DALL-E 3', id: 'dall-e-3' },
-        { label: 'GPT Image', id: 'gpt-image-1' },
+        { label: 'GPT Image 1', id: 'gpt-image-1' },
+        { label: 'GPT Image 2', id: 'gpt-image-2' },
       ],
       value: () => 'dall-e-3',
     },
@@ -61,6 +62,22 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       dependsOn: ['model'],
     },
     {
+      id: 'size',
+      title: 'Size',
+      type: 'dropdown',
+      options: [
+        { label: 'Auto', id: 'auto' },
+        { label: 'Square (1024x1024)', id: '1024x1024' },
+        { label: 'Portrait (1024x1536)', id: '1024x1536' },
+        { label: 'Landscape (1536x1024)', id: '1536x1024' },
+        { label: '2K (2560x1440)', id: '2560x1440' },
+        { label: '4K (3840x2160)', id: '3840x2160' },
+      ],
+      value: () => 'auto',
+      condition: { field: 'model', value: 'gpt-image-2' },
+      dependsOn: ['model'],
+    },
+    {
       id: 'quality',
       title: 'Quality',
       type: 'dropdown',
@@ -70,6 +87,20 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       ],
       value: () => 'standard',
       condition: { field: 'model', value: 'dall-e-3' },
+      dependsOn: ['model'],
+    },
+    {
+      id: 'quality',
+      title: 'Quality',
+      type: 'dropdown',
+      options: [
+        { label: 'Auto', id: 'auto' },
+        { label: 'Low', id: 'low' },
+        { label: 'Medium', id: 'medium' },
+        { label: 'High', id: 'high' },
+      ],
+      value: () => 'auto',
+      condition: { field: 'model', value: ['gpt-image-1', 'gpt-image-2'] },
       dependsOn: ['model'],
     },
     {
@@ -98,6 +129,43 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       dependsOn: ['model'],
     },
     {
+      id: 'background',
+      title: 'Background',
+      type: 'dropdown',
+      options: [
+        { label: 'Auto', id: 'auto' },
+        { label: 'Opaque', id: 'opaque' },
+      ],
+      value: () => 'auto',
+      condition: { field: 'model', value: 'gpt-image-2' },
+      dependsOn: ['model'],
+    },
+    {
+      id: 'outputFormat',
+      title: 'Output Format',
+      type: 'dropdown',
+      options: [
+        { label: 'PNG', id: 'png' },
+        { label: 'JPEG', id: 'jpeg' },
+        { label: 'WebP', id: 'webp' },
+      ],
+      value: () => 'png',
+      condition: { field: 'model', value: ['gpt-image-1', 'gpt-image-2'] },
+      dependsOn: ['model'],
+    },
+    {
+      id: 'moderation',
+      title: 'Moderation',
+      type: 'dropdown',
+      options: [
+        { label: 'Auto', id: 'auto' },
+        { label: 'Low', id: 'low' },
+      ],
+      value: () => 'auto',
+      condition: { field: 'model', value: ['gpt-image-1', 'gpt-image-2'] },
+      dependsOn: ['model'],
+    },
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -120,7 +188,25 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
         }
 
         const model = params.model || 'dall-e-3'
-        const size = params.size || (model === 'gpt-image-1' ? 'auto' : '1024x1024')
+
+        const ALLOWED_SIZES: Record<string, string[]> = {
+          'dall-e-3': ['1024x1024', '1024x1792', '1792x1024'],
+          'gpt-image-1': ['auto', '1024x1024', '1536x1024', '1024x1536'],
+          'gpt-image-2': ['auto', '1024x1024', '1536x1024', '1024x1536', '2560x1440', '3840x2160'],
+        }
+        const ALLOWED_QUALITIES: Record<string, string[]> = {
+          'dall-e-3': ['standard', 'hd'],
+          'gpt-image-1': ['auto', 'low', 'medium', 'high'],
+          'gpt-image-2': ['auto', 'low', 'medium', 'high'],
+        }
+        const ALLOWED_BACKGROUNDS: Record<string, string[]> = {
+          'gpt-image-1': ['auto', 'transparent', 'opaque'],
+          'gpt-image-2': ['auto', 'opaque'],
+        }
+
+        const defaultSize = model === 'dall-e-3' ? '1024x1024' : 'auto'
+        const size = ALLOWED_SIZES[model]?.includes(params.size) ? params.size : defaultSize
+
         const baseParams = {
           prompt: params.prompt,
           model,
@@ -129,16 +215,25 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
         }
 
         if (model === 'dall-e-3') {
-          return {
-            ...baseParams,
-            quality: params.quality || 'standard',
-            style: params.style || 'vivid',
-          }
+          const quality = ALLOWED_QUALITIES['dall-e-3'].includes(params.quality)
+            ? params.quality
+            : 'standard'
+          const style = ['vivid', 'natural'].includes(params.style) ? params.style : 'vivid'
+          return { ...baseParams, quality, style }
         }
-        if (model === 'gpt-image-1') {
+        if (model === 'gpt-image-1' || model === 'gpt-image-2') {
+          const quality = ALLOWED_QUALITIES[model].includes(params.quality)
+            ? params.quality
+            : undefined
+          const background = ALLOWED_BACKGROUNDS[model].includes(params.background)
+            ? params.background
+            : undefined
           return {
             ...baseParams,
-            ...(params.background && { background: params.background }),
+            ...(quality && { quality }),
+            ...(background && { background }),
+            ...(params.outputFormat && { outputFormat: params.outputFormat }),
+            ...(params.moderation && { moderation: params.moderation }),
           }
         }
 
@@ -153,6 +248,8 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
     quality: { type: 'string', description: 'Image quality level' },
     style: { type: 'string', description: 'Image style' },
     background: { type: 'string', description: 'Background type' },
+    outputFormat: { type: 'string', description: 'Output image format (png, jpeg, webp)' },
+    moderation: { type: 'string', description: 'Moderation level (auto or low)' },
     apiKey: { type: 'string', description: 'OpenAI API key' },
   },
   outputs: {
