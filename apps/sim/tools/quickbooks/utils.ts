@@ -33,7 +33,11 @@ export function sanitizeWhereClause(where: string | undefined): string | undefin
   if (!where) return undefined
   const trimmed = where.trim()
   if (!trimmed) return undefined
-  if (FORBIDDEN_WHERE_KEYWORDS.test(trimmed)) {
+  // Strip single-quoted string literals (QQL escapes a quote by doubling it: '')
+  // before checking for forbidden keywords, so values like 'From Scratch Inc'
+  // don't trigger false positives on FROM/SELECT/etc.
+  const withoutLiterals = trimmed.replace(/'(?:''|[^'])*'/g, "''")
+  if (FORBIDDEN_WHERE_KEYWORDS.test(withoutLiterals)) {
     throw new Error(
       'where clause may only contain predicate expressions — keywords like MAXRESULTS, STARTPOSITION, ORDER BY, SELECT, and FROM are not allowed'
     )
