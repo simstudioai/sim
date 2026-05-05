@@ -10295,6 +10295,113 @@
     "tags": ["vector-search", "knowledge-base"]
   },
   {
+    "type": "quickbooks",
+    "slug": "quickbooks",
+    "name": "QuickBooks",
+    "description": "Manage QuickBooks Online customers, invoices, and accounting data",
+    "longDescription": "Connect to QuickBooks Online to read and write customers, invoices, and chart-of-accounts entries, or run arbitrary QuickBooks queries. Uses Intuit OAuth 2.0; the company (realmId) is captured from the OAuth callback at sign-in time.",
+    "bgColor": "#2CA01C",
+    "iconName": "QuickBooksIcon",
+    "docsUrl": "https://docs.sim.ai/tools/quickbooks",
+    "operations": [
+      {
+        "name": "List Customers",
+        "description": "List customers from QuickBooks Online"
+      },
+      {
+        "name": "Get Customer",
+        "description": "Retrieve a single QuickBooks customer by ID"
+      },
+      {
+        "name": "Create Customer",
+        "description": "Create a new customer in QuickBooks Online"
+      },
+      {
+        "name": "Update Customer",
+        "description": "Sparse-update an existing QuickBooks customer"
+      },
+      {
+        "name": "List Invoices",
+        "description": "List invoices from QuickBooks Online"
+      },
+      {
+        "name": "Get Invoice",
+        "description": "Retrieve a single QuickBooks invoice by ID"
+      },
+      {
+        "name": "Create Invoice",
+        "description": "Create a new invoice in QuickBooks Online"
+      },
+      {
+        "name": "Update Invoice",
+        "description": "Update an existing QuickBooks invoice (sparse update — date/memo/email only; line items cannot be modified)"
+      },
+      {
+        "name": "Send Invoice",
+        "description": "Email a QuickBooks invoice to a recipient"
+      },
+      {
+        "name": "List Vendors",
+        "description": "List vendors from QuickBooks Online"
+      },
+      {
+        "name": "Get Vendor",
+        "description": "Retrieve a single QuickBooks vendor by ID"
+      },
+      {
+        "name": "Create Vendor",
+        "description": "Create a new vendor in QuickBooks Online"
+      },
+      {
+        "name": "List Items",
+        "description": "List items (products and services) from QuickBooks Online"
+      },
+      {
+        "name": "Create Item",
+        "description": "Create a new item (product or service) in QuickBooks Online"
+      },
+      {
+        "name": "List Payments",
+        "description": "List payments from QuickBooks Online"
+      },
+      {
+        "name": "Create Payment",
+        "description": "Record a customer payment in QuickBooks Online"
+      },
+      {
+        "name": "List Bills",
+        "description": "List bills from QuickBooks Online"
+      },
+      {
+        "name": "Create Bill",
+        "description": "Create a new bill (vendor expense) in QuickBooks Online"
+      },
+      {
+        "name": "List Estimates",
+        "description": "List estimates from QuickBooks Online"
+      },
+      {
+        "name": "List Accounts",
+        "description": "List chart-of-accounts entries from QuickBooks Online"
+      },
+      {
+        "name": "Get Company Info",
+        "description": "Retrieve company information for the connected QuickBooks Online company"
+      },
+      {
+        "name": "Run Query",
+        "description": "Run a QuickBooks Online query using SQL-like syntax (example: SELECT * FROM Item WHERE Active = true)"
+      }
+    ],
+    "operationCount": 22,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "oauth",
+    "category": "tools",
+    "integrationTypes": ["other", "ecommerce"],
+    "tags": ["payments"]
+  },
+  {
     "type": "quiver",
     "slug": "quiver",
     "name": "Quiver",

@@ -23,7 +23,7 @@ import {
 } from 'better-auth/plugins'
 import { emailHarmony } from 'better-auth-harmony'
 import { and, count, eq, inArray, sql } from 'drizzle-orm'
-import { headers } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import Stripe from 'stripe'
 import {
   getEmailSubject,
@@ -343,6 +343,20 @@ export const auth = betterAuth({
             }
           }
 
+          if (account.providerId === 'quickbooks') {
+            try {
+              const cookieStore = await cookies()
+              const realmId = cookieStore.get('qb_pending_realm')?.value
+              if (realmId) {
+                modifiedAccount.scope = `__qb_realm__:${realmId} ${account.scope ?? ''}`.trim()
+              } else {
+                logger.error('QuickBooks account.create.before: qb_pending_realm cookie missing')
+              }
+            } catch (error) {
+              logger.error('Failed to capture QuickBooks realmId', { error })
+            }
+          }
+
           if (isMicrosoftProvider(account.providerId)) {
             modifiedAccount.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
           }
@@ -518,6 +532,34 @@ export const auth = betterAuth({
             }
           }
 
+          if (account.providerId === 'quickbooks') {
+            const updates: {
+              accessTokenExpiresAt?: Date
+              scope?: string
+            } = {}
+
+            let realmId: string | undefined
+            try {
+              const cookieStore = await cookies()
+              realmId = cookieStore.get('qb_pending_realm')?.value
+              cookieStore.delete('qb_pending_realm')
+            } catch (error) {
+              logger.error('Failed to read/clear qb_pending_realm cookie', { error })
+            }
+
+            if (!account.accessTokenExpiresAt) {
+              updates.accessTokenExpiresAt = new Date(Date.now() + 60 * 60 * 1000)
+            }
+
+            if (realmId && !account.scope?.includes('__qb_realm__:')) {
+              updates.scope = `__qb_realm__:${realmId} ${account.scope ?? ''}`.trim()
+            }
+
+            if (Object.keys(updates).length > 0) {
+              await db.update(schema.account).set(updates).where(eq(schema.account.id, account.id))
+            }
+          }
+
           if (isMicrosoftProvider(account.providerId)) {
             await db
               .update(schema.account)
@@ -632,6 +674,7 @@ export const auth = betterAuth({
         'webflow',
         'asana',
         'pipedrive',
+        'quickbooks',
         'hubspot',
         'linkedin',
         'spotify',
@@ -1753,6 +1796,45 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error creating HubSpot user profile:', { error })
+              return null
+            }
+          },
+        },
+
+        // QuickBooks (Intuit) provider — realmId is captured from the OAuth
+        // callback URL query string at sign-in time (not via OIDC). The
+        // `qb_pending_realm` cookie is set by the catch-all auth route before
+        // Better Auth processes the callback.
+        {
+          providerId: 'quickbooks',
+          clientId: env.QUICKBOOKS_CLIENT_ID as string,
+          clientSecret: env.QUICKBOOKS_CLIENT_SECRET as string,
+          authorizationUrl: 'https://appcenter.intuit.com/connect/oauth2',
+          tokenUrl: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
+          scopes: getCanonicalScopesForProvider('quickbooks'),
+          responseType: 'code',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/quickbooks`,
+          getUserInfo: async () => {
+            try {
+              const cookieStore = await cookies()
+              const realmId = cookieStore.get('qb_pending_realm')?.value
+              if (!realmId) {
+                logger.error(
+                  'QuickBooks OAuth: qb_pending_realm cookie missing — callback interceptor did not run'
+                )
+                return null
+              }
+              return {
+                id: `quickbooks-${realmId}`,
+                name: `QuickBooks Company ${realmId}`,
+                email: `quickbooks-${realmId}@quickbooks.local`,
+                emailVerified: true,
+                image: undefined,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error creating QuickBooks user profile:', { error })
               return null
             }
           },

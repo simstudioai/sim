@@ -77,6 +77,7 @@ const oauthTokenResponseSchema = z.object({
   accessToken: z.string(),
   idToken: z.string().optional(),
   instanceUrl: z.string().optional(),
+  realmId: z.string().optional(),
 })
 
 export const oauthTokenGetContract = defineRouteContract({

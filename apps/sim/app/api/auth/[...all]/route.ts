@@ -1,4 +1,5 @@
 import { toNextJsHandler } from 'better-auth/next-js'
+import { cookies } from 'next/headers'
 import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
@@ -25,6 +26,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   if (path === 'get-session' && isAuthDisabled) {
     await ensureAnonymousUserExists()
     return NextResponse.json(createAnonymousSession())
+  }
+
+  if (path === 'oauth2/callback/quickbooks') {
+    const realmId = request.nextUrl.searchParams.get('realmId')
+    const oauthError = request.nextUrl.searchParams.get('error')
+    const cookieStore = await cookies()
+    if (oauthError || !realmId) {
+      cookieStore.delete('qb_pending_realm')
+    } else {
+      cookieStore.set('qb_pending_realm', realmId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 600,
+      })
+    }
   }
 
   return betterAuthGET(request)

@@ -80,6 +80,10 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'write:space.property:confluence': 'Create and manage space properties',
   'read:space.permission:confluence': 'View Confluence space permissions',
 
+  // QuickBooks (Intuit) scopes
+  'com.intuit.quickbooks.accounting': 'Read and write QuickBooks accounting data',
+  'com.intuit.quickbooks.payment': 'Read and write QuickBooks Payments data',
+
   // Common scopes
   'read:me': 'Read profile information',
   offline_access: 'Access account when not using the application',
