@@ -239,8 +239,8 @@ export function Table({
     setColumnOrder(order)
   }
 
-  // Width keys are either the logical name or `${name}::${path}` (fanned-out
-  // workflow columns). Rename rewrites every key whose prefix matches.
+  // Width keys are either the logical name or `${name}::${path}` for fanned-out
+  // workflow columns; rename must rewrite every key whose prefix matches.
   function handleColumnRename(oldName: string, newName: string) {
     let updatedWidths = columnWidthsRef.current
     let widthsChanged = false
@@ -290,9 +290,6 @@ export function Table({
   redoRef.current = redo
   const pushUndoRef = useRef(pushUndo)
   pushUndoRef.current = pushUndo
-
-  // `columns`, `tableWorkflowGroups`, `workflowStates`, `columnSourceInfo`,
-  // and `workflowNameById` come from `useTable` above.
 
   const displayColumns = useMemo<DisplayColumn[]>(() => {
     let ordered: ColumnDefinition[]
@@ -410,6 +407,8 @@ export function Table({
   const rowsRef = useRef(rows)
   const selectionAnchorRef = useRef(selectionAnchor)
   const selectionFocusRef = useRef(selectionFocus)
+  const anchorRowIdRef = useRef<string | null>(null)
+  const focusRowIdRef = useRef<string | null>(null)
 
   const checkedRowsRef = useRef(checkedRows)
   checkedRowsRef.current = checkedRows
@@ -495,7 +494,8 @@ export function Table({
   }, [contextMenu.row, contextMenu.columnName, closeContextMenu])
 
   const handleContextMenuDelete = useCallback(() => {
-    if (!contextMenu.row) {
+    const contextRow = contextMenu.row
+    if (!contextRow) {
       closeContextMenu()
       return
     }
@@ -504,12 +504,11 @@ export function Table({
     const currentRows = rowsRef.current
     let snapshots: DeletedRowSnapshot[] = []
 
-    const contextRowArrayIndex = currentRows.findIndex((r) => r.id === contextMenu.row!.id)
-
-    if (checked.size > 0 && checked.has(contextMenu.row.id)) {
+    if (checked.size > 0 && checked.has(contextRow.id)) {
       snapshots = collectRowSnapshots(currentRows.filter((r) => checked.has(r.id)))
     } else {
       const sel = computeNormalizedSelection(selectionAnchorRef.current, selectionFocusRef.current)
+      const contextRowArrayIndex = currentRows.findIndex((r) => r.id === contextRow.id)
       const isInSelection =
         sel !== null && contextRowArrayIndex >= sel.startRow && contextRowArrayIndex <= sel.endRow
 
@@ -517,11 +516,7 @@ export function Table({
         snapshots = collectRowSnapshots(currentRows.slice(sel.startRow, sel.endRow + 1))
       } else {
         snapshots = [
-          {
-            rowId: contextMenu.row.id,
-            data: { ...contextMenu.row.data },
-            position: contextMenu.row.position,
-          },
+          { rowId: contextRow.id, data: { ...contextRow.data }, position: contextRow.position },
         ]
       }
     }
@@ -582,10 +577,11 @@ export function Table({
   }, [contextMenuExecutionId, closeContextMenu])
 
   const handleDuplicateRow = useCallback(() => {
-    if (!contextMenu.row) return
-    const rowData = { ...contextMenu.row.data }
-    const position = contextMenu.row.position + 1
-    const sourceArrayIndex = rowsRef.current.findIndex((r) => r.id === contextMenu.row!.id)
+    const contextRow = contextMenu.row
+    if (!contextRow) return
+    const rowData = { ...contextRow.data }
+    const position = contextRow.position + 1
+    const sourceArrayIndex = rowsRef.current.findIndex((r) => r.id === contextRow.id)
     closeContextMenu()
     createRef.current(
       { data: rowData, position },
@@ -631,11 +627,11 @@ export function Table({
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)
           if (newRowId) {
-            const lastRow = rowsRef.current[rowsRef.current.length - 1]
+            const maxPosition = rowsRef.current.reduce((max, r) => Math.max(max, r.position), -1)
             pushUndoRef.current({
               type: 'create-row',
               rowId: newRowId,
-              position: (lastRow?.position ?? -1) + 1,
+              position: maxPosition + 1,
             })
           }
         },
@@ -714,35 +710,27 @@ export function Table({
     if (!targetRow) return
     const targetId = targetRow.id
 
-    if (shiftKey && lastCheckboxRowRef.current !== null) {
-      const lastIdx = currentRows.findIndex((r) => r.id === lastCheckboxRowRef.current)
-      if (lastIdx !== -1) {
-        const from = Math.min(lastIdx, rowIndex)
-        const to = Math.max(lastIdx, rowIndex)
-        setCheckedRows((prev) => {
-          const next = new Set(prev)
-          for (let i = from; i <= to; i++) {
-            const r = currentRows[i]
-            if (r) next.add(r.id)
-          }
-          return next
-        })
-      } else {
-        setCheckedRows((prev) => {
-          const next = new Set(prev)
-          if (next.has(targetId)) next.delete(targetId)
-          else next.add(targetId)
-          return next
-        })
-      }
+    const lastIdx =
+      shiftKey && lastCheckboxRowRef.current !== null
+        ? currentRows.findIndex((r) => r.id === lastCheckboxRowRef.current)
+        : -1
+
+    if (lastIdx !== -1) {
+      const from = Math.min(lastIdx, rowIndex)
+      const to = Math.max(lastIdx, rowIndex)
+      setCheckedRows((prev) => {
+        const next = new Set(prev)
+        for (let i = from; i <= to; i++) {
+          const r = currentRows[i]
+          if (r) next.add(r.id)
+        }
+        return next
+      })
     } else {
       setCheckedRows((prev) => {
         const next = new Set(prev)
-        if (next.has(targetId)) {
-          next.delete(targetId)
-        } else {
-          next.add(targetId)
-        }
+        if (next.has(targetId)) next.delete(targetId)
+        else next.add(targetId)
         return next
       })
     }
@@ -798,6 +786,7 @@ export function Table({
     if (rws.length === 0 || currentCols.length === 0) return
     setEditingCell(null)
     setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    lastCheckboxRowRef.current = null
     suppressFocusScrollRef.current = true
     setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
     setSelectionFocus({
@@ -1159,14 +1148,49 @@ export function Table({
   }, [])
 
   useEffect(() => {
-    const len = rows.length
-    if (selectionAnchorRef.current && selectionAnchorRef.current.rowIndex >= len) {
-      setSelectionAnchor(null)
+    anchorRowIdRef.current = selectionAnchor
+      ? (rowsRef.current[selectionAnchor.rowIndex]?.id ?? null)
+      : null
+  }, [selectionAnchor])
+
+  useEffect(() => {
+    focusRowIdRef.current = selectionFocus
+      ? (rowsRef.current[selectionFocus.rowIndex]?.id ?? null)
+      : null
+  }, [selectionFocus])
+
+  useEffect(() => {
+    const anchor = selectionAnchorRef.current
+    if (anchor) {
+      const expectedId = anchorRowIdRef.current
+      const actualId = rows[anchor.rowIndex]?.id ?? null
+      if (expectedId && expectedId !== actualId) {
+        const newIndex = rows.findIndex((r) => r.id === expectedId)
+        if (newIndex >= 0) {
+          setSelectionAnchor({ rowIndex: newIndex, colIndex: anchor.colIndex })
+        } else {
+          setSelectionAnchor(null)
+        }
+      } else if (anchor.rowIndex >= rows.length) {
+        setSelectionAnchor(null)
+      }
     }
-    if (selectionFocusRef.current && selectionFocusRef.current.rowIndex >= len) {
-      setSelectionFocus(null)
+    const focus = selectionFocusRef.current
+    if (focus) {
+      const expectedId = focusRowIdRef.current
+      const actualId = rows[focus.rowIndex]?.id ?? null
+      if (expectedId && expectedId !== actualId) {
+        const newIndex = rows.findIndex((r) => r.id === expectedId)
+        if (newIndex >= 0) {
+          setSelectionFocus({ rowIndex: newIndex, colIndex: focus.colIndex })
+        } else {
+          setSelectionFocus(null)
+        }
+      } else if (focus.rowIndex >= rows.length) {
+        setSelectionFocus(null)
+      }
     }
-  }, [rows.length])
+  }, [rows])
 
   useEffect(() => {
     if (isColumnSelection) return
@@ -1203,12 +1227,10 @@ export function Table({
     setInitialCharacter(null)
   }, [])
 
-  // Double-click highlights the cell's text and, only if the text is actually
-  // truncated, opens the expanded popover. The cell has `select-none` which
-  // suppresses the highlight even for programmatic selections, so we override
-  // `user-select` on the inner element until the next click. Workflow cells nest
-  // their text inside a span with its own `overflow-clip`, so we measure the leaf
-  // element's scroll dimensions, not just the wrapper div's.
+  // The cell has `select-none` which suppresses programmatic selection, so we
+  // override `user-select` on the inner element until the next click. The popover
+  // only opens when the leaf's scroll dimensions exceed its client dimensions
+  // (workflow cells nest text inside a span with its own `overflow-clip`).
   const handleCellDoubleClick = useCallback(
     (rowId: string, columnName: string, columnKey: string) => {
       setSelectionFocus(null)
@@ -1319,6 +1341,7 @@ export function Table({
           suppressFocusScrollRef.current = true
           setEditingCell(null)
           setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+          lastCheckboxRowRef.current = null
           setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
           setSelectionFocus({
             rowIndex: rws.length - 1,
@@ -1408,7 +1431,7 @@ export function Table({
               if (newRowId) {
                 pushUndoRef.current({ type: 'create-row', rowId: newRowId, position })
               }
-              setSelectionAnchor({ rowIndex: position, colIndex })
+              setSelectionAnchor({ rowIndex: anchor.rowIndex + 1, colIndex })
               setSelectionFocus(null)
             },
           }
@@ -1776,8 +1799,7 @@ export function Table({
 
       const currentCols = columnsRef.current
       const currentRows = rowsRef.current
-      const lastRowPosition =
-        currentRows.length > 0 ? currentRows[currentRows.length - 1].position : -1
+      const lastRowPosition = currentRows.reduce((max, r) => Math.max(max, r.position), -1)
 
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const updateBatch: Array<{ rowId: string; data: Record<string, unknown> }> = []
@@ -2386,9 +2408,10 @@ export function Table({
   )
 
   const selectedRowCount = useMemo(() => {
-    if (!contextMenu.isOpen || !contextMenu.row) return 1
+    const contextRow = contextMenu.isOpen ? contextMenu.row : null
+    if (!contextRow) return 1
 
-    if (checkedRows.size > 0 && checkedRows.has(contextMenu.row.id)) {
+    if (checkedRows.size > 0 && checkedRows.has(contextRow.id)) {
       let count = 0
       for (const row of rows) {
         if (checkedRows.has(row.id)) count++
@@ -2399,10 +2422,8 @@ export function Table({
     const sel = normalizedSelection
     if (!sel) return 1
 
-    const contextRowArrayIndex = rows.findIndex((r) => r.id === contextMenu.row!.id)
-    const isInSelection = contextRowArrayIndex >= sel.startRow && contextRowArrayIndex <= sel.endRow
-
-    if (!isInSelection) return 1
+    const contextRowArrayIndex = rows.findIndex((r) => r.id === contextRow.id)
+    if (contextRowArrayIndex < sel.startRow || contextRowArrayIndex > sel.endRow) return 1
 
     const start = Math.max(0, sel.startRow)
     const end = Math.min(rows.length - 1, sel.endRow)
