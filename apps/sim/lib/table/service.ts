@@ -2239,7 +2239,6 @@ export async function renameColumn(
     columns: updatedColumns,
     ...(updatedGroups.length > 0 ? { workflowGroups: updatedGroups } : {}),
   }
-  assertValidSchema(updatedSchema, table.metadata?.columnOrder)
 
   const metadata = table.metadata as TableMetadata | null
   let updatedMetadata = metadata
@@ -2253,6 +2252,11 @@ export async function renameColumn(
       columnOrder: updatedMetadata.columnOrder.map((n) => (n === actualOldName ? data.newName : n)),
     }
   }
+  // Validate against the *post-rename* column order. The schema's workflow
+  // group outputs already reference the new name, so checking against the old
+  // columnOrder makes the renamed output look "missing" from its group and
+  // falsely flags the remaining siblings as non-contiguous.
+  assertValidSchema(updatedSchema, updatedMetadata?.columnOrder)
 
   const now = new Date()
   const statementMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {
@@ -2781,12 +2785,40 @@ export async function updateWorkflowGroup(
   }
   const group = groups[groupIndex]
 
-  const newOutputs = data.outputs ?? group.outputs
+  // Apply `mappingUpdates` first: each entry repoints an existing output's
+  // `(blockId, path)` while preserving the column. We patch the **old** view
+  // of outputs so the downstream `(blockId, path)`-keyed diff doesn't see the
+  // swap as a remove+add. The corresponding row data is cleared after the
+  // schema write so stale values from the old source don't linger.
+  const mappingUpdates = data.mappingUpdates ?? []
+  const remappedColumnNames = new Set<string>()
+  let oldOutputs = group.outputs
+  if (mappingUpdates.length > 0) {
+    const updateByName = new Map(mappingUpdates.map((u) => [u.columnName, u]))
+    for (const u of mappingUpdates) {
+      const exists = oldOutputs.some((o) => o.columnName === u.columnName)
+      if (!exists) {
+        throw new Error(
+          `Mapping update for unknown column "${u.columnName}" (group ${data.groupId}).`
+        )
+      }
+    }
+    oldOutputs = oldOutputs.map((o) => {
+      const u = updateByName.get(o.columnName)
+      if (!u) return o
+      remappedColumnNames.add(o.columnName)
+      return { ...o, blockId: u.blockId, path: u.path }
+    })
+  }
+
+  // If the caller passed `outputs`, that's the new full set. If only
+  // `mappingUpdates` was sent, the new set is the remapped old set.
+  const newOutputs = data.outputs ?? oldOutputs
   const oldKey = (o: WorkflowGroupOutput) => `${o.blockId}::${o.path}`
-  const oldByKey = new Map(group.outputs.map((o) => [oldKey(o), o]))
+  const oldByKey = new Map(oldOutputs.map((o) => [oldKey(o), o]))
   const newByKey = new Map(newOutputs.map((o) => [oldKey(o), o]))
 
-  const removed = group.outputs.filter((o) => !newByKey.has(oldKey(o)))
+  const removed = oldOutputs.filter((o) => !newByKey.has(oldKey(o)))
   const added = newOutputs.filter((o) => !oldByKey.has(oldKey(o)))
   const newColDefs = data.newOutputColumns ?? []
   const newColByName = new Map(newColDefs.map((c) => [c.name, c]))
@@ -2884,10 +2916,20 @@ export async function updateWorkflowGroup(
         sql`UPDATE user_table_rows SET data = data - ${name}::text WHERE table_id = ${data.tableId} AND data ? ${name}::text`
       )
     }
+    // Remapped columns keep their identity but read from a new source — clear
+    // their existing values so the user sees Empty/Waiting until the next run
+    // repopulates from the new `(blockId, path)`. Skipped columns that were
+    // also in `removedColumnNames` (the diff dropped them outright).
+    for (const name of remappedColumnNames) {
+      if (removedColumnNames.has(name)) continue
+      await trx.execute(
+        sql`UPDATE user_table_rows SET data = data - ${name}::text WHERE table_id = ${data.tableId} AND data ? ${name}::text`
+      )
+    }
   })
 
   logger.info(
-    `[${requestId}] Updated workflow group "${data.groupId}" in table ${data.tableId} (added=${added.length}, removed=${removed.length})`
+    `[${requestId}] Updated workflow group "${data.groupId}" in table ${data.tableId} (added=${added.length}, removed=${removed.length}, remapped=${remappedColumnNames.size})`
   )
 
   const updatedTable: TableDefinition = {

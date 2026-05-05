@@ -401,6 +401,13 @@ export interface UpdateWorkflowGroupData {
   outputs?: WorkflowGroupOutput[]
   /** Column definitions for any newly-added outputs. */
   newOutputColumns?: ColumnDefinition[]
+  /**
+   * Per-column mapping swaps: keep the existing column, repoint it at a new
+   * `(blockId, path)`. Applied before the `outputs` diff and clears the
+   * affected columns' row data so the next run repopulates from the new
+   * source.
+   */
+  mappingUpdates?: Array<{ columnName: string; blockId: string; path: string }>
 }
 
 export interface DeleteWorkflowGroupData {

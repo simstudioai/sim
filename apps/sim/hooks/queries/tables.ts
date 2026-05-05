@@ -1310,6 +1310,7 @@ interface UpdateWorkflowGroupVariables {
   dependencies?: WorkflowGroupDependencies
   outputs?: WorkflowGroupOutput[]
   newOutputColumns?: UpdateWorkflowGroupBodyInput['newOutputColumns']
+  mappingUpdates?: UpdateWorkflowGroupBodyInput['mappingUpdates']
 }
 
 export function useUpdateWorkflowGroup({ workspaceId, tableId }: RowMutationContext) {

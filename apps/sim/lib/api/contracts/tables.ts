@@ -752,6 +752,20 @@ export const addWorkflowGroupBodySchema = z.object({
   autoRun: z.boolean().optional(),
 })
 
+/**
+ * Re-points an existing column to a different workflow output. Use when the
+ * user changes which `(blockId, path)` flows into a column they already have,
+ * without restructuring the rest of the group's outputs. Distinct from the
+ * `outputs` add/remove diff: the column keeps its identity, type, deps, and
+ * row position; only its source mapping changes (and its row data is
+ * cleared, since the new output may produce a different shape).
+ */
+const workflowGroupMappingUpdateSchema = z.object({
+  columnName: z.string().min(1),
+  blockId: z.string().min(1),
+  path: z.string().min(1),
+})
+
 export const updateWorkflowGroupBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   groupId: z.string().min(1),
@@ -760,6 +774,12 @@ export const updateWorkflowGroupBodySchema = z.object({
   dependencies: workflowGroupDependenciesSchema.optional(),
   outputs: z.array(workflowGroupOutputSchema).optional(),
   newOutputColumns: z.array(workflowGroupOutputColumnSchema).optional(),
+  /**
+   * Per-column mapping swaps: keep the column, change the source `(blockId,
+   * path)`. Applied before the `outputs` add/remove diff. Each entry's
+   * `columnName` must already exist in the group's outputs.
+   */
+  mappingUpdates: z.array(workflowGroupMappingUpdateSchema).optional(),
 })
 
 export const deleteWorkflowGroupBodySchema = z.object({

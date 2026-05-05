@@ -9,6 +9,10 @@ import {
   Button,
   Checkbox,
   Download,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Modal,
   ModalBody,
   ModalContent,
@@ -67,7 +71,15 @@ import type { DeletedRowSnapshot } from '@/stores/table/types'
 import { useContextMenu, useRowExecution, useTable } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
 import { cleanCellValue, storageToDisplay } from '../../utils'
-import { type ColumnConfigState, ColumnSidebar } from '../column-sidebar/column-sidebar'
+import {
+  type ColumnConfig,
+  ColumnConfigSidebar,
+} from '../column-config-sidebar/column-config-sidebar'
+import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar/column-types'
+import {
+  type WorkflowConfig,
+  WorkflowSidebar,
+} from '../workflow-sidebar/workflow-sidebar'
 import { ContextMenu } from '../context-menu'
 import { RowModal } from '../row-modal'
 import { TableFilter } from '../table-filter'
@@ -664,7 +676,8 @@ export function Table({
 
   const handleViewExecution = useCallback(() => {
     if (!contextMenuExecutionId) return
-    setConfigState(null)
+    setColumnConfig(null)
+    setWorkflowConfig(null)
     setExecutionDetailsId(contextMenuExecutionId)
     closeContextMenu()
   }, [contextMenuExecutionId, closeContextMenu])
@@ -2094,15 +2107,6 @@ export function Table({
     return name
   }, [])
 
-  const handleAddColumn = useCallback(() => {
-    // Open the sidebar in `'create'` mode — nothing is persisted until the
-    // user fills in name/type and hits Save. The sidebar's save flow handles
-    // both scalar (`addColumn`) and workflow-group (`addWorkflowGroup`) paths.
-    const name = generateColumnName()
-    setExecutionDetailsId(null)
-    setConfigState({ mode: 'create', columnName: name, proposedName: name })
-  }, [generateColumnName])
-
   const handleChangeType = useCallback((columnName: string, newType: ColumnDefinition['type']) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
     const previousType = column?.type
@@ -2188,26 +2192,71 @@ export function Table({
    * - `{ mode: 'create' }` → user picked a workflow from "Add column"; column doesn't exist yet,
    *   created on Save in a single POST.
    */
-  const [configState, setConfigState] = useState<ColumnConfigState>(null)
+  const [columnConfig, setColumnConfig] = useState<ColumnConfig | null>(null)
+  const [workflowConfig, setWorkflowConfig] = useState<WorkflowConfig | null>(null)
   /** Execution id whose run details are open in the slideout. */
   const [executionDetailsId, setExecutionDetailsId] = useState<string | null>(null)
   /**
    * Right padding added to the table's scroll content while a slideout panel
-   * is open, equal to the panel's width. Without it, the rightmost columns are
-   * clipped under the panel and there's no way to scroll them into view.
-   * The two panels are mutually exclusive (each opener closes the other).
+   * is open, equal to the panel's width. The three panels (column config,
+   * workflow config, log details) are mutually exclusive — opening any one
+   * closes the others.
    */
   const logPanelWidth = useLogDetailsUIStore((state) => state.panelWidth)
-  const sidebarReservedPx = configState
-    ? COLUMN_SIDEBAR_WIDTH
-    : executionDetailsId
-      ? logPanelWidth
-      : 0
+  const sidebarReservedPx =
+    columnConfig || workflowConfig
+      ? COLUMN_SIDEBAR_WIDTH
+      : executionDetailsId
+        ? logPanelWidth
+        : 0
 
-  const handleConfigureColumn = useCallback((columnName: string) => {
+  /** Open one of the two sidebars. The helpers enforce the "only one open" invariant. */
+  const openColumnConfig = useCallback((cfg: ColumnConfig) => {
     setExecutionDetailsId(null)
-    setConfigState({ mode: 'edit', columnName })
+    setWorkflowConfig(null)
+    setColumnConfig(cfg)
   }, [])
+  const openWorkflowConfig = useCallback((cfg: WorkflowConfig) => {
+    setExecutionDetailsId(null)
+    setColumnConfig(null)
+    setWorkflowConfig(cfg)
+  }, [])
+
+  /**
+   * Open the column-config sidebar pre-seeded with the chosen scalar type.
+   * Nothing is persisted until the user fills in the name and hits Save.
+   */
+  const handleAddColumnOfType = useCallback(
+    (type: ColumnDefinition['type']) => {
+      openColumnConfig({ mode: 'create', proposedName: generateColumnName(), type })
+    },
+    [generateColumnName, openColumnConfig]
+  )
+
+  /** Open the workflow-config sidebar to spawn a brand-new workflow group. */
+  const handleAddWorkflowColumn = useCallback(() => {
+    openWorkflowConfig({ mode: 'create', proposedName: generateColumnName() })
+  }, [generateColumnName, openWorkflowConfig])
+
+  const handleConfigureColumn = useCallback(
+    (columnName: string) => {
+      const column = columnsRef.current.find((c) => c.name === columnName)
+      if (column?.workflowGroupId) {
+        // Workflow-output column header → single-output sub-mode.
+        openWorkflowConfig({ mode: 'edit-output', columnName })
+      } else {
+        openColumnConfig({ mode: 'edit', columnName })
+      }
+    },
+    [openColumnConfig, openWorkflowConfig]
+  )
+
+  const handleConfigureWorkflowGroup = useCallback(
+    (groupId: string) => {
+      openWorkflowConfig({ mode: 'edit-group', groupId })
+    },
+    [openWorkflowConfig]
+  )
 
   const handleDeleteWorkflowGroup = useCallback(
     (groupId: string) => {
@@ -2441,12 +2490,12 @@ export function Table({
         label: tableData?.name ?? '',
         editing: tableHeaderRename.editingId
           ? {
-              isEditing: true,
-              value: tableHeaderRename.editValue,
-              onChange: tableHeaderRename.setEditValue,
-              onSubmit: tableHeaderRename.submitRename,
-              onCancel: tableHeaderRename.cancelRename,
-            }
+            isEditing: true,
+            value: tableHeaderRename.editValue,
+            onChange: tableHeaderRename.setEditValue,
+            onSubmit: tableHeaderRename.submitRename,
+            onCancel: tableHeaderRename.cancelRename,
+          }
           : undefined,
         dropdownItems: [
           {
@@ -2478,13 +2527,14 @@ export function Table({
     ]
   )
 
-  const createTrigger = useMemo(
-    () =>
-      userPermissions.canEdit ? (
-        <HeaderAddColumnTrigger onClick={handleAddColumn} disabled={addColumnMutation.isPending} />
-      ) : null,
-    [handleAddColumn, addColumnMutation.isPending, userPermissions.canEdit]
-  )
+  const createTrigger = userPermissions.canEdit ? (
+    <NewColumnDropdown
+      trigger='header'
+      disabled={addColumnMutation.isPending}
+      onPickType={handleAddColumnOfType}
+      onPickWorkflow={handleAddWorkflowColumn}
+    />
+  ) : null
 
   const handleExportCsv = useCallback(async () => {
     if (!tableData) return
@@ -2500,19 +2550,19 @@ export function Table({
     () =>
       tableData
         ? [
-            {
-              label: 'Import CSV',
-              icon: Upload,
-              onClick: () => setIsImportCsvOpen(true),
-              disabled: userPermissions.canEdit !== true,
-            },
-            {
-              label: 'Export CSV',
-              icon: Download,
-              onClick: () => void handleExportCsv(),
-              disabled: tableData.rowCount === 0,
-            },
-          ]
+          {
+            label: 'Import CSV',
+            icon: Upload,
+            onClick: () => setIsImportCsvOpen(true),
+            disabled: userPermissions.canEdit !== true,
+          },
+          {
+            label: 'Export CSV',
+            icon: Download,
+            onClick: () => void handleExportCsv(),
+            disabled: tableData.rowCount === 0,
+          },
+        ]
         : undefined,
     [tableData, userPermissions.canEdit, handleExportCsv]
   )
@@ -2819,7 +2869,7 @@ export function Table({
                               }
                               groupId={g.groupId}
                               onSelectGroup={handleGroupSelect}
-                              onOpenConfig={handleConfigureColumn}
+                              onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
                               onRunGroup={userPermissions.canEdit ? handleRunGroup : undefined}
                               selectedRowIds={selectedRowIds}
                               onInsertLeft={
@@ -2904,9 +2954,11 @@ export function Table({
                         />
                       ))}
                       {userPermissions.canEdit && (
-                        <AddColumnButton
-                          onClick={handleAddColumn}
+                        <NewColumnDropdown
+                          trigger='inline-header'
                           disabled={addColumnMutation.isPending}
+                          onPickType={handleAddColumnOfType}
+                          onPickWorkflow={handleAddWorkflowColumn}
                         />
                       )}
                     </tr>
@@ -3004,14 +3056,21 @@ export function Table({
           )}
         </div>
 
-        <ColumnSidebar
-          configState={configState}
-          onClose={() => setConfigState(null)}
+        <ColumnConfigSidebar
+          config={columnConfig}
+          onClose={() => setColumnConfig(null)}
           existingColumn={
-            configState?.mode === 'edit'
-              ? (columns.find((c) => c.name === configState.columnName) ?? null)
+            columnConfig?.mode === 'edit'
+              ? (columns.find((c) => c.name === columnConfig.columnName) ?? null)
               : null
           }
+          workspaceId={workspaceId}
+          tableId={tableId}
+          onColumnRename={handleColumnRename}
+        />
+        <WorkflowSidebar
+          config={workflowConfig}
+          onClose={() => setWorkflowConfig(null)}
           allColumns={columns}
           workflowGroups={tableWorkflowGroups}
           workflows={workflows}
@@ -3725,42 +3784,68 @@ const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
   )
 })
 
-const AddColumnButton = React.memo(function AddColumnButton({
-  onClick,
-  disabled,
-}: {
-  onClick: () => void
-  disabled: boolean
-}) {
-  return (
-    <th className={CELL_HEADER}>
-      <button
-        type='button'
-        className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
-        disabled={disabled}
-        onClick={onClick}
-      >
-        <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
-      </button>
-    </th>
-  )
-})
-
 const HEADER_ADD_COLUMN_ICON = <Plus className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
 
-function HeaderAddColumnTrigger({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
-  return (
-    <Button
-      variant='subtle'
-      className='px-2 py-1 text-caption'
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {HEADER_ADD_COLUMN_ICON}
-      New column
-    </Button>
+interface NewColumnDropdownProps {
+  /** `'header'` renders the page-header trigger (subtle Button); `'inline-header'` renders
+   *  the in-table column-header `<th>` trigger. Same dropdown content either way. */
+  trigger: 'header' | 'inline-header'
+  disabled: boolean
+  onPickType: (type: ColumnDefinition['type']) => void
+  onPickWorkflow: () => void
+}
+
+/**
+ * "+ New column" dropdown — the single entry point for creating a column.
+ * Lists every column type plus "Workflow"; picking a type opens the right
+ * sidebar pre-seeded.
+ */
+function NewColumnDropdown({
+  trigger,
+  disabled,
+  onPickType,
+  onPickWorkflow,
+}: NewColumnDropdownProps) {
+  const menu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {trigger === 'header' ? (
+          <Button variant='subtle' className='px-2 py-1 text-caption' disabled={disabled}>
+            {HEADER_ADD_COLUMN_ICON}
+            New column
+          </Button>
+        ) : (
+          <button
+            type='button'
+            className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
+            disabled={disabled}
+          >
+            <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+            <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
+          </button>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
+        {COLUMN_TYPE_OPTIONS.map((option) => {
+          const Icon = option.icon
+          const onSelect =
+            option.type === 'workflow'
+              ? onPickWorkflow
+              : () => onPickType(option.type as ColumnDefinition['type'])
+          return (
+            <DropdownMenuItem key={option.type} onSelect={onSelect}>
+              <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+              {option.label}
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
+
+  // The in-table trigger lives inside a `<tr>` so it must be a `<th>`. The
+  // header trigger lives in the page header so it sits inline.
+  return trigger === 'inline-header' ? <th className={CELL_HEADER}>{menu}</th> : menu
 }
 
 const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: () => void }) {
