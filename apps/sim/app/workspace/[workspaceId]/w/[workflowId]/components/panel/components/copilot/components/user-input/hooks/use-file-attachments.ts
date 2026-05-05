@@ -126,7 +126,10 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
         type: resolveFileType(file),
         path: '',
         uploading: true,
-        previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+        previewUrl:
+          file.type.startsWith('image/') || file.type.startsWith('video/')
+            ? URL.createObjectURL(file)
+            : undefined,
       }))
 
       setAttachedFiles((prev) => [...prev, ...placeholders])

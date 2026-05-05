@@ -1,7 +1,7 @@
 import { toNextJsHandler } from 'better-auth/next-js'
 import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { createAnonymousGetSessionResponse, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
+import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { isAuthDisabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -24,7 +24,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   if (path === 'get-session' && isAuthDisabled) {
     await ensureAnonymousUserExists()
-    return NextResponse.json(createAnonymousGetSessionResponse())
+    return NextResponse.json(createAnonymousSession())
   }
 
   return betterAuthGET(request)

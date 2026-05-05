@@ -126,6 +126,7 @@ export {
   SModalTrigger,
 } from './s-modal/s-modal'
 export { SecretInput, type SecretInputProps } from './secret-input/secret-input'
+export { SecretReveal, type SecretRevealProps } from './secret-reveal/secret-reveal'
 export { Skeleton } from './skeleton/skeleton'
 export { Slider, type SliderProps } from './slider/slider'
 export { Switch } from './switch/switch'

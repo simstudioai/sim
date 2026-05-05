@@ -6496,7 +6496,7 @@
     "slug": "image-generator",
     "name": "Image Generator",
     "description": "Generate images",
-    "longDescription": "Integrate Image Generator into the workflow. Can generate images using DALL-E 3 or GPT Image.",
+    "longDescription": "Integrate Image Generator into the workflow. Can generate images using DALL-E 3, GPT Image 1, or GPT Image 2.",
     "bgColor": "#4D5FFF",
     "iconName": "ImageIcon",
     "docsUrl": "https://docs.sim.ai/tools/image_generator",
@@ -7540,7 +7540,7 @@
     "operationCount": 14,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "blocks"
   },
   {
