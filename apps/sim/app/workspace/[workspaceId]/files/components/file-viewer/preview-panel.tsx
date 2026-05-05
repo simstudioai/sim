@@ -485,7 +485,11 @@ function resolveSimFileUrl(src: string | undefined): string | undefined {
 
 const STATIC_MARKDOWN_COMPONENTS = {
   pre: ({ children }: { children?: React.ReactNode }) => (
-    <>{isValidElement(children) ? cloneElement(children, { 'data-block': 'true' }) : children}</>
+    <>
+      {Children.map(children, (child) =>
+        isValidElement(child) ? cloneElement(child, { 'data-block': 'true' }) : child
+      ) ?? children}
+    </>
   ),
   'mermaid-diagram': ({ definition }: { definition?: string }) => {
     const isStreaming = useContext(MermaidStreamingCtx)
