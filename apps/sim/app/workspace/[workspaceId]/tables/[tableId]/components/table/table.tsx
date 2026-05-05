@@ -122,7 +122,7 @@ const ROW_HEIGHT_ESTIMATE = 35
 
 const CELL = 'border-[var(--border)] border-r border-b px-2 py-[7px] align-middle select-none'
 const CELL_CHECKBOX =
-  'sticky left-0 z-[3] border-[var(--border)] border-r border-b bg-[var(--bg)] px-1 py-[7px] align-middle select-none'
+  'sticky left-0 z-[6] border-[var(--border)] border-r border-b bg-[var(--bg)] px-1 py-[7px] align-middle select-none'
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
 const CELL_HEADER_CHECKBOX =
@@ -257,6 +257,17 @@ export function Table({
     // mutate is stable; intentionally excluded from deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
+  )
+
+  const handleViewWorkflow = useCallback(
+    (workflowId: string) => {
+      window.open(
+        `/workspace/${workspaceId}/w/${workflowId}`,
+        '_blank',
+        'noopener,noreferrer'
+      )
+    },
+    [workspaceId]
   )
 
   function handleColumnOrderChange(order: string[]) {
@@ -2694,7 +2705,7 @@ export function Table({
                 {isLoadingTable ? (
                   <tr>
                     <th className={CELL_HEADER_CHECKBOX}>
-                      <div className='flex items-center justify-end'>
+                      <div className='flex items-center justify-center'>
                         <Skeleton className='h-[14px] w-[14px] rounded-xs' />
                       </div>
                     </th>
@@ -2751,6 +2762,7 @@ export function Table({
                               onDeleteGroup={
                                 userPermissions.canEdit ? handleDeleteWorkflowGroup : undefined
                               }
+                              onViewWorkflow={handleViewWorkflow}
                               readOnly={!userPermissions.canEdit}
                               onDragStart={
                                 userPermissions.canEdit ? handleColumnDragStart : undefined
@@ -2816,6 +2828,7 @@ export function Table({
                           workflowGroups={tableWorkflowGroups}
                           sourceInfo={columnSourceInfo.get(column.name)}
                           onOpenConfig={handleConfigureColumn}
+                          onViewWorkflow={handleViewWorkflow}
                         />
                       ))}
                       {userPermissions.canEdit && (
@@ -3631,7 +3644,7 @@ const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
 }) {
   return (
     <th className={CELL_HEADER_CHECKBOX}>
-      <div className='flex items-center justify-end'>
+      <div className='flex items-center justify-center'>
         <Checkbox size='sm' checked={checked} onCheckedChange={onCheckedChange} />
       </div>
     </th>

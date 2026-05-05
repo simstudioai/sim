@@ -12,7 +12,15 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { ArrowLeft, ArrowRight, EyeOff, Pencil, PlayOutline, Trash } from '@/components/emcn/icons'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Pencil,
+  PlayOutline,
+  Trash,
+} from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { SELECTION_TINT_BG } from '../constants'
@@ -45,6 +53,9 @@ interface ColumnOptionsMenuProps {
   /** When set, surfaces a "Run N selected rows" item above Run all. */
   onRunGroupSelected?: () => void
   selectedRowCount?: number
+  /** When set, the menu surfaces a "View workflow" item that opens a popup
+   *  preview of the configured workflow. */
+  onViewWorkflow?: () => void
 }
 
 /**
@@ -69,6 +80,7 @@ export function ColumnOptionsMenu({
   onRunGroupIncomplete,
   onRunGroupSelected,
   selectedRowCount = 0,
+  onViewWorkflow,
 }: ColumnOptionsMenuProps) {
   const showRunActions = Boolean(onRunGroupAll && onRunGroupIncomplete)
   const showRunSelected = Boolean(onRunGroupSelected) && selectedRowCount > 0
@@ -116,6 +128,12 @@ export function ColumnOptionsMenu({
             </DropdownMenuSub>
             <DropdownMenuSeparator />
           </>
+        )}
+        {onViewWorkflow && (
+          <DropdownMenuItem onSelect={() => onViewWorkflow()}>
+            <Eye />
+            View workflow
+          </DropdownMenuItem>
         )}
         <DropdownMenuItem onSelect={() => onOpenConfig(column.name)}>
           <Pencil />
@@ -168,6 +186,8 @@ interface WorkflowGroupMetaCellProps {
   /** Row ids in the user's current multi-row selection; when non-empty the
    *  run menu adds a "Run N selected rows" option. */
   selectedRowIds?: string[] | null
+  /** Opens a popup preview of the underlying workflow. */
+  onViewWorkflow?: (workflowId: string) => void
   /** When set, the meta cell becomes draggable and forwards events through
    *  the same column-reorder pipeline used by individual workflow column
    *  headers. The whole group moves together because downstream code groups
@@ -201,6 +221,7 @@ export function WorkflowGroupMetaCell({
   onDeleteColumn,
   onDeleteGroup,
   selectedRowIds,
+  onViewWorkflow,
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -406,6 +427,7 @@ export function WorkflowGroupMetaCell({
             onRunGroup && selectedCount > 0 ? handleRunSelected : undefined
           }
           selectedRowCount={selectedCount}
+          onViewWorkflow={onViewWorkflow ? () => onViewWorkflow(workflowId) : undefined}
         />
       )}
     </th>

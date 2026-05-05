@@ -37,6 +37,9 @@ interface ColumnHeaderMenuProps {
   workflowGroups?: WorkflowGroup[]
   sourceInfo?: ColumnSourceInfo
   onOpenConfig: (columnName: string) => void
+  /** Opens a popup preview of the column's underlying workflow. Surfaced in
+   *  the chevron menu for workflow-output columns. */
+  onViewWorkflow?: (workflowId: string) => void
 }
 
 /**
@@ -70,6 +73,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   workflowGroups,
   sourceInfo,
   onOpenConfig,
+  onViewWorkflow,
 }: ColumnHeaderMenuProps) {
   const renameInputRef = useRef<HTMLInputElement>(null)
   const didDragRef = useRef(false)
@@ -143,8 +147,10 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       e.dataTransfer.setData('text/plain', column.name)
 
       // Workflow-output columns drag as a whole group, so the ghost shows
-      // the group's name rather than the individual column slug.
-      const ghostLabel = ownGroup ? ownGroup.name : column.name
+      // the group's name (falling back to the workflow's name, then the
+      // column slug) rather than the individual column slug.
+      const ghostLabel =
+        ownGroup?.name ?? configuredWorkflow?.name ?? column.name
 
       const ghost = document.createElement('div')
       ghost.textContent = ghostLabel
@@ -156,7 +162,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
 
       onDragStart?.(column.name)
     },
-    [column.name, ownGroup, readOnly, isRenaming, onDragStart]
+    [column.name, ownGroup, configuredWorkflow, readOnly, isRenaming, onDragStart]
   )
 
   const handleDragOver = useCallback(
@@ -331,6 +337,9 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             onInsertLeft={onInsertLeft}
             onInsertRight={onInsertRight}
             onDeleteColumn={onDeleteColumn}
+            onViewWorkflow={
+              onViewWorkflow && ownGroup ? () => onViewWorkflow(ownGroup.workflowId) : undefined
+            }
           />
         </div>
       )}
