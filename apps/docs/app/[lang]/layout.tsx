@@ -105,11 +105,11 @@ export default async function Layout({ children, params }: LayoutProps) {
           <Navbar />
           <DocsLayout
             tree={source.pageTree[lang]}
-            tabs={false}
             nav={{
               title: <SimLogoFull className='h-[22px] w-auto' />,
             }}
             sidebar={{
+              tabs: false,
               defaultOpenLevel: 0,
               collapsible: false,
               footer: null,
