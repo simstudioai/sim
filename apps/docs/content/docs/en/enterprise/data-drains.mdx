@@ -7,7 +7,7 @@ import { FAQ } from '@/components/ui/faq'
 
 Data Drains let organization owners and admins on Enterprise plans continuously export Sim data to a destination they control — a customer-owned S3 bucket or an HTTPS webhook. A drain runs on a schedule, picks up only new rows since its last successful run, and writes them as NDJSON to the destination. Viewing drain configuration and run history is restricted to owners and admins as well, since destinations expose internal bucket names and webhook URLs.
 
-Drains pair naturally with [Data Retention](/enterprise/data-retention): drain into long-term storage first, then let retention safely delete from Sim.
+Drains are independent of [Data Retention](/enterprise/data-retention) but designed to compose with it — see [Pairing with Data Retention](#pairing-with-data-retention) below.
 
 ---
 
@@ -121,6 +121,24 @@ The **last 10 runs** for each drain are visible by expanding its row in the sett
 - Credentials are **never** returned by the Sim API after creation. Updates accept new credentials; omitting them leaves the existing encrypted blob in place.
 - Webhook URLs are SSRF-validated: HTTPS-only, no private/loopback/metadata IPs, with the resolved IP pinned to defeat DNS rebinding.
 - Every create, update, delete, manual run, and test-connection call is recorded in the [Audit Log](/enterprise/audit-logs).
+
+---
+
+## Pairing with Data Retention
+
+Drains and [Data Retention](/enterprise/data-retention) are independent modules. Sim does **not** gate retention on drain progress — if a drain is failing, retention will still purge data on its own schedule. This matches the model used by Datadog Archives and AWS CloudWatch + S3 Export: keep the two configurations orthogonal and let the customer pair them deliberately.
+
+To safely use both together, set the drain cadence shorter than the retention period for the same data category:
+
+| Drain source | Pairs with retention setting |
+|---|---|
+| Workflow logs, Job logs | **Log retention** |
+| Copilot chats, Copilot runs | **Task cleanup** |
+| Audit logs | *(no retention setting today — audit logs are kept indefinitely)* |
+
+For example, with **Log retention** set to 30 days, set the workflow-logs drain to **Hourly** or **Daily** so every row is exported well before retention purges it from Sim. Monitor recent drain runs in the settings page; if a drain has been failing for longer than your retention window, you may lose rows that retention purges before they are exported.
+
+After data lands in your bucket or webhook system, archive lifecycle (transitions to Glacier, expiration, GDPR right-to-erasure propagation) is governed by your own infrastructure — Sim has no further visibility into that data once delivery succeeds.
 
 ---
 
