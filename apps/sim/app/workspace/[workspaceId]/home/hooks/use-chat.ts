@@ -2624,16 +2624,7 @@ export function useChat(
                     status: 'pending',
                     updatedAt: new Date().toISOString(),
                   }
-                  const shouldApplyStartSession = shouldReplaceSession(prevSession, nextSession)
                   applyPreviewSessionUpdate(nextSession)
-                  if (
-                    shouldApplyStartSession &&
-                    nextSession.fileId &&
-                    hasRenderableFilePreviewContent(nextSession) &&
-                    shouldAutoActivatePreviewSession(nextSession)
-                  ) {
-                    setActiveResourceId(nextSession.fileId)
-                  }
                   break
                 }
 
