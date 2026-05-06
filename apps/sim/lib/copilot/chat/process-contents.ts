@@ -721,7 +721,7 @@ export async function resolveActiveResourceContext(
       case 'knowledgebase': {
         const ctx = await processKnowledgeFromDb(
           resourceId,
-          undefined,
+          userId,
           '@active_resource',
           workspaceId
         )
@@ -729,7 +729,7 @@ export async function resolveActiveResourceContext(
         return { type: 'active_resource', tag: '@active_resource', content: ctx.content }
       }
       case 'table': {
-        return await resolveTableResource(resourceId)
+        return await resolveTableResource(resourceId, workspaceId)
       }
       case 'file': {
         return await resolveFileResource(resourceId, workspaceId)
@@ -745,9 +745,13 @@ export async function resolveActiveResourceContext(
     return null
   }
 }
-async function resolveTableResource(tableId: string): Promise<AgentContext | null> {
+async function resolveTableResource(
+  tableId: string,
+  workspaceId: string
+): Promise<AgentContext | null> {
   const table = await getTableById(tableId)
   if (!table) return null
+  if (table.workspaceId !== workspaceId) return null
   return {
     type: 'active_resource',
     tag: '@active_resource',
