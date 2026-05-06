@@ -2,7 +2,6 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
@@ -26,6 +25,7 @@ import {
   Pencil,
   PlayOutline,
   Plus,
+  Square,
   Table as TableIcon,
   TableX,
   Trash,

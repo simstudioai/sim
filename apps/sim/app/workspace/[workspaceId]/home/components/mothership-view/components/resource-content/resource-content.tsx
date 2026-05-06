@@ -2,7 +2,6 @@
 
 import { lazy, memo, Suspense, useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
-import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
 import {
@@ -10,6 +9,7 @@ import {
   FileX,
   Folder as FolderIcon,
   Library,
+  Square,
   SquareArrowUpRight,
   WorkflowX,
 } from '@/components/emcn/icons'

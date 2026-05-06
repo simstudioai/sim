@@ -1,9 +1,8 @@
 'use client'
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { Square } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
-import { PlayOutline, RefreshCw } from '@/components/emcn/icons'
+import { PlayOutline, RefreshCw, Square } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 interface TableActionBarProps {

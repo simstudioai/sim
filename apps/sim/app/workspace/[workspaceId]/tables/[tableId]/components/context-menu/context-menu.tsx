@@ -1,4 +1,3 @@
-import { Square } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +12,7 @@ import {
   Eye,
   Pencil,
   PlayOutline,
+  Square,
   Trash,
 } from '@/components/emcn/icons'
 import type { ContextMenuState } from '../../types'
