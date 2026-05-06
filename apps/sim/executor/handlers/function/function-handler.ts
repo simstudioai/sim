@@ -3,6 +3,7 @@ import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
+import { FUNCTION_BLOCK_CONTEXT_VARS_KEY } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 
@@ -25,6 +26,9 @@ export class FunctionBlockHandler implements BlockHandler {
 
     const { blockData, blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
 
+    const contextVariables =
+      (inputs[FUNCTION_BLOCK_CONTEXT_VARS_KEY] as Record<string, unknown> | undefined) ?? {}
+
     const result = await executeTool(
       'function_execute',
       {
@@ -36,6 +40,7 @@ export class FunctionBlockHandler implements BlockHandler {
         blockData,
         blockNameMapping,
         blockOutputSchemas,
+        contextVariables,
         _context: {
           workflowId: ctx.workflowId,
           workspaceId: ctx.workspaceId,

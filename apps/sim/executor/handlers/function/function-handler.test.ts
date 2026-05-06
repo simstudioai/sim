@@ -3,6 +3,7 @@ import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { BlockType } from '@/executor/constants'
 import { FunctionBlockHandler } from '@/executor/handlers/function/function-handler'
 import type { ExecutionContext } from '@/executor/types'
+import { FUNCTION_BLOCK_CONTEXT_VARS_KEY } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 
@@ -73,10 +74,13 @@ describe('FunctionBlockHandler', () => {
       blockData: {},
       blockNameMapping: {},
       blockOutputSchemas: {},
+      contextVariables: {},
       _context: {
         workflowId: mockContext.workflowId,
         workspaceId: mockContext.workspaceId,
+        userId: mockContext.userId,
         isDeployedContext: mockContext.isDeployedContext,
+        enforceCredentialAccess: mockContext.enforceCredentialAccess,
       },
     }
     const expectedOutput: any = { result: 'Success' }
@@ -110,10 +114,13 @@ describe('FunctionBlockHandler', () => {
       blockData: {},
       blockNameMapping: {},
       blockOutputSchemas: {},
+      contextVariables: {},
       _context: {
         workflowId: mockContext.workflowId,
         workspaceId: mockContext.workspaceId,
+        userId: mockContext.userId,
         isDeployedContext: mockContext.isDeployedContext,
+        enforceCredentialAccess: mockContext.enforceCredentialAccess,
       },
     }
     const expectedOutput: any = { result: 'Success' }
@@ -140,10 +147,13 @@ describe('FunctionBlockHandler', () => {
       blockData: {},
       blockNameMapping: {},
       blockOutputSchemas: {},
+      contextVariables: {},
       _context: {
         workflowId: mockContext.workflowId,
         workspaceId: mockContext.workspaceId,
+        userId: mockContext.userId,
         isDeployedContext: mockContext.isDeployedContext,
+        enforceCredentialAccess: mockContext.enforceCredentialAccess,
       },
     }
 
@@ -166,6 +176,24 @@ describe('FunctionBlockHandler', () => {
       'Function execution failed: Code failed'
     )
     expect(mockExecuteTool).toHaveBeenCalled()
+  })
+
+  it('should pass runtime context variables to function_execute', async () => {
+    const contextVariables = { __blockRef_0: { result: 'from-block' } }
+
+    await handler.execute(mockContext, mockBlock, {
+      code: 'return globalThis["__blockRef_0"]',
+      [FUNCTION_BLOCK_CONTEXT_VARS_KEY]: contextVariables,
+    })
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({
+        contextVariables,
+      }),
+      false,
+      mockContext
+    )
   })
 
   it('should handle tool error with no specific message', async () => {

@@ -99,6 +99,7 @@ export const functionExecuteContract = defineRouteContract({
     blockNameMapping: z.record(z.string(), z.string()).optional().default({}),
     blockOutputSchemas: z.record(z.string(), unknownRecordSchema).optional().default({}),
     workflowVariables: unknownRecordSchema.optional().default({}),
+    contextVariables: unknownRecordSchema.optional().default({}),
     workflowId: z.string().optional(),
     workspaceId: z.string().optional(),
     userId: z.string().optional(),

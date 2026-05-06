@@ -17,6 +17,8 @@ export interface CodeExecutionInput {
   blockData?: Record<string, unknown>
   blockNameMapping?: Record<string, string>
   blockOutputSchemas?: Record<string, Record<string, unknown>>
+  /** Pre-resolved block output variables from the executor, injected as VM globals. */
+  contextVariables?: Record<string, unknown>
   _context?: {
     workflowId?: string
     userId?: string

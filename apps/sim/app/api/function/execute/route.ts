@@ -587,6 +587,26 @@ function cleanStdout(stdout: string): string {
   return stdout
 }
 
+/**
+ * Serializes a value for use as a shell environment variable. Strings pass through
+ * unchanged; primitives are coerced via `String`; objects, arrays, and other complex
+ * values are JSON-stringified so that referencing them via `$VAR` yields a useful
+ * representation instead of `[object Object]`. `null`/`undefined` become an empty
+ * string to match POSIX env semantics.
+ */
+function serializeForShellEnv(value: unknown, nullValue = ''): string {
+  if (value === null || value === undefined) return nullValue
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value)
+  }
+  try {
+    return JSON.stringify(value) ?? ''
+  } catch {
+    return String(value)
+  }
+}
+
 async function maybeExportSandboxFileToWorkspace(args: {
   authUserId: string
   workflowId?: string
@@ -722,6 +742,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       blockNameMapping = {},
       blockOutputSchemas = {},
       workflowVariables = {},
+      contextVariables: preResolvedContextVariables = {},
       workflowId,
       workspaceId,
       isCustomTool = false,
@@ -746,6 +767,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       // For shell, env vars are injected as OS env vars via shellEnvs.
       // Replace {{VAR}} placeholders with $VAR so the shell can access them natively.
       resolvedCode = code.replace(/\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g, '$$$1')
+      // Carry pre-resolved block output variables (e.g. __blockRef_N) so they can be
+      // injected as shell env vars below. The executor replaces block references in the
+      // code with these names, so the values must be present at runtime.
+      contextVariables = { ...preResolvedContextVariables }
     } else {
       const codeResolution = resolveCodeVariables(
         code,
@@ -758,7 +783,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         lang
       )
       resolvedCode = codeResolution.resolvedCode
-      contextVariables = codeResolution.contextVariables
+      // Merge pre-resolved block output variables from the executor. These take precedence
+      // because they were produced by the resolver using full execution-state context
+      // (including loop/parallel scope) and should not be overwritten.
+      contextVariables = { ...codeResolution.contextVariables, ...preResolvedContextVariables }
     }
 
     let jsImports = ''
@@ -783,10 +811,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       const shellEnvs: Record<string, string> = {}
       for (const [k, v] of Object.entries(envVars)) {
-        shellEnvs[k] = String(v)
+        shellEnvs[k] = serializeForShellEnv(v)
       }
       for (const [k, v] of Object.entries(contextVariables)) {
-        shellEnvs[k] = String(v)
+        shellEnvs[k] = serializeForShellEnv(v, 'null')
       }
 
       logger.info(`[${requestId}] E2B shell execution`, {
@@ -893,7 +921,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         prologue += `const environmentVariables = JSON.parse(${JSON.stringify(JSON.stringify(envVars))});\n`
         prologueLineCount++
         for (const [k, v] of Object.entries(contextVariables)) {
-          prologue += `const ${k} = ${formatLiteralForCode(v, 'javascript')};\n`
+          prologue += `globalThis[${JSON.stringify(k)}] = ${formatLiteralForCode(v, 'javascript')};\n`
+          prologue += `const ${k} = globalThis[${JSON.stringify(k)}];\n`
+          prologueLineCount++
           prologueLineCount++
         }
 
