@@ -586,6 +586,26 @@ function cleanStdout(stdout: string): string {
   return stdout
 }
 
+/**
+ * Serializes a value for use as a shell environment variable. Strings pass through
+ * unchanged; primitives are coerced via `String`; objects, arrays, and other complex
+ * values are JSON-stringified so that referencing them via `$VAR` yields a useful
+ * representation instead of `[object Object]`. `null`/`undefined` become an empty
+ * string to match POSIX env semantics.
+ */
+function serializeForShellEnv(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value)
+  }
+  try {
+    return JSON.stringify(value) ?? ''
+  } catch {
+    return String(value)
+  }
+}
+
 async function maybeExportSandboxFileToWorkspace(args: {
   authUserId: string
   workflowId?: string
@@ -788,10 +808,10 @@ export async function POST(req: NextRequest) {
 
       const shellEnvs: Record<string, string> = {}
       for (const [k, v] of Object.entries(envVars)) {
-        shellEnvs[k] = String(v)
+        shellEnvs[k] = serializeForShellEnv(v)
       }
       for (const [k, v] of Object.entries(contextVariables)) {
-        shellEnvs[k] = String(v)
+        shellEnvs[k] = serializeForShellEnv(v)
       }
 
       logger.info(`[${requestId}] E2B shell execution`, {

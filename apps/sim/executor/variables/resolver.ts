@@ -237,6 +237,7 @@ export class VariableResolver {
 
     let replacementError: Error | null = null
 
+    const isShell = language === 'shell'
     const blockRefByMatch = new Map<string, string>()
 
     let result = replaceValidReferences(template, (match) => {
@@ -254,11 +255,15 @@ export class VariableResolver {
 
           const effectiveValue = resolved === RESOLVED_EMPTY ? null : resolved
 
-          // Block output: store in contextVarAccumulator, replace with variable name
+          // Block output: store in contextVarAccumulator, replace with variable name.
+          // For shell, emit `$__blockRef_N` so the script dereferences the env var
+          // injected by the function-execute route; other languages receive the bare
+          // identifier and read it as a global injected into the VM.
           const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
           contextVarAccumulator[varName] = effectiveValue
-          blockRefByMatch.set(match, varName)
-          return varName
+          const replacement = isShell ? `$${varName}` : varName
+          blockRefByMatch.set(match, replacement)
+          return replacement
         }
 
         const resolved = this.resolveReference(match, resolutionContext)
