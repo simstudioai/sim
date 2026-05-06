@@ -44,7 +44,6 @@ import { getUnmetGroupDeps } from '@/lib/table/deps'
 import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
 import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import {
   downloadTableExport,
   useAddTableColumn,
@@ -153,6 +152,8 @@ interface TableProps {
    * confirmation modal + the `useDeleteTable` mutation.
    */
   onRequestDeleteTable: () => void
+  /** Fired by the page-header "Import CSV" action. The wrapper renders the dialog. */
+  onRequestImportCsv: () => void
   /**
    * Ref the grid populates with its `handleColumnRename` so the wrapper's
    * sidebars can fire a column rename back into the grid (rewrites local
@@ -172,6 +173,7 @@ export function Table({
   onOpenWorkflowConfig,
   onOpenExecutionDetails,
   onRequestDeleteTable,
+  onRequestImportCsv,
   columnRenameSinkRef,
 }: TableProps) {
   const params = useParams()
@@ -201,7 +203,6 @@ export function Table({
   const lastCheckboxRowRef = useRef<string | null>(null)
   const isColumnSelectionRef = useRef(false)
   const [deletingColumns, setDeletingColumns] = useState<string[] | null>(null)
-  const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
 
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
   const columnWidthsRef = useRef(columnWidths)
@@ -2589,7 +2590,7 @@ export function Table({
             {
               label: 'Import CSV',
               icon: Upload,
-              onClick: () => setIsImportCsvOpen(true),
+              onClick: onRequestImportCsv,
               disabled: userPermissions.canEdit !== true,
             },
             {
@@ -2600,7 +2601,7 @@ export function Table({
             },
           ]
         : undefined,
-    [tableData, userPermissions.canEdit, handleExportCsv]
+    [tableData, userPermissions.canEdit, handleExportCsv, onRequestImportCsv]
   )
 
   const activeSortState = useMemo(() => {
@@ -3191,14 +3192,6 @@ export function Table({
         scrollContainer={scrollRef.current}
       />
 
-      {tableData && (
-        <ImportCsvDialog
-          open={isImportCsvOpen}
-          onOpenChange={setIsImportCsvOpen}
-          workspaceId={workspaceId}
-          table={tableData}
-        />
-      )}
 
       <Modal
         open={deletingColumns !== null}

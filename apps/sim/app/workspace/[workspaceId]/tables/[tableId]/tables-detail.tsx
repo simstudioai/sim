@@ -12,6 +12,7 @@ import {
 } from '@/components/emcn'
 import { useDeleteTable } from '@/hooks/queries/tables'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
+import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import {
   type ColumnConfig,
   ColumnConfigSidebar,
@@ -86,6 +87,7 @@ export function TablesDetail({
 
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
+  const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
 
   /**
    * Sink populated by the grid: invoked from sidebar `onColumnRename` so the
@@ -126,6 +128,7 @@ export function TablesDetail({
   const onCloseSlideout = useCallback(() => dispatch({ type: 'CLOSE' }), [])
 
   const onRequestDeleteTable = useCallback(() => setShowDeleteTableConfirm(true), [])
+  const onRequestImportCsv = useCallback(() => setIsImportCsvOpen(true), [])
 
   const deleteTableMutation = useDeleteTable(workspaceId)
   const handleDeleteTable = useCallback(async () => {
@@ -155,6 +158,7 @@ export function TablesDetail({
         onOpenWorkflowConfig={onOpenWorkflowConfig}
         onOpenExecutionDetails={onOpenExecutionDetails}
         onRequestDeleteTable={onRequestDeleteTable}
+        onRequestImportCsv={onRequestImportCsv}
         columnRenameSinkRef={columnRenameSinkRef}
       />
       <ColumnConfigSidebar
@@ -184,6 +188,14 @@ export function TablesDetail({
         executionId={executionId}
         onClose={onCloseSlideout}
       />
+      {tableData && (
+        <ImportCsvDialog
+          open={isImportCsvOpen}
+          onOpenChange={setIsImportCsvOpen}
+          workspaceId={workspaceId}
+          table={tableData}
+        />
+      )}
       {!embedded && (
         <Modal open={showDeleteTableConfirm} onOpenChange={setShowDeleteTableConfirm}>
           <ModalContent size='sm'>
