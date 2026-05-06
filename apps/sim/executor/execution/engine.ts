@@ -484,6 +484,8 @@ export class ExecutionEngine {
       parallelScope: pause.parallelScope,
       loopScope: pause.loopScope,
       resumeLinks: pause.resumeLinks,
+      pauseKind: pause.pauseKind,
+      resumeAt: pause.resumeAt,
     }))
 
     return {

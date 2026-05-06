@@ -6,7 +6,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { downloadWorkspaceFile, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
+import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 export const dynamic = 'force-dynamic'
@@ -52,7 +52,7 @@ export const GET = withRouteHandler(
 
     let buffer: Buffer
     try {
-      buffer = await downloadWorkspaceFile(fileRecord)
+      buffer = await fetchWorkspaceFileBuffer(fileRecord)
     } catch (err) {
       logger.error('Failed to download file for style extraction', {
         fileId,

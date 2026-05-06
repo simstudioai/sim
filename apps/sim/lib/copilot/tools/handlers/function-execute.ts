@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getTableById, queryRows } from '@/lib/table/service'
 import {
-  downloadWorkspaceFile,
+  fetchWorkspaceFileBuffer,
   findWorkspaceFileRecord,
   getSandboxWorkspaceFilePath,
   listWorkspaceFiles,
@@ -44,7 +44,7 @@ async function resolveInputFiles(
         logger.warn('Total input size limit reached')
         break
       }
-      const buffer = await downloadWorkspaceFile(record)
+      const buffer = await fetchWorkspaceFileBuffer(record)
       totalSize += buffer.length
       const isText = /^text\/|application\/json|application\/xml|application\/csv/.test(
         record.type || ''

@@ -6,7 +6,8 @@
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
   checkStorageQuota,
@@ -16,8 +17,15 @@ import {
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { getServePathPrefix } from '@/lib/uploads'
-import { downloadFile, hasCloudStorage, uploadFile } from '@/lib/uploads/core/storage-service'
+import {
+  deleteFile,
+  downloadFile,
+  hasCloudStorage,
+  headObject,
+  uploadFile,
+} from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKey, insertFileMetadata } from '@/lib/uploads/server/metadata'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
@@ -152,7 +160,7 @@ export async function uploadWorkspaceFile(
   for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
     const uniqueName = await allocateUniqueWorkspaceFileName(workspaceId, fileName)
     const storageKey = generateWorkspaceFileKey(workspaceId, uniqueName)
-    let fileId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+    let fileId = `wf_${generateShortId()}`
 
     try {
       logger.info(`Generated storage key: ${storageKey}`)
@@ -167,12 +175,12 @@ export async function uploadWorkspaceFile(
 
       const uploadResult = await uploadFile({
         file: fileBuffer,
-        fileName: storageKey, // Use the full storageKey as fileName
+        fileName: storageKey,
         contentType,
         context: 'workspace',
-        preserveKey: true, // Don't add timestamp prefix
-        customKey: storageKey, // Explicitly set the key
-        metadata, // Pass metadata for cloud storage consistency
+        preserveKey: true,
+        customKey: storageKey,
+        metadata,
       })
 
       logger.info(`Upload returned key: ${uploadResult.key}`)
@@ -232,7 +240,7 @@ export async function uploadWorkspaceFile(
         name: uniqueName,
         size: fileBuffer.length,
         type: contentType,
-        url: serveUrl, // Use authenticated serve URL (enforces context)
+        url: serveUrl,
         key: uploadResult.key,
         context: 'workspace',
       }
@@ -262,10 +270,166 @@ export async function uploadWorkspaceFile(
 }
 
 /**
+ * Finalize a workspace file that was uploaded directly to cloud storage
+ * (presigned PUT or completed multipart). Verifies the object exists,
+ * checks quota, allocates a non-colliding display name, inserts metadata,
+ * and increments storage usage.
+ *
+ * Throws if the object is missing in storage, quota is exceeded, or the
+ * caller cannot resolve a unique name within the retry budget.
+ */
+export interface RegisterUploadedWorkspaceFileResult {
+  file: UserFile
+  /** True when a new metadata row was inserted; false when an existing row was reused. */
+  created: boolean
+}
+
+export async function registerUploadedWorkspaceFile(params: {
+  workspaceId: string
+  userId: string
+  key: string
+  originalName: string
+  contentType: string
+}): Promise<RegisterUploadedWorkspaceFileResult> {
+  const { workspaceId, userId, key, originalName, contentType } = params
+
+  if (!hasCloudStorage()) {
+    throw new Error('Direct-upload registration requires cloud storage')
+  }
+
+  if (parseWorkspaceFileKey(key) !== workspaceId) {
+    throw new Error('Storage key does not belong to this workspace')
+  }
+
+  const head = await headObject(key, 'workspace')
+  if (!head) {
+    throw new Error('Uploaded object not found in storage')
+  }
+  const verifiedSize = head.size
+
+  const cleanupOrphan = async (reason: string) => {
+    try {
+      await deleteFile({ key, context: 'workspace' })
+    } catch (deleteError) {
+      logger.error(`Failed to clean up orphaned object after ${reason}`, deleteError)
+    }
+  }
+
+  if (verifiedSize > MAX_WORKSPACE_FILE_SIZE) {
+    await cleanupOrphan('size-cap rejection')
+    throw new Error(`File size exceeds maximum of ${MAX_WORKSPACE_FILE_SIZE} bytes`)
+  }
+
+  /**
+   * Existence check precedes the quota guard so a network-dropped retry doesn't
+   * double-charge quota or orphan-cleanup an already-registered object.
+   */
+  const existing = await getFileMetadataByKey(key, 'workspace')
+
+  let fileId = existing?.id ?? ''
+  let displayName = existing?.originalName ?? ''
+  let created = false
+
+  if (!existing) {
+    const quotaCheck = await checkStorageQuota(userId, verifiedSize)
+    if (!quotaCheck.allowed) {
+      await cleanupOrphan('quota rejection')
+      throw new Error(quotaCheck.error || 'Storage limit exceeded')
+    }
+
+    let lastInsertError: unknown
+    for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
+      fileId = `wf_${generateShortId()}`
+      displayName = await allocateUniqueWorkspaceFileName(workspaceId, originalName)
+      try {
+        await insertFileMetadata({
+          id: fileId,
+          key,
+          userId,
+          workspaceId,
+          context: 'workspace',
+          originalName: displayName,
+          contentType,
+          size: verifiedSize,
+        })
+        created = true
+        lastInsertError = undefined
+        break
+      } catch (insertError) {
+        lastInsertError = insertError
+        if (getPostgresErrorCode(insertError) === '23505') {
+          logger.warn(
+            `Unique name conflict on register (attempt ${attempt + 1}/${MAX_UPLOAD_UNIQUE_RETRIES}), retrying with a new name`
+          )
+          continue
+        }
+        break
+      }
+    }
+
+    if (!created) {
+      logger.error(
+        'Failed to insert metadata after direct upload; cleaning up storage object',
+        lastInsertError
+      )
+      await cleanupOrphan('metadata insert failure')
+      if (getPostgresErrorCode(lastInsertError) === '23505') {
+        throw new FileConflictError(originalName)
+      }
+      throw lastInsertError instanceof Error
+        ? lastInsertError
+        : new Error('Failed to insert workspace file metadata')
+    }
+
+    try {
+      await incrementStorageUsage(userId, verifiedSize)
+    } catch (storageError) {
+      logger.error('Failed to update storage tracking:', storageError)
+    }
+  } else {
+    logger.info(`Using existing metadata record for direct upload: ${key}`)
+  }
+
+  const pathPrefix = getServePathPrefix()
+  const serveUrl = `${pathPrefix}${encodeURIComponent(key)}?context=workspace`
+
+  return {
+    file: {
+      id: fileId,
+      name: displayName,
+      size: verifiedSize,
+      type: contentType,
+      url: serveUrl,
+      key,
+      context: 'workspace',
+    },
+    created,
+  }
+}
+
+/**
+ * Like `withCopySuffix` but with `n=1` meaning "no suffix" — used by retry loops where
+ * the first attempt should try the original name (`image.png`, `image (2).png`, ...).
+ * Exported for tests.
+ */
+export function suffixedName(name: string, n: number): string {
+  return n <= 1 ? name : withCopySuffix(name, n)
+}
+
+const MAX_CHAT_DISPLAY_NAME_RETRIES = 1000
+
+/** Postgres constraint name for the partial unique index on `(chat_id, display_name)`. */
+export const CHAT_DISPLAY_NAME_INDEX = 'workspace_files_chat_display_name_unique'
+
+/**
  * Track a file that was already uploaded to workspace S3 as a chat-scoped upload.
  * Links the existing workspaceFiles metadata record (created by the storage service
  * during upload) to the chat by setting chatId and context='mothership'.
  * Falls back to inserting a new record if none exists for the key.
+ *
+ * Allocates a collision-free `displayName` (the partial unique index on
+ * (chat_id, display_name) WHERE context='mothership' enforces this) and returns it
+ * so callers can surface the same name to the model in the VFS read hint.
  */
 export async function trackChatUpload(
   workspaceId: string,
@@ -275,39 +439,65 @@ export async function trackChatUpload(
   fileName: string,
   contentType: string,
   size: number
-): Promise<void> {
-  const updated = await db
-    .update(workspaceFiles)
-    .set({ chatId, context: 'mothership' })
-    .where(
-      and(
-        eq(workspaceFiles.key, s3Key),
-        eq(workspaceFiles.workspaceId, workspaceId),
-        isNull(workspaceFiles.deletedAt)
-      )
-    )
-    .returning({ id: workspaceFiles.id })
+): Promise<{ displayName: string }> {
+  for (let n = 1; n <= MAX_CHAT_DISPLAY_NAME_RETRIES; n++) {
+    const candidate = suffixedName(fileName, n)
+    try {
+      const updated = await db
+        .update(workspaceFiles)
+        .set({ chatId, context: 'mothership', displayName: candidate })
+        .where(
+          and(
+            eq(workspaceFiles.key, s3Key),
+            eq(workspaceFiles.workspaceId, workspaceId),
+            isNull(workspaceFiles.deletedAt)
+          )
+        )
+        .returning({ id: workspaceFiles.id })
 
-  if (updated.length > 0) {
-    logger.info(`Linked existing file record to chat: ${fileName} for chat ${chatId}`)
-    return
+      if (updated.length > 0) {
+        logger.info(
+          `Linked existing file record to chat: ${fileName} (display: ${candidate}) for chat ${chatId}`
+        )
+        return { displayName: candidate }
+      }
+
+      const fileId = `wf_${generateShortId()}`
+
+      await db.insert(workspaceFiles).values({
+        id: fileId,
+        key: s3Key,
+        userId,
+        workspaceId,
+        context: 'mothership',
+        chatId,
+        originalName: fileName,
+        displayName: candidate,
+        contentType,
+        size,
+      })
+
+      logger.info(
+        `Tracked chat upload: ${fileName} (display: ${candidate}) for chat ${chatId}`
+      )
+      return { displayName: candidate }
+    } catch (error) {
+      // Other 23505s (e.g. active-key collision from a racing same-s3Key insert) signal
+      // a different invariant — retrying would silently rename a row another caller owns.
+      if (
+        getPostgresErrorCode(error) === '23505' &&
+        getPostgresConstraintName(error) === CHAT_DISPLAY_NAME_INDEX
+      ) {
+        logger.warn(
+          `Chat upload displayName collision on attempt ${n} for "${candidate}" in chat ${chatId}, retrying with suffix`
+        )
+        continue
+      }
+      throw error
+    }
   }
 
-  const fileId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
-
-  await db.insert(workspaceFiles).values({
-    id: fileId,
-    key: s3Key,
-    userId,
-    workspaceId,
-    context: 'mothership',
-    chatId,
-    originalName: fileName,
-    contentType,
-    size,
-  })
-
-  logger.info(`Tracked chat upload: ${fileName} for chat ${chatId}`)
+  throw new FileConflictError(fileName)
 }
 
 /**
@@ -574,7 +764,7 @@ export async function getWorkspaceFile(
 /**
  * Download workspace file content
  */
-export async function downloadWorkspaceFile(fileRecord: WorkspaceFileRecord): Promise<Buffer> {
+export async function fetchWorkspaceFileBuffer(fileRecord: WorkspaceFileRecord): Promise<Buffer> {
   logger.info(`Downloading workspace file: ${fileRecord.name}`)
 
   try {

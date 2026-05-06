@@ -345,7 +345,7 @@ export function ImportCsvDialog({
         <ModalBody>
           {!parsed ? (
             <div className='flex flex-col gap-2'>
-              <Label>Upload CSV</Label>
+              <Label>Import CSV</Label>
               <Button
                 type='button'
                 variant='default'

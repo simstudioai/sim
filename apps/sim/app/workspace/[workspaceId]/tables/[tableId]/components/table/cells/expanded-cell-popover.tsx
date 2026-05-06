@@ -78,7 +78,7 @@ export function ExpandedCellPopover({
       return
     }
     setDraftValue(isEditable ? formatValueForInput(target.value, target.column.type) : '')
-    const selector = `[data-table-scroll] [data-row="${target.row.position}"][data-col="${target.colIndex}"]`
+    const selector = `[data-table-scroll] [data-row-id="${target.row.id}"][data-col="${target.colIndex}"]`
     const el = document.querySelector<HTMLElement>(selector)
     if (!el) {
       setRect(null)

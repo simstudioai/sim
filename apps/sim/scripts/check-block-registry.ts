@@ -196,11 +196,18 @@ function checkCanonicalIdContract(): CheckResult {
     const access: string[] = block.tools?.access ?? []
     if (access.length === 0) continue
 
+    // A subBlock with `canonicalParamId` has its raw `id` deleted from `params` during
+    // canonical-group resolution in `extractParams` (serializer/index.ts), so the raw id is
+    // NOT a valid lookup key at execution time — only the canonical is. Tool params must
+    // align with the canonical, not the raw id.
     const subBlockKeys = new Set<string>()
     for (const sb of block.subBlocks ?? []) {
-      if (sb.id) subBlockKeys.add(sb.id)
       const canonical = (sb as { canonicalParamId?: string }).canonicalParamId
-      if (canonical) subBlockKeys.add(canonical)
+      if (canonical) {
+        subBlockKeys.add(canonical)
+      } else if (sb.id) {
+        subBlockKeys.add(sb.id)
+      }
     }
 
     for (const toolId of access) {

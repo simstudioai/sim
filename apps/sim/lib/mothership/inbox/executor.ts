@@ -131,11 +131,14 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       })
     }
 
+    const userMessageId = generateId()
+
     if (chatId) {
       taskPubSub?.publishStatusChanged({
         workspaceId: ws.id,
         chatId,
         type: 'started',
+        streamId: userMessageId,
       })
     }
 
@@ -178,7 +181,6 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     }
     const messageContent = formatEmailAsMessage(truncatedTask, attachments)
 
-    const userMessageId = generateId()
     const requestPayload: Record<string, unknown> = {
       message: messageContent,
       userId,
@@ -244,6 +246,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
         workspaceId: ws.id,
         chatId,
         type: 'completed',
+        streamId: userMessageId,
       })
     }
 

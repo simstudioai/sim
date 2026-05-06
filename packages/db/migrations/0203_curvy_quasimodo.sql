@@ -1,0 +1,2 @@
+ALTER TABLE "paused_executions" ADD COLUMN "next_resume_at" timestamp;--> statement-breakpoint
+CREATE INDEX "paused_executions_next_resume_at_idx" ON "paused_executions" USING btree ("next_resume_at") WHERE status = 'paused' AND next_resume_at IS NOT NULL;

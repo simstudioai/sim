@@ -34,10 +34,18 @@ const logFilterQuerySchema = z.object({
   durationValue: z.coerce.number().optional(),
 })
 
+export const logSortBySchema = z.enum(['date', 'duration', 'cost', 'status']).default('date')
+export const logSortOrderSchema = z.enum(['asc', 'desc']).default('desc')
+
 export const listLogsQuerySchema = logFilterQuerySchema.extend({
-  details: z.enum(['basic', 'full']).optional().default('basic'),
-  limit: z.coerce.number().optional().default(100),
-  offset: z.coerce.number().optional().default(0),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional().default(100),
+  sortBy: logSortBySchema,
+  sortOrder: logSortOrderSchema,
+})
+
+export const logDetailQuerySchema = z.object({
+  workspaceId: z.string().min(1),
 })
 
 export const statsQueryParamsSchema = logFilterQuerySchema.extend({
@@ -58,55 +66,196 @@ const workflowSummarySchema = z
   })
   .partial()
 
-const fileSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    size: z.number(),
-    type: z.string(),
-    url: z.string(),
-    key: z.string(),
-    uploadedAt: z.string(),
-    expiresAt: z.string(),
-    storageProvider: z.enum(['s3', 'blob', 'local']).optional(),
-    bucketName: z.string().optional(),
-  })
-  .passthrough()
-
-export const workflowLogSchema = z
-  .object({
-    id: z.string(),
-    workflowId: z.string().nullable(),
-    executionId: z.string().nullable().optional(),
-    deploymentVersionId: z.string().nullable().optional(),
-    deploymentVersion: z.number().nullable().optional(),
-    deploymentVersionName: z.string().nullable().optional(),
-    level: z.string(),
-    status: z.string().nullable().optional(),
-    duration: z.string().nullable(),
-    trigger: z.string().nullable(),
-    createdAt: z.string(),
-    workflow: workflowSummarySchema.nullable().optional(),
-    jobTitle: z.string().nullable().optional(),
-    files: z.array(fileSchema).optional(),
-    cost: z.unknown().optional(),
-    hasPendingPause: z.boolean().nullable().optional(),
-    pauseSummary: z.unknown().optional(),
-    executionData: z.unknown().optional(),
-  })
-  .passthrough()
-
-export type WorkflowLogData = z.output<typeof workflowLogSchema>
-
-export const logsResponseSchema = z.object({
-  data: z.array(workflowLogSchema),
-  total: z.number(),
-  page: z.number(),
-  pageSize: z.number(),
-  totalPages: z.number(),
+const fileSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  size: z.number(),
+  type: z.string(),
+  url: z.string(),
+  key: z.string(),
+  uploadedAt: z.string(),
+  expiresAt: z.string(),
+  storageProvider: z.enum(['s3', 'blob', 'local']).optional(),
+  bucketName: z.string().optional(),
 })
 
-export type LogsResponse = z.output<typeof logsResponseSchema>
+const tokenBreakdownSchema = z
+  .object({
+    total: z.number().optional(),
+    input: z.number().optional(),
+    output: z.number().optional(),
+    prompt: z.number().optional(),
+    completion: z.number().optional(),
+  })
+  .partial()
+
+const modelCostSchema = z
+  .object({
+    input: z.number().optional(),
+    output: z.number().optional(),
+    total: z.number().optional(),
+    tokens: tokenBreakdownSchema.optional(),
+  })
+  .partial()
+
+const costSummarySchema = z
+  .object({
+    total: z.number().optional(),
+    input: z.number().optional(),
+    output: z.number().optional(),
+    tokens: tokenBreakdownSchema.optional(),
+    models: z.record(z.string(), modelCostSchema).optional(),
+    pricing: z
+      .object({
+        input: z.number(),
+        output: z.number(),
+        cachedInput: z.number().optional(),
+        updatedAt: z.string(),
+      })
+      .optional(),
+  })
+  .partial()
+
+const pauseSummarySchema = z.object({
+  status: z.string().nullable(),
+  total: z.number(),
+  resumed: z.number(),
+})
+
+const blockExecutionSchema = z.object({
+  id: z.string(),
+  blockId: z.string(),
+  blockName: z.string(),
+  blockType: z.string(),
+  startedAt: z.string(),
+  endedAt: z.string(),
+  durationMs: z.number(),
+  status: z.enum(['success', 'error', 'skipped']),
+  errorMessage: z.string().optional(),
+  errorStackTrace: z.string().optional(),
+  inputData: z.unknown(),
+  outputData: z.unknown(),
+  cost: costSummarySchema.optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})
+
+const toolCallSchema = z
+  .object({
+    id: z.string().optional(),
+    name: z.string().optional(),
+    arguments: z.unknown().optional(),
+    result: z.unknown().optional(),
+    error: z.string().optional(),
+    startTime: z.string().optional(),
+    endTime: z.string().optional(),
+    duration: z.number().optional(),
+  })
+  .passthrough()
+
+type TraceSpan = {
+  id: string
+  name: string
+  type: string
+  duration?: number
+  durationMs?: number
+  startTime?: string
+  endTime?: string
+  status?: string
+  blockId?: string
+  input?: unknown
+  output?: unknown
+  tokens?: number | { total?: number; input?: number; output?: number }
+  relativeStartMs?: number
+  toolCalls?: Array<z.output<typeof toolCallSchema>>
+  children?: TraceSpan[]
+}
+
+const traceSpanSchema: z.ZodType<TraceSpan> = z.lazy(() =>
+  z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      type: z.string(),
+      duration: z.number().optional(),
+      durationMs: z.number().optional(),
+      startTime: z.string().optional(),
+      endTime: z.string().optional(),
+      status: z.string().optional(),
+      blockId: z.string().optional(),
+      input: z.unknown().optional(),
+      output: z.unknown().optional(),
+      tokens: z
+        .union([
+          z.number(),
+          z
+            .object({
+              total: z.number().optional(),
+              input: z.number().optional(),
+              output: z.number().optional(),
+            })
+            .partial(),
+        ])
+        .optional(),
+      relativeStartMs: z.number().optional(),
+      toolCalls: z.array(toolCallSchema).optional(),
+      children: z.array(traceSpanSchema).optional(),
+    })
+    .passthrough()
+)
+
+const executionDataDetailSchema = z
+  .object({
+    totalDuration: z.number().nullable().optional(),
+    enhanced: z.literal(true).optional(),
+    traceSpans: z.array(traceSpanSchema).optional(),
+    blockExecutions: z.array(blockExecutionSchema).optional(),
+    finalOutput: z.unknown().optional(),
+    workflowInput: z.unknown().optional(),
+    blockInput: z.record(z.string(), z.unknown()).optional(),
+    trigger: z.unknown().optional(),
+  })
+  .passthrough()
+
+export const workflowLogSummarySchema = z.object({
+  id: z.string(),
+  workflowId: z.string().nullable(),
+  executionId: z.string().nullable(),
+  deploymentVersionId: z.string().nullable(),
+  deploymentVersion: z.number().nullable(),
+  deploymentVersionName: z.string().nullable(),
+  level: z.string(),
+  status: z.string().nullable(),
+  duration: z.string().nullable(),
+  trigger: z.string().nullable(),
+  createdAt: z.string(),
+  workflow: workflowSummarySchema.nullable(),
+  jobTitle: z.string().nullable(),
+  cost: costSummarySchema.nullable(),
+  pauseSummary: pauseSummarySchema,
+  hasPendingPause: z.boolean(),
+})
+
+export const workflowLogDetailSchema = workflowLogSummarySchema.extend({
+  executionData: executionDataDetailSchema,
+  files: z.array(fileSchema).nullable(),
+})
+
+export type WorkflowLogSummary = z.output<typeof workflowLogSummarySchema>
+export type WorkflowLogDetail = z.output<typeof workflowLogDetailSchema>
+
+/**
+ * A row that may be either a list-view summary or a fully loaded detail. Used by
+ * UI surfaces that render the same log before and after its detail query resolves.
+ */
+export type WorkflowLogRow = WorkflowLogSummary &
+  Partial<Pick<WorkflowLogDetail, 'executionData' | 'files'>>
+
+export const listLogsResponseSchema = z.object({
+  data: z.array(workflowLogSummarySchema),
+  nextCursor: z.string().nullable(),
+})
+
+export type ListLogsResponse = z.output<typeof listLogsResponseSchema>
 
 export const segmentStatsSchema = z.object({
   timestamp: z.string(),
@@ -179,7 +328,7 @@ export const listLogsContract = defineRouteContract({
   query: listLogsQuerySchema,
   response: {
     mode: 'json',
-    schema: logsResponseSchema,
+    schema: listLogsResponseSchema,
   },
 })
 
@@ -187,10 +336,24 @@ export const getLogDetailContract = defineRouteContract({
   method: 'GET',
   path: '/api/logs/[id]',
   params: logIdParamsSchema,
+  query: logDetailQuerySchema,
   response: {
     mode: 'json',
     schema: z.object({
-      data: workflowLogSchema,
+      data: workflowLogDetailSchema,
+    }),
+  },
+})
+
+export const getLogByExecutionIdContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/logs/by-execution/[executionId]',
+  params: executionIdParamsSchema,
+  query: logDetailQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      data: workflowLogDetailSchema,
     }),
   },
 })

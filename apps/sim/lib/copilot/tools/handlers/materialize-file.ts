@@ -8,7 +8,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
 import { getServePathPrefix } from '@/lib/uploads'
-import { downloadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
@@ -21,7 +21,7 @@ function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
   return {
     id: row.id,
     workspaceId: row.workspaceId || '',
-    name: row.originalName,
+    name: row.displayName ?? row.originalName,
     key: row.key,
     path: `${pathPrefix}${encodeURIComponent(row.key)}?context=mothership`,
     size: row.size,
@@ -45,7 +45,7 @@ async function executeSave(fileName: string, chatId: string): Promise<ToolCallRe
 
   const [updated] = await db
     .update(workspaceFiles)
-    .set({ context: 'workspace', chatId: null })
+    .set({ context: 'workspace', chatId: null, originalName: row.displayName ?? row.originalName })
     .where(and(eq(workspaceFiles.id, row.id), isNull(workspaceFiles.deletedAt)))
     .returning({ id: workspaceFiles.id, originalName: workspaceFiles.originalName })
 
@@ -83,7 +83,7 @@ async function executeImport(
     }
   }
 
-  const buffer = await downloadWorkspaceFile(toFileRecord(row))
+  const buffer = await fetchWorkspaceFileBuffer(toFileRecord(row))
   const content = buffer.toString('utf-8')
 
   let parsed: unknown

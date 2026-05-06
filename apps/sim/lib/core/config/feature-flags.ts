@@ -130,12 +130,6 @@ export const isWhitelabelingEnabled = isTruthy(env.WHITELABELING_ENABLED)
 export const isAuditLogsEnabled = isTruthy(env.AUDIT_LOGS_ENABLED)
 
 /**
- * Is data retention enabled via env var override
- * This bypasses hosted requirements for self-hosted deployments
- */
-export const isDataRetentionEnabled = isTruthy(env.DATA_RETENTION_ENABLED)
-
-/**
  * Is E2B enabled for remote code execution
  */
 export const isE2bEnabled = isTruthy(env.E2B_ENABLED)
@@ -155,6 +149,14 @@ export const isOllamaConfigured = Boolean(env.OLLAMA_URL)
  * Set NEXT_PUBLIC_AZURE_CONFIGURED=true in self-hosted deployments on Azure.
  */
 export const isAzureConfigured = isTruthy(getEnv('NEXT_PUBLIC_AZURE_CONFIGURED'))
+
+/**
+ * Whether a Cohere API key is pre-configured server-side for the Knowledge block reranker
+ * (`COHERE_API_KEY` or `COHERE_API_KEY_1/2/3`). When true, the Cohere API Key field is hidden
+ * in the Knowledge block UI.
+ * Set NEXT_PUBLIC_COHERE_CONFIGURED=true in self-hosted deployments that ship a Cohere key.
+ */
+export const isCohereConfigured = isTruthy(getEnv('NEXT_PUBLIC_COHERE_CONFIGURED'))
 
 /**
  * Are invitations disabled globally

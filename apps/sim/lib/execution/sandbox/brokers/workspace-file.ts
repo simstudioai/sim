@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { SandboxBroker } from '@/lib/execution/sandbox/types'
 import {
-  downloadWorkspaceFile,
+  fetchWorkspaceFileBuffer,
   getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
@@ -40,7 +40,7 @@ export const workspaceFileBroker: SandboxBroker<WorkspaceFileArgs, WorkspaceFile
       throw new Error(`File not found: ${args.fileId}`)
     }
 
-    const buffer = await downloadWorkspaceFile(record)
+    const buffer = await fetchWorkspaceFileBuffer(record)
     const mime = record.type || 'image/png'
     return { dataUri: `data:${mime};base64,${buffer.toString('base64')}` }
   },

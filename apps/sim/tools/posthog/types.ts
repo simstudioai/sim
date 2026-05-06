@@ -11,7 +11,7 @@ export interface PostHogPublicParams extends PostHogBaseParams {
 }
 
 export interface PostHogPrivateParams extends PostHogBaseParams {
-  personalApiKey: string
+  apiKey: string
   projectId: string
 }
 

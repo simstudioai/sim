@@ -15,13 +15,13 @@ import {
   SquareArrowUpRight,
   X,
 } from '@/components/emcn'
-import type { WorkflowLog } from '@/stores/logs/filters/types'
+import type { WorkflowLogSummary } from '@/lib/api/contracts/logs'
 
 interface LogRowContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
   onClose: () => void
-  log: WorkflowLog | null
+  log: WorkflowLogSummary | null
   onCopyExecutionId: () => void
   onCopyLink: () => void
   onOpenWorkflow: () => void

@@ -11,6 +11,7 @@ import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getCredentialActorContext } from '@/lib/credentials/access'
+import { deleteCredential } from '@/lib/credentials/deletion'
 import {
   deleteWorkspaceEnvCredentials,
   syncPersonalEnvCredentialsForUser,
@@ -333,7 +334,14 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ success: true }, { status: 200 })
       }
 
-      await db.delete(credential).where(eq(credential.id, id))
+      await deleteCredential({
+        credentialId: id,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        reason: 'user_delete',
+        request,
+      })
 
       captureServerEvent(
         session.user.id,
@@ -345,23 +353,6 @@ export const DELETE = withRouteHandler(
         },
         { groups: { workspace: access.credential.workspaceId } }
       )
-
-      recordAudit({
-        workspaceId: access.credential.workspaceId,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.CREDENTIAL_DELETED,
-        resourceType: AuditResourceType.CREDENTIAL,
-        resourceId: id,
-        resourceName: access.credential.displayName,
-        description: `Deleted ${access.credential.type} credential "${access.credential.displayName}"`,
-        metadata: {
-          credentialType: access.credential.type,
-          providerId: access.credential.providerId,
-        },
-        request,
-      })
 
       return NextResponse.json({ success: true }, { status: 200 })
     } catch (error) {

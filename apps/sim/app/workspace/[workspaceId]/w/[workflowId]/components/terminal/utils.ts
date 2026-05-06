@@ -393,9 +393,7 @@ export function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNod
     const subflowEndMs = Math.max(
       ...allRelevantBlocks.map((b) => new Date(b.endedAt || b.timestamp).getTime())
     )
-    const totalDuration = allRelevantBlocks.reduce((sum, b) => sum + (b.durationMs || 0), 0)
-    const subflowDuration =
-      iterationType === 'parallel' ? subflowEndMs - subflowStartMs : totalDuration
+    const subflowDuration = subflowEndMs - subflowStartMs
 
     const subflowExecutionOrder = Math.min(...allRelevantBlocks.map((b) => b.executionOrder))
     const metadataSource = allRelevantBlocks[0]
@@ -449,9 +447,7 @@ export function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNod
         const iterEndMs = Math.max(
           ...allIterEntries.map((b) => new Date(b.endedAt || b.timestamp).getTime())
         )
-        const iterDuration = allIterEntries.reduce((sum, b) => sum + (b.durationMs || 0), 0)
-        const iterDisplayDuration =
-          iterationType === 'parallel' ? iterEndMs - iterStartMs : iterDuration
+        const iterDisplayDuration = iterEndMs - iterStartMs
 
         const iterExecutionOrder = Math.min(...allIterEntries.map((b) => b.executionOrder))
         const iterMetadataSource = allIterEntries[0]

@@ -3,3 +3,5 @@ import { mem0GetMemoriesTool } from '@/tools/mem0/get_memories'
 import { mem0SearchMemoriesTool } from '@/tools/mem0/search_memories'
 
 export { mem0AddMemoriesTool, mem0SearchMemoriesTool, mem0GetMemoriesTool }
+export * from '@/tools/mem0/types'
+export * from '@/tools/mem0/utils'
