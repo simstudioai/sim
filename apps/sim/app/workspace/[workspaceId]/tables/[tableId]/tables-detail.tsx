@@ -11,12 +11,15 @@ import {
   ModalHeader,
 } from '@/components/emcn'
 import { useDeleteTable } from '@/hooks/queries/tables'
+import type { DeletedRowSnapshot } from '@/stores/table/types'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
+import type { TableRow as TableRowType } from '@/lib/table'
 import {
   type ColumnConfig,
   ColumnConfigSidebar,
   ExecutionDetailsSidebar,
+  RowModal,
   Table,
   type WorkflowConfig,
   WorkflowSidebar,
@@ -88,6 +91,8 @@ export function TablesDetail({
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
+  const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
+  const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
 
   /**
    * Sink populated by the grid: invoked from sidebar `onColumnRename` so the
@@ -98,6 +103,13 @@ export function TablesDetail({
   const onColumnRename = useCallback((oldName: string, newName: string) => {
     columnRenameSinkRef.current?.(oldName, newName)
   }, [])
+
+  /**
+   * Sink the grid populates with its post-row-delete cleanup (push undo,
+   * clear selection). The wrapper invokes after the row-delete modal's
+   * mutation succeeds.
+   */
+  const afterDeleteRowsSinkRef = useRef<((snapshots: DeletedRowSnapshot[]) => void) | null>(null)
 
   // Query data needed for the slideouts and modal copy. The grid also calls
   // `useTable`; React Query dedupes the request so this is one network call.
@@ -129,6 +141,10 @@ export function TablesDetail({
 
   const onRequestDeleteTable = useCallback(() => setShowDeleteTableConfirm(true), [])
   const onRequestImportCsv = useCallback(() => setIsImportCsvOpen(true), [])
+  const onOpenRowModal = useCallback((row: TableRowType) => setEditingRow(row), [])
+  const onRequestDeleteRows = useCallback((snapshots: DeletedRowSnapshot[]) => {
+    setDeletingRows(snapshots)
+  }, [])
 
   const deleteTableMutation = useDeleteTable(workspaceId)
   const handleDeleteTable = useCallback(async () => {
@@ -159,7 +175,10 @@ export function TablesDetail({
         onOpenExecutionDetails={onOpenExecutionDetails}
         onRequestDeleteTable={onRequestDeleteTable}
         onRequestImportCsv={onRequestImportCsv}
+        onOpenRowModal={onOpenRowModal}
+        onRequestDeleteRows={onRequestDeleteRows}
         columnRenameSinkRef={columnRenameSinkRef}
+        afterDeleteRowsSinkRef={afterDeleteRowsSinkRef}
       />
       <ColumnConfigSidebar
         config={columnConfig}
@@ -194,6 +213,29 @@ export function TablesDetail({
           onOpenChange={setIsImportCsvOpen}
           workspaceId={workspaceId}
           table={tableData}
+        />
+      )}
+      {editingRow && tableData && (
+        <RowModal
+          mode='edit'
+          isOpen={true}
+          onClose={() => setEditingRow(null)}
+          table={tableData}
+          row={editingRow}
+          onSuccess={() => setEditingRow(null)}
+        />
+      )}
+      {deletingRows.length > 0 && tableData && (
+        <RowModal
+          mode='delete'
+          isOpen={true}
+          onClose={() => setDeletingRows([])}
+          table={tableData}
+          rowIds={deletingRows.map((r) => r.rowId)}
+          onSuccess={() => {
+            afterDeleteRowsSinkRef.current?.(deletingRows)
+            setDeletingRows([])
+          }}
         />
       )}
       {!embedded && (

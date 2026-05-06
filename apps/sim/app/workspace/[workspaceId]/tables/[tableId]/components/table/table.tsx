@@ -68,7 +68,6 @@ import type { EditingCell, QueryOptions, SaveReason } from '../../types'
 import { cleanCellValue, storageToDisplay } from '../../utils'
 import { type ColumnConfig, COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
-import { RowModal } from '../row-modal'
 import { TableActionBar } from '../table-action-bar'
 import { TableFilter } from '../table-filter'
 import type { WorkflowConfig } from '../workflow-sidebar'
@@ -154,6 +153,10 @@ interface TableProps {
   onRequestDeleteTable: () => void
   /** Fired by the page-header "Import CSV" action. The wrapper renders the dialog. */
   onRequestImportCsv: () => void
+  /** Open the row-edit modal for `row`. Wrapper renders the modal. */
+  onOpenRowModal: (row: TableRowType) => void
+  /** Open the row-delete modal for `snapshots`. Wrapper renders the modal. */
+  onRequestDeleteRows: (snapshots: DeletedRowSnapshot[]) => void
   /**
    * Ref the grid populates with its `handleColumnRename` so the wrapper's
    * sidebars can fire a column rename back into the grid (rewrites local
@@ -161,6 +164,14 @@ interface TableProps {
    */
   columnRenameSinkRef: React.MutableRefObject<
     ((oldName: string, newName: string) => void) | null
+  >
+  /**
+   * Ref the grid populates with its post-row-delete cleanup (push undo,
+   * clear selection). The wrapper invokes after the row-delete modal's
+   * mutation succeeds.
+   */
+  afterDeleteRowsSinkRef: React.MutableRefObject<
+    ((snapshots: DeletedRowSnapshot[]) => void) | null
   >
 }
 
@@ -174,7 +185,10 @@ export function Table({
   onOpenExecutionDetails,
   onRequestDeleteTable,
   onRequestImportCsv,
+  onOpenRowModal,
+  onRequestDeleteRows,
   columnRenameSinkRef,
+  afterDeleteRowsSinkRef,
 }: TableProps) {
   const params = useParams()
   const router = useRouter()
@@ -191,8 +205,6 @@ export function Table({
     filter: null,
     sort: null,
   })
-  const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
-  const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null)
   const [initialCharacter, setInitialCharacter] = useState<string | null>(null)
   const [expandedCell, setExpandedCell] = useState<EditingCell | null>(null)
@@ -253,6 +265,9 @@ export function Table({
   const userPermissions = useUserPermissionsContext()
   const canEditRef = useRef(userPermissions.canEdit)
   canEditRef.current = userPermissions.canEdit
+  // Refs for callback props read inside effects with stable empty deps.
+  const onOpenRowModalRef = useRef(onOpenRowModal)
+  onOpenRowModalRef.current = onOpenRowModal
 
   const {
     contextMenu,
@@ -601,11 +616,11 @@ export function Table({
     }
 
     if (snapshots.length > 0) {
-      setDeletingRows(snapshots)
+      onRequestDeleteRows(snapshots)
     }
 
     closeContextMenu()
-  }, [contextMenu.row, closeContextMenu])
+  }, [contextMenu.row, closeContextMenu, onRequestDeleteRows])
 
   const handleInsertRow = useCallback(
     (offset: 0 | 1) => {
@@ -833,6 +848,13 @@ export function Table({
     setIsColumnSelection(false)
     lastCheckboxRowRef.current = null
   }, [])
+
+  // Populate the wrapper's after-delete sink so the row-delete modal can run
+  // grid cleanup (push undo + clear selection) once its mutation succeeds.
+  afterDeleteRowsSinkRef.current = (snapshots: DeletedRowSnapshot[]) => {
+    pushUndoRef.current({ type: 'delete-rows', rows: snapshots })
+    handleClearSelection()
+  }
 
   const handleColumnSelect = useCallback((colIndex: number, shiftKey: boolean) => {
     const lastRow = rowsRef.current.length - 1
@@ -1676,7 +1698,7 @@ export function Table({
         e.preventDefault()
         const row = currentRows[anchor.rowIndex]
         if (row) {
-          setEditingRow(row)
+          onOpenRowModalRef.current(row)
         }
         return
       }
@@ -3130,32 +3152,6 @@ export function Table({
           />
         )}
       </div>
-
-      {editingRow && tableData && (
-        <RowModal
-          mode='edit'
-          isOpen={true}
-          onClose={() => setEditingRow(null)}
-          table={tableData}
-          row={editingRow}
-          onSuccess={() => setEditingRow(null)}
-        />
-      )}
-
-      {deletingRows.length > 0 && tableData && (
-        <RowModal
-          mode='delete'
-          isOpen={true}
-          onClose={() => setDeletingRows([])}
-          table={tableData}
-          rowIds={deletingRows.map((r) => r.rowId)}
-          onSuccess={() => {
-            pushUndo({ type: 'delete-rows', rows: deletingRows })
-            setDeletingRows([])
-            handleClearSelection()
-          }}
-        />
-      )}
 
       <ContextMenu
         contextMenu={contextMenu}
