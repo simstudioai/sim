@@ -205,6 +205,7 @@ interface UploadFileParams {
   file: File
   onProgress?: (event: UploadProgressEvent) => void
   signal?: AbortSignal
+  skipToast?: boolean
 }
 
 interface UploadFileResponse {
@@ -324,7 +325,9 @@ export function useUploadWorkspaceFile() {
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
     onSuccess: (_data, variables) => {
-      toast.success(`Uploaded "${variables.file.name}"`)
+      if (!variables.skipToast) {
+        toast.success(`Uploaded "${variables.file.name}"`)
+      }
     },
     onError: (error, variables) => {
       logger.error('Failed to upload file:', error)
