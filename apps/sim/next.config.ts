@@ -10,6 +10,7 @@ import {
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  poweredByHeader: false,
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [
@@ -75,9 +76,6 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: isTruthy(env.DOCKER_BUILD),
   },
   output: isTruthy(env.DOCKER_BUILD) ? 'standalone' : undefined,
-  turbopack: {
-    resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
-  },
   serverExternalPackages: [
     '@1password/sdk',
     'unpdf',
@@ -99,11 +97,9 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizeCss: true,
-    turbopackSourceMaps: false,
-    turbopackFileSystemCacheForDev: true,
     preloadEntriesOnStart: false,
+    turbopackFileSystemCacheForBuild: true,
     optimizePackageImports: [
-      'lucide-react',
       'lodash',
       'framer-motion',
       'reactflow',
@@ -119,7 +115,6 @@ const nextConfig: NextConfig = {
       '@radix-ui/react-slider',
       'streamdown',
       'zod',
-      'date-fns',
     ],
   },
   ...(isDev && {
