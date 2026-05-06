@@ -24,6 +24,7 @@ export interface AsyncValidationResult extends ValidationResult {
  * - Octal notation (0177.0.0.1)
  * - Hex notation (0x7f000001)
  * - IPv4-mapped IPv6 (::ffff:127.0.0.1)
+ * - IPv4-compatible IPv6 (::a.b.c.d / ::xxxx:xxxx, RFC 4291 §2.5.5.1, deprecated)
  * - Various edge cases that regex patterns miss
  */
 export function isPrivateOrReservedIP(ip: string): boolean {
@@ -35,7 +36,26 @@ export function isPrivateOrReservedIP(ip: string): boolean {
     const addr = ipaddr.process(ip)
     const range = addr.range()
 
-    return range !== 'unicast'
+    if (range !== 'unicast') {
+      return true
+    }
+
+    if (addr.kind() === 'ipv6') {
+      const v6 = addr as ipaddr.IPv6
+      const parts = v6.parts
+      const firstSixZero = parts.slice(0, 6).every((p) => p === 0)
+      if (firstSixZero) {
+        const embedded = ipaddr.fromByteArray([
+          (parts[6] >> 8) & 0xff,
+          parts[6] & 0xff,
+          (parts[7] >> 8) & 0xff,
+          parts[7] & 0xff,
+        ])
+        return embedded.range() !== 'unicast'
+      }
+    }
+
+    return false
   } catch {
     return true
   }
