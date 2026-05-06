@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { dataDrains } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -99,11 +100,22 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: RouteC
     }
   }
 
-  const [updated] = await db
-    .update(dataDrains)
-    .set(updates)
-    .where(eq(dataDrains.id, drainId))
-    .returning()
+  let updated: typeof dataDrains.$inferSelect | undefined
+  try {
+    ;[updated] = await db
+      .update(dataDrains)
+      .set(updates)
+      .where(eq(dataDrains.id, drainId))
+      .returning()
+  } catch (error) {
+    if (getPostgresErrorCode(error) === '23505') {
+      return NextResponse.json(
+        { error: 'A data drain with this name already exists in this organization' },
+        { status: 409 }
+      )
+    }
+    throw error
+  }
 
   if (!updated) {
     // Concurrent DELETE landed between loadDrain() and this UPDATE.

@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { dataDrains } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -71,24 +72,39 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
 
   const id = generateId()
   const now = new Date()
-  const [inserted] = await db
-    .insert(dataDrains)
-    .values({
-      id,
-      organizationId,
-      name: body.name,
-      source: body.source,
-      destinationType: body.destinationType,
-      destinationConfig: configResult.data as Record<string, unknown>,
-      destinationCredentials: encryptedCredentials,
-      scheduleCadence: body.scheduleCadence,
-      enabled: body.enabled ?? true,
-      cursor: null,
-      createdBy: access.session.user.id,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning()
+  let inserted: typeof dataDrains.$inferSelect | undefined
+  try {
+    ;[inserted] = await db
+      .insert(dataDrains)
+      .values({
+        id,
+        organizationId,
+        name: body.name,
+        source: body.source,
+        destinationType: body.destinationType,
+        destinationConfig: configResult.data as Record<string, unknown>,
+        destinationCredentials: encryptedCredentials,
+        scheduleCadence: body.scheduleCadence,
+        enabled: body.enabled ?? true,
+        cursor: null,
+        createdBy: access.session.user.id,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning()
+  } catch (error) {
+    if (getPostgresErrorCode(error) === '23505') {
+      return NextResponse.json(
+        { error: 'A data drain with this name already exists in this organization' },
+        { status: 409 }
+      )
+    }
+    throw error
+  }
+
+  if (!inserted) {
+    throw new Error('Insert returned no row')
+  }
 
   logger.info('Data drain created', {
     drainId: id,
