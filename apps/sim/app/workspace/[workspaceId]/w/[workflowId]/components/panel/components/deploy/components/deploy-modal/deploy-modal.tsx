@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import {
@@ -21,6 +22,8 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
+import { syncLocalDraftFromServer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/sync-local-draft'
+import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
 import { startsWithUuid } from '@/executor/constants'
 import { useA2AAgentByWorkflow } from '@/hooks/queries/a2a/agents'
@@ -40,6 +43,7 @@ import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -62,6 +66,8 @@ interface DeployModalProps {
   needsRedeployment: boolean
   deployedState?: WorkflowState | null
   isLoadingDeployedState: boolean
+  deployReadiness: DeployReadiness
+  isDeploymentSettling: boolean
 }
 
 interface WorkflowDeploymentInfoUI {
@@ -84,6 +90,8 @@ export function DeployModal({
   needsRedeployment,
   deployedState,
   isLoadingDeployedState,
+  deployReadiness,
+  isDeploymentSettling,
 }: DeployModalProps) {
   const queryClient = useQueryClient()
   const params = useParams()
@@ -97,6 +105,7 @@ export function DeployModal({
   const [chatSubmitting, setChatSubmitting] = useState(false)
   const [deployError, setDeployError] = useState<string | null>(null)
   const [deployWarnings, setDeployWarnings] = useState<string[]>([])
+  const [isFinalizingDeploy, setIsFinalizingDeploy] = useState(false)
   const [isChatFormValid, setIsChatFormValid] = useState(false)
   const [selectedStreamingOutputs, setSelectedStreamingOutputs] = useState<string[]>([])
 
@@ -112,6 +121,7 @@ export function DeployModal({
 
   const [chatSuccess, setChatSuccess] = useState(false)
   const chatSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const deployActionIdRef = useRef(0)
 
   const [isCreateKeyModalOpen, setIsCreateKeyModalOpen] = useState(false)
   const [isApiInfoModalOpen, setIsApiInfoModalOpen] = useState(false)
@@ -175,6 +185,30 @@ export function DeployModal({
   const activateVersionMutation = useActivateDeploymentVersion()
 
   const versions = versionsData?.versions ?? []
+
+  const isWorkflowStillActive = useCallback((targetWorkflowId: string) => {
+    return useWorkflowRegistry.getState().activeWorkflowId === targetWorkflowId
+  }, [])
+
+  const syncDraftAfterDeploy = useCallback(async (): Promise<string | null> => {
+    if (!workflowId) return null
+
+    try {
+      await syncLocalDraftFromServer(workflowId)
+      return null
+    } catch (error) {
+      logger.warn('Workflow deployed, but local draft sync failed', {
+        workflowId,
+        error: toError(error).message,
+      })
+      return 'Deployment succeeded, but local sync failed. Refresh if the status looks stale.'
+    }
+  }, [workflowId])
+
+  useEffect(() => {
+    deployActionIdRef.current += 1
+    setIsFinalizingDeploy(false)
+  }, [workflowId])
 
   const getApiKeyLabel = useCallback(
     (value?: string | null) => {
@@ -289,18 +323,38 @@ export function DeployModal({
     setDeployError(null)
     setDeployWarnings([])
 
+    let actionId: number | null = null
     try {
-      // Deploy mutation handles query invalidation in its onSuccess callback
-      const result = await deployMutation.mutateAsync({ workflowId })
-      if (result.warnings && result.warnings.length > 0) {
-        setDeployWarnings(result.warnings)
+      if (!(await deployReadiness.waitUntilReady())) {
+        if (!isWorkflowStillActive(workflowId)) return
+        setDeployError(deployReadiness.tooltip)
+        return
       }
+      if (!isWorkflowStillActive(workflowId)) return
+
+      actionId = deployActionIdRef.current + 1
+      deployActionIdRef.current = actionId
+      setIsFinalizingDeploy(true)
+      let result: Awaited<ReturnType<typeof deployMutation.mutateAsync>>
+      let syncWarning: string | null
+      try {
+        result = await deployMutation.mutateAsync({ workflowId })
+        syncWarning = await syncDraftAfterDeploy()
+      } finally {
+        if (deployActionIdRef.current === actionId && isWorkflowStillActive(workflowId)) {
+          setIsFinalizingDeploy(false)
+        }
+      }
+      if (!isWorkflowStillActive(workflowId) || deployActionIdRef.current !== actionId) return
+      setDeployWarnings([...(result.warnings || []), ...(syncWarning ? [syncWarning] : [])])
     } catch (error: unknown) {
+      if (actionId !== null && deployActionIdRef.current !== actionId) return
+      if (!isWorkflowStillActive(workflowId)) return
       logger.error('Error deploying workflow:', { error })
-      const errorMessage = error instanceof Error ? error.message : 'Failed to deploy workflow'
+      const errorMessage = toError(error).message || 'Failed to deploy workflow'
       setDeployError(errorMessage)
     }
-  }, [workflowId, deployMutation])
+  }, [workflowId, deployMutation, deployReadiness, syncDraftAfterDeploy, isWorkflowStillActive])
 
   const handlePromoteToLive = useCallback(
     async (version: number) => {
@@ -310,15 +364,17 @@ export function DeployModal({
 
       try {
         const result = await activateVersionMutation.mutateAsync({ workflowId, version })
+        if (!isWorkflowStillActive(workflowId)) return
         if (result.warnings && result.warnings.length > 0) {
           setDeployWarnings(result.warnings)
         }
       } catch (error) {
+        if (!isWorkflowStillActive(workflowId)) return
         logger.error('Error promoting version:', { error })
         throw error
       }
     },
-    [workflowId, activateVersionMutation]
+    [workflowId, activateVersionMutation, isWorkflowStillActive]
   )
 
   const handleUndeploy = useCallback(async () => {
@@ -326,18 +382,28 @@ export function DeployModal({
 
     try {
       await undeployMutation.mutateAsync({ workflowId })
+      if (!isWorkflowStillActive(workflowId)) return
       setShowUndeployConfirm(false)
       onOpenChange(false)
     } catch (error: unknown) {
+      if (!isWorkflowStillActive(workflowId)) return
       logger.error('Error undeploying workflow:', { error })
     }
-  }, [workflowId, undeployMutation, onOpenChange])
+  }, [workflowId, undeployMutation, onOpenChange, isWorkflowStillActive])
 
   const handleRedeploy = useCallback(async () => {
     if (!workflowId) return
 
     setDeployError(null)
     setDeployWarnings([])
+    let actionId: number | null = null
+
+    if (!(await deployReadiness.waitUntilReady())) {
+      if (!isWorkflowStillActive(workflowId)) return
+      setDeployError(deployReadiness.tooltip)
+      return
+    }
+    if (!isWorkflowStillActive(workflowId)) return
 
     const { blocks, edges, loops, parallels } = useWorkflowStore.getState()
     const liveBlocks = mergeSubblockState(blocks, workflowId)
@@ -354,16 +420,29 @@ export function DeployModal({
     }
 
     try {
-      const result = await deployMutation.mutateAsync({ workflowId })
-      if (result.warnings && result.warnings.length > 0) {
-        setDeployWarnings(result.warnings)
+      actionId = deployActionIdRef.current + 1
+      deployActionIdRef.current = actionId
+      setIsFinalizingDeploy(true)
+      let result: Awaited<ReturnType<typeof deployMutation.mutateAsync>>
+      let syncWarning: string | null
+      try {
+        result = await deployMutation.mutateAsync({ workflowId })
+        syncWarning = await syncDraftAfterDeploy()
+      } finally {
+        if (deployActionIdRef.current === actionId && isWorkflowStillActive(workflowId)) {
+          setIsFinalizingDeploy(false)
+        }
       }
+      if (!isWorkflowStillActive(workflowId) || deployActionIdRef.current !== actionId) return
+      setDeployWarnings([...(result.warnings || []), ...(syncWarning ? [syncWarning] : [])])
     } catch (error: unknown) {
+      if (actionId !== null && deployActionIdRef.current !== actionId) return
+      if (!isWorkflowStillActive(workflowId)) return
       logger.error('Error redeploying workflow:', { error })
-      const errorMessage = error instanceof Error ? error.message : 'Failed to redeploy workflow'
+      const errorMessage = toError(error).message || 'Failed to redeploy workflow'
       setDeployError(errorMessage)
     }
-  }, [workflowId, deployMutation])
+  }, [workflowId, deployMutation, deployReadiness, syncDraftAfterDeploy, isWorkflowStillActive])
 
   const handleCloseModal = useCallback(() => {
     setChatSubmitting(false)
@@ -456,7 +535,7 @@ export function DeployModal({
   //   deleteTrigger?.click()
   // }, [])
 
-  const isSubmitting = deployMutation.isPending
+  const isSubmitting = deployMutation.isPending || isFinalizingDeploy
   const isUndeploying = undeployMutation.isPending
 
   return (
@@ -610,6 +689,8 @@ export function DeployModal({
               needsRedeployment={needsRedeployment}
               isSubmitting={isSubmitting}
               isUndeploying={isUndeploying}
+              deployReadiness={deployReadiness}
+              isDeploymentSettling={isDeploymentSettling}
               onDeploy={onDeploy}
               onRedeploy={handleRedeploy}
               onUndeploy={() => setShowUndeployConfirm(true)}
@@ -922,12 +1003,13 @@ export function DeployModal({
 
 interface StatusBadgeProps {
   isWarning: boolean
+  isSyncing?: boolean
 }
 
-function StatusBadge({ isWarning }: StatusBadgeProps) {
-  const label = isWarning ? 'Update deployment' : 'Live'
+function StatusBadge({ isWarning, isSyncing = false }: StatusBadgeProps) {
+  const label = isSyncing ? 'Syncing changes' : isWarning ? 'Update deployment' : 'Live'
   return (
-    <Badge variant={isWarning ? 'amber' : 'green'} size='lg' dot>
+    <Badge variant={isSyncing || isWarning ? 'amber' : 'green'} size='lg' dot>
       {label}
     </Badge>
   )
@@ -961,6 +1043,8 @@ interface GeneralFooterProps {
   needsRedeployment: boolean
   isSubmitting: boolean
   isUndeploying: boolean
+  deployReadiness: DeployReadiness
+  isDeploymentSettling: boolean
   onDeploy: () => Promise<void>
   onRedeploy: () => Promise<void>
   onUndeploy: () => void
@@ -971,17 +1055,27 @@ function GeneralFooter({
   needsRedeployment,
   isSubmitting,
   isUndeploying,
+  deployReadiness,
+  isDeploymentSettling,
   onDeploy,
   onRedeploy,
   onUndeploy,
 }: GeneralFooterProps) {
+  const isDeployBlocked =
+    deployReadiness.isBlocked || isDeploymentSettling || isSubmitting || isUndeploying
+  const syncingLabel = deployReadiness.isSyncing ? deployReadiness.label : 'Syncing...'
+  const blockedMessage =
+    deployReadiness.isBlocked && !isDeploymentSettling && !isSubmitting && !isUndeploying
+      ? deployReadiness.tooltip
+      : null
+
   if (!isDeployed) {
     return (
       <ModalFooter className='items-center justify-between'>
-        <div />
+        <div className='max-w-[260px] text-muted-foreground text-xs'>{blockedMessage}</div>
         <div className='flex items-center gap-2'>
-          <Button variant='tertiary' onClick={onDeploy} disabled={isSubmitting}>
-            {isSubmitting ? 'Deploying...' : 'Deploy'}
+          <Button variant='tertiary' onClick={onDeploy} disabled={isDeployBlocked}>
+            {isSubmitting ? 'Deploying...' : isDeploymentSettling ? syncingLabel : 'Deploy'}
           </Button>
         </div>
       </ModalFooter>
@@ -990,14 +1084,19 @@ function GeneralFooter({
 
   return (
     <ModalFooter className='items-center justify-between'>
-      <StatusBadge isWarning={needsRedeployment} />
+      <div className='flex min-w-0 flex-col gap-1'>
+        <StatusBadge isWarning={needsRedeployment} isSyncing={isDeploymentSettling} />
+        {blockedMessage && (
+          <div className='max-w-[300px] text-muted-foreground text-xs'>{blockedMessage}</div>
+        )}
+      </div>
       <div className='flex items-center gap-2'>
         <Button variant='default' onClick={onUndeploy} disabled={isUndeploying || isSubmitting}>
           {isUndeploying ? 'Undeploying...' : 'Undeploy'}
         </Button>
         {needsRedeployment && (
-          <Button variant='tertiary' onClick={onRedeploy} disabled={isSubmitting || isUndeploying}>
-            {isSubmitting ? 'Updating...' : 'Update'}
+          <Button variant='tertiary' onClick={onRedeploy} disabled={isDeployBlocked}>
+            {isSubmitting ? 'Updating...' : isDeploymentSettling ? syncingLabel : 'Update'}
           </Button>
         )}
       </div>

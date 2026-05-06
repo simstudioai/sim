@@ -69,6 +69,15 @@ export function invalidateDeploymentQueries(queryClient: QueryClient, workflowId
   ])
 }
 
+export async function refetchDeploymentBoundary(queryClient: QueryClient, workflowId: string) {
+  await invalidateDeploymentQueries(queryClient, workflowId)
+  await Promise.all([
+    queryClient.refetchQueries({ queryKey: deploymentKeys.info(workflowId) }),
+    queryClient.refetchQueries({ queryKey: deploymentKeys.deployedState(workflowId) }),
+    queryClient.refetchQueries({ queryKey: workflowKeys.state(workflowId) }),
+  ])
+}
+
 export type WorkflowDeploymentInfo = DeploymentInfoResponse & {
   deployedAt: string | null
   apiKey: string | null
@@ -299,15 +308,10 @@ export function useDeployWorkflow() {
     onSettled: (_data, error, variables) => {
       if (error) {
         logger.error('Failed to deploy workflow', { error })
-      } else {
-        logger.info('Workflow deployed successfully', { workflowId: variables.workflowId })
+        return invalidateDeploymentQueries(queryClient, variables.workflowId)
       }
-      return Promise.all([
-        invalidateDeploymentQueries(queryClient, variables.workflowId),
-        queryClient.invalidateQueries({
-          queryKey: workflowKeys.state(variables.workflowId),
-        }),
-      ])
+      logger.info('Workflow deployed successfully', { workflowId: variables.workflowId })
+      return refetchDeploymentBoundary(queryClient, variables.workflowId)
     },
   })
 }

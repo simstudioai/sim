@@ -14,6 +14,7 @@ export interface QueuedOperation {
 
 export interface OperationQueueState {
   operations: QueuedOperation[]
+  workflowOperationVersions: Record<string, number>
   isProcessing: boolean
   hasOperationError: boolean
 
@@ -22,6 +23,8 @@ export interface OperationQueueState {
   failOperation: (operationId: string, retryable?: boolean) => void
   handleOperationTimeout: (operationId: string) => void
   processNextOperation: () => void
+  hasPendingOperations: (workflowId: string) => boolean
+  waitForWorkflowOperations: (workflowId: string, timeoutMs?: number) => Promise<boolean>
   cancelOperationsForBlock: (blockId: string) => void
   cancelOperationsForVariable: (variableId: string) => void
 

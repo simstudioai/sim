@@ -305,6 +305,42 @@ describe('Database Helpers', () => {
     vi.resetAllMocks()
   })
 
+  describe('buildWorkflowDeploymentSnapshot', () => {
+    it('combines normalized workflow state with persisted variables', () => {
+      const snapshot = dbHelpers.buildWorkflowDeploymentSnapshot(
+        {
+          blocks: asAppBlocks({ block: createStarterBlock({ id: 'block' }) }),
+          edges: [],
+          loops: {},
+          parallels: {},
+          isFromNormalizedTables: true,
+        },
+        {
+          variable: {
+            id: 'variable',
+            name: 'threshold',
+            type: 'number',
+            value: 5,
+          },
+        }
+      )
+
+      expect(snapshot.blocks.block).toBeDefined()
+      expect(snapshot.edges).toEqual([])
+      expect(snapshot.loops).toEqual({})
+      expect(snapshot.parallels).toEqual({})
+      expect(snapshot.variables).toEqual({
+        variable: {
+          id: 'variable',
+          name: 'threshold',
+          type: 'number',
+          value: 5,
+        },
+      })
+      expect(snapshot.lastSaved).toEqual(expect.any(Number))
+    })
+  })
+
   describe('loadWorkflowFromNormalizedTables', () => {
     it('should successfully load workflow data from normalized tables', async () => {
       vi.clearAllMocks()

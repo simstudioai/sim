@@ -18,7 +18,7 @@ import {
   activateWorkflowVersion,
   activateWorkflowVersionById,
   deployWorkflow,
-  loadWorkflowFromNormalizedTables,
+  loadWorkflowDeploymentSnapshot,
   saveWorkflowToNormalizedTables,
   undeployWorkflow,
 } from '@/lib/workflows/persistence/utils'
@@ -96,12 +96,12 @@ export async function performFullDeploy(
   const requestId = params.requestId ?? generateRequestId()
   const request = params.request ?? new NextRequest(new URL('/api/webhooks', getBaseUrl()))
 
-  const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
-  if (!normalizedData) {
+  const deploymentSnapshot = await loadWorkflowDeploymentSnapshot(workflowId)
+  if (!deploymentSnapshot) {
     return { success: false, error: 'Failed to load workflow state', errorCode: 'not_found' }
   }
 
-  const scheduleValidation = validateWorkflowSchedules(normalizedData.blocks)
+  const scheduleValidation = validateWorkflowSchedules(deploymentSnapshot.blocks)
   if (!scheduleValidation.isValid) {
     return {
       success: false,
@@ -156,6 +156,7 @@ export async function performFullDeploy(
     workflowId,
     deployedBy: actorId,
     workflowName: workflowName || workflowRecord.name || undefined,
+    workflowState: deploymentSnapshot,
   })
 
   if (!deployResult.success) {
@@ -175,7 +176,7 @@ export async function performFullDeploy(
     workflowId,
     workflow: workflowData,
     userId,
-    blocks: normalizedData.blocks,
+    blocks: deploymentSnapshot.blocks,
     requestId,
     deploymentVersionId,
     previousVersionId,
@@ -197,7 +198,7 @@ export async function performFullDeploy(
 
   const scheduleResult = await createSchedulesForDeploy(
     workflowId,
-    normalizedData.blocks,
+    deploymentSnapshot.blocks,
     db,
     deploymentVersionId
   )
@@ -235,7 +236,7 @@ export async function performFullDeploy(
   if (workflowData.workspaceId) {
     try {
       const { pruneStaleWorkflowGroupOutputs } = await import('@/lib/table/service')
-      const validBlockIds = new Set(Object.keys(normalizedData.blocks))
+      const validBlockIds = new Set(Object.keys(deploymentSnapshot.blocks))
       await pruneStaleWorkflowGroupOutputs({
         workflowId,
         workspaceId: workflowData.workspaceId as string,
@@ -613,6 +614,7 @@ export async function performRevertToVersion(
     edges?: unknown[]
     loops?: Record<string, unknown>
     parallels?: Record<string, unknown>
+    variables?: WorkflowState['variables']
   }
   if (!deployedState.blocks || !deployedState.edges) {
     return {
@@ -623,13 +625,19 @@ export async function performRevertToVersion(
   }
 
   const lastSaved = Date.now()
-  const saveResult = await saveWorkflowToNormalizedTables(workflowId, {
+  const hasDeploymentVariables = Object.hasOwn(deployedState, 'variables')
+  const restoredState: WorkflowState = {
     blocks: deployedState.blocks,
     edges: deployedState.edges,
     loops: deployedState.loops || {},
     parallels: deployedState.parallels || {},
     lastSaved,
-  } as WorkflowState)
+  } as WorkflowState
+  if (hasDeploymentVariables) {
+    restoredState.variables = deployedState.variables || {}
+  }
+
+  const saveResult = await saveWorkflowToNormalizedTables(workflowId, restoredState)
 
   if (!saveResult.success) {
     return {
@@ -641,7 +649,11 @@ export async function performRevertToVersion(
 
   await db
     .update(workflowTable)
-    .set({ lastSynced: new Date(), updatedAt: new Date() })
+    .set({
+      ...(hasDeploymentVariables ? { variables: deployedState.variables || {} } : {}),
+      lastSynced: new Date(),
+      updatedAt: new Date(),
+    })
     .where(eq(workflowTable.id, workflowId))
 
   try {

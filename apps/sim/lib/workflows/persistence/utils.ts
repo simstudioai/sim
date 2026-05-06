@@ -379,6 +379,37 @@ export async function loadWorkflowFromNormalizedTables(
   }
 }
 
+export async function loadWorkflowDeploymentSnapshot(
+  workflowId: string
+): Promise<WorkflowState | null> {
+  const [normalizedData, [workflowRecord]] = await Promise.all([
+    loadWorkflowFromNormalizedTables(workflowId),
+    db
+      .select({ variables: workflow.variables })
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .limit(1),
+  ])
+
+  if (!normalizedData) return null
+
+  return buildWorkflowDeploymentSnapshot(normalizedData, workflowRecord?.variables)
+}
+
+export function buildWorkflowDeploymentSnapshot(
+  normalizedData: NormalizedWorkflowData,
+  variables: unknown
+): WorkflowState {
+  return {
+    blocks: normalizedData.blocks,
+    edges: normalizedData.edges,
+    loops: normalizedData.loops,
+    parallels: normalizedData.parallels,
+    variables: (variables as WorkflowState['variables']) || {},
+    lastSaved: Date.now(),
+  }
+}
+
 export async function saveWorkflowToNormalizedTables(
   workflowId: string,
   state: WorkflowState,
@@ -407,6 +438,7 @@ export async function deployWorkflow(params: {
   workflowId: string
   deployedBy: string
   workflowName?: string
+  workflowState?: WorkflowState
 }): Promise<{
   success: boolean
   version?: number
@@ -418,24 +450,9 @@ export async function deployWorkflow(params: {
   const { workflowId, deployedBy, workflowName } = params
 
   try {
-    const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
-    if (!normalizedData) {
+    const currentState = params.workflowState ?? (await loadWorkflowDeploymentSnapshot(workflowId))
+    if (!currentState) {
       return { success: false, error: 'Failed to load workflow state' }
-    }
-
-    const [workflowRecord] = await db
-      .select({ variables: workflow.variables })
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
-
-    const currentState = {
-      blocks: normalizedData.blocks,
-      edges: normalizedData.edges,
-      loops: normalizedData.loops,
-      parallels: normalizedData.parallels,
-      variables: workflowRecord?.variables || undefined,
-      lastSaved: Date.now(),
     }
 
     const now = new Date()

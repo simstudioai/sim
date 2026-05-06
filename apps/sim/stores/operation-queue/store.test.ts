@@ -9,6 +9,7 @@ describe('operation queue room gating', () => {
     vi.clearAllMocks()
     useOperationQueueStore.setState({
       operations: [],
+      workflowOperationVersions: {},
       isProcessing: false,
       hasOperationError: false,
     })
@@ -18,6 +19,7 @@ describe('operation queue room gating', () => {
   afterEach(() => {
     useOperationQueueStore.setState({
       operations: [],
+      workflowOperationVersions: {},
       isProcessing: false,
       hasOperationError: false,
     })
@@ -70,5 +72,115 @@ describe('operation queue room gating', () => {
     )
 
     useOperationQueueStore.getState().confirmOperation('op-1')
+  })
+
+  it('reports pending operations per workflow', () => {
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-1',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'replace-state',
+        target: 'workflow',
+        payload: { state: {} },
+      },
+    })
+
+    expect(useOperationQueueStore.getState().hasPendingOperations('workflow-a')).toBe(true)
+    expect(useOperationQueueStore.getState().hasPendingOperations('workflow-b')).toBe(false)
+  })
+
+  it('tracks local operation activity per workflow', () => {
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-1',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'replace-state',
+        target: 'workflow',
+        payload: { state: {} },
+      },
+    })
+
+    expect(useOperationQueueStore.getState().workflowOperationVersions['workflow-a']).toBe(1)
+    expect(
+      useOperationQueueStore.getState().workflowOperationVersions['workflow-b']
+    ).toBeUndefined()
+  })
+
+  it('waits for matching workflow operations to drain', async () => {
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-1',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'replace-state',
+        target: 'workflow',
+        payload: { state: {} },
+      },
+    })
+
+    const drained = useOperationQueueStore.getState().waitForWorkflowOperations('workflow-a')
+    useOperationQueueStore.getState().confirmOperation('op-1')
+
+    await expect(drained).resolves.toBe(true)
+  })
+
+  it('does not wait on operations from other workflows', async () => {
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-1',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'replace-state',
+        target: 'workflow',
+        payload: { state: {} },
+      },
+    })
+
+    await expect(
+      useOperationQueueStore.getState().waitForWorkflowOperations('workflow-b')
+    ).resolves.toBe(true)
+  })
+
+  it('stops waiting when an operation error is reported', async () => {
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-1',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'replace-state',
+        target: 'workflow',
+        payload: { state: {} },
+      },
+    })
+
+    const drained = useOperationQueueStore.getState().waitForWorkflowOperations('workflow-a')
+    useOperationQueueStore.setState({ hasOperationError: true })
+
+    await expect(drained).resolves.toBe(false)
+  })
+
+  it('stops waiting when matching workflow operations do not drain before timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      useOperationQueueStore.getState().addToQueue({
+        id: 'op-1',
+        workflowId: 'workflow-a',
+        userId: 'user-1',
+        operation: {
+          operation: 'replace-state',
+          target: 'workflow',
+          payload: { state: {} },
+        },
+      })
+
+      const drained = useOperationQueueStore.getState().waitForWorkflowOperations('workflow-a', 100)
+      await vi.advanceTimersByTimeAsync(100)
+
+      await expect(drained).resolves.toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
