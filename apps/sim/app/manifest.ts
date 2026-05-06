@@ -1,6 +1,10 @@
 import type { MetadataRoute } from 'next'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
+/** Opt out of static prerendering so `NEXT_PUBLIC_BRAND_*` is read from
+ * the live runtime environment (e.g. Docker-injected) rather than baked at build. */
+export const dynamic = 'force-dynamic'
+
 export default function manifest(): MetadataRoute.Manifest {
   const brand = getBrandConfig()
 
