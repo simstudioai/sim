@@ -116,6 +116,7 @@ function rowSelectionCoversAll(sel: RowSelection, rows: TableRowType[]): boolean
   for (const r of rows) if (!sel.ids.has(r.id)) return false
   return true
 }
+
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
 // Wide enough to host the row-number + per-row run button side by side.
@@ -2448,7 +2449,9 @@ export function Table({
     const contextRow = contextMenu.isOpen ? contextMenu.row : null
     if (!contextRow) return 1
 
-    if (rowSelection.kind === 'all') return Math.max(rows.length, 1)
+    if (rowSelection.kind === 'all') {
+      return rows.some((r) => r.id === contextRow.id) ? Math.max(rows.length, 1) : 1
+    }
 
     if (rowSelection.kind === 'some' && rowSelection.ids.has(contextRow.id)) {
       let count = 0
