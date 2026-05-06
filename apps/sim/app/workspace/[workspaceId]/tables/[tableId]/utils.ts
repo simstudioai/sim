@@ -3,6 +3,21 @@ import type { ColumnDefinition } from '@/lib/table'
 type BadgeVariant = 'green' | 'blue' | 'purple' | 'orange' | 'teal' | 'gray'
 
 /**
+ * Pick a fresh "untitled[_N]" name not already taken by `columns`. Used by
+ * both the page-header and inline-header "New column" dropdowns.
+ */
+export function generateColumnName(columns: ReadonlyArray<{ name: string }>): string {
+  const existing = new Set(columns.map((c) => c.name.toLowerCase()))
+  let name = 'untitled'
+  let i = 2
+  while (existing.has(name.toLowerCase())) {
+    name = `untitled_${i}`
+    i++
+  }
+  return name
+}
+
+/**
  * Returns the appropriate badge color variant for a column type
  */
 export function getTypeBadgeVariant(type: string): BadgeVariant {

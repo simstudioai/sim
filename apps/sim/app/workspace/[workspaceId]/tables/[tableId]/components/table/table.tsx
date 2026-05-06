@@ -2,52 +2,36 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
   Button,
   Checkbox,
-  Download,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   Skeleton,
   toast,
-  Upload,
 } from '@/components/emcn'
-import {
-  Pencil,
-  PlayOutline,
-  Plus,
-  Square,
-  Table as TableIcon,
-  TableX,
-  Trash,
-} from '@/components/emcn/icons'
+import { PlayOutline, Plus, Square, TableX } from '@/components/emcn/icons'
 import { Loader } from '@/components/emcn/icons/loader'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
-  Filter,
-  SortDirection,
   TableRow as TableRowType,
   WorkflowGroup,
 } from '@/lib/table'
 import { getUnmetGroupDeps } from '@/lib/table/deps'
-import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
-import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
-  downloadTableExport,
   useAddTableColumn,
   useBatchCreateTableRows,
   useBatchUpdateTableRows,
   useCreateTableRow,
   useDeleteColumn,
   useDeleteWorkflowGroup,
-  useRenameTable,
   useUpdateColumn,
   useUpdateTableMetadata,
   useUpdateTableRow,
@@ -58,10 +42,15 @@ import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import { useContextMenu, useRowExecution, useTable } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
-import { cleanCellValue, storageToDisplay } from '../../utils'
+import {
+  cleanCellValue,
+  generateColumnName as sharedGenerateColumnName,
+  storageToDisplay,
+} from '../../utils'
 import { type ColumnConfig, COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
-import { TableFilter } from '../table-filter'
+import { NewColumnDropdown } from '../new-column-dropdown'
+import { RunStatusControl } from '../run-status-control'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { CellContent, ExpandedCellPopover } from './cells'
 import { COL_WIDTH, SELECTION_TINT_BG } from './constants'
@@ -128,6 +117,9 @@ export interface SelectionSnapshot {
   actionBarRowIds: string[]
   /** Total running/queued workflow runs across `actionBarRowIds`. */
   runningInActionBarSelection: number
+  /** Total running/queued workflow runs across ALL rows. Drives the page-header
+   *  RunStatusControl ("N running, Stop all"). */
+  totalRunning: number
   /** Whether the table has any workflow-output columns (drives the Run/Stop visibility). */
   hasWorkflowColumns: boolean
 }
@@ -211,6 +203,14 @@ interface TableProps {
    * delete-columns confirmation modal invokes this on confirm.
    */
   confirmDeleteColumnsSinkRef: React.MutableRefObject<((names: string[]) => void) | null>
+  /**
+   * Ref the grid populates with its `pushUndo({ type: 'rename-table', ... })`
+   * call. The wrapper's table-rename `onSave` invokes this so the rename is
+   * undoable from anywhere in the grid.
+   */
+  pushTableRenameUndoSinkRef: React.MutableRefObject<
+    ((previousName: string, newName: string) => void) | null
+  >
 }
 
 export function Table({
@@ -238,9 +238,9 @@ export function Table({
   columnRenameSinkRef,
   afterDeleteRowsSinkRef,
   confirmDeleteColumnsSinkRef,
+  pushTableRenameUndoSinkRef,
 }: TableProps) {
   const params = useParams()
-  const router = useRouter()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)
   const posthog = usePostHog()
@@ -566,22 +566,6 @@ export function Table({
   selectionFocusRef.current = selectionFocus
   isColumnSelectionRef.current = isColumnSelection
 
-  const renameTableMutation = useRenameTable(workspaceId)
-
-  const tableHeaderRename = useInlineRename({
-    onSave: (_id, name) => {
-      if (tableData) {
-        pushUndoRef.current({
-          type: 'rename-table',
-          tableId,
-          previousName: tableData.name,
-          newName: name,
-        })
-      }
-      renameTableMutation.mutate({ tableId, name })
-    },
-  })
-
   const columnRename = useInlineRename({
     onSave: (columnName, newName) => {
       pushUndoRef.current({ type: 'rename-column', oldName: columnName, newName })
@@ -590,9 +574,6 @@ export function Table({
     },
   })
 
-  const handleNavigateBack = useCallback(() => {
-    router.push(`/workspace/${workspaceId}/tables`)
-  }, [router, workspaceId])
 
   const toggleBooleanCell = useCallback(
     (rowId: string, columnName: string, currentValue: unknown) => {
@@ -893,6 +874,13 @@ export function Table({
   afterDeleteRowsSinkRef.current = (snapshots: DeletedRowSnapshot[]) => {
     pushUndoRef.current({ type: 'delete-rows', rows: snapshots })
     handleClearSelection()
+  }
+
+  // Populate the wrapper's table-rename undo sink. The wrapper's <ResourceHeader>
+  // breadcrumb rename calls back here so the rename is part of the grid's undo
+  // stack (Cmd-Z restores the previous name).
+  pushTableRenameUndoSinkRef.current = (previousName: string, newName: string) => {
+    pushUndoRef.current({ type: 'rename-table', tableId, previousName, newName })
   }
 
   const handleColumnSelect = useCallback((colIndex: number, shiftKey: boolean) => {
@@ -2232,16 +2220,7 @@ export function Table({
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
-  const generateColumnName = useCallback(() => {
-    const existing = schemaColumnsRef.current.map((c) => c.name.toLowerCase())
-    let name = 'untitled'
-    let i = 2
-    while (existing.includes(name.toLowerCase())) {
-      name = `untitled_${i}`
-      i++
-    }
-    return name
-  }, [])
+  const generateColumnName = useCallback(() => sharedGenerateColumnName(schemaColumnsRef.current), [])
 
   const handleChangeType = useCallback((columnName: string, newType: ColumnDefinition['type']) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
@@ -2536,160 +2515,6 @@ export function Table({
     deleteNext(0)
   }
 
-  const handleSortChange = useCallback(
-    (column: string, direction: SortDirection) => {
-      onQueryOptionsChange((prev) => ({ ...prev, sort: { [column]: direction } }))
-    },
-    [onQueryOptionsChange]
-  )
-
-  const handleSortClear = useCallback(() => {
-    onQueryOptionsChange((prev) => ({ ...prev, sort: null }))
-  }, [onQueryOptionsChange])
-
-  const handleFilterApply = useCallback(
-    (filter: Filter | null) => {
-      onQueryOptionsChange((prev) => ({ ...prev, filter }))
-    },
-    [onQueryOptionsChange]
-  )
-
-  const [filterOpen, setFilterOpen] = useState(false)
-
-  const handleFilterToggle = useCallback(() => {
-    setFilterOpen((prev) => !prev)
-  }, [])
-
-  const handleFilterClose = useCallback(() => {
-    setFilterOpen(false)
-  }, [])
-
-  const columnOptions = useMemo<ColumnOption[]>(
-    () =>
-      displayColumns.map((col) => ({
-        id: col.name,
-        label: col.name,
-        type: col.type,
-        icon: COLUMN_TYPE_ICONS[col.type],
-      })),
-    [displayColumns]
-  )
-
-  const tableDataRef = useRef(tableData)
-  tableDataRef.current = tableData
-
-  const handleStartTableRename = useCallback(() => {
-    const data = tableDataRef.current
-    if (data) tableHeaderRename.startRename(tableId, data.name)
-  }, [tableHeaderRename.startRename, tableId])
-
-  const handleShowDeleteTableConfirm = useCallback(() => {
-    onRequestDeleteTable()
-  }, [onRequestDeleteTable])
-
-  const hasTableData = !!tableData
-
-  const breadcrumbs = useMemo(
-    () => [
-      { label: 'Tables', onClick: handleNavigateBack },
-      {
-        label: tableData?.name ?? '',
-        editing: tableHeaderRename.editingId
-          ? {
-              isEditing: true,
-              value: tableHeaderRename.editValue,
-              onChange: tableHeaderRename.setEditValue,
-              onSubmit: tableHeaderRename.submitRename,
-              onCancel: tableHeaderRename.cancelRename,
-            }
-          : undefined,
-        dropdownItems: [
-          {
-            label: 'Rename',
-            icon: Pencil,
-            disabled: !hasTableData,
-            onClick: handleStartTableRename,
-          },
-          {
-            label: 'Delete',
-            icon: Trash,
-            disabled: !hasTableData,
-            onClick: handleShowDeleteTableConfirm,
-          },
-        ],
-      },
-    ],
-    [
-      handleNavigateBack,
-      tableData?.name,
-      tableHeaderRename.editingId,
-      tableHeaderRename.editValue,
-      tableHeaderRename.setEditValue,
-      tableHeaderRename.submitRename,
-      tableHeaderRename.cancelRename,
-      hasTableData,
-      handleStartTableRename,
-      handleShowDeleteTableConfirm,
-    ]
-  )
-
-  const createTrigger = userPermissions.canEdit ? (
-    <NewColumnDropdown
-      trigger='header'
-      disabled={addColumnMutation.isPending}
-      onPickType={handleAddColumnOfType}
-      onPickWorkflow={handleAddWorkflowColumn}
-    />
-  ) : null
-
-  const handleExportCsv = useCallback(async () => {
-    if (!tableData) return
-    try {
-      await downloadTableExport(tableData.id, tableData.name)
-    } catch (err) {
-      logger.error('Failed to export table:', err)
-      toast.error('Failed to export table')
-    }
-  }, [tableData])
-
-  const headerActions = useMemo(
-    () =>
-      tableData
-        ? [
-            {
-              label: 'Import CSV',
-              icon: Upload,
-              onClick: onRequestImportCsv,
-              disabled: userPermissions.canEdit !== true,
-            },
-            {
-              label: 'Export CSV',
-              icon: Download,
-              onClick: () => void handleExportCsv(),
-              disabled: tableData.rowCount === 0,
-            },
-          ]
-        : undefined,
-    [tableData, userPermissions.canEdit, handleExportCsv, onRequestImportCsv]
-  )
-
-  const activeSortState = useMemo(() => {
-    if (!queryOptions.sort) return null
-    const entries = Object.entries(queryOptions.sort)
-    if (entries.length === 0) return null
-    const [column, direction] = entries[0]
-    return { column, direction }
-  }, [queryOptions.sort])
-
-  const sortConfig = useMemo<SortConfig>(
-    () => ({
-      options: columnOptions,
-      active: activeSortState,
-      onSort: handleSortChange,
-      onClear: handleSortClear,
-    }),
-    [columnOptions, activeSortState, handleSortChange, handleSortClear]
-  )
 
   /**
    * Row ids the context menu acts on. If the right-clicked row is checked, all
@@ -2817,9 +2642,10 @@ export function Table({
     onSelectionChangeRef.current({
       actionBarRowIds,
       runningInActionBarSelection,
+      totalRunning,
       hasWorkflowColumns,
     })
-  }, [actionBarRowIds, runningInActionBarSelection, hasWorkflowColumns])
+  }, [actionBarRowIds, runningInActionBarSelection, totalRunning, hasWorkflowColumns])
 
   const handleRunRow = useCallback(
     (rowId: string) => {
@@ -2861,40 +2687,6 @@ export function Table({
 
   return (
     <div ref={containerRef} className='flex h-full flex-col overflow-hidden'>
-      {!embedded && (
-        <>
-          <ResourceHeader
-            icon={TableIcon}
-            breadcrumbs={breadcrumbs}
-            createTrigger={createTrigger}
-            actions={headerActions}
-            leadingActions={
-              totalRunning > 0 ? (
-                <RunStatusControl
-                  running={totalRunning}
-                  onStopAll={onStopAll}
-                  isStopping={cancelRunsPending}
-                />
-              ) : null
-            }
-          />
-
-          <ResourceOptionsBar
-            sort={sortConfig}
-            onFilterToggle={handleFilterToggle}
-            filterActive={filterOpen || !!queryOptions.filter}
-          />
-          {filterOpen && (
-            <TableFilter
-              columns={displayColumns}
-              filter={queryOptions.filter}
-              onApply={handleFilterApply}
-              onClose={handleFilterClose}
-            />
-          )}
-        </>
-      )}
-
       {embedded && totalRunning > 0 && (
         <div className='flex shrink-0 items-center justify-end border-[var(--border)] border-b px-3 py-1.5'>
           <RunStatusControl
@@ -3547,40 +3339,6 @@ const TableBodySkeleton = React.memo(function TableBodySkeleton({
   )
 })
 
-interface RunStatusControlProps {
-  running: number
-  onStopAll: () => void
-  isStopping: boolean
-}
-
-/**
- * Run-status + Stop-all control rendered in the header's trailing actions row.
- * Matches the in-cell running indicator (`Loader` + tertiary text) for consistency.
- */
-const RunStatusControl = React.memo(function RunStatusControl({
-  running,
-  onStopAll,
-  isStopping,
-}: RunStatusControlProps) {
-  return (
-    <div className='flex items-center gap-1.5'>
-      <div className='flex items-center gap-1.5 px-1 text-[var(--text-tertiary)] text-caption'>
-        <Loader animate className='h-3.5 w-3.5 shrink-0' />
-        <span className='tabular-nums'>{running}</span>
-        <span>running</span>
-      </div>
-      <Button
-        variant='subtle'
-        className='px-2 py-1 text-caption'
-        onClick={onStopAll}
-        disabled={isStopping}
-      >
-        <Square className='mr-1.5 h-[14px] w-[14px]' />
-        Stop all
-      </Button>
-    </div>
-  )
-})
 
 const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
   checked,
@@ -3612,69 +3370,6 @@ const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
   )
 })
 
-const HEADER_ADD_COLUMN_ICON = <Plus className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
-
-interface NewColumnDropdownProps {
-  /** `'header'` renders the page-header trigger (subtle Button); `'inline-header'` renders
-   *  the in-table column-header `<th>` trigger. Same dropdown content either way. */
-  trigger: 'header' | 'inline-header'
-  disabled: boolean
-  onPickType: (type: ColumnDefinition['type']) => void
-  onPickWorkflow: () => void
-}
-
-/**
- * "+ New column" dropdown — the single entry point for creating a column.
- * Lists every column type plus "Workflow"; picking a type opens the right
- * sidebar pre-seeded.
- */
-function NewColumnDropdown({
-  trigger,
-  disabled,
-  onPickType,
-  onPickWorkflow,
-}: NewColumnDropdownProps) {
-  const menu = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        {trigger === 'header' ? (
-          <Button variant='subtle' className='px-2 py-1 text-caption' disabled={disabled}>
-            {HEADER_ADD_COLUMN_ICON}
-            New column
-          </Button>
-        ) : (
-          <button
-            type='button'
-            className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
-            disabled={disabled}
-          >
-            <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-            <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
-          </button>
-        )}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
-        {COLUMN_TYPE_OPTIONS.map((option) => {
-          const Icon = option.icon
-          const onSelect =
-            option.type === 'workflow'
-              ? onPickWorkflow
-              : () => onPickType(option.type as ColumnDefinition['type'])
-          return (
-            <DropdownMenuItem key={option.type} onSelect={onSelect}>
-              <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
-              {option.label}
-            </DropdownMenuItem>
-          )
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-
-  // The in-table trigger lives inside a `<tr>` so it must be a `<th>`. The
-  // header trigger lives in the page header so it sits inline.
-  return trigger === 'inline-header' ? <th className={CELL_HEADER}>{menu}</th> : menu
-}
 
 const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: () => void }) {
   return (
