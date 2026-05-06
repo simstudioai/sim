@@ -2835,6 +2835,12 @@ export async function updateWorkflowGroup(
   // schema write so stale values from the old source don't linger.
   const mappingUpdates = data.mappingUpdates ?? []
   const remappedColumnNames = new Set<string>()
+  // Per-column type override resolved from the new mapping's leaf type. Only
+  // populated when a remap actually changes the column's type — keeps the
+  // schema patch a no-op when the user repoints to an output of the same
+  // type. Falls back to leaving the existing type alone if the workflow or
+  // its target output can't be resolved (workflow deleted, block removed).
+  const remappedColumnTypes = new Map<string, ColumnDefinition['type']>()
   let oldOutputs = group.outputs
   if (mappingUpdates.length > 0) {
     const updateByName = new Map(mappingUpdates.map((u) => [u.columnName, u]))
@@ -2852,6 +2858,50 @@ export async function updateWorkflowGroup(
       remappedColumnNames.add(o.columnName)
       return { ...o, blockId: u.blockId, path: u.path }
     })
+
+    // Resolve the new leaf type for each remap so the column's declared type
+    // matches what the new mapping produces. Without this, a string→number
+    // remap would keep `type: 'string'` and validateRowAgainstSchema would
+    // reject every backfilled value.
+    try {
+      const [
+        { loadWorkflowFromNormalizedTables },
+        { flattenWorkflowOutputs },
+        { columnTypeForLeaf },
+      ] = await Promise.all([
+        import('@/lib/workflows/persistence/utils'),
+        import('@/lib/workflows/blocks/flatten-outputs'),
+        import('./column-naming'),
+      ])
+      const targetWorkflowId = data.workflowId ?? group.workflowId
+      const normalized = await loadWorkflowFromNormalizedTables(targetWorkflowId)
+      if (normalized) {
+        const blocks = Object.values(normalized.blocks ?? {}).map((b) => ({
+          id: b.id,
+          type: b.type,
+          name: b.name,
+          triggerMode: (b as { triggerMode?: boolean }).triggerMode,
+          subBlocks: b.subBlocks as Record<string, unknown> | undefined,
+        }))
+        const flattened = flattenWorkflowOutputs(blocks, normalized.edges ?? [])
+        const flatByKey = new Map(flattened.map((f) => [`${f.blockId}::${f.path}`, f]))
+        const colByName = new Map(schema.columns.map((c) => [c.name, c]))
+        for (const u of mappingUpdates) {
+          const match = flatByKey.get(`${u.blockId}::${u.path}`)
+          if (!match) continue
+          const newType = columnTypeForLeaf(match.leafType)
+          const oldType = colByName.get(u.columnName)?.type
+          if (newType && newType !== oldType) {
+            remappedColumnTypes.set(u.columnName, newType)
+          }
+        }
+      }
+    } catch (err) {
+      logger.warn(
+        `[${requestId}] Could not resolve new leaf types for remap on group ${data.groupId}; leaving column types unchanged:`,
+        err
+      )
+    }
   }
 
   // If the caller passed `outputs`, that's the new full set. If only
@@ -2875,7 +2925,12 @@ export async function updateWorkflowGroup(
   }
 
   const removedColumnNames = new Set(removed.map((o) => o.columnName))
-  let nextColumns = schema.columns.filter((c) => !removedColumnNames.has(c.name))
+  let nextColumns = schema.columns
+    .filter((c) => !removedColumnNames.has(c.name))
+    .map((c) => {
+      const newType = remappedColumnTypes.get(c.name)
+      return newType ? { ...c, type: newType } : c
+    })
   if (newColDefs.length > 0) {
     // Splice the new column defs into the group's contiguous run rather than
     // appending at the end. The desired in-group order is `newOutputs` (the
