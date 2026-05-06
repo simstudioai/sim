@@ -83,7 +83,7 @@ import { TableFilter } from '../table-filter'
 import { type WorkflowConfig, WorkflowSidebar } from '../workflow-sidebar/workflow-sidebar'
 import { CellContent } from './cells/cell-content'
 import { ExpandedCellPopover } from './cells/expanded-cell-popover'
-import { COL_WIDTH, COLUMN_SIDEBAR_WIDTH_CSS, SELECTION_TINT_BG } from './constants'
+import { COL_WIDTH, COLUMN_SIDEBAR_WIDTH, SELECTION_TINT_BG } from './constants'
 import { ColumnHeaderMenu } from './headers/column-header-menu'
 import { COLUMN_TYPE_ICONS } from './headers/column-type-icon'
 import { WorkflowGroupMetaCell } from './headers/workflow-group-meta-cell'
@@ -375,20 +375,6 @@ export function Table({
     [displayColumns, tableWorkflowGroups]
   )
   const hasWorkflowGroup = headerGroups.some((g) => g.kind === 'workflow')
-
-  const maxPosition = rows.length > 0 ? rows[rows.length - 1].position : -1
-  const maxPositionRef = useRef(maxPosition)
-  maxPositionRef.current = maxPosition
-
-  const positionMap = useMemo(() => {
-    const map = new Map<number, TableRowType>()
-    for (const row of rows) {
-      map.set(row.position, row)
-    }
-    return map
-  }, [rows])
-  const positionMapRef = useRef(positionMap)
-  positionMapRef.current = positionMap
 
   const normalizedSelection = useMemo(
     () => computeNormalizedSelection(selectionAnchor, selectionFocus),
@@ -2666,29 +2652,31 @@ export function Table({
    */
   const contextMenuRowIds = useMemo<string[]>(() => {
     if (!contextMenu.isOpen || !contextMenu.row) return []
-    if (checkedRows.size > 0 && checkedRows.has(contextMenu.row.position)) {
+    if (checkedRows.size > 0 && checkedRows.has(contextMenu.row.id)) {
       const ids: string[] = []
-      for (const pos of checkedRows) {
-        const row = positionMap.get(pos)
-        if (row) ids.push(row.id)
+      for (const row of rows) {
+        if (checkedRows.has(row.id)) ids.push(row.id)
       }
       return ids.length > 0 ? ids : [contextMenu.row.id]
     }
     const sel = normalizedSelection
     if (sel) {
+      const contextRowArrayIndex = rows.findIndex((r) => r.id === contextMenu.row!.id)
       const isInSelection =
-        contextMenu.row.position >= sel.startRow && contextMenu.row.position <= sel.endRow
+        contextRowArrayIndex >= sel.startRow && contextRowArrayIndex <= sel.endRow
       if (isInSelection) {
         const ids: string[] = []
-        for (let r = sel.startRow; r <= sel.endRow; r++) {
-          const row = positionMap.get(r)
+        const start = Math.max(0, sel.startRow)
+        const end = Math.min(rows.length - 1, sel.endRow)
+        for (let r = start; r <= end; r++) {
+          const row = rows[r]
           if (row) ids.push(row.id)
         }
         return ids.length > 0 ? ids : [contextMenu.row.id]
       }
     }
     return [contextMenu.row.id]
-  }, [contextMenu.isOpen, contextMenu.row, checkedRows, normalizedSelection, positionMap])
+  }, [contextMenu.isOpen, contextMenu.row, checkedRows, normalizedSelection, rows])
 
   const selectedRowCount = contextMenuRowIds.length || 1
 
@@ -2702,12 +2690,11 @@ export function Table({
   const selectedRowIds = useMemo<string[] | null>(() => {
     if (checkedRows.size === 0) return null
     const ids: string[] = []
-    for (const pos of checkedRows) {
-      const row = positionMap.get(pos)
-      if (row) ids.push(row.id)
+    for (const row of rows) {
+      if (checkedRows.has(row.id)) ids.push(row.id)
     }
     return ids.length > 0 ? ids : null
-  }, [checkedRows, positionMap])
+  }, [checkedRows, rows])
 
   const { runningByRowId, totalRunning } = useMemo(() => {
     const byRow = new Map<string, number>()
@@ -2790,23 +2777,24 @@ export function Table({
   const actionBarRowIds = useMemo<string[]>(() => {
     if (checkedRows.size > 0) {
       const ids: string[] = []
-      for (const pos of checkedRows) {
-        const row = positionMap.get(pos)
-        if (row) ids.push(row.id)
+      for (const row of rows) {
+        if (checkedRows.has(row.id)) ids.push(row.id)
       }
       return ids
     }
     const sel = normalizedSelection
     if (sel && sel.endRow > sel.startRow) {
       const ids: string[] = []
-      for (let r = sel.startRow; r <= sel.endRow; r++) {
-        const row = positionMap.get(r)
+      const start = Math.max(0, sel.startRow)
+      const end = Math.min(rows.length - 1, sel.endRow)
+      for (let r = start; r <= end; r++) {
+        const row = rows[r]
         if (row) ids.push(row.id)
       }
       return ids
     }
     return []
-  }, [checkedRows, normalizedSelection, positionMap])
+  }, [checkedRows, normalizedSelection, rows])
   const runningInActionBarSelection = actionBarRowIds.reduce(
     (total, rowId) => total + (runningByRowId.get(rowId) ?? 0),
     0
@@ -2917,8 +2905,8 @@ export function Table({
           <div
             className='relative h-fit'
             style={{
-              width: `calc(${tableWidth}px + ${sidebarReservedWidth})`,
-              paddingRight: sidebarReservedWidth,
+              width: `calc(${tableWidth}px + ${sidebarReservedPx}px)`,
+              paddingRight: sidebarReservedPx,
             }}
           >
             <table
@@ -3087,61 +3075,41 @@ export function Table({
                   <TableBodySkeleton colCount={displayColCount} />
                 ) : (
                   <>
-                    {rows.map((row, index) => {
-                      const prevPosition = index > 0 ? rows[index - 1].position : -1
-                      const gapCount = queryOptions.filter ? 0 : row.position - prevPosition - 1
-                      return (
-                        <React.Fragment key={row.id}>
-                          {gapCount > 0 && (
-                            <PositionGapRows
-                              count={gapCount}
-                              startPosition={prevPosition + 1}
-                              columns={displayColumns}
-                              normalizedSelection={normalizedSelection}
-                              checkedRows={checkedRows}
-                              firstRowUnderHeader={prevPosition === -1}
-                              onCellMouseDown={handleCellMouseDown}
-                              onCellMouseEnter={handleCellMouseEnter}
-                              onRowToggle={handleRowToggle}
-                            />
-                          )}
-                          <DataRow
-                            row={row}
-                            columns={displayColumns}
-                            rowIndex={row.position}
-                            isFirstRow={row.position === 0}
-                            editingColumnName={
-                              editingCell?.rowId === row.id ? editingCell.columnName : null
-                            }
-                            initialCharacter={
-                              editingCell?.rowId === row.id ? initialCharacter : null
-                            }
-                            pendingCellValue={
-                              pendingUpdate && pendingUpdate.rowId === row.id
-                                ? pendingUpdate.data
-                                : null
-                            }
-                            normalizedSelection={normalizedSelection}
-                            onClick={handleCellClick}
-                            onDoubleClick={handleCellDoubleClick}
-                            onSave={handleInlineSave}
-                            onCancel={handleInlineCancel}
-                            onContextMenu={handleRowContextMenu}
-                            onCellMouseDown={handleCellMouseDown}
-                            onCellMouseEnter={handleCellMouseEnter}
-                            isRowChecked={checkedRows.has(row.position)}
-                            onRowToggle={handleRowToggle}
-                            runningCount={runningByRowId.get(row.id) ?? 0}
-                            hasWorkflowColumns={hasWorkflowColumns}
-                            isLargeRowCountTable={isLargeRowCountTable}
-                            onStopRow={handleStopRow}
-                            onRunRow={handleRunRow}
-                            workflowNameById={workflowNameById}
-                            workflowGroups={tableWorkflowGroups}
-                          />
-                        </React.Fragment>
-                      )
-                    })}
+                    {rows.map((row, index) => (
+                      <DataRow
+                        key={row.id}
+                        row={row}
+                        columns={displayColumns}
+                        rowIndex={index}
+                        isFirstRow={index === 0}
+                        editingColumnName={
+                          editingCell?.rowId === row.id ? editingCell.columnName : null
+                        }
+                        initialCharacter={editingCell?.rowId === row.id ? initialCharacter : null}
+                        pendingCellValue={
+                          pendingUpdate && pendingUpdate.rowId === row.id
+                            ? pendingUpdate.data
+                            : null
+                        }
+                        normalizedSelection={normalizedSelection}
+                        onClick={handleCellClick}
+                        onDoubleClick={handleCellDoubleClick}
+                        onSave={handleInlineSave}
+                        onCancel={handleInlineCancel}
+                        onContextMenu={handleRowContextMenu}
+                        onCellMouseDown={handleCellMouseDown}
+                        onCellMouseEnter={handleCellMouseEnter}
+                        isRowChecked={checkedRows.has(row.id)}
+                        onRowToggle={handleRowToggle}
+                        runningCount={runningByRowId.get(row.id) ?? 0}
+                        hasWorkflowColumns={hasWorkflowColumns}
+                        isLargeRowCountTable={isLargeRowCountTable}
+                        onStopRow={handleStopRow}
+                        onRunRow={handleRunRow}
+                        workflowNameById={workflowNameById}
+                        workflowGroups={tableWorkflowGroups}
+                      />
+                    ))}
                   </>
                 )}
               </tbody>
