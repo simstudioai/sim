@@ -285,9 +285,25 @@ export interface SharepointUploadedFile {
   lastModifiedDateTime?: string
 }
 
+export interface SharepointSkippedFile {
+  name: string
+  size: number
+  limit: number
+  reason: string
+}
+
+export interface SharepointUploadError {
+  name: string
+  error: string
+  status?: number
+}
+
 export interface SharepointUploadFileResponse extends ToolResponse {
   output: {
     uploadedFiles: SharepointUploadedFile[]
     fileCount: number
+    skippedFiles?: SharepointSkippedFile[]
+    skippedCount?: number
+    errors?: SharepointUploadError[]
   }
 }

@@ -1033,6 +1033,15 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       description: 'Array of uploaded file objects with id, name, webUrl, size',
     },
     fileCount: { type: 'number', description: 'Number of files uploaded' },
+    skippedFiles: {
+      type: 'json',
+      description: 'Array of skipped upload files (name, size, limit, reason)',
+    },
+    skippedCount: { type: 'number', description: 'Number of files skipped' },
+    errors: {
+      type: 'json',
+      description: 'Array of per-file upload errors (name, error, status)',
+    },
     nextPageUrl: {
       type: 'string',
       description: 'Microsoft Graph @odata.nextLink URL for the next page of results',
